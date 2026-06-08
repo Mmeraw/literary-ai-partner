@@ -8,7 +8,14 @@ import {
 import { type SlaeGroundingStatus } from './slae';
 import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
-import { hydrateLedgerCandidates, type HydrationOpportunity } from './candidateHydration';
+import {
+  hydrateLedgerCandidates,
+  HYDRATION_MODEL,
+  HYDRATION_PROMPT_VERSION,
+  type HydrationOpportunity,
+} from './candidateHydration';
+import { logRevisionEvent } from './logRevisionEvent';
+import type { CandidateRejectionTelemetry } from './telemetry';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -704,6 +711,118 @@ function summarizePreflight(opportunities: RevisionOpportunity[]): Record<string
     }
   }
   return summary;
+}
+
+function wordCount(raw: string | undefined): number {
+  if (!raw || !raw.trim()) return 0;
+  return raw.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function overlapScoreWithAnchor(candidate: string | undefined, anchor: string): number {
+  if (!candidate || !candidate.trim() || !anchor.trim()) return 0;
+  const candidateTokens = normalizedTokenSet(candidate);
+  const anchorTokens = normalizedTokenSet(anchor);
+  if (candidateTokens.size === 0 || anchorTokens.size === 0) return 0;
+  let overlap = 0;
+  for (const token of candidateTokens) {
+    if (anchorTokens.has(token)) overlap++;
+  }
+  return overlap / Math.max(Math.min(candidateTokens.size, anchorTokens.size), 1);
+}
+
+function deriveTelemetryRejectionReasons(opportunity: RevisionOpportunity): string[] {
+  const base = [...new Set(opportunity.preflight_reasons ?? [])];
+  const hydrationInputReasons = [
+    'hydration_context_not_found',
+    'hydration_anchor_truncated',
+    'hydration_placeholder_coordinates',
+    'hydration_input_contaminated',
+  ];
+  if (base.some((reason) => hydrationInputReasons.includes(reason))) {
+    base.push('hydration_input_incomplete');
+  }
+  if (base.length === 0 && opportunity.preflight_status === 'blocked') {
+    base.push('blocked_preflight');
+  }
+  if (base.length === 0 && opportunity.grounding_status !== 'supported') {
+    base.push('grounding_unsupported');
+  }
+  return [...new Set(base)];
+}
+
+function selectPrimaryRejectionReason(reasons: string[]): string {
+  const priority = [
+    'canon_authority_blocked',
+    'anchor_mismatch',
+    'truncated_anchor',
+    'testimony_fabrication_risk',
+    'hydration_input_incomplete',
+    'hydration_context_not_found',
+    'hydration_placeholder_coordinates',
+    'hydration_input_contaminated',
+    'hydration_candidate_rejected_overlap',
+  ];
+  for (const key of priority) {
+    if (reasons.includes(key)) return key;
+  }
+  return reasons[0] ?? 'blocked_preflight';
+}
+
+function hydrationResultForTelemetry(input: {
+  opportunity: RevisionOpportunity;
+  reasons: string[];
+  hydrationAttempted: boolean;
+}): string {
+  if (input.opportunity.grounding_status === 'supported') return 'supported';
+  if (input.reasons.includes('hydration_candidate_rejected_overlap')) return 'rejected_overlap';
+  if (input.reasons.includes('hydration_input_incomplete')) return 'input_incomplete';
+  if (input.hydrationAttempted) return 'attempted_rejected_or_unresolved';
+  if (input.opportunity.preflight_status === 'blocked') return 'blocked_preflight';
+  return 'not_attempted';
+}
+
+function buildRevisionCandidateRejectionTelemetry(input: {
+  opportunity: RevisionOpportunity;
+  jobId: string;
+  hydrationAttempted: boolean;
+  contextFound: boolean;
+  candidateGenerationStatus: string;
+}): CandidateRejectionTelemetry {
+  const { opportunity } = input;
+  const reasons = deriveTelemetryRejectionReasons(opportunity);
+  return {
+    opportunity_id: opportunity.opportunity_id,
+    rejection_reasons: reasons,
+    rejection_reason_primary: selectPrimaryRejectionReason(reasons),
+    criterion: opportunity.criterion,
+    severity: opportunity.severity,
+    revision_operation: opportunity.revision_operation ?? null,
+    job_id: input.jobId,
+    anchor_found: opportunity.evidence_anchor.trim().length > 0,
+    anchor_length_words: wordCount(opportunity.evidence_anchor),
+    candidate_word_counts: {
+      a: wordCount(opportunity.candidate_text_a),
+      b: wordCount(opportunity.candidate_text_b),
+      c: wordCount(opportunity.candidate_text_c),
+    },
+    candidate_anchor_overlap_scores: {
+      a: overlapScoreWithAnchor(opportunity.candidate_text_a, opportunity.evidence_anchor),
+      b: overlapScoreWithAnchor(opportunity.candidate_text_b, opportunity.evidence_anchor),
+      c: overlapScoreWithAnchor(opportunity.candidate_text_c, opportunity.evidence_anchor),
+    },
+    context_found: input.contextFound,
+    coordinates_placeholder: hasPlaceholderCoordinates(opportunity),
+    rationale_contaminated: hasContaminatedRationale(opportunity),
+    hydration_attempted: input.hydrationAttempted,
+    hydration_result: hydrationResultForTelemetry({
+      opportunity,
+      reasons,
+      hydrationAttempted: input.hydrationAttempted,
+    }),
+    prompt_version: HYDRATION_PROMPT_VERSION,
+    model: input.hydrationAttempted ? HYDRATION_MODEL : null,
+    candidate_generation_status: input.candidateGenerationStatus,
+  };
 }
 
 function explicitCandidateOrFallback(
@@ -1787,6 +1906,8 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   }
 
   let hydrationStatusSuffix = '';
+  const hydrationAttemptedByOpportunityId = new Set<string>();
+  const hydrationContextFoundByOpportunityId = new Map<string, boolean>();
   if (opportunities.length > 0) {
     const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
     if (openaiApiKey) {
@@ -1833,6 +1954,8 @@ export async function ensureRevisionOpportunityLedgerArtifact(
         }
 
         o.hydration_eligible = true;
+        hydrationAttemptedByOpportunityId.add(o.opportunity_id);
+        hydrationContextFoundByOpportunityId.set(o.opportunity_id, Boolean(manuscriptContext?.trim()));
         blockedOpps.push({
           opportunity_id: o.opportunity_id,
           evidence_anchor: o.evidence_anchor,
@@ -1931,6 +2054,33 @@ export async function ensureRevisionOpportunityLedgerArtifact(
 
   const now = new Date().toISOString();
   const artifactId = `revision_opportunity_ledger_v1:${randomUUID().slice(0, 16)}`;
+  const candidateGenerationStatus = (longformPayload
+    ? 'backend_filled_abc_v1_chunk_enriched_longform_enriched'
+    : chunkCachePayload
+      ? 'backend_filled_abc_v1_chunk_enriched'
+      : 'backend_filled_abc_v1') + hydrationStatusSuffix;
+
+  for (const opportunity of opportunities) {
+    if (!(opportunity.grounding_status !== 'supported' || opportunity.preflight_status === 'blocked')) continue;
+
+    const telemetry = buildRevisionCandidateRejectionTelemetry({
+      opportunity,
+      jobId,
+      hydrationAttempted: hydrationAttemptedByOpportunityId.has(opportunity.opportunity_id),
+      contextFound: hydrationContextFoundByOpportunityId.get(opportunity.opportunity_id) ?? !deriveTelemetryRejectionReasons(opportunity).includes('hydration_context_not_found'),
+      candidateGenerationStatus,
+    });
+
+    void logRevisionEvent({
+      evaluation_run_id: jobId,
+      event_type: 'proposal',
+      severity: 'warn',
+      event_code: 'REVISION_CANDIDATE_REJECTED',
+      message: `Revision candidate blocked (${telemetry.rejection_reason_primary}).`,
+      metadata: telemetry,
+    });
+  }
+
   const sourceHash = sourceHashFor({
     job_id: jobId,
     evaluation_source_hash: evaluationResultRow.source_hash ?? null,
@@ -1958,11 +2108,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     artifact_version: 'v1',
     source_hash: sourceHash,
     generated_at: now,
-    candidate_generation_status: (longformPayload
-      ? 'backend_filled_abc_v1_chunk_enriched_longform_enriched'
-      : chunkCachePayload
-        ? 'backend_filled_abc_v1_chunk_enriched'
-        : 'backend_filled_abc_v1') + hydrationStatusSuffix,
+    candidate_generation_status: candidateGenerationStatus,
     mode_contract: modeContractForMetadata(modeContract),
     genre_expectation_context: genreExpectationContext,
     revise_queue_preflight: {

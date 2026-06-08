@@ -20,7 +20,9 @@ import OpenAI from 'openai';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /** Model used for candidate generation. Override with EVAL_HYDRATION_MODEL env var. */
-const HYDRATION_MODEL = process.env.EVAL_HYDRATION_MODEL ?? 'gpt-4o-mini';
+export const HYDRATION_MODEL = process.env.EVAL_HYDRATION_MODEL ?? 'gpt-4o-mini';
+/** Version identifier for hydration prompt contract (never include prompt text in telemetry). */
+export const HYDRATION_PROMPT_VERSION = 'candidate_hydration_v1' as const;
 /** Hard cap on completion tokens per batch call. */
 const HYDRATION_MAX_TOKENS = 8000;
 /** Per-call timeout — generous enough for one batch, strict enough not to starve the serverless function. */

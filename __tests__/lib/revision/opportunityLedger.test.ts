@@ -3,6 +3,13 @@ import {
   ensureRevisionOpportunityLedgerArtifact,
 } from '@/lib/revision/opportunityLedger';
 import { candidateTextIsCopyPasteReady } from '@/lib/revision/reviseCardContract';
+import { logRevisionEvent } from '@/lib/revision/logRevisionEvent';
+
+jest.mock('@/lib/revision/logRevisionEvent', () => ({
+  logRevisionEvent: jest.fn(async () => undefined),
+}));
+
+const mockLogRevisionEvent = logRevisionEvent as jest.MockedFunction<typeof logRevisionEvent>;
 
 describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
   function makeRecommendation(index: number, priority: 'high' | 'medium' | 'low' = 'medium') {
@@ -347,6 +354,8 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
 jest.mock('@/lib/revision/candidateHydration', () => ({
   hydrateLedgerCandidates: jest.fn(),
   HYDRATION_MAX_BATCH_SIZE: 15,
+  HYDRATION_MODEL: 'gpt-4o-mini',
+  HYDRATION_PROMPT_VERSION: 'candidate_hydration_v1',
 }));
 
 import { hydrateLedgerCandidates } from '@/lib/revision/candidateHydration';
@@ -466,6 +475,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
   beforeEach(() => {
     process.env.OPENAI_API_KEY = OPENAI_KEY;
     mockHydrate.mockReset();
+    mockLogRevisionEvent.mockReset();
   });
 
   afterEach(() => {
@@ -768,5 +778,155 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     expect(opp.preflight_status).toBe('blocked');
     expect(opp.preflight_reasons).toContain('hydration_input_contaminated');
     expect(opp.admin_actions).toContain('Regenerate from source manuscript context');
+  });
+
+  it('emits REVISION_CANDIDATE_REJECTED for blocked opportunities with privacy-safe metadata only', async () => {
+    const upsertSpy = jest.fn();
+
+    const supabase = makeMinimalSupabase({
+      upsertSpy,
+      ledgerQualityReportContent: {
+        quality_report: {
+          gate_ready_status: 'blocked',
+          blocking_reasons: ['CANON_BLOCK'],
+          layer_truth_status: {
+            canonical_identity_layer: 'blocked',
+          },
+        },
+      },
+      criteriaRecommendations: [
+        {
+          diagnosis: 'Narrative momentum stalls at the hinge beat.',
+          recommendation: 'Bridge the hinge beat with one causal consequence sentence.',
+          anchor_snippet: 'He set the letter down and waited until the room went quiet.',
+          location_ref: 'chapter:4',
+          confidence: 0.73,
+        },
+      ],
+      manuscriptChunks: [{ content: 'He set the letter down and waited until the room went quiet.' }],
+    });
+
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-telemetry-canon-blocked');
+
+    const rejectionEvents = mockLogRevisionEvent.mock.calls
+      .map(([call]) => call as Record<string, unknown>)
+      .filter((event) => event.event_code === 'REVISION_CANDIDATE_REJECTED');
+
+    expect(rejectionEvents.length).toBeGreaterThan(0);
+    const event = rejectionEvents[0];
+    const metadata = event.metadata as Record<string, unknown>;
+
+    expect(metadata.rejection_reasons).toEqual(expect.arrayContaining(['canon_authority_blocked']));
+    expect(metadata).toMatchObject({
+      anchor_found: true,
+      context_found: true,
+      hydration_attempted: false,
+      prompt_version: 'candidate_hydration_v1',
+      candidate_generation_status: expect.any(String),
+    });
+
+    const bannedKeys = [
+      'manuscript_text',
+      'manuscript_context',
+      'evidence_anchor',
+      'anchor_text',
+      'rationale',
+      'candidate_text_a',
+      'candidate_text_b',
+      'candidate_text_c',
+      'dialogue_snippet',
+      'location_snippet',
+      'source_excerpt',
+    ];
+
+    for (const key of bannedKeys) {
+      expect(metadata).not.toHaveProperty(key);
+    }
+  });
+
+  it('emits overlap rejection telemetry with numeric diagnostics and no text-bearing payload', async () => {
+    const upsertSpy = jest.fn();
+    const manuscriptChunks = [
+      {
+        content: 'Nora folded the map, then looked at the doorway until the room understood she had already decided.',
+      },
+    ];
+
+    mockHydrate.mockImplementation(async (blockedOpps) => {
+      const rejectionReasons = new Map<string, string>();
+      for (const opp of blockedOpps) {
+        rejectionReasons.set(opp.opportunity_id, 'hydration_candidate_rejected_overlap');
+      }
+      return {
+        hydratedCount: 0,
+        skippedCount: 0,
+        candidates: new Map(),
+        rejectionReasons,
+      };
+    });
+
+    const supabase = makeMinimalSupabase({
+      upsertSpy,
+      criteriaRecommendations: [
+        {
+          diagnosis: 'The transition does not show the causal hinge clearly.',
+          recommendation: 'Clarify the hinge with one consequence-forward sentence before the next beat.',
+          anchor_snippet: manuscriptChunks[0].content,
+          location_ref: 'chapter:2 paragraph:3',
+          confidence: 0.79,
+          revision_operation: 'replace_selected_passage',
+        },
+      ],
+      manuscriptChunks,
+    });
+
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-telemetry-overlap');
+
+    const rejectionEvents = mockLogRevisionEvent.mock.calls
+      .map(([call]) => call as Record<string, unknown>)
+      .filter((event) => event.event_code === 'REVISION_CANDIDATE_REJECTED');
+
+    expect(rejectionEvents.length).toBeGreaterThan(0);
+    const metadata = rejectionEvents[0].metadata as Record<string, unknown>;
+
+    expect(metadata.rejection_reasons).toEqual(expect.arrayContaining(['hydration_candidate_rejected_overlap']));
+    expect(metadata).toMatchObject({
+      hydration_attempted: true,
+      hydration_result: 'rejected_overlap',
+      model: expect.any(String),
+      anchor_length_words: expect.any(Number),
+      candidate_word_counts: { a: expect.any(Number), b: expect.any(Number), c: expect.any(Number) },
+      candidate_anchor_overlap_scores: { a: expect.any(Number), b: expect.any(Number), c: expect.any(Number) },
+      coordinates_placeholder: false,
+      rationale_contaminated: false,
+      prompt_version: 'candidate_hydration_v1',
+    });
+
+    const candidateCounts = metadata.candidate_word_counts as Record<string, number>;
+    expect(candidateCounts.a).toBeGreaterThanOrEqual(0);
+    expect(candidateCounts.b).toBeGreaterThanOrEqual(0);
+    expect(candidateCounts.c).toBeGreaterThanOrEqual(0);
+
+    const overlap = metadata.candidate_anchor_overlap_scores as Record<string, number>;
+    expect(overlap.a).toBeGreaterThanOrEqual(0);
+    expect(overlap.b).toBeGreaterThanOrEqual(0);
+    expect(overlap.c).toBeGreaterThanOrEqual(0);
+
+    const bannedKeys = [
+      'manuscript_text',
+      'manuscript_context',
+      'evidence_anchor',
+      'anchor_text',
+      'rationale',
+      'candidate_text_a',
+      'candidate_text_b',
+      'candidate_text_c',
+      'dialogue_snippet',
+      'location_snippet',
+      'source_excerpt',
+    ];
+    for (const key of bannedKeys) {
+      expect(metadata).not.toHaveProperty(key);
+    }
   });
 });
