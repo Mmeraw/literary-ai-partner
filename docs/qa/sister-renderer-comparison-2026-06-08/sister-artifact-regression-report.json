@@ -1,0 +1,375 @@
+{
+  "generatedAt": "2026-06-08T16:45:27.170Z",
+  "rootDir": "/workspaces/literary-ai-partner/docs/qa/sister-renderer-comparison-2026-06-08",
+  "report": {
+    "baselineArtifactId": "revision-grade-sister (1).txt",
+    "artifacts": [
+      {
+        "artifactId": "Evaluation Report Sister WEBPAGE VIEW (different format)(1).pdf",
+        "role": "webpage browser-print PDF",
+        "checkpointCoverageRatio": 0.8571428571428571,
+        "presentCheckpoints": 12,
+        "totalCheckpoints": 14,
+        "checkpoints": [
+          {
+            "id": "title_block",
+            "label": "Title block / score metadata",
+            "present": true
+          },
+          {
+            "id": "one_paragraph_pitch",
+            "label": "One-paragraph pitch",
+            "present": true
+          },
+          {
+            "id": "one_sentence_pitch",
+            "label": "One-sentence pitch",
+            "present": true
+          },
+          {
+            "id": "premise",
+            "label": "Premise",
+            "present": true
+          },
+          {
+            "id": "content_warnings",
+            "label": "Content warnings",
+            "present": true
+          },
+          {
+            "id": "revision_opportunity_summary",
+            "label": "Revision opportunity summary",
+            "present": true
+          },
+          {
+            "id": "executive_summary",
+            "label": "Executive summary",
+            "present": true
+          },
+          {
+            "id": "top_strengths",
+            "label": "Top strengths",
+            "present": true
+          },
+          {
+            "id": "top_risks",
+            "label": "Top risks",
+            "present": true
+          },
+          {
+            "id": "top_recommendations",
+            "label": "Top recommendations",
+            "present": true
+          },
+          {
+            "id": "criteria_score_grid",
+            "label": "Criteria score grid",
+            "present": false
+          },
+          {
+            "id": "criterion_rationales_and_opportunities",
+            "label": "Criterion rationales and surfaced opportunities",
+            "present": false
+          },
+          {
+            "id": "confidence_explanation",
+            "label": "Confidence explanation",
+            "present": true
+          },
+          {
+            "id": "author_disclaimer",
+            "label": "Author disclaimer",
+            "present": true
+          }
+        ],
+        "contaminationCodes": [
+          "MALFORMED_WOULD_BECAUSE",
+          "OFF_TOPIC_SAFE_INJECTION_SITES",
+          "OFF_TOPIC_STUDIES_ARE_MIXED"
+        ]
+      },
+      {
+        "artifactId": "revision-grade-sister (1).pdf",
+        "role": "product PDF export",
+        "checkpointCoverageRatio": 0.9285714285714286,
+        "presentCheckpoints": 13,
+        "totalCheckpoints": 14,
+        "checkpoints": [
+          {
+            "id": "title_block",
+            "label": "Title block / score metadata",
+            "present": true
+          },
+          {
+            "id": "one_paragraph_pitch",
+            "label": "One-paragraph pitch",
+            "present": true
+          },
+          {
+            "id": "one_sentence_pitch",
+            "label": "One-sentence pitch",
+            "present": true
+          },
+          {
+            "id": "premise",
+            "label": "Premise",
+            "present": true
+          },
+          {
+            "id": "content_warnings",
+            "label": "Content warnings",
+            "present": true
+          },
+          {
+            "id": "revision_opportunity_summary",
+            "label": "Revision opportunity summary",
+            "present": true
+          },
+          {
+            "id": "executive_summary",
+            "label": "Executive summary",
+            "present": true
+          },
+          {
+            "id": "top_strengths",
+            "label": "Top strengths",
+            "present": true
+          },
+          {
+            "id": "top_risks",
+            "label": "Top risks",
+            "present": true
+          },
+          {
+            "id": "top_recommendations",
+            "label": "Top recommendations",
+            "present": true
+          },
+          {
+            "id": "criteria_score_grid",
+            "label": "Criteria score grid",
+            "present": true
+          },
+          {
+            "id": "criterion_rationales_and_opportunities",
+            "label": "Criterion rationales and surfaced opportunities",
+            "present": true
+          },
+          {
+            "id": "confidence_explanation",
+            "label": "Confidence explanation",
+            "present": false
+          },
+          {
+            "id": "author_disclaimer",
+            "label": "Author disclaimer",
+            "present": true
+          }
+        ],
+        "contaminationCodes": [
+          "MALFORMED_WOULD_BECAUSE",
+          "OFF_TOPIC_SAFE_INJECTION_SITES",
+          "OFF_TOPIC_STUDIES_ARE_MIXED"
+        ]
+      },
+      {
+        "artifactId": "revision-grade-sister (1).docx",
+        "role": "product Word export",
+        "checkpointCoverageRatio": 1,
+        "presentCheckpoints": 14,
+        "totalCheckpoints": 14,
+        "checkpoints": [
+          {
+            "id": "title_block",
+            "label": "Title block / score metadata",
+            "present": true
+          },
+          {
+            "id": "one_paragraph_pitch",
+            "label": "One-paragraph pitch",
+            "present": true
+          },
+          {
+            "id": "one_sentence_pitch",
+            "label": "One-sentence pitch",
+            "present": true
+          },
+          {
+            "id": "premise",
+            "label": "Premise",
+            "present": true
+          },
+          {
+            "id": "content_warnings",
+            "label": "Content warnings",
+            "present": true
+          },
+          {
+            "id": "revision_opportunity_summary",
+            "label": "Revision opportunity summary",
+            "present": true
+          },
+          {
+            "id": "executive_summary",
+            "label": "Executive summary",
+            "present": true
+          },
+          {
+            "id": "top_strengths",
+            "label": "Top strengths",
+            "present": true
+          },
+          {
+            "id": "top_risks",
+            "label": "Top risks",
+            "present": true
+          },
+          {
+            "id": "top_recommendations",
+            "label": "Top recommendations",
+            "present": true
+          },
+          {
+            "id": "criteria_score_grid",
+            "label": "Criteria score grid",
+            "present": true
+          },
+          {
+            "id": "criterion_rationales_and_opportunities",
+            "label": "Criterion rationales and surfaced opportunities",
+            "present": true
+          },
+          {
+            "id": "confidence_explanation",
+            "label": "Confidence explanation",
+            "present": true
+          },
+          {
+            "id": "author_disclaimer",
+            "label": "Author disclaimer",
+            "present": true
+          }
+        ],
+        "contaminationCodes": [
+          "MALFORMED_BENEFIT_FROM_ONE_BECAUSE",
+          "MALFORMED_WOULD_BECAUSE",
+          "OFF_TOPIC_SAFE_INJECTION_SITES",
+          "OFF_TOPIC_STUDIES_ARE_MIXED"
+        ]
+      },
+      {
+        "artifactId": "revision-grade-sister (1).txt",
+        "role": "product TXT export",
+        "checkpointCoverageRatio": 1,
+        "presentCheckpoints": 14,
+        "totalCheckpoints": 14,
+        "checkpoints": [
+          {
+            "id": "title_block",
+            "label": "Title block / score metadata",
+            "present": true
+          },
+          {
+            "id": "one_paragraph_pitch",
+            "label": "One-paragraph pitch",
+            "present": true
+          },
+          {
+            "id": "one_sentence_pitch",
+            "label": "One-sentence pitch",
+            "present": true
+          },
+          {
+            "id": "premise",
+            "label": "Premise",
+            "present": true
+          },
+          {
+            "id": "content_warnings",
+            "label": "Content warnings",
+            "present": true
+          },
+          {
+            "id": "revision_opportunity_summary",
+            "label": "Revision opportunity summary",
+            "present": true
+          },
+          {
+            "id": "executive_summary",
+            "label": "Executive summary",
+            "present": true
+          },
+          {
+            "id": "top_strengths",
+            "label": "Top strengths",
+            "present": true
+          },
+          {
+            "id": "top_risks",
+            "label": "Top risks",
+            "present": true
+          },
+          {
+            "id": "top_recommendations",
+            "label": "Top recommendations",
+            "present": true
+          },
+          {
+            "id": "criteria_score_grid",
+            "label": "Criteria score grid",
+            "present": true
+          },
+          {
+            "id": "criterion_rationales_and_opportunities",
+            "label": "Criterion rationales and surfaced opportunities",
+            "present": true
+          },
+          {
+            "id": "confidence_explanation",
+            "label": "Confidence explanation",
+            "present": true
+          },
+          {
+            "id": "author_disclaimer",
+            "label": "Author disclaimer",
+            "present": true
+          }
+        ],
+        "contaminationCodes": [
+          "MALFORMED_BENEFIT_FROM_ONE_BECAUSE",
+          "MALFORMED_WOULD_BECAUSE",
+          "OFF_TOPIC_SAFE_INJECTION_SITES",
+          "OFF_TOPIC_STUDIES_ARE_MIXED"
+        ]
+      }
+    ],
+    "deltasAgainstBaseline": [
+      {
+        "artifactId": "Evaluation Report Sister WEBPAGE VIEW (different format)(1).pdf",
+        "role": "webpage browser-print PDF",
+        "missingAgainstBaseline": [
+          "criteria_score_grid",
+          "criterion_rationales_and_opportunities"
+        ],
+        "additionalContaminationAgainstBaseline": [],
+        "coverageDelta": -0.1429
+      },
+      {
+        "artifactId": "revision-grade-sister (1).pdf",
+        "role": "product PDF export",
+        "missingAgainstBaseline": [
+          "confidence_explanation"
+        ],
+        "additionalContaminationAgainstBaseline": [],
+        "coverageDelta": -0.0714
+      },
+      {
+        "artifactId": "revision-grade-sister (1).docx",
+        "role": "product Word export",
+        "missingAgainstBaseline": [],
+        "additionalContaminationAgainstBaseline": [],
+        "coverageDelta": 0
+      }
+    ]
+  }
+}

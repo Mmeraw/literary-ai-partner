@@ -66,6 +66,7 @@
     "a6:run": "npx tsx -r tsconfig-paths/register scripts/a6/run-a6-evidence.ts",
     "phase2.7:real-run": "npx tsx -r tsconfig-paths/register scripts/pipeline/run-phase2-7-real-run.ts",
     "phase2.7:dominatus-harness": "npx tsx -r tsconfig-paths/register scripts/pipeline/run-dominatus-i4-eval.ts",
+    "qa:sister:compare": "npx tsx -r tsconfig-paths/register scripts/evaluation/sister-artifact-regression-comparator.ts",
     "gate:replay": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts",
     "gate:replay:strict": "npx tsx -r tsconfig-paths/register scripts/pipeline/gate-replay-check.ts --fail-on-any",
     "sipoc:validate": "npx tsx -r tsconfig-paths/register scripts/validate-sipoc-fixtures.ts",
