@@ -1207,12 +1207,14 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
   const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(evaluationPayload);
 
   // Stable-artifact guard: skip rebuild when the artifact is already fully enriched
-  // (either via longform synthesis or the AI candidate hydration pass).
+  // (either via longform synthesis or a *complete* AI hydration pass).
+  // 'ai_hydrated_partial' is intentionally excluded — partial hydration means some
+  // opportunities are still blocked and should be retried on the next workbench load.
   const existingLedgerStable =
     isRecord(existingLedgerRow?.content) &&
     typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
     (existingLedgerRow.content.candidate_generation_status.includes('longform_enriched') ||
-     existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated'));
+     existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete'));
 
   if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerStable) {
     const healed = capRevisionOpportunities(
@@ -1318,11 +1320,20 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
                 opp.grounding_note = null;
               }
             }
-            hydrationStatusSuffix = '_ai_hydrated';
+            // Use 'complete' only when every blocked opportunity was successfully
+            // hydrated — this gates the stable-artifact cache guard. If any
+            // opportunity is still blocked, use 'partial' so the next workbench
+            // load retries rather than caching the incomplete result permanently.
+            const stillBlocked = opportunities.filter(
+              (o) => !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c,
+            ).length;
+            hydrationStatusSuffix = stillBlocked === 0
+              ? '_ai_hydrated_complete'
+              : '_ai_hydrated_partial';
           }
           console.log(
             `[CandidateHydration] ${jobId}: hydrated=${hydration.hydratedCount}` +
-            ` skipped=${hydration.skippedCount} of ${blockedOpps.length} blocked`,
+            ` of ${blockedOpps.length} blocked; suffix=${hydrationStatusSuffix || '(none)'}`,
           );
         } catch (hydrationErr) {
           console.error(
