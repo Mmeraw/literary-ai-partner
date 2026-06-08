@@ -358,8 +358,14 @@ jest.mock('@/lib/revision/candidateHydration', () => ({
   HYDRATION_PROMPT_VERSION: 'candidate_hydration_v1',
 }));
 
+jest.mock('@/lib/revision/candidateRegeneration', () => ({
+  regenerateCandidatesForQualityFailed: jest.fn(),
+}));
+
 import { hydrateLedgerCandidates } from '@/lib/revision/candidateHydration';
+import { regenerateCandidatesForQualityFailed } from '@/lib/revision/candidateRegeneration';
 const mockHydrate = hydrateLedgerCandidates as jest.MockedFunction<typeof hydrateLedgerCandidates>;
+const mockRegen = regenerateCandidatesForQualityFailed as jest.MockedFunction<typeof regenerateCandidatesForQualityFailed>;
 
 /** Build N distinct recommendations whose anchor_snippet and rationale are long enough
  *  to form valid opportunities but have NO candidate_text_a/b/c (i.e. they will be SLAE-blocked). */
@@ -475,7 +481,13 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
   beforeEach(() => {
     process.env.OPENAI_API_KEY = OPENAI_KEY;
     mockHydrate.mockReset();
+    mockRegen.mockReset();
     mockLogRevisionEvent.mockReset();
+    // Default: regen returns no healed candidates (fail-closed)
+    mockRegen.mockResolvedValue({
+      healed: new Map(),
+      stillFailed: new Map(),
+    });
   });
 
   afterEach(() => {
@@ -962,5 +974,115 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     for (const key of bannedKeys) {
       expect(metadata).not.toHaveProperty(key);
     }
+  });
+
+  it('calls regeneration for quality-failed hydrated opportunities and heals them', async () => {
+    const rec = {
+      diagnosis: 'The transition beat is absent.',
+      recommendation: 'Insert a concrete bridge beat that shows Nora registering the implication before she moves.',
+      anchor_snippet: 'Nora folded the map, then looked at the doorway until the room understood she had already decided.',
+      location_ref: 'chapter:3 passage:regen-heal',
+      confidence: 0.82,
+      revision_operation: 'insert_after_selected_passage',
+    };
+    const manuscriptChunks = [{ content: rec.anchor_snippet }];
+    const upsertSpy = jest.fn();
+
+    // Hydration returns quality-failing prose (generic advice triggers quality gate)
+    mockHydrate.mockImplementation(async (blockedOpps) => {
+      const candidatesMap = new Map(
+        blockedOpps.map((o: { opportunity_id: string }) => [
+          o.opportunity_id,
+          {
+            candidate_text_a: 'This passage should be revised to clarify the narrative for the reader.',
+            candidate_text_b: 'The scene needs to strengthen its thematic stakes for better manuscript impact.',
+            candidate_text_c: 'Consider rewriting the section to improve transition and narrative flow.',
+          },
+        ]),
+      );
+      return { hydratedCount: blockedOpps.length, skippedCount: 0, candidates: candidatesMap };
+    });
+
+    // Regeneration returns healed, copy-ready prose
+    mockRegen.mockImplementation(async (opps) => {
+      const healed = new Map(
+        opps.map((o: { opportunity_id: string }) => [
+          o.opportunity_id,
+          {
+            candidate_text_a: 'Nora pressed her fingertips against the doorframe before she let herself follow the decision she had already made.',
+            candidate_text_b: 'The map sat folded in her hands while the room caught up to what the doorway had already told her.',
+            candidate_text_c: 'Nora stood at the threshold a moment longer, letting the quiet behind her settle before she moved into what came next.',
+          },
+        ]),
+      );
+      return { healed, stillFailed: new Map() };
+    });
+
+    const supabase = makeMinimalSupabase({ criteriaRecommendations: [rec], manuscriptChunks, upsertSpy });
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-regen-heals');
+
+    // Regen must have been invoked (quality gate triggered it)
+    expect(mockRegen).toHaveBeenCalledTimes(1);
+
+    // Final persisted opportunity must be supported (healed by regen)
+    const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+    const opps = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opps.length).toBe(1);
+    expect(opps[0].grounding_status).toBe('supported');
+    expect(opps[0].preflight_status).toBe('passed');
+    expect(typeof opps[0].candidate_text_a).toBe('string');
+    expect((opps[0].candidate_text_a as string).length).toBeGreaterThan(20);
+  });
+
+  it('fails closed when regen also fails quality — card stays blocked with regen reason code', async () => {
+    const rec = {
+      diagnosis: 'The transition beat is absent.',
+      recommendation: 'Insert a concrete bridge beat.',
+      anchor_snippet: 'Nora folded the map, then looked at the doorway until the room understood she had already decided.',
+      location_ref: 'chapter:3 passage:regen-fail',
+      confidence: 0.82,
+      revision_operation: 'insert_after_selected_passage',
+    };
+    const manuscriptChunks = [{ content: rec.anchor_snippet }];
+    const upsertSpy = jest.fn();
+
+    // Hydration returns quality-failing prose
+    mockHydrate.mockImplementation(async (blockedOpps) => {
+      const candidatesMap = new Map(
+        blockedOpps.map((o: { opportunity_id: string }) => [
+          o.opportunity_id,
+          {
+            candidate_text_a: 'This passage should be revised to clarify the narrative for the reader.',
+            candidate_text_b: 'The scene needs to strengthen its thematic stakes for better manuscript impact.',
+            candidate_text_c: 'Consider rewriting the section to improve transition and narrative flow.',
+          },
+        ]),
+      );
+      return { hydratedCount: blockedOpps.length, skippedCount: 0, candidates: candidatesMap };
+    });
+
+    // Regen also fails — all opportunities still-failed
+    mockRegen.mockImplementation(async (opps) => {
+      const stillFailed = new Map(
+        opps.map((o: { opportunity_id: string }) => [
+          o.opportunity_id,
+          ['candidate_quality_failed_after_regen'],
+        ]),
+      );
+      return { healed: new Map(), stillFailed };
+    });
+
+    const supabase = makeMinimalSupabase({ criteriaRecommendations: [rec], manuscriptChunks, upsertSpy });
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-regen-still-fails');
+
+    expect(mockRegen).toHaveBeenCalledTimes(1);
+
+    // Card must remain blocked — fail closed
+    const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+    const opps = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opps.length).toBe(1);
+    expect(opps[0].grounding_status).toBe('unsupported_blocked');
+    expect(opps[0].preflight_status).toBe('blocked');
+    expect(opps[0].preflight_reasons).toContain('candidate_quality_failed_after_regen');
   });
 });
