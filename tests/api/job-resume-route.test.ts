@@ -230,7 +230,7 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     }));
   });
 
-  test('keeps generic QG_FAILED terminal when it is not the fixed short-form leak', async () => {
+  test('allows generic QG_FAILED resume when failure is after phase_0', async () => {
     mockIsTerminalFailureCode.mockImplementation(
       (code: string | null | undefined) => code === 'USER_CANCELLED' || code === 'QG_FAILED',
     );
@@ -241,6 +241,39 @@ describe('POST /api/jobs/[jobId]/resume', () => {
         code: 'QG_FAILED',
         message: '[QualityGate] QG_FAILED: evidence anchors missing',
       },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { success: boolean; target_phase: string };
+
+    expect(response.status).toBe(202);
+    expect(json.success).toBe(true);
+    expect(json.target_phase).toBe('phase_3');
+
+    const updatePayload = firstUpdatePayload(admin);
+    expect(updatePayload).toEqual(expect.objectContaining({
+      status: 'queued',
+      phase_status: 'queued',
+      last_error: null,
+      failure_code: null,
+      failure_envelope: null,
+    }));
+    expect(mockTriggerEvaluationWorker).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'job-resume-1',
+      source: 'api.jobs.resume',
+    }));
+  });
+
+  test('keeps terminal block for phase_0 failures', async () => {
+    mockIsTerminalFailureCode.mockImplementation(
+      (code: string | null | undefined) => code === 'USER_CANCELLED' || code === 'QG_FAILED',
+    );
+    const admin = makeAdminMock(makeJob({
+      phase: 'phase_0',
+      failure_code: 'QG_FAILED',
+      last_error: '[QualityGate] QG_FAILED at phase_0',
+      progress: { phase: 'phase_0', phase_status: 'failed' },
     }));
     mockCreateAdminClient.mockReturnValue(admin as never);
 

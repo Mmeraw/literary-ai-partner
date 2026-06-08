@@ -44,16 +44,16 @@ describe('evaluate job page query contract', () => {
     expect(source).toContain('<HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />');
   });
 
-  test('report header uses trailing confidence cells instead of inline squeezed badges', () => {
+  test('report header uses spaced columns and right-side preview panel', () => {
     expect(source).toContain('const HeaderField = ({');
-    expect(source).toContain('sm:grid-cols-[minmax(0,1fr)_max-content]');
-    expect(source).toContain('sm:pt-6 sm:text-right');
+    expect(source).toContain('lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]');
+    expect(source).toContain('gap-x-12 gap-y-5');
+    expect(source).toContain('rounded-lg border border-stone-200 bg-stone-50 p-4');
     expect(source).toContain('whitespace-nowrap rounded-full');
     expect(source).toContain('label="Genre"');
     expect(source).toContain('label="Market Readiness"');
     expect(source).toContain('label="Target Audience"');
     expect(source).toContain('label="Shelf"');
-    expect(source).toContain('gap-x-8 gap-y-4');
   });
 
   test('unavailable state uses an active no-cache reload control instead of a same-route link', () => {

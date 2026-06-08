@@ -867,13 +867,11 @@ export default async function EvaluationReportPage({
     capitalize?: boolean;
     wide?: boolean;
   }) => (
-    <div className={`grid gap-2 ${wide ? "sm:col-span-2 lg:col-span-3" : ""} sm:grid-cols-[minmax(0,1fr)_max-content] sm:items-start`}>
-      <div className="min-w-0">
-        <dt className="font-semibold text-stone-950">{label}</dt>
-        <dd className={`${capitalize ? "capitalize " : ""}text-stone-700`}>{value}</dd>
-      </div>
+    <div className={`min-w-0 ${wide ? "sm:col-span-2 lg:col-span-3" : ""}`}>
+      <dt className="font-semibold text-stone-950">{label}</dt>
+      <dd className={`${capitalize ? "capitalize " : ""}text-stone-700`}>{value}</dd>
       {confidenceLabel && (
-        <dd className="sm:pt-6 sm:text-right">
+        <dd className="mt-1">
           <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(confidenceLabel)}`}>
             {confidenceLabel}
           </span>
@@ -885,7 +883,7 @@ export default async function EvaluationReportPage({
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F6F1' }}>
       <style>{`@media print { header, nav, footer, [data-print-hidden="true"] { display: none !important; } body { background: #fff !important; } .rg-print-report { max-width: none !important; padding: 0 !important; } .rg-report-section { break-inside: avoid; page-break-inside: avoid; } }`}</style>
-      <main className="rg-print-report mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6 print:max-w-none print:px-0 print:py-0">
+      <main className="rg-print-report mx-auto w-full max-w-[1500px] px-4 py-4 sm:px-8 sm:py-6 lg:px-10 print:max-w-none print:px-0 print:py-0">
       <div className="mb-4 rounded-xl border border-stone-300 bg-white p-4 shadow-sm sm:p-5 print:border-0 print:shadow-none">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
@@ -896,60 +894,63 @@ export default async function EvaluationReportPage({
             )}
             <p className="mt-2 text-sm text-stone-500">
               <span className="font-medium text-stone-700">Reference ID:</span>{' '}
-              <span className="font-mono text-stone-900">{jobId}</span>{' '}
+              <span className="break-all font-mono text-stone-900">{jobId}</span>{' '}
               <CopyReferenceIdButton
                 value={jobId}
                 className="ml-2 inline-flex items-center rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
               />
             </p>
-            <dl className="mt-4 grid gap-x-8 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-              <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
-              <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
-              <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
-              <HeaderField label="Genre" value={genre} confidenceLabel={genreConfidenceLabel} capitalize />
-              {canonicalDoc?.titleBlock.shelf && (
-                <HeaderField label="Shelf" value={canonicalDoc.titleBlock.shelf} confidenceLabel={shelfConfidenceLabel} />
-              )}
-              {canonicalDoc?.titleBlock.genreExpectationContract && (
-                <div className="sm:col-span-2 lg:col-span-3">
-                  <dt className="font-semibold text-stone-950">Genre Expectations</dt>
-                  <dd className="text-stone-700">
-                    {canonicalDoc.titleBlock.genreExpectationContract.contractSummary}
-                    {canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 && (
-                      <span className="ml-2 text-stone-500">
-                        Reader emphasis: {canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}
-                      </span>
-                    )}
-                  </dd>
-                </div>
-              )}
-              <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.submittedWordCount ?? (typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating')}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.estimatedPages ?? (estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available')}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.readingGradeLevel ?? ((artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.floor(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available')}</dd></div>
-              <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.dialogueNarrativeRatio ?? ((artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${Math.floor(Number(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage))}% dialogue / ${Math.floor(Number(artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)))}% narrative` : 'Not available')}</dd></div>
-              <HeaderField label="Market Readiness" value={verdict} confidenceLabel={marketReadinessConfidenceLabel} />
-              <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="text-stone-700">{generatedLabel}</dd></div>
-              <HeaderField
-                label="Target Audience"
-                value={
-                  <>
-                    {audienceConfidence.tentative && (
-                      <span className="mr-1 text-stone-500 italic">Tentative:</span>
-                    )}
-                    <span>{targetAudience}</span>
-                  </>
-                }
-                confidenceLabel={audienceConfidence.label}
-              />
+            <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)] lg:items-start">
+              <dl className="grid gap-x-12 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
+                <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
+                <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
+                <HeaderField label="Genre" value={genre} confidenceLabel={genreConfidenceLabel} capitalize />
+                {canonicalDoc?.titleBlock.shelf && (
+                  <HeaderField label="Shelf" value={canonicalDoc.titleBlock.shelf} confidenceLabel={shelfConfidenceLabel} />
+                )}
+                {canonicalDoc?.titleBlock.genreExpectationContract && (
+                  <div className="sm:col-span-2 xl:col-span-3">
+                    <dt className="font-semibold text-stone-950">Genre Expectations</dt>
+                    <dd className="text-stone-700">
+                      {canonicalDoc.titleBlock.genreExpectationContract.contractSummary}
+                      {canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 && (
+                        <span className="ml-2 text-stone-500">
+                          Reader emphasis: {canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                )}
+                <div><dt className="font-semibold text-stone-950">Submitted Word Count</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.submittedWordCount ?? (typeof displayWordCount === 'number' ? displayWordCount.toLocaleString() : 'Calculating')}</dd></div>
+                <div><dt className="font-semibold text-stone-950">Estimated Manuscript Pages</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.estimatedPages ?? (estimatedPages ? `${estimatedPages.toLocaleString()} at 250 words/page` : 'Not available')}</dd></div>
+                <div><dt className="font-semibold text-stone-950">Reading Grade Level</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.readingGradeLevel ?? ((artifact?.enrichment?.reading_grade_level ?? instantReadingGrade) != null ? `${Math.floor(Number(artifact?.enrichment?.reading_grade_level ?? instantReadingGrade))} (Flesch-Kincaid)` : 'Not available')}</dd></div>
+                <div><dt className="font-semibold text-stone-950">Dialogue/Narrative Ratio</dt><dd className="text-stone-700">{canonicalDoc?.titleBlock.dialogueNarrativeRatio ?? ((artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage) != null ? `${Math.floor(Number(artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage))}% dialogue / ${Math.floor(Number(artifact?.enrichment?.narrative_percentage ?? instantNarrativePercentage ?? 100 - (artifact?.enrichment?.dialogue_percentage ?? instantDialoguePercentage ?? 0)))}% narrative` : 'Not available')}</dd></div>
+                <HeaderField label="Market Readiness" value={verdict} confidenceLabel={marketReadinessConfidenceLabel} />
+                <div><dt className="font-semibold text-stone-950">Date Generated</dt><dd className="text-stone-700">{generatedLabel}</dd></div>
+                <HeaderField
+                  label="Target Audience"
+                  value={
+                    <>
+                      {audienceConfidence.tentative && (
+                        <span className="mr-1 text-stone-500 italic">Tentative:</span>
+                      )}
+                      <span>{targetAudience}</span>
+                    </>
+                  }
+                  confidenceLabel={audienceConfidence.label}
+                />
+              </dl>
+
               {submissionPreview && (
-                <div className="sm:col-span-2 lg:col-span-3">
-                  <dt className="font-semibold text-stone-950">Submission Preview</dt>
-                  <dd className="mt-1 max-w-4xl rounded-lg border border-stone-200 bg-stone-50 p-3 text-stone-700">
+                <section className="rounded-lg border border-stone-200 bg-stone-50 p-4">
+                  <h2 className="font-semibold text-stone-950">Submission Preview</h2>
+                  <p className="mt-2 text-stone-700">
                     {submissionPreview}
-                  </dd>
-                </div>
+                  </p>
+                </section>
               )}
-            </dl>
+            </div>
           </div>
 
           <aside className="grid w-full shrink-0 gap-4 lg:w-72">

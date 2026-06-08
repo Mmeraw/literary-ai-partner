@@ -45,6 +45,14 @@ function isRecoverableLegacyShortFormLeakFailure(params: {
   );
 }
 
+function isPhase0Failure(params: {
+  phase: unknown;
+  progress: Record<string, unknown>;
+}): boolean {
+  if (params.phase === 'phase_0') return true;
+  return params.progress.phase === 'phase_0';
+}
+
 /**
  * POST /api/jobs/[jobId]/resume
  *
@@ -122,7 +130,12 @@ export async function POST(
       );
     }
 
-    if (isTerminalFailureCode(jobFailureCode) && !recoverableLegacyShortFormLeakFailure) {
+    const phase0Failure = isPhase0Failure({
+      phase: jobRow.phase,
+      progress: jobProgress,
+    });
+
+    if (isTerminalFailureCode(jobFailureCode) && !recoverableLegacyShortFormLeakFailure && phase0Failure) {
       const deniedAt = new Date().toISOString();
       const bucket = classifyFailureBucket(jobFailureCode);
 
@@ -160,7 +173,7 @@ export async function POST(
 
       return NextResponse.json(
         {
-          error: `Job cannot be resumed: failure code '${jobFailureCode}' is a terminal error that cannot be recovered by retrying. Review the evaluation report for details.`,
+          error: `Job cannot be resumed: failure code '${jobFailureCode}' is a Phase 0 terminal error. Start a new evaluation to rebuild prerequisites.`,
           failure_code: jobFailureCode,
           bucket,
           resumable: false,

@@ -205,10 +205,27 @@ export function FailedJobRecovery({
     return (
       <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50 p-5">
         <p className="text-sm text-amber-800">
-          This evaluation could not be completed from the current saved state. Please start a new
-          evaluation.
+          This issue may be recoverable. Continue will ask RevisionGrade to resume from the last
+          known safe checkpoint. You do not need to upload your manuscript again unless the
+          problem continues.
         </p>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onResume}
+            disabled={resumeLoading || resumed}
+            className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {resumeLoading ? (
+              <>
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                Continuing evaluation…
+              </>
+            ) : resumed ? (
+              "Evaluation Continuing"
+            ) : (
+              "Continue Evaluation"
+            )}
+          </button>
           <Link
             href="/evaluate"
             className="inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
@@ -228,6 +245,11 @@ export function FailedJobRecovery({
             buttonClassName="inline-flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-800"
           />
         </div>
+        {resumeError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2">
+            <p className="text-xs text-red-700">{resumeError}</p>
+          </div>
+        )}
       </div>
     );
   }

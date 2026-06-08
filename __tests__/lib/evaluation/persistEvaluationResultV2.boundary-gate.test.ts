@@ -6,6 +6,7 @@ import { runEvaluationBackwardRelook } from "@/lib/evaluation/backwardRelook";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { persistEvaluationResultV2 } from "../../../lib/evaluation/persistEvaluationResultV2";
+import { validateEvaluationArtifact as validateStructuralArtifact } from "@/lib/evaluation/validateEvaluationArtifact";
 
 function isIsoTimestamp(value: unknown): boolean {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -447,5 +448,46 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
       reportPersistence: "block",
     });
     expect(decision.reasonCodes).toContain("FALLBACK_GENERATOR_USED");
+  });
+
+  test("auto-repairs truncated recommendation actions and persists instead of hard-failing", async () => {
+    const supabase = makeSupabaseStub();
+    const resultWithTruncatedRec = makeValidEvaluationResultV2();
+
+    resultWithTruncatedRec.criteria[0].recommendations = [
+      {
+        priority: "medium",
+        action: "Merge this recommendation with the.",
+        expected_impact: "Improves criterion clarity and execution consistency.",
+      },
+    ];
+
+    const persistResult = await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-truncated-auto-repair",
+      manuscriptId: 109,
+      evaluationResult: resultWithTruncatedRec,
+      sourceHash: "sha256:truncated-auto-repair",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 5,
+    });
+
+    expect(persistResult.persisted).toBe(true);
+    expect(supabase.rpcCalls).toHaveLength(1);
+
+    const persistedArtifact = supabase.rpcCalls[0].payload.p_artifact_content as EvaluationResultV2;
+    const persistedProgress = supabase.rpcCalls[0].payload.p_progress as Record<string, unknown>;
+    const repairedAction = persistedArtifact.criteria[0].recommendations[0]?.action;
+
+    expect(typeof repairedAction).toBe("string");
+    expect(repairedAction).not.toBe("Merge this recommendation with the.");
+    const structuralValidation = validateStructuralArtifact(persistedArtifact);
+    expect(structuralValidation.ok).toBe(true);
+
+    expect(persistedProgress.recoverable_repair_applied).toBe(true);
+    expect(persistedProgress.recoverable_repair_code).toBe("CRITERION_RECOMMENDATION_TRUNCATED");
+    expect(persistedProgress.recoverable_repair_result).toBe("passed_after_revalidation");
+    expect(isIsoTimestamp(persistedProgress.recoverable_repair_at)).toBe(true);
   });
 });
