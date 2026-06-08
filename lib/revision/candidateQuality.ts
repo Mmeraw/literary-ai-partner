@@ -96,7 +96,7 @@ function candidateLooksLikeCommentary(text: string): boolean {
 function hasUnsupportedEntity(input: CandidateQualityInput, text: string): boolean {
   const known = new Set([...(input.knownEntities ?? []), ...(input.allowedNewEntities ?? [])].map((x) => x.toLowerCase()));
   if (known.size === 0) return false;
-  const properNouns = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) ?? [];
+  const properNouns: string[] = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) ?? [];
   return properNouns.some((name) => !known.has(name.toLowerCase()));
 }
 
@@ -214,6 +214,17 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
     if (b.has(token)) intersection++;
   }
   return intersection / (a.size + b.size - intersection);
+}
+
+const SPELLED_NUMBER_PATTERN = /\b(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[-\s](?:one|two|three|four|five|six|seven|eight|nine))?\b|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)\s+(?:hundred|thousand|million|billion)(?:\s+(?:and\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety))?\b/gi;
+
+function extractSpelledNumberPhrases(text: string): Set<string> {
+  const matches = text.match(SPELLED_NUMBER_PATTERN) ?? [];
+  return new Set(
+    matches
+      .map((value) => value.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean),
+  );
 }
 
 function overlapRatio(a: string, b: string): number {
@@ -357,6 +368,12 @@ function introducesUnsupportedFacts(candidate: string, anchor: string): boolean 
     if (!anchorNumbers.has(num)) return true;
   }
 
+  const candidateSpelledNumbers = extractSpelledNumberPhrases(candidate);
+  const anchorSpelledNumbers = extractSpelledNumberPhrases(anchor);
+  for (const phrase of candidateSpelledNumbers) {
+    if (!anchorSpelledNumbers.has(phrase)) return true;
+  }
+
   const candidateNames = (candidate.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((n) => n.toLowerCase());
   const anchorNames = new Set((anchor.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((n) => n.toLowerCase()));
   let unseenNames = 0;
@@ -448,6 +465,15 @@ export function evaluateCardQuality(
     evaluateLedgerCandidateQuality(candidateB, anchor, rationale),
     evaluateLedgerCandidateQuality(candidateC, anchor, rationale),
   ];
+
+  const hasHardFillerFailure = resultsPerCandidate.some((reasons) =>
+    reasons.includes('candidate_quality_generic_filler'),
+  );
+
+  if (hasHardFillerFailure) {
+    const mergedReasons = [...new Set(resultsPerCandidate.flat())] as CandidateQualityReasonCode[];
+    return { pass: false, passingCount: 0, reasons: mergedReasons };
+  }
 
   const passingCount = resultsPerCandidate.filter((reasons) => reasons.length === 0).length;
 

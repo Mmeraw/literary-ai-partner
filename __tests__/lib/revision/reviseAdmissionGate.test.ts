@@ -21,7 +21,7 @@ const workbenchBase = {
   options: [
     { key: 'A', candidateText: 'He kept one hand on the doorframe and listened for her answer.' },
     { key: 'B', candidateText: 'He stayed beside the door, counting the seconds until she moved.' },
-    { key: 'C', candidateText: 'The silence stretched until the room seemed smaller.' },
+    { key: 'C', candidateText: 'He waited through one more breath before he answered, and the doorway held the pause in place.' },
   ],
 };
 
@@ -31,9 +31,10 @@ describe('reviseAdmissionGate', () => {
       ...base,
       candidate_text_a: 'He kept one hand on the doorframe and listened for her answer.',
       candidate_text_b: 'He stayed beside the door, counting the seconds until she moved.',
-      candidate_text_c: 'The silence stretched until the room seemed smaller.',
+      candidate_text_c: 'He waited through one more breath before he answered, and the doorway held the pause in place.',
     });
     expect(result.admission_status).toBe('admission_passed');
+    expect(result.passedCandidateCount).toBeGreaterThanOrEqual(2);
   });
 
   it('withholds unsupported cards', () => {
@@ -45,7 +46,7 @@ describe('reviseAdmissionGate', () => {
   it('admits workbench cards through the same Volume VII gate', () => {
     const result = runWorkbenchAdmissionGate(workbenchBase);
     expect(result.admission_status).toBe('admission_passed');
-    expect(result.passedCandidateCount).toBe(2);
+    expect(result.passedCandidateCount).toBe(3);
   });
 
   it('withholds workbench cards that are not ready for revise', () => {
@@ -61,6 +62,19 @@ describe('reviseAdmissionGate', () => {
         { key: 'A', candidateText: 'The silence stretched.' },
         { key: 'B', candidateText: 'The air grew heavy.' },
         { key: 'C', candidateText: 'Something shifted.' },
+      ],
+    });
+    expect(result.admission_status).toBe('withheld');
+    expect(result.reasons).toContain('GENERIC_PROSE');
+  });
+
+  it('withholds workbench cards when any candidate uses banned generic filler phrasing', () => {
+    const result = runWorkbenchAdmissionGate({
+      ...workbenchBase,
+      options: [
+        { key: 'A', candidateText: 'He kept one hand on the doorframe and listened for her answer.' },
+        { key: 'B', candidateText: 'He stayed beside the door, counting the seconds until she moved.' },
+        { key: 'C', candidateText: 'He looked away first, and that was enough for the moment to claim its price.' },
       ],
     });
     expect(result.admission_status).toBe('withheld');

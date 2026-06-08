@@ -22,6 +22,7 @@ import {
   resolveRevisionModeContract,
   type RevisionModeContract,
 } from './modeContract'
+import { runWorkbenchAdmissionGate } from './reviseAdmissionGate'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -1285,8 +1286,14 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
   const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
   const needsTargeting = opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting')
-  const supportedReadyForRevise = readyForRevise.filter(isSupportedForUserQueue)
-  const withheldUnsupported = readyForRevise.filter((opportunity) => !isSupportedForUserQueue(opportunity))
+  const supportedReadyForRevise = readyForRevise.filter((opportunity) => {
+    if (!isSupportedForUserQueue(opportunity)) return false
+    return runWorkbenchAdmissionGate(opportunity).admission_status === 'admission_passed'
+  })
+  const withheldUnsupported = readyForRevise.filter((opportunity) => {
+    if (!isSupportedForUserQueue(opportunity)) return true
+    return runWorkbenchAdmissionGate(opportunity).admission_status !== 'admission_passed'
+  })
 
   const synthesisResult = {
     admitted: supportedReadyForRevise.length,

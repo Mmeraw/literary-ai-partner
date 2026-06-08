@@ -362,8 +362,8 @@ function buildReplacementCandidates(input: CandidateBuildInput): { a: string; b:
 
   return ensureDistinctCandidates({
     a: trimWords(second ? `${first} ${second}` : first, 48),
-    b: normalizeProseSentence(`${leadName} held still long enough for the choice to register, and the moment tightened around it.`),
-    c: normalizeProseSentence(`${leadName} knew it before anyone said it, and that weight was enough to keep the air still.`),
+    b: trimWords(`${first} ${normalizeActionIntent(input.action ?? input.rationale)}`, 40),
+    c: trimWords(second || first, 30),
   }, seed);
 }
 
@@ -372,12 +372,14 @@ function buildInsertionCandidates(input: CandidateBuildInput): { a: string; b: s
   const leadName = extractLeadName(`${input.rationale} ${input.action ?? ''} ${anchor}`) || 'He';
   const secondName = extractLeadName(anchor.replace(new RegExp(`\\b${escapeRegExp(leadName)}\\b`, 'g'), '')) || 'the others';
   const quoted = extractQuotedSpan(anchor);
-  const seed = quoted ? `${leadName} heard the words again: ${quoteSpeech(quoted)}` : `${leadName} paused inside the pressure of the moment.`;
+  const seed = quoted
+    ? `${leadName} heard the words again: ${quoteSpeech(quoted)}`
+    : trimWords(stripEvidenceWrapper(anchor), 24);
 
   return ensureDistinctCandidates({
-    a: normalizeProseSentence(`${leadName} hesitated, and the small delay told ${secondName} more than he meant to reveal.`),
+    a: normalizeProseSentence(`${leadName} paused, and the delay told ${secondName} more than he meant to reveal.`),
     b: normalizeProseSentence(`${seed} This time, the answer stayed in his body before it reached his mouth.`),
-    c: normalizeProseSentence(`${leadName} looked away first, and that was enough for the moment to claim its price.`),
+    c: normalizeProseSentence(`${leadName} looked toward ${secondName} before answering, and the silence carried what he had not said.`),
   }, normalizeProseSentence(seed));
 }
 
@@ -744,9 +746,6 @@ function blockOpportunityByPreflight(opportunity: RevisionOpportunity, reasons: 
   const combinedReasons = [...new Set([...(opportunity.preflight_reasons ?? []), ...reasons])];
   return {
     ...opportunity,
-    candidate_text_a: '',
-    candidate_text_b: '',
-    candidate_text_c: '',
     grounding_status: 'unsupported_blocked',
     grounding_note: `Blocked by ${REVISE_QUEUE_PREFLIGHT_GATE_VERSION}: ${combinedReasons.join(', ')}`,
     preflight_status: 'blocked',
@@ -761,7 +760,11 @@ function preflightReasonsForOpportunity(
   contextQuality: ReviseContextQuality,
   evaluationMode?: string,
 ): string[] {
-  const reasons: string[] = [...(opportunity.preflight_reasons ?? [])];
+  const reasons: string[] = [];
+  const preservedReasons = (opportunity.preflight_reasons ?? []).filter(
+    (reason) => reason === 'hydration_candidate_rejected_overlap' || reason === 'candidate_quality_failed_after_regen',
+  );
+  reasons.push(...preservedReasons);
   if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
   if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
   if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
@@ -1710,36 +1713,6 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
   return capRevisionOpportunities([...anchorOpDeduped.values()], options?.wordCount);
 }
 
-async function persistHealedExistingLedger(input: {
-  supabase: any;
-  rowId: string | null;
-  currentContent: unknown;
-  opportunities: RevisionOpportunity[];
-  extraContent?: Record<string, unknown>;
-}): Promise<void> {
-  if (!input.rowId || !isRecord(input.currentContent)) return;
-
-  const existing = input.currentContent.opportunities;
-  const extraContent = input.extraContent ?? {};
-  const extraContentUnchanged = Object.entries(extraContent).every(
-    ([key, value]) => stableStringify(input.currentContent[key]) === stableStringify(value),
-  );
-  if (stableStringify(existing) === stableStringify(input.opportunities) && extraContentUnchanged) return;
-
-  await input.supabase
-    .from('evaluation_artifacts')
-    .update({
-      content: {
-        ...input.currentContent,
-        ...extraContent,
-        opportunities: input.opportunities,
-        candidate_generation_status: 'backend_filled_abc_v1',
-        candidate_generation_updated_at: new Date().toISOString(),
-      },
-    })
-    .eq('id', input.rowId);
-}
-
 export async function ensureRevisionOpportunityLedgerArtifact(
   supabase: any,
   jobId: string,
@@ -1810,48 +1783,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   }
 
   const contextQualityDecision = resolveReviseContextQuality(ledgerQualityReportContent);
-  const existingLedgerHasCurrentPreflight =
-    isRecord(existingLedgerRow?.content) &&
-    isRecord(existingLedgerRow.content.revise_queue_preflight) &&
-    existingLedgerRow.content.revise_queue_preflight.version === REVISE_QUEUE_PREFLIGHT_GATE_VERSION;
-
-  // Stable-artifact guard: skip rebuild when the artifact is already fully enriched
-  // (either via longform synthesis or a *complete* AI hydration pass).
-  // 'ai_hydrated_partial' is intentionally excluded — partial hydration means some
-  // opportunities are still blocked and should be retried on the next workbench load.
-  // RES hardening: preflight must be current and canon context must be clean before
-  // a stable artifact can short-circuit. Degraded canon must rebuild into limited
-  // or blocked mode instead of flowing downstream as normal.
-  const existingLedgerStable =
-    isRecord(existingLedgerRow?.content) &&
-    existingLedgerHasCurrentPreflight &&
-    contextQualityDecision.status === 'clean' &&
-    typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
-    (existingLedgerRow.content.candidate_generation_status.includes('longform_enriched') ||
-     existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete') ||
-     existingLedgerRow.content.candidate_generation_status.includes('res_preflight_complete'));
-
-  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerStable && !options?.forceRebuild) {
-    const healed = capRevisionOpportunities(
-      existingOpportunities.map(ensureOpportunityCandidates),
-      jobWordCount,
-    );
-    await persistHealedExistingLedger({
-      supabase,
-      rowId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
-      currentContent: existingLedgerRow?.content,
-      opportunities: healed,
-      extraContent: {
-        mode_contract: modeContractForMetadata(modeContract),
-        genre_expectation_context: genreExpectationContext,
-      },
-    });
-
-    return {
-      artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
-      opportunities: healed,
-    };
-  }
+  // A job has exactly one authoritative Revise Queue ledger, but the persisted
+  // row is not a cache authority. Always rebuild from the canonical evaluation
+  // artifacts for this job and upsert over the existing row. This prevents stale
+  // candidate prose, stale preflight outcomes, or old admission rules from being
+  // reused after governance changes.
 
   if (evaluationResultError || !evaluationPayload) {
     throw new Error(
@@ -1903,39 +1839,6 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
   );
-
-  // ── Carry-forward pass: preserve stable supported cards per opportunity ─────
-  // This makes rebuilds idempotent under hydration nondeterminism: already-safe
-  // supported cards are preserved, and only unstable/blocked cards are retried.
-  if (existingOpportunities && existingOpportunities.length > 0) {
-    const prevStableSupportedMap = new Map(
-      existingOpportunities
-        .filter((o: any) =>
-          typeof o.candidate_text_a === 'string' && o.candidate_text_a.trim().length > 0 &&
-          typeof o.candidate_text_b === 'string' && o.candidate_text_b.trim().length > 0 &&
-          typeof o.candidate_text_c === 'string' && o.candidate_text_c.trim().length > 0 &&
-          o.grounding_status === 'supported' &&
-          o.preflight_status === 'passed' &&
-          o.context_quality === 'clean',
-        )
-        .map((o: any) => [o.opportunity_id, o]),
-    );
-
-    for (const opp of opportunities) {
-      const prev = prevStableSupportedMap.get(opp.opportunity_id);
-      if (!prev) continue;
-      opp.candidate_text_a = prev.candidate_text_a;
-      opp.candidate_text_b = prev.candidate_text_b;
-      opp.candidate_text_c = prev.candidate_text_c;
-      opp.grounding_status = 'supported';
-      opp.grounding_note = null;
-      opp.preflight_status = 'passed';
-      opp.preflight_reasons = [];
-      opp.context_quality = 'clean';
-      opp.preflight_note = undefined;
-      opp.admin_actions = undefined;
-    }
-  }
 
   const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
     contextQuality: contextQualityDecision.status,
@@ -2162,13 +2065,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
                     opp.grounding_status = 'supported';
                     opp.grounding_note = null;
                     opp.preflight_status = 'passed';
-                    opp.preflight_reasons = (opp.preflight_reasons ?? []).filter(
-                      (r) =>
-                        r !== 'candidate_noncompliant' &&
-                        r !== 'candidate_low_diversity' &&
-                        r !== 'candidate_quality_failed' &&
-                        !r.startsWith('candidate_quality_'),
-                    );
+                    opp.preflight_reasons = [];
                     opp.preflight_note = undefined;
                     opp.admin_actions = undefined;
                     continue;
@@ -2203,7 +2100,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
             // opportunity is still blocked, use 'partial' so the next workbench
             // load retries rather than caching the incomplete result permanently.
             const stillBlocked = opportunities.filter(
-              (o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c),
+              (o) => o.preflight_status === 'blocked' || o.grounding_status !== 'supported',
             ).length;
             hydrationStatusSuffix = stillBlocked === 0
               ? '_ai_hydrated_complete_res_preflight_complete'
@@ -2227,7 +2124,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
 
   if (!hydrationStatusSuffix) {
     const remainingHydratableBlocked = opportunities.filter(
-      (o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c),
+      (o) => o.preflight_status !== 'blocked' && o.grounding_status !== 'supported',
     ).length;
     if (remainingHydratableBlocked === 0) {
       hydrationStatusSuffix = '_res_preflight_complete';

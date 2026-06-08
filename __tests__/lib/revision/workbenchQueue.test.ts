@@ -406,6 +406,47 @@ describe('getWorkbenchQueue', () => {
     expect(result.readinessTotals.withheld_unsupported).toBe(1);
   });
 
+  it('excludes candidate-quality-failed cards from user queue even when ledger marks them ready', async () => {
+    const supabase = buildSupabaseMock('job-quality-failed', 'version-quality-failed');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-quality-failed',
+      opportunities: [
+        {
+          opportunity_id: 'opp-quality-failed',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:12',
+          evidence_anchor: 'He stopped at the threshold and let the room settle before answering.',
+          rationale: 'Bridge the transition with one concrete beat that carries immediate consequence.',
+          symptom: 'Transition lands abruptly.',
+          cause: 'Connective bridge beat is missing.',
+          fix_direction: 'Insert one bridge beat that preserves continuity.',
+          reader_effect: 'Readers can follow cause-and-effect without losing momentum.',
+          mistake_proofing: 'Do not add new events or alter intent.',
+          candidate_text_a: 'He paused at the threshold, letting the room settle before he answered.',
+          candidate_text_b: 'At the doorway, he measured the silence, then answered without forcing the beat.',
+          candidate_text_c: 'He looked away first, and that was enough for the moment to claim its price.',
+          revision_operation: 'insert_after_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'supported',
+          preflight_status: 'passed',
+          context_quality: 'clean',
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-quality-failed' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.withheldUnsupported).toHaveLength(1);
+    const renderedText = JSON.stringify(result.opportunities);
+    expect(renderedText).not.toMatch(/looked away first|moment to claim its price|moment tightened|keep the air still|pressure of the moment/i);
+  });
+
   it('carries confirmed evaluation mode and voice preservation into the Revise queue contract', async () => {
     const supabase = buildSupabaseMock('job-mode', 'version-mode', {
       policyFamily: 'standard',
