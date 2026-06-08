@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       }, { status: 409 });
     }
 
-    const allItems = [...payload.opportunities, ...(payload.needsTargeting ?? [])];
+    const allItems = [...payload.opportunities];
     const entries: SyncRevisionLedgerEntryInput[] = [];
     const skipped: Array<{ id: string; title: string; reason: string }> = [];
     const seen = new Set<string>();
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
       seen.add(item.id);
       const selectedText = optionA(item);
       if (!selectedText) {
-        skipped.push({ id: item.id, title: item.title, reason: item.readiness === "ready_for_revise" ? "Recommended Repair A is not copy-ready." : "Needs Targeting requires manual review." });
+        skipped.push({ id: item.id, title: item.title, reason: "Recommended Repair A is not copy-ready." });
         continue;
       }
       entries.push(buildEntry(item, selectedText, payload.modeContract));

@@ -106,9 +106,11 @@ export type WorkbenchQueuePayload = {
   manuscriptTitle: string
   opportunities: WorkbenchOpportunity[]
   needsTargeting: WorkbenchOpportunity[]
+  withheldUnsupported: WorkbenchOpportunity[]
   readinessTotals: {
     ready_for_revise: number
     needs_targeting: number
+    withheld_unsupported: number
   }
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
@@ -886,7 +888,8 @@ function emptyPayload(error: string | null): WorkbenchQueuePayload {
     manuscriptTitle: 'Revise Workbench',
     opportunities: [],
     needsTargeting: [],
-    readinessTotals: { ready_for_revise: 0, needs_targeting: 0 },
+    withheldUnsupported: [],
+    readinessTotals: { ready_for_revise: 0, needs_targeting: 0, withheld_unsupported: 0 },
     totals: { must: 0, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
     criteria: {},
@@ -1256,11 +1259,13 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
   const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
   const needsTargeting = opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting')
+  const supportedReadyForRevise = readyForRevise.filter((opportunity) => opportunity.groundingStatus === 'supported')
+  const withheldUnsupported = readyForRevise.filter((opportunity) => opportunity.groundingStatus !== 'supported')
 
   const synthesisResult = {
-    admitted: readyForRevise.length,
+    admitted: supportedReadyForRevise.length,
     clustered: 0,
-    held: needsTargeting.length,
+    held: needsTargeting.length + withheldUnsupported.length,
     suppressed: 0,
   }
 
@@ -1268,7 +1273,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
   const criteria: Record<string, number> = {}
 
-  for (const opportunity of readyForRevise) {
+  for (const opportunity of supportedReadyForRevise) {
     totals[opportunity.severity] += 1
     scopes[opportunity.scope] += 1
     criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
@@ -1282,11 +1287,13 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     revisionPackage,
     modeContract,
     manuscriptTitle: manuscript.title ?? (await backfillManuscriptTitleIfMissing(manuscriptNumericId)) ?? 'Untitled Manuscript',
-    opportunities: readyForRevise,
+    opportunities: supportedReadyForRevise,
     needsTargeting,
+    withheldUnsupported,
     readinessTotals: {
-      ready_for_revise: readyForRevise.length,
+      ready_for_revise: supportedReadyForRevise.length,
       needs_targeting: needsTargeting.length,
+      withheld_unsupported: withheldUnsupported.length,
     },
     totals,
     scopes,
@@ -1305,9 +1312,9 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       contractEnforcement: {
         candidateTextOnly: true,
         sixPartDiagnosticRequired: true,
-        readyForRevise: readyForRevise.length,
-        needsTargeting: needsTargeting.length,
-        readyRate: opportunities.length === 0 ? 0 : Number((readyForRevise.length / opportunities.length).toFixed(4)),
+        readyForRevise: supportedReadyForRevise.length,
+        needsTargeting: needsTargeting.length + withheldUnsupported.length,
+        readyRate: opportunities.length === 0 ? 0 : Number((supportedReadyForRevise.length / opportunities.length).toFixed(4)),
       },
     },
   }

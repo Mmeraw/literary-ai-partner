@@ -99,9 +99,11 @@ describe("ReviseWorkbenchClient smoke", () => {
       manuscriptTitle: "Test Manuscript",
       opportunities,
       needsTargeting: [],
+      withheldUnsupported: [],
       readinessTotals: {
         ready_for_revise: 1,
         needs_targeting: 0,
+        withheld_unsupported: 0,
       },
       totals: { must: 0, should: 1, could: 0 },
       scopes: { Line: 0, Passage: 1, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },

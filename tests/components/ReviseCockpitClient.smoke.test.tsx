@@ -80,9 +80,11 @@ describe("ReviseCockpitClient smoke", () => {
       manuscriptTitle: "Cartel Babies",
       opportunities: [],
       needsTargeting: [makeNeedsTargetingOpportunity("nt-1")],
+      withheldUnsupported: [],
       readinessTotals: {
         ready_for_revise: 0,
         needs_targeting: 1,
+        withheld_unsupported: 0,
       },
       totals: { must: 0, should: 0, could: 0 },
       scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
@@ -132,9 +134,11 @@ describe("ReviseCockpitClient smoke", () => {
       manuscriptTitle: "Cartel Babies",
       opportunities: [],
       needsTargeting: [item],
+      withheldUnsupported: [],
       readinessTotals: {
         ready_for_revise: 0,
         needs_targeting: 1,
+        withheld_unsupported: 0,
       },
       totals: { must: 0, should: 0, could: 0 },
       scopes: { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },

@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { buildDecisionOnlyPreview, resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
+import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 
 export type FinalReviewDecision = {
   id: string;
@@ -193,7 +194,16 @@ export async function getFinalReviewPayload(input: {
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
   }
 
-  const decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map(rowToDecision);
+  let decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map(rowToDecision);
+
+  const queuePayload = await getWorkbenchQueue({
+    manuscriptId: String(manuscriptId),
+    evaluationJobId: input.evaluationJobId,
+  });
+  if (queuePayload.ok) {
+    const supportedOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
+    decisions = decisions.filter((decision) => supportedOpportunityIds.has(decision.opportunityId));
+  }
 
   const sourceText = await resolveFinalReviewSourceText({
     supabase,

@@ -30,6 +30,7 @@ import {
   resolveRevisionModeContract,
 } from "./modeContract";
 import { extractGenreExpectationMetadataFromEvaluationPayload } from "@/lib/evaluation/genreExpectationProfiles";
+import { getWorkbenchQueue } from "./workbenchQueue";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,13 @@ export async function applyTrustedPath(input: {
     return emptyResult(`TrustedPath™ is blocked for ${modeContract.evaluation_mode} / ${modeContract.voice_preservation}. Use manual Revise review.`);
   }
 
+  const queuePayload = await getWorkbenchQueue({
+    manuscriptId: String(manuscriptId),
+    evaluationJobId: input.evaluationJobId,
+  });
+  if (!queuePayload.ok) return emptyResult(queuePayload.error ?? "Revise Queue unavailable.");
+  const supportedOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
+
   await ensureOperationalRevisionFindings(
     input.evaluationJobId,
     (job.manuscript_version_id as string | null) ?? '',
@@ -196,6 +204,11 @@ export async function applyTrustedPath(input: {
 
   for (const check of eligible) {
     const findingId = check.finding_id;
+
+    if (!supportedOpportunityIds.has(findingId)) {
+      skippedReasons["unsupported_or_withheld"] = (skippedReasons["unsupported_or_withheld"] ?? 0) + 1;
+      continue;
+    }
 
     if (alreadyDecided.has(findingId)) {
       alreadyDecidedCount++;
@@ -317,6 +330,13 @@ export async function previewTrustedPath(input: {
   });
   if (eligibility !== "Eligible for Trustpath") return { eligible: 0, alreadyDecided: 0, total: 0 };
 
+  const queuePayload = await getWorkbenchQueue({
+    manuscriptId: String(manuscriptId),
+    evaluationJobId: input.evaluationJobId,
+  });
+  if (!queuePayload.ok) return { eligible: 0, alreadyDecided: 0, total: 0 };
+  const supportedOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
+
   const { data: approvedChecks } = await supabase
     .from("revision_repair_cross_checks")
     .select("finding_id")
@@ -324,10 +344,11 @@ export async function previewTrustedPath(input: {
     .eq("option_key", "A")
     .eq("verdict", "approve");
 
-  const total = approvedChecks?.length ?? 0;
+  const supportedApprovedChecks = (approvedChecks ?? []).filter((check: { finding_id: string }) => supportedOpportunityIds.has(check.finding_id));
+  const total = supportedApprovedChecks.length;
   if (total === 0) return { eligible: 0, alreadyDecided: 0, total: 0 };
 
-  const findingIds = (approvedChecks ?? []).map((c: { finding_id: string }) => c.finding_id);
+  const findingIds = supportedApprovedChecks.map((c: { finding_id: string }) => c.finding_id);
 
   const { data: existingDecisions } = await supabase
     .from("revision_ledger_decisions")

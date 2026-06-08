@@ -82,9 +82,11 @@ describe("ReviseQueueV2Client smoke", () => {
       manuscriptTitle: "Untitled Manuscript",
       opportunities,
       needsTargeting: [],
+      withheldUnsupported: [],
       readinessTotals: {
         ready_for_revise: 0,
         needs_targeting: 0,
+        withheld_unsupported: 0,
       },
       totals: { must: 0, should: 3, could: 0 },
       scopes: { Line: 3, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
