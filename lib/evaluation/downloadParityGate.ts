@@ -37,6 +37,10 @@ function getOverview(result: ReportLike): Record<string, unknown> {
 const MALFORMED_PATTERNS: Array<{ code: string; re: RegExp; label: string }> = [
   { code: 'MALFORMED_WOULD_BECAUSE', re: /\b(?:would|could|should)\s+because\b/i, label: 'contains malformed "would/could/should because" fragment' },
   { code: 'MALFORMED_WOULD_BENEFIT_BECAUSE', re: /\bwould\s+benefit\s+from\s+one\s+because\b/i, label: 'contains malformed "would benefit from one because" fragment' },
+  { code: 'MALFORMED_BENEFIT_FROM_ONE_BECAUSE', re: /\bbenefit\s+from\s+one\s+because\b/i, label: 'contains malformed "benefit from one because" fragment' },
+  { code: 'MALFORMED_DOUBLE_MODAL', re: /\b(?:would|could|should)\s+(?:would|could|should)\b/i, label: 'contains doubled modal verb sequence' },
+  { code: 'OFF_TOPIC_SAFE_INJECTION_SITES', re: /\bsafe\s+injection\s+sites?\b/i, label: 'contains off-topic contamination phrase "safe injection sites"' },
+  { code: 'OFF_TOPIC_STUDIES_ARE_MIXED', re: /\bstudies\s+are\s+mixed\s+on\s+the\s+success\s+of\b/i, label: 'contains off-topic contamination phrase "studies are mixed on the success of"' },
 ];
 
 function pushIfMalformed(

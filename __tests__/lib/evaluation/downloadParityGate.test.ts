@@ -80,4 +80,33 @@ describe('validateDownloadParity', () => {
     const codes = validateDownloadParity(result).violations.map((v) => v.code);
     expect(codes).toContain('MALFORMED_WOULD_BECAUSE');
   });
+
+  test('fails on additional malformed or off-topic contamination fragments', () => {
+    const result = {
+      ...canonicalResult,
+      overview: {
+        ...canonicalResult.overview,
+        one_paragraph_summary: 'The argument could would tighten with clearer causality.',
+        top_3_risks: ['At the scene level, studies are mixed on the success of safe injection sites.'],
+      },
+      criteria: [
+        {
+          ...canonicalResult.criteria[0],
+          recommendations: [
+            {
+              action: 'This sequence may benefit from one because the connective logic is broken.',
+            },
+          ],
+        },
+      ],
+    };
+
+    const codes = validateDownloadParity(result).violations.map((v) => v.code);
+    expect(codes).toEqual(expect.arrayContaining([
+      'MALFORMED_DOUBLE_MODAL',
+      'MALFORMED_BENEFIT_FROM_ONE_BECAUSE',
+      'OFF_TOPIC_STUDIES_ARE_MIXED',
+      'OFF_TOPIC_SAFE_INJECTION_SITES',
+    ]));
+  });
 });
