@@ -1,0 +1,254 @@
+import {
+  hydrateLedgerCandidates,
+  HYDRATION_MAX_BATCH_SIZE,
+  type HydrationOpportunity,
+} from '@/lib/revision/candidateHydration';
+import OpenAI from 'openai';
+
+// ── OpenAI mock ───────────────────────────────────────────────────────────────
+
+jest.mock('openai');
+
+const MockOpenAI = OpenAI as jest.MockedClass<typeof OpenAI>;
+let mockCreate: jest.Mock;
+
+function getMockCreate(): jest.Mock {
+  return mockCreate;
+}
+
+function makeCompletion(results: Array<{
+  id: string;
+  candidate_a: string;
+  candidate_b: string;
+  candidate_c: string;
+}>) {
+  return {
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({ results }),
+        },
+      },
+    ],
+  };
+}
+
+// ── Test data ─────────────────────────────────────────────────────────────────
+
+const oppA: HydrationOpportunity = {
+  opportunity_id: 'rol:aaa111',
+  evidence_anchor:
+    'She opened the door and suddenly the chapter ended without resolution.',
+  rationale: 'Abrupt scene transition weakens momentum; insert a bridging beat before cut.',
+  revision_operation: 'insert_after_selected_passage',
+};
+
+const oppB: HydrationOpportunity = {
+  opportunity_id: 'rol:bbb222',
+  evidence_anchor:
+    'The sky was blue and the grass was green and everything seemed fine.',
+  rationale: 'Generic description lacks specificity; replace with manuscript-specific detail.',
+  revision_operation: 'replace_selected_passage',
+};
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe('hydrateLedgerCandidates', () => {
+  beforeEach(() => {
+    mockCreate = jest.fn();
+    MockOpenAI.mockImplementation(() => ({
+      chat: { completions: { create: mockCreate } },
+    }) as unknown as OpenAI);
+  });
+
+  it('returns empty result immediately when blocked list is empty', async () => {
+    const result = await hydrateLedgerCandidates([], 'sk-test');
+    expect(result.hydratedCount).toBe(0);
+    expect(result.skippedCount).toBe(0);
+    expect(result.candidates.size).toBe(0);
+    expect(getMockCreate()).not.toHaveBeenCalled();
+  });
+
+  it('returns populated candidates when OpenAI produces valid prose', async () => {
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:aaa111',
+          candidate_a:
+            'Mara stood in the doorway long enough to hear the radiator tick before she stepped through.',
+          candidate_b:
+            'The silence held for a breath, then two, before she finally crossed the threshold into the next scene.',
+          candidate_c:
+            'She hesitated just past the door frame, letting the weight of the moment settle before moving on.',
+        },
+      ]),
+    );
+
+    const result = await hydrateLedgerCandidates([oppA], 'sk-test');
+
+    expect(result.hydratedCount).toBe(1);
+    expect(result.skippedCount).toBe(0);
+    expect(result.candidates.size).toBe(1);
+    const cands = result.candidates.get('rol:aaa111')!;
+    expect(cands.candidate_text_a).toMatch(/Mara/);
+    expect(cands.candidate_text_b).toMatch(/silence/);
+    expect(cands.candidate_text_c).toMatch(/hesitated/);
+  });
+
+  it('rejects candidates shorter than 5 words and does not include that opportunity', async () => {
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:bbb222',
+          candidate_a: 'Too short.',           // < 5 words — SLAE fail
+          candidate_b:
+            'The valley beyond the pass was covered in a thick carpet of wildflowers, dew still clinging to each petal.',
+          candidate_c:
+            'Pockets of morning mist clung to the hillside long after the sun had climbed above the ridge line.',
+        },
+      ]),
+    );
+
+    const result = await hydrateLedgerCandidates([oppB], 'sk-test');
+
+    // All three must pass; one fails → entire opportunity is not hydrated
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.has('rol:bbb222')).toBe(false);
+  });
+
+  it('rejects candidates that verbatim echo the anchor (SLAE echo check)', async () => {
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:bbb222',
+          // candidate_a matches anchor exactly after normalization
+          candidate_a: 'The sky was blue and the grass was green and everything seemed fine.',
+          candidate_b:
+            'Golden afternoon light cut through the canopy, throwing dappled shadows across the meadow path.',
+          candidate_c:
+            'A dense stand of birch gave way to open ground where the light fell differently in every season.',
+        },
+      ]),
+    );
+
+    const result = await hydrateLedgerCandidates([oppB], 'sk-test');
+
+    // candidate_a echoes anchor → all three must pass → not hydrated
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.has('rol:bbb222')).toBe(false);
+  });
+
+  it('processes both opportunities in a single batch and returns two hydrated entries', async () => {
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:aaa111',
+          candidate_a:
+            'The radiator ticked twice in the sudden quiet before she gathered herself to continue.',
+          candidate_b:
+            'Outside the door the corridor stretched on; she gave herself a moment before following it.',
+          candidate_c:
+            'She paused long enough to hear her own breath settle before stepping into what came next.',
+        },
+        {
+          id: 'rol:bbb222',
+          candidate_a:
+            'Late summer heat pressed down on the valley, turning the distant hills a pale, washed-out blue.',
+          candidate_b:
+            'The field beyond the fence line shimmered in the heat haze, each blade of grass bending in slow unison.',
+          candidate_c:
+            'A smell of cut grass and diesel drifted from the far side of the ridge on the afternoon air.',
+        },
+      ]),
+    );
+
+    const result = await hydrateLedgerCandidates([oppA, oppB], 'sk-test');
+
+    expect(getMockCreate()).toHaveBeenCalledTimes(1);
+    expect(result.hydratedCount).toBe(2);
+    expect(result.candidates.size).toBe(2);
+  });
+
+  it('caps batch at HYDRATION_MAX_BATCH_SIZE and reports skippedCount', async () => {
+    const lotsOfOpps: HydrationOpportunity[] = Array.from(
+      { length: HYDRATION_MAX_BATCH_SIZE + 5 },
+      (_, i) => ({
+        opportunity_id: `rol:opp${i}`,
+        evidence_anchor: `Anchor excerpt number ${i} appears here in the manuscript text for testing.`,
+        rationale: `Editorial recommendation number ${i} describes what needs to be fixed here.`,
+      }),
+    );
+
+    // Only return results for the first MAX_BATCH_SIZE
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion(
+        lotsOfOpps.slice(0, HYDRATION_MAX_BATCH_SIZE).map((o) => ({
+          id: o.opportunity_id,
+          candidate_a: `Revised prose A for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
+          candidate_b: `Revised prose B for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
+          candidate_c: `Revised prose C for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
+        })),
+      ),
+    );
+
+    const result = await hydrateLedgerCandidates(lotsOfOpps, 'sk-test');
+
+    expect(result.skippedCount).toBe(5);
+    expect(result.hydratedCount).toBe(HYDRATION_MAX_BATCH_SIZE);
+    // The prompt only received MAX_BATCH_SIZE items
+    expect(getMockCreate()).toHaveBeenCalledTimes(1);
+    const callArg = getMockCreate().mock.calls[0][0] as { messages: Array<{ content: string }> };
+    const userContent = callArg.messages[1].content;
+    // Verify over-limit opportunities are not in prompt
+    expect(userContent).not.toContain(`rol:opp${HYDRATION_MAX_BATCH_SIZE}`);
+  });
+
+  it('returns empty result and does not throw when OpenAI call fails', async () => {
+    getMockCreate().mockRejectedValueOnce(new Error('network error'));
+
+    const result = await hydrateLedgerCandidates([oppA], 'sk-test');
+
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.size).toBe(0);
+  });
+
+  it('returns empty result when OpenAI returns malformed JSON', async () => {
+    getMockCreate().mockResolvedValueOnce({
+      choices: [{ message: { content: 'not json at all' } }],
+    });
+
+    const result = await hydrateLedgerCandidates([oppA], 'sk-test');
+
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.size).toBe(0);
+  });
+
+  it('returns empty result when OpenAI returns empty content', async () => {
+    getMockCreate().mockResolvedValueOnce({
+      choices: [{ message: { content: '' } }],
+    });
+
+    const result = await hydrateLedgerCandidates([oppA], 'sk-test');
+
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.size).toBe(0);
+  });
+
+  it('ignores result entries with unknown or mismatched ids', async () => {
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:does-not-exist',
+          candidate_a: 'Valid prose for an unknown opportunity identifier in the response.',
+          candidate_b: 'Another valid prose candidate for the unknown opportunity identifier.',
+          candidate_c: 'A third valid prose candidate for the unknown opportunity identifier here.',
+        },
+      ]),
+    );
+
+    const result = await hydrateLedgerCandidates([oppA], 'sk-test');
+
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.size).toBe(0);
+  });
+});

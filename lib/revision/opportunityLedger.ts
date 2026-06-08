@@ -8,6 +8,7 @@ import {
 import { type SlaeGroundingStatus } from './slae';
 import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
+import { hydrateLedgerCandidates, type HydrationOpportunity } from './candidateHydration';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -1205,12 +1206,15 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
   });
   const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(evaluationPayload);
 
-  const existingLedgerFullyEnriched =
+  // Stable-artifact guard: skip rebuild when the artifact is already fully enriched
+  // (either via longform synthesis or the AI candidate hydration pass).
+  const existingLedgerStable =
     isRecord(existingLedgerRow?.content) &&
     typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
-    existingLedgerRow.content.candidate_generation_status.includes('longform_enriched');
+    (existingLedgerRow.content.candidate_generation_status.includes('longform_enriched') ||
+     existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated'));
 
-  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerFullyEnriched) {
+  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerStable) {
     const healed = capRevisionOpportunities(
       existingOpportunities.map(ensureOpportunityCandidates),
       jobWordCount,
@@ -1283,6 +1287,53 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
   );
 
+  // ── AI Candidate Hydration Pass ────────────────────────────────────────────
+  // For each opportunity that SLAE blocked (no explicit candidate prose from
+  // the evaluation pipeline), generate A/B/C prose via a single batched OpenAI
+  // call.  Failures are non-fatal — blocked opportunities stay blocked.
+  let hydrationStatusSuffix = '';
+  if (opportunities.length > 0) {
+    const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
+    if (openaiApiKey) {
+      const blockedOpps: HydrationOpportunity[] = opportunities
+        .filter((o) => !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c)
+        .map((o) => ({
+          opportunity_id: o.opportunity_id,
+          evidence_anchor: o.evidence_anchor,
+          rationale: o.rationale,
+          revision_operation: o.revision_operation,
+        }));
+
+      if (blockedOpps.length > 0) {
+        try {
+          const hydration = await hydrateLedgerCandidates(blockedOpps, openaiApiKey);
+          if (hydration.hydratedCount > 0) {
+            for (const opp of opportunities) {
+              const filled = hydration.candidates.get(opp.opportunity_id);
+              if (filled) {
+                opp.candidate_text_a = filled.candidate_text_a;
+                opp.candidate_text_b = filled.candidate_text_b;
+                opp.candidate_text_c = filled.candidate_text_c;
+                opp.grounding_status = 'supported';
+                opp.grounding_note = null;
+              }
+            }
+            hydrationStatusSuffix = '_ai_hydrated';
+          }
+          console.log(
+            `[CandidateHydration] ${jobId}: hydrated=${hydration.hydratedCount}` +
+            ` skipped=${hydration.skippedCount} of ${blockedOpps.length} blocked`,
+          );
+        } catch (hydrationErr) {
+          console.error(
+            `[CandidateHydration] ${jobId}: non-fatal error`,
+            hydrationErr instanceof Error ? hydrationErr.message : String(hydrationErr),
+          );
+        }
+      }
+    }
+  }
+
   if (existingOpportunities && existingOpportunities.length === 0 && opportunities.length === 0) {
     return {
       artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
@@ -1310,11 +1361,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     artifact_version: 'v1',
     source_hash: sourceHash,
     generated_at: now,
-    candidate_generation_status: longformPayload
+    candidate_generation_status: (longformPayload
       ? 'backend_filled_abc_v1_chunk_enriched_longform_enriched'
       : chunkCachePayload
         ? 'backend_filled_abc_v1_chunk_enriched'
-        : 'backend_filled_abc_v1',
+        : 'backend_filled_abc_v1') + hydrationStatusSuffix,
     mode_contract: modeContractForMetadata(modeContract),
       genre_expectation_context: genreExpectationContext,
     opportunities,
