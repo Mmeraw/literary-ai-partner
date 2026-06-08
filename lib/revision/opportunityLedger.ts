@@ -12,6 +12,10 @@ import { hydrateLedgerCandidates, type HydrationOpportunity } from './candidateH
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
+type ReviseContextQuality = 'clean' | 'limited' | 'blocked';
+type RecommendationPreflightStatus = 'passed' | 'limited_context' | 'blocked';
+
+const REVISE_QUEUE_PREFLIGHT_GATE_VERSION = 'revise_queue_preflight_gate_v1' as const;
 
 type RevisionOpportunity = {
   opportunity_id: string;
@@ -29,6 +33,10 @@ type RevisionOpportunity = {
   candidate_text_c?: string;
   grounding_status?: SlaeGroundingStatus;
   grounding_note?: string | null;
+  context_quality?: ReviseContextQuality;
+  preflight_status?: RecommendationPreflightStatus;
+  preflight_reasons?: string[];
+  preflight_note?: string;
   symptom?: string;
   cause?: string;
   fix_direction?: string;
@@ -141,6 +149,11 @@ function normalizeConfidence(raw: unknown): LedgerConfidence {
   if (['high', 'strong'].includes(normalized)) return 'high';
   if (['low', 'weak'].includes(normalized)) return 'low';
   return 'medium';
+}
+
+function capLedgerConfidence(confidence: LedgerConfidence, max: LedgerConfidence): LedgerConfidence {
+  const rank: Record<LedgerConfidence, number> = { low: 0, medium: 1, high: 2 };
+  return rank[confidence] > rank[max] ? max : confidence;
 }
 
 function normalizeCriterion(raw: unknown): string {
@@ -380,6 +393,260 @@ function candidateEchoesAnchor(candidate: string, anchor: string): boolean {
   if (normAnchor.length >= 20 && normCandidate.includes(normAnchor)) return true;
   if (normCandidate.length >= 20 && normAnchor.includes(normCandidate)) return true;
   return false;
+}
+
+type ReviseContextQualityDecision = {
+  status: ReviseContextQuality;
+  source: 'ledger_quality_report_v1' | 'missing';
+  gate_ready_status: string | null;
+  blocking_reasons: string[];
+  degraded_layers: string[];
+};
+
+function stringArrayFromUnknown(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
+    : [];
+}
+
+function resolveReviseContextQuality(ledgerQualityReportContent: unknown): ReviseContextQualityDecision {
+  if (!isRecord(ledgerQualityReportContent)) {
+    return {
+      status: 'clean',
+      source: 'missing',
+      gate_ready_status: null,
+      blocking_reasons: [],
+      degraded_layers: [],
+    };
+  }
+
+  const report = isRecord(ledgerQualityReportContent.quality_report)
+    ? ledgerQualityReportContent.quality_report
+    : ledgerQualityReportContent;
+  const gateReadyStatus = typeof report.gate_ready_status === 'string'
+    ? report.gate_ready_status.trim()
+    : null;
+  const layerTruthStatus = isRecord(report.layer_truth_status) ? report.layer_truth_status : {};
+  const degradedLayers = Object.entries(layerTruthStatus)
+    .filter(([, status]) => typeof status === 'string' && status.trim().toLowerCase() !== 'clean' && status.trim().toLowerCase() !== 'reviewable')
+    .map(([layer]) => layer);
+  const blockingReasons = stringArrayFromUnknown(report.blocking_reasons);
+
+  if (gateReadyStatus === 'blocked_retryable_technical') {
+    return {
+      status: 'limited',
+      source: 'ledger_quality_report_v1',
+      gate_ready_status: gateReadyStatus,
+      blocking_reasons: blockingReasons,
+      degraded_layers: degradedLayers,
+    };
+  }
+
+  if (
+    gateReadyStatus === 'blocked' ||
+    gateReadyStatus === 'blocked_content_hard_fail' ||
+    gateReadyStatus === 'repair_required'
+  ) {
+    return {
+      status: 'blocked',
+      source: 'ledger_quality_report_v1',
+      gate_ready_status: gateReadyStatus,
+      blocking_reasons: blockingReasons,
+      degraded_layers: degradedLayers,
+    };
+  }
+
+  return {
+    status: degradedLayers.length > 0 ? 'limited' : 'clean',
+    source: 'ledger_quality_report_v1',
+    gate_ready_status: gateReadyStatus,
+    blocking_reasons: blockingReasons,
+    degraded_layers: degradedLayers,
+  };
+}
+
+function normalizedTokenSet(raw: string): Set<string> {
+  const stop = new Set([
+    'about', 'after', 'again', 'against', 'before', 'being', 'between', 'could', 'every', 'from', 'have', 'into',
+    'more', 'should', 'that', 'their', 'there', 'these', 'this', 'those', 'through', 'with', 'would', 'while',
+    'where', 'which', 'when', 'what', 'will', 'without', 'within', 'because', 'passage', 'selected', 'revision',
+  ]);
+  const tokens = normalizedForComparison(raw)
+    .split(' ')
+    .filter((token) => token.length >= 4 && !stop.has(token));
+  return new Set(tokens);
+}
+
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection++;
+  }
+  return intersection / (a.size + b.size - intersection);
+}
+
+function anchorLooksTruncated(anchor: string): boolean {
+  const clean = stripEvidenceWrapper(anchor);
+  if (clean.length < 50) return false;
+  if (/[.!?][\u201d"']?$/.test(clean)) return false;
+  if (/[,:;\u2014\u2013-]\s*$/.test(clean)) return true;
+
+  const lastWord = clean.match(/([A-Za-z][A-Za-z'\u2019-]*)\s*$/u)?.[1]?.toLowerCase() ?? '';
+  if (!lastWord) return false;
+  return /^(hav|basem|becaus|althou|withou|throug|everythin|someth|anythin|beginn|lookin|talkin|playin|workin)$/i.test(lastWord);
+}
+
+function hasDirectSpeech(raw: string): boolean {
+  return /["\u201c][^"\u201d]{2,}["\u201d]/u.test(raw);
+}
+
+function hasDialogueIntent(opportunity: RevisionOpportunity): boolean {
+  return /\b(dialogue|conversation|exchange|direct interaction|spoken|talked|spoke|said|asked)\b/i.test(
+    `${opportunity.criterion} ${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`,
+  );
+}
+
+function hasConcreteAction(opportunity: RevisionOpportunity): boolean {
+  if (opportunity.revision_operation && opportunity.revision_operation !== 'needs_targeting') return true;
+  return /\b(replace|compress|insert|dramatize|bridge|clarify|cut|trim|tighten|expand|convert|surface|foreground|frame|reorder|move|add|delete|remove|rewrite|strengthen|sharpen|condense)\b/i.test(
+    `${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`,
+  );
+}
+
+function anchorRationaleIsCoherent(opportunity: RevisionOpportunity): boolean {
+  const anchorTokens = normalizedTokenSet(opportunity.evidence_anchor);
+  const rationaleTokens = normalizedTokenSet(`${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`);
+  if (anchorTokens.size === 0 || rationaleTokens.size === 0) return true;
+  return jaccardSimilarity(anchorTokens, rationaleTokens) >= 0.05;
+}
+
+function recommendationCanTargetStructuralIssue(opportunity: RevisionOpportunity): boolean {
+  return /\b(insert|bridge|transition|stakes|pacing|compress|tighten|cut|trim|scene|dialogue|exposition|restructure|coherence|clarity|orientation|causal|momentum|consequence|reader signal|reader orientation)\b/i.test(
+    `${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''} ${opportunity.revision_operation ?? ''}`,
+  );
+}
+
+function candidateSetHasLowDiversity(opportunity: RevisionOpportunity): boolean {
+  const candidates = [opportunity.candidate_text_a, opportunity.candidate_text_b, opportunity.candidate_text_c]
+    .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0);
+  if (candidates.length < 3) return false;
+
+  const sets = candidates.map(normalizedTokenSet);
+  return (
+    jaccardSimilarity(sets[0], sets[1]) >= 0.9 ||
+    jaccardSimilarity(sets[0], sets[2]) >= 0.9 ||
+    jaccardSimilarity(sets[1], sets[2]) >= 0.9
+  );
+}
+
+function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluationMode?: string): string[] {
+  const candidates = [opportunity.candidate_text_a, opportunity.candidate_text_b, opportunity.candidate_text_c];
+  if (candidates.some((candidate) => typeof candidate !== 'string' || candidate.trim().length === 0)) return [];
+
+  const reasons: string[] = [];
+  if (candidates.some((candidate) => !candidateTextIsCopyPasteReady(candidate))) {
+    reasons.push('candidate_noncompliant');
+  }
+  if (candidateSetHasLowDiversity(opportunity)) {
+    reasons.push('candidate_low_diversity');
+  }
+  if (
+    evaluationMode === 'TESTIMONY' &&
+    hasDialogueIntent(opportunity) &&
+    !hasDirectSpeech(opportunity.evidence_anchor) &&
+    candidates.some((candidate) => typeof candidate === 'string' && hasDirectSpeech(candidate))
+  ) {
+    reasons.push('testimony_fabrication_risk');
+  }
+  return [...new Set(reasons)];
+}
+
+function blockOpportunityByPreflight(opportunity: RevisionOpportunity, reasons: string[]): RevisionOpportunity {
+  return {
+    ...opportunity,
+    candidate_text_a: '',
+    candidate_text_b: '',
+    candidate_text_c: '',
+    grounding_status: 'unsupported_blocked',
+    grounding_note: `Blocked by ${REVISE_QUEUE_PREFLIGHT_GATE_VERSION}: ${reasons.join(', ')}`,
+    preflight_status: 'blocked',
+    preflight_reasons: [...new Set(reasons)],
+    preflight_note: 'Recommendation requires rewrite or admin review before it can become a user-facing Revise Queue card.',
+  };
+}
+
+function preflightReasonsForOpportunity(
+  opportunity: RevisionOpportunity,
+  contextQuality: ReviseContextQuality,
+  evaluationMode?: string,
+): string[] {
+  const reasons: string[] = [];
+  if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
+  if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
+  if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
+  if (!anchorRationaleIsCoherent(opportunity) && !recommendationCanTargetStructuralIssue(opportunity)) reasons.push('anchor_mismatch');
+  if (evaluationMode === 'TESTIMONY' && hasDialogueIntent(opportunity) && !hasDirectSpeech(opportunity.evidence_anchor)) {
+    reasons.push('testimony_fabrication_risk');
+  }
+  return [...new Set(reasons)];
+}
+
+function applyReviseQueuePreflight(
+  opportunities: RevisionOpportunity[],
+  options?: { contextQuality?: ReviseContextQuality; evaluationMode?: string },
+): RevisionOpportunity[] {
+  const contextQuality = options?.contextQuality ?? 'clean';
+  return opportunities.map((opportunity) => {
+    const reasons = preflightReasonsForOpportunity(opportunity, contextQuality, options?.evaluationMode);
+    if (reasons.length > 0) {
+      return {
+        ...blockOpportunityByPreflight(opportunity, reasons),
+        context_quality: contextQuality,
+      };
+    }
+
+    const candidateReasons = candidateComplianceReasons(opportunity, options?.evaluationMode);
+    if (candidateReasons.length > 0) {
+      return {
+        ...blockOpportunityByPreflight(opportunity, candidateReasons),
+        context_quality: contextQuality,
+      };
+    }
+
+    return {
+      ...opportunity,
+      context_quality: contextQuality,
+      confidence: contextQuality === 'limited'
+        ? capLedgerConfidence(opportunity.confidence, 'medium')
+        : opportunity.confidence,
+      preflight_status: contextQuality === 'limited' ? 'limited_context' : 'passed',
+      preflight_reasons: contextQuality === 'limited' ? ['limited_context_due_to_degraded_canon'] : [],
+      preflight_note: contextQuality === 'limited'
+        ? 'Generated under limited context because ledger_quality_report_v1 did not certify clean story canon.'
+        : undefined,
+    };
+  });
+}
+
+function summarizePreflight(opportunities: RevisionOpportunity[]): Record<string, unknown> {
+  const summary = {
+    total: opportunities.length,
+    passed: 0,
+    limited_context: 0,
+    blocked: 0,
+    reasons: {} as Record<string, number>,
+  };
+  for (const opportunity of opportunities) {
+    if (opportunity.preflight_status === 'blocked') summary.blocked++;
+    else if (opportunity.preflight_status === 'limited_context') summary.limited_context++;
+    else summary.passed++;
+
+    for (const reason of opportunity.preflight_reasons ?? []) {
+      summary.reasons[reason] = (summary.reasons[reason] ?? 0) + 1;
+    }
+  }
+  return summary;
 }
 
 function explicitCandidateOrFallback(
@@ -1227,15 +1494,41 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
   });
   const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(evaluationPayload);
 
+  let ledgerQualityReportContent: unknown = null;
+  try {
+    const { data: ledgerQualityRow } = await supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'ledger_quality_report_v1')
+      .maybeSingle();
+    ledgerQualityReportContent = ledgerQualityRow?.content ?? null;
+  } catch {
+    // Non-blocking: absence of the quality report preserves legacy behavior,
+    // but a present degraded report must constrain Revise below.
+  }
+
+  const contextQualityDecision = resolveReviseContextQuality(ledgerQualityReportContent);
+  const existingLedgerHasCurrentPreflight =
+    isRecord(existingLedgerRow?.content) &&
+    isRecord(existingLedgerRow.content.revise_queue_preflight) &&
+    existingLedgerRow.content.revise_queue_preflight.version === REVISE_QUEUE_PREFLIGHT_GATE_VERSION;
+
   // Stable-artifact guard: skip rebuild when the artifact is already fully enriched
   // (either via longform synthesis or a *complete* AI hydration pass).
   // 'ai_hydrated_partial' is intentionally excluded — partial hydration means some
   // opportunities are still blocked and should be retried on the next workbench load.
+  // RES hardening: preflight must be current and canon context must be clean before
+  // a stable artifact can short-circuit. Degraded canon must rebuild into limited
+  // or blocked mode instead of flowing downstream as normal.
   const existingLedgerStable =
     isRecord(existingLedgerRow?.content) &&
+    existingLedgerHasCurrentPreflight &&
+    contextQualityDecision.status === 'clean' &&
     typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
     (existingLedgerRow.content.candidate_generation_status.includes('longform_enriched') ||
-     existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete'));
+     existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete') ||
+     existingLedgerRow.content.candidate_generation_status.includes('res_preflight_complete'));
 
   if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerStable) {
     const healed = capRevisionOpportunities(
@@ -1339,6 +1632,13 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     }
   }
 
+  const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
+    contextQuality: contextQualityDecision.status,
+    evaluationMode: modeContract.evaluation_mode,
+  });
+  opportunities.splice(0, opportunities.length, ...preflightedOpportunities);
+  let preflightSummary = summarizePreflight(opportunities);
+
   // ── AI Candidate Hydration Pass ────────────────────────────────────────────
   // For each opportunity that SLAE blocked (no explicit candidate prose from
   // the evaluation pipeline), generate A/B/C prose via a single batched OpenAI
@@ -1392,19 +1692,22 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
     if (openaiApiKey) {
       const blockedOpps: HydrationOpportunity[] = opportunities
-        .filter((o) => !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c)
+        .filter((o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c))
         .map((o) => ({
           opportunity_id: o.opportunity_id,
           evidence_anchor: o.evidence_anchor,
           rationale: o.rationale,
           revision_operation: o.revision_operation,
+          evaluation_mode: modeContract.evaluation_mode,
           manuscript_context: findChunkForAnchor(o.evidence_anchor),
         }));
 
       if (blockedOpps.length > 0) {
         try {
           const hydration = await hydrateLedgerCandidates(blockedOpps, openaiApiKey);
-          if (hydration.hydratedCount > 0) {
+          if (!hydration || !(hydration.candidates instanceof Map)) {
+            console.warn(`[CandidateHydration] ${jobId}: hydration returned no usable result`);
+          } else if (hydration.hydratedCount > 0) {
             for (const opp of opportunities) {
               const filled = hydration.candidates.get(opp.opportunity_id);
               if (filled) {
@@ -1415,21 +1718,29 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
                 opp.grounding_note = null;
               }
             }
+            const postHydrationPreflighted = applyReviseQueuePreflight(opportunities, {
+              contextQuality: contextQualityDecision.status,
+              evaluationMode: modeContract.evaluation_mode,
+            });
+            opportunities.splice(0, opportunities.length, ...postHydrationPreflighted);
+            preflightSummary = summarizePreflight(opportunities);
             // Use 'complete' only when every blocked opportunity was successfully
             // hydrated — this gates the stable-artifact cache guard. If any
             // opportunity is still blocked, use 'partial' so the next workbench
             // load retries rather than caching the incomplete result permanently.
             const stillBlocked = opportunities.filter(
-              (o) => !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c,
+              (o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c),
             ).length;
             hydrationStatusSuffix = stillBlocked === 0
-              ? '_ai_hydrated_complete'
+              ? '_ai_hydrated_complete_res_preflight_complete'
               : '_ai_hydrated_partial';
           }
-          console.log(
-            `[CandidateHydration] ${jobId}: hydrated=${hydration.hydratedCount}` +
-            ` of ${blockedOpps.length} blocked; suffix=${hydrationStatusSuffix || '(none)'}`,
-          );
+          if (hydration) {
+            console.log(
+              `[CandidateHydration] ${jobId}: hydrated=${hydration.hydratedCount}` +
+              ` of ${blockedOpps.length} blocked; suffix=${hydrationStatusSuffix || '(none)'}`,
+            );
+          }
         } catch (hydrationErr) {
           console.error(
             `[CandidateHydration] ${jobId}: non-fatal error`,
@@ -1437,6 +1748,15 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
           );
         }
       }
+    }
+  }
+
+  if (!hydrationStatusSuffix) {
+    const remainingHydratableBlocked = opportunities.filter(
+      (o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c),
+    ).length;
+    if (remainingHydratableBlocked === 0) {
+      hydrationStatusSuffix = '_res_preflight_complete';
     }
   }
 
@@ -1454,6 +1774,15 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     evaluation_source_hash: evaluationResultRow.source_hash ?? null,
     mode_contract: modeContractForMetadata(modeContract),
     genre_expectation_context: genreExpectationContext,
+    revise_queue_preflight: {
+      version: REVISE_QUEUE_PREFLIGHT_GATE_VERSION,
+      context_quality: contextQualityDecision.status,
+      ledger_quality_report_source: contextQualityDecision.source,
+      gate_ready_status: contextQualityDecision.gate_ready_status,
+      degraded_layers: contextQualityDecision.degraded_layers,
+      blocking_reasons: contextQualityDecision.blocking_reasons,
+      summary: preflightSummary,
+    },
     opportunities,
   });
 
@@ -1473,7 +1802,16 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
         ? 'backend_filled_abc_v1_chunk_enriched'
         : 'backend_filled_abc_v1') + hydrationStatusSuffix,
     mode_contract: modeContractForMetadata(modeContract),
-      genre_expectation_context: genreExpectationContext,
+    genre_expectation_context: genreExpectationContext,
+    revise_queue_preflight: {
+      version: REVISE_QUEUE_PREFLIGHT_GATE_VERSION,
+      context_quality: contextQualityDecision.status,
+      ledger_quality_report_source: contextQualityDecision.source,
+      gate_ready_status: contextQualityDecision.gate_ready_status,
+      degraded_layers: contextQualityDecision.degraded_layers,
+      blocking_reasons: contextQualityDecision.blocking_reasons,
+      summary: preflightSummary,
+    },
     opportunities,
   };
 

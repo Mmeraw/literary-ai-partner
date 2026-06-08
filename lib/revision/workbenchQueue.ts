@@ -75,6 +75,10 @@ export type WorkbenchOpportunity = {
   readinessReason: string | null
   groundingStatus?: SlaeGroundingStatus
   groundingNote?: string | null
+  contextQuality?: 'clean' | 'limited' | 'blocked'
+  preflightStatus?: 'passed' | 'limited_context' | 'blocked'
+  preflightReasons?: string[]
+  preflightNote?: string | null
   options: WorkbenchOption[]
 }
 
@@ -1127,6 +1131,11 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     const candidateB = (opportunity.candidate_text_b ?? '').trim()
     const candidateC = (opportunity.candidate_text_c ?? '').trim()
 
+    if (opportunity.grounding_status && opportunity.grounding_status !== 'supported') {
+      groundingStatus = opportunity.grounding_status
+      groundingNote = opportunity.grounding_note ?? groundingNote
+    }
+
     const options: WorkbenchOption[] = [
       {
         key: 'A',
@@ -1208,6 +1217,10 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       ...contracted,
       groundingStatus,
       groundingNote,
+      contextQuality: opportunity.context_quality,
+      preflightStatus: opportunity.preflight_status,
+      preflightReasons: opportunity.preflight_reasons,
+      preflightNote: opportunity.preflight_note ?? null,
       modeContract: modeContractForMetadata(modeContract),
     }
   })

@@ -370,6 +370,9 @@ function makeBlockedRecommendations(count: number) {
 function makeMinimalSupabase(overrides: {
   existingLedger?: { id: string; content: Record<string, unknown> } | null;
   criteriaRecommendations?: unknown[];
+  evaluationPayloadExtras?: Record<string, unknown>;
+  ledgerQualityReportContent?: Record<string, unknown> | null;
+  jobFields?: Record<string, unknown>;
   upsertSpy?: jest.Mock;
 }) {
   const upsertSpy = overrides.upsertSpy ?? jest.fn();
@@ -394,7 +397,13 @@ function makeMinimalSupabase(overrides: {
           // Job row
           if (table === 'evaluation_jobs') {
             return {
-              data: { id: state.filters['id'], manuscript_id: 9999, evaluation_project_id: null, evaluation_result: null },
+              data: {
+                id: state.filters['id'],
+                manuscript_id: 9999,
+                evaluation_project_id: null,
+                evaluation_result: null,
+                ...overrides.jobFields,
+              },
               error: null,
             };
           }
@@ -404,6 +413,7 @@ function makeMinimalSupabase(overrides: {
               data: {
                 source_hash: 'hash-abc',
                 content: {
+                  ...overrides.evaluationPayloadExtras,
                   criteria: [
                     {
                       key: 'character',
@@ -413,6 +423,18 @@ function makeMinimalSupabase(overrides: {
                   ],
                 },
               },
+              error: null,
+            };
+          }
+          if (
+            table === 'evaluation_artifacts' &&
+            state.selectClause === 'content' &&
+            state.filters['artifact_type'] === 'ledger_quality_report_v1'
+          ) {
+            return {
+              data: overrides.ledgerQualityReportContent === undefined
+                ? null
+                : { content: overrides.ledgerQualityReportContent },
               error: null,
             };
           }
@@ -454,9 +476,9 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
         blockedOpps.map((o: { opportunity_id: string }) => [
           o.opportunity_id,
           {
-            candidate_text_a: `Revised prose A — ${o.opportunity_id} with enough words to satisfy the SLAE minimum check.`,
-            candidate_text_b: `Revised prose B — ${o.opportunity_id} with enough words to satisfy the SLAE minimum check.`,
-            candidate_text_c: `Revised prose C — ${o.opportunity_id} with enough words to satisfy the SLAE minimum check.`,
+            candidate_text_a: 'She paused at the doorway long enough for the room to understand what had changed.',
+            candidate_text_b: 'The hallway went quiet, and the silence carried the answer before anyone spoke.',
+            candidate_text_c: 'A glass trembled on the table, making the consequence visible before she moved.',
           },
         ]),
       );
@@ -514,6 +536,10 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
         id: 'ledger-complete',
         content: {
           candidate_generation_status: 'backend_filled_abc_v1_ai_hydrated_complete',
+          revise_queue_preflight: {
+            version: 'revise_queue_preflight_gate_v1',
+            context_quality: 'clean',
+          },
           opportunities: recs.map((r, i) => ({
             opportunity_id: `rol:${i}`,
             criterion: 'CHARACTER',
@@ -582,5 +608,86 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     expect(upsertSpyPartial).toHaveBeenCalledTimes(1);
     const rebuiltStatus = (upsertSpyPartial.mock.calls[0][0] as { content: Record<string, unknown> }).content.candidate_generation_status as string;
     expect(rebuiltStatus).not.toContain('ai_hydrated_complete');
+  });
+
+  it('marks opportunities limited-context and caps confidence when ledger quality is retryable-degraded', async () => {
+    delete process.env.OPENAI_API_KEY;
+    const upsertSpy = jest.fn();
+
+    const supabase = makeMinimalSupabase({
+      upsertSpy,
+      ledgerQualityReportContent: {
+        quality_report: {
+          gate_ready_status: 'blocked_retryable_technical',
+          blocking_reasons: ['TECHNICAL_BLOCK: Pass 3A reducer failed.'],
+          layer_truth_status: {
+            canonical_identity_layer: 'degraded',
+            relationship_network_layer: 'degraded',
+          },
+        },
+      },
+      criteriaRecommendations: [
+        {
+          diagnosis: 'Christine and Nicolas need a clearer bridge beat at this turn.',
+          recommendation: 'Bridge Christine and Nicolas with one concrete consequence beat before the scene moves on.',
+          anchor_snippet: 'Christine looked toward Nicolas’s closed bedroom door and let the house go quiet.',
+          location_ref: 'passage:limited-context',
+          confidence: 0.95,
+          candidate_text_a: 'Christine looked toward Nicolas’s closed bedroom door, and the quiet in the hall made her choice feel smaller than her fear.',
+          candidate_text_b: 'When Christine glanced at Nicolas’s closed door, the whole house seemed to hold its breath around what she would not say.',
+          candidate_text_c: 'The hallway stayed quiet after Christine looked toward Nicolas’s room, leaving her worry to do the speaking for her.',
+        },
+      ],
+    });
+
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-limited-context');
+
+    const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+    expect(persisted.content.revise_queue_preflight).toMatchObject({
+      version: 'revise_queue_preflight_gate_v1',
+      context_quality: 'limited',
+      gate_ready_status: 'blocked_retryable_technical',
+    });
+    expect(persisted.content.candidate_generation_status).toContain('res_preflight_complete');
+
+    const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opp.context_quality).toBe('limited');
+    expect(opp.preflight_status).toBe('limited_context');
+    expect(opp.preflight_reasons).toContain('limited_context_due_to_degraded_canon');
+    expect(opp.confidence).toBe('medium');
+  });
+
+  it('quarantines TESTIMONY dialogue recommendations without source dialogue before hydration', async () => {
+    const upsertSpy = jest.fn();
+
+    const supabase = makeMinimalSupabase({
+      upsertSpy,
+      evaluationPayloadExtras: {
+        confirmed_mode: {
+          evaluationMode: 'TESTIMONY',
+          voicePreservationMode: 'POLISHED',
+        },
+      },
+      criteriaRecommendations: [
+        {
+          diagnosis: 'The Christine exchange is summarized instead of rendered as dialogue.',
+          recommendation: 'Convert one summarized exchange between Christine and the narrator into a short dialogue beat.',
+          anchor_snippet: 'Brad, myself and others have suggested to Christine that she should just kick Nicolas out so he learns to be become self-sufficient.',
+          location_ref: 'passage:testimony-dialogue-risk',
+          confidence: 0.84,
+        },
+      ],
+    });
+
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-testimony-dialogue-risk');
+
+    expect(mockHydrate).not.toHaveBeenCalled();
+    const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+    const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
+    expect(opp.preflight_status).toBe('blocked');
+    expect(opp.preflight_reasons).toContain('testimony_fabrication_risk');
+    expect(opp.grounding_status).toBe('unsupported_blocked');
+    expect(opp.candidate_text_a).toBe('');
+    expect(persisted.content.candidate_generation_status).toContain('res_preflight_complete');
   });
 });

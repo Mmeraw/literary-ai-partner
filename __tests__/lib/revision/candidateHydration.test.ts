@@ -184,9 +184,9 @@ describe('hydrateLedgerCandidates', () => {
       makeCompletion(
         opps.map((o) => ({
           id: o.opportunity_id,
-          candidate_a: `Revised prose A for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
-          candidate_b: `Revised prose B for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
-          candidate_c: `Revised prose C for ${o.opportunity_id} with sufficient word count to meet the minimum.`,
+          candidate_a: 'Mara paused at the doorway long enough for the quiet to gather around her.',
+          candidate_b: 'The room changed before anyone spoke, its stillness making the choice visible.',
+          candidate_c: 'A glass trembled on the table, catching the consequence in one small sound.',
         })),
       );
 
@@ -258,5 +258,56 @@ describe('hydrateLedgerCandidates', () => {
 
     expect(result.hydratedCount).toBe(0);
     expect(result.candidates.size).toBe(0);
+  });
+
+  it('rejects near-synonym A/B/C candidates that are not materially distinct', async () => {
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:bbb222',
+          candidate_a:
+            'Late summer heat pressed down on the valley, turning the distant hills a pale washed-out blue.',
+          candidate_b:
+            'Late summer heat pressed across the valley, making the distant hills look pale and washed-out blue.',
+          candidate_c:
+            'The late summer heat pressed over the valley until the distant hills turned pale and washed-out blue.',
+        },
+      ]),
+    );
+
+    const result = await hydrateLedgerCandidates([oppB], 'sk-test');
+
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.has('rol:bbb222')).toBe(false);
+  });
+
+  it('rejects invented quoted dialogue in TESTIMONY mode when source excerpt has no dialogue', async () => {
+    const testimonyDialogueRisk: HydrationOpportunity = {
+      opportunity_id: 'rol:testimony-dialogue',
+      evidence_anchor:
+        'Brad, myself and others have suggested to Christine that she should just kick Nicolas out so he learns to become self-sufficient.',
+      rationale: 'Convert one summarized exchange between Christine and the narrator into a short dialogue beat.',
+      revision_operation: 'replace_selected_passage',
+      evaluation_mode: 'TESTIMONY',
+    };
+
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:testimony-dialogue',
+          candidate_a:
+            'Christine folded her arms and said, “I cannot throw Nicolas out just because everyone else thinks I should.”',
+          candidate_b:
+            'I told Christine, “You are enabling him,” but she looked away and answered, “He is still my son.”',
+          candidate_c:
+            'Brad shook his head and said, “He has to learn,” while Christine stayed fixed in the doorway.',
+        },
+      ]),
+    );
+
+    const result = await hydrateLedgerCandidates([testimonyDialogueRisk], 'sk-test');
+
+    expect(result.hydratedCount).toBe(0);
+    expect(result.candidates.has('rol:testimony-dialogue')).toBe(false);
   });
 });

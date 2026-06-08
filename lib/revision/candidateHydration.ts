@@ -41,6 +41,8 @@ export type HydrationOpportunity = {
   evidence_anchor: string;
   rationale: string;
   revision_operation?: string;
+  /** Evaluation mode contract; TESTIMONY receives stricter memoir-safety checks. */
+  evaluation_mode?: string;
   /** Surrounding manuscript paragraph/chunk containing the anchor. Improves SLAE pass rate. */
   manuscript_context?: string;
 };
@@ -72,11 +74,48 @@ function normalizeProse(s: string): string {
     .trim();
 }
 
+function contentTokenSet(raw: string): Set<string> {
+  const stop = new Set([
+    'about', 'after', 'again', 'against', 'before', 'being', 'between', 'could', 'every', 'from', 'have', 'into',
+    'more', 'should', 'that', 'their', 'there', 'these', 'this', 'those', 'through', 'with', 'would', 'while',
+    'where', 'which', 'when', 'what', 'will', 'without', 'within', 'because', 'passage', 'selected', 'revision',
+  ]);
+  return new Set(
+    normalizeProse(raw)
+      .split(' ')
+      .filter((token) => token.length >= 4 && !stop.has(token)),
+  );
+}
+
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection++;
+  }
+  return intersection / (a.size + b.size - intersection);
+}
+
+function tokenOverlapRatio(a: string, b: string): number {
+  const aTokens = contentTokenSet(a);
+  const bTokens = contentTokenSet(b);
+  if (aTokens.size === 0 || bTokens.size === 0) return 0;
+  let overlap = 0;
+  for (const token of aTokens) {
+    if (bTokens.has(token)) overlap++;
+  }
+  return overlap / Math.min(aTokens.size, bTokens.size);
+}
+
 function candidateEchoesAnchor(candidate: string, anchor: string): boolean {
   if (candidate.length < 20 || anchor.length < 20) return false;
   const normCandidate = normalizeProse(candidate);
   const normAnchor = normalizeProse(anchor);
-  return normCandidate.length >= 20 && normAnchor.includes(normCandidate);
+  return normCandidate.length >= 20 && (
+    normAnchor.includes(normCandidate) ||
+    normCandidate.includes(normAnchor) ||
+    tokenOverlapRatio(candidate, anchor) >= 0.82
+  );
 }
 
 /** Returns the validated candidate string, or empty string if it fails SLAE. */
@@ -89,6 +128,49 @@ function slaeValidate(raw: unknown, anchor: string, rationale: string): string {
   if (text.toLowerCase() === rationale.trim().toLowerCase()) return '';
   if (candidateEchoesAnchor(text, anchor)) return '';
   return text;
+}
+
+function hasDirectSpeech(raw: string): boolean {
+  return /["\u201c][^"\u201d]{2,}["\u201d]/u.test(raw);
+}
+
+function hasDialogueIntent(opportunity: HydrationOpportunity): boolean {
+  return /\b(dialogue|conversation|exchange|direct interaction|spoken|line of dialogue|scene with dialogue)\b/i.test(
+    `${opportunity.rationale} ${opportunity.revision_operation ?? ''}`,
+  );
+}
+
+function candidatesAreDistinct(candidates: string[]): boolean {
+  const sets = candidates.map(contentTokenSet);
+  for (let i = 0; i < sets.length; i++) {
+    for (let j = i + 1; j < sets.length; j++) {
+      if (jaccardSimilarity(sets[i], sets[j]) >= 0.6) return false;
+    }
+  }
+  return true;
+}
+
+function candidatesSatisfyRes(opportunity: HydrationOpportunity, candidates: string[]): boolean {
+  if (!candidatesAreDistinct(candidates)) return false;
+
+  if (
+    (opportunity.revision_operation === 'insert_before_selected_passage' ||
+      opportunity.revision_operation === 'insert_after_selected_passage') &&
+    candidates.some((candidate) => tokenOverlapRatio(candidate, opportunity.evidence_anchor) >= 0.55)
+  ) {
+    return false;
+  }
+
+  if (
+    opportunity.evaluation_mode === 'TESTIMONY' &&
+    hasDialogueIntent(opportunity) &&
+    !hasDirectSpeech(opportunity.evidence_anchor) &&
+    candidates.some(hasDirectSpeech)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 // ── Prompt construction ───────────────────────────────────────────────────────
@@ -109,6 +191,7 @@ function buildUserMessage(opportunities: HydrationOpportunity[]): string {
           : '') +
         `Excerpt to revise:\n"${o.evidence_anchor.slice(0, 1500)}"\n` +
         `Editorial recommendation: ${o.rationale.slice(0, 800)}` +
+        (o.evaluation_mode ? `\nEvaluation mode: ${o.evaluation_mode}` : '') +
         (o.revision_operation ? `\nRevision type: ${o.revision_operation}` : ''),
     )
     .join('\n---\n');
@@ -121,6 +204,7 @@ Rules:
 - Do NOT simply repeat or lightly paraphrase the excerpt or its surrounding passage
 - Write complete, fluent prose that a human editor would accept as-is
 - Match the voice, tense, and style of the surrounding manuscript passage when provided
+- In TESTIMONY/memoir mode, do not invent facts or quoted dialogue that is not present in the excerpt or surrounding passage
 - For insert_before_selected_passage / insert_after_selected_passage: write NEW text to insert; do not copy the excerpt
 - For compress_selected_passage: write a tighter, more concise version of the excerpt
 - For all other operations: rewrite the excerpt to address the editorial recommendation
@@ -218,7 +302,7 @@ export async function hydrateLedgerCandidates(
         const b = slaeValidate(r.candidate_b, opp.evidence_anchor, opp.rationale);
         const c = slaeValidate(r.candidate_c, opp.evidence_anchor, opp.rationale);
 
-        if (a && b && c) {
+        if (a && b && c && candidatesSatisfyRes(opp, [a, b, c])) {
           candidates.set(id, {
             candidate_text_a: a,
             candidate_text_b: b,
