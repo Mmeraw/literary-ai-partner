@@ -114,6 +114,14 @@ export function runReviseAdmissionGate(opportunity: ReviseAdmissionOpportunity):
   const quality = evaluateCardCandidateQuality(candidateInputs);
   reasons.push(...quality.reasons);
 
+  const hardCandidateReasons = new Set<CandidateQualityInput['key'] | string>();
+  for (const candidate of quality.candidateResults) {
+    if (candidate.reasons.includes('GENERIC_PROSE')) hardCandidateReasons.add('GENERIC_PROSE');
+    if (candidate.reasons.includes('NON_EXECUTABLE_PROSE')) hardCandidateReasons.add('NON_EXECUTABLE_PROSE');
+    if (candidate.reasons.includes('NOT_EXECUTABLE')) hardCandidateReasons.add('NOT_EXECUTABLE');
+  }
+  reasons.push(...hardCandidateReasons);
+
   for (const input of candidateInputs) {
     if (!input.text) continue;
     const voice = runVoiceGate({ candidateText: input.text });

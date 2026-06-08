@@ -81,6 +81,16 @@ describe('evaluateCandidateQuality ledger API', () => {
     expect(reasons).toContain('candidate_quality_generic_filler');
   });
 
+  it.each([
+    'He looked away first, and that was enough for the moment to claim its price.',
+    'The moment tightened around her before she answered.',
+    'She held still to keep the air still in the room.',
+    'He paused inside the pressure of the moment.',
+  ])('flags generic_filler for banned phrase: %s', (candidate) => {
+    const reasons = evaluateCandidateQuality(candidate, GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(reasons).toContain('candidate_quality_generic_filler');
+  });
+
   it('flags anchor_overlap when candidate echoes anchor at >= 0.82 token overlap', () => {
     const echoCandidate =
       'Mara held the door open a moment longer than she needed to letting the silence make its own argument here.';
@@ -139,6 +149,20 @@ describe('evaluateCardQuality ledger API', () => {
     );
     expect(result.pass).toBe(true);
     expect(result.passingCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('fails when any candidate contains banned generic filler even if two candidates pass', () => {
+    const result = evaluateCardQuality(
+      goodCandidate(0),
+      goodCandidate(1),
+      'He looked away first, and that was enough for the moment to claim its price.',
+      GOOD_ANCHOR,
+      GOOD_RATIONALE,
+    );
+    expect(result.pass).toBe(false);
+    if (!result.pass) {
+      expect(result.reasons).toContain('candidate_quality_generic_filler');
+    }
   });
 
   it('fails when only 1 of 3 candidates passes', () => {

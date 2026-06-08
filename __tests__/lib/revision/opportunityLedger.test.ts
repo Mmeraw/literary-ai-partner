@@ -212,6 +212,31 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
       expect(row.grounding_status).toBe('unsupported_blocked');
     }
   });
+
+  it('rebuilds queue opportunities without banned generic fallback filler phrases', () => {
+    const payload = {
+      criteria: [
+        {
+          key: 'narrativeDrive',
+          recommendations: [
+            {
+              diagnosis: 'Insert one concrete stakes beat that lands the deferred decision at the current scene turn.',
+              recommendation: 'Insert one concrete stakes beat that lands the deferred decision at the current scene turn.',
+              anchor_snippet: 'Studies are mixed on the success of safe injection sites.',
+              location_ref: 'passage:rebuild-no-garbage',
+              confidence: 0.82,
+            },
+          ],
+        },
+      ],
+    };
+
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(payload);
+    expect(opportunities).toHaveLength(1);
+
+    const serialized = JSON.stringify(opportunities);
+    expect(serialized).not.toMatch(/looked away first|moment to claim its price|moment tightened|keep the air still|pressure of the moment/i);
+  });
 });
 
 describe('ensureRevisionOpportunityLedgerArtifact', () => {
@@ -347,9 +372,9 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
   });
 });
 
-// ── Hydration status / stable-guard integration tests ─────────────────────────
+// ── Hydration status / one-ledger rebuild integration tests ───────────────────
 // These tests mock candidateHydration to isolate the status-suffix and
-// stable-guard logic inside ensureRevisionOpportunityLedgerArtifact.
+// rebuild/upsert logic inside ensureRevisionOpportunityLedgerArtifact.
 
 jest.mock('@/lib/revision/candidateHydration', () => ({
   hydrateLedgerCandidates: jest.fn(),
@@ -475,7 +500,7 @@ function makeMinimalSupabase(overrides: {
   };
 }
 
-describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix and stable-guard', () => {
+describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix and one-ledger rebuild', () => {
   const OPENAI_KEY = 'sk-test-key';
 
   beforeEach(() => {
@@ -534,7 +559,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     expect(opps.every((o) => typeof o.candidate_text_a === 'string' && (o.candidate_text_a as string).length > 0)).toBe(true);
   });
 
-  it('writes _ai_hydrated_partial when some opportunities remain blocked, preventing stable-guard cache', async () => {
+  it('writes _ai_hydrated_partial when some opportunities remain blocked', async () => {
     // 20 blocked recommendations; hydration only fills 15 (the first batch)
     const recs = makeBlockedRecommendations(20);
     const upsertSpy = jest.fn();
@@ -555,17 +580,30 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
     const status = persisted.content.candidate_generation_status as string;
 
-    // Must NOT contain 'ai_hydrated_complete' — that would lock the cache
+    // Must NOT contain 'ai_hydrated_complete' — that would falsely certify the ledger.
     expect(status).not.toContain('ai_hydrated_complete');
   });
 
-  it('stable-guard short-circuits on ai_hydrated_complete but NOT on ai_hydrated_partial', async () => {
+  it('rebuilds and upserts even when an existing ledger claims ai_hydrated_complete', async () => {
     const recs = makeBlockedRecommendations(3);
     const manuscriptChunks = recs.map((r) => ({ content: r.anchor_snippet }));
 
-    // Scenario 1: existing artifact has _ai_hydrated_complete — should short-circuit (no upsert)
-    const upsertSpyComplete = jest.fn();
-    const completeSupabase = makeMinimalSupabase({
+    mockHydrate.mockImplementation(async (blockedOpps) => {
+      const candidatesMap = new Map(
+        blockedOpps.map((o: { opportunity_id: string }) => [
+          o.opportunity_id,
+          {
+            candidate_text_a: 'The character crossed the room and let the implication register before taking another step.',
+            candidate_text_b: 'The character stopped in the room long enough for the implication of what had happened to settle.',
+            candidate_text_c: 'The character moved on only after the space around them made the consequence impossible to ignore.',
+          },
+        ]),
+      );
+      return { hydratedCount: blockedOpps.length, skippedCount: 0, candidates: candidatesMap };
+    });
+
+    const upsertSpy = jest.fn();
+    const supabase = makeMinimalSupabase({
       existingLedger: {
         id: 'ledger-complete',
         content: {
@@ -584,25 +622,33 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
             provenance: 'evaluation_result.criteria.recommendations',
             confidence: 'medium',
             decision_state: 'open',
-            candidate_text_a: `Complete candidate A for opp ${i} — enough words to pass SLAE here.`,
-            candidate_text_b: `Complete candidate B for opp ${i} — enough words to pass SLAE here.`,
-            candidate_text_c: `Complete candidate C for opp ${i} — enough words to pass SLAE here.`,
+            candidate_text_a: 'The character crossed the room and let the implication register before taking another step.',
+            candidate_text_b: 'The character stopped in the room long enough for the implication of what had happened to settle.',
+            candidate_text_c: 'The character moved on only after the space around them made the consequence impossible to ignore.',
             grounding_status: 'supported',
+            preflight_status: 'passed',
+            context_quality: 'clean',
           })),
         },
       },
       criteriaRecommendations: recs,
       manuscriptChunks,
-      upsertSpy: upsertSpyComplete,
+      upsertSpy,
     });
-    await ensureRevisionOpportunityLedgerArtifact(completeSupabase, 'job-stable-complete');
-    // Short-circuited via persistHealedExistingLedger path — stable artifact not rebuilt
-    // hydrateLedgerCandidates should not have been called
-    expect(mockHydrate).not.toHaveBeenCalled();
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-stable-complete');
 
-    mockHydrate.mockReset();
+    // Existing rows are never cache authority. The job has one ledger row, but
+    // its content is rebuilt from canonical evaluation artifacts and upserted.
+    expect(mockHydrate).toHaveBeenCalledTimes(1);
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+    const rebuiltStatus = (upsertSpy.mock.calls[0][0] as { content: Record<string, unknown> }).content.candidate_generation_status as string;
+    expect(rebuiltStatus).toContain('ai_hydrated_complete');
+  });
 
-    // Scenario 2: existing artifact has _ai_hydrated_partial — must NOT short-circuit
+  it('rebuilds and upserts existing ai_hydrated_partial ledgers', async () => {
+    const recs = makeBlockedRecommendations(3);
+    const manuscriptChunks = recs.map((r) => ({ content: r.anchor_snippet }));
+
     mockHydrate.mockResolvedValueOnce({
       hydratedCount: 0,
       skippedCount: 0,
@@ -638,9 +684,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     });
     await ensureRevisionOpportunityLedgerArtifact(partialSupabase, 'job-stable-partial');
 
-    // Partial artifacts are NOT stable — hydration must have been attempted again
     expect(mockHydrate).toHaveBeenCalledTimes(1);
-    // And the ledger must have been upserted (rebuilt)
     expect(upsertSpyPartial).toHaveBeenCalledTimes(1);
     const rebuiltStatus = (upsertSpyPartial.mock.calls[0][0] as { content: Record<string, unknown> }).content.candidate_generation_status as string;
     expect(rebuiltStatus).not.toContain('ai_hydrated_complete');

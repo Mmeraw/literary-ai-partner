@@ -1713,36 +1713,6 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
   return capRevisionOpportunities([...anchorOpDeduped.values()], options?.wordCount);
 }
 
-async function persistHealedExistingLedger(input: {
-  supabase: any;
-  rowId: string | null;
-  currentContent: unknown;
-  opportunities: RevisionOpportunity[];
-  extraContent?: Record<string, unknown>;
-}): Promise<void> {
-  if (!input.rowId || !isRecord(input.currentContent)) return;
-
-  const existing = input.currentContent.opportunities;
-  const extraContent = input.extraContent ?? {};
-  const extraContentUnchanged = Object.entries(extraContent).every(
-    ([key, value]) => stableStringify(input.currentContent[key]) === stableStringify(value),
-  );
-  if (stableStringify(existing) === stableStringify(input.opportunities) && extraContentUnchanged) return;
-
-  await input.supabase
-    .from('evaluation_artifacts')
-    .update({
-      content: {
-        ...input.currentContent,
-        ...extraContent,
-        opportunities: input.opportunities,
-        candidate_generation_status: 'backend_filled_abc_v1',
-        candidate_generation_updated_at: new Date().toISOString(),
-      },
-    })
-    .eq('id', input.rowId);
-}
-
 export async function ensureRevisionOpportunityLedgerArtifact(
   supabase: any,
   jobId: string,
@@ -1813,48 +1783,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   }
 
   const contextQualityDecision = resolveReviseContextQuality(ledgerQualityReportContent);
-  const existingLedgerHasCurrentPreflight =
-    isRecord(existingLedgerRow?.content) &&
-    isRecord(existingLedgerRow.content.revise_queue_preflight) &&
-    existingLedgerRow.content.revise_queue_preflight.version === REVISE_QUEUE_PREFLIGHT_GATE_VERSION;
-
-  // Stable-artifact guard: skip rebuild when the artifact is already fully enriched
-  // (either via longform synthesis or a *complete* AI hydration pass).
-  // 'ai_hydrated_partial' is intentionally excluded — partial hydration means some
-  // opportunities are still blocked and should be retried on the next workbench load.
-  // RES hardening: preflight must be current and canon context must be clean before
-  // a stable artifact can short-circuit. Degraded canon must rebuild into limited
-  // or blocked mode instead of flowing downstream as normal.
-  const existingLedgerStable =
-    isRecord(existingLedgerRow?.content) &&
-    existingLedgerHasCurrentPreflight &&
-    contextQualityDecision.status === 'clean' &&
-    typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
-    (existingLedgerRow.content.candidate_generation_status.includes('longform_enriched') ||
-     existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete') ||
-     existingLedgerRow.content.candidate_generation_status.includes('res_preflight_complete'));
-
-  if (existingOpportunities && existingOpportunities.length > 0 && existingLedgerStable && !options?.forceRebuild) {
-    const healed = capRevisionOpportunities(
-      existingOpportunities.map(ensureOpportunityCandidates),
-      jobWordCount,
-    );
-    await persistHealedExistingLedger({
-      supabase,
-      rowId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
-      currentContent: existingLedgerRow?.content,
-      opportunities: healed,
-      extraContent: {
-        mode_contract: modeContractForMetadata(modeContract),
-        genre_expectation_context: genreExpectationContext,
-      },
-    });
-
-    return {
-      artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
-      opportunities: healed,
-    };
-  }
+  // A job has exactly one authoritative Revise Queue ledger, but the persisted
+  // row is not a cache authority. Always rebuild from the canonical evaluation
+  // artifacts for this job and upsert over the existing row. This prevents stale
+  // candidate prose, stale preflight outcomes, or old admission rules from being
+  // reused after governance changes.
 
   if (evaluationResultError || !evaluationPayload) {
     throw new Error(
@@ -1906,39 +1839,6 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
   );
-
-  // ── Carry-forward pass: preserve stable supported cards per opportunity ─────
-  // This makes rebuilds idempotent under hydration nondeterminism: already-safe
-  // supported cards are preserved, and only unstable/blocked cards are retried.
-  if (existingOpportunities && existingOpportunities.length > 0) {
-    const prevStableSupportedMap = new Map(
-      existingOpportunities
-        .filter((o: any) =>
-          typeof o.candidate_text_a === 'string' && o.candidate_text_a.trim().length > 0 &&
-          typeof o.candidate_text_b === 'string' && o.candidate_text_b.trim().length > 0 &&
-          typeof o.candidate_text_c === 'string' && o.candidate_text_c.trim().length > 0 &&
-          o.grounding_status === 'supported' &&
-          o.preflight_status === 'passed' &&
-          o.context_quality === 'clean',
-        )
-        .map((o: any) => [o.opportunity_id, o]),
-    );
-
-    for (const opp of opportunities) {
-      const prev = prevStableSupportedMap.get(opp.opportunity_id);
-      if (!prev) continue;
-      opp.candidate_text_a = prev.candidate_text_a;
-      opp.candidate_text_b = prev.candidate_text_b;
-      opp.candidate_text_c = prev.candidate_text_c;
-      opp.grounding_status = 'supported';
-      opp.grounding_note = null;
-      opp.preflight_status = 'passed';
-      opp.preflight_reasons = [];
-      opp.context_quality = 'clean';
-      opp.preflight_note = undefined;
-      opp.admin_actions = undefined;
-    }
-  }
 
   const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
     contextQuality: contextQualityDecision.status,
@@ -2200,7 +2100,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
             // opportunity is still blocked, use 'partial' so the next workbench
             // load retries rather than caching the incomplete result permanently.
             const stillBlocked = opportunities.filter(
-              (o) => o.preflight_status !== 'blocked' && o.grounding_status !== 'supported',
+              (o) => o.preflight_status === 'blocked' || o.grounding_status !== 'supported',
             ).length;
             hydrationStatusSuffix = stillBlocked === 0
               ? '_ai_hydrated_complete_res_preflight_complete'

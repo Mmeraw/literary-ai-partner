@@ -340,6 +340,15 @@ export function evaluateCardQuality(
     evaluateLedgerCandidateQuality(candidateC, anchor, rationale),
   ];
 
+  const hasHardFillerFailure = resultsPerCandidate.some((reasons) =>
+    reasons.includes('candidate_quality_generic_filler'),
+  );
+
+  if (hasHardFillerFailure) {
+    const mergedReasons = [...new Set(resultsPerCandidate.flat())] as CandidateQualityReasonCode[];
+    return { pass: false, passingCount: 0, reasons: mergedReasons };
+  }
+
   const passingCount = resultsPerCandidate.filter((reasons) => reasons.length === 0).length;
 
   if (passingCount >= 2) {
