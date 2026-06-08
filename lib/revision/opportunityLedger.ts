@@ -579,7 +579,7 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
   for (const criterionRow of criteria) {
     if (!isRecord(criterionRow)) continue;
 
-    const criterion = normalizeCriterion(criterionRow.key ?? criterionRow.criterion_key);
+    const criterion = normalizeCriterion(criterionRow.criterion_id ?? criterionRow.key ?? criterionRow.criterion_key);
     const criterionScore = criterionRow.score_0_10;
     const criterionEvidenceRaw = Array.isArray(criterionRow.evidence) ? criterionRow.evidence[0] : null;
     const criterionEvidenceSnippet = isRecord(criterionEvidenceRaw)
@@ -792,7 +792,7 @@ function extractChunkCacheRecommendations(chunkCachePayload: unknown): RevisionO
     for (const criterionRow of criteria) {
       if (!isRecord(criterionRow)) continue;
 
-      const criterion = normalizeCriterion(criterionRow.key ?? criterionRow.criterion_key);
+      const criterion = normalizeCriterion(criterionRow.criterion_id ?? criterionRow.key ?? criterionRow.criterion_key);
       const criterionScore = criterionRow.score_0_10;
       const recommendations = Array.isArray(criterionRow.recommendations)
         ? criterionRow.recommendations
@@ -1122,7 +1122,28 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
 
   const all = [...deduped.values()];
 
-  return capRevisionOpportunities(all, options?.wordCount);
+  // Second-pass dedup: same anchor + same operation across different criteria creates
+  // redundant cards for the user. Keep only the highest-severity opportunity per
+  // (anchor_fingerprint, revision_operation) pair.
+  const SEVERITY_RANK: Record<string, number> = { critical: 4, important: 3, should: 2, could: 1 };
+  const anchorOpKey = (o: RevisionOpportunity) =>
+    `${o.revision_operation ?? 'replace'}::${o.evidence_anchor.trim().toLowerCase().slice(0, 80)}`;
+  const anchorOpDeduped = new Map<string, RevisionOpportunity>();
+  for (const opp of all) {
+    const key = anchorOpKey(opp);
+    const existing = anchorOpDeduped.get(key);
+    if (!existing) {
+      anchorOpDeduped.set(key, opp);
+    } else {
+      const oppRank = SEVERITY_RANK[opp.severity] ?? 0;
+      const existingRank = SEVERITY_RANK[existing.severity] ?? 0;
+      if (oppRank > existingRank) {
+        anchorOpDeduped.set(key, opp);
+      }
+    }
+  }
+
+  return capRevisionOpportunities([...anchorOpDeduped.values()], options?.wordCount);
 }
 
 async function persistHealedExistingLedger(input: {
