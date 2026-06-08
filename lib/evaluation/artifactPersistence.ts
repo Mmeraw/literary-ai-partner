@@ -105,6 +105,8 @@ export type ArtifactType =
    * Not user-visible.
    */
   | "pass3_preflight_draft_v1"
+  /** Ledger quality report — story-canon readiness gate consumed by Revise context-quality decisions. */
+  | "ledger_quality_report_v1"
   /**
    * Phase 1A chunk routing manifest — persisted once at Phase 1A start to eliminate
    * setup-tax on resumed batch invocations. Contains total_chunks, source_hash, and

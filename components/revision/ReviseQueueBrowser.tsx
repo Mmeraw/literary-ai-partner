@@ -90,8 +90,8 @@ export default function ReviseQueueBrowser({ payload }: { payload: WorkbenchQueu
   });
 
   const allOpportunities = useMemo(() => {
-    return [...payload.opportunities, ...payload.needsTargeting];
-  }, [payload.opportunities, payload.needsTargeting]);
+    return payload.opportunities;
+  }, [payload.opportunities]);
 
   const criteriaList = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -159,7 +159,7 @@ export default function ReviseQueueBrowser({ payload }: { payload: WorkbenchQueu
           </h1>
           <p className="mt-1 text-xs text-[#F3E3C3]/50">
             {allOpportunities.length} revision {allOpportunities.length === 1 ? "opportunity" : "opportunities"} ·{" "}
-            {payload.opportunities.length} ready · {payload.needsTargeting.length} needs targeting
+            {payload.opportunities.length} ready · {payload.needsTargeting.length} hidden blocked
           </p>
         </div>
         <div className="flex items-center gap-3">
