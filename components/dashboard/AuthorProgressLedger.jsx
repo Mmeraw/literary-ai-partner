@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import EvaluationHistoryTable from './EvaluationHistoryTable'
+import { formatScoreForDisplay, formatSignedScoreForDisplay } from '@/lib/ui/score-formatting'
 
-const fmt = (n) => (typeof n === 'number' && Number.isFinite(n) ? n.toFixed(1) : '—')
+const fmt = (n) => formatScoreForDisplay(n)
 const pct = (n) => (typeof n === 'number' ? `${Math.max(0, Math.min(100, n * 10))}%` : '0%')
 const d = (v) => {
   const date = new Date(v)
@@ -77,10 +78,10 @@ export default function AuthorProgressLedger({ rows, kpis, reviseAnalytics }) {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Latest overall', kpis.latestOverall.value, overallDelta == null ? 'Awaiting comparison' : `${overallDelta >= 0 ? '+' : ''}${overallDelta.toFixed(1)} vs prior`],
-          ['Agent readiness', kpis.latestReadiness.value, readinessDelta == null ? 'Threshold is 8.0' : `${readinessDelta >= 0 ? '+' : ''}${readinessDelta.toFixed(1)} readiness delta`],
+          ['Latest overall', kpis.latestOverall.value, overallDelta == null ? 'Awaiting comparison' : `${formatSignedScoreForDisplay(overallDelta)} vs prior`],
+          ['Agent readiness', kpis.latestReadiness.value, readinessDelta == null ? 'Threshold is 8' : `${formatSignedScoreForDisplay(readinessDelta)} readiness delta`],
           ['Revise decisions', String(revise.uniqueDecidedOpportunities), `${revise.priorities.pending} opportunities pending`],
-          ['Agent ready', kpis.curationReady.value, 'Latest works at or above 8.0'],
+          ['Agent ready', kpis.curationReady.value, 'Latest works at or above 8'],
         ].map(([label, value, note]) => (
           <article key={label} className="rounded-2xl border border-neutral-300 bg-white p-5 text-neutral-950">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">{label}</p>
@@ -101,7 +102,7 @@ export default function AuthorProgressLedger({ rows, kpis, reviseAnalytics }) {
             {[
               ['Overall', latest.overallScore, fmt(latest.overallScore)],
               ['Ready', latest.readinessScore, fmt(latest.readinessScore)],
-              ['To 8.0', topScore, topScore >= 8 ? 'Met' : `${(8 - topScore).toFixed(1)} left`],
+              ['To 8', topScore, topScore >= 8 ? 'Met' : `${formatScoreForDisplay(8 - topScore)} left`],
             ].map(([label, value, text]) => (
               <div key={label} className="grid grid-cols-[90px_1fr_70px] items-center gap-3">
                 <span className="text-sm font-semibold text-neutral-600">{label}</span>
@@ -119,7 +120,7 @@ export default function AuthorProgressLedger({ rows, kpis, reviseAnalytics }) {
         <article className="rounded-3xl border border-neutral-300 bg-white p-6 text-neutral-950">
           <div className="flex items-start justify-between gap-4"><div><h2 className="text-2xl font-bold">Score Trend</h2><p className="mt-2 text-sm leading-6 text-neutral-600">Shows repeated evaluation cycles for the current manuscript.</p></div><span className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-bold uppercase tracking-wide">{points.length} runs</span></div>
           <div className="relative mt-6 flex h-64 items-end gap-4 border-b border-l border-neutral-200 px-4 pb-8">
-            <div className="absolute left-0 right-0 top-[20%] border-t border-dashed border-amber-500"><span className="absolute -top-3 left-3 bg-white px-2 text-xs font-bold text-amber-700">8.0 threshold</span></div>
+            <div className="absolute left-0 right-0 top-[20%] border-t border-dashed border-amber-500"><span className="absolute -top-3 left-3 bg-white px-2 text-xs font-bold text-amber-700">8 threshold</span></div>
             {points.map((row) => <div key={row.id} className="flex flex-1 flex-col items-center gap-2"><div className="flex h-44 items-end gap-1"><i className="w-3 rounded-t bg-neutral-800" style={{ height: pct(row.overallScore) }} /><i className="w-3 rounded-t bg-amber-600" style={{ height: pct(row.readinessScore) }} /></div><strong className="text-sm">{fmt(row.readinessScore)}</strong><small className="text-xs text-neutral-500">{d(row.createdAt)}</small></div>)}
           </div>
         </article>

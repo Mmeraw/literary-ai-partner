@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedUser } from '@/lib/supabase/server'
+import { formatScoreForDisplay, formatSignedScoreForDisplay } from '@/lib/ui/score-formatting'
 
 export type DashboardEvaluationStatus =
   | 'market_ready'
@@ -493,14 +494,13 @@ export function computeDashboardKpis(rows: DashboardEvaluationRow[]): DashboardK
       delta:
         overallDelta == null
           ? '—'
-          : `${overallDelta >= 0 ? '+' : ''}${overallDelta.toFixed(1)} vs prior evaluation`,
+          : `${formatSignedScoreForDisplay(overallDelta)} vs prior evaluation`,
       deltaTone: overallDelta != null && overallDelta > 0 ? 'positive' : 'neutral',
     },
     latestReadiness: {
       value: formatScore(latestReadinessValue),
-      meta: 'Threshold is 8.0',
-      delta:
-        latestReadinessValue != null && latestReadinessValue >= 8.0
+      meta: 'Threshold is 8',
+        delta: latestReadinessValue != null && Math.floor(latestReadinessValue) >= 8
           ? 'Curation-ready'
           : 'Below threshold',
       deltaTone:
@@ -516,7 +516,7 @@ export function computeDashboardKpis(rows: DashboardEvaluationRow[]): DashboardK
     },
     curationReady: {
       value: String(curationReadyCount),
-      meta: 'Manuscripts at or above 8.0',
+      meta: 'Manuscripts at or above 8',
       delta: 'Eligible for later curation review',
       deltaTone: curationReadyCount > 0 ? 'gold' : 'neutral',
     },
@@ -540,6 +540,5 @@ function countCurationReady(rows: DashboardEvaluationRow[]): number {
 }
 
 function formatScore(value: number | null): string {
-  if (value == null) return '—'
-  return value.toFixed(1)
+  return formatScoreForDisplay(value)
 }

@@ -12,6 +12,7 @@ import {
   Legend,
 } from 'recharts'
 import type { ScoreTrendPoint } from '@/lib/dashboard/dashboardAnalyticsTypes'
+import { formatScoreForDisplay } from '@/lib/ui/score-formatting'
 
 type Props = {
   data: ScoreTrendPoint[]
@@ -40,7 +41,7 @@ function CustomTooltip({
       <div className="mt-2 space-y-1">
         {payload.map((entry) => (
           <p key={entry.name} style={{ color: entry.color }}>
-            {entry.name}: <strong>{entry.value?.toFixed(1) ?? '—'}</strong>
+            {entry.name}: <strong>{formatScoreForDisplay(entry.value)}</strong>
           </p>
         ))}
       </div>

@@ -9,6 +9,7 @@
  */
 
 import type { WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+import { formatScoreForDisplay } from '@/lib/ui/score-formatting';
 
 type Props = {
   data: WaveGovernanceData;
@@ -96,11 +97,11 @@ export default function WaveGovernanceSummary({ data, wordCount }: Props) {
           </ul>
           {data.lowestCriteria.length > 0 && (
             <div className="mt-3">
-              <p className="text-xs font-medium text-amber-700 mb-1">Criteria below floor (6.0):</p>
+              <p className="text-xs font-medium text-amber-700 mb-1">Criteria below floor (6):</p>
               <div className="flex flex-wrap gap-2">
                 {data.lowestCriteria.map((c, i) => (
                   <span key={i} className="inline-flex items-center rounded-full bg-red-100 text-red-800 border border-red-300 px-2.5 py-0.5 text-xs font-medium">
-                    {formatCriterionKey(c.key)}: {c.score.toFixed(1)}
+                    {formatCriterionKey(c.key)}: {formatScoreForDisplay(c.score)}
                   </span>
                 ))}
               </div>

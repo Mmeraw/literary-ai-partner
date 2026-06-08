@@ -40,6 +40,7 @@ import {
   getConfidenceExportPaletteColor as confidencePaletteColor,
 } from '@/lib/evaluation/confidenceFieldPolicy';
 import { isGenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
+import { formatScoreForDisplay, formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
@@ -403,7 +404,7 @@ function asText(value: unknown): string | null {
 }
 
 function scoreLabel(score: number | null | undefined, denominator: number): string {
-  return typeof score === 'number' ? `${Math.round(score)}/${denominator}` : `—/${denominator}`;
+  return formatScoreFractionForDisplay(score, denominator);
 }
 
 function estimatePages(wordCount: number | null): number | null {
@@ -595,10 +596,10 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
   push('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
   push(sep);
   push('');
-  push(`Quality: ${dream.dream_scores?.quality ?? '—'}/100`);
-  push(`Readiness: ${dream.dream_scores?.readiness ?? '—'}/100`);
-  push(`Commercial: ${dream.dream_scores?.commercial ?? '—'}/100`);
-  push(`Literary: ${dream.dream_scores?.literary ?? '—'}/100`);
+  push(`Quality: ${scoreLabel(dream.dream_scores?.quality, 100)}`);
+  push(`Readiness: ${scoreLabel(dream.dream_scores?.readiness, 100)}`);
+  push(`Commercial: ${scoreLabel(dream.dream_scores?.commercial, 100)}`);
+  push(`Literary: ${scoreLabel(dream.dream_scores?.literary, 100)}`);
   push('');
   push('Executive Verdict:');
   push('');
@@ -659,7 +660,7 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     push(sub);
     dream.criterion_analyses.forEach((a) => {
       push('');
-      push(`${getCriterionDisplayLabel(a.key)} — ${a.score}/10 (${formatConfidenceLabel(a.confidence)})`);
+      push(`${getCriterionDisplayLabel(a.key)} — ${scoreLabel(a.score, 10)} (${formatConfidenceLabel(a.confidence)})`);
       pushTxtListBlock(lines, 'What Is Working', a.fit_evidence);
       pushTxtListBlock(lines, 'What Weakens Impact', a.gap_evidence);
       pushTxtListBlock(lines, 'Revision Queue', a.revision_queue, { ordered: true, isRevisionQueue: true });
@@ -795,7 +796,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     return key.includes('readiness') || key.includes('market') || label.includes('readiness') || label.includes('market');
   });
   if (txtReadinessCriterion) {
-    const rScore = typeof txtReadinessCriterion.score_0_10 === 'number' ? `${txtReadinessCriterion.score_0_10}/10` : 'Not scored';
+    const rScore = typeof txtReadinessCriterion.score_0_10 === 'number' ? scoreLabel(txtReadinessCriterion.score_0_10, 10) : 'Not scored';
     const rConf = txtReadinessCriterion.confidence_level ? ` (${formatConfidenceLabel(txtReadinessCriterion.confidence_level)})` : '';
     lines.push(`Market Readiness: ${rScore}${rConf}`);
   }
@@ -1618,7 +1619,7 @@ function renderPremiumReportHtml(
         ['Readiness', dream.dream_scores?.readiness],
         ['Commercial', dream.dream_scores?.commercial],
         ['Literary', dream.dream_scores?.literary],
-      ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? 'N/A')}</strong><small>/100</small></div>`).join('')}
+      ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatScoreForDisplay(value, 'N/A'))}</strong><small>/100</small></div>`).join('')}
     </div>
   </section>` : '';
 
@@ -1707,7 +1708,7 @@ function renderPremiumReportHtml(
         ${renderMetric('Confidentiality', 'Prepared for author/editorial use')}
       </dl>
       <aside>
-        <div class="score-card"><span>Overall Score</span><strong>${escapeHtml(Math.round(result.overview.overall_score_0_100))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
+        <div class="score-card"><span>Overall Score</span><strong>${escapeHtml(formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
         ${readinessCriterion ? `<div class="readiness"><h2>Market Readiness</h2><strong>${escapeHtml(scoreLabel(readinessScore, 10))}</strong>${readinessConfidence ? `<p>${escapeHtml(readinessConfidence)}</p>` : ''}${readinessCriterion.rationale ? `<p>${escapeHtml(cleanReportText(readinessCriterion.rationale, '', { blockTruncation: true }))}</p>` : ''}</div>` : ''}
       </aside>
     </div>
@@ -1914,7 +1915,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
           children: [new Paragraph({
             alignment: AlignmentType.CENTER,
             children: [
-              new TextRun({ text: `${Math.round(result.overview.overall_score_0_100)}`, bold: true, size: 56, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
+              new TextRun({ text: formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'), bold: true, size: 56, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
               new TextRun({ text: ' / 100', size: 22, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
             ],
           })],
@@ -1948,7 +1949,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       spacing: { after: 60 },
       children: [
         new TextRun({ text: 'Market Readiness: ', bold: true, size: 22, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
-        new TextRun({ text: typeof readinessScore === 'number' ? `${readinessScore}/10` : 'Not scored', bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+        new TextRun({ text: typeof readinessScore === 'number' ? scoreLabel(readinessScore, 10) : 'Not scored', bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
         ...(readinessConfidence ? [new TextRun({ text: ` (${readinessConfidence})`, size: 20, color: RG.textMuted.replace('#', ''), font: 'Calibri' })] : []),
       ],
     }));
@@ -2266,7 +2267,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
           shading: { type: ShadingType.SOLID, color: RG.surface.replace('#', '') },
           children: [
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: label, size: 17, color: RG.textMuted.replace('#', ''), font: 'Calibri' })] }),
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${vals[i] ?? '-'}/100`, bold: true, size: 24, color: RG.textPrimary.replace('#', ''), font: 'Georgia' })] }),
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: scoreLabel(vals[i], 100), bold: true, size: 24, color: RG.textPrimary.replace('#', ''), font: 'Georgia' })] }),
           ],
         });
       }),
@@ -2327,7 +2328,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
           spacing: { before: 160, after: 60 },
           children: [
             new TextRun({ text: `${getCriterionDisplayLabel(a.key)}`, bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
-            new TextRun({ text: ` — ${a.score}/10`, bold: true, size: 20, color: docxScoreColor(a.score).replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: ` — ${scoreLabel(a.score, 10)}`, bold: true, size: 20, color: docxScoreColor(a.score).replace('#', ''), font: 'Calibri' }),
             new TextRun({ text: ` (${formatConfidenceLabel(a.confidence)})`, size: 18, color: confidencePaletteColor(a.confidence).replace('#', ''), font: 'Calibri' }),
           ],
         }));

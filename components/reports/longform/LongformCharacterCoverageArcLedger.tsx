@@ -1,6 +1,7 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
 import { getDisplayText } from "@/lib/evaluation/reportRenderSafety";
+import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
 
 type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
 
@@ -200,7 +201,7 @@ function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
   return (
     <div className="rounded-lg border border-gray-200 p-3 text-sm space-y-2">
       <div className="flex items-center gap-3">
-        <span className="text-lg font-bold text-indigo-700">{criterion.score}/10</span>
+        <span className="text-lg font-bold text-indigo-700">{formatScoreFractionForDisplay(criterion.score, 10)}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${confidenceClasses}`}>
           {confidenceLabel ?? `${criterion.confidence} confidence`}
         </span>

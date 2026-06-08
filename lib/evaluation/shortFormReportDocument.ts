@@ -18,6 +18,7 @@ import {
   type GenreExpectationHeader,
   type ReportHeaderContract,
 } from '@/lib/evaluation/reportHeaderPolicy';
+import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 
 export type ShortFormCriterionRecommendation = {
   priority?: 'high' | 'medium' | 'low';
@@ -324,7 +325,7 @@ export function buildShortFormEvaluationDocument(input: {
     title: clean(input.displayTitle, 'Untitled Manuscript'),
     titleBlock: {
       reportType: input.reportType ?? 'Short-Form Evaluation',
-      overallScoreLabel: typeof overallScore === 'number' ? `${Math.round(overallScore)}/100` : '—/100',
+      overallScoreLabel: formatScoreFractionForDisplay(overallScore, 100),
       marketReadiness: deriveVerdict(overallScore, result.overview?.verdict),
       genre: clean(result.metrics?.manuscript?.genre, 'Not specified'),
       targetAudience: clean(result.metrics?.manuscript?.target_audience, 'Adult Readers'),

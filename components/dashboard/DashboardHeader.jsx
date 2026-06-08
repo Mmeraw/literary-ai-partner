@@ -12,7 +12,7 @@ export default function DashboardHeader() {
       <div className="rg-dash-context">
         <div className="rg-dash-context-card">
           <div className="rg-dash-context-label">Readiness rule</div>
-          <div className="rg-dash-context-value">8.0 / 10</div>
+          <div className="rg-dash-context-value">8 / 10</div>
           <div className="rg-dash-context-note">
             Marks manuscript readiness review eligibility, not a guarantee of market response.
           </div>

@@ -11,6 +11,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAuthenticatedUser } from '@/lib/supabase/server'
 import { CRITERIA_METADATA, type CriterionKey } from '@/schemas/criteria-keys'
+import { floorScoreForDisplay, formatScoreForDisplay } from '@/lib/ui/score-formatting'
 import { CRITERION_SHORT_LABELS } from './dashboardAnalyticsTypes'
 
 export type {
@@ -196,9 +197,10 @@ function computeInsights(
     // Overall improvement
     if (first.overall != null && last.overall != null) {
       const delta = last.overall - first.overall
-      if (delta > 0) {
+      const flooredDelta = floorScoreForDisplay(delta)
+      if (flooredDelta !== null && flooredDelta > 0) {
         mostImprovedItems.push(
-          `Overall score improved by ${delta.toFixed(1)} points (${first.overall.toFixed(1)} → ${last.overall.toFixed(1)})`,
+          `Overall score improved by ${flooredDelta} points (${formatScoreForDisplay(first.overall)} → ${formatScoreForDisplay(last.overall)})`,
         )
       }
     }
@@ -219,24 +221,27 @@ function computeInsights(
       .sort((a, b) => b.delta - a.delta)
       .slice(0, 3)
       .forEach((d) => {
-        mostImprovedItems.push(`${shortLabel(d.key)} improved by ${d.delta.toFixed(1)} points`)
+        const flooredDelta = floorScoreForDisplay(d.delta)
+        if (flooredDelta !== null && flooredDelta > 0) {
+          mostImprovedItems.push(`${shortLabel(d.key)} improved by ${flooredDelta} points`)
+        }
       })
 
-    // Still blocking readiness (latest score < 8.0)
+    // Still blocking readiness (latest score < 8)
     criterionDeltas
-      .filter((d) => d.latest < 8.0)
+      .filter((d) => d.latest < 8)
       .sort((a, b) => a.latest - b.latest)
       .slice(0, 3)
       .forEach((d) => {
-        blockingItems.push(`${shortLabel(d.key)} at ${d.latest.toFixed(1)} (needs 8.0+)`)
+        blockingItems.push(`${shortLabel(d.key)} at ${formatScoreForDisplay(d.latest)} (needs 8+)`)
       })
 
     // Recent wins
-    if (last.overall != null && last.overall >= 8.0) {
-      winsItems.push(`${last.manuscriptTitle} reached market readiness (${last.overall.toFixed(1)})`)
+    if (last.overall != null && last.overall >= 8) {
+      winsItems.push(`${last.manuscriptTitle} reached market readiness (${formatScoreForDisplay(last.overall)})`)
     }
-    if (last.readiness != null && last.readiness >= 8.0) {
-      winsItems.push(`Market readiness score hit ${last.readiness.toFixed(1)}`)
+    if (last.readiness != null && last.readiness >= 8) {
+      winsItems.push(`Market readiness score hit ${formatScoreForDisplay(last.readiness)}`)
     }
 
     // Largest single jump
@@ -245,9 +250,10 @@ function computeInsights(
       const curr = scoreTrend[i]
       if (prev.overall != null && curr.overall != null) {
         const jump = curr.overall - prev.overall
-        if (jump >= 0.5) {
+        const flooredJump = floorScoreForDisplay(jump)
+        if (flooredJump !== null && flooredJump > 0) {
           winsItems.push(
-            `${curr.manuscriptTitle}: +${jump.toFixed(1)} point jump on ${new Date(curr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+            `${curr.manuscriptTitle}: +${flooredJump} point jump on ${new Date(curr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
           )
           break
         }

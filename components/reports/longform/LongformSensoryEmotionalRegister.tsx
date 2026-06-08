@@ -1,6 +1,7 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
 import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
+import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -171,7 +172,7 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
                 <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="font-semibold text-gray-800">{getCriterionDisplayLabel(c.key)}</span>
-                    <span className="text-lg font-bold text-indigo-700">{c.score}/10</span>
+                    <span className="text-lg font-bold text-indigo-700">{formatScoreFractionForDisplay(c.score, 10)}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${confidenceClasses}`}>
                       {confidenceLabel ?? c.confidence}
                     </span>

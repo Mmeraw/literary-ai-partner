@@ -15,6 +15,7 @@
 
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
 const ARTIFACT_TYPE = "one_page_summary";
 
@@ -125,7 +126,7 @@ export default async function SharePage({
       <section className="mt-6">
         <h2 className="text-xl font-semibold">Overall Score</h2>
         <p className="mt-2 text-3xl font-bold">
-          {content.overall_score ?? "--"}
+          {formatScoreForDisplay(content.overall_score, "--")}
         </p>
       </section>
 
@@ -146,7 +147,7 @@ export default async function SharePage({
             <ul className="mt-2 list-disc pl-6">
               {content.credibility.rubricBreakdown.map((axis) => (
                 <li key={axis.key}>
-                  <strong>{axis.label}</strong>: {axis.score.toFixed(1)} —{" "}
+                  <strong>{axis.label}</strong>: {formatScoreForDisplay(axis.score)} —{" "}
                   {axis.explanation}
                 </li>
               ))}

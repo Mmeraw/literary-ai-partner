@@ -1,5 +1,6 @@
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
+import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -31,7 +32,7 @@ function scoreBar(score: number | null) {
   return (
     <div className="flex items-center gap-2">
       <span className="w-8 text-right text-sm font-semibold tabular-nums text-gray-800">
-        {Math.round(score)}
+        {formatScoreForDisplay(score)}
       </span>
       <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />

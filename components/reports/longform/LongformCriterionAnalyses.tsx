@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
+import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
 type Props = { doc: LongformDreamDocument };
 
@@ -48,7 +49,7 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
       >
         <div className="flex items-center gap-3">
           <span className={`text-xl font-bold tabular-nums ${scoreColor}`}>
-            {safeScore !== null ? safeScore.toFixed(1) : "—"}
+            {formatScoreForDisplay(safeScore)}
           </span>
           <span className="font-medium text-gray-800 text-sm">
             {getCriterionDisplayLabel(a.key)}

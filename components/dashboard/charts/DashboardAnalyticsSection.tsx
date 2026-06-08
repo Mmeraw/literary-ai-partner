@@ -56,18 +56,18 @@ export default function DashboardAnalyticsSection({ analytics }: Props) {
             <div>
               <h3 className="text-2xl font-bold">Score Trend</h3>
               <p className="mt-2 text-sm leading-6 text-neutral-600">
-                Scores trending toward the 8.0 market-readiness threshold across evaluations.
+                Scores trending toward the 8 market-readiness threshold across evaluations.
               </p>
             </div>
             <span className="rounded-full border border-amber-500/50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
-              8.0 ready
+              8 ready
             </span>
           </div>
           <div className="mt-4">
             <ScoreTrendChart data={filteredScoreTrend} />
           </div>
           <p className="mt-3 text-xs text-neutral-500">
-            A rising line toward 8.0 indicates improving market readiness.
+            A rising line toward 8 indicates improving market readiness.
           </p>
         </article>
 
@@ -99,13 +99,13 @@ export default function DashboardAnalyticsSection({ analytics }: Props) {
         recentWins={analytics.insights.recentWins}
       />
 
-      {/* What 8.0 means */}
+      {/* What 8 means */}
       <article className="rounded-2xl border border-neutral-300 bg-neutral-50 p-5 text-neutral-950">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">
-          What 8.0 means
+          What 8 means
         </p>
         <p className="mt-3 text-sm leading-7 text-neutral-700">
-          A score of 8.0 or above indicates market readiness within the RevisionGrade
+          A score of 8 or above indicates market readiness within the RevisionGrade
           framework. It supports later curation review eligibility through Storygate Studio.
           It does not promise publication, representation, or agent response. Scores reflect
           alignment with contemporary agent-submission standards, not literary merit.

@@ -5,6 +5,7 @@ import {
   type CanonicalConfidenceLabel,
 } from "@/lib/evaluation/confidenceFieldPolicy";
 import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
+import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
 
 type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
 
@@ -105,7 +106,7 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
                       {confidenceLabel ?? c.confidence}
                     </span>
                   </div>
-                  <span className="text-gray-700">{c.score}/10</span>
+                  <span className="text-gray-700">{formatScoreFractionForDisplay(c.score, 10)}</span>
                   {c.hasDistributionGap && (
                     <p className="text-amber-700 mt-0.5 font-medium text-xs">Evidence gap flagged</p>
                   )}

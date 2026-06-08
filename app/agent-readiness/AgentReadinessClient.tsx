@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
 export type AgentReadinessManuscriptOption = {
   manuscriptId: string;
@@ -156,7 +157,7 @@ const T = {
 };
 
 function formatScore(value: number | null): string {
-  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "—";
+  return formatScoreForDisplay(value);
 }
 
 function formatDate(value: string): string {
@@ -609,7 +610,7 @@ export default function AgentReadinessClient({
             <span style={{ color: T.gold, fontSize: "0.75rem", flexShrink: 0 }}>ⓘ</span>
             <div>
               <p style={{ fontSize: "0.75rem", color: T.cream2, lineHeight: 1.6 }}>
-                <strong style={{ color: T.cream }}>Eligibility:</strong> Agent Readiness is for completed manuscript evaluations. Storygate Studio™ submission requires a readiness score of 8.0 or above and an approved manuscript package.
+                <strong style={{ color: T.cream }}>Eligibility:</strong> Agent Readiness is for completed manuscript evaluations. Storygate Studio™ submission requires a readiness score of 8 or above and an approved manuscript package.
               </p>
             </div>
           </div>
@@ -732,7 +733,7 @@ export default function AgentReadinessClient({
               ))}
             </div>
             <p style={{ fontSize: "0.5625rem", color: T.dim, marginTop: "1rem", lineHeight: 1.6 }}>
-              Note: "Submit to Storygate Studio™" appears as an export option once the manuscript holds a readiness score of 8.0 or above and all package sections are approved.
+              Note: "Submit to Storygate Studio™" appears as an export option once the manuscript holds a readiness score of 8 or above and all package sections are approved.
             </p>
           </div>
 

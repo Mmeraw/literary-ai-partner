@@ -1,4 +1,6 @@
 // ── Evaluation purpose detection ─────────────────────────────────────────────
+import { formatScoreForDisplay } from '@/lib/ui/score-formatting'
+
 // Determines whether an evaluation is a normal author manuscript, a calibration
 // run, or a published/reference work. This controls which status vocabulary the
 // dashboard uses so we never show "Not agent ready" for a famous novel.
@@ -103,14 +105,14 @@ function statusTooltip(status, purpose) {
   // author_manuscript
   switch (status) {
     case 'market_ready':
-      return 'This manuscript has reached the 8.0 agent-readiness threshold.'
+      return 'This manuscript has reached the 8 agent-readiness threshold.'
     case 'near_ready':
-      return 'Score is approaching the 8.0 agent-readiness threshold.'
+      return 'Score is approaching the 8 agent-readiness threshold.'
     case 'improving':
       return 'This evaluation completed. The manuscript is making progress but has not yet reached the readiness threshold.'
     case 'below_standard':
     case 'complete':
-      return 'This evaluation completed, but the manuscript has not reached the 8.0 agent-readiness threshold.'
+      return 'This evaluation completed, but the manuscript has not reached the 8 agent-readiness threshold.'
     case 'running':
     case 'queued':
       return 'Evaluation is still in progress.'
@@ -169,7 +171,7 @@ function formatDate(value) {
 }
 
 function formatScore(value) {
-  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : '—'
+  return formatScoreForDisplay(value)
 }
 
 function agentReadinessHref(row) {

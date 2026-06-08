@@ -49,6 +49,7 @@ import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
 import { isStoryLedgerAdmin } from "@/lib/ledger/storyLedgerVisibility";
+import { floorScoreForDisplay, formatScoreForDisplay } from "@/lib/ui/score-formatting";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 
 export const dynamic = "force-dynamic";
@@ -819,7 +820,7 @@ export default async function EvaluationReportPage({
     : null;
   const opportunitySummary = canonicalDoc?.revisionOpportunitySummary ?? null;
   const overallScore = artifact
-    ? Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
+    ? floorScoreForDisplay(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
     : null;
   const verdictPresentation = getOverallReadinessPresentation(overallScore);
   const verdict = verdictPresentation.label;
@@ -1398,7 +1399,7 @@ export default async function EvaluationReportPage({
                     <div className="text-xs text-gray-600">Overall Score</div>
                     <div className="mt-1 text-sm font-semibold text-gray-900">
                       {Number.isFinite(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0)
-                        ? String(Math.round(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0))
+                        ? formatScoreForDisplay(artifact.overall_score ?? artifact.overview?.overall_score_0_100 ?? 0, "N/A")
                         : "N/A"}
                     </div>
                   </div>
