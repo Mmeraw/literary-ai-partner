@@ -138,6 +138,53 @@ export function evaluateCardCandidateQuality(candidates: CandidateQualityInput[]
 
 // ── Ledger quality API ────────────────────────────────────────────────────────
 
+export const LEDGER_MIN_CONTEXT_JACCARD = 0.03;
+
+const UNIT_NUMBER_WORDS: Record<string, number> = {
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+};
+
+const TEEN_NUMBER_WORDS: Record<string, number> = {
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+};
+
+const TENS_NUMBER_WORDS: Record<string, number> = {
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+};
+
+const SCALE_NUMBER_WORDS = new Set(['hundred', 'thousand']);
+const ALL_NUMBER_WORDS = new Set([
+  ...Object.keys(UNIT_NUMBER_WORDS),
+  ...Object.keys(TEEN_NUMBER_WORDS),
+  ...Object.keys(TENS_NUMBER_WORDS),
+  ...SCALE_NUMBER_WORDS,
+]);
+
 function normalizeForQuality(raw: string): string {
   return raw
     .toLowerCase()
@@ -168,8 +215,6 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   }
   return intersection / (a.size + b.size - intersection);
 }
-
-const MIN_CONTEXT_JACCARD = 0.03;
 
 const SPELLED_NUMBER_PATTERN = /\b(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[-\s](?:one|two|three|four|five|six|seven|eight|nine))?\b|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)\s+(?:hundred|thousand|million|billion)(?:\s+(?:and\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety))?\b/gi;
 
@@ -236,11 +281,92 @@ function isGenericLiteraryFiller(text: string): boolean {
   return /\b(moment (?:tightened|claimed|held|shifted)|air (?:still|tightened|changed)|weight (?:settled|registered)|looked away first|hesitated,? and|small delay told|pressure of the moment|kept the air still|moment to claim its price)\b/i.test(text);
 }
 
+function numericDigitFacts(raw: string): Set<string> {
+  return new Set((raw.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? []).map((num) => num.replace(/,/g, '')));
+}
+
+function writtenNumberValue(tokens: string[]): number | null {
+  let total = 0;
+  let current = 0;
+  let sawNumber = false;
+
+  for (const token of tokens) {
+    if (token in UNIT_NUMBER_WORDS) {
+      current += UNIT_NUMBER_WORDS[token]!;
+      sawNumber = true;
+      continue;
+    }
+    if (token in TEEN_NUMBER_WORDS) {
+      current += TEEN_NUMBER_WORDS[token]!;
+      sawNumber = true;
+      continue;
+    }
+    if (token in TENS_NUMBER_WORDS) {
+      current += TENS_NUMBER_WORDS[token]!;
+      sawNumber = true;
+      continue;
+    }
+    if (token === 'hundred') {
+      current = (current || 1) * 100;
+      sawNumber = true;
+      continue;
+    }
+    if (token === 'thousand') {
+      total += (current || 1) * 1000;
+      current = 0;
+      sawNumber = true;
+      continue;
+    }
+    return null;
+  }
+
+  return sawNumber ? total + current : null;
+}
+
+function writtenNumberQualifies(tokens: string[]): boolean {
+  if (tokens.length > 1) return true;
+  const [token] = tokens;
+  if (!token) return false;
+  return token in TEEN_NUMBER_WORDS || token in TENS_NUMBER_WORDS || SCALE_NUMBER_WORDS.has(token);
+}
+
+function writtenNumberFacts(raw: string): Set<string> {
+  const tokens = raw
+    .toLowerCase()
+    .replace(/[\u2010-\u2015-]/g, ' ')
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const facts = new Set<string>();
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (!ALL_NUMBER_WORDS.has(tokens[i]!)) continue;
+    const phrase: string[] = [];
+    let j = i;
+    while (j < tokens.length && ALL_NUMBER_WORDS.has(tokens[j]!)) {
+      phrase.push(tokens[j]!);
+      j += 1;
+    }
+    if (writtenNumberQualifies(phrase)) {
+      const value = writtenNumberValue(phrase);
+      if (value !== null) facts.add(String(value));
+    }
+    i = Math.max(i, j - 1);
+  }
+  return facts;
+}
+
+function numericFacts(raw: string): Set<string> {
+  return new Set([...numericDigitFacts(raw), ...writtenNumberFacts(raw)]);
+}
+
 function introducesUnsupportedFacts(candidate: string, anchor: string): boolean {
   const anchorTokens = contentTokenSet(anchor);
-  const candidateNumbers = candidate.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? [];
-  const anchorNumbers = new Set(anchor.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? []);
-  if (candidateNumbers.some((num) => !anchorNumbers.has(num))) return true;
+  const candidateNumbers = numericFacts(candidate);
+  const anchorNumbers = numericFacts(anchor);
+  for (const num of candidateNumbers) {
+    if (!anchorNumbers.has(num)) return true;
+  }
 
   const candidateSpelledNumbers = extractSpelledNumberPhrases(candidate);
   const anchorSpelledNumbers = extractSpelledNumberPhrases(anchor);
@@ -268,7 +394,7 @@ function lacksContextFit(candidate: string, anchor: string, rationale: string): 
   if (candidateTokens.size === 0) return true;
   const anchorOverlap = jaccardSimilarity(candidateTokens, contentTokenSet(anchor));
   const rationaleOverlap = jaccardSimilarity(candidateTokens, contentTokenSet(rationale));
-  return anchorOverlap < MIN_CONTEXT_JACCARD && rationaleOverlap < MIN_CONTEXT_JACCARD;
+  return anchorOverlap < LEDGER_MIN_CONTEXT_JACCARD && rationaleOverlap < LEDGER_MIN_CONTEXT_JACCARD;
 }
 
 export type CandidateQualityReasonCode =

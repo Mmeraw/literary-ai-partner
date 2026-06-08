@@ -2,6 +2,7 @@ import {
   evaluateCardCandidateQuality,
   evaluateCandidateQuality,
   evaluateCardQuality,
+  LEDGER_MIN_CONTEXT_JACCARD,
 } from '../../../lib/revision/candidateQuality';
 
 const GOOD_ANCHOR =
@@ -43,9 +44,19 @@ describe('candidateQuality admission API', () => {
 });
 
 describe('evaluateCandidateQuality ledger API', () => {
+  it('exposes the tuned ledger context threshold as an intentional policy constant', () => {
+    expect(LEDGER_MIN_CONTEXT_JACCARD).toBe(0.03);
+  });
+
   it('returns empty array for a good candidate', () => {
     const reasons = evaluateCandidateQuality(goodCandidate(0), GOOD_ANCHOR, GOOD_RATIONALE);
     expect(reasons).toEqual([]);
+  });
+
+  it('does not context-block valid prose with minimal but real anchor overlap', () => {
+    const borderline = 'Mara stepped into the hallway and let the decision settle before she moved toward the waiting room.';
+    const reasons = evaluateCandidateQuality(borderline, GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(reasons).not.toContain('candidate_quality_context_mismatch');
   });
 
   it('flags not_copy_ready for a blank string', () => {
@@ -116,6 +127,20 @@ describe('evaluateCandidateQuality ledger API', () => {
       'Mara counted to forty-seven, then waited one hundred more breaths before she moved.';
     const reasons = evaluateCandidateQuality(candidate, GOOD_ANCHOR, GOOD_RATIONALE);
     expect(reasons).toContain('candidate_quality_unsupported_facts');
+  });
+
+  it('flags unsupported_facts for invented compound written numbers not in anchor', () => {
+    const candidate =
+      'Mara waited one hundred seconds before she let herself breathe again in the hallway.';
+    const reasons = evaluateCandidateQuality(candidate, GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(reasons).toContain('candidate_quality_unsupported_facts');
+  });
+
+  it('allows written numbers already present in the anchor', () => {
+    const anchor = `${GOOD_ANCHOR} She had counted forty-seven steps before.`;
+    const candidate = 'Mara counted forty-seven steps again and waited for the silence to answer.';
+    const reasons = evaluateCandidateQuality(candidate, anchor, GOOD_RATIONALE);
+    expect(reasons).not.toContain('candidate_quality_unsupported_facts');
   });
 
   it('returns multiple codes when multiple rules fire', () => {
