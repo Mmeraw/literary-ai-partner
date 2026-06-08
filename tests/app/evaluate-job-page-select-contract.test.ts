@@ -32,4 +32,11 @@ describe('evaluate job page query contract', () => {
     expect(source).toContain('Project Title');
     expect(source).toContain('Not provided');
   });
+
+  test('unavailable state uses an active no-cache reload control instead of a same-route link', () => {
+    expect(source).toContain('export const dynamic = "force-dynamic"');
+    expect(source).toContain('export const revalidate = 0');
+    expect(source).toContain('EvaluationUnavailableReloadButton');
+    expect(source).not.toContain('href={`/evaluate/${jobId}`}');
+  });
 });

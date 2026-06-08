@@ -43,11 +43,15 @@ import { resolveReportTitle } from "@/lib/evaluation/reportTitle";
 import { backfillManuscriptTitleIfMissing } from "@/lib/manuscripts/titleBackfill";
 import { getManuscriptText } from "@/lib/manuscripts/chunks";
 import CriterionOpportunities from "@/components/evaluation/CriterionOpportunities";
+import EvaluationUnavailableReloadButton from "@/components/evaluation/EvaluationUnavailableReloadButton";
 import PolishPassButton from "@/components/evaluation/PolishPassButton";
 import { hasActiveSupportGrant, logSupportView } from "@/lib/support/checkSupportAccess";
 import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperationalAccess";
 import { isStoryLedgerAdmin } from "@/lib/ledger/storyLedgerVisibility";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Job = {
   id: string;
@@ -532,12 +536,7 @@ export default async function EvaluationReportPage({
             it may still be initialising—wait a moment and reload.
           </p>
           <div className="mt-4 flex gap-4">
-            <Link
-              href={`/evaluate/${jobId}`}
-              className="inline-block rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100"
-            >
-              Reload
-            </Link>
+            <EvaluationUnavailableReloadButton jobId={jobId} />
             <Link
               href="/evaluate"
               className="inline-block text-sm text-gray-500 underline hover:text-gray-700 py-1.5"
@@ -571,12 +570,7 @@ export default async function EvaluationReportPage({
             it may still be initialising—wait a moment and reload.
           </p>
           <div className="mt-4 flex gap-4">
-            <Link
-              href={`/evaluate/${jobId}`}
-              className="inline-block rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100"
-            >
-              Reload
-            </Link>
+            <EvaluationUnavailableReloadButton jobId={jobId} />
             <Link
               href="/evaluate"
               className="inline-block text-sm text-gray-500 underline hover:text-gray-700 py-1.5"
