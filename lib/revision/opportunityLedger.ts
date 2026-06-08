@@ -1289,10 +1289,83 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
     evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
   );
 
+  // ── Carry-forward pass: preserve previously hydrated candidates ──────────────
+  // When the existing ledger is _ai_hydrated_partial, some opportunities were
+  // already successfully hydrated in a prior run. Carry their candidates forward
+  // so that only the still-blocked subset is sent to OpenAI on this pass.
+  // Without this, every partial retry starts from all-blocked and can go backward.
+  const existingIsPartial =
+    isRecord(existingLedgerRow?.content) &&
+    typeof existingLedgerRow.content.candidate_generation_status === 'string' &&
+    existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_partial') &&
+    !existingLedgerRow.content.candidate_generation_status.includes('ai_hydrated_complete');
+
+  if (existingIsPartial && existingOpportunities && existingOpportunities.length > 0) {
+    const prevHydratedMap = new Map(
+      existingOpportunities
+        .filter((o: any) => o.candidate_text_a && o.candidate_text_b && o.candidate_text_c)
+        .map((o: any) => [o.opportunity_id, o]),
+    );
+    for (const opp of opportunities) {
+      const prev = prevHydratedMap.get(opp.opportunity_id);
+      if (prev) {
+        opp.candidate_text_a = prev.candidate_text_a;
+        opp.candidate_text_b = prev.candidate_text_b;
+        opp.candidate_text_c = prev.candidate_text_c;
+        opp.grounding_status = 'supported';
+        opp.grounding_note = null;
+      }
+    }
+  }
+
   // ── AI Candidate Hydration Pass ────────────────────────────────────────────
   // For each opportunity that SLAE blocked (no explicit candidate prose from
   // the evaluation pipeline), generate A/B/C prose via a single batched OpenAI
   // call.  Failures are non-fatal — blocked opportunities stay blocked.
+
+  // Load manuscript chunks once (non-fatal) to provide surrounding prose context
+  // to the hydration prompt. This significantly improves SLAE pass rate because
+  // OpenAI can match voice/style and avoid echoing the anchor.
+  let manuscriptChunksByContent: Array<{ content: string }> = [];
+  try {
+    const { data: chunkRows } = await supabase
+      .from('manuscript_chunks')
+      .select('content')
+      .eq('manuscript_id', Number(jobRow.manuscript_id))
+      .order('chunk_index', { ascending: true });
+    if (Array.isArray(chunkRows)) {
+      manuscriptChunksByContent = chunkRows as Array<{ content: string }>;
+    }
+  } catch {
+    // Non-blocking — hydration degrades gracefully without chunk context
+  }
+
+  /**
+   * Find the chunk whose content contains the most characters of the anchor,
+   * falling back to substring inclusion, then to the longest content overlap.
+   */
+  function findChunkForAnchor(anchor: string): string | undefined {
+    if (!anchor || manuscriptChunksByContent.length === 0) return undefined;
+    const normAnchor = anchor.slice(0, 200).toLowerCase();
+    // Exact substring match (most reliable)
+    const exact = manuscriptChunksByContent.find((c) =>
+      c.content.toLowerCase().includes(normAnchor),
+    );
+    if (exact) return exact.content;
+    // Partial overlap: find chunk with longest shared prefix
+    let best: { chunk: string; overlap: number } | null = null;
+    for (const c of manuscriptChunksByContent) {
+      const cl = c.content.toLowerCase();
+      let overlap = 0;
+      for (let i = 0; i < Math.min(normAnchor.length, cl.length); i++) {
+        if (normAnchor[i] === cl[i]) overlap++;
+        else break;
+      }
+      if (!best || overlap > best.overlap) best = { chunk: c.content, overlap };
+    }
+    return best && best.overlap > 20 ? best.chunk : undefined;
+  }
+
   let hydrationStatusSuffix = '';
   if (opportunities.length > 0) {
     const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
@@ -1304,6 +1377,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(supabase: any, job
           evidence_anchor: o.evidence_anchor,
           rationale: o.rationale,
           revision_operation: o.revision_operation,
+          manuscript_context: findChunkForAnchor(o.evidence_anchor),
         }));
 
       if (blockedOpps.length > 0) {

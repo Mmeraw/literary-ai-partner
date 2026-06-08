@@ -22,7 +22,7 @@ import OpenAI from 'openai';
 /** Model used for candidate generation. Override with EVAL_HYDRATION_MODEL env var. */
 const HYDRATION_MODEL = process.env.EVAL_HYDRATION_MODEL ?? 'gpt-4o-mini';
 /** Hard cap on completion tokens per batch call. */
-const HYDRATION_MAX_TOKENS = 6000;
+const HYDRATION_MAX_TOKENS = 8000;
 /** Per-call timeout — generous enough for one batch, strict enough not to starve the serverless function. */
 const HYDRATION_TIMEOUT_MS = 45_000;
 /**
@@ -41,6 +41,8 @@ export type HydrationOpportunity = {
   evidence_anchor: string;
   rationale: string;
   revision_operation?: string;
+  /** Surrounding manuscript paragraph/chunk containing the anchor. Improves SLAE pass rate. */
+  manuscript_context?: string;
 };
 
 export type HydrationCandidates = {
@@ -102,8 +104,11 @@ function buildUserMessage(opportunities: HydrationOpportunity[]): string {
       (o, i) =>
         `OPPORTUNITY ${i + 1}\n` +
         `id: ${JSON.stringify(o.opportunity_id)}\n` +
-        `Excerpt to revise:\n"${o.evidence_anchor.slice(0, 500)}"\n` +
-        `Editorial recommendation: ${o.rationale.slice(0, 300)}` +
+        (o.manuscript_context
+          ? `Surrounding manuscript passage (for voice/style reference):\n${o.manuscript_context.slice(0, 2500)}\n\n`
+          : '') +
+        `Excerpt to revise:\n"${o.evidence_anchor.slice(0, 1500)}"\n` +
+        `Editorial recommendation: ${o.rationale.slice(0, 800)}` +
         (o.revision_operation ? `\nRevision type: ${o.revision_operation}` : ''),
     )
     .join('\n---\n');
@@ -113,8 +118,9 @@ function buildUserMessage(opportunities: HydrationOpportunity[]): string {
 Rules:
 - Every candidate must be ≥ 20 words
 - Every candidate (A, B, C) must differ in approach, tone, or specifics
-- Do NOT simply repeat or lightly paraphrase the excerpt
+- Do NOT simply repeat or lightly paraphrase the excerpt or its surrounding passage
 - Write complete, fluent prose that a human editor would accept as-is
+- Match the voice, tense, and style of the surrounding manuscript passage when provided
 - For insert_before_selected_passage / insert_after_selected_passage: write NEW text to insert; do not copy the excerpt
 - For compress_selected_passage: write a tighter, more concise version of the excerpt
 - For all other operations: rewrite the excerpt to address the editorial recommendation
