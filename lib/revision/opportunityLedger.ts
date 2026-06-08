@@ -362,8 +362,8 @@ function buildReplacementCandidates(input: CandidateBuildInput): { a: string; b:
 
   return ensureDistinctCandidates({
     a: trimWords(second ? `${first} ${second}` : first, 48),
-    b: normalizeProseSentence(`${leadName} held still long enough for the choice to register, and the moment tightened around it.`),
-    c: normalizeProseSentence(`${leadName} knew it before anyone said it, and that weight was enough to keep the air still.`),
+    b: trimWords(`${first} ${normalizeActionIntent(input.action ?? input.rationale)}`, 40),
+    c: trimWords(second || first, 30),
   }, seed);
 }
 
@@ -372,12 +372,14 @@ function buildInsertionCandidates(input: CandidateBuildInput): { a: string; b: s
   const leadName = extractLeadName(`${input.rationale} ${input.action ?? ''} ${anchor}`) || 'He';
   const secondName = extractLeadName(anchor.replace(new RegExp(`\\b${escapeRegExp(leadName)}\\b`, 'g'), '')) || 'the others';
   const quoted = extractQuotedSpan(anchor);
-  const seed = quoted ? `${leadName} heard the words again: ${quoteSpeech(quoted)}` : `${leadName} paused inside the pressure of the moment.`;
+  const seed = quoted
+    ? `${leadName} heard the words again: ${quoteSpeech(quoted)}`
+    : trimWords(stripEvidenceWrapper(anchor), 24);
 
   return ensureDistinctCandidates({
-    a: normalizeProseSentence(`${leadName} hesitated, and the small delay told ${secondName} more than he meant to reveal.`),
+    a: normalizeProseSentence(`${leadName} paused, and the delay told ${secondName} more than he meant to reveal.`),
     b: normalizeProseSentence(`${seed} This time, the answer stayed in his body before it reached his mouth.`),
-    c: normalizeProseSentence(`${leadName} looked away first, and that was enough for the moment to claim its price.`),
+    c: normalizeProseSentence(`${leadName} looked toward ${secondName} before answering, and the silence carried what he had not said.`),
   }, normalizeProseSentence(seed));
 }
 
@@ -744,9 +746,6 @@ function blockOpportunityByPreflight(opportunity: RevisionOpportunity, reasons: 
   const combinedReasons = [...new Set([...(opportunity.preflight_reasons ?? []), ...reasons])];
   return {
     ...opportunity,
-    candidate_text_a: '',
-    candidate_text_b: '',
-    candidate_text_c: '',
     grounding_status: 'unsupported_blocked',
     grounding_note: `Blocked by ${REVISE_QUEUE_PREFLIGHT_GATE_VERSION}: ${combinedReasons.join(', ')}`,
     preflight_status: 'blocked',
@@ -761,7 +760,11 @@ function preflightReasonsForOpportunity(
   contextQuality: ReviseContextQuality,
   evaluationMode?: string,
 ): string[] {
-  const reasons: string[] = [...(opportunity.preflight_reasons ?? [])];
+  const reasons: string[] = [];
+  const preservedReasons = (opportunity.preflight_reasons ?? []).filter(
+    (reason) => reason === 'hydration_candidate_rejected_overlap' || reason === 'candidate_quality_failed_after_regen',
+  );
+  reasons.push(...preservedReasons);
   if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
   if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
   if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
@@ -2162,13 +2165,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
                     opp.grounding_status = 'supported';
                     opp.grounding_note = null;
                     opp.preflight_status = 'passed';
-                    opp.preflight_reasons = (opp.preflight_reasons ?? []).filter(
-                      (r) =>
-                        r !== 'candidate_noncompliant' &&
-                        r !== 'candidate_low_diversity' &&
-                        r !== 'candidate_quality_failed' &&
-                        !r.startsWith('candidate_quality_'),
-                    );
+                    opp.preflight_reasons = [];
                     opp.preflight_note = undefined;
                     opp.admin_actions = undefined;
                     continue;
@@ -2203,7 +2200,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
             // opportunity is still blocked, use 'partial' so the next workbench
             // load retries rather than caching the incomplete result permanently.
             const stillBlocked = opportunities.filter(
-              (o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c),
+              (o) => o.preflight_status !== 'blocked' && o.grounding_status !== 'supported',
             ).length;
             hydrationStatusSuffix = stillBlocked === 0
               ? '_ai_hydrated_complete_res_preflight_complete'
@@ -2227,7 +2224,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
 
   if (!hydrationStatusSuffix) {
     const remainingHydratableBlocked = opportunities.filter(
-      (o) => o.preflight_status !== 'blocked' && (!o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c),
+      (o) => o.preflight_status !== 'blocked' && o.grounding_status !== 'supported',
     ).length;
     if (remainingHydratableBlocked === 0) {
       hydrationStatusSuffix = '_res_preflight_complete';

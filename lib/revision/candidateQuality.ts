@@ -169,6 +169,19 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return intersection / (a.size + b.size - intersection);
 }
 
+const MIN_CONTEXT_JACCARD = 0.03;
+
+const SPELLED_NUMBER_PATTERN = /\b(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[-\s](?:one|two|three|four|five|six|seven|eight|nine))?\b|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)\s+(?:hundred|thousand|million|billion)(?:\s+(?:and\s+)?(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety))?\b/gi;
+
+function extractSpelledNumberPhrases(text: string): Set<string> {
+  const matches = text.match(SPELLED_NUMBER_PATTERN) ?? [];
+  return new Set(
+    matches
+      .map((value) => value.toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean),
+  );
+}
+
 function overlapRatio(a: string, b: string): number {
   const aTokens = contentTokenSet(a);
   const bTokens = contentTokenSet(b);
@@ -229,6 +242,12 @@ function introducesUnsupportedFacts(candidate: string, anchor: string): boolean 
   const anchorNumbers = new Set(anchor.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? []);
   if (candidateNumbers.some((num) => !anchorNumbers.has(num))) return true;
 
+  const candidateSpelledNumbers = extractSpelledNumberPhrases(candidate);
+  const anchorSpelledNumbers = extractSpelledNumberPhrases(anchor);
+  for (const phrase of candidateSpelledNumbers) {
+    if (!anchorSpelledNumbers.has(phrase)) return true;
+  }
+
   const candidateNames = (candidate.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((n) => n.toLowerCase());
   const anchorNames = new Set((anchor.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((n) => n.toLowerCase()));
   let unseenNames = 0;
@@ -249,7 +268,7 @@ function lacksContextFit(candidate: string, anchor: string, rationale: string): 
   if (candidateTokens.size === 0) return true;
   const anchorOverlap = jaccardSimilarity(candidateTokens, contentTokenSet(anchor));
   const rationaleOverlap = jaccardSimilarity(candidateTokens, contentTokenSet(rationale));
-  return anchorOverlap < 0.05 && rationaleOverlap < 0.05;
+  return anchorOverlap < MIN_CONTEXT_JACCARD && rationaleOverlap < MIN_CONTEXT_JACCARD;
 }
 
 export type CandidateQualityReasonCode =

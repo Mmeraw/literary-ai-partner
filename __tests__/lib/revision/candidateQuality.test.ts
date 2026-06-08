@@ -101,6 +101,13 @@ describe('evaluateCandidateQuality ledger API', () => {
     expect(reasons).toContain('candidate_quality_unsupported_facts');
   });
 
+  it('flags unsupported_facts for invented written numbers not in anchor', () => {
+    const candidate =
+      'Mara counted to forty-seven, then waited one hundred more breaths before she moved.';
+    const reasons = evaluateCandidateQuality(candidate, GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(reasons).toContain('candidate_quality_unsupported_facts');
+  });
+
   it('returns multiple codes when multiple rules fire', () => {
     const bad = 'The reader must consider revising this passage.';
     const reasons = evaluateCandidateQuality(bad, GOOD_ANCHOR, GOOD_RATIONALE);
