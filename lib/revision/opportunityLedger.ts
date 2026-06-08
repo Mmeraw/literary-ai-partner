@@ -14,6 +14,8 @@ import {
   HYDRATION_PROMPT_VERSION,
   type HydrationOpportunity,
 } from './candidateHydration';
+import { evaluateCardQuality } from './candidateQuality';
+import { regenerateCandidatesForQualityFailed } from './candidateRegeneration';
 import { logRevisionEvent } from './logRevisionEvent';
 import type { CandidateRejectionTelemetry } from './telemetry';
 
@@ -700,12 +702,16 @@ function candidateQualityReasons(opportunity: RevisionOpportunity): string[] {
     return [];
   }
 
-  const perCandidate = candidates.map((candidate) => candidateQualityFailureCodes(opportunity, candidate ?? ''));
-  const passCount = perCandidate.filter((reasons) => reasons.length === 0).length;
-  if (passCount >= 2) return [];
+  const result = evaluateCardQuality(
+    candidates[0] ?? '',
+    candidates[1] ?? '',
+    candidates[2] ?? '',
+    opportunity.evidence_anchor,
+    opportunity.rationale,
+  );
+  if (result.pass) return [];
 
-  const mergedReasons = [...new Set(perCandidate.flat())];
-  return ['candidate_quality_failed', ...mergedReasons];
+  return ['candidate_quality_failed', ...('reasons' in result ? result.reasons : [])];
 }
 
 function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluationMode?: string): string[] {
@@ -2124,6 +2130,74 @@ export async function ensureRevisionOpportunityLedgerArtifact(
             });
             opportunities.splice(0, opportunities.length, ...postHydrationPreflighted);
             preflightSummary = summarizePreflight(opportunities);
+
+            // ── Quality Regeneration Pass ─────────────────────────────────────
+            // Cards that were hydration-attempted but whose AI prose failed the
+            // quality gate get one regeneration attempt before final withholding.
+            // Fail closed: if the second attempt also fails quality the card
+            // remains blocked and is never shown to the user.
+            const qualityBlockedForRegen = opportunities.filter(
+              (o) =>
+                hydrationAttemptedByOpportunityId.has(o.opportunity_id) &&
+                o.preflight_status === 'blocked' &&
+                (o.preflight_reasons ?? []).includes('candidate_quality_failed'),
+            );
+            if (qualityBlockedForRegen.length > 0) {
+              const regenInput = qualityBlockedForRegen.map((o) => ({
+                opportunity_id: o.opportunity_id,
+                evidence_anchor: o.evidence_anchor,
+                rationale: o.rationale,
+                revision_operation: o.revision_operation,
+                evaluation_mode: modeContract.evaluation_mode,
+                manuscript_context: findChunkForAnchor(o.evidence_anchor),
+              }));
+              try {
+                const regenResult = await regenerateCandidatesForQualityFailed(regenInput, openaiApiKey);
+                for (const opp of opportunities) {
+                  const healedCandidates = regenResult.healed.get(opp.opportunity_id);
+                  if (healedCandidates) {
+                    opp.candidate_text_a = healedCandidates.candidate_text_a;
+                    opp.candidate_text_b = healedCandidates.candidate_text_b;
+                    opp.candidate_text_c = healedCandidates.candidate_text_c;
+                    opp.grounding_status = 'supported';
+                    opp.grounding_note = null;
+                    opp.preflight_status = 'passed';
+                    opp.preflight_reasons = (opp.preflight_reasons ?? []).filter(
+                      (r) =>
+                        r !== 'candidate_noncompliant' &&
+                        r !== 'candidate_low_diversity' &&
+                        r !== 'candidate_quality_failed' &&
+                        !r.startsWith('candidate_quality_'),
+                    );
+                    opp.preflight_note = undefined;
+                    opp.admin_actions = undefined;
+                    continue;
+                  }
+                  const stillFailedReasons = regenResult.stillFailed.get(opp.opportunity_id);
+                  if (stillFailedReasons) {
+                    opp.preflight_reasons = [...new Set([...(opp.preflight_reasons ?? []), ...stillFailedReasons])];
+                    opp.admin_actions = blockedAdminActions(opp.preflight_reasons);
+                  }
+                }
+                // Re-run preflight so healed cards are correctly classified.
+                const postRegenPreflighted = applyReviseQueuePreflight(opportunities, {
+                  contextQuality: contextQualityDecision.status,
+                  evaluationMode: modeContract.evaluation_mode,
+                });
+                opportunities.splice(0, opportunities.length, ...postRegenPreflighted);
+                preflightSummary = summarizePreflight(opportunities);
+                console.log(
+                  `[CandidateRegen] ${jobId}: regen attempted=${qualityBlockedForRegen.length}` +
+                  ` healed=${regenResult.healed.size} stillFailed=${regenResult.stillFailed.size}`,
+                );
+              } catch (regenErr) {
+                console.error(
+                  `[CandidateRegen] ${jobId}: non-fatal regeneration error`,
+                  regenErr instanceof Error ? regenErr.message : String(regenErr),
+                );
+              }
+            }
+
             // Use 'complete' only when every blocked opportunity was successfully
             // hydrated — this gates the stable-artifact cache guard. If any
             // opportunity is still blocked, use 'partial' so the next workbench

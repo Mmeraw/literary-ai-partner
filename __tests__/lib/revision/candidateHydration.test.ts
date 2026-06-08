@@ -190,23 +190,27 @@ describe('hydrateLedgerCandidates', () => {
         })),
       );
 
-    // First call: first MAX_BATCH_SIZE opportunities
-    getMockCreate().mockResolvedValueOnce(makeChunkCompletion(lotsOfOpps.slice(0, HYDRATION_MAX_BATCH_SIZE)));
-    // Second call: remaining 5 opportunities
-    getMockCreate().mockResolvedValueOnce(makeChunkCompletion(lotsOfOpps.slice(HYDRATION_MAX_BATCH_SIZE)));
+    const chunks: HydrationOpportunity[][] = [];
+    for (let offset = 0; offset < lotsOfOpps.length; offset += HYDRATION_MAX_BATCH_SIZE) {
+      chunks.push(lotsOfOpps.slice(offset, offset + HYDRATION_MAX_BATCH_SIZE));
+    }
+
+    for (const chunk of chunks) {
+      getMockCreate().mockResolvedValueOnce(makeChunkCompletion(chunk));
+    }
 
     const result = await hydrateLedgerCandidates(lotsOfOpps, 'sk-test');
 
-    // All opportunities processed across 2 calls — nothing skipped
+    // All opportunities processed across all chunks — nothing skipped
     expect(result.skippedCount).toBe(0);
     expect(result.hydratedCount).toBe(totalOpps);
-    expect(getMockCreate()).toHaveBeenCalledTimes(2);
+    expect(getMockCreate()).toHaveBeenCalledTimes(chunks.length);
 
     // First call's prompt should not contain second chunk's opportunity ids
     const firstCallArg = getMockCreate().mock.calls[0][0] as { messages: Array<{ content: string }> };
     expect(firstCallArg.messages[1].content).not.toContain(`rol:opp${HYDRATION_MAX_BATCH_SIZE}`);
 
-    // Second call's prompt should contain the overflow opportunities
+    // Second call's prompt should contain the first overflow chunk
     const secondCallArg = getMockCreate().mock.calls[1][0] as { messages: Array<{ content: string }> };
     expect(secondCallArg.messages[1].content).toContain(`rol:opp${HYDRATION_MAX_BATCH_SIZE}`);
   });
