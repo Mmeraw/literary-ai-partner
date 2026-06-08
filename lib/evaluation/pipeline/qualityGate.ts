@@ -8,7 +8,7 @@
  *   QG_GENERIC_REC        — recommendation missing anchor snippet
  *   QG_DUPLICATE_REC      — same action text duplicated across criteria
  *   QG_SHORT_REC          — action < 50 chars
- *   QG_LONG_REC           — reserved for pathological recommendation payloads; rich action text is allowed
+ *   QG_LONG_REC           — recommendation action > 300 chars
  *   QG_LONG_EVIDENCE      — evidence snippet > 200 chars
  *   QG_LONG_OVERVIEW      — one_paragraph_summary > 500 chars
  *   QG_CRITERIA_MISSING   — output does not contain all 13 criteria
@@ -71,7 +71,6 @@ import {
 
 export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 300;
-export const QG_PATHOLOGICAL_REC_LENGTH = 1200;
 export const QG_MAX_EVIDENCE_LENGTH = 200;
 export const QG_MAX_OVERVIEW_LENGTH = 500;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
@@ -379,9 +378,7 @@ export function runQualityGate(
     for (const r of c.recommendations) {
       if (r.action.length < QG_MIN_REC_LENGTH)
         shortRecs.push(`${c.key}: "${r.action}"`);
-      // Editorial policy: 300 chars is a display-summary target, not a hard cap
-      // on rich user-facing recommendations. Block only pathological payloads.
-      if (r.action.length > QG_PATHOLOGICAL_REC_LENGTH)
+      if (r.action.length > QG_MAX_REC_LENGTH)
         longRecs.push(`${c.key} (${r.action.length} chars)`);
     }
   }
@@ -400,8 +397,8 @@ export function runQualityGate(
     error_code: longRecs.length > 0 ? "QG_LONG_REC" : undefined,
     details:
       longRecs.length > 0
-        ? `${longRecs.length} recommendation(s) exceed ${QG_PATHOLOGICAL_REC_LENGTH} chars`
-        : `All recommendations within rich editorial length policy`,
+        ? `${longRecs.length} recommendation(s) exceed ${QG_MAX_REC_LENGTH} chars`
+        : `All recommendations ≤ ${QG_MAX_REC_LENGTH} chars`,
   });
 
   // ── Check 5: Evidence excerpt length (≤200 chars) ────────────────────────

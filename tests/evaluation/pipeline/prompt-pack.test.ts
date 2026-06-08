@@ -105,7 +105,8 @@ describe("prompt pack governance specs", () => {
       expect(PASS2_SYSTEM_PROMPT).toContain(key);
     }
 
-    expect(PASS2_SYSTEM_PROMPT).toContain("independent from Pass 1");
+    expect(PASS2_SYSTEM_PROMPT).toContain("independent from the craft-execution axis");
+    expect(PASS2_SYSTEM_PROMPT).toContain("Stay independent; do not reference any other analysis axis");
     expect(PASS2_SYSTEM_PROMPT).not.toContain("I agree with Pass 1");
     expect(PASS2_SYSTEM_PROMPT).toContain("NONE|WEAK|SUFFICIENT|STRONG");
     expect(PASS2_SYSTEM_PROMPT).toContain("SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL");
