@@ -20,19 +20,19 @@ import OpenAI from 'openai';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /** Model used for candidate generation. Override with EVAL_HYDRATION_MODEL env var. */
-export const HYDRATION_MODEL = process.env.EVAL_HYDRATION_MODEL ?? 'gpt-4o-mini';
+export const HYDRATION_MODEL = process.env.EVAL_HYDRATION_MODEL ?? 'gpt-5.1';
 /** Version identifier for hydration prompt contract (never include prompt text in telemetry). */
-export const HYDRATION_PROMPT_VERSION = 'candidate_hydration_v1' as const;
+export const HYDRATION_PROMPT_VERSION = 'candidate_hydration_v2_premium_prose' as const;
 /** Hard cap on completion tokens per batch call. */
 const HYDRATION_MAX_TOKENS = 8000;
 /** Per-call timeout — generous enough for one batch, strict enough not to starve the serverless function. */
-const HYDRATION_TIMEOUT_MS = 45_000;
+const HYDRATION_TIMEOUT_MS = 60_000;
 /**
  * Max opportunities sent in a single OpenAI call (token budget guard).
- * All blocked opportunities are still processed — the function loops through
- * batches sequentially until every opportunity has been attempted.
+ * Prose generation quality collapses when too many unrelated cards are batched.
+ * Keep batches small so the model can attend to local context and voice.
  */
-export const HYDRATION_MAX_BATCH_SIZE = 15;
+export const HYDRATION_MAX_BATCH_SIZE = 3;
 /** Minimum word count a candidate must meet to pass SLAE. */
 const SLAE_MIN_WORDS = 5;
 
@@ -122,6 +122,14 @@ function candidateEchoesAnchor(candidate: string, anchor: string): boolean {
   );
 }
 
+function looksLikeEditorialAdvice(text: string): boolean {
+  return /\b(reader|narrative|theme|arc|stakes|craft|manuscript|criterion|diagnostic|revision|prose|passage|scene should|this shows|this would)\b/i.test(text);
+}
+
+function looksLikeGenericLiteraryFiller(text: string): boolean {
+  return /\b(moment (?:tightened|claimed|held|shifted)|air (?:still|tightened|changed)|weight (?:settled|registered)|looked away first|hesitated,? and|small delay told|pressure of the moment|kept the air still|moment to claim its price)\b/i.test(text);
+}
+
 /** Returns the validated candidate string, or empty string if it fails SLAE. */
 function slaeValidate(raw: unknown, anchor: string, rationale: string): string {
   if (typeof raw !== 'string') return '';
@@ -131,6 +139,8 @@ function slaeValidate(raw: unknown, anchor: string, rationale: string): string {
   if (words.length < SLAE_MIN_WORDS) return '';
   if (text.toLowerCase() === rationale.trim().toLowerCase()) return '';
   if (candidateEchoesAnchor(text, anchor)) return '';
+  if (looksLikeEditorialAdvice(text)) return '';
+  if (looksLikeGenericLiteraryFiller(text)) return '';
   return text;
 }
 
@@ -180,9 +190,25 @@ function candidatesSatisfyRes(opportunity: HydrationOpportunity, candidates: str
 // ── Prompt construction ───────────────────────────────────────────────────────
 
 const SYSTEM_MESSAGE =
-  'You are a literary manuscript editor. ' +
-  'Your task is to produce precise, copy-paste-ready prose revision candidates. ' +
+  'You are a senior literary line editor producing premium, copy-ready manuscript revision candidates. ' +
+  'You are not writing advice, analysis, summary, explanation, or generic literary filler. ' +
+  'Every candidate must be plausible prose that could be pasted into the author\'s manuscript with minimal adjustment. ' +
   'Output only valid JSON — no markdown fences, no explanations, no preamble.';
+
+function operationInstruction(operation?: string): string {
+  switch (operation) {
+    case 'insert_before_selected_passage':
+      return 'Write new prose that can appear immediately BEFORE the excerpt. It must transition naturally into the excerpt and must not repeat the excerpt.';
+    case 'insert_after_selected_passage':
+      return 'Write new prose that can appear immediately AFTER the excerpt. It must grow from the excerpt and must not summarize or repeat it.';
+    case 'compress_selected_passage':
+      return 'Rewrite the excerpt more tightly while preserving its concrete content, sequence, voice, and factual boundaries.';
+    case 'replace_selected_passage':
+      return 'Replace the excerpt with improved manuscript prose that solves the recommendation while preserving factual content and voice.';
+    default:
+      return 'Produce improved manuscript prose that solves the recommendation while preserving factual content, voice, and local continuity.';
+  }
+}
 
 function buildUserMessage(opportunities: HydrationOpportunity[]): string {
   const items = opportunities
@@ -191,27 +217,28 @@ function buildUserMessage(opportunities: HydrationOpportunity[]): string {
         `OPPORTUNITY ${i + 1}\n` +
         `id: ${JSON.stringify(o.opportunity_id)}\n` +
         (o.manuscript_context
-          ? `Surrounding manuscript passage (for voice/style reference):\n${o.manuscript_context.slice(0, 2500)}\n\n`
-          : '') +
-        `Excerpt to revise:\n"${o.evidence_anchor.slice(0, 1500)}"\n` +
-        `Editorial recommendation: ${o.rationale.slice(0, 800)}` +
+          ? `Local manuscript context for voice and continuity. Do not copy it unless replacing the selected excerpt:\n${o.manuscript_context.slice(0, 3500)}\n\n`
+          : 'Local manuscript context: unavailable. Be conservative; do not invent facts, names, places, dialogue, dates, or numbers.\n\n') +
+        `Selected excerpt / anchor:\n${JSON.stringify(o.evidence_anchor.slice(0, 1800))}\n` +
+        `Revision objective, not prose to copy:\n${JSON.stringify(o.rationale.slice(0, 900))}` +
         (o.evaluation_mode ? `\nEvaluation mode: ${o.evaluation_mode}` : '') +
-        (o.revision_operation ? `\nRevision type: ${o.revision_operation}` : ''),
+        (o.revision_operation ? `\nRevision type: ${o.revision_operation}` : '') +
+        `\nOperation contract: ${operationInstruction(o.revision_operation)}`,
     )
     .join('\n---\n');
 
-  return `For each opportunity below, produce 3 distinct, manuscript-ready prose revision candidates.
+  return `For each opportunity below, produce exactly 3 distinct, manuscript-ready prose candidates.
 
-Rules:
-- Every candidate must be ≥ 20 words
-- Every candidate (A, B, C) must differ in approach, tone, or specifics
-- Do NOT simply repeat or lightly paraphrase the excerpt or its surrounding passage
-- Write complete, fluent prose that a human editor would accept as-is
-- Match the voice, tense, and style of the surrounding manuscript passage when provided
-- In TESTIMONY/memoir mode, do not invent facts or quoted dialogue that is not present in the excerpt or surrounding passage
-- For insert_before_selected_passage / insert_after_selected_passage: write NEW text to insert; do not copy the excerpt
-- For compress_selected_passage: write a tighter, more concise version of the excerpt
-- For all other operations: rewrite the excerpt to address the editorial recommendation
+Hard rules:
+- Return prose only inside candidate_a/b/c. Do not return advice, diagnosis, rationale, summary, bullets, labels, or explanations.
+- No generic literary filler. Avoid canned lines such as: "the moment tightened," "the air went still," "he looked away first," "the weight settled," or similar vague atmospheric padding.
+- No unsupported facts. Do not invent new names, places, dates, numbers, dialogue, motives, or events.
+- Preserve author voice, tense, POV, factual boundaries, and local continuity.
+- Each candidate must be concrete, scene-aware, and different in strategy.
+- Every candidate must be 18–70 words unless the revision type is compress_selected_passage.
+- For insert operations, write only the insertable bridge/beat, not a rewritten version of the selected excerpt.
+- For replacement/compression operations, rewrite only the selected excerpt.
+- In TESTIMONY/memoir mode, never invent direct dialogue unless direct dialogue exists in the excerpt/context.
 
 ${items}
 
@@ -220,9 +247,9 @@ Return ONLY this JSON object (no other text):
   "results": [
     {
       "id": "<opportunity_id exactly as given>",
-      "candidate_a": "<manuscript-ready prose>",
-      "candidate_b": "<manuscript-ready prose>",
-      "candidate_c": "<manuscript-ready prose>"
+      "candidate_a": "<copy-ready manuscript prose>",
+      "candidate_b": "<copy-ready manuscript prose>",
+      "candidate_c": "<copy-ready manuscript prose>"
     }
   ]
 }`;
@@ -273,7 +300,7 @@ export async function hydrateLedgerCandidates(
           { role: 'user', content: buildUserMessage(chunk) },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.7,
+        temperature: 0.25,
         max_tokens: HYDRATION_MAX_TOKENS,
       });
 
@@ -318,17 +345,28 @@ export async function hydrateLedgerCandidates(
           continue;
         }
 
-        const rawCandidates = [r.candidate_a, r.candidate_b, r.candidate_c]
-          .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0);
-        if (rawCandidates.some((candidate) => candidateEchoesAnchor(candidate, opp.evidence_anchor))) {
+        const rawCandidates = [r.candidate_a, r.candidate_b, r.candidate_c];
+        const anyEchoOverlap = rawCandidates.some(
+          (candidate) => typeof candidate === 'string' && tokenOverlapRatio(candidate, opp.evidence_anchor) >= 0.55,
+        );
+        const anyGenericFiller = rawCandidates.some(
+          (candidate) => typeof candidate === 'string' && looksLikeGenericLiteraryFiller(candidate),
+        );
+        const anyAdvice = rawCandidates.some(
+          (candidate) => typeof candidate === 'string' && looksLikeEditorialAdvice(candidate),
+        );
+        const hasMissingCandidate = !a || !b || !c;
+
+        if (anyGenericFiller) {
+          rejectionReasons.set(id, 'hydration_candidate_rejected_generic_filler');
+        } else if (anyAdvice) {
+          rejectionReasons.set(id, 'hydration_candidate_rejected_advice_not_prose');
+        } else if (anyEchoOverlap) {
           rejectionReasons.set(id, 'hydration_candidate_rejected_overlap');
-          continue;
-        }
-        if (
-          (opp.revision_operation === 'insert_before_selected_passage' || opp.revision_operation === 'insert_after_selected_passage') &&
-          rawCandidates.some((candidate) => tokenOverlapRatio(candidate, opp.evidence_anchor) >= 0.55)
-        ) {
-          rejectionReasons.set(id, 'hydration_candidate_rejected_overlap');
+        } else if (hasMissingCandidate) {
+          rejectionReasons.set(id, 'hydration_candidate_rejected_incomplete');
+        } else {
+          rejectionReasons.set(id, 'hydration_candidate_rejected_quality');
         }
       }
     } catch (err) {
@@ -338,5 +376,10 @@ export async function hydrateLedgerCandidates(
     }
   }
 
-  return { hydratedCount, skippedCount: 0, candidates, rejectionReasons };
+  return {
+    hydratedCount,
+    skippedCount: 0,
+    candidates,
+    rejectionReasons,
+  };
 }
