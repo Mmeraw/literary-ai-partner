@@ -375,12 +375,14 @@ export function EvaluationPoller({
 
         // Wrap non-urgent poll state updates in startTransition so that any
         // user interaction (click, keypress) is not blocked by the re-render
-        // triggered by the polling response. This is the primary fix for the
-        // 248ms INP regression on body.overflow-x-hidden.antialiased.
-        startTransition(() => {
-          setJob(nextJob);
-          setError(null);
-        });
+        // triggered by the polling response. Also skip unchanged snapshots to
+        // prevent unnecessary reconciliation during steady-state polling.
+        if (!unchanged) {
+          startTransition(() => {
+            setJob(nextJob);
+            setError(null);
+          });
+        }
 
         // Auto-redirect to Story Ledger when pipeline reaches review_gate
         if (
@@ -691,9 +693,15 @@ export function EvaluationPoller({
             highWaterMarkRef.current = rawBarWidth;
           }
           const barWidth = Math.max(rawBarWidth, highWaterMarkRef.current);
+          const displayedPercent = Math.max(0, Math.min(100, Math.round(barWidth)));
           return (
             <div className="space-y-2">
-              <p className={`text-xl font-semibold leading-8 sm:text-2xl ${labelColorClass}`}>{effectivePd.label}</p>
+              <div className="flex items-baseline justify-between gap-3">
+                <p className={`text-xl font-semibold leading-8 sm:text-2xl ${labelColorClass}`}>{effectivePd.label}</p>
+                <p className="text-sm font-semibold text-stone-600" aria-label={`Completion ${displayedPercent}%`}>
+                  {displayedPercent}%
+                </p>
+              </div>
               <div className="w-full rounded-full h-2.5" style={{ backgroundColor: '#E8E4DD' }}>
                 <div
                   className={`h-2.5 rounded-full transition-all duration-500 ease-out ${barColorClass}`}
