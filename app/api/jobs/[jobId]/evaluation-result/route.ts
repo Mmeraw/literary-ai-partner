@@ -64,7 +64,19 @@ export async function GET(
       );
     }
 
-    const result = job.evaluation_result as unknown;
+    // Prefer the canonical evaluation_artifacts row (same source as PDF/DOCX/TXT
+    // exports) to eliminate web-vs-download split-brain. Fall back to the job
+    // column only if no artifact exists (legacy jobs written before artifact table).
+    const { data: artifactRow } = await supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .in('artifact_type', ['evaluation_result_v2', 'evaluation_result_v1'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const result = artifactRow?.content ?? (job.evaluation_result as unknown);
     const isV1 = isEvaluationResultV1(result);
     const isV2 = isEvaluationResultV2(result);
 
