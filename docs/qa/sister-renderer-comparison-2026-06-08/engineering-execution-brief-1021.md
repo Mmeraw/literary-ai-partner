@@ -52,15 +52,19 @@ Do not begin with CSS refinement.
 
 ## Phase 1 — Renderer contract unification (P0)
 
+### Decision lock (non-negotiable)
+
+- **Option A is mandatory**: canonical template model (`canonicalDoc`) + premium adapter styling.
+- **No hybrid Option A/B path is permitted.**
+- Engineering must not begin export styling work until this decision is implemented in code paths and tests.
+
 ## Goal
 
 Single authoritative section/presentation model consumed by web/pdf/docx/txt adapters.
 
 ## Required decisions
 
-- Choose one renderer contract source of truth:
-  - Option A: Canonical template model (`canonicalDoc`) + premium adapter styling
-  - Option B: Premium model normalized as canonical contract and reused by all exports
+- Decision finalized: **Option A**.
 
 ## Required invariants
 

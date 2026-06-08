@@ -34,6 +34,27 @@ function getOverview(result: ReportLike): Record<string, unknown> {
   return isRecord(result.overview) ? result.overview : {};
 }
 
+const MALFORMED_PATTERNS: Array<{ code: string; re: RegExp; label: string }> = [
+  { code: 'MALFORMED_WOULD_BECAUSE', re: /\b(?:would|could|should)\s+because\b/i, label: 'contains malformed "would/could/should because" fragment' },
+  { code: 'MALFORMED_WOULD_BENEFIT_BECAUSE', re: /\bwould\s+benefit\s+from\s+one\s+because\b/i, label: 'contains malformed "would benefit from one because" fragment' },
+];
+
+function pushIfMalformed(
+  violations: DownloadParityViolation[],
+  path: string,
+  value: unknown,
+): void {
+  if (!nonEmptyText(value)) return;
+  for (const pattern of MALFORMED_PATTERNS) {
+    if (pattern.re.test(value)) {
+      violations.push({
+        code: pattern.code,
+        message: `${path} ${pattern.label}.`,
+      });
+    }
+  }
+}
+
 /**
  * Validates that a persisted evaluation result has the minimum author-facing
  * content required to generate downloads from the canonical report template.
@@ -64,16 +85,22 @@ export function validateDownloadParity(result: ReportLike): DownloadParityResult
   const summary = overview.one_paragraph_summary ?? result.one_paragraph_summary;
   if (!nonEmptyText(summary)) {
     violations.push({ code: 'NO_SUMMARY', message: 'Missing one_paragraph_summary.' });
+  } else {
+    pushIfMalformed(violations, 'overview.one_paragraph_summary', summary);
   }
 
   const strengths = overview.top_3_strengths ?? result.top_3_strengths;
   if (countNonEmptyText(strengths) === 0) {
     violations.push({ code: 'NO_TOP_STRENGTHS', message: 'No top strengths present.' });
+  } else if (Array.isArray(strengths)) {
+    strengths.forEach((item, index) => pushIfMalformed(violations, `overview.top_3_strengths[${index}]`, item));
   }
 
   const risks = overview.top_3_risks ?? result.top_3_risks;
   if (countNonEmptyText(risks) === 0) {
     violations.push({ code: 'NO_TOP_RISKS', message: 'No top risks present.' });
+  } else if (Array.isArray(risks)) {
+    risks.forEach((item, index) => pushIfMalformed(violations, `overview.top_3_risks[${index}]`, item));
   }
 
   for (const c of criteria) {
@@ -85,6 +112,16 @@ export function validateDownloadParity(result: ReportLike): DownloadParityResult
     }
     if (!nonEmptyText(c.rationale)) {
       violations.push({ code: 'CRITERION_NO_RATIONALE', message: `Criterion "${String(key)}" has no rationale.` });
+    } else {
+      pushIfMalformed(violations, `criteria[${String(key)}].rationale`, c.rationale);
+    }
+
+    if (Array.isArray(c.recommendations)) {
+      c.recommendations.forEach((rec, idx) => {
+        if (!isRecord(rec)) return;
+        pushIfMalformed(violations, `criteria[${String(key)}].recommendations[${idx}].action`, rec.action);
+        pushIfMalformed(violations, `criteria[${String(key)}].recommendations[${idx}].specific_fix`, rec.specific_fix);
+      });
     }
   }
 

@@ -2708,3 +2708,10 @@ export async function GET(
     },
   });
 }
+
+export const __testingDownload = {
+  buildCanonicalTemplateDocument,
+  buildCanonicalTemplateTxt,
+  renderCanonicalTemplateHtml,
+  buildCanonicalTemplateDocx,
+};

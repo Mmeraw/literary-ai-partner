@@ -1,0 +1,35 @@
+{
+  "version": "v1",
+  "mode": "short_form_evaluation",
+  "option": "A",
+  "authoritativeModel": "canonicalDoc",
+  "hybridPathAllowed": false,
+  "sectionsInOrder": [
+    "title_block",
+    "one_paragraph_pitch",
+    "one_sentence_pitch",
+    "premise",
+    "content_warnings",
+    "revision_opportunity_summary",
+    "executive_summary",
+    "top_strengths",
+    "top_risks",
+    "top_recommendations",
+    "criteria_score_grid",
+    "criterion_rationales_and_opportunities",
+    "confidence_explanation",
+    "author_disclaimer"
+  ],
+  "requiredTitleBlockFields": [
+    "reportType",
+    "overallScoreLabel",
+    "marketReadiness",
+    "genre",
+    "targetAudience",
+    "submittedWordCount",
+    "estimatedPages",
+    "readingGradeLevel",
+    "dialogueNarrativeRatio",
+    "dateGenerated"
+  ]
+}

@@ -57,4 +57,27 @@ describe('validateDownloadParity', () => {
       'CRITERION_NO_RATIONALE',
     ]);
   });
+
+  test('fails when malformed prose fragments appear in summary or recommendations', () => {
+    const result = {
+      ...canonicalResult,
+      overview: {
+        ...canonicalResult.overview,
+        one_paragraph_summary: 'This section would because malformed connectors leaked through.',
+      },
+      criteria: [
+        {
+          ...canonicalResult.criteria[0],
+          recommendations: [
+            {
+              action: 'Insert one concrete stakes beat; At the scene level, studies are mixed on the success of safe injection sites. would because the stakes signal arrives too late.',
+            },
+          ],
+        },
+      ],
+    };
+
+    const codes = validateDownloadParity(result).violations.map((v) => v.code);
+    expect(codes).toContain('MALFORMED_WOULD_BECAUSE');
+  });
 });
