@@ -61,7 +61,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   if (criterion.status === "NOT_APPLICABLE") {
     return {
       label: "N/A",
-      classes: "bg-slate-100 text-slate-700",
+      classes: "bg-stone-100 text-stone-500 ring-1 ring-stone-300/60",
       numeric: false,
     };
   }
@@ -69,7 +69,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   if (!isCertifiedCriterion(criterion)) {
     return {
       label: "Not scorable",
-      classes: "bg-slate-100 text-slate-700",
+      classes: "bg-stone-100 text-stone-500 ring-1 ring-stone-300/60",
       numeric: false,
     };
   }
@@ -78,7 +78,7 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   if (typeof scoreValue === "number" && scoreValue >= 8) {
     return {
       label: formatScoreOutOfTen(scoreValue),
-      classes: "bg-green-700 text-white",
+      classes: "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-400/50",
       numeric: true,
     };
   }
@@ -86,14 +86,14 @@ export function getCriterionPrimaryBadge(criterion: RenderableCriterion): {
   if (typeof scoreValue === "number" && scoreValue >= 6) {
     return {
       label: formatScoreOutOfTen(scoreValue),
-      classes: "bg-amber-600 text-white",
+      classes: "bg-amber-100 text-amber-800 ring-1 ring-amber-400/50",
       numeric: true,
     };
   }
 
   return {
     label: formatScoreOutOfTen(scoreValue),
-    classes: "bg-red-700 text-white",
+    classes: "bg-rose-100 text-rose-800 ring-1 ring-rose-400/50",
     numeric: true,
   };
 }

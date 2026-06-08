@@ -954,10 +954,16 @@ export default async function EvaluationReportPage({
 
           <aside className="grid w-full shrink-0 gap-4 lg:w-72">
             {isComplete && (
-              <div className="rounded-lg border border-[#D7BE78] bg-[#FFF8E8] p-5 text-stone-950 shadow-sm print:border-stone-300 print:bg-white print:shadow-none">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#8A6A1F]">Overall Score</p>
-                <p className="mt-3 font-rg-serif text-5xl font-bold leading-none text-stone-950">{overallScore !== null ? overallScore : 'N/A'}<span className="text-2xl text-[#8A6A1F]">/100</span></p>
-                <p className={`mt-3 inline-flex rounded-full border px-3 py-1 text-base font-semibold uppercase tracking-wide ${verdictPresentation.classes}`}>{verdict}</p>
+              <div className="rounded-lg border border-[#D7BE78] bg-[#FFF8E8] p-5 shadow-sm print:border-stone-300 print:bg-white print:shadow-none">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A6A1F]">Overall Score</p>
+                <div className="mt-2 flex items-baseline gap-1.5">
+                  <p className="font-rg-serif text-6xl font-bold leading-none text-stone-900">{overallScore !== null ? overallScore : '—'}</p>
+                  <span className="font-rg-serif text-2xl font-medium text-[#A98E4A] leading-none">/100</span>
+                </div>
+                <p className="mt-2 text-xs text-stone-500 leading-snug">Calibrated across 13 craft &amp; editorial criteria</p>
+                <div className="mt-3">
+                  <p className={`inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${verdictPresentation.classes}`}>{verdict}</p>
+                </div>
                 {overallScoreConfidenceLabel && (
                   <p className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getConfidenceLabelClasses(overallScoreConfidenceLabel)}`}>
                     {overallScoreConfidenceLabel}
@@ -1322,13 +1328,13 @@ export default async function EvaluationReportPage({
               {/* ── 13 Story Criteria Scores ── */}
               {orderedCriteria.length > 0 && (
                 <section className="rounded-lg border bg-white p-7 mb-7">
-                  <h2 className="text-2xl font-semibold text-gray-900">13 Criteria Score Grid</h2>
+                  <h2 className="text-2xl font-semibold text-gray-900">Criterion Assessments</h2>
                   <p className="mt-5 text-base font-medium leading-7 text-gray-800">
                     {getCertifiedCriteriaSummary(orderedCriteria)}
                   </p>
                   <div className="mt-6 space-y-6">
                     {orderedCriteria.map((c) => (
-                      <div key={c.key} className="rounded-md border bg-white p-6">
+                      <div key={c.key} className="rounded-md border border-stone-200 bg-stone-50/50 p-5">
                         {(() => {
                           const scorable = isScorableCriterion(c);
                           const confidence = getConfidencePresentation(c);
