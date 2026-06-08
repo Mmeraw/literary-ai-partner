@@ -365,7 +365,7 @@ function MetricCard({ title, value, color }: MetricCardProps) {
 
   return (
     <div className={`rounded-lg border p-6 ${colorClasses[color]}`}>
-      <div className="text-sm font-bold mb-2 uppercase tracking-wide opacity-90">{title}</div>
+      <div className="text-sm font-bold mb-2 uppercase tracking-wide">{title}</div>
       <div className="text-3xl font-bold">{value}</div>
     </div>
   );
