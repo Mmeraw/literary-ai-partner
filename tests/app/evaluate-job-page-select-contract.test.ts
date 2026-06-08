@@ -15,8 +15,17 @@ describe('evaluate job page query contract', () => {
     expect(selectedColumns).toContain('id');
     expect(selectedColumns).toContain('manuscript_id');
     expect(selectedColumns).toContain('status');
+    expect(selectedColumns).toContain('last_error');
+    expect(selectedColumns).toContain('failure_code');
+    expect(selectedColumns).not.toContain('failure_envelope');
     expect(selectedColumns).not.toContain('author_name');
     expect(selectedColumns).not.toContain('manuscript_title');
+  });
+
+  test('uses manuscript ownership before stale job user ownership for dashboard-visible jobs', () => {
+    expect(source).toContain('const manuscriptOwnerUserId');
+    expect(source).toContain('const directJobUserId');
+    expect(source).toContain('const ownerUserId = manuscriptOwnerUserId ?? directJobUserId');
   });
 
   test('uses manuscript text for a 200-word submission preview fallback', () => {
@@ -38,5 +47,17 @@ describe('evaluate job page query contract', () => {
     expect(source).toContain('export const revalidate = 0');
     expect(source).toContain('EvaluationUnavailableReloadButton');
     expect(source).not.toContain('href={`/evaluate/${jobId}`}');
+  });
+
+  test('failed evaluations render customer-safe QA details instead of internal pipeline details', () => {
+    expect(source).toContain('Evaluation Details');
+    expect(source).toContain('Evaluation needs review');
+    expect(source).toContain('internal quality assurance and completeness checks');
+    expect(source).toContain('Quality and completeness review needed');
+    expect(source).toContain('RevisionGrade is investigating');
+    expect(source).not.toContain('<dt className="font-semibold text-stone-950">Phase</dt>');
+    expect(source).not.toContain('<dt className="font-semibold text-stone-950">Failure Code</dt>');
+    expect(source).not.toContain('Technical Error Detail');
+    expect(source).not.toContain('Failure Envelope');
   });
 });

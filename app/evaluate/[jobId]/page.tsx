@@ -71,6 +71,7 @@ type Job = {
   created_at?: string;
   updated_at?: string;
   last_error?: string | null;
+  failure_code?: string | null;
   progress?: Record<string, unknown> | null;
   policy_family?: string | null;
   voice_preservation_level?: string | null;
@@ -188,7 +189,7 @@ async function getJob(jobId: string): Promise<Job | null> {
 
     const { data: job, error } = await supabase
       .from("evaluation_jobs")
-      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, progress, policy_family, voice_preservation_level, manuscripts(user_id,title)")
+      .select("id, user_id, manuscript_id, job_type, status, phase, phase_status, total_units, completed_units, failed_units, created_at, updated_at, last_error, failure_code, progress, policy_family, voice_preservation_level, manuscripts(user_id,title)")
       .eq("id", jobId)
       .maybeSingle();
 
@@ -201,12 +202,15 @@ async function getJob(jobId: string): Promise<Job | null> {
       return null;
     }
 
-    const ownerUserId =
-      (job as any)?.user_id ??
-      ((job as any)?.manuscripts?.user_id ??
-        (Array.isArray((job as any)?.manuscripts)
-          ? (job as any).manuscripts[0]?.user_id
-          : null));
+    const manuscriptOwnerUserId =
+      (Array.isArray((job as any)?.manuscripts)
+        ? (job as any).manuscripts[0]?.user_id
+        : (job as any)?.manuscripts?.user_id) ?? null;
+    const directJobUserId = (job as any)?.user_id ?? null;
+    // Dashboard visibility is traced through manuscripts.user_id, which is the
+    // canonical author ownership path for legacy evaluations. Prefer that owner
+    // so a dashboard-visible failed job cannot be blocked by stale job.user_id.
+    const ownerUserId = manuscriptOwnerUserId ?? directJobUserId;
 
     if (!ownerUserId || typeof ownerUserId !== "string") {
       console.warn(`[getJob] Ownership user_id missing for job: ${jobId}`);
@@ -302,6 +306,46 @@ async function getSubmissionPreviewByManuscriptId(manuscriptId?: number): Promis
     console.warn(`[getSubmissionPreviewByManuscriptId] Failed to load preview for manuscript ${manuscriptId}:`, err);
     return null;
   }
+}
+
+function formatDetailDate(value?: string | null): string {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getFailureDisplayMessage(job: Job): string {
+  const progress = job.progress && typeof job.progress === "object" && !Array.isArray(job.progress)
+    ? job.progress
+    : {};
+
+  if (
+    job.failure_code === "USER_CANCELLED" ||
+    progress.cancelled_by_user === true ||
+    typeof progress.cancelled_at === "string" ||
+    typeof progress.canceled_at === "string" ||
+    progress.dashboard_status === "cancelled" ||
+    progress.dashboard_status === "canceled"
+  ) {
+    return "This evaluation was cancelled. Your manuscript was not evaluated to completion and no score or report was generated.";
+  }
+
+  if (job.failure_code === "REVIEW_GATE_REJECTED_BY_AUTHOR") {
+    return "This evaluation was stopped before report release. Revise the manuscript and resubmit when ready.";
+  }
+
+  if (job.failure_code === "TECHNICAL_FAILURE_REQUIRES_REVIEW") {
+    return "This evaluation did not meet RevisionGrade’s internal quality assurance and completeness checks. We’re investigating and your manuscript record has been preserved.";
+  }
+
+  return "This evaluation did not meet RevisionGrade’s internal quality assurance and completeness checks, so no report was released. We’re investigating and your manuscript record has been preserved.";
 }
 
 
@@ -978,7 +1022,56 @@ export default async function EvaluationReportPage({
         />
       </section>
 
-      {job.status === "failed" ? null : !isComplete ? (
+      {job.status === "failed" ? (
+        <section className="rounded-xl border border-red-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-red-700">Evaluation Details</p>
+              <h2 className="mt-1 font-rg-serif text-2xl font-semibold text-stone-950">Evaluation needs review</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-700">
+                {getFailureDisplayMessage(job)}
+              </p>
+            </div>
+            <Link
+              href="/evaluate"
+              className="inline-flex shrink-0 items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Back to Evaluate
+            </Link>
+          </div>
+
+          <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="font-semibold text-stone-950">Reference ID</dt>
+              <dd className="break-all font-mono text-xs text-stone-700">{jobId}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-stone-950">Manuscript</dt>
+              <dd className="text-stone-700">{displayTitle}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-stone-950">Status</dt>
+              <dd className="text-stone-700">Quality and completeness review needed</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-stone-950">Report Released</dt>
+              <dd className="text-stone-700">No</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-stone-950">Next Step</dt>
+              <dd className="text-stone-700">RevisionGrade is investigating. Use the Reference ID if you contact support.</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-stone-950">Submitted</dt>
+              <dd className="text-stone-700">{formatDetailDate(job.created_at)}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-stone-950">Last Updated</dt>
+              <dd className="text-stone-700">{formatDetailDate(job.updated_at)}</dd>
+            </div>
+          </dl>
+        </section>
+      ) : !isComplete ? (
         job.phase === 'review_gate' && isLedgerAdmin ? (
           <section
             className="rounded-lg border p-5"
