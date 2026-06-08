@@ -303,7 +303,7 @@ async function getSubmissionPreviewByManuscriptId(manuscriptId?: number): Promis
   }
 
   try {
-    return firstWords(await getManuscriptText(manuscriptId as number), 200);
+    return firstWords(await getManuscriptText(manuscriptId as number), 80);
   } catch (err) {
     console.warn(`[getSubmissionPreviewByManuscriptId] Failed to load preview for manuscript ${manuscriptId}:`, err);
     return null;

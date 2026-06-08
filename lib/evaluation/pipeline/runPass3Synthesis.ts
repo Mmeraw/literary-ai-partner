@@ -883,9 +883,10 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   const originalMaxTokens = getEvaluationRuntimeConfig().pass.pass3MaxTokens;
-  // Mirror perplexityChunkScorer.ts PERPLEXITY_LENGTH_RETRY_MAX_TOKENS pattern:
-  // on detected truncation, retry ONCE with +4000 tokens.
-  const retryMaxTokens = originalMaxTokens + 4000;
+  // Keep a single retry stage (no extra pipeline hops), but substantially expand
+  // token headroom on truncation. Per-model limits are enforced by
+  // buildOpenAIOutputTokenParam(), so over-budget requests are safely clamped.
+  const retryMaxTokens = Math.max(originalMaxTokens + 4000, originalMaxTokens * 3);
 
   // Inject full-context story ledger ground truth into system prompt when available
   const effectiveSystemPrompt = opts.storyLedgerContextBlock

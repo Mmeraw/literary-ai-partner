@@ -205,9 +205,9 @@ describe("runPass3Synthesis — retry-on-truncation", () => {
 
     // Exactly one retry fired (two total invocations).
     expect(calls).toHaveLength(2);
-    // Second invocation requested an expanded token budget (+4000 over the first).
+    // Second invocation requested a materially expanded token budget.
     expect(calls[1].maxTokens).toBeGreaterThan(calls[0].maxTokens ?? 0);
-    expect((calls[1].maxTokens ?? 0) - (calls[0].maxTokens ?? 0)).toBe(4000);
+    expect((calls[1].maxTokens ?? 0) - (calls[0].maxTokens ?? 0)).toBeGreaterThanOrEqual(4000);
 
     // The second response was used — recommendation action carries the complete trailing clause.
     const recAction = result.criteria.find((c) => c.key === "concept")?.recommendations[0]?.action;

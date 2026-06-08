@@ -28,9 +28,9 @@ describe('evaluate job page query contract', () => {
     expect(source).toContain('const ownerUserId = manuscriptOwnerUserId ?? directJobUserId');
   });
 
-  test('uses manuscript text for a 200-word submission preview fallback', () => {
+  test('uses manuscript text for an 80-word submission preview fallback', () => {
     expect(source).toContain('import { getManuscriptText } from "@/lib/manuscripts/chunks"');
-    expect(source).toContain('firstWords(await getManuscriptText(manuscriptId as number), 200)');
+    expect(source).toContain('firstWords(await getManuscriptText(manuscriptId as number), 80)');
     expect(source).toContain('Submission Preview');
   });
 

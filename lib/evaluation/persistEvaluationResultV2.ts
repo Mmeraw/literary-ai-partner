@@ -367,6 +367,7 @@ export async function persistEvaluationResultV2(params: {
   }
 
   const structuralValidation = validateStructuralArtifact(evaluationResult);
+
   if (!structuralValidation.ok) {
     const rejectedAt = new Date().toISOString();
     const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
