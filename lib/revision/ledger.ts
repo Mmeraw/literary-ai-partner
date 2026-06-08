@@ -81,6 +81,25 @@ const DECISIONS = new Set<RevisionLedgerDecision>([
 const LEDGER_SELECT =
   "id, local_id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, client_created_at, client_synced_at, is_undo, undone_local_id, metadata, created_at, updated_at";
 
+function normalizedEmailList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isPrivilegedRevisionViewer(user: { email?: string | null } | null | undefined): boolean {
+  const email = user?.email?.trim().toLowerCase();
+  if (!email) return false;
+
+  const allowlist = new Set<string>([
+    ...normalizedEmailList(process.env.EVALUATION_OPERATOR_EMAILS),
+    ...normalizedEmailList(process.env.REVISIONGRADE_ADMIN_EMAILS),
+  ]);
+
+  return allowlist.has(email);
+}
+
 function isUuid(value: string | null | undefined): boolean {
   return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 }
@@ -226,7 +245,10 @@ function metadataWithRevisionQuality(entry: SyncRevisionLedgerEntryInput): Recor
   };
 }
 
-async function assertOwnedEvaluation(input: { manuscriptId: string | number; evaluationJobId: string }) {
+async function assertOwnedEvaluation(
+  input: { manuscriptId: string | number; evaluationJobId: string },
+  options?: { allowPrivilegedRead?: boolean },
+) {
   const user = await getAuthenticatedUser();
   if (!user) throw new Error("Not authenticated");
 
@@ -239,11 +261,20 @@ async function assertOwnedEvaluation(input: { manuscriptId: string | number; eva
     .from("manuscripts")
     .select("id, title, user_id")
     .eq("id", manuscriptId)
-    .eq("user_id", user.id)
     .maybeSingle();
 
   if (manuscriptError) throw new Error(manuscriptError.message);
   if (!manuscript) throw new Error("Manuscript not found in your workspace");
+
+  const privilegedRead = Boolean(options?.allowPrivilegedRead && isPrivilegedRevisionViewer(user));
+  const manuscriptOwnerId = typeof manuscript.user_id === "string" ? manuscript.user_id : null;
+  const isOwner = manuscriptOwnerId === user.id;
+  if (!isOwner && !manuscriptOwnerId) {
+    throw new Error("Manuscript ownership metadata is missing");
+  }
+  if (!isOwner && !privilegedRead) {
+    throw new Error("Manuscript not found in your workspace");
+  }
 
   const { data: job, error: jobError } = await supabase
     .from("evaluation_jobs")
@@ -255,7 +286,12 @@ async function assertOwnedEvaluation(input: { manuscriptId: string | number; eva
   if (jobError) throw new Error(jobError.message);
   if (!job) throw new Error("Evaluation job not found for this manuscript");
 
-  return { supabase, userId: user.id, manuscriptId };
+  return {
+    supabase,
+    userId: user.id,
+    manuscriptId,
+    ledgerUserId: isOwner ? user.id : manuscriptOwnerId,
+  };
 }
 
 function validateEntry(entry: SyncRevisionLedgerEntryInput): SyncRevisionLedgerEntryInput {
@@ -284,7 +320,9 @@ function validateEntry(entry: SyncRevisionLedgerEntryInput): SyncRevisionLedgerE
 }
 
 export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput): Promise<SyncedRevisionLedgerRow[]> {
-  const { supabase, userId, manuscriptId } = await assertOwnedEvaluation(input);
+  const { supabase, userId, manuscriptId } = await assertOwnedEvaluation(input, {
+    allowPrivilegedRead: false,
+  });
   const entries = Array.isArray(input.entries) ? input.entries.map(validateEntry) : [];
   if (entries.length === 0) return [];
 
@@ -328,12 +366,15 @@ export async function listRevisionLedgerDecisions(input: {
   manuscriptId: string | number;
   evaluationJobId: string;
 }): Promise<SyncedRevisionLedgerRow[]> {
-  const { supabase, userId, manuscriptId } = await assertOwnedEvaluation(input);
+  const { supabase, userId, manuscriptId, ledgerUserId } = await assertOwnedEvaluation(input, {
+    allowPrivilegedRead: true,
+  });
+  const targetUserId = ledgerUserId ?? userId;
 
   const { data, error } = await supabase
     .from("revision_ledger_decisions")
     .select(LEDGER_SELECT)
-    .eq("user_id", userId)
+    .eq("user_id", targetUserId)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
     .order("created_at", { ascending: true });

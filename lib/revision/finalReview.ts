@@ -3,6 +3,25 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { buildDecisionOnlyPreview, resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 
+function normalizedEmailList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isPrivilegedRevisionViewer(user: { email?: string | null } | null | undefined): boolean {
+  const email = user?.email?.trim().toLowerCase();
+  if (!email) return false;
+
+  const allowlist = new Set<string>([
+    ...normalizedEmailList(process.env.EVALUATION_OPERATOR_EMAILS),
+    ...normalizedEmailList(process.env.REVISIONGRADE_ADMIN_EMAILS),
+  ]);
+
+  return allowlist.has(email);
+}
+
 export type FinalReviewDecision = {
   id: string;
   opportunityId: string;
@@ -154,11 +173,21 @@ export async function getFinalReviewPayload(input: {
     .from("manuscripts")
     .select("id, title, user_id")
     .eq("id", manuscriptId)
-    .eq("user_id", user.id)
     .maybeSingle();
 
   if (manuscriptError) return emptyPayload(manuscriptError.message);
   if (!manuscript) return emptyPayload("Manuscript not found in your workspace.");
+
+  const privilegedRead = isPrivilegedRevisionViewer(user);
+  const manuscriptOwnerId = typeof manuscript.user_id === "string" ? manuscript.user_id : null;
+  const isOwner = manuscriptOwnerId === user.id;
+  if (!isOwner && !manuscriptOwnerId) {
+    return emptyPayload("Manuscript ownership metadata is missing.");
+  }
+  if (!isOwner && !privilegedRead) {
+    return emptyPayload("Manuscript not found in your workspace.");
+  }
+  const ledgerOwnerId = isOwner ? user.id : manuscriptOwnerId;
 
   const { data: job, error: jobError } = await supabase
     .from("evaluation_jobs")
@@ -181,7 +210,7 @@ export async function getFinalReviewPayload(input: {
   const { data: ledgerRows, error: ledgerError } = await supabase
     .from("revision_ledger_decisions")
     .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, metadata, created_at, is_undo")
-    .eq("user_id", user.id)
+    .eq("user_id", ledgerOwnerId)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
     .eq("is_undo", false)
@@ -208,7 +237,7 @@ export async function getFinalReviewPayload(input: {
   const sourceText = await resolveFinalReviewSourceText({
     supabase,
     manuscriptId,
-    userId: user.id,
+    userId: ledgerOwnerId ?? user.id,
     sourceVersionId: job.manuscript_version_id,
     fallbackRawText: version?.raw_text ?? "",
   });

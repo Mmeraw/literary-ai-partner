@@ -17,6 +17,15 @@ const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof cr
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 
 function buildSupabaseMock() {
+  const singleQuery = (data: unknown) => {
+    const query = {
+      select: jest.fn(() => query),
+      eq: jest.fn(() => query),
+      maybeSingle: jest.fn(async () => ({ data, error: null })),
+    };
+    return query;
+  };
+
   const upsertSpy = jest.fn((rows: unknown[]) => ({
     select: () => ({
       order: async () => ({
@@ -34,33 +43,11 @@ function buildSupabaseMock() {
     client: {
       from: jest.fn((table: string) => {
         if (table === 'manuscripts') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: async () => ({
-                    data: { id: 6074, title: 'Sister', user_id: 'user-1' },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
+          return singleQuery({ id: 6074, title: 'Sister', user_id: 'user-1' });
         }
 
         if (table === 'evaluation_jobs') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: async () => ({
-                    data: { id: 'job-1', manuscript_id: 6074, status: 'complete' },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
+          return singleQuery({ id: 'job-1', manuscript_id: 6074, status: 'complete' });
         }
 
         if (table === 'revision_ledger_decisions') {

@@ -71,11 +71,15 @@ function decision(overrides: Partial<Record<string, unknown>>) {
   };
 }
 
-function buildSupabaseMock(decisions: Array<Record<string, unknown>>) {
+function buildSupabaseMock(
+  decisions: Array<Record<string, unknown>>,
+  options?: { manuscriptOwnerId?: string },
+) {
   const insertSpy = jest.fn(async () => ({ data: null, error: null }));
+  const manuscriptOwnerId = options?.manuscriptOwnerId ?? 'user-1';
 
   const tables: Record<string, ReturnType<typeof makeQuery>> = {
-    manuscripts: makeQuery({ single: { id: 6074, title: 'Sister', user_id: 'user-1' } }),
+    manuscripts: makeQuery({ single: { id: 6074, title: 'Sister', user_id: manuscriptOwnerId } }),
     evaluation_jobs: makeQuery({ single: { id: 'job-1', status: 'complete', manuscript_id: 6074, manuscript_version_id: 'version-1' } }),
     manuscript_versions: makeQuery({ single: { id: 'version-1', raw_text: SOURCE_TEXT } }),
     revision_ledger_decisions: makeQuery({ list: decisions }),
@@ -104,12 +108,20 @@ function mockQueue() {
 }
 
 describe('final review runtime governance', () => {
+  const ORIGINAL_OPERATOR_EMAILS = process.env.EVALUATION_OPERATOR_EMAILS;
+  const ORIGINAL_ADMIN_EMAILS = process.env.REVISIONGRADE_ADMIN_EMAILS;
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetAuthenticatedUser.mockResolvedValue({ id: 'user-1' } as never);
     mockResolveFinalReviewSourceText.mockResolvedValue(SOURCE_TEXT);
     mockCreateDerivedVersion.mockResolvedValue({ id: 'version-2' } as never);
     mockQueue();
+  });
+
+  afterEach(() => {
+    process.env.EVALUATION_OPERATOR_EMAILS = ORIGINAL_OPERATOR_EMAILS;
+    process.env.REVISIONGRADE_ADMIN_EMAILS = ORIGINAL_ADMIN_EMAILS;
   });
 
   it('exports a semi-revised manuscript by applying only queue-visible copy-paste repairs', async () => {
@@ -208,5 +220,27 @@ describe('final review runtime governance', () => {
       applied_decision_ids: ['decision-copy'],
       skipped_decision_ids: ['decision-strategy'],
     }));
+  });
+
+  it('allows privileged operator export for non-owned manuscripts using owner ledger rows', async () => {
+    process.env.EVALUATION_OPERATOR_EMAILS = 'ops@example.com';
+    process.env.REVISIONGRADE_ADMIN_EMAILS = '';
+    mockGetAuthenticatedUser.mockResolvedValue({ id: 'operator-1', email: 'ops@example.com' } as never);
+
+    const { client } = buildSupabaseMock([
+      decision({ id: 'decision-copy' }),
+    ], { manuscriptOwnerId: 'owner-1' });
+    mockCreateAdminClient.mockReturnValue(client as never);
+
+    const exported = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'clean' });
+
+    expect(exported.content).toContain('Alpha repaired safe.');
+
+    const revisionLedgerQueryIndex = (client.from as jest.Mock).mock.calls
+      .findIndex((call) => call[0] === 'revision_ledger_decisions');
+    expect(revisionLedgerQueryIndex).toBeGreaterThanOrEqual(0);
+
+    const revisionLedgerQuery = (client.from as jest.Mock).mock.results[revisionLedgerQueryIndex]?.value;
+    expect(revisionLedgerQuery.eq).toHaveBeenCalledWith('user_id', 'owner-1');
   });
 });

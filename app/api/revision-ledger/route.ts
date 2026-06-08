@@ -16,6 +16,12 @@ function serverError(error: unknown) {
   );
 }
 
+function statusFromMessage(message: string): number {
+  if (message === "Not authenticated") return 401;
+  if (message.includes("not found")) return 404;
+  return 500;
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -29,7 +35,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, entries });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const status = message === "Not authenticated" ? 401 : message.includes("not found") ? 404 : 500;
+    const status = statusFromMessage(message);
     return NextResponse.json({ ok: false, error: message }, { status });
   }
 }
@@ -48,6 +54,8 @@ export async function POST(req: Request) {
     const synced = await syncRevisionLedgerDecisions({ manuscriptId, evaluationJobId, entries });
     return NextResponse.json({ ok: true, entries: synced });
   } catch (error) {
-    return serverError(error);
+    const message = error instanceof Error ? error.message : String(error);
+    const status = statusFromMessage(message);
+    return NextResponse.json({ ok: false, error: message }, { status });
   }
 }

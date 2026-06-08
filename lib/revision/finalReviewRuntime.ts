@@ -54,6 +54,25 @@ const EMPTY_QUEUE_SUMMARY: RuntimeQueueSummary = {
   withheldBlockedCount: 0,
 };
 
+function normalizedEmailList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isPrivilegedRevisionViewer(user: { email?: string | null } | null | undefined): boolean {
+  const email = user?.email?.trim().toLowerCase();
+  if (!email) return false;
+
+  const allowlist = new Set<string>([
+    ...normalizedEmailList(process.env.EVALUATION_OPERATOR_EMAILS),
+    ...normalizedEmailList(process.env.REVISIONGRADE_ADMIN_EMAILS),
+  ]);
+
+  return allowlist.has(email);
+}
+
 function safeFilename(title: string, suffix: string, ext: string): string {
   const base = title.replace(/[^a-z0-9]+/gi, "-").toLowerCase().replace(/^-|-$/g, "").slice(0, 50) || "manuscript";
   return `revisiongrade-${base}-${suffix}.${ext}`;
@@ -72,11 +91,21 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     .from("manuscripts")
     .select("id, title, user_id")
     .eq("id", manuscriptId)
-    .eq("user_id", user.id)
     .maybeSingle();
 
   if (manuscriptError) throw new Error(manuscriptError.message);
   if (!manuscript) throw new Error("Manuscript not found in your workspace");
+
+  const privilegedRead = isPrivilegedRevisionViewer(user);
+  const manuscriptOwnerId = typeof manuscript.user_id === "string" ? manuscript.user_id : null;
+  const isOwner = manuscriptOwnerId === user.id;
+  if (!isOwner && !manuscriptOwnerId) {
+    throw new Error("Manuscript ownership metadata is missing.");
+  }
+  if (!isOwner && !privilegedRead) {
+    throw new Error("Manuscript not found in your workspace");
+  }
+  const ledgerOwnerId = isOwner ? user.id : manuscriptOwnerId;
 
   const { data: job, error: jobError } = await supabase
     .from("evaluation_jobs")
@@ -102,7 +131,7 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
   const { data: rows, error: ledgerError } = await supabase
     .from("revision_ledger_decisions")
     .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, metadata, created_at")
-    .eq("user_id", user.id)
+    .eq("user_id", ledgerOwnerId)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
     .eq("is_undo", false)
@@ -118,7 +147,7 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
   const sourceText = await resolveFinalReviewSourceText({
     supabase,
     manuscriptId,
-    userId: user.id,
+    userId: ledgerOwnerId ?? user.id,
     sourceVersionId: job.manuscript_version_id,
     fallbackRawText: version.raw_text ?? "",
   });
