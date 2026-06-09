@@ -393,6 +393,10 @@ describe('Revise Pipeline Stress: Workbench Admission', () => {
       anchor: 'He reached for the phone but stopped.',
       quoteHighlight: 'The house was quiet.',
       quoteRest: 'Nobody answered.',
+      symptom: 'The scene stalls at the moment of decision without conveying interior weight.',
+      cause: 'The narrator tells us the character stopped but provides no sensory or psychological texture.',
+      fixDirection: 'Expand the beat into embodied hesitation that externalizes interior conflict.',
+      readerEffect: 'The reader feels the gravity of the choice instead of merely observing it.',
       options: [
         { key: 'A', candidateText: 'His hand hovered over the receiver. The house held its breath around him, and the silence became its own answer.' },
         { key: 'B', candidateText: 'He let his fingers rest on the phone without lifting it. Somewhere in the house a clock ticked past the point of return.' },

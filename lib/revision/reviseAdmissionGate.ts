@@ -39,6 +39,12 @@ export interface WorkbenchAdmissionInput {
     candidateText?: string | null;
     text?: string | null;
   }>;
+  /** Six-part diagnostic fields — per canon, ALL must be populated for admission. */
+  symptom?: string | null;
+  cause?: string | null;
+  fixDirection?: string | null;
+  readerEffect?: string | null;
+  revisionOperation?: string | null;
 }
 
 function optionText(
@@ -68,6 +74,9 @@ export function toReviseAdmissionOpportunity(
   };
 }
 
+/** Minimum chars for a diagnostic field to count as populated. */
+const DIAGNOSTIC_MIN_LENGTH = 10;
+
 export function runWorkbenchAdmissionGate(
   opportunity: WorkbenchAdmissionInput,
 ): ReviseAdmissionResult {
@@ -75,6 +84,21 @@ export function runWorkbenchAdmissionGate(
 
   if (opportunity.readiness !== 'ready_for_revise') {
     reasons.push('NOT_READY_FOR_REVISE');
+  }
+
+  // Six-part diagnostic completeness gate per SIPOC canon.
+  // Every card the author sees must have diagnostic grounding.
+  if (!opportunity.symptom || opportunity.symptom.trim().length < DIAGNOSTIC_MIN_LENGTH) {
+    reasons.push('DIAGNOSTIC_MISSING_SYMPTOM');
+  }
+  if (!opportunity.cause || opportunity.cause.trim().length < DIAGNOSTIC_MIN_LENGTH) {
+    reasons.push('DIAGNOSTIC_MISSING_CAUSE');
+  }
+  if (!opportunity.fixDirection || opportunity.fixDirection.trim().length < DIAGNOSTIC_MIN_LENGTH) {
+    reasons.push('DIAGNOSTIC_MISSING_FIX_DIRECTION');
+  }
+  if (!opportunity.readerEffect || opportunity.readerEffect.trim().length < DIAGNOSTIC_MIN_LENGTH) {
+    reasons.push('DIAGNOSTIC_MISSING_READER_EFFECT');
   }
 
   const result = runReviseAdmissionGate(toReviseAdmissionOpportunity(opportunity));

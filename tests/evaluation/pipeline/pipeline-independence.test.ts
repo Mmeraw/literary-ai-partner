@@ -68,6 +68,7 @@ function makeSynthesisOutput(): SynthesisOutput {
           mechanism: "the current criterion lacks targeted manuscript grounding",
           specific_fix: "grounding in targeted manuscript evidence",
           reader_effect: "specificity and reader connection",
+          symptom: "Test symptom: craft issue identified at this location.",
         },
       ],
     })),

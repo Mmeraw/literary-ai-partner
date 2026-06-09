@@ -23,6 +23,11 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
       candidate_text_a: `Mara held the door open for issue ${index}, letting the silence settle before she answered.`,
       candidate_text_b: `For issue ${index}, Mara paused at the threshold until the room understood her choice.`,
       candidate_text_c: `The answer for issue ${index} stayed in Mara's hand before it reached her voice.`,
+      symptom: `The reader loses trust at passage ${index} because the cause-effect logic is suppressed beneath surface action.`,
+      cause: `The prose advances without grounding the consequence, so narrative logic dissolves before reaching the reader.`,
+      fix_direction: `Restore causal clarity by surfacing the implication before the next narrative beat.`,
+      reader_effect: `The reader re-anchors in scene logic and trusts the forward momentum of the narrative.`,
+      revision_operation: 'replace_selected_passage',
     };
   }
 
@@ -402,6 +407,11 @@ function makeBlockedRecommendations(count: number) {
     location_ref: `passage:${i}`,
     priority: 'medium',
     confidence: 0.75,
+    symptom: `The reader loses narrative momentum at passage ${i} because causal logic is suppressed beneath surface action.`,
+    cause: `The prose moves forward without grounding the consequence, so cause-effect dissolves before reaching the reader.`,
+    fix_direction: `Restore causal clarity by making the implication explicit before the character moves to the next beat.`,
+    reader_effect: `The reader re-anchors in the scene logic and trusts the forward momentum of the narrative.`,
+    revision_operation: 'replace_selected_passage',
     // intentionally no candidate_text_a/b/c — SLAE will block these
   }));
 }
@@ -805,7 +815,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     expect(opp.admin_actions).toContain('Regenerate from source manuscript context');
   });
 
-  it('flags hydration_input_contaminated for recommendation rationale contaminated by leaked excerpt text', async () => {
+  it('flags contaminated rationale for recommendation whose rationale echoes the anchor verbatim', async () => {
     const upsertSpy = jest.fn();
 
     const supabase = makeMinimalSupabase({
@@ -832,7 +842,12 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
     const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
     expect(opp.preflight_status).toBe('blocked');
-    expect(opp.preflight_reasons).toContain('hydration_input_contaminated');
+    // Rationale contamination is caught at preflight (rationale_contaminated) or at
+    // hydration eligibility (hydration_input_contaminated) — both are valid blocking reasons.
+    const reasons = opp.preflight_reasons as string[];
+    expect(
+      reasons.includes('rationale_contaminated') || reasons.includes('hydration_input_contaminated'),
+    ).toBe(true);
     expect(opp.admin_actions).toContain('Regenerate from source manuscript context');
   });
 

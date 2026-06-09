@@ -16,6 +16,7 @@ import {
 } from './candidateHydration';
 import { evaluateCardQuality } from './candidateQuality';
 import { regenerateCandidatesForQualityFailed } from './candidateRegeneration';
+import { enrichDiagnosticFields, needsDiagnosticEnrichment, type EnrichmentOpportunity } from './diagnosticEnrichment';
 import { logRevisionEvent } from './logRevisionEvent';
 import type { CandidateRejectionTelemetry } from './telemetry';
 
@@ -551,12 +552,36 @@ function hasPlaceholderCoordinates(opportunity: RevisionOpportunity): boolean {
   return false;
 }
 
+/** Known template meta-phrases that indicate a density-repair-generated action leaked into rationale. */
+const TEMPLATE_CONTAMINATION_PATTERNS = [
+  /there is a clear editorial opportunity in/i,
+  /the material in .{5,80} has stronger upside/i,
+  /the structural turn at .{5,80} is close/i,
+  /the current draft surfaces pressure in/i,
+  /several lines around .{5,80} summarize effect/i,
+  /scene momentum drops near/i,
+  /tension softens around/i,
+  /the pressure line in .{5,80} resolves before/i,
+  /cadence flattens in/i,
+  /the prose rhythm around .{5,80} is close to landing/i,
+  /at the scene level, .{5,80} would benefit/i,
+  /within .{5,80}, add a short action-response/i,
+  /rather than explaining the pressure in/i,
+  /instead of resolving the moment in exposition at/i,
+  /readers will track stakes more clearly if/i,
+  /to strengthen reader trust, let .{5,80} conclude/i,
+  /the passage near \u201c/i,
+];
+
 function hasContaminatedRationale(opportunity: RevisionOpportunity): boolean {
   const rationale = `${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`.trim();
   if (!rationale) return true;
   const normalizedRationale = normalizedForComparison(rationale);
   const normalizedAnchor = normalizedForComparison(opportunity.evidence_anchor);
   if (!normalizedAnchor) return true;
+
+  // Detect template-generated action text that leaked into rationale.
+  if (TEMPLATE_CONTAMINATION_PATTERNS.some((pattern) => pattern.test(rationale))) return true;
 
   const rationaleTokens = normalizedRationale.split(' ').filter(Boolean);
   const anchorTokens = normalizedAnchor.split(' ').filter(Boolean);
@@ -574,7 +599,7 @@ function hasContaminatedRationale(opportunity: RevisionOpportunity): boolean {
 
 function blockedAdminActions(reasons: string[]): string[] {
   const actions = new Set<string>(BLOCKED_CARD_ADMIN_ACTIONS);
-  if (reasons.some((reason) => reason.startsWith('hydration_'))) {
+  if (reasons.some((reason) => reason.startsWith('hydration_') || reason === 'rationale_contaminated')) {
     actions.add(HYDRATION_INPUT_INCOMPLETE_ADMIN_ACTION);
   }
   if (reasons.includes('candidate_quality_failed')) {
@@ -775,6 +800,53 @@ function blockOpportunityByPreflight(opportunity: RevisionOpportunity, reasons: 
   };
 }
 
+/**
+ * Six-part diagnostic completeness check per canon:
+ * docs/canon/revise-queue-six-part-diagnostic.md
+ *
+ * Required layers: symptom, cause, fix_direction, reader_effect, evidence_anchor, revision_operation
+ * Optional (recommended): mistake_proofing
+ *
+ * A recommendation without all six diagnostic layers cannot enter the Revise queue
+ * because the author cannot trust a recommendation that doesn't explain WHY.
+ */
+function diagnosticCompletenessReasons(opportunity: RevisionOpportunity): string[] {
+  const reasons: string[] = [];
+  const MIN_DIAGNOSTIC_LENGTH = 10; // minimum chars to count as populated
+
+  // Layer 1: Symptom — the visible problem on the page
+  if (!opportunity.symptom || opportunity.symptom.trim().length < MIN_DIAGNOSTIC_LENGTH) {
+    reasons.push('diagnostic_missing_symptom');
+  }
+
+  // Layer 2: Cause — craft mechanism creating the problem
+  if (!opportunity.cause || opportunity.cause.trim().length < MIN_DIAGNOSTIC_LENGTH) {
+    reasons.push('diagnostic_missing_cause');
+  }
+
+  // Layer 3: Fix Strategy — repair approach
+  if (!opportunity.fix_direction || opportunity.fix_direction.trim().length < MIN_DIAGNOSTIC_LENGTH) {
+    reasons.push('diagnostic_missing_fix_direction');
+  }
+
+  // Layer 4: Reader Impact — what the reader gains or loses
+  if (!opportunity.reader_effect || opportunity.reader_effect.trim().length < MIN_DIAGNOSTIC_LENGTH) {
+    reasons.push('diagnostic_missing_reader_effect');
+  }
+
+  // Layer 5: Evidence — manuscript text (already required by evidence_anchor field)
+  if (!opportunity.evidence_anchor || opportunity.evidence_anchor.trim().length < MIN_DIAGNOSTIC_LENGTH) {
+    reasons.push('diagnostic_missing_evidence');
+  }
+
+  // Layer 6: Operation / Targeting — what action applied where
+  if (!opportunity.revision_operation) {
+    reasons.push('diagnostic_missing_operation');
+  }
+
+  return reasons;
+}
+
 function preflightReasonsForOpportunity(
   opportunity: RevisionOpportunity,
   contextQuality: ReviseContextQuality,
@@ -795,6 +867,12 @@ function preflightReasonsForOpportunity(
   if (evaluationMode === 'TESTIMONY' && hasDialogueIntent(opportunity) && !hasDirectSpeech(opportunity.evidence_anchor)) {
     reasons.push('testimony_fabrication_risk');
   }
+
+  // Rationale quality gate — the WHY must be real editorial reasoning, not template text
+  if (hasContaminatedRationale(opportunity)) {
+    reasons.push('rationale_contaminated');
+  }
+
   return [...new Set(reasons)];
 }
 
@@ -1251,8 +1329,8 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
         candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
         symptom: normalizeOptionalText(recommendationRow.symptom),
-        cause: normalizeOptionalText(recommendationRow.cause),
-        fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
+        cause: normalizeOptionalText(recommendationRow.cause) ?? normalizeOptionalText(recommendationRow.mechanism),
+        fix_direction: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
         reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
         mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
       }));
@@ -1346,8 +1424,8 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
       candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
       symptom: normalizeOptionalText(recommendationRow.symptom),
-      cause: normalizeOptionalText(recommendationRow.cause),
-      fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
+      cause: normalizeOptionalText(recommendationRow.cause) ?? normalizeOptionalText(recommendationRow.mechanism),
+      fix_direction: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
       reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
       mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
     }));
@@ -1454,8 +1532,8 @@ function extractChunkCacheRecommendations(chunkCachePayload: unknown): RevisionO
           candidate_text_b: explicitCandidateOrFallback(rec.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
           candidate_text_c: explicitCandidateOrFallback(rec.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
           symptom: normalizeOptionalText(rec.symptom),
-          cause: normalizeOptionalText(rec.cause),
-          fix_direction: normalizeOptionalText(rec.fix_direction),
+          cause: normalizeOptionalText(rec.cause) ?? normalizeOptionalText(rec.mechanism),
+          fix_direction: normalizeOptionalText(rec.fix_direction) ?? normalizeOptionalText(rec.specific_fix),
           reader_effect: normalizeOptionalText(rec.reader_effect),
           mistake_proofing: normalizeOptionalText(rec.mistake_proofing),
         }));
@@ -1947,6 +2025,57 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     }
 
     return undefined;
+  }
+
+  // ── SIPOC Kick-Backward: Diagnostic Enrichment ────────────────────────────
+  // Before hydrating candidates, ensure every opportunity has complete diagnostic
+  // fields (symptom, cause, fix_direction, reader_effect). If any are missing,
+  // ask the LLM to produce them — telling it WHAT is missing, WHY it's needed,
+  // and showing the GOLD STANDARD example from the Sister dream ledger.
+  if (opportunities.length > 0 && process.env.OPENAI_API_KEY?.trim()) {
+    const needsEnrichment = opportunities.filter((o) =>
+      o.preflight_status !== 'blocked' && needsDiagnosticEnrichment({
+        opportunity_id: o.opportunity_id,
+        evidence_anchor: o.evidence_anchor,
+        rationale: o.rationale,
+        criterion: o.criterion,
+        revision_operation: o.revision_operation,
+        symptom: o.symptom,
+        cause: o.cause,
+        fix_direction: o.fix_direction,
+        reader_effect: o.reader_effect,
+      }),
+    );
+
+    if (needsEnrichment.length > 0) {
+      const enrichmentInput: EnrichmentOpportunity[] = needsEnrichment.map((o) => ({
+        opportunity_id: o.opportunity_id,
+        evidence_anchor: o.evidence_anchor,
+        rationale: o.rationale,
+        criterion: o.criterion,
+        revision_operation: o.revision_operation,
+        symptom: o.symptom,
+        cause: o.cause,
+        fix_direction: o.fix_direction,
+        reader_effect: o.reader_effect,
+      }));
+
+      const enrichmentResult = await enrichDiagnosticFields(enrichmentInput);
+
+      // Apply enriched diagnostic fields back to opportunities
+      for (const [oppId, enriched] of enrichmentResult.results) {
+        const opp = opportunities.find((o) => o.opportunity_id === oppId);
+        if (!opp) continue;
+        if (enriched.symptom && enriched.symptom.length >= 10) opp.symptom = enriched.symptom;
+        if (enriched.cause && enriched.cause.length >= 10) opp.cause = enriched.cause;
+        if (enriched.fix_direction && enriched.fix_direction.length >= 10) opp.fix_direction = enriched.fix_direction;
+        if (enriched.reader_effect && enriched.reader_effect.length >= 10) opp.reader_effect = enriched.reader_effect;
+      }
+
+      console.info(
+        `[DiagnosticEnrichment] ${enrichmentResult.enrichedCount} enriched, ${enrichmentResult.failedCount} failed (of ${needsEnrichment.length} needing enrichment)`,
+      );
+    }
   }
 
   let hydrationStatusSuffix = '';

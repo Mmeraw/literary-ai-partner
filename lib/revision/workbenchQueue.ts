@@ -672,6 +672,27 @@ function fallbackMistakeProofing(mode: WorkbenchMode): string {
     : 'Preserve author voice and meaning. Do not introduce new information unless the repair path explicitly calls for it.'
 }
 
+/** Template-generated meta-phrases that should never appear in user-facing text. */
+const AUTHOR_FACING_CONTAMINATION_PATTERNS = [
+  /there is a clear editorial opportunity in/i,
+  /the material in .{5,80} has stronger upside/i,
+  /the structural turn at .{5,80} is close/i,
+  /the current draft surfaces pressure in/i,
+  /several lines around .{5,80} summarize effect/i,
+  /scene momentum drops near/i,
+  /tension softens around/i,
+  /the pressure line in .{5,80} resolves before/i,
+  /cadence flattens in/i,
+  /the prose rhythm around .{5,80} is close to landing/i,
+  /at the scene level, .{5,80} would benefit/i,
+  /within .{5,80}, add a short action-response/i,
+  /rather than explaining the pressure in/i,
+  /instead of resolving the moment in exposition at/i,
+  /readers will track stakes more clearly if/i,
+  /to strengthen reader trust, let .{5,80} conclude/i,
+  /the passage near \u201c/i,
+]
+
 function cleanAuthorFacingText(value: string | null | undefined, fallback: string): string {
   const raw = (value ?? '').trim()
   if (!raw) return fallback
@@ -681,6 +702,11 @@ function cleanAuthorFacingText(value: string | null | undefined, fallback: strin
   }
 
   if (/\b(?:prosecontrol|narrativedrive|evaluation_result|criteria\.recommendations|provenance)\b/i.test(raw)) {
+    return fallback
+  }
+
+  // Reject template-generated action text that leaked into user-facing fields.
+  if (AUTHOR_FACING_CONTAMINATION_PATTERNS.some((pattern) => pattern.test(raw))) {
     return fallback
   }
 
