@@ -459,6 +459,50 @@ export interface RunPass2Options {
   _onChunkComplete?: (chunk_index: number, result: SinglePassOutput) => Promise<void>;
 }
 
+// ── Pass 2 Recommendation Action Normalizer ─────────────────────────────────
+// Makes valid outputs tidy; does NOT launder invalid outputs.
+// Returns null for structurally invalid actions (stripped from output).
+
+const DANGLING_CLAUSE_STARTERS = [
+  "because", "since", "although", "though", "while", "whereas",
+  "if", "unless", "until", "when", "whenever", "after", "before",
+];
+
+const NOUN_PHRASE_STARTERS = [
+  "the", "a", "an", "more", "better", "less", "some", "any",
+  "this", "that", "these", "those", "its", "their", "his", "her",
+];
+
+export function normalizeRecommendationAction(action: string): string | null {
+  // Normalize whitespace
+  const trimmed = action.replace(/\s+/g, " ").trim();
+
+  // Reject empty / whitespace-only
+  if (!trimmed) return null;
+
+  // Reject fewer than 4 words
+  const words = trimmed.split(" ");
+  if (words.length < 4) return null;
+
+  const firstWordLower = words[0].toLowerCase();
+
+  // Reject dangling clauses (subordinate conjunction starters without resolution)
+  if (DANGLING_CLAUSE_STARTERS.includes(firstWordLower)) return null;
+
+  // Reject noun phrases (determiner/adjective starters that don't form imperatives)
+  if (NOUN_PHRASE_STARTERS.includes(firstWordLower)) return null;
+
+  // Check for terminal punctuation
+  const hasTerminalPunctuation = /[.!?]$/.test(trimmed);
+
+  if (hasTerminalPunctuation) {
+    return trimmed;
+  }
+
+  // Valid imperative clause (4+ words, starts with verb) missing only punctuation → append period
+  return trimmed + ".";
+}
+
 /**
  * Run Pass 2 — Editorial/Literary Insight analysis.
  *
@@ -990,7 +1034,11 @@ function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolea
  * @returns Validated SinglePassOutput with axis="editorial_literary"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass2Response(raw: string, fallbackModel?: string): SinglePassOutput {
+export function parsePass2Response(
+  raw: string,
+  fallbackModel?: string,
+  opts?: { manuscriptWordCount?: number },
+): SinglePassOutput {
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
@@ -1058,6 +1106,15 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
         })
       : [];
 
+    // ── Normalizer: filter/tidy recommendation actions before cache/persist ──
+    const normalizedRecommendations = recommendations
+      .map((rec) => {
+        const normalized = normalizeRecommendationAction(rec.action);
+        if (normalized === null) return null;
+        return { ...rec, action: normalized };
+      })
+      .filter((rec): rec is NonNullable<typeof rec> => rec !== null);
+
     // PR-D: Reject missing/non-finite/out-of-range scores instead of silently coercing to 0.
     const rawScore = c["score_0_10"];
     const parsedScore = Number(rawScore);
@@ -1084,8 +1141,42 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
       reason_codes: reasonCodes.length > 0 ? reasonCodes : undefined,
       rationale,
       evidence,
-      recommendations,
+      recommendations: normalizedRecommendations,
     });
+  }
+
+  // ── Density enforcement: fail if all recs stripped from criterion that required them ──
+  const manuscriptWordCount = opts?.manuscriptWordCount ?? 0;
+  if (manuscriptWordCount > 0) {
+    for (const criterion of criteria) {
+      const score = criterion.score_0_10;
+      if (score === null || score > 5) continue;
+
+      const uniqueAnchors = new Set(
+        criterion.evidence
+          .map((e) => e.snippet?.trim().toLowerCase())
+          .filter((s): s is string => Boolean(s)),
+      ).size;
+
+      const scopeMinimum =
+        manuscriptWordCount < 1_000
+          ? 1
+          : manuscriptWordCount < 3_000
+            ? 1
+            : manuscriptWordCount < 25_000
+              ? 2
+              : 2;
+
+      const required = Math.min(scopeMinimum, uniqueAnchors);
+
+      if (required > 0 && criterion.recommendations.length < required) {
+        throw new Error(
+          `[Pass2] RECOMMENDATION_DENSITY_UNMET: ${criterion.key} score=${score}, ` +
+            `words=${manuscriptWordCount}, anchors=${uniqueAnchors}, ` +
+            `required=${required}, valid=${criterion.recommendations.length}`,
+        );
+      }
+    }
   }
 
   return {
