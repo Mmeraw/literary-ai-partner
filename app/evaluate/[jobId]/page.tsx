@@ -119,8 +119,8 @@ export default async function EvaluationReportPage({ params }: PageProps) {
               <span className="font-medium text-stone-700">Reference ID:</span> <span className="break-all font-mono text-stone-900">{jobId}</span>
             </p>
 
-            <div className="mt-4 grid gap-12 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,400px)] xl:items-start">
-              <dl className="grid gap-x-16 gap-y-5 gap-x-24 gap-y-6 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="mt-6 grid gap-10 xl:grid-cols-[1fr_320px] xl:items-start">
+              <dl className="grid gap-x-10 gap-y-6 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
                 <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
                 <HeaderField label="Report Type" value="Short-Form Evaluation" />
@@ -136,9 +136,9 @@ export default async function EvaluationReportPage({ params }: PageProps) {
               </dl>
 
               {submissionPreview && (
-                <section className="justify-self-end rounded-lg border border-stone-200 bg-stone-50 p-4 xl:w-full">
-                  <h2 className="font-semibold text-stone-950">Submission Preview</h2>
-                  <p className="mt-2 text-stone-700">{submissionPreview}</p>
+                <section className="rounded-lg border border-stone-200 bg-stone-50 px-5 py-4">
+                  <h2 className="text-sm font-semibold text-stone-950">Submission Preview</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-stone-700">{submissionPreview}</p>
                 </section>
               )}
             </div>
