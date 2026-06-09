@@ -788,6 +788,20 @@ export type PipelineResult =
          * gate failure types (not only QG_INDEPENDENCE_VIOLATION).
          */
         gate_diagnostics_version?: "gate_diagnostics_v1";
+        /** S06b Handoff Gate failure diagnostics. */
+        handoff_gate?: {
+          total_violations: number;
+          pass1_violations: number;
+          pass2_violations: number;
+          check_summary: Record<string, number>;
+          first_violations: Array<{
+            code: string;
+            criterion_key: string;
+            field: string;
+            detail: string;
+            rec_index?: number;
+          }>;
+        };
       };
       /**
        * Full gate diagnostic payload for artifact persistence (Phase 2.7 audit).
