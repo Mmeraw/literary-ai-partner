@@ -2650,15 +2650,23 @@ function enrichShortAction(
   anchorSnippet: string,
 ): string {
   if (action.length >= 50) return action;
-  const parts: string[] = [action];
+
+  // Build a grammatically correct sentence: "<action> to address <family>; <impact>"
+  let enriched = action;
+
   if (issueFamily && !action.toLowerCase().includes(issueFamily.toLowerCase())) {
-    parts.push(`to address ${issueFamily}`);
+    // "tighten syntax to address prose clarity"
+    enriched += `—to address ${issueFamily.replace(/_/g, " ")}`;
   }
+
   if (expectedImpact && !action.toLowerCase().includes(expectedImpact.toLowerCase())) {
-    parts.push(`which ${expectedImpact}`);
+    // Strip leading "to " from expectedImpact if present to avoid "to to enhance..."
+    const impact = expectedImpact.replace(/^to\s+/i, "");
+    enriched += `; this will ${impact}`;
   }
-  const enriched = parts.join(" — ");
+
   if (enriched.length >= 50) return enriched;
+
   if (anchorSnippet) {
     const snippet = anchorSnippet.length > 80
       ? anchorSnippet.slice(0, 77) + "..."
