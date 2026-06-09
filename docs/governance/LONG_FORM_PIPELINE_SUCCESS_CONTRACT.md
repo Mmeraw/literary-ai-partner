@@ -64,13 +64,15 @@ Pass 3 (synthesis) must complete within the configured Pass 3 wall-clock budget.
 
 - Fail code: `PASS3_TIMEOUT`
 
-### Clause 6 — Pass 4 governance present (required mode)
+### Clause 6 — Quality Gate governance present (required mode)
 
-For jobs in required mode, Pass 4 governance evidence must be persisted.
+For jobs in required mode, Quality Gate governance evidence must be persisted.
 
-- Fail code: `PASS4_MISSING`
-- `pass4_governance` must be non-null.
-- The UI must render missing Pass 4 evidence as missing evidence, never as zombie/heartbeat fiction.
+Note: Volume III historically calls this "Pass 4". In the current runtime, the Quality Gate runs inside `runPipeline()` via `runQualityGateV2()` during Phase 3.
+
+- Fail code: `PASS4_MISSING` / `QG_FAILED`
+- Quality gate result must be non-null.
+- The UI must render missing quality gate evidence as missing evidence, never as zombie/heartbeat fiction.
 
 ### Clause 7 — Cross-check present (required mode)
 
