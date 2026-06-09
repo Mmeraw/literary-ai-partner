@@ -99,35 +99,38 @@ export default function DeadLetterQueuePage() {
   }
 
   return (
-    <main className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <Link href="/admin/jobs" className="text-blue-600 hover:underline">
-          ← Back to Admin Jobs
-        </Link>
-      </div>
+    <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
+      <Link
+        href="/admin/jobs"
+        className="text-sm font-semibold text-blue-700 hover:text-blue-900"
+      >
+        ← Back to Admin Jobs
+      </Link>
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Failed Jobs</h1>
-        <p className="text-gray-600 mt-2">
-          Jobs in the canonical failed state. Retrying resets status to queued and clears failed_at.
-        </p>
-      </div>
+      <h1 className="mt-4 text-3xl font-bold text-slate-950">Failed Jobs</h1>
+
+      <p className="mt-1 text-sm font-medium text-slate-700">
+        Jobs in the canonical failed state. Retrying resets status to queued and
+        clears failed_at.
+      </p>
 
       {loading && (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="mt-4 text-gray-600">Loading failed jobs...</p>
+        <div className="mt-8 text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
+          <p className="mt-4 text-sm font-medium text-slate-700">
+            Loading failed jobs...
+          </p>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <p className="text-red-800">
+        <div className="mt-6 rounded-lg border border-red-300 bg-red-50 p-4">
+          <p className="font-semibold text-red-800">
             <strong>Error:</strong> {error}
           </p>
           <button
             onClick={() => fetchFailedJobs()}
-            className="mt-2 text-sm text-red-600 hover:underline"
+            className="mt-2 text-sm font-semibold text-red-700 hover:text-red-900 underline"
           >
             Try again
           </button>
@@ -135,87 +138,93 @@ export default function DeadLetterQueuePage() {
       )}
 
       {!loading && !error && jobs.length === 0 && (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <p className="text-gray-600">No failed jobs found. 🎉</p>
+        <div className="mt-8 text-center py-12 rounded-lg border border-slate-300 bg-white">
+          <p className="font-semibold text-slate-800">
+            No failed jobs found.
+          </p>
         </div>
       )}
 
       {!loading && !error && jobs.length > 0 && (
-        <div className="bg-white shadow overflow-hidden rounded-lg">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="mt-6 overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-slate-300 text-sm">
+            <thead className="bg-slate-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
                   Job ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
                   Manuscript
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Owner Email
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  User Email
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
                   Phase
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
                   Attempts
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
                   Failed At
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Error
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  Reason
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-right font-bold text-slate-900">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200 bg-white">
               {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                <tr key={job.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 whitespace-nowrap font-mono text-xs font-semibold text-blue-700">
                     <Link
                       href={`/evaluate/${job.id}`}
-                      className="text-blue-600 hover:underline"
+                      className="hover:text-blue-900 hover:underline"
                     >
                       {job.id.slice(0, 8)}...
                     </Link>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-900">
                     {job.manuscript_id}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-slate-800">
                     {job.owner_email ?? "—"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div>
-                      <div className="font-medium">{job.phase || "—"}</div>
-                      <div className="text-xs text-gray-500">{job.phase_status || "—"}</div>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="font-semibold text-slate-900">
+                      {job.phase || "—"}
+                    </div>
+                    <div className="text-xs font-medium text-slate-600">
+                      {job.phase_status || "—"}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
                       className={
                         job.attempt_count >= job.max_attempts
-                          ? "text-red-600 font-medium"
-                          : ""
+                          ? "font-bold text-red-700"
+                          : "font-semibold text-slate-900"
                       }
                     >
                       {job.attempt_count} / {job.max_attempts}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800">
                     {formatDate(job.failed_at)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                    {job.last_error || "—"}
+                  <td className="px-4 py-3">
+                    <span className="block max-w-md truncate rounded bg-red-50 px-2 py-1 font-semibold text-red-800 ring-1 ring-red-200">
+                      {job.last_error || "—"}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
                     <button
                       onClick={() => retryJob(job.id, "Manual admin retry")}
                       disabled={retryingJobs.has(job.id)}
-                      className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed"
+                      className="rounded bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                     >
                       {retryingJobs.has(job.id) ? "Retrying..." : "Retry Now"}
                     </button>
@@ -227,17 +236,28 @@ export default function DeadLetterQueuePage() {
         </div>
       )}
 
-      <div className="mt-6 text-sm text-gray-500">
+      <div className="mt-6 text-sm font-medium text-slate-700">
         <p>
-          <strong>Total failed jobs:</strong> {jobs.length}
+          <strong className="text-slate-900">Total failed jobs:</strong>{" "}
+          {jobs.length}
         </p>
         <p className="mt-2">
-          <strong>Note:</strong> Retrying a job resets its state to{" "}
-          <code className="bg-gray-100 px-1 rounded">queued</code> and clears{" "}
-          <code className="bg-gray-100 px-1 rounded">failed_at</code>, but
-          preserves <code className="bg-gray-100 px-1 rounded">attempt_count</code>.
+          <strong className="text-slate-900">Note:</strong> Retrying a job
+          resets its state to{" "}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-900 ring-1 ring-slate-300">
+            queued
+          </code>{" "}
+          and clears{" "}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-900 ring-1 ring-slate-300">
+            failed_at
+          </code>
+          , but preserves{" "}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-900 ring-1 ring-slate-300">
+            attempt_count
+          </code>
+          .
         </p>
       </div>
-    </main>
+    </section>
   );
 }
