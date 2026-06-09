@@ -244,6 +244,38 @@ export async function GET(req: NextRequest, context: RouteContext) {
       quarantined: (selfCorrection.quarantined ?? false) as boolean,
       fail_closed: (selfCorrection.fail_closed ?? false) as boolean,
       violation_codes: (selfCorrection.violation_codes ?? []) as string[],
+      affected_stage: (selfCorrection.affected_stage ?? null) as string | null,
+      retry_history: (selfCorrection.retry_history ?? []) as Array<{
+        stage: string;
+        attempt: number;
+        violation_code: string;
+        result: "success" | "failure";
+        timestamp?: string;
+      }>,
+    };
+
+    // Retry/Quarantine Analytics — aggregate from timeline + self-correction
+    const retryEvents = timeline.filter(
+      (e) => typeof e.event === "string" && (
+        e.event.includes("retry") || e.event.includes("quarantine") || e.event.includes("fail_closed")
+      )
+    );
+    const retryAnalytics = {
+      total_retry_attempts: selfCorrectionSummary.attempts || retryEvents.filter((e) => String(e.event).includes("retry")).length,
+      retry_success_count: selfCorrectionSummary.successes || retryEvents.filter((e) => String(e.event).includes("retry") && e.result === "success").length,
+      retry_failure_count: selfCorrectionSummary.failures || retryEvents.filter((e) => String(e.event).includes("retry") && e.result === "failure").length,
+      quarantine_count: retryEvents.filter((e) => String(e.event).includes("quarantine")).length + (selfCorrectionSummary.quarantined ? 1 : 0),
+      fail_closed_count: retryEvents.filter((e) => String(e.event).includes("fail_closed")).length + (selfCorrectionSummary.fail_closed ? 1 : 0),
+      top_violation_codes: selfCorrectionSummary.violation_codes,
+      affected_stage: selfCorrectionSummary.affected_stage ?? (failedStageRaw ? normalizeStage(failedStageRaw) : null),
+      job_failure_code: (job.failure_code ?? null) as string | null,
+      retry_events: retryEvents.map((e) => ({
+        event: e.event as string,
+        stage: (e.stage ?? null) as string | null,
+        result: (e.result ?? null) as string | null,
+        reason: (e.reason ?? null) as string | null,
+        timestamp: (e.timestamp ?? null) as string | null,
+      })),
     };
 
     // Quality gate checks (if available)
@@ -391,6 +423,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       })),
       timeline,
       selfCorrection: selfCorrectionSummary,
+      retryAnalytics,
       qualityGateChecks,
       canonCompliance: SIPOC_STAGES.map((spec) => ({
         stage: spec.id,

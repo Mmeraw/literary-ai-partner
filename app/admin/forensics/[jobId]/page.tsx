@@ -64,6 +64,23 @@ interface ForensicData {
     authority: string;
     enforced: boolean;
   }>;
+  retryAnalytics: {
+    total_retry_attempts: number;
+    retry_success_count: number;
+    retry_failure_count: number;
+    quarantine_count: number;
+    fail_closed_count: number;
+    top_violation_codes: string[];
+    affected_stage: string | null;
+    job_failure_code: string | null;
+    retry_events: Array<{
+      event: string;
+      stage: string | null;
+      result: string | null;
+      reason: string | null;
+      timestamp: string | null;
+    }>;
+  };
   contaminationTrace: Array<{
     criterion: string;
     index: number;
@@ -203,7 +220,7 @@ export default function ForensicViewPage() {
     );
   }
 
-  const { job, stages, artifacts, selfCorrection, qualityGateChecks, canonCompliance, contaminationTrace } = data;
+  const { job, stages, artifacts, selfCorrection, retryAnalytics, qualityGateChecks, canonCompliance, contaminationTrace } = data;
   const failedStages = stages.filter((s) => s.result === "fail" || s.result === "retry_fail");
   const passedStages = stages.filter((s) => s.result === "pass" || s.result === "inferred_pass" || s.result === "retry_pass");
 
@@ -403,46 +420,145 @@ export default function ForensicViewPage() {
         </table>
       </div>
 
-      {/* Self-Correction Summary */}
+      {/* Retry/Quarantine Analytics */}
       <div className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-950 mb-3">Self-Correction Policy</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
-          <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center">
-            <p className="text-2xl font-extrabold text-slate-950">{selfCorrection.attempts}</p>
-            <p className="text-xs font-bold text-slate-700 uppercase">Attempts</p>
-          </div>
-          <div className="rounded-lg border border-green-300 bg-green-50 p-3 text-center">
-            <p className="text-2xl font-extrabold text-green-900">{selfCorrection.successes}</p>
-            <p className="text-xs font-bold text-green-700 uppercase">Successes</p>
-          </div>
-          <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-center">
-            <p className="text-2xl font-extrabold text-red-900">{selfCorrection.failures}</p>
-            <p className="text-xs font-bold text-red-700 uppercase">Failures</p>
-          </div>
-          <div className={`rounded-lg border p-3 text-center ${selfCorrection.quarantined ? "border-amber-300 bg-amber-50" : "border-slate-300 bg-slate-50"}`}>
-            <p className={`text-2xl font-extrabold ${selfCorrection.quarantined ? "text-amber-900" : "text-slate-400"}`}>
-              {selfCorrection.quarantined ? "YES" : "NO"}
+        <h2 className="text-lg font-bold text-slate-950 mb-3">Retry / Quarantine Analytics</h2>
+        <p className="text-xs font-medium text-slate-600 mb-3">
+          Self-correction telemetry: retry attempts, success/failure rates, quarantine decisions, and fail-closed status
+        </p>
+
+        {/* Empty state for pre-policy jobs */}
+        {retryAnalytics.total_retry_attempts === 0 &&
+         retryAnalytics.quarantine_count === 0 &&
+         retryAnalytics.fail_closed_count === 0 &&
+         retryAnalytics.retry_events.length === 0 ? (
+          <div className="rounded border border-slate-200 bg-slate-50 px-4 py-5 text-center">
+            <p className="text-sm font-semibold text-slate-700">
+              No self-correction attempts recorded for this job.
             </p>
-            <p className="text-xs font-bold text-slate-700 uppercase">Quarantined</p>
-          </div>
-          <div className={`rounded-lg border p-3 text-center ${selfCorrection.fail_closed ? "border-red-300 bg-red-50" : "border-slate-300 bg-slate-50"}`}>
-            <p className={`text-2xl font-extrabold ${selfCorrection.fail_closed ? "text-red-900" : "text-slate-400"}`}>
-              {selfCorrection.fail_closed ? "YES" : "NO"}
+            <p className="mt-1 text-xs text-slate-500">
+              This may mean the job completed before the self-correction policy was deployed, or no retryable gate violations occurred.
             </p>
-            <p className="text-xs font-bold text-slate-700 uppercase">Fail Closed</p>
           </div>
-        </div>
-        {selfCorrection.violation_codes.length > 0 && (
-          <div className="mt-3">
-            <p className="text-xs font-bold text-slate-700 uppercase mb-1">Violation Codes</p>
-            <div className="flex flex-wrap gap-2">
-              {selfCorrection.violation_codes.map((code) => (
-                <span key={code} className="rounded bg-red-50 px-2 py-1 font-mono text-xs font-semibold text-red-800 ring-1 ring-red-200">
-                  {code}
-                </span>
-              ))}
+        ) : (
+          <>
+            {/* Metrics grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+              <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center">
+                <p className="text-2xl font-extrabold text-slate-950">{retryAnalytics.total_retry_attempts}</p>
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Retry Attempts</p>
+              </div>
+              <div className="rounded-lg border border-green-300 bg-green-50 p-3 text-center">
+                <p className="text-2xl font-extrabold text-green-900">{retryAnalytics.retry_success_count}</p>
+                <p className="text-xs font-bold text-green-700 uppercase tracking-wide">Successes</p>
+              </div>
+              <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-center">
+                <p className="text-2xl font-extrabold text-red-900">{retryAnalytics.retry_failure_count}</p>
+                <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Failures</p>
+              </div>
+              <div className={`rounded-lg border p-3 text-center ${retryAnalytics.quarantine_count > 0 ? "border-amber-300 bg-amber-50" : "border-slate-300 bg-slate-50"}`}>
+                <p className={`text-2xl font-extrabold ${retryAnalytics.quarantine_count > 0 ? "text-amber-900" : "text-slate-400"}`}>
+                  {retryAnalytics.quarantine_count}
+                </p>
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Quarantined</p>
+              </div>
+              <div className={`rounded-lg border p-3 text-center ${retryAnalytics.fail_closed_count > 0 ? "border-red-300 bg-red-50" : "border-slate-300 bg-slate-50"}`}>
+                <p className={`text-2xl font-extrabold ${retryAnalytics.fail_closed_count > 0 ? "text-red-900" : "text-slate-400"}`}>
+                  {retryAnalytics.fail_closed_count}
+                </p>
+                <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Fail Closed</p>
+              </div>
             </div>
-          </div>
+
+            {/* Success rate bar */}
+            {retryAnalytics.total_retry_attempts > 0 && (
+              <div className="mb-4">
+                <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                  <span>Retry Success Rate</span>
+                  <span>{Math.round((retryAnalytics.retry_success_count / retryAnalytics.total_retry_attempts) * 100)}%</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-slate-200">
+                  <div
+                    className="h-2 rounded-full bg-green-600"
+                    style={{ width: `${(retryAnalytics.retry_success_count / retryAnalytics.total_retry_attempts) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Affected stage + failure code */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              {retryAnalytics.affected_stage && (
+                <div className="rounded border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-bold text-slate-600 uppercase mb-1">Affected Stage</p>
+                  <p className="text-sm font-semibold text-slate-900">{retryAnalytics.affected_stage.replace(/_/g, " ")}</p>
+                </div>
+              )}
+              {retryAnalytics.job_failure_code && (
+                <div className="rounded border border-red-200 bg-red-50 p-3">
+                  <p className="text-xs font-bold text-red-700 uppercase mb-1">Failure Code</p>
+                  <span className="inline-block rounded bg-red-100 px-2 py-1 font-mono text-xs font-bold text-red-900 ring-1 ring-red-200">
+                    {retryAnalytics.job_failure_code}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Top violation codes */}
+            {retryAnalytics.top_violation_codes.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-bold text-slate-700 uppercase mb-2">Top Violation Codes</p>
+                <div className="flex flex-wrap gap-2">
+                  {retryAnalytics.top_violation_codes.map((code) => (
+                    <span key={code} className="rounded bg-red-50 px-2 py-1 font-mono text-xs font-semibold text-red-800 ring-1 ring-red-200">
+                      {code}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Retry event log */}
+            {retryAnalytics.retry_events.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-slate-700 uppercase mb-2">Retry Event Log</p>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-bold text-slate-900">Event</th>
+                        <th className="px-3 py-2 text-left font-bold text-slate-900">Stage</th>
+                        <th className="px-3 py-2 text-left font-bold text-slate-900">Result</th>
+                        <th className="px-3 py-2 text-left font-bold text-slate-900">Reason</th>
+                        <th className="px-3 py-2 text-left font-bold text-slate-900">Timestamp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {retryAnalytics.retry_events.map((evt, i) => (
+                        <tr key={i} className={evt.result === "failure" ? "bg-red-50" : evt.result === "success" ? "bg-green-50" : ""}>
+                          <td className="px-3 py-2 font-mono font-semibold text-slate-900">{evt.event}</td>
+                          <td className="px-3 py-2 text-slate-800">{evt.stage ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            {evt.result === "success" ? (
+                              <span className="rounded bg-green-100 px-2 py-0.5 font-bold text-green-900 ring-1 ring-green-300">SUCCESS</span>
+                            ) : evt.result === "failure" ? (
+                              <span className="rounded bg-red-100 px-2 py-0.5 font-bold text-red-900 ring-1 ring-red-300">FAILURE</span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-slate-800 max-w-xs truncate">{evt.reason ?? "—"}</td>
+                          <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
+                            {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -522,6 +638,15 @@ export default function ForensicViewPage() {
           <p className="text-xs font-medium text-slate-600 mb-3">
             Per-recommendation lifecycle: where each recommendation was created, modified, flagged, or quarantined
           </p>
+
+          {/* Pre-gate disclaimer: when no quarantine metadata exists */}
+          {contaminationTrace.every((r) => !r.quarantined && !r.flagged_by && r.source_pass === null) && (
+            <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold text-amber-900">
+                ⚠ No quarantine metadata recorded for this evaluation. This may reflect a pre-integrity-gate artifact, not proof that all recommendations met current quality standards.
+              </p>
+            </div>
+          )}
 
           {/* Summary stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
