@@ -202,6 +202,10 @@ export type EvaluationResultV2 = {
       char_count?: number;
       genre?: string;
       target_audience?: string;
+      /** Raw english_variant value sent by the caller (e.g. "ca"). */
+      requested_english_variant?: string;
+      /** Human-readable label of the normalised variant (e.g. "Canadian English"). */
+      resolved_english_variant?: string;
     };
     processing: {
       segment_count?: number;

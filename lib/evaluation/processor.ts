@@ -208,7 +208,7 @@ import {
 } from '@/lib/evaluation/phaseTimestamps';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
-import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
+import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -9762,6 +9762,7 @@ export async function processEvaluationJob(
       sourceText: manuscriptWithContent.content || "",
       manuscriptText: manuscriptWithContent.content || "",
       title: manuscript.title ?? undefined,
+      englishVariant: selectedEnglishVariant,
       scopeProfile: scopeProfileForV2Gate,
       llmEnrichment: pipelineResult.synthesis.enrichment,
     });
