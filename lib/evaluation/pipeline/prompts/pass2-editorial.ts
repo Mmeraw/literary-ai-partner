@@ -35,7 +35,11 @@ Required per criterion fields:
 - score_0_10 (integer 0-10)
 - rationale (exactly 1 sentence, <= 180 chars)
 - evidence (0-2 items max, snippet <= 200 chars with offsets when possible)
-- recommendations (0-1 item max; if present include anchor_snippet)
+- recommendations (score-dependent density; include anchor_snippet):
+    score ≤5 → 2–3 recommendations required (severity: recommended)
+    score 6–7 → 1–2 recommendations required (severity: recommended or optional)
+    score 8 → 1 recommendation required (severity: optional or consider)
+    score 9–10 → 0–1 recommendations allowed (severity: consider only; never recommended)
 
 Rules:
 1) Stay independent; do not reference any other analysis axis.

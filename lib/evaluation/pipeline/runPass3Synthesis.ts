@@ -1341,9 +1341,13 @@ export function parsePass3Response(
     const rawFitSummary = typeof rawEntry?.["fit_summary"] === "string" ? rawEntry["fit_summary"].trim() : "";
     const rawGapSummary = typeof rawEntry?.["gap_summary"] === "string" ? rawEntry["gap_summary"].trim() : "";
 
-    // Deterministic 9-10 recommendation suppression (canon rule):
-    // Scores 9-10 must NOT carry severity-tagged recommendations.
-    const suppressedRecommendations = finalScore >= 9 ? [] : recommendations;
+    // Deterministic 9-10 recommendation filtering (canon rule):
+    // Scores 9-10 may carry at most 1 "consider"-severity recommendation.
+    const suppressedRecommendations = finalScore >= 9
+      ? recommendations
+          .filter((r) => (r as Record<string, unknown>).severity === "consider" || (r as Record<string, unknown>).priority === "consider")
+          .slice(0, 1)
+      : recommendations;
 
     criteria.push({
       key,
@@ -2698,15 +2702,23 @@ function enrichShortAction(
   anchorSnippet: string,
 ): string {
   if (action.length >= 50) return action;
-  const parts: string[] = [action];
+
+  // Build a grammatically correct sentence: "<action> to address <family>; <impact>"
+  let enriched = action;
+
   if (issueFamily && !action.toLowerCase().includes(issueFamily.toLowerCase())) {
-    parts.push(`to address ${issueFamily}`);
+    // "tighten syntax to address prose clarity"
+    enriched += `—to address ${issueFamily.replace(/_/g, " ")}`;
   }
+
   if (expectedImpact && !action.toLowerCase().includes(expectedImpact.toLowerCase())) {
-    parts.push(`which ${expectedImpact}`);
+    // Strip leading "to " from expectedImpact if present to avoid "to to enhance..."
+    const impact = expectedImpact.replace(/^to\s+/i, "");
+    enriched += `; this will ${impact}`;
   }
-  const enriched = parts.join(" — ");
+
   if (enriched.length >= 50) return enriched;
+
   if (anchorSnippet) {
     const snippet = anchorSnippet.length > 80
       ? anchorSnippet.slice(0, 77) + "..."
