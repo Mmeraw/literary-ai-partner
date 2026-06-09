@@ -7,6 +7,8 @@
  * - Broken modal phrases
  * - Generic workshop language without evidence
  * - Missing evidence anchors
+ * - Orphaned conjunctions
+ * - Dangling references
  */
 
 import {
@@ -253,6 +255,102 @@ describe("Pass 1/2 Handoff Gate (S06b)", () => {
     });
   });
 
+  describe("orphaned conjunctions", () => {
+    it("detects rationale starting with orphaned conjunction", () => {
+      const criterion = makeCleanCriterion("narrative_drive");
+      criterion.rationale = "However the pacing in chapter three demonstrates strong momentum throughout the middle act.";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("narrative_drive")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.some((v) => v.code === "HANDOFF_ORPHANED_CONJUNCTION")).toBe(true);
+    });
+
+    it("detects recommendation action starting with But", () => {
+      const criterion = makeCleanCriterion("character_voice");
+      criterion.recommendations[0].action = "But strengthen the dialogue in chapter five to reveal the character's internal conflict more clearly.";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("character_voice")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.some(
+        (v) => v.code === "HANDOFF_ORPHANED_CONJUNCTION" && v.field === "recommendation_action",
+      )).toBe(true);
+    });
+
+    it("does not flag conjunction mid-sentence as orphaned", () => {
+      const criterion = makeCleanCriterion("pacing");
+      criterion.rationale = "The manuscript builds tension effectively, however the final chapter resolves too quickly.";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("pacing")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.filter((v) => v.code === "HANDOFF_ORPHANED_CONJUNCTION")).toHaveLength(0);
+    });
+  });
+
+  describe("dangling references", () => {
+    it("detects 'this section' without evidence anchor", () => {
+      const criterion = makeCleanCriterion("worldbuilding");
+      criterion.rationale = "This section could benefit from more grounded detail to establish the physical environment.";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("worldbuilding")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.some((v) => v.code === "HANDOFF_DANGLING_REFERENCE")).toBe(true);
+    });
+
+    it("detects 'the above' in rationale", () => {
+      const criterion = makeCleanCriterion("narrative_drive");
+      criterion.rationale = "As mentioned above the narrative drive is weakened by the pacing decisions in the middle section.";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("narrative_drive")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.some((v) => v.code === "HANDOFF_DANGLING_REFERENCE")).toBe(true);
+    });
+
+    it("detects dangling reference in recommendation action without anchor", () => {
+      const criterion = makeCleanCriterion("dialogue_subtext");
+      criterion.recommendations[0].action = "Address these issues by revising the dialogue in the affected passages.";
+      criterion.recommendations[0].anchor_snippet = "";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("dialogue_subtext")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.some(
+        (v) => v.code === "HANDOFF_DANGLING_REFERENCE" && v.field === "recommendation_action",
+      )).toBe(true);
+    });
+
+    it("does not flag dangling reference in action when anchor_snippet is present", () => {
+      const criterion = makeCleanCriterion("dialogue_subtext");
+      criterion.recommendations[0].action = "Address these issues by revising the dialogue to add subtext.";
+      criterion.recommendations[0].anchor_snippet = "He nodded slowly, saying nothing.";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("dialogue_subtext")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.filter(
+        (v) => v.code === "HANDOFF_DANGLING_REFERENCE" && v.field === "recommendation_action",
+      )).toHaveLength(0);
+    });
+  });
+
   describe("threshold policy (shouldPassHandoffGate)", () => {
     it("blocks on any scaffold residue", () => {
       const result: HandoffGateResult = {
@@ -267,6 +365,8 @@ describe("Pass 1/2 Handoff Gate (S06b)", () => {
           HANDOFF_BROKEN_MODAL: 0,
           HANDOFF_GENERIC_LANGUAGE: 0,
           HANDOFF_MISSING_EVIDENCE_ANCHOR: 0,
+          HANDOFF_ORPHANED_CONJUNCTION: 0,
+          HANDOFF_DANGLING_REFERENCE: 0,
         },
       };
 
@@ -286,6 +386,8 @@ describe("Pass 1/2 Handoff Gate (S06b)", () => {
           HANDOFF_BROKEN_MODAL: 1,
           HANDOFF_GENERIC_LANGUAGE: 0,
           HANDOFF_MISSING_EVIDENCE_ANCHOR: 0,
+          HANDOFF_ORPHANED_CONJUNCTION: 0,
+          HANDOFF_DANGLING_REFERENCE: 0,
         },
       };
 
@@ -308,6 +410,8 @@ describe("Pass 1/2 Handoff Gate (S06b)", () => {
           HANDOFF_BROKEN_MODAL: 0,
           HANDOFF_GENERIC_LANGUAGE: 2,
           HANDOFF_MISSING_EVIDENCE_ANCHOR: 0,
+          HANDOFF_ORPHANED_CONJUNCTION: 0,
+          HANDOFF_DANGLING_REFERENCE: 0,
         },
       };
 
@@ -327,6 +431,8 @@ describe("Pass 1/2 Handoff Gate (S06b)", () => {
           HANDOFF_BROKEN_MODAL: 0,
           HANDOFF_GENERIC_LANGUAGE: 3,
           HANDOFF_MISSING_EVIDENCE_ANCHOR: 0,
+          HANDOFF_ORPHANED_CONJUNCTION: 0,
+          HANDOFF_DANGLING_REFERENCE: 0,
         },
       };
 
@@ -346,6 +452,50 @@ describe("Pass 1/2 Handoff Gate (S06b)", () => {
           HANDOFF_BROKEN_MODAL: 0,
           HANDOFF_GENERIC_LANGUAGE: 0,
           HANDOFF_MISSING_EVIDENCE_ANCHOR: 5,
+          HANDOFF_ORPHANED_CONJUNCTION: 0,
+          HANDOFF_DANGLING_REFERENCE: 0,
+        },
+      };
+
+      expect(shouldPassHandoffGate(result)).toBe(false);
+    });
+
+    it("blocks on 3+ orphaned conjunctions", () => {
+      const result: HandoffGateResult = {
+        ok: false,
+        violations: Array(3).fill({ code: "HANDOFF_ORPHANED_CONJUNCTION", criterion_key: "x", field: "rationale", detail: "" }),
+        total_violations: 3,
+        pass1_violations: 2,
+        pass2_violations: 1,
+        check_summary: {
+          HANDOFF_SCAFFOLD_RESIDUE: 0,
+          HANDOFF_INCOMPLETE_SENTENCE: 0,
+          HANDOFF_BROKEN_MODAL: 0,
+          HANDOFF_GENERIC_LANGUAGE: 0,
+          HANDOFF_MISSING_EVIDENCE_ANCHOR: 0,
+          HANDOFF_ORPHANED_CONJUNCTION: 3,
+          HANDOFF_DANGLING_REFERENCE: 0,
+        },
+      };
+
+      expect(shouldPassHandoffGate(result)).toBe(false);
+    });
+
+    it("blocks on 5+ dangling references", () => {
+      const result: HandoffGateResult = {
+        ok: false,
+        violations: Array(5).fill({ code: "HANDOFF_DANGLING_REFERENCE", criterion_key: "x", field: "rationale", detail: "" }),
+        total_violations: 5,
+        pass1_violations: 3,
+        pass2_violations: 2,
+        check_summary: {
+          HANDOFF_SCAFFOLD_RESIDUE: 0,
+          HANDOFF_INCOMPLETE_SENTENCE: 0,
+          HANDOFF_BROKEN_MODAL: 0,
+          HANDOFF_GENERIC_LANGUAGE: 0,
+          HANDOFF_MISSING_EVIDENCE_ANCHOR: 0,
+          HANDOFF_ORPHANED_CONJUNCTION: 0,
+          HANDOFF_DANGLING_REFERENCE: 5,
         },
       };
 

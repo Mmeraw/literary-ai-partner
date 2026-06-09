@@ -11,6 +11,8 @@
  *   3. Broken modal phrases ("which More…", "can long stretches…")
  *   4. Generic workshop language without evidence anchor
  *   5. Missing evidence anchor (recommendations must reference manuscript)
+ *   6. Orphaned conjunctions (starts/ends with dangling and/but/because/however)
+ *   7. Dangling references ("this section", "the above" without nearby evidence anchor)
  *
  * Governance: Runtime Doctrine #11, #13; Volume III §III.PL5
  * Canon ref: docs/SIPOC_EVALUATION_PROCESS.md (S06b_HANDOFF_GATE)
@@ -34,7 +36,9 @@ export type HandoffFailureCode =
   | "HANDOFF_INCOMPLETE_SENTENCE"
   | "HANDOFF_BROKEN_MODAL"
   | "HANDOFF_GENERIC_LANGUAGE"
-  | "HANDOFF_MISSING_EVIDENCE_ANCHOR";
+  | "HANDOFF_MISSING_EVIDENCE_ANCHOR"
+  | "HANDOFF_ORPHANED_CONJUNCTION"
+  | "HANDOFF_DANGLING_REFERENCE";
 
 export type HandoffGateResult = {
   ok: boolean;
@@ -94,6 +98,26 @@ const GENERIC_WORKSHOP_PATTERNS: RegExp[] = [
   /\bcould\s+use\s+(?:some|more)\s+(?:development|attention|polish)\b/i,
 ];
 
+/**
+ * Orphaned conjunction patterns — text that starts or ends with a
+ * conjunction/transition word suggesting it was ripped from surrounding context.
+ */
+const ORPHANED_CONJUNCTION_PATTERNS: RegExp[] = [
+  /^\s*(?:And|But|Because|Which|However|Therefore|Moreover|Furthermore|Although|While|So that|Yet|Nevertheless)\s/,
+  /\s(?:and|but|because|which|however|therefore|moreover|so that|yet)\s*[,;]?\s*$/,
+];
+
+/**
+ * Dangling reference patterns — vague demonstratives or placeholder nouns
+ * that reference something not present in the same text.
+ */
+const DANGLING_REFERENCE_PATTERNS: RegExp[] = [
+  /\b(?:this|these|those)\s+(?:section|chapter|passage|issue|problem|aspect|element|area|point)s?\b/i,
+  /\bthe\s+(?:above|below|aforementioned|following|previous)\b/i,
+  /\b(?:as\s+(?:mentioned|noted|discussed|stated)\s+(?:above|below|earlier|previously))\b/i,
+  /\b(?:it|this)\s+(?:should|could|would|needs? to)\s+be\s+(?:noted|mentioned|addressed)\b/i,
+];
+
 // ── Core Detection Functions ─────────────────────────────────────────────────
 
 /**
@@ -135,6 +159,23 @@ function hasGenericWorkshopLanguage(text: string): RegExpMatchArray | null {
   return null;
 }
 
+function hasOrphanedConjunction(text: string): RegExpMatchArray | null {
+  if (!text || text.trim().length < 20) return null; // too short to judge
+  for (const pattern of ORPHANED_CONJUNCTION_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) return match;
+  }
+  return null;
+}
+
+function hasDanglingReference(text: string): RegExpMatchArray | null {
+  for (const pattern of DANGLING_REFERENCE_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) return match;
+  }
+  return null;
+}
+
 // ── Main Gate Function ───────────────────────────────────────────────────────
 
 /**
@@ -165,6 +206,8 @@ export function runPass12HandoffGate(
     HANDOFF_BROKEN_MODAL: 0,
     HANDOFF_GENERIC_LANGUAGE: 0,
     HANDOFF_MISSING_EVIDENCE_ANCHOR: 0,
+    HANDOFF_ORPHANED_CONJUNCTION: 0,
+    HANDOFF_DANGLING_REFERENCE: 0,
   };
   for (const v of violations) {
     checkSummary[v.code]++;
@@ -237,6 +280,28 @@ function validateRationale(criterion: AxisCriterionResult): HandoffViolation[] {
     });
   }
 
+  // Check orphaned conjunctions
+  const orphaned = hasOrphanedConjunction(text);
+  if (orphaned) {
+    violations.push({
+      code: "HANDOFF_ORPHANED_CONJUNCTION",
+      criterion_key: criterion.key,
+      field: "rationale",
+      detail: `Orphaned conjunction: "${orphaned[0].trim()}"`,
+    });
+  }
+
+  // Check dangling references (only if no anchor_snippet to justify the reference)
+  const dangling = hasDanglingReference(text);
+  if (dangling) {
+    violations.push({
+      code: "HANDOFF_DANGLING_REFERENCE",
+      criterion_key: criterion.key,
+      field: "rationale",
+      detail: `Dangling reference without evidence anchor: "${dangling[0]}"`,
+    });
+  }
+
   return violations;
 }
 
@@ -278,6 +343,32 @@ function validateRecommendations(criterion: AxisCriterionResult): HandoffViolati
           detail: "Recommendation action lacks complete sentence",
           rec_index: i,
         });
+      }
+
+      // Orphaned conjunctions in actions
+      const actionOrphaned = hasOrphanedConjunction(rec.action);
+      if (actionOrphaned) {
+        violations.push({
+          code: "HANDOFF_ORPHANED_CONJUNCTION",
+          criterion_key: criterion.key,
+          field: "recommendation_action",
+          detail: `Orphaned conjunction in action: "${actionOrphaned[0].trim()}"`,
+          rec_index: i,
+        });
+      }
+
+      // Dangling references in actions (only if no anchor_snippet)
+      if (!rec.anchor_snippet || rec.anchor_snippet.trim().length === 0) {
+        const actionDangling = hasDanglingReference(rec.action);
+        if (actionDangling) {
+          violations.push({
+            code: "HANDOFF_DANGLING_REFERENCE",
+            criterion_key: criterion.key,
+            field: "recommendation_action",
+            detail: `Dangling reference without evidence: "${actionDangling[0]}"`,
+            rec_index: i,
+          });
+        }
       }
 
       // Generic workshop language — only if no anchor_snippet present
@@ -374,6 +465,8 @@ export function shouldPassHandoffGate(result: HandoffGateResult): boolean {
   // Soft blocks — threshold-based
   if (check_summary.HANDOFF_GENERIC_LANGUAGE >= 3) return false;
   if (check_summary.HANDOFF_MISSING_EVIDENCE_ANCHOR >= 5) return false;
+  if (check_summary.HANDOFF_ORPHANED_CONJUNCTION >= 3) return false;
+  if (check_summary.HANDOFF_DANGLING_REFERENCE >= 5) return false;
 
   // Incomplete sentences: block if > 50% of total criteria are affected
   // (26 criteria total across both passes = 13 × 2)
