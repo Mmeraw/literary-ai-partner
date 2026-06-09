@@ -1158,7 +1158,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
   const { data: job, error: jobError } = await supabase
     .from('evaluation_jobs')
-    .select('id, status, manuscript_id, manuscript_version_id, policy_family, voice_preservation_level')
+    .select('id, status, manuscript_id, manuscript_version_id, policy_family, voice_preservation_level, english_variant')
     .eq('id', evaluationJobId)
     .eq('manuscript_id', manuscriptNumericId)
     .maybeSingle()

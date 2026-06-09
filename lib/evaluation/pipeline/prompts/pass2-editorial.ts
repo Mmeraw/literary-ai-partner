@@ -18,6 +18,7 @@ import {
   buildPromptInputWindow,
   summarizePromptCoverage,
 } from "../promptInput";
+import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 
 export const PASS2_PROMPT_VERSION = "pass2-editorial-v10-candidate-prose";
 
@@ -243,6 +244,8 @@ export function buildPass2UserPrompt(params: {
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   scopeProfile?: SubmissionScopeProfile;
+  /** Evaluate-time selected English variant for generated author-facing output. */
+  englishVariant?: string;
   /** Pre-built character ledger block from Pass 1A — injected before manuscript text. */
   characterLedgerBlock?: string;
   /** Author corrections from accepted_story_ledger_v1.governance_rail — MANDATORY if present. */
@@ -263,9 +266,11 @@ export function buildPass2UserPrompt(params: {
   const correctionsSection = params.authorCorrectionsBlock
     ? `\n${params.authorCorrectionsBlock}\n`
     : "";
+  const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the EDITORIAL/LITERARY INSIGHT axis.
 
 Execution mode: ${executionMode}
+${englishVariantBlock}
 Word count: ${wordCount}
 ${buildCoverageDisclosure(coverage)}
 ${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope). Treat scope-limited criteria accordingly.` : ""}${correctionsSection}${ledgerSection}

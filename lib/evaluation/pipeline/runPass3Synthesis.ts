@@ -90,6 +90,7 @@ import {
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { pipelineLog } from "./pipelineLogger";
+import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -374,6 +375,8 @@ export interface RunPass3Options {
   manuscriptText: string;
   manuscriptChunks?: ManuscriptChunkEvidence[];
   title: string;
+  /** Evaluate-time selected English variant for generated author-facing output. */
+  englishVariant?: EnglishVariant | string;
   /** Structural canonical work type from intake routing. */
   workType?: string;
   /** Optional diagnosed genre signal if available upstream. */
@@ -812,6 +815,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     pass2aStructuredContext: opts.pass2aStructuredContext,
     manuscriptText: opts.manuscriptText,
     title: opts.title,
+    englishVariant: opts.englishVariant,
     executionMode: opts.executionMode,
     scopeProfile: opts.scopeProfile,
     perplexityChunkPacket: opts.perplexityChunkPacket,

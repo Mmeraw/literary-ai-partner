@@ -19,6 +19,7 @@ import {
 import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
 import type { ResolvedExpectationContext } from "@/lib/evaluation/genreExpectationProfiles";
 import { buildDiagnosticSpinePromptBlock } from "@/lib/evaluation/diagnosticSpine";
+import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 
 export const PASS3_PROMPT_VERSION = "pass3-synthesis-v21-rec-or-rationale-contract";
 
@@ -438,6 +439,7 @@ export function buildPass3UserPrompt(params: {
   pass2aStructuredContext: Pass2aStructuredContext;
   manuscriptText?: string;
   title: string;
+  englishVariant?: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   scopeProfile?: SubmissionScopeProfile;
   /**
@@ -495,6 +497,7 @@ export function buildPass3UserPrompt(params: {
   const synthesisWindow = params.manuscriptText
     ? buildPromptInputWindow(params.manuscriptText, synthesisBudget)
     : "";
+  const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
   const synthesisCoverage = params.manuscriptText
     ? summarizePromptCoverage(params.manuscriptText, synthesisBudget)
     : null;
@@ -562,6 +565,8 @@ ${buildDiagnosticSpinePromptBlock()}
 
 
 Execution mode: ${executionMode}
+
+${englishVariantBlock}
 
 OUTPUT BUDGET BY STATE (STRICT):
 - agree (score_delta <= 1): emit { key, final_score_0_10, final_rationale (1-3 substantive sentences—NOT "Confirmed."), recommendations[] (with semantic fields) }

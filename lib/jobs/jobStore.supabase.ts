@@ -13,6 +13,7 @@ import {
 import { Job, JobStatus, JobType, PHASES, Phase, JOB_STATUS, JobProgress } from "./types";
 import { getLeaseTimeoutSeconds } from "./config";
 import { getLatestVersionForManuscript } from "@/lib/db/manuscriptVersions";
+import { normalizeEnglishVariant } from "@/lib/evaluation/englishVariant";
 
 const JOB_SELECT_FIELDS =
   "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id, title)";
@@ -169,6 +170,7 @@ export async function createJob(input: {
   job_type: JobType;
   sensitivity_mode?: string;
   voice_preservation_level?: string;
+  english_variant?: string;
 }): Promise<Job> {
   const now = new Date().toISOString();
   
@@ -246,7 +248,7 @@ export async function createJob(input: {
     },
     policy_family: input.sensitivity_mode === "TRANSGRESSIVE" ? "transgressive" : input.sensitivity_mode === "TESTIMONY" ? "testimony" : "standard",
     voice_preservation_level: input.voice_preservation_level ?? "balanced",
-    english_variant: "us",
+    english_variant: normalizeEnglishVariant(input.english_variant),
   };
 
   validateProgressWrite(payload.progress);

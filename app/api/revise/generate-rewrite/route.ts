@@ -6,6 +6,7 @@ import {
   extractVoiceContext,
 } from "@/lib/revision/runPass4VoiceRewrite";
 import { recordLlmCostEvent } from "@/lib/cost/llmCostEvents";
+import { normalizeEnglishVariant } from "@/lib/evaluation/englishVariant";
 
 /**
  * POST /api/revise/generate-rewrite
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
 
     const { data: versionData } = await supabase
       .from("evaluation_jobs")
-      .select("manuscript_version_id")
+      .select("manuscript_version_id, english_variant")
       .eq("id", evaluationJobId)
       .maybeSingle();
 
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
     const result = await runPass4VoiceRewrite(
       {
         originalPassage,
+        englishVariant: normalizeEnglishVariant(versionData?.english_variant),
         editorialInstruction: editorialInstruction || "Revise this passage to address the diagnosed issue.",
         symptom: symptom || "",
         cause: cause || "",

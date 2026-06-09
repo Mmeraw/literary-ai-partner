@@ -29,6 +29,7 @@ import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
 import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
+import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 
 export const PASS3B_PROMPT_VERSION = "pass3b-longform-v4-quality-calibration";
 
@@ -288,6 +289,8 @@ export function buildPass3bUserPrompt(params: {
   chapterIndex?: string | null;
   /** Canon-backed genre expectation contract from EvaluationResultV2 transparency metadata. */
   genreExpectationContext?: GenreExpectationMetadata | null;
+  /** Evaluate-time selected English variant for generated author-facing output. */
+  englishVariant?: string;
 }): string {
   // Build the score grid summary so Pass 3b has all 13 scores in compact form
   const scoreSummary = params.criteria.map((c) => {
@@ -361,6 +364,7 @@ export function buildPass3bUserPrompt(params: {
 
   const templateKey = resolveTemplateKey(params.wordCount, params.mode?.includes('multi_layer'));
   const dreamTemplateBlock = buildCompactTemplateBlock(templateKey);
+  const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
 
   return `Produce the DREAM long-form evaluation document for the manuscript titled "${params.title}".
 ${dreamTemplateBlock ? `
@@ -369,6 +373,8 @@ The output document MUST conform to this canonical template. Use it as the struc
 ${dreamTemplateBlock}
 ` : ""}
 ${correctionsSection}
+${englishVariantBlock}
+
 MANUSCRIPT FACTS
 - Title: ${params.title}
 - Work type: ${params.workType}

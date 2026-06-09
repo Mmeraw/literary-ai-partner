@@ -207,6 +207,7 @@ import {
 } from '@/lib/evaluation/phaseTimestamps';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
+import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -4699,6 +4700,8 @@ export async function processEvaluationJob(
     progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
+    const selectedEnglishVariant = normalizeEnglishVariant((job as Record<string, unknown>).english_variant);
+
     expectedLeaseToken = typeof job.lease_token === 'string' ? job.lease_token : null;
     expectedClaimedBy = typeof job.claimed_by === 'string' ? job.claimed_by : null;
     let failureAlertManuscriptId =
@@ -5998,6 +6001,7 @@ export async function processEvaluationJob(
             openaiApiKey,
             perplexityApiKey: perplexityApiKey || undefined,
             manuscriptId: String(manuscriptWithContent.id),
+            englishVariant: selectedEnglishVariant,
             executionMode: 'TRUSTED_PATH',
             _passTimeoutMs: timeoutResolution.passTimeoutMs,
             _openAiTimeoutMs: timeoutResolution.openAiTimeoutMs,

@@ -33,6 +33,7 @@ import {
   ChunkCountExceedsCapError,
   ChunkRoutingNotEngagedError,
 } from "./failures";
+import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 
 const PASS2_TEMPERATURE = 0.3;
 
@@ -404,6 +405,8 @@ export interface RunPass2Options {
   isChunkUnit?: boolean;
   workType: string;
   title: string;
+  /** Evaluate-time selected English variant for generated author-facing output. */
+  englishVariant?: EnglishVariant | string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
   model?: string;
@@ -748,6 +751,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
     manuscriptText: opts.manuscriptText,
     workType: opts.workType,
     title: opts.title,
+    englishVariant: opts.englishVariant,
     executionMode: opts.executionMode,
     scopeProfile: opts.scopeProfile,
     characterLedgerBlock: opts.characterLedgerBlock,

@@ -19,6 +19,7 @@ import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enric
 import { routeNarrativeEvaluationPreflight } from "@/lib/evaluation/preflight/manuscriptTypeRouting";
 import { createInitialVersion } from "@/lib/manuscripts/versions";
 import { attachFreeDiagnosticJob, claimFreeDiagnostic } from "@/lib/freeDiagnostic/claims";
+import { normalizeEnglishVariant } from "@/lib/evaluation/englishVariant";
 
 function isRateLimited(
   result: RateLimitResult
@@ -307,7 +308,7 @@ export async function POST(req: Request) {
     const author_name = body?.author_name;
     const manuscript_title = body?.manuscript_title;
     const manuscript_size = body?.manuscript_size;
-    const english_variant = typeof body?.english_variant === "string" && body.english_variant.trim() ? body.english_variant.trim().toLowerCase() : "us";
+    const english_variant = normalizeEnglishVariant(body?.english_variant);
     const sensitivity_mode = typeof body?.sensitivity_mode === "string" && ["STANDARD", "TRANSGRESSIVE", "TESTIMONY"].includes(body.sensitivity_mode) ? body.sensitivity_mode : "STANDARD";
     const voice_preservation_level = typeof body?.voice_preservation_level === "string" && ["maximum", "balanced", "polished"].includes(body.voice_preservation_level) ? body.voice_preservation_level : "balanced";
     const user_tier = body?.user_tier as "free" | "premium" | "agent" | undefined;
@@ -717,6 +718,7 @@ export async function POST(req: Request) {
       job_type: validatedJobType,
       sensitivity_mode,
       voice_preservation_level,
+      english_variant,
     });
 
     if (freeDiagnosticClaimId) {

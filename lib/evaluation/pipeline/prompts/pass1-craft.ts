@@ -13,6 +13,7 @@ import {
   buildPromptInputWindow,
   summarizePromptCoverage,
 } from "../promptInput";
+import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 
 export const PASS1_PROMPT_VERSION = "pass1-craft-v8-provenance-hardening";
 
@@ -84,6 +85,8 @@ export function buildPass1UserPrompt(params: {
   title: string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   scopeProfile?: SubmissionScopeProfile;
+  /** Evaluate-time selected English variant for generated author-facing output. */
+  englishVariant?: string;
   /** Pre-built character ledger block from Pass 1A — injected before manuscript text. */
   characterLedgerBlock?: string;
 }): string {
@@ -99,9 +102,11 @@ export function buildPass1UserPrompt(params: {
   const ledgerSection = params.characterLedgerBlock
     ? `\n${params.characterLedgerBlock}\n`
     : "";
+  const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the CRAFT EXECUTION axis.
 
 Execution mode: ${executionMode}
+${englishVariantBlock}
 Word count: ${wordCount}
 ${buildCoverageDisclosure(coverage)}
 ${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${params.scopeProfile.wordCount} words; ${params.scopeProfile.chunkCount} chunk(s); ${params.scopeProfile.scorableCount}/13 criteria non-NA for this scope).` : ""}${ledgerSection}
