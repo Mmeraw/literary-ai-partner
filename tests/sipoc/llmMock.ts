@@ -135,6 +135,7 @@ function genericCriterion(key: CriterionKey): SynthesizedCriterion {
         mechanism: "",
         specific_fix: "",
         reader_effect: "",
+        symptom: "Test symptom: editorial issue identified at this location requiring revision.",
       },
     ],
   };

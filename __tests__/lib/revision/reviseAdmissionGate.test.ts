@@ -18,6 +18,10 @@ const workbenchBase = {
   anchor: 'He waited by the door.',
   quoteHighlight: 'The hallway was empty.',
   quoteRest: 'She did not answer.',
+  symptom: 'The passage stalls at the door without conveying internal hesitation or rising tension.',
+  cause: 'The prose states the physical action without layering emotional subtext beneath it.',
+  fixDirection: 'Add one beat of interiority — a thought, a physical sensation — that gives the waiting emotional weight.',
+  readerEffect: 'The reader shares the character\u2019s suspended anticipation rather than merely observing an idle moment.',
   options: [
     { key: 'A', candidateText: 'He kept one hand on the doorframe and listened for her answer.' },
     { key: 'B', candidateText: 'He stayed beside the door, counting the seconds until she moved.' },

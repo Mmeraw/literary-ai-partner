@@ -28,6 +28,7 @@ function makeCriterion(key: CriterionKey, score: number): SynthesizedCriterion {
         mechanism: "mechanism",
         specific_fix: "specific_fix",
         reader_effect: "reader_effect",
+        symptom: "Test symptom: craft issue identified at this location.",
       },
     ],
     confidence_level: "moderate",
