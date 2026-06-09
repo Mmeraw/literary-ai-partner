@@ -38,7 +38,7 @@ const SIPOC_STAGES = [
   { id: "renderer", label: "Renderer (Webpage/PDF/DOCX/TXT)", authority: "SIPOC S11" },
 ] as const;
 
-type StageResult = "pass" | "fail" | "skip" | "not_reached" | "retry_pass" | "retry_fail";
+type StageResult = "pass" | "inferred_pass" | "fail" | "skip" | "not_reached" | "retry_pass" | "retry_fail";
 
 interface ForensicStage {
   id: string;
@@ -176,10 +176,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
         }
       } else if (job.status === "failed") {
         // For failed jobs: use artifact evidence + phase highwater mark
+        // These are "inferred_pass" — artifact proves stage ran but we cannot
+        // confirm downstream validation passed (artifact exists ≠ stage fully passed)
         if (artifactReached.has(spec.id)) {
-          result = "pass"; // Artifact proves this stage produced output
+          result = "inferred_pass"; // Artifact proves this stage produced output
         } else if (phaseHighwater >= 0 && specIdx < phaseHighwater) {
-          result = "pass"; // Stage is before the failed phase, so it must have passed
+          result = "inferred_pass"; // Stage is before the failed phase, so it must have run
         }
       }
 

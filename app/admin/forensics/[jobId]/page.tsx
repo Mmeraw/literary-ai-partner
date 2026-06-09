@@ -8,7 +8,7 @@ import Link from "next/link";
 // Types
 // ---------------------------------------------------------------------------
 
-type StageResult = "pass" | "fail" | "skip" | "not_reached" | "retry_pass" | "retry_fail";
+type StageResult = "pass" | "inferred_pass" | "fail" | "skip" | "not_reached" | "retry_pass" | "retry_fail";
 
 interface ForensicStage {
   id: string;
@@ -74,6 +74,8 @@ function resultBadge(result: StageResult) {
   switch (result) {
     case "pass":
       return "bg-green-50 text-green-900 ring-1 ring-green-200 font-bold";
+    case "inferred_pass":
+      return "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 font-semibold";
     case "fail":
       return "bg-red-50 text-red-900 ring-1 ring-red-200 font-bold";
     case "retry_pass":
@@ -90,6 +92,7 @@ function resultBadge(result: StageResult) {
 function resultLabel(result: StageResult) {
   switch (result) {
     case "pass": return "✓ PASS";
+    case "inferred_pass": return "⊛ INFERRED PASS";
     case "fail": return "✗ FAIL";
     case "retry_pass": return "↻ RETRY → PASS";
     case "retry_fail": return "↻ RETRY → FAIL";
@@ -189,7 +192,7 @@ export default function ForensicViewPage() {
 
   const { job, stages, artifacts, selfCorrection, qualityGateChecks, canonCompliance } = data;
   const failedStages = stages.filter((s) => s.result === "fail" || s.result === "retry_fail");
-  const passedStages = stages.filter((s) => s.result === "pass" || s.result === "retry_pass");
+  const passedStages = stages.filter((s) => s.result === "pass" || s.result === "inferred_pass" || s.result === "retry_pass");
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950 space-y-8">
@@ -269,7 +272,7 @@ export default function ForensicViewPage() {
               className={`px-2 py-1 rounded text-xs ${resultBadge(stage.result)} cursor-pointer hover:opacity-80 transition-opacity`}
               title={`${stage.label}: ${resultLabel(stage.result)}`}
             >
-              {stage.result === "pass" ? "✓" : stage.result === "fail" ? "✗" : stage.result === "retry_pass" ? "↻✓" : stage.result === "retry_fail" ? "↻✗" : "·"}
+              {stage.result === "pass" ? "✓" : stage.result === "inferred_pass" ? "⊛" : stage.result === "fail" ? "✗" : stage.result === "retry_pass" ? "↻✓" : stage.result === "retry_fail" ? "↻✗" : "·"}
             </button>
           ))}
         </div>
