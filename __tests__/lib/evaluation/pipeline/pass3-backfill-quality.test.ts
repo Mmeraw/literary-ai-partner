@@ -344,6 +344,8 @@ describe("Pass 3 backfill quality", () => {
       },
     });
 
+    // Parser preserves raw LLM output — no auto-repair, no governance filtering.
+    // Pipeline (runPass3Synthesis) handles quarantining separately.
     const parsed = parsePass3Response(raw, pass1, pass2, "o3");
     const character = parsed.criteria.find((c) => c.key === "character");
     expect(character).toBeDefined();
@@ -489,6 +491,7 @@ describe("Pass 3 backfill quality", () => {
       },
     });
 
+    // Parser preserves both distinct actions without rewriting or quarantining.
     const repairedA = parsePass3Response(rawA, pass1, pass2, "o3")
       .criteria.find((c) => c.key === "character")?.recommendations?.[0]?.action;
     const repairedB = parsePass3Response(rawB, pass1, pass2, "o3")
@@ -608,6 +611,7 @@ describe("Pass 3 backfill quality", () => {
     const dialogueRec = parsed.criteria.find((c) => c.key === "dialogue")?.recommendations?.[0];
     const pacingRec = parsed.criteria.find((c) => c.key === "pacing")?.recommendations?.[0];
 
+    // Parser preserves raw LLM text — no governance filtering at parse layer.
     expect(characterRec?.action).toBe(
       "In character-driven scenes, deepen character development by adding more personal stakes.",
     );

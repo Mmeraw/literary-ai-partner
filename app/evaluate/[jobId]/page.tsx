@@ -906,8 +906,8 @@ export default async function EvaluationReportPage({
                 className="ml-2 inline-flex items-center rounded-md border border-stone-300 px-2.5 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
               />
             </p>
-            <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)] lg:items-start">
-              <dl className="grid gap-x-12 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="mt-4 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] xl:items-start">
+              <dl className="grid gap-x-16 gap-y-5 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
                 <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
                 <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>

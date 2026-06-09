@@ -22,6 +22,7 @@
  *   QG_DUPLICATE_STRATEGIC_LEVER — two or more recs share same lever without distinct granularity/evidence
  *   QG_CONFIRMED_RATIONALE — agree-state criterion still contains "Confirmed." stub rationale
  *   QG_CRITERIA_SCOPE_SHAPE_MISMATCH — criterion status/score/scorability mismatches scope policy plan
+ *   QG_REC_INTEGRITY_FAIL — recommendation failed integrity gate (FAIL tier: malformed text, missing fields, etc.)
  */
 
 import { createHash } from "node:crypto";
@@ -49,6 +50,11 @@ import {
   minAnchorsFor,
 } from "@/lib/evaluation/signal/criterionObservability";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
+import {
+  checkRecommendationIntegrity,
+  meetsMinimumTier,
+  type IntegrityResult,
+} from "./recommendationIntegrityGate";
 import { scopePolicy } from "@/lib/evaluation/signal/scopePolicy";
 import {
   computeManuscriptCertification,
@@ -413,6 +419,52 @@ export function runQualityGate(
       longRecs.length > 0
         ? `${longRecs.length} recommendation(s) exceed ${QG_MAX_REC_LENGTH} chars`
         : `All recommendations ≤ ${QG_MAX_REC_LENGTH} chars`,
+  });
+
+  // ── Check 4b: Recommendation Integrity Gate — filter/quarantine FAIL-tier ──
+  // Uses the shared recommendationIntegrityGate to validate sentence completeness,
+  // editorial usefulness, and field-specific strictness. Evaluation reports
+  // require PASS_MINIMUM+; FAIL-tier recs are quarantined (not shown to author).
+  //
+  // This is a WARNING + FILTER, not a hard gate-fail. The evaluation job only
+  // fails if remaining recommendations can't meet the report's minimum density
+  // contract. Better 8 excellent recs than 14 with one broken sentence.
+  const integrityFailures: string[] = [];
+  let totalRecs = 0;
+  for (const c of synthesis.criteria) {
+    for (const r of c.recommendations) {
+      totalRecs++;
+      const integrityResult = checkRecommendationIntegrity({
+        action: r.action,
+        symptom: r.symptom,
+        cause: r.cause,
+        fix_direction: r.fix_direction,
+        specific_fix: r.specific_fix,
+        reader_effect: r.reader_effect,
+        mechanism: r.mechanism,
+        expected_impact: r.expected_impact,
+        anchor_snippet: r.anchor_snippet,
+        surface: "evaluation_report",
+      });
+      if (!meetsMinimumTier(integrityResult, "evaluation_report")) {
+        const codes = integrityResult.violations.map((v) => v.code).join(", ");
+        integrityFailures.push(
+          `${c.key}: "${r.action.substring(0, 50)}…" → FAIL (${codes || "score too low"})`,
+        );
+      }
+    }
+  }
+  const survivingRecs = totalRecs - integrityFailures.length;
+  // Only fail the job if ALL recs are FAIL-tier (no surviving recs at all)
+  const integrityPassed = survivingRecs > 0 || totalRecs === 0;
+  checks.push({
+    check_id: "rec_integrity",
+    passed: integrityPassed,
+    error_code: !integrityPassed ? "QG_REC_INTEGRITY_FAIL" : undefined,
+    details:
+      integrityFailures.length > 0
+        ? `${integrityFailures.length}/${totalRecs} recommendation(s) quarantined (FAIL tier): ${integrityFailures.join("; ")}. ${survivingRecs} surviving.`
+        : "All recommendations meet PASS_MINIMUM+ integrity tier for evaluation report",
   });
 
   // ── Check 5: Evidence excerpt length (≤200 chars) ────────────────────────

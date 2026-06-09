@@ -58,10 +58,10 @@ function makeWorkbenchInput(overrides: Partial<WorkbenchAdmissionInput> = {}): W
       { key: 'B', candidateText: 'Israel lay motionless, the hospital gown too bright against his skin\u2019s pallor.' },
       { key: 'C', candidateText: 'I stood at the foot of the bed. The sound of the heart monitor was the only proof he was still here.' },
     ],
-    symptom: 'The passage moves through a traumatic moment without registering the shift in gravity for the reader.',
-    cause: 'Sequential reporting without prose rhythm adjustment or sensory detail to carry emotional weight.',
-    fixDirection: 'Replace a summary sentence with a concrete sensory detail that carries the emotional register shift.',
-    readerEffect: 'The reader\u2019s body registers the gravity of the moment \u2014 the essay earns its emotional claim.',
+    symptom: 'In the hospital-gurney passage, the prose moves through Israel\'s traumatic moment without registering the shift in gravity for the reader.',
+    cause: 'Because the author reports the event sequentially, the scene resolves the consequence of Israel\'s restraint before the reader experiences its weight on the page.',
+    fixDirection: 'After Israel is strapped to the gurney, replace the summary sentence with one sensory beat that forces a decision about whether to keep watching or look away.',
+    readerEffect: 'This lets the reader\'s body register the gravity of the moment \u2014 the essay earns its emotional claim rather than merely stating it.',
     ...overrides,
   };
 }
