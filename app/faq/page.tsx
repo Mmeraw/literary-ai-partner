@@ -132,6 +132,19 @@ const faqSections = [
     ],
   },
   {
+    label: "English Variant",
+    items: [
+      {
+        q: "Why does RevisionGrade ask for an English variant?",
+        a: "RevisionGrade supports American English by default, plus British, Canadian, Australian, South African, and New Zealand English. The selected variant governs all RevisionGrade-generated output: reports, recommendations, revision guidance, Revise Queue content, TrustedPath rewrites, and other editorial text. Manuscript quotations, evidence excerpts, and author-written content are preserved exactly as submitted regardless of the selected variant.",
+      },
+      {
+        q: "Can I change the English variant after an evaluation is generated?",
+        a: "The selected English variant becomes part of the evaluation record and is used throughout all associated outputs for that job. To generate output using a different English convention, create a new evaluation using the desired variant.",
+      },
+    ],
+  },
+  {
     label: "Privacy, security, and author control",
     items: [
       {

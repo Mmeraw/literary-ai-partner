@@ -8,7 +8,7 @@ import {
 import { type SlaeGroundingStatus } from './slae';
 import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
-import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
+import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
 import {
   hydrateLedgerCandidates,
   HYDRATION_MODEL,
@@ -2351,6 +2351,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     candidate_generation_status: candidateGenerationStatus,
     mode_contract: modeContractForMetadata(modeContract),
     genre_expectation_context: genreExpectationContext,
+    resolved_english_variant: resolvedEnglishVariantLabel(selectedEnglishVariant),
     revise_queue_preflight: {
       version: REVISE_QUEUE_PREFLIGHT_GATE_VERSION,
       context_quality: contextQualityDecision.status,

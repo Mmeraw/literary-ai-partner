@@ -982,13 +982,14 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                     onChange={(e) => setEnglishVariant(e.target.value)}
                     className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-2 text-base text-stone-950 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
-                    <option value="us">US English</option>
-                    <option value="uk">UK English</option>
+                    <option value="us">American English (Default)</option>
+                    <option value="uk">British English</option>
                     <option value="ca">Canadian English</option>
                     <option value="au">Australian English</option>
                     <option value="za">South African English</option>
                     <option value="nz">New Zealand English</option>
                   </select>
+                  <p className="mt-2 text-xs text-stone-500">Controls RevisionGrade-generated analysis, recommendations, revision guidance, and report text. Manuscript text, quotations, and evidence excerpts are preserved exactly as submitted.</p>
                 </div>
 
                 <div className="rounded-xl border border-stone-300 p-4">

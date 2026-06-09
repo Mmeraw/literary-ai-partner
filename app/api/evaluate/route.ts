@@ -12,7 +12,7 @@ import { computeEnrichment } from '@/lib/evaluation/enrichment/computeEnrichment
 import { routeNarrativeEvaluationPreflight } from '@/lib/evaluation/preflight/manuscriptTypeRouting';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
-import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
+import { normalizeEnglishVariant, englishVariantLabel } from '@/lib/evaluation/englishVariant';
 import {
   normalizeEvaluationMode,
   normalizeVoicePreservationMode,
@@ -505,6 +505,8 @@ export async function POST(req: Request) {
           policy_family: data.policy_family,
           voice_preservation_level: data.voice_preservation_level,
           english_variant: data.english_variant,
+          requested_english_variant: body?.english_variant ?? null,
+          resolved_english_variant: englishVariantLabel(selectedEnglishVariant),
         },
       },
       { status: 200 }

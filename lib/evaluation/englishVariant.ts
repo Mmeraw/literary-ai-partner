@@ -23,6 +23,12 @@ export function englishVariantLabel(value: unknown): string {
   return ENGLISH_VARIANT_LABELS[normalizeEnglishVariant(value)];
 }
 
+/**
+ * Alias for `englishVariantLabel`. Returns the human-readable label for a variant code.
+ * Used to populate `resolved_english_variant` audit fields in evaluation and revision artifacts.
+ */
+export const resolvedEnglishVariantLabel = englishVariantLabel;
+
 export function buildEnglishVariantPromptBlock(value: unknown): string {
   const label = englishVariantLabel(value);
 
