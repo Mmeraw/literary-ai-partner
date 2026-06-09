@@ -66,7 +66,7 @@ async function getJob(jobId: string): Promise<EvaluationJob | null> {
   const supabase = createAdminClient();
   const { data: job } = await supabase
     .from("evaluation_jobs")
-    .select("id, user_id, manuscript_id, status, last_error, failure_code, submitted_author_name, submitted_project_title, manuscripts(user_id,title)")
+    .select("id, user_id, manuscript_id, status, last_error, failure_code, manuscripts(user_id,title)")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -120,7 +120,7 @@ export default async function EvaluationReportPage({ params }: PageProps) {
             </p>
 
             <div className="mt-4 grid gap-12 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] xl:grid-cols-[minmax(0,1fr)_minmax(360px,400px)] xl:items-start">
-              <dl className="grid gap-x-16 gap-x-24 gap-y-5 gap-y-6 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              <dl className="grid gap-x-16 gap-y-5 gap-x-24 gap-y-6 text-sm sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
                 <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
                 <HeaderField label="Report Type" value="Short-Form Evaluation" />
