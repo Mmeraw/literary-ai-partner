@@ -530,6 +530,9 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
     expect(supabase.rpcCalls).toHaveLength(1);
 
     const persistedArtifact = supabase.rpcCalls[0].payload.p_artifact_content as EvaluationResultV2;
+    const persistedProgress = supabase.rpcCalls[0].payload.p_progress as Record<string, unknown>;
+    const gateEnforcement = (persistedProgress.gate_enforcement ?? {}) as Record<string, unknown>;
+    const persistenceSanitizer = (gateEnforcement.persistence_sanitizer ?? {}) as Record<string, unknown>;
     const asText = JSON.stringify(persistedArtifact).toLowerCase();
 
     expect(asText).not.toContain("safe injection sites");
@@ -539,5 +542,9 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
 
     const parity = validateDownloadParity(persistedArtifact as unknown as Record<string, unknown>);
     expect(parity.pass).toBe(true);
+    expect(typeof persistenceSanitizer.replacements_total).toBe("number");
+    expect((persistenceSanitizer.replacements_total as number)).toBeGreaterThan(0);
+    expect(typeof persistenceSanitizer.touched_fields).toBe("number");
+    expect((persistenceSanitizer.touched_fields as number)).toBeGreaterThan(0);
   });
 });
