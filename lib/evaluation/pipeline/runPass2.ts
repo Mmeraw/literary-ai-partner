@@ -333,13 +333,28 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
     // Merge rationales (use first)
     const firstRationale = criteriaForKey[0]?.rationale || "";
 
+    // Merge recommendations from all chunks, deduplicate by anchor_snippet.
+    // Previously hardcoded to [] — this caused pass12_handoff_v1 to lose all
+    // Pass 2 recommendations (and their candidate_text_a/b/c prose).
+    const mergedRecs: AxisCriterionResult["recommendations"] = [];
+    const seenAnchors = new Set<string>();
+    for (const crit of criteriaForKey) {
+      for (const rec of crit.recommendations) {
+        const anchorKey = (rec.anchor_snippet ?? "").trim().toLowerCase();
+        if (anchorKey && !seenAnchors.has(anchorKey)) {
+          mergedRecs.push(rec);
+          seenAnchors.add(anchorKey);
+        }
+      }
+    }
+
     aggregatedCriteria.push({
       key,
       // PR-D: canonical floor is 1, never 0
       score_0_10: Math.min(10, Math.max(1, avgScore)),
       rationale: firstRationale,
       evidence: mergedEvidence,
-      recommendations: [],
+      recommendations: mergedRecs,
     });
   }
 
