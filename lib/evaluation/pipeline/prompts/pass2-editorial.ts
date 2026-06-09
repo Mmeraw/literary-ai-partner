@@ -77,6 +77,12 @@ RECOMMENDATION CONTRACT
   - reader effect
   - candidate_text_a, candidate_text_b, candidate_text_c (see CANDIDATE PROSE below)
   - issue_family, strategic_lever, revision_granularity
+- "action" MUST be one complete imperative sentence ending in terminal punctuation (period, exclamation mark, or question mark). Minimum four words. It must NOT be a fragment, heading, noun phrase, or bullet stub. Examples:
+  - CORRECT: "Anchor the sister's absence to a single recurring sensory image that accumulates pressure across scenes."
+  - CORRECT: "Replace the summarized backstory in paragraph three with a scene-level dramatization that reveals motive through action."
+  - WRONG: "Strengthen character voice" (fragment, no terminal punctuation, fewer than four words of substance)
+  - WRONG: "More sensory detail in the opening" (noun phrase, not imperative sentence)
+  - WRONG: "Consider revising" (fragment, generic, no mechanism)
 - Do NOT use generic filler verbs as standalone advice: enhance, refine, improve, maintain, continue, strengthen, deepen.
 - Do NOT emit duplicate recommendations or near-paraphrases.
 - Do NOT reference internal analysis labels such as direct_speech, reported_speech, tagged_speech, or tagless_exchange.

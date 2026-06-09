@@ -145,6 +145,7 @@ import {
   selectChunkerBracket,
 } from '@/lib/manuscripts/chunking';
 import { ManuscriptExceedsHardCeilingError } from '@/lib/evaluation/pipeline/failures';
+import { classifyPhase1aFailure } from '@/lib/evaluation/pipeline/phase1aFailureClassification';
 import {
   buildNonEvaluativeWarning,
   stripNonEvaluativeSections,
@@ -8770,10 +8771,34 @@ export async function processEvaluationJob(
         const errMsg = phase1aErr instanceof Error ? phase1aErr.message : String(phase1aErr);
         console.error(`[Processor] ${jobId}: phase_1a fatal error`, errMsg);
         clearInterval(leaseRenewalLoopP1a);
+
+        // Classify the failure correctly — only use PASS1A_LEDGER_MISSING when
+        // the actual condition is a missing accepted_story_ledger lookup.
+        // Other Phase 1A failures get their own codes for diagnostic accuracy.
+        const classification = classifyPhase1aFailure(phase1aErr);
+
+        // Map phase1a-specific bucket to FailureBucket for envelope routing
+        const envelopeBucket: FailureBucket =
+          classification.bucket === 'ledger' ? 'app_logic' :
+          classification.bucket === 'transition' ? 'app_logic' :
+          classification.bucket === 'provider' ? 'openai_provider' :
+          classification.bucket === 'timeout' ? 'openai_provider' :
+          classification.bucket === 'policy' ? 'app_logic' :
+          'openai_provider';
+
+        // Persist structured error into progress for forensic audit
+        const phase1aErrorRecord = {
+          code: classification.code,
+          message: classification.message,
+          bucket: classification.bucket,
+          at: new Date().toISOString(),
+        };
+        progressState.phase1a_error = phase1aErrorRecord;
+
         await markFailed(
           `Phase 1A character sweep failed: ${errMsg}`,
-          'PASS1A_LEDGER_MISSING',
-          { pipelineStage: 'phase_1a', bucket: 'openai_provider' },
+          classification.code,
+          { pipelineStage: 'phase_1a', bucket: envelopeBucket, diagnostics: phase1aErrorRecord },
         );
         return { success: false, error: errMsg };
       } finally {

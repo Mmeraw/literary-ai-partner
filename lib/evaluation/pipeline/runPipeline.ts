@@ -131,6 +131,7 @@ import {
 import { getConfiguredChunkCap } from "./chunkCap";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 import { resolvedEnglishVariantLabel } from "@/lib/evaluation/englishVariant";
+import { classifyPhase1aFailure } from "./phase1aFailureClassification";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the chunked path MUST engage — see runPipeline guard below.
@@ -1483,19 +1484,21 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         manuscript_id: opts.manuscriptId ?? null,
         error: reason,
       });
+      // Classify the failure — only use PASS1A_LEDGER_MISSING for actual ledger issues.
+      const { code: errorCode } = classifyPhase1aFailure(reason);
       timings.total_ms = nowMs() - pipelineStartMs;
       logPipelineTimings("failure", {
         manuscriptId: opts.manuscriptId,
         title: opts.title,
         workType: opts.workType,
         failedAt: "pass1",
-        errorCode: "PASS1A_LEDGER_MISSING",
+        errorCode,
         timings,
       });
       return {
         ok: false,
         error: `Pass 1A character sweep failed — ${reason}`,
-        error_code: "PASS1A_LEDGER_MISSING",
+        error_code: errorCode,
         failed_at: "pass1",
       };
     }
