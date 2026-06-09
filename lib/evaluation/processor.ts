@@ -154,6 +154,7 @@ import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipel
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
 import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
+import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { buildSeedConsistencyReport } from '@/lib/evaluation/seed/seedConsistencyReport';
 import {
@@ -163,7 +164,7 @@ import {
   computeSeedDriftScore,
   type SeedValidationPassAResult,
 } from '@/lib/evaluation/seed/twoPassSeedValidation';
-import { writePhase1aReviewGateArtifacts } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
+import { writePhase1aReviewGateArtifacts, extractStoryLayers } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import { buildReviewGateHandoff } from '@/lib/evaluation/phase-architecture-v2/reviewGateHandoff';
 import { STORY_LEDGER_APPROVAL_ENABLED } from '@/lib/evaluation/reviewGate/containmentMode';
 import {
@@ -2121,9 +2122,14 @@ async function autoAcceptStoryLedgerKickForward(
   }
 
   const storyLayerContent = isRecord(storyLayerRow.content) ? storyLayerRow.content : {};
-  const layers = isRecord(storyLayerContent.layers)
-    ? (storyLayerContent.layers as Record<string, unknown>)
-    : {};
+  const layerExtraction = extractStoryLayers(storyLayerContent);
+  if (layerExtraction.ok === false) {
+    throw new Error(
+      `KICK_FORWARD_FAILED: Cannot extract story layers — ${layerExtraction.reason}. ` +
+      `This means the story layer artifact is structurally invalid.`
+    );
+  }
+  const layers = layerExtraction.layers;
   const storyLayerSourceHash = (storyLayerRow as { source_hash?: string }).source_hash ?? '';
 
   // Assess corruption
@@ -6280,11 +6286,118 @@ export async function processEvaluationJob(
             canonErr instanceof Error ? canonErr.message : String(canonErr));
         }
 
-        // WAVE outcome never blocks job completion — mark complete regardless.
+        // ── Finalization Quality Guard ──────────────────────────────────
+        // Before marking complete, verify the evaluation deliverable is usable.
+        // Any quality violation → status = quality_issue_detected, not complete.
         clearInterval(leaseRenewalLoopP3);
+        const phase3Now = new Date().toISOString();
+        const qualityViolations: Array<{ code: string; detail: string }> = [];
+
+        // Load eval result for quality inspection
+        const { data: finalEvalRow } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', String(job.id))
+          .eq('artifact_type', 'evaluation_result_v2')
+          .maybeSingle();
+
+        const finalCriteria = Array.isArray(finalEvalRow?.content?.criteria)
+          ? (finalEvalRow.content.criteria as Array<{
+              key?: string;
+              recommendations?: Array<{ action?: string; quarantined?: boolean }>;
+            }>)
+          : [];
+
+        // QUALITY_ACCEPTED_LEDGER_EMPTY: check accepted ledger layers
+        const { data: finalAcceptedLedger } = await supabase
+          .from('evaluation_artifacts')
+          .select('content')
+          .eq('job_id', String(job.id))
+          .eq('artifact_type', 'accepted_story_ledger_v1')
+          .maybeSingle();
+
+        if (finalAcceptedLedger?.content) {
+          const acceptedContent = finalAcceptedLedger.content as Record<string, unknown>;
+          const acceptedLayers = acceptedContent.layers;
+          if (!acceptedLayers || (typeof acceptedLayers === 'object' && Object.keys(acceptedLayers as Record<string, unknown>).length === 0)) {
+            qualityViolations.push({
+              code: 'QUALITY_ACCEPTED_LEDGER_EMPTY',
+              detail: 'accepted_story_ledger_v1.layers is empty — downstream synthesis was starved of story-layer context',
+            });
+          }
+        }
+
+        // Count author-facing (non-quarantined) recommendations
+        const allRecs = finalCriteria.flatMap((c) => c.recommendations ?? []);
+        const authorFacingRecs = allRecs.filter((r) => !r.quarantined);
+        const quarantinedRecs = allRecs.filter((r) => r.quarantined);
+
+        // QUALITY_ZERO_AUTHOR_RECOMMENDATIONS
+        if (allRecs.length === 0 || authorFacingRecs.length === 0) {
+          qualityViolations.push({
+            code: 'QUALITY_ZERO_AUTHOR_RECOMMENDATIONS',
+            detail: `total_recs=${allRecs.length}, author_facing=${authorFacingRecs.length} — no usable recommendations in deliverable`,
+          });
+        }
+
+        // QUALITY_ALL_RECS_QUARANTINED
+        if (allRecs.length > 0 && quarantinedRecs.length === allRecs.length) {
+          qualityViolations.push({
+            code: 'QUALITY_ALL_RECS_QUARANTINED',
+            detail: `all ${allRecs.length} recommendations quarantined by integrity gate`,
+          });
+        }
+
+        // QUALITY_DENSITY_UNMET: check if any criterion that should have recs has zero
+        const criteriaWithZeroRecs = finalCriteria.filter(
+          (c) => (c.recommendations ?? []).length === 0,
+        );
+        if (criteriaWithZeroRecs.length >= finalCriteria.length && finalCriteria.length > 0) {
+          qualityViolations.push({
+            code: 'QUALITY_DENSITY_UNMET',
+            detail: `${criteriaWithZeroRecs.length}/${finalCriteria.length} criteria have zero recommendations — density floor unmet across the board`,
+          });
+        }
+
+        if (qualityViolations.length > 0) {
+          const violationCodes = qualityViolations.map((v) => v.code).join(', ');
+          const violationDetails = qualityViolations.map((v) => `${v.code}: ${v.detail}`).join('; ');
+          console.error(`[Processor] ${jobId}: FINALIZATION GUARD TRIGGERED — ${violationCodes}`);
+          console.error(`[Processor] ${jobId}: quality violation details: ${violationDetails}`);
+
+          const { error: qualityFailErr } = await supabase
+            .from('evaluation_jobs')
+            .update({
+              status: 'quality_issue_detected',
+              phase: 'phase_3',
+              phase_status: 'quality_issue_detected',
+              completed_at: phase3Now,
+              updated_at: phase3Now,
+              phase3_completed_at: phase3Now,
+              progress: {
+                ...progressState,
+                ...buildPhaseLogPatch(progressState, 'phase_3', 'quality_issue_detected', phase3Now),
+                completed_units: 100,
+                phase: 'phase_3',
+                phase_status: 'quality_issue_detected',
+                message: `Finalization blocked: ${violationCodes}`,
+                quality_violations: qualityViolations,
+                phase3_completed_at: phase3Now,
+              },
+            })
+            .eq('id', job.id)
+            .eq('status', JOB_STATUS.RUNNING);
+
+          if (qualityFailErr) {
+            console.error(`[Processor] ${jobId}: quality_issue_detected update failed`, qualityFailErr.message);
+          }
+
+          return { success: false, error: `FINALIZATION_GUARD: ${violationCodes}` };
+        }
+
+        // All quality checks passed — mark complete.
         console.log(`[Processor] ${jobId}: phase_3 WAVE complete — marking job complete`);
         nextLifecycleStatus(JOB_STATUS.COMPLETE);
-        const phase3Now = new Date().toISOString();
         const { error: phase3CompleteErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -8199,10 +8312,33 @@ export async function processEvaluationJob(
         // (technical, content hard-fail, or any other).
         if (!requireUserFacingReviewGate && (reviewGateHandoffResult.ok || shortFormTechnicalBlockBypass || shortFormContentBlockBypass)) {
           const autoApprovalAt = new Date().toISOString();
-          const sourceLayers =
-            storyLayerPayload && typeof storyLayerPayload === 'object' && 'layers' in storyLayerPayload
-              ? ((storyLayerPayload as { layers?: Record<string, Record<string, unknown>> }).layers ?? {})
-              : {};
+          // FIX (PR #890 regression): Use shared extractStoryLayers() helper
+          // that handles both the flat shape (from buildStoryLayerFromLedger())
+          // and the wrapped shape (from persisted artifacts).  Previous code
+          // checked for `.layers` on the flat payload which never existed →
+          // persisted `layers: {}` for every short-form eval since June 1.
+          const layerExtraction = extractStoryLayers(storyLayerPayload);
+
+          if (layerExtraction.ok === false) {
+            const msg =
+              `QUALITY_ACCEPTED_LEDGER_EMPTY: ${layerExtraction.reason}. ` +
+              `Cannot produce meaningful evaluation without story-layer context.`;
+            console.error(`[phase_1a] ${jobId}: ${msg}`);
+            await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_EMPTY', { pipelineStage: 'phase_1a' });
+            return { success: false, error: msg };
+          }
+
+          const sourceLayers = layerExtraction.layers;
+          const sourceLayerKeyCount = Object.keys(sourceLayers).length;
+          const canonicalLayerKeyCount = STORY_LAYER_KEYS.filter(
+            (k) => k in sourceLayers && sourceLayers[k] && typeof sourceLayers[k] === 'object',
+          ).length;
+
+          console.log(
+            `[phase_1a] ${jobId}: short-form auto-approval — ` +
+            `source_layer_count=${sourceLayerKeyCount}, canonical_layer_count=${canonicalLayerKeyCount}/9, ` +
+            `extraction_shape=${layerExtraction.shape}`,
+          );
 
           // Extract blocked progress safely — inside this branch the result may
           // be ok=true (gate passed) OR ok=false (bypass path).  Use a local
@@ -8263,6 +8399,12 @@ export async function processEvaluationJob(
               .digest('hex'),
             generated_at: autoApprovalAt,
             layers: sourceLayers,
+            layer_audit: {
+              source_layer_count: sourceLayerKeyCount,
+              accepted_layer_count: canonicalLayerKeyCount,
+              missing_layer_keys: layerExtraction.missing_keys,
+              extraction_shape: layerExtraction.shape,
+            },
             governance_rail: {
               approval_state: 'accepted',
               approved_by: 'system:auto_short_form_policy',

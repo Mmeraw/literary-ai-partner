@@ -23,7 +23,7 @@
  *   phase_3      → phase3_started_at      / phase3_completed_at
  */
 
-export type PhaseLogEvent = "entered" | "passed" | "failed" | "containment_bypass" | "phase_0_5a_enhanced_started" | "phase_0_5a_enhanced_completed" | "phase_0_5a_enhanced_failed" | "kick_forward_auto_accepted";
+export type PhaseLogEvent = "entered" | "passed" | "failed" | "containment_bypass" | "phase_0_5a_enhanced_started" | "phase_0_5a_enhanced_completed" | "phase_0_5a_enhanced_failed" | "kick_forward_auto_accepted" | "quality_issue_detected";
 
 export interface PhaseLogEntry {
   stage: string;
