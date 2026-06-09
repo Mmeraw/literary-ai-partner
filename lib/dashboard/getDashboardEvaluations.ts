@@ -186,11 +186,11 @@ export async function getDashboardEvaluations(
 
       for (const art of (artifacts ?? []) as Array<{ job_id: string; content: Record<string, unknown> }>) {
         const c = art.content ?? {}
-        const overallRaw = c.overall_score
-        const readinessRaw = c.readiness_score
-        const overall = typeof overallRaw === 'number' ? overallRaw : null
-        const readiness = typeof readinessRaw === 'number' ? readinessRaw : null
-        scoresByJobId[art.job_id] = { overall, readiness }
+        const overview = c.overview as Record<string, unknown> | undefined
+        const raw0_100 = overview?.overall_score_0_100
+        const overall0_10 = typeof raw0_100 === 'number' ? raw0_100 / 10 : null
+        // No separate readiness field in the schema — derive from overall
+        scoresByJobId[art.job_id] = { overall: overall0_10, readiness: overall0_10 }
       }
     }
 
@@ -228,14 +228,34 @@ export async function getDashboardEvaluations(
       })
     }
 
+    // Suppress failed evaluations that have a newer completed evaluation for
+    // the same manuscript — users don't need to see superseded retry failures.
+    const latestCompleteByManuscript = new Map<string, number>()
+    for (const r of rows) {
+      if (r.status !== 'failed' && r.status !== 'stale' && r.status !== 'cancelled') {
+        const ts = new Date(r.createdAt).getTime()
+        const existing = latestCompleteByManuscript.get(r.manuscriptId)
+        if (!existing || ts > existing) {
+          latestCompleteByManuscript.set(r.manuscriptId, ts)
+        }
+      }
+    }
+    const filteredRows = rows.filter((r) => {
+      if (r.status !== 'failed') return true
+      const successTs = latestCompleteByManuscript.get(r.manuscriptId)
+      if (!successTs) return true // No success for this manuscript — show the failure
+      const failTs = new Date(r.createdAt).getTime()
+      return failTs > successTs // Only show failures AFTER the latest success
+    })
+
     const reviseAnalytics = await computeReviseAnalyticsForDashboard({
       supabase,
       userId: user.id,
       jobIds,
-      latestEvaluationJobId: rows[0]?.jobId ?? null,
+      latestEvaluationJobId: filteredRows[0]?.jobId ?? null,
     })
 
-    return { rows, reviseAnalytics, error: null }
+    return { rows: filteredRows, reviseAnalytics, error: null }
   } catch (err) {
     return { rows: [], reviseAnalytics: emptyReviseAnalytics(), error: err instanceof Error ? err : new Error(String(err)) }
   }
@@ -452,11 +472,11 @@ export function statusFromScores(
   overall: number | null,
   readiness: number | null,
 ): DashboardEvaluationStatus {
-  // If no scores are available, the evaluation completed but results
-  // haven't been scored yet — do not label it "below standard."
-  if (overall === null && readiness === null) return 'below_standard'
+  // If no scores are available, the evaluation completed but the artifact
+  // may be missing or the score field was null (zero scorable criteria).
+  if (overall === null && readiness === null) return 'improving'
   const top = Math.max(overall ?? 0, readiness ?? 0)
-  if (top >= 9.0) return 'market_ready'
+  if (top >= 8.0) return 'market_ready'
   if (top >= 6.0) return 'near_ready'
   return 'below_standard'
 }

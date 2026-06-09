@@ -119,15 +119,17 @@ export async function getDashboardAnalytics(
     const content = artifactByJob.get(job.id)
     if (!content) continue
 
-    const overall = typeof content.overall_score === 'number' ? content.overall_score : null
-    const readiness = typeof content.readiness_score === 'number' ? content.readiness_score : null
+    const overview = content.overview as Record<string, unknown> | undefined
+    const raw0_100 = overview?.overall_score_0_100
+    const overall = typeof raw0_100 === 'number' ? raw0_100 / 10 : null
+    const readiness = overall // No separate readiness field in the schema
 
     const criterionScores: Partial<Record<CriterionKey, number>> = {}
-    const criteria = content.criteria as Array<{ key: string; final_score_0_10: number }> | undefined
+    const criteria = content.criteria as Array<{ key: string; score_0_10: number | null }> | undefined
     if (Array.isArray(criteria)) {
       for (const c of criteria) {
-        if (typeof c.final_score_0_10 === 'number') {
-          criterionScores[c.key as CriterionKey] = c.final_score_0_10
+        if (typeof c.score_0_10 === 'number') {
+          criterionScores[c.key as CriterionKey] = c.score_0_10
         }
       }
     }
