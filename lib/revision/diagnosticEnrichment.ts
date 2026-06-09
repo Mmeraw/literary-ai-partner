@@ -166,6 +166,12 @@ function isValidDiagnosticField(value: unknown): value is string {
     /the author (should|could|might) consider/i,
     /consider (revising|restructuring|rewriting)/i,
     /^(revise|rewrite|restructure|improve)\s/i,
+    // Stress-test-discovered patterns (adversarial meta-phrases)
+    /it would be beneficial to/i,
+    /^a revision here (could|would|should)/i,
+    /one might (improve|revise|restructure|rewrite)/i,
+    /an? opportunity exists to/i,
+    /would be more effective (with|if)/i,
   ];
 
   return !CONTAMINATION_PATTERNS.some((p) => p.test(trimmed));
