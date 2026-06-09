@@ -83,7 +83,7 @@ uncertainty_flags[]
 This PR must not:
 
 - treat the seed as verified story truth
-- create `accepted_story_context_v1`
+- create `accepted_story_ledger_v1`
 - skip Phase 1A verification
 - skip Pass 3A normalization
 - skip Semantic Gate

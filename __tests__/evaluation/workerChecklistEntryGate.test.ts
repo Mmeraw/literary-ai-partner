@@ -52,7 +52,7 @@ describe('worker checklist entry gate', () => {
     expect(block).toBeNull();
   });
 
-  it('blocks phase_2 without accepted_story_context_v1', () => {
+  it('blocks phase_2 without accepted_story_ledger_v1', () => {
     const block = evaluateWorkerChecklistEntry({
       candidate: candidate('phase_2'),
       artifacts: [],
@@ -60,13 +60,13 @@ describe('worker checklist entry gate', () => {
 
     expect(block).not.toBeNull();
     expect(block?.phase).toBe('phase_2');
-    expect(block?.reason).toContain('accepted_story_context_v1');
+    expect(block?.reason).toContain('accepted_story_ledger_v1');
   });
 
-  it('allows phase_2 when accepted_story_context_v1 is usable', () => {
+  it('allows phase_2 when accepted_story_ledger_v1 is usable', () => {
     const block = evaluateWorkerChecklistEntry({
       candidate: candidate('phase_2'),
-      artifacts: [artifact('accepted_story_context_v1')],
+      artifacts: [artifact('accepted_story_ledger_v1')],
     });
 
     expect(block).toBeNull();

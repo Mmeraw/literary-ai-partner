@@ -12,7 +12,7 @@ Status: CANONICAL — ACTIVE
 Version: 1.0
 Authority: Mike Meraw
 Canon ID: VOL-III-EVAL-PIPELINE-V10
-Last Updated: 2026-03-22
+Last Updated: 2026-06-09
 Source: Summary-Evaluation-Build-Passes-1-3-activity-22-Mar-2026
 
 ---
@@ -31,12 +31,26 @@ The RevisionGrade Evaluation Pipeline is composed of three mandatory passes:
 
 ```
 Original Manuscript
-  → Pass 1 — Structural Evaluation (Deterministic)
-  → Pass 2 — Independent Evaluation (Divergent)
-  → Pass 3 — Convergence (Truth Resolution)
-  → WAVE Revision Engine
-  → Final Chapter Output
+  → Phase 0 — Governance Warmup (calibration proof)
+  → Phase 0.5a — Story Map Seed + Evaluation Seed + Full-Context Story Ledger
+  → Phase 0.5b — Editorial DREAM Seed (non-fatal)
+  → Phase 1A — Chunked Story Layer + Ledger Extraction (Track B)
+     + Pass 3A Preflight Scout (Track C, parallel)
+  → Review Gate — story layer + ledger quality + Pass 3A validity
+  → Phase 2 — Pass 1 Structural + Pass 2 Editorial (parallel), then aggregate
+  → Phase 3 — Pass 3 Convergence (Truth Resolution) + Quality Gate
+  → WAVE Revision Engine (eligible long-form only)
+  → Final Report Output
 ```
+
+The canonical pass vocabulary maps to the current runtime phases:
+
+| Volume III Pass | Runtime Phase | Code Entry |
+|----------------|--------------|------------|
+| Pass 1 (Structural) | Phase 2 — `runPass1()` | `runPass1.ts` |
+| Pass 2 (Independent) | Phase 2 — `runPass2()` | `runPass2.ts` |
+| Pass 3 (Convergence) | Phase 3 — `runPass3Synthesis()` | `runPass3Synthesis.ts` |
+| Pass 4 (Quality Gate) | Phase 3 — `runQualityGateV2()` | `runPipeline.ts` |
 
 No stage may be skipped. No stage may be merged. No stage may be bypassed.
 
@@ -134,19 +148,47 @@ WAVE must not:
 
 ## 8. Final Pipeline State Model
 
-### States
+### States (runtime phase model)
 ```
-DRAFT → PASS_1_COMPLETE → PASS_2_COMPLETE → CONVERGED → WAVE_ELIGIBLE → WAVE_EXECUTED → REVISED_OUTPUT → VALIDATED
+queued → phase_0 → phase_1a (includes seed gen + chunk extraction + Pass 3A + review gate)
+  → phase_2 (Pass 1 + Pass 2 parallel, aggregate to pass12_handoff_v1)
+    → phase_3 (synthesis + quality gate + WAVE + persist evaluation_result_v2)
+      → complete
+```
+
+Logical pass progression within these phases:
+```
+DRAFT → SEEDS_GENERATED → STORY_LAYER_BUILT → REVIEW_GATE_PASSED
+  → PASS_1_COMPLETE + PASS_2_COMPLETE → CONVERGED → QUALITY_GATE_PASSED
+    → WAVE_ELIGIBLE → WAVE_EXECUTED → COMPLETE
 ```
 
 No transitions may be skipped. No states may be bypassed.
 
 ### Failure States
-- STRUCTURAL_FAILURE: blocks Pass II and WAVE
+- STRUCTURAL_FAILURE: blocks Pass 2 and WAVE
 - INDEPENDENCE_FAILURE: blocks convergence
 - CONVERGENCE_FAILURE: blocks WAVE
 - WAVE_VIOLATION: invalidates revision
 - VALIDATION_FAILURE: output rejected
+- QG_FAILED: quality gate blocks completion
+
+### Key Artifacts (runtime names)
+
+| Phase | Artifact | Purpose |
+|-------|----------|--------|
+| Phase 0.5a | `story_map_seed_v1`, `evaluation_seed_v1` | Seed-guided extraction claims |
+| Phase 0.5a | `full_context_story_ledger_v1` | 9-layer deep story ledger |
+| Phase 0.5b | `editorial_dream_seed_v1` | Early editorial assessment |
+| Phase 1A | `pass1a_chunk_cache_v1`, `pass1a_character_ledger_v1` | Per-chunk extraction + merged ledger |
+| Phase 1A | `pass1a_story_layer_v1`, `ledger_quality_report_v1` | Story layer + quality assessment |
+| Phase 1A | `seed_contradiction_report_v1` | Seed consistency check |
+| Pass 3A | `pass3_preflight_draft_v1` | Independent full-manuscript preflight |
+| Review Gate | `accepted_story_ledger_v1` | Story layer accepted for Phase 2 |
+| Phase 2 | `pass1_chunk_cache_v1`, `pass2_chunk_cache_v1` | Per-chunk structural + editorial results |
+| Phase 2 | `pass12_handoff_v1` | Aggregated handoff to Phase 3 |
+| Phase 3 | `evaluation_result_v2` | Final normalized evaluation result |
+| WAVE | `revision_opportunity_ledger_v1` | Revision opportunities (eligible long-form) |
 
 ---
 

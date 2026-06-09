@@ -28,7 +28,7 @@ describe('checklist publication gate', () => {
     const decision = decideChecklistPublication({
       phaseId: 'phase_2',
       inputArtifacts: {
-        accepted_story_context_v1: valid('accepted_story_context_v1'),
+        accepted_story_ledger_v1: valid('accepted_story_ledger_v1'),
       },
       outputArtifact: {
         ...valid('pass12_handoff_v1'),
@@ -46,7 +46,7 @@ describe('checklist publication gate', () => {
     const decision = decideChecklistPublication({
       phaseId: 'phase_2',
       inputArtifacts: {
-        accepted_story_context_v1: valid('accepted_story_context_v1'),
+        accepted_story_ledger_v1: valid('accepted_story_ledger_v1'),
       },
       outputArtifact: valid('pass12_handoff_v1'),
     });

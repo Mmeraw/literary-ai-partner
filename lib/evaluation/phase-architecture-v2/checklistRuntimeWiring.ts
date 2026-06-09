@@ -117,14 +117,13 @@ export function assertWorkerPhaseEntry(
 }
 
 function targetPhaseForArtifact(artifactType: ChecklistArtifactType | undefined): 'phase_1a' | 'phase_2' | 'phase_3' {
-  if (artifactType === 'pass12_handoff_v1' || artifactType === 'accepted_story_context_v1') {
+  if (artifactType === 'pass12_handoff_v1' || artifactType === 'accepted_story_ledger_v1') {
     return 'phase_2';
   }
 
   if (
     artifactType === 'evaluation_result_v2' ||
-    artifactType === 'llr_recovery_checkpoint_v1' ||
-    artifactType === 'evaluation_synthesis_v1'
+    artifactType === 'revision_opportunity_ledger_v1'
   ) {
     return 'phase_3';
   }

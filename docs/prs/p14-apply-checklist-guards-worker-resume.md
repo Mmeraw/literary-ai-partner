@@ -86,7 +86,7 @@ Audit artifacts may persist for traceability. They must not become usable downst
 - Worker blocks Phase 0.5A without `phase0_authority_proof_v1`.
 - Worker blocks Phase 0.5B without `phase0_authority_proof_v1`.
 - Worker blocks Phase 1A seed verification without `story_map_seed_v1`.
-- Worker blocks Phase 2 without `accepted_story_context_v1` when checklist artifacts are supplied.
+- Worker blocks Phase 2 without `accepted_story_ledger_v1` when checklist artifacts are supplied.
 - Resume selector prefers older valid checkpoint over newer invalid artifact.
 - Resume route writes blocked-resume audit when no valid resume-safe checkpoint exists.
 
