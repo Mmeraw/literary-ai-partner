@@ -181,6 +181,13 @@ export default function DeadLetterQueuePage() {
                     >
                       {job.id.slice(0, 8)}...
                     </Link>
+                    <Link
+                      href={`/admin/forensics/${job.id}`}
+                      className="ml-2 text-amber-700 hover:text-amber-900 font-semibold text-xs"
+                      title="SIPOC Forensic View"
+                    >
+                      forensic
+                    </Link>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {job.manuscript_id}

@@ -1,0 +1,314 @@
+/**
+ * SIPOC Forensic View API
+ *
+ * GET /api/admin/forensics/[jobId]
+ *
+ * Assembles a complete stage-by-stage forensic trace for a single evaluation job.
+ * Data sources:
+ *   - evaluation_jobs: job metadata, progress JSON (timeline, failure envelope)
+ *   - evaluation_artifacts: artifact types and creation timestamps
+ *   - pipeline_logs: structured audit log per stage
+ *
+ * Response shape:
+ *   { job, stages[], artifacts[], logs[], timeline[], canonCompliance[] }
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
+
+export const dynamic = "force-dynamic";
+
+type RouteContext = { params: Promise<{ jobId: string }> };
+
+// Canonical SIPOC stages in execution order
+const SIPOC_STAGES = [
+  { id: "intake", label: "Intake", authority: "SIPOC S01" },
+  { id: "routing_chunking", label: "Routing & Chunking", authority: "SIPOC S02" },
+  { id: "phase_0_5a_seed", label: "Phase 0.5A — Story Map Seed", authority: "SIPOC S03" },
+  { id: "phase_0_5b_seed", label: "Phase 0.5B — Editorial Seed", authority: "SIPOC S04" },
+  { id: "pass1a_validation", label: "Pass 1A — Seed Guard", authority: "SIPOC S05" },
+  { id: "pass1_craft", label: "Pass 1 — Craft Analysis", authority: "SIPOC S06" },
+  { id: "pass1_2_handoff", label: "S06b — Handoff Gate", authority: "SIPOC S06b, Volume III §III.PL5, Doctrine #13" },
+  { id: "pass2_editorial", label: "Pass 2 — Editorial Synthesis", authority: "SIPOC S07" },
+  { id: "pass3_synthesis", label: "Pass 3 — Final Synthesis", authority: "SIPOC S08" },
+  { id: "quality_gate", label: "Quality Gate (Pass 4)", authority: "SIPOC S09, Volume III §III.QG" },
+  { id: "persistence_report", label: "Persistence & Report", authority: "SIPOC S10" },
+  { id: "renderer", label: "Renderer (Webpage/PDF/DOCX/TXT)", authority: "SIPOC S11" },
+] as const;
+
+type StageResult = "pass" | "fail" | "skip" | "not_reached" | "retry_pass" | "retry_fail";
+
+interface ForensicStage {
+  id: string;
+  label: string;
+  authority: string;
+  result: StageResult;
+  duration_ms: number | null;
+  error_code: string | null;
+  error_detail: string | null;
+  retry_attempted: boolean;
+  retry_succeeded: boolean | null;
+  input_summary: string | null;
+  output_summary: string | null;
+  logs: Array<{
+    level: string;
+    message: string;
+    metadata: Record<string, unknown> | null;
+    created_at: string;
+  }>;
+}
+
+export async function GET(req: NextRequest, context: RouteContext) {
+  const actor = getDevHeaderActor(req);
+  if (!actor?.isAdmin) {
+    const denied = await requireAdmin(req);
+    if (denied) return denied;
+  }
+
+  try {
+    const { jobId } = await context.params;
+    const supabase = createAdminClient();
+
+    // Fetch job, artifacts, and pipeline logs in parallel
+    const [jobResult, artifactResult, logResult] = await Promise.all([
+      supabase
+        .from("evaluation_jobs")
+        .select("id,user_id,manuscript_id,job_type,status,phase,phase_status,progress,total_units,completed_units,failed_units,last_error,failure_code,created_at,updated_at,evaluation_result")
+        .eq("id", jobId)
+        .maybeSingle(),
+      supabase
+        .from("evaluation_artifacts")
+        .select("id,job_id,artifact_type,created_at")
+        .eq("job_id", jobId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("pipeline_logs")
+        .select("id,job_id,level,stage,message,metadata,created_at")
+        .eq("job_id", jobId)
+        .order("created_at", { ascending: true }),
+    ]);
+
+    if (jobResult.error) {
+      return NextResponse.json(
+        { ok: false, error: "Failed to fetch job", details: jobResult.error.message },
+        { status: 500 }
+      );
+    }
+    if (!jobResult.data) {
+      return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
+    }
+
+    const job = jobResult.data as Record<string, unknown>;
+    const artifacts = (artifactResult.data ?? []) as Array<{ id: string; artifact_type: string; created_at: string }>;
+    const logs = (logResult.data ?? []) as Array<{
+      id: string;
+      level: string;
+      stage: string | null;
+      message: string;
+      metadata: Record<string, unknown> | null;
+      created_at: string;
+    }>;
+
+    // Extract progress data
+    const progress = (job.progress ?? {}) as Record<string, unknown>;
+    const timeline = (progress.timeline ?? []) as Array<Record<string, unknown>>;
+    const failureEnvelope = (progress.pipeline_failure_envelope ?? {}) as Record<string, unknown>;
+    const failureDiagnostics = (progress.pipeline_failure_diagnostics ?? {}) as Record<string, unknown>;
+    const chunkRouting = (progress.chunk_routing ?? {}) as Record<string, unknown>;
+    const selfCorrection = (progress.self_correction ?? {}) as Record<string, unknown>;
+
+    // Determine which stage failed
+    const failedStageRaw = (failureEnvelope.pipeline_stage ?? failureEnvelope.failed_at ?? job.phase_status ?? "") as string;
+
+    // Build logs index by stage
+    const logsByStage = new Map<string, typeof logs>();
+    for (const log of logs) {
+      const stage = log.stage ?? "unknown";
+      if (!logsByStage.has(stage)) logsByStage.set(stage, []);
+      logsByStage.get(stage)!.push(log);
+    }
+
+    // Build forensic stages
+    const stages: ForensicStage[] = SIPOC_STAGES.map((spec) => {
+      const stageLogs = logsByStage.get(spec.id) ?? [];
+      const hasError = stageLogs.some((l) => l.level === "error");
+      const stageTimeline = timeline.filter(
+        (e) => typeof e.stage === "string" && normalizeStage(e.stage) === spec.id
+      );
+
+      // Determine result
+      let result: StageResult = "not_reached";
+      const isFailedStage = normalizeStage(failedStageRaw) === spec.id;
+
+      if (isFailedStage && job.status === "failed") {
+        // Check for retry
+        const retryEvents = stageTimeline.filter(
+          (e) => typeof e.event === "string" && e.event.includes("retry")
+        );
+        if (retryEvents.length > 0) {
+          const retrySuccess = retryEvents.some(
+            (e) => typeof e.result === "string" && e.result === "success"
+          );
+          result = retrySuccess ? "retry_pass" : "retry_fail";
+        } else {
+          result = "fail";
+        }
+      } else if (stageLogs.length > 0 || stageTimeline.length > 0) {
+        if (hasError) {
+          result = "fail";
+        } else {
+          result = "pass";
+        }
+      } else if (job.status === "complete") {
+        // If job completed, all stages before the final one passed
+        const stageIdx = SIPOC_STAGES.findIndex((s) => s.id === spec.id);
+        const isRendererOrLater = stageIdx >= SIPOC_STAGES.length - 1;
+        if (!isRendererOrLater) {
+          result = "pass"; // Infer pass for completed jobs
+        } else {
+          // Check if renderer artifacts exist
+          const hasWebpage = artifacts.some((a) => a.artifact_type === "evaluation_result_v2");
+          result = hasWebpage ? "pass" : "not_reached";
+        }
+      }
+
+      // Duration from timeline events
+      let durationMs: number | null = null;
+      if (stageTimeline.length >= 2) {
+        const first = new Date(stageTimeline[0].timestamp as string).getTime();
+        const last = new Date(stageTimeline[stageTimeline.length - 1].timestamp as string).getTime();
+        if (!isNaN(first) && !isNaN(last)) {
+          durationMs = last - first;
+        }
+      }
+
+      // Error details
+      const errorCode = isFailedStage ? (failureEnvelope.error_code as string ?? null) : null;
+      const errorDetail = isFailedStage ? (job.last_error as string ?? null) : null;
+
+      // Retry info
+      const retryAttempted = stageTimeline.some(
+        (e) => typeof e.event === "string" && e.event.includes("retry")
+      );
+      const retrySucceeded = retryAttempted
+        ? stageTimeline.some(
+            (e) => typeof e.event === "string" && e.event.includes("retry") && e.result === "success"
+          )
+        : null;
+
+      // Input/output summaries from logs metadata
+      const inputLog = stageLogs.find((l) => l.message.includes("input") || l.message.includes("enter"));
+      const outputLog = stageLogs.find((l) => l.message.includes("output") || l.message.includes("complete"));
+      const inputSummary = inputLog?.metadata ? summarizeMetadata(inputLog.metadata) : null;
+      const outputSummary = outputLog?.metadata ? summarizeMetadata(outputLog.metadata) : null;
+
+      return {
+        id: spec.id,
+        label: spec.label,
+        authority: spec.authority,
+        result,
+        duration_ms: durationMs,
+        error_code: errorCode,
+        error_detail: errorDetail,
+        retry_attempted: retryAttempted,
+        retry_succeeded: retrySucceeded,
+        input_summary: inputSummary,
+        output_summary: outputSummary,
+        logs: stageLogs.map((l) => ({
+          level: l.level,
+          message: l.message,
+          metadata: l.metadata,
+          created_at: l.created_at,
+        })),
+      };
+    });
+
+    // Self-correction summary
+    const selfCorrectionSummary = {
+      attempts: (selfCorrection.attempts ?? 0) as number,
+      successes: (selfCorrection.successes ?? 0) as number,
+      failures: (selfCorrection.failures ?? 0) as number,
+      quarantined: (selfCorrection.quarantined ?? false) as boolean,
+      fail_closed: (selfCorrection.fail_closed ?? false) as boolean,
+      violation_codes: (selfCorrection.violation_codes ?? []) as string[],
+    };
+
+    // Quality gate checks (if available)
+    const qualityGateChecks = (failureDiagnostics.quality_gate_checks ?? []) as Array<Record<string, unknown>>;
+
+    return NextResponse.json({
+      ok: true,
+      job: {
+        id: job.id,
+        manuscript_id: job.manuscript_id,
+        job_type: job.job_type,
+        status: job.status,
+        phase: job.phase,
+        phase_status: job.phase_status,
+        failure_code: job.failure_code,
+        last_error: job.last_error,
+        created_at: job.created_at,
+        updated_at: job.updated_at,
+        word_count: chunkRouting.word_count ?? null,
+        route: chunkRouting.route ?? null,
+        chunks: chunkRouting.chunk_count ?? null,
+      },
+      stages,
+      artifacts: artifacts.map((a) => ({
+        type: a.artifact_type,
+        created_at: a.created_at,
+      })),
+      timeline,
+      selfCorrection: selfCorrectionSummary,
+      qualityGateChecks,
+      canonCompliance: SIPOC_STAGES.map((spec) => ({
+        stage: spec.id,
+        authority: spec.authority,
+        enforced: stages.find((s) => s.id === spec.id)?.result !== "not_reached",
+      })),
+    });
+  } catch (err) {
+    console.error("[Forensic View] Unexpected error:", err);
+    return NextResponse.json(
+      { ok: false, error: "Internal server error", details: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+// --- Helpers ---
+
+function normalizeStage(raw: string): string {
+  const s = raw.toLowerCase().trim();
+  if (s.includes("0.5a") || s.includes("0_5a") || s.includes("story_map_seed")) return "phase_0_5a_seed";
+  if (s.includes("0.5b") || s.includes("0_5b") || s.includes("dream_seed") || s.includes("editorial_seed")) return "phase_0_5b_seed";
+  if (s.includes("1a") || s.includes("seed_guard")) return "pass1a_validation";
+  if (s.includes("handoff") || s.includes("s06b")) return "pass1_2_handoff";
+  if (s.includes("pass1") || s.includes("pass_1") || s.includes("phase_1")) return "pass1_craft";
+  if (s.includes("pass2") || s.includes("pass_2") || s.includes("phase_2")) return "pass2_editorial";
+  if (s.includes("pass3") || s.includes("pass_3") || s.includes("phase_3")) return "pass3_synthesis";
+  if (s.includes("pass4") || s.includes("quality") || s.includes("qg")) return "quality_gate";
+  if (s.includes("persist") || s.includes("report") || s.includes("finali")) return "persistence_report";
+  if (s.includes("render") || s.includes("download")) return "renderer";
+  if (s.includes("routing") || s.includes("chunk")) return "routing_chunking";
+  if (s.includes("intake") || s.includes("submit")) return "intake";
+  return s;
+}
+
+function summarizeMetadata(meta: Record<string, unknown>): string {
+  const parts: string[] = [];
+  if (meta.word_count) parts.push(`${meta.word_count} words`);
+  if (meta.chunk_count) parts.push(`${meta.chunk_count} chunks`);
+  if (meta.criteria_count) parts.push(`${meta.criteria_count} criteria`);
+  if (meta.recommendation_count) parts.push(`${meta.recommendation_count} recs`);
+  if (meta.score) parts.push(`score: ${meta.score}`);
+  if (meta.route) parts.push(`route: ${meta.route}`);
+  if (meta.violations) parts.push(`${meta.violations} violations`);
+  if (parts.length === 0) {
+    const keys = Object.keys(meta).slice(0, 3);
+    return keys.map((k) => `${k}: ${JSON.stringify(meta[k]).slice(0, 30)}`).join(", ");
+  }
+  return parts.join(", ");
+}

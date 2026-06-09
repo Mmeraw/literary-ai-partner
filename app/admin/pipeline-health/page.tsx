@@ -643,6 +643,13 @@ export default function PipelineHealthPage() {
                         >
                           {job.jobId.slice(0, 8)}…
                         </Link>
+                        <Link
+                          href={`/admin/forensics/${job.jobId}`}
+                          className="ml-2 text-amber-300 hover:text-amber-100 text-xs"
+                          title="SIPOC Forensic View"
+                        >
+                          forensic
+                        </Link>
                       </td>
                       <td className="px-3 py-2 text-xs text-stone-200">
                         {job.ownerEmail ?? "—"}
@@ -768,6 +775,13 @@ export default function PipelineHealthPage() {
                         className="text-blue-600 underline"
                       >
                         {job.jobId.slice(0, 8)}…
+                      </Link>
+                      <Link
+                        href={`/admin/forensics/${job.jobId}`}
+                        className="ml-2 text-amber-700 hover:text-amber-900 font-semibold text-xs"
+                        title="SIPOC Forensic View"
+                      >
+                        forensic
                       </Link>
                     </td>
                     <td className="px-3 py-2">
