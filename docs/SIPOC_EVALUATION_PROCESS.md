@@ -61,6 +61,9 @@ Primary required telemetry surfaces:
 8. Stages accept only certified upstream outputs.
 9. Deterministic gates may not be bypassed by heuristic confidence.
 10. Evaluation must consider diagnosed genre, reader promise, dominant craft engine, and author-selected mode/voice contract; it must not penalize genre-appropriate pacing, dialogue density, structure, or voice as generic defects.
+11. No malformed, garbled, or generic recommendation may reach the author. Every LLM-generated text must pass a prose-quality gate before advancing to the next pipeline stage.
+12. Evidence ownership boundary: manuscript quotations (`anchor_snippet`, `evidence_snippets[*].snippet`) are author-owned and must never be sanitized, rewritten, or mutated by any pipeline stage. Only RG-generated editorial text (summaries, rationale, recommendations, quick wins, strategic revisions) may be sanitized.
+13. Every LLM output point must have a deterministic prose-quality gate before its output advances downstream. Gates that check only structure or length are insufficient — sentence completeness and scaffold-residue detection are required.
 
 ## Evaluation Critical Path
 
@@ -68,15 +71,15 @@ Primary required telemetry surfaces:
 
 `Phase 0 Warmup -> Phase 0.5A Story Map Seed -> Phase 0.5B Revise Opportunity Seed -> Seed Completeness Gate -> Intake -> Queue -> Claim -> Routing/Chunking -> Phase 1A (Pass 1 extraction) -> Story Layer Quality Gate -> Review Gate -> Phase 2 (Pass 2 craft diagnosis) -> Phase 3 (Pass 3 synthesis) -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> Renderer -> Revision Opportunity Ledger -> Revise Queue`
 
-### Runtime Spine (S01–S11)
+### Runtime Spine (S01–S12)
 
-`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> Renderer`
+`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
 
 **Highest-risk seam (explicit):**
 
-`Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence`
+`Pass 1/2 Handoff Gate -> Pass 3 -> Recommendation Integrity Gate -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence`
 
-Reason: this seam carries synthesis correctness, normalization semantics, deterministic gate enforcement, and fail-closed persistence guarantees in one boundary chain.
+Reason: this seam carries handoff prose quality, synthesis correctness, recommendation integrity, normalization semantics, deterministic gate enforcement, and fail-closed persistence guarantees in one boundary chain.
 
 **Genre/mode consideration seam (explicit):**
 
@@ -103,7 +106,7 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 | Story Layer Quality Gate | `ADJACENT_SEMANTIC_GATE` | Phase 1A story layer output + benchmarks | Review Gate | Emerging |
 | Review Gate | `ADJACENT_REVIEW_GATE` | Author + quality report + story layers | `S06_PASS2` (Phase 2) | Emerging |
 
-### Runtime Spine Stages (S01–S11)
+### Runtime Spine Stages (S01–S12)
 
 | Stage | Stage ID | Supplier | Customer / Downstream | Certification Status |
 |---|---|---|---|---|
@@ -111,13 +114,15 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 | Queue | `S02_QUEUE` | Jobs API + store | `S03_CLAIM` | Proven |
 | Claim | `S03_CLAIM` | Worker + atomic claim RPC | `S04_ROUTING_CHUNKING` | Proven |
 | Routing / Chunking | `S04_ROUTING_CHUNKING` | Manuscript/chunking services | `S05_PASS1`, `S06_PASS2` | Emerging |
-| Pass 1 | `S05_PASS1` | Pipeline orchestrator + Pass 1 runner | `S07_PASS3` | Partial |
-| Pass 2 | `S06_PASS2` | Pipeline orchestrator + Pass 2 runner | `S07_PASS3` | Partial |
+| Pass 1 | `S05_PASS1` | Pipeline orchestrator + Pass 1 runner | `S06b_HANDOFF_GATE` | Partial |
+| Pass 2 | `S06_PASS2` | Pipeline orchestrator + Pass 2 runner | `S06b_HANDOFF_GATE` | Partial |
+| Pass 1/2 Handoff Gate | `S06b_HANDOFF_GATE` | Pass 1 + Pass 2 structured output | `S07_PASS3` | Emerging |
 | Pass 3 | `S07_PASS3` | Pipeline orchestrator + synthesis runner | `S08_ER2_NORMALIZATION` | High-risk |
 | EvaluationResultV2 normalization | `S08_ER2_NORMALIZATION` | Pipeline adapter / observability normalization | `S09_QUALITYGATEV2` | High-risk |
 | QualityGateV2 | `S09_QUALITYGATEV2` | Deterministic gate engine | `S10_PERSISTENCE` | Partial |
-| Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S11_RENDERER` | Partial |
-| Renderer | `S11_RENDERER` | API read path + UI | End user / admin, `ADJACENT_REVISE` | Emerging |
+| Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S11a_RENDERER_WEBPAGE` | Partial |
+| Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | API read path + React UI | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Partial |
+| Download Pipeline | `S11b_DOWNLOAD_PIPELINE` | Read-time sanitizer + parity gate + format renderers (PDF/DOCX/TXT) | End user (downloaded files) | Emerging |
 
 ### Evaluation → Revise Handoff Stages
 
@@ -130,7 +135,7 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 
 The following stage IDs are canonical runtime certification identifiers and are **immutable** unless superseded by explicit canon-governed revision:
 
-### Runtime Spine (S01–S11)
+### Runtime Spine (S01–S12)
 
 - `S01_INTAKE`
 - `S02_QUEUE`
@@ -138,11 +143,13 @@ The following stage IDs are canonical runtime certification identifiers and are 
 - `S04_ROUTING_CHUNKING`
 - `S05_PASS1`
 - `S06_PASS2`
+- `S06b_HANDOFF_GATE`
 - `S07_PASS3`
 - `S08_ER2_NORMALIZATION`
 - `S09_QUALITYGATEV2`
 - `S10_PERSISTENCE`
-- `S11_RENDERER`
+- `S11a_RENDERER_WEBPAGE`
+- `S11b_DOWNLOAD_PIPELINE`
 
 ### Adjacent / Seeding / Handoff Stages
 
@@ -350,6 +357,7 @@ Governance requirements for identifier changes:
   - Long-form jobs (≥25k words) require operator review for genuine hard-fails
 - **Customer / downstream stage:** `S06_PASS2` (Phase 2)
 - **Gates / invariants:** Phase 2 remains blocked on `accepted_story_ledger_v1` (Review Gate authority). Short-form insufficiency renders as N/A / advisory / warning / insufficient_evidence — not terminal failure. No short-form job requires `accepted_story_ledger_v1`.
+- **Short-form bypass risk (explicit):** When short-form evaluations bypass the Review Gate, the only quality assurance on story layer data comes from the deterministic seed validator. This means short-form evaluations have reduced QA depth on story layers — recommendations derived from story data in short-form mode must be treated with lower confidence. The downstream Handoff Gate (S06b) and Recommendation Integrity Gate (S07) become the primary quality defense for short-form output.
 - **Failure codes:** `REVIEW_GATE_REJECTED`, `REVIEW_GATE_TIMEOUT`
 - **Required telemetry:** review gate decision, time-to-review, layer acceptance rates
 - **Required evidence artifact:** `accepted_story_ledger_v1` with per-layer review decisions
@@ -361,7 +369,7 @@ Governance requirements for identifier changes:
 
 ---
 
-### Runtime Spine Stage Contracts (S01–S11)
+### Runtime Spine Stage Contracts (S01–S12)
 
 ### `S01_INTAKE` — Intake
 
@@ -506,7 +514,7 @@ Governance requirements for identifier changes:
 - **Output acceptance metrics:**
   - output parseable
   - lexical independence guard passes
-- **Customer / downstream stage:** `S07_PASS3`
+- **Customer / downstream stage:** `S06b_HANDOFF_GATE`
 - **Gates / invariants:** pass independence mandatory
 - **Failure codes:** `PASS2_TIMEOUT`, `PASS2_FAILED`, `PASS2_INDEPENDENCE_REWRITE_FAILED`, `QG_INDEPENDENCE_VIOLATION`
 - **Required telemetry:** pass2 timing, independence diagnostics
@@ -516,6 +524,34 @@ Governance requirements for identifier changes:
 - **Runtime refs:** `lib/evaluation/pipeline/runPipeline.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Partial
+
+### `S06b_HANDOFF_GATE` — Pass 1/2 Handoff Gate
+
+- **Supplier:** Pass 1 + Pass 2 structured outputs
+- **Input:** Combined structured artifacts from Pass 1 (story layer extraction, evidence mapping) and Pass 2 (craft diagnosis, recommendation candidates)
+- **Input acceptance metrics:**
+  - Both Pass 1 and Pass 2 artifacts present and parseable
+  - No scaffold residue detected (e.g., `[PLACEHOLDER]`, `TODO:`, `<insert>`)
+  - Sentence completeness: every sentence has subject + verb + terminal punctuation
+  - No broken modal phrases (e.g., `"which More…"`, `"can long stretches…"`)
+  - No generic workshop language (e.g., `"consider adding more detail"` without evidence anchor)
+  - Evidence anchors present: every recommendation references a specific manuscript location
+- **Process / runtime code surface:**
+  - `lib/evaluation/pipeline/pass12HandoffGate.ts` (to be implemented — PR 2)
+- **Output:** Certified Pass 1/2 payload that is safe to feed into synthesis
+- **Output acceptance metrics:**
+  - All input acceptance metrics pass
+  - Handoff payload carries prose quality certification flag
+- **Customer / downstream stage:** `S07_PASS3`
+- **Gates / invariants:** Handoff cannot feed garbage to synthesis. Fail closed if any prose quality check fails.
+- **Failure codes:** `HANDOFF_SCAFFOLD_RESIDUE`, `HANDOFF_INCOMPLETE_SENTENCE`, `HANDOFF_BROKEN_MODAL`, `HANDOFF_GENERIC_LANGUAGE`, `HANDOFF_MISSING_EVIDENCE_ANCHOR`
+- **Required telemetry:** handoff gate pass/fail counts, per-check failure reasons, retry count
+- **Required evidence artifact:** pre-gate payload snapshot + gate diagnostic output
+- **Canon refs:** Volume III pass architecture, Runtime Doctrine #11/#13
+- **Spec refs:** `docs/forensics/SISTER_FORENSIC_PIPELINE_MAP.md` (Stage 5: Pass 1/2 → Pass 3 Handoff)
+- **Runtime refs:** `lib/evaluation/pipeline/runPipeline.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Emerging
 
 ### `S07_PASS3` — Pass 3
 
@@ -527,12 +563,14 @@ Governance requirements for identifier changes:
 - **Process / runtime code surface:**
   - `lib/evaluation/pipeline/runPipeline.ts`
   - `lib/evaluation/pipeline/runPass3Synthesis.ts`
-- **Output:** Synthesis output
+- **Output:** Synthesis output with recommendation integrity certification
 - **Output acceptance metrics:**
   - synthesis object present
   - criteria/recommendation structure survives deterministic checks
+  - **Recommendation Integrity Gate passes:** no FAIL-tier recommendations reach persistence (malformed, garbled, generic, or evidence-free recommendations are quarantined)
+  - Every recommendation has: complete sentences, specific manuscript evidence anchor, actionable language (not generic workshop advice)
 - **Customer / downstream stage:** `S08_ER2_NORMALIZATION`
-- **Gates / invariants:** stages fail closed; no partial success promoted as final
+- **Gates / invariants:** stages fail closed; no partial success promoted as final. No malformed recommendation may reach the author (Runtime Doctrine #11).
 - **Failure codes:** `PASS3_TIMEOUT`, `PASS3_FAILED`
 - **Required telemetry:** pass3 timing + convergence diagnostics
 - **Required evidence artifact:** pass3 output snapshot
@@ -612,7 +650,7 @@ Governance requirements for identifier changes:
 - **Output acceptance metrics:**
   - artifact ID returned
   - terminal status written canonically
-- **Customer / downstream stage:** `S11_RENDERER`
+- **Customer / downstream stage:** `S11a_RENDERER_WEBPAGE`
 - **Gates / invariants:** no artifact persists after failed deterministic gate
 - **Failure codes:** `EVALUATION_ARTIFACT_VALIDATION_FAILED`, `EVALUATION_GATE_REJECTED`
 - **Required telemetry:** persistence gate trace + confidence derivation + reason codes
@@ -623,7 +661,7 @@ Governance requirements for identifier changes:
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Partial
 
-### `S11_RENDERER` — Renderer
+### `S11a_RENDERER_WEBPAGE` — Renderer (Webpage)
 
 - **Supplier:** persisted artifacts and releasable job state
 - **Input:** completed/releasable job + artifact retrieval
@@ -634,18 +672,55 @@ Governance requirements for identifier changes:
   - `app/api/evaluations/[jobId]/route.ts`
   - `app/evaluate/[jobId]/page.tsx`
   - `app/reports/[jobId]/page.tsx`
-- **Output:** user/admin visible evaluation payload
+  - `lib/evaluation/buildUnifiedEvaluationDocument.ts`
+- **Output:** user/admin visible evaluation webpage
 - **Output acceptance metrics:**
   - source identified as artifact or inline fallback
   - no fabricated progress
-- **Customer / downstream stage:** User/admin consumers
-- **Gates / invariants:** UI/API reads persisted state only
+  - scores, recommendations, and sections match canonical artifact
+- **Customer / downstream stage:** End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE`
+- **Gates / invariants:** UI/API reads persisted state only. Webpage must consume the same `UnifiedEvaluationDocument` model as downloads.
 - **Failure codes:** `401`, `404`, `409`, `500`
 - **Required telemetry:** read path access and release decision events
 - **Required evidence artifact:** response payload audit + source marker
 - **Canon refs:** Volume III state model and fail-closed governance
 - **Spec refs:** `docs/JOB_CONTRACT_v1.md`, `docs/NOMENCLATURE_CANON_v1.md`
 - **Runtime refs:** `app/api/evaluations/[jobId]/route.ts`, `app/api/admin/pipeline-health/route.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Partial
+
+### `S11b_DOWNLOAD_PIPELINE` — Download Pipeline (PDF/DOCX/TXT)
+
+- **Supplier:** persisted artifacts (same source as webpage renderer)
+- **Input:** completed artifact + download format request (PDF, DOCX, or TXT)
+- **Input acceptance metrics:**
+  - artifact exists and is releasable
+  - requested format is supported
+- **Process / runtime code surface:**
+  - `lib/evaluation/downloadReadTimeSanitizer.ts` (read-time sanitization of RG-generated editorial text)
+  - `lib/evaluation/downloadParityGate.ts` (post-sanitization parity validation)
+  - `lib/evaluation/buildUnifiedEvaluationDocument.ts` (canonical render model)
+  - `app/api/evaluations/[jobId]/route.ts` (format-specific renderers: `buildCanonicalTemplateTxt`, `renderCanonicalTemplateHtml` → PDF, `buildCanonicalTemplateDocx`)
+- **Output:** PDF, DOCX, or TXT file delivered to the user
+- **Output acceptance metrics:**
+  - Read-time sanitizer passes: no forbidden patterns remain in editorial text
+  - Parity gate passes: post-sanitization output preserves data integrity
+  - **Evidence ownership preserved:** `anchor_snippet` and `evidence_snippets[*].snippet` are byte-for-byte identical to source (Runtime Doctrine #12)
+  - Format-specific renderer completes without error
+  - Output sections match webpage: same overall score, same criteria scores, same recommendation count, same executive summary
+- **Customer / downstream stage:** End user (downloaded file)
+- **Gates / invariants:**
+  - Read-time sanitizer must NOT mutate manuscript evidence or quotations (author-owned content)
+  - Read-time sanitizer MAY sanitize: summaries, rationale, recommendations, quick wins, strategic revisions (RG-generated editorial text)
+  - Parity gate validates cleaned output before format rendering proceeds
+  - Download rejected if contamination remains after sanitization
+  - Download rejected if parity gate fails
+- **Failure codes:** `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
+- **Required telemetry:** sanitizer pass/fail + patterns cleaned, parity gate pass/fail, format render timing
+- **Required evidence artifact:** pre-sanitization snapshot + post-sanitization diff + parity gate diagnostic
+- **Canon refs:** Runtime Doctrine #11/#12, Volume III fail-closed governance
+- **Spec refs:** `docs/forensics/SISTER_FORENSIC_PIPELINE_MAP.md` (Stage 12–15)
+- **Runtime refs:** `lib/evaluation/downloadReadTimeSanitizer.ts`, `lib/evaluation/downloadParityGate.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Emerging
 
@@ -661,7 +736,11 @@ Governance requirements for identifier changes:
 | Score/null separation | non-scorable criteria must not carry invalid numeric score semantics | S08–S09 |
 | Deterministic quality gate | gate failures block downstream persistence | S09 |
 | Persist fail-closed | no artifact write after gate or validation fail | S10 |
-| Releasable read path | only releasable outputs are rendered | S11 |
+| Releasable read path | only releasable outputs are rendered | S11a |
+| Download evidence preservation | `anchor_snippet` and `evidence_snippets[*].snippet` byte-for-byte identical before/after sanitization | S11b |
+| Download parity | overall score, criteria scores, rec count, executive summary identical across webpage/PDF/DOCX/TXT | S11a–S11b |
+| Recommendation prose quality | every author-facing recommendation has: complete sentences, evidence anchor, actionable specificity | S06b, S07 |
+| Handoff prose completeness | Pass 1/2 output contains no scaffold residue, broken modals, or generic language before reaching synthesis | S06b |
 | Gate-failure telemetry coverage | all gate failures emit required diagnostics | S09–S10 |
 | Seed-as-baseline-authority | Phase 1A must treat seed entities as 95%+ quality baseline; deviations require manuscript evidence | ADJACENT_PHASE_0_5A, S05_PASS1 |
 | Seed format conformance | Seeds must match canonical templates (layer scaffold + criterion scaffold fields) | ADJACENT_SEED_COMPLETENESS_GATE |
@@ -686,6 +765,9 @@ This registry indexes active runtime families used along the evaluation certific
 - Revise seed failures: `REVISE_SEED_GENERATION_FAILED`, `REVISE_SEED_AUTHORITY_PROOF_MISSING`
 - Revision ledger failures: `REVISION_LEDGER_ASSEMBLY_FAILED`, `REVISION_LEDGER_EVIDENCE_MISSING`, `REVISION_LEDGER_EMPTY`
 - Revise admission failures: `REVISE_ADMISSION_FAILED`, `REVISE_QUEUE_EMPTY`, `REVISE_EVIDENCE_MISSING`, `REVISE_ABC_NOT_PROSE`, `REVISE_AUTHOR_DECISION_NOT_PERSISTED`
+- Handoff gate failures: `HANDOFF_SCAFFOLD_RESIDUE`, `HANDOFF_INCOMPLETE_SENTENCE`, `HANDOFF_BROKEN_MODAL`, `HANDOFF_GENERIC_LANGUAGE`, `HANDOFF_MISSING_EVIDENCE_ANCHOR`
+- Download pipeline failures: `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
+- Recommendation integrity failures: `REC_INTEGRITY_MALFORMED`, `REC_INTEGRITY_GENERIC`, `REC_INTEGRITY_NO_EVIDENCE`
 
 Reference implementation list: `lib/evaluation/pipeline/qualityGate.ts`, `lib/evaluation/persistEvaluationResultV2.ts`, `lib/evaluation/seed/seedCompletenessGuard.ts`, `lib/evaluation/seed/twoPassSeedValidation.ts`, runtime route handlers.
 
@@ -738,11 +820,13 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
 | `S04_ROUTING_CHUNKING` | Emerging | Operationally visible, needs fixture/harness certification |
 | `S05_PASS1` | Partial | Stable path, but stress-certification not yet frozen |
 | `S06_PASS2` | Partial | Independence checks exist; adversarial certification pending |
-| `S07_PASS3` | High-risk | Upstream of highest-risk seam |
+| `S06b_HANDOFF_GATE` | Emerging | Doctrine defined (PR 1); implementation pending (PR 2). Highest-priority new gate. |
+| `S07_PASS3` | High-risk | Upstream of highest-risk seam. Recommendation Integrity Gate added (PR #1044). |
 | `S08_ER2_NORMALIZATION` | High-risk | Boundary semantics and score/null integrity critical |
 | `S09_QUALITYGATEV2` | Partial | Deterministic gate active; statistical certification pending |
 | `S10_PERSISTENCE` | Partial | Atomic enforcement present; seam risk remains |
-| `S11_RENDERER` | Emerging | Releasability/read-path contract active, calibration pending |
+| `S11a_RENDERER_WEBPAGE` | Partial | Releasability/read-path contract active; UnifiedEvaluationDocument model proven |
+| `S11b_DOWNLOAD_PIPELINE` | Emerging | Sanitizer + parity gate active (PRs #1046/#1047); evidence ownership enforced |
 | `ADJACENT_PHASE_0` | Emerging | Authority proof generation active; fixture coverage pending |
 | `ADJACENT_PHASE_0_5A` | Emerging | Seed generation active; two-pass validation implemented; format conformance guard active |
 | `ADJACENT_PHASE_0_5B` | Emerging | Revise opportunity seed generation active; candidate-prose contract defined |
