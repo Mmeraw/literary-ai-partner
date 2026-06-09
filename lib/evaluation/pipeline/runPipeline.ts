@@ -130,6 +130,7 @@ import {
 } from "./failures";
 import { getConfiguredChunkCap } from "./chunkCap";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
+import { resolvedEnglishVariantLabel } from "@/lib/evaluation/englishVariant";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the chunked path MUST engage — see runPipeline guard below.
@@ -2043,6 +2044,8 @@ export interface SynthesisToEvaluationResultOptions {
   sourceText?: string;
   /** Optional manuscript text for metrics enrichment when the caller has it available. */
   manuscriptText?: string;
+  /** English variant used for all generated output — persisted to evaluation artifact metrics. */
+  englishVariant?: string;
   scopeProfile?: SubmissionScopeProfile;
   /** LLM-extracted enrichment fields from synthesis pass. */
   llmEnrichment?: {
@@ -2522,6 +2525,8 @@ export function synthesisToEvaluationResultV2(
         title: opts.title?.trim() || undefined,
         word_count: opts.manuscriptText ? countWords(opts.manuscriptText) : undefined,
         char_count: opts.manuscriptText?.length,
+        requested_english_variant: opts.englishVariant ?? "us",
+        resolved_english_variant: resolvedEnglishVariantLabel(opts.englishVariant),
       },
       processing: {},
     },
