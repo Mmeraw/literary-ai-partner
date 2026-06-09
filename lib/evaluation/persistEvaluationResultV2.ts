@@ -627,12 +627,13 @@ export async function persistEvaluationResultV2(params: {
   } | null = null;
 
   if (!structuralValidation.ok) {
-    const truncatedOnlyIssues = structuralValidation.issues.filter(
+    const failedIssues: import("@/lib/evaluation/validateEvaluationArtifact").ArtifactValidationIssue[] = structuralValidation.issues;
+    const truncatedOnlyIssues = failedIssues.filter(
       (issue) => issue.code === "CRITERION_RECOMMENDATION_TRUNCATED",
     );
     const onlyTruncatedFailures =
       truncatedOnlyIssues.length > 0 &&
-      truncatedOnlyIssues.length === structuralValidation.issues.length;
+      truncatedOnlyIssues.length === failedIssues.length;
 
     if (onlyTruncatedFailures) {
       const repaired = repairTruncatedRecommendationActions(evaluationResult);
