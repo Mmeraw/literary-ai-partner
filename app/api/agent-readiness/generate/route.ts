@@ -196,7 +196,7 @@ async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: str
   // Fetch manuscript metadata
   const { data: manuscript } = await admin
     .from('manuscripts')
-    .select('id, title, word_count, genre, created_at')
+    .select('id, title, word_count, created_at')
     .eq('id', manuscriptId)
     .single();
 
@@ -250,7 +250,15 @@ function buildContextSummary(ctx: Awaited<ReturnType<typeof fetchManuscriptConte
   if (ctx.manuscript) {
     parts.push(`MANUSCRIPT: "${ctx.manuscript.title}"`);
     if (ctx.manuscript.word_count) parts.push(`Word Count: ${ctx.manuscript.word_count.toLocaleString()}`);
-    if (ctx.manuscript.genre) parts.push(`Genre: ${ctx.manuscript.genre}`);
+  }
+
+  // Extract genre from evaluation artifact if available
+  if (ctx.artifact && typeof ctx.artifact === 'object') {
+    const result = ctx.artifact as Record<string, unknown>;
+    if (result.overview && typeof result.overview === 'object') {
+      const overview = result.overview as Record<string, unknown>;
+      if (overview.genre) parts.push(`Genre: ${overview.genre}`);
+    }
   }
 
   // Extract key findings from evaluation result
