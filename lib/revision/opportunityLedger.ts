@@ -1309,8 +1309,8 @@ function extractCriteriaRecommendations(payload: Record<string, unknown>): Revis
         candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
         candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
         symptom: normalizeOptionalText(recommendationRow.symptom),
-        cause: normalizeOptionalText(recommendationRow.cause),
-        fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
+        cause: normalizeOptionalText(recommendationRow.cause) ?? normalizeOptionalText(recommendationRow.mechanism),
+        fix_direction: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
         reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
         mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
       }));
@@ -1404,8 +1404,8 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
       candidate_text_b: explicitCandidateOrFallback(recommendationRow.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
       candidate_text_c: explicitCandidateOrFallback(recommendationRow.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
       symptom: normalizeOptionalText(recommendationRow.symptom),
-      cause: normalizeOptionalText(recommendationRow.cause),
-      fix_direction: normalizeOptionalText(recommendationRow.fix_direction),
+      cause: normalizeOptionalText(recommendationRow.cause) ?? normalizeOptionalText(recommendationRow.mechanism),
+      fix_direction: normalizeOptionalText(recommendationRow.fix_direction) ?? normalizeOptionalText(recommendationRow.specific_fix),
       reader_effect: normalizeOptionalText(recommendationRow.reader_effect),
       mistake_proofing: normalizeOptionalText(recommendationRow.mistake_proofing),
     }));
@@ -1512,8 +1512,8 @@ function extractChunkCacheRecommendations(chunkCachePayload: unknown): RevisionO
           candidate_text_b: explicitCandidateOrFallback(rec.candidate_text_b, fallbackCandidates.b, rationale, evidenceAnchor),
           candidate_text_c: explicitCandidateOrFallback(rec.candidate_text_c, fallbackCandidates.c, rationale, evidenceAnchor),
           symptom: normalizeOptionalText(rec.symptom),
-          cause: normalizeOptionalText(rec.cause),
-          fix_direction: normalizeOptionalText(rec.fix_direction),
+          cause: normalizeOptionalText(rec.cause) ?? normalizeOptionalText(rec.mechanism),
+          fix_direction: normalizeOptionalText(rec.fix_direction) ?? normalizeOptionalText(rec.specific_fix),
           reader_effect: normalizeOptionalText(rec.reader_effect),
           mistake_proofing: normalizeOptionalText(rec.mistake_proofing),
         }));
