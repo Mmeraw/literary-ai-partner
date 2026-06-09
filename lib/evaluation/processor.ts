@@ -6304,6 +6304,7 @@ export async function processEvaluationJob(
         const finalCriteria = Array.isArray(finalEvalRow?.content?.criteria)
           ? (finalEvalRow.content.criteria as Array<{
               key?: string;
+              score?: number;
               recommendations?: Array<{ action?: string; quarantined?: boolean }>;
             }>)
           : [];
@@ -6348,14 +6349,26 @@ export async function processEvaluationJob(
           });
         }
 
-        // QUALITY_DENSITY_UNMET: check if any criterion that should have recs has zero
-        const criteriaWithZeroRecs = finalCriteria.filter(
-          (c) => (c.recommendations ?? []).length === 0,
-        );
-        if (criteriaWithZeroRecs.length >= finalCriteria.length && finalCriteria.length > 0) {
+        // QUALITY_DENSITY_UNMET: enforce actual density floor per criterion
+        //   score ≤ 8 → at least 1 non-quarantined rec
+        //   score ≤ 5 → at least 2 non-quarantined recs
+        const densityFailures: Array<{ key: string; score: number; required: number; actual: number }> = [];
+        for (const c of finalCriteria) {
+          const score = typeof c.score === 'number' ? c.score : 10;
+          if (score > 8) continue; // no density requirement for high-scoring criteria
+          const nonQuarantinedRecs = (c.recommendations ?? []).filter((r) => !r.quarantined).length;
+          const required = score <= 5 ? 2 : 1;
+          if (nonQuarantinedRecs < required) {
+            densityFailures.push({ key: c.key ?? 'unknown', score, required, actual: nonQuarantinedRecs });
+          }
+        }
+        if (densityFailures.length > 0) {
+          const failSummary = densityFailures
+            .map((f) => `${f.key}(score=${f.score}, need=${f.required}, have=${f.actual})`)
+            .join(', ');
           qualityViolations.push({
             code: 'QUALITY_DENSITY_UNMET',
-            detail: `${criteriaWithZeroRecs.length}/${finalCriteria.length} criteria have zero recommendations — density floor unmet across the board`,
+            detail: `${densityFailures.length} criteria below density floor: ${failSummary}`,
           });
         }
 
@@ -8325,6 +8338,17 @@ export async function processEvaluationJob(
               `Cannot produce meaningful evaluation without story-layer context.`;
             console.error(`[phase_1a] ${jobId}: ${msg}`);
             await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_EMPTY', { pipelineStage: 'phase_1a' });
+            return { success: false, error: msg };
+          }
+
+          // All 9 canonical keys are required.  If any are missing the accepted
+          // ledger would be incomplete and downstream synthesis would be degraded.
+          if (layerExtraction.missing_keys.length > 0) {
+            const msg =
+              `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: ${layerExtraction.missing_keys.length}/9 canonical layer keys missing ` +
+              `(${layerExtraction.missing_keys.join(', ')}). Cannot accept an incomplete story ledger.`;
+            console.error(`[phase_1a] ${jobId}: ${msg}`);
+            await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_INCOMPLETE', { pipelineStage: 'phase_1a' });
             return { success: false, error: msg };
           }
 
