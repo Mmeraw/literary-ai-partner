@@ -625,7 +625,6 @@ export function EvaluationPoller({
         <div>
           <div>
             <h3 className="font-rg-serif text-lg font-semibold text-stone-900">Job Status</h3>
-            <p className="mt-1 break-all font-mono text-sm text-stone-500">ID: {job.id}</p>
           </div>
         </div>
 
