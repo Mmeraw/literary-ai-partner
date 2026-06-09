@@ -130,8 +130,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
       logsByStage.get(stage)!.push(log);
     }
 
+    // Build artifact-based stage evidence
+    const artifactReached = getArtifactReachedStages(artifacts);
+    const phaseHighwater = getPhaseHighwaterIndex((job.phase as string) ?? "");
+
     // Build forensic stages
-    const stages: ForensicStage[] = SIPOC_STAGES.map((spec) => {
+    const stages: ForensicStage[] = SIPOC_STAGES.map((spec, specIdx) => {
       const stageLogs = logsByStage.get(spec.id) ?? [];
       const hasError = stageLogs.some((l) => l.level === "error");
       const stageTimeline = timeline.filter(
@@ -163,14 +167,19 @@ export async function GET(req: NextRequest, context: RouteContext) {
         }
       } else if (job.status === "complete") {
         // If job completed, all stages before the final one passed
-        const stageIdx = SIPOC_STAGES.findIndex((s) => s.id === spec.id);
-        const isRendererOrLater = stageIdx >= SIPOC_STAGES.length - 1;
+        const isRendererOrLater = specIdx >= SIPOC_STAGES.length - 1;
         if (!isRendererOrLater) {
-          result = "pass"; // Infer pass for completed jobs
+          result = "pass";
         } else {
-          // Check if renderer artifacts exist
           const hasWebpage = artifacts.some((a) => a.artifact_type === "evaluation_result_v2");
           result = hasWebpage ? "pass" : "not_reached";
+        }
+      } else if (job.status === "failed") {
+        // For failed jobs: use artifact evidence + phase highwater mark
+        if (artifactReached.has(spec.id)) {
+          result = "pass"; // Artifact proves this stage produced output
+        } else if (phaseHighwater >= 0 && specIdx < phaseHighwater) {
+          result = "pass"; // Stage is before the failed phase, so it must have passed
         }
       }
 
@@ -289,12 +298,52 @@ function normalizeStage(raw: string): string {
   if (s.includes("pass1") || s.includes("pass_1") || s.includes("phase_1")) return "pass1_craft";
   if (s.includes("pass2") || s.includes("pass_2") || s.includes("phase_2")) return "pass2_editorial";
   if (s.includes("pass3") || s.includes("pass_3") || s.includes("phase_3")) return "pass3_synthesis";
-  if (s.includes("pass4") || s.includes("quality") || s.includes("qg")) return "quality_gate";
+  if (s.includes("pass4") || s.includes("quality") || s.includes("qg") || s.includes("template_completeness")) return "quality_gate";
   if (s.includes("persist") || s.includes("report") || s.includes("finali")) return "persistence_report";
   if (s.includes("render") || s.includes("download")) return "renderer";
   if (s.includes("routing") || s.includes("chunk")) return "routing_chunking";
   if (s.includes("intake") || s.includes("submit")) return "intake";
   return s;
+}
+
+// Map artifact types to the SIPOC stage that produces them
+const ARTIFACT_STAGE_MAP: Record<string, string> = {
+  story_map_seed_v1: "phase_0_5a_seed",
+  evaluation_seed_v1: "phase_0_5b_seed",
+  full_context_story_ledger_v1: "pass1a_validation",
+  editorial_dream_seed_v1: "phase_0_5b_seed",
+  phase1a_chunk_routing_manifest_v1: "pass1a_validation",
+  pass1a_chunk_cache_v1: "pass1a_validation",
+  seed_contradiction_report_v1: "pass1a_validation",
+  pass1a_character_ledger_v1: "pass1a_validation",
+  pass1a_story_layer_v1: "pass1a_validation",
+  ledger_quality_report_v1: "pass1a_validation",
+  accepted_story_ledger_v1: "pass1_craft",
+  pass1_chunk_cache_v1: "pass1_craft",
+  pass12_handoff_v1: "pass1_2_handoff",
+  pass2_chunk_cache_v1: "pass2_editorial",
+  pass3_preflight_draft_v1: "pass3_synthesis",
+  evaluation_result_v2: "persistence_report",
+  pass_outputs_diagnostic_v1: "quality_gate",
+  quality_gate_diagnostics_v1: "quality_gate",
+  resume_blocked_v1: "quality_gate",
+};
+
+// Determine which stages were reached based on artifact evidence
+function getArtifactReachedStages(artifacts: Array<{ artifact_type: string }>): Set<string> {
+  const reached = new Set<string>();
+  for (const a of artifacts) {
+    const stage = ARTIFACT_STAGE_MAP[a.artifact_type];
+    if (stage) reached.add(stage);
+  }
+  return reached;
+}
+
+// Determine highwater mark from job phase field
+function getPhaseHighwaterIndex(phase: string): number {
+  const normalized = normalizeStage(phase);
+  const idx = SIPOC_STAGES.findIndex((s) => s.id === normalized);
+  return idx >= 0 ? idx : -1;
 }
 
 function summarizeMetadata(meta: Record<string, unknown>): string {
