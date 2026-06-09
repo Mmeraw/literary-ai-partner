@@ -49,6 +49,19 @@ Primary required telemetry surfaces:
 - `evaluation_jobs.progress.pipeline_failure_envelope`
 - `evaluation_artifacts` diagnostic artifacts
 
+### Forensic Diagnostics
+
+Per-job stage-by-stage trace (answers: what entered, what left, what validates, what repairs):
+- `app/api/admin/forensics/[jobId]/route.ts` — assembles forensic data from jobs + artifacts + logs
+- `app/admin/forensics/[jobId]/page.tsx` — SIPOC Forensic View UI
+
+Stage result taxonomy:
+- `pass` — proven by audit logs or timeline events
+- `inferred_pass` — proven by artifact evidence or phase highwater mark (artifact exists ≠ stage fully passed)
+- `fail` — stage failed (error code captured)
+- `retry_pass` / `retry_fail` — self-correction attempted
+- `not_reached` — stage never executed
+
 ## Runtime Doctrine
 
 1. Evaluation is constrained by evidence, not schema.
