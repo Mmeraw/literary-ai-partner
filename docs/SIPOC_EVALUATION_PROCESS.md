@@ -150,8 +150,8 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 
 | Stage | Stage ID | Supplier | Customer / Downstream | Certification Status |
 |---|---|---|---|---|
-| Phase 0 Warmup | `ADJACENT_PHASE_0` | Canon docs + benchmarks + manifest | `ADJACENT_PHASE_0_5A`, `ADJACENT_PHASE_0_5B` | Emerging |
-| Phase 0.5A Story Map Seed | `ADJACENT_PHASE_0_5A` | Phase 0 authority proof + manuscript | `ADJACENT_SEED_COMPLETENESS_GATE`, `S05_PASS1` (Phase 1A) | Emerging |
+| Phase 0 Authority Binding | `ADJACENT_PHASE_0` | Precomputed `phase0_calibration_baseline_v1` + manuscript metadata | `ADJACENT_PHASE_0_5A`, `ADJACENT_PHASE_0_5B` | Emerging |
+| Phase 0.5A Story Seeds + Enhanced Ledger | `ADJACENT_PHASE_0_5A` | Phase 0 authority proof + calibration baseline + manuscript | `ADJACENT_SEED_COMPLETENESS_GATE`, `S05_PASS1` (Phase 1A) | Emerging |
 | Phase 0.5B Revise Opportunity Seed | `ADJACENT_PHASE_0_5B` | Phase 0 authority proof + manuscript + 13 criteria canon | `ADJACENT_REVISE` (Revise admission) | Emerging |
 | Seed Completeness Gate | `ADJACENT_SEED_COMPLETENESS_GATE` | Phase 0.5A seed artifacts | `S05_PASS1` (Phase 1A) or seed regeneration | Emerging |
 | Story Layer Quality Gate | `ADJACENT_SEMANTIC_GATE` | Phase 1A story layer output + benchmarks | Review Gate | Emerging |
@@ -226,48 +226,54 @@ Governance requirements for identifier changes:
 
 ### Stage Contract Details
 
-### `ADJACENT_PHASE_0` — Phase 0 Warmup
+### `ADJACENT_PHASE_0` — Phase 0 Authority Binding
 
-- **Supplier:** Canon docs, benchmark manifests, governance docs
-- **Input:** Warmup manifest + what-not-to-do + benchmark references + fail-closed rules + SIPOC quality gates + seed governance
+- **Architecture:** Phase 0 is a **deterministic authority-binding stage**. It does NOT re-read or re-summarize Dream/Gold/Canon docs per job. Instead, it loads a precomputed certified calibration baseline (`phase0_calibration_baseline_v1`) generated offline from static governance documents. No LLM calls in Phase 0.
+- **Supplier:** Precomputed `phase0_calibration_baseline_v1` + manuscript metadata
+- **Input:** Certified calibration baseline (Dream/Gold/Canon/Fail-closed pre-synthesized) + manuscript word count + structure
 - **Input acceptance metrics:**
-  - `PHASE_0_WARMUP_BENCHMARK_MANIFEST.md` resolved
-  - `WHAT_NOT_TO_DO.md` loaded
-  - `STORY_LEDGER_LAYER_FAILURE_MODES.md` loaded
-  - `REVISIONGRADE_FAIL_CLOSED_RULES.md` loaded
-  - `SIPOC_INPUT_OUTPUT_QUALITY_GATES.md` loaded
-  - `SEED_AND_PHASE_1A_GOVERNANCE.md` loaded
-  - All required benchmark docs available
+  - `phase0_calibration_baseline_v1` loaded
+  - Baseline checksum verified
+  - Baseline source document checksums still valid (fail-closed if governance docs changed since baseline generation)
+  - Manuscript metadata available (word count, structure)
   - No live PR mining at runtime
 - **Process / runtime code surface:**
   - `lib/evaluation/phase-architecture-v2/phase0AuthorityProof.ts`
   - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (phase_0 row)
-- **Output:** `phase0_authority_proof_v1` — compact warmup context with loaded authority paths, checksums, selected route, and benchmark references
+- **Process:** Load baseline → verify checksum → confirm authority paths → select route/scope → persist proof
+- **Output:** `phase0_authority_proof_v1` — authority binding with baseline version linkage, checksums, selected route, and confirmed authority paths
 - **Output acceptance metrics:**
-  - Authority paths loaded and checksummed
-  - Benchmark path list present
-  - Fail-closed doctrine loaded
+  - Baseline version/checksum linkage present
+  - Authority paths confirmed
   - Route selected: short-form / long-form / long-form multi-layer
+  - Route rationale present
   - `schema_valid = true`
   - `is_resume_safe` determined
+- **SLA:** 12–15 seconds target, 20 seconds hard limit (no LLM calls)
 - **Customer / downstream stage:** `ADJACENT_PHASE_0_5A`, `ADJACENT_PHASE_0_5B`
-- **Gates / invariants:** Phase 0.5A and 0.5B must not start without proven Phase 0 authority. Canon sources missing must be explicitly recorded.
-- **Failure codes:** `PHASE0_AUTHORITY_MISSING`, `PHASE0_MANIFEST_UNRESOLVED`
-- **Required telemetry:** authority proof generation timing, loaded path count, missing path count
-- **Required evidence artifact:** `phase0_authority_proof_v1` with full authority path checksums
+- **Gates / invariants:** Phase 0.5A and 0.5B must not start without proven Phase 0 authority. If baseline checksum fails, fail-closed.
+- **Failure codes:** `PHASE0_AUTHORITY_MISSING`, `PHASE0_MANIFEST_UNRESOLVED`, `PHASE0_BASELINE_CHECKSUM_FAILED`
+- **Required telemetry:** authority binding timing, baseline version used, route selected
+- **Required evidence artifact:** `phase0_authority_proof_v1` with baseline version/checksum linkage
 - **Canon refs:** Phase 0.1–0.3 governance enforcement, warmup benchmark manifest
-- **Spec refs:** `docs/phase-0-warmup/PHASE_0_AUTHORITY_REGISTRY.md`, `docs/phase-0-warmup/PHASE_0_WARMUP_BENCHMARK_MANIFEST.md`
+- **Spec refs:** `docs/phase-0-warmup/PHASE_0_AUTHORITY_REGISTRY.md`, `docs/architecture/phase0-calibration-baseline.md`
 - **Runtime refs:** `lib/evaluation/phase-architecture-v2/phase0AuthorityProof.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Emerging
 
-### `ADJACENT_PHASE_0_5A` — Phase 0.5A Story Map Seed
+### `ADJACENT_PHASE_0_5A` — Phase 0.5A Story Map Seed + Enhanced Ledger
 
-- **Supplier:** Phase 0 authority proof + manuscript text + benchmarks
-- **Input:** `phase0_authority_proof_v1` + manuscript ingestion/source text + chunk/routing manifest + manuscript version ID
+Phase 0.5A has two sub-stages:
+1. **Seed generation** — produces `story_map_seed_v1` + `evaluation_seed_v1` (minimum 500 words combined)
+2. **Enhanced Ledger generation** — produces `full_context_story_ledger_v1` (9-layer deep story ledger from full manuscript context)
+
+These are the **first manuscript-understanding stages**. Phase 0 only binds authority; Phase 0.5A first touches the manuscript.
+
+- **Supplier:** Phase 0 authority proof + `phase0_calibration_baseline_v1` + manuscript text + benchmarks
+- **Input:** `phase0_authority_proof_v1` + calibration baseline + manuscript ingestion/source text + chunk/routing manifest + manuscript version ID
 - **Input acceptance metrics:**
   - `phase0_authority_proof_v1` present and valid
-  - Authority paths loaded and checksummed against Phase 0 proof
+  - Calibration baseline available (linked via authority proof)
   - Manuscript text available
   - Canon sources missing list explicitly recorded
 - **Process / runtime code surface:**
@@ -275,10 +281,12 @@ Governance requirements for identifier changes:
   - `lib/evaluation/seed/semanticSeedGenerator.ts`
   - `lib/evaluation/seed/seedScaffoldFactory.ts`
   - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (phase_0_5a row)
-- **Output:** `story_map_seed_v1` + `evaluation_seed_v1`
+- **Output:** `story_map_seed_v1` + `evaluation_seed_v1` + `full_context_story_ledger_v1`
 - **Output acceptance metrics:**
   - `story_map_seed_v1` includes: candidate_entity_registry, candidate_alias_map, candidate_relationship_map, candidate_object_symbol_map, candidate_location_map, candidate_timeline_map, candidate_pov_map, candidate_pressure_map, candidate_open_loop_map, uncertainty_flags
   - `evaluation_seed_v1` includes: likely_13_criteria_strengths, likely_13_criteria_risks, known_story_risks, known_evidence_targets
+  - Combined seed output ≥ 500 words
+  - `full_context_story_ledger_v1` has 9 canonical layers present, structure valid
   - `seed_status = candidate_provisional` (not final authority)
   - All 9 Story Ledger layer scaffolds present
   - All 13 criteria scaffolded
@@ -287,13 +295,14 @@ Governance requirements for identifier changes:
   - No final scores in seed
   - No final verdict in seed
   - `seed_authority = seed_only`
+- **SLA:** Seed generation is scope-dependent. Enhanced Ledger has 180s hard limit. Neither counts against Phase 0's 12–15s SLA.
 - **Customer / downstream stage:** `ADJACENT_SEED_COMPLETENESS_GATE`, `S05_PASS1` (Phase 1A)
-- **Gates / invariants:** Seeds must run only after Phase 0 governance warmup is loaded and proven. Seeds are provisional candidate scaffolds — not evaluation authority. Phase 0.5A answers: "what does the manuscript contain?"
+- **Gates / invariants:** Seeds must run only after Phase 0 authority binding is proven. Seeds are provisional candidate scaffolds — not evaluation authority. Phase 0.5A answers: "what does the manuscript contain?"
 - **Failure codes:** `SEED_GENERATION_FAILED`, `SEED_AUTHORITY_PROOF_MISSING`
-- **Required telemetry:** seed generation timing, scaffold completeness counts, semantic status
-- **Required evidence artifact:** `story_map_seed_v1` + `evaluation_seed_v1` with authority proof linkage
+- **Required telemetry:** seed generation timing, enhanced ledger timing, scaffold completeness counts, semantic status
+- **Required evidence artifact:** `story_map_seed_v1` + `evaluation_seed_v1` + `full_context_story_ledger_v1` with authority proof linkage
 - **Canon refs:** Volume III pass architecture, Story Ledger layer contract
-- **Spec refs:** `docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md`, `docs/prs/p16-phase-0-5a-story-map-seed-producer.md`
+- **Spec refs:** `docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md`, `docs/prs/p16-phase-0-5a-story-map-seed-producer.md`, `docs/architecture/phase0-calibration-baseline.md`
 - **Runtime refs:** `lib/evaluation/phase-architecture-v2/phase05aStoryMapSeed.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Emerging

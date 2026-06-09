@@ -11,59 +11,80 @@ Every phase must declare its minimum usable input and its minimum acceptable out
 
 # SIPOC summary
 
-| Phase / Process | Supplier | Input | Process | Output | Customer |
-|---|---|---|---|---|---|
-| Phase 0 Warmup | Canon docs / benchmarks | Manifest + what-not-to-do + benchmark refs | Load compact doctrine | Warmup context | SEED generation |
-| SEED | Warmup + manuscript metadata | Manuscript profile + benchmark targets | Build provisional scaffolds | story_map_seed_v1 + evaluation_seed_v1 | Phase 1A |
-| Seed Completeness Gate | SEED | Two seed artifacts | Validate completeness | seed_fit_gap_report_v1 | Phase 1A or regeneration |
-| Phase 1A | Manuscript + seeds | Text + seed baselines | Extract nine Story Ledger layers | pass1a_story_layer_v1 | Story Layer Quality Gate |
-| Story Layer Quality Gate | Phase 1A | Generated layers + benchmarks | Validate per-layer quality | ledger_quality_report_v1 | Review Gate |
-| Review Gate | Author + quality report | Valid/degraded/suppressed layers | Author review/approval | accepted_story_ledger_v1 | Phase 2 |
-| Phase 2 | Accepted ledger | Accepted story authority + criteria | Craft evaluation | phase2/evaluation artifacts | Report / Revise handoff |
-| Revision Handoff | Evaluation | Anchored findings | Normalize operations | revision_opportunity_ledger_v1 | Revise Queue / TrustedPath |
-| Revise Queue | Revision ledger | Anchored operations | Author-controlled decisions | revision_ledger_decisions | Manuscript repair |
+| Phase / Process | Supplier | Input | Process | Output | Customer | SLA |
+|---|---|---|---|---|---|---|
+| Phase 0 Authority Binding | Precomputed `phase0_calibration_baseline_v1` | Certified calibration baseline (Dream/Gold/Canon/Fail-closed) | Load baseline → verify checksum → confirm authority → select route | `phase0_authority_proof_v1` | Phase 0.5A, Phase 0.5B | 12–15s target, 20s hard limit |
+| Phase 0.5A Story Seeds | Phase 0 authority proof + manuscript | `phase0_authority_proof_v1` + calibration baseline + manuscript text | Generate provisional manuscript scaffolds | `story_map_seed_v1` + `evaluation_seed_v1` | Seed Completeness Gate | scope-dependent |
+| Seed Completeness Gate | Phase 0.5A | Two seed artifacts | Validate completeness | `seed_fit_gap_report_v1` | Enhanced Ledger or regeneration | — |
+| Phase 0.5A Enhanced Ledger | Seeds + manuscript | `story_map_seed_v1` + `evaluation_seed_v1` + full manuscript | Generate 9-layer deep story ledger | `full_context_story_ledger_v1` | Phase 1A | scope-dependent, 180s hard limit |
+| Phase 1A | Manuscript + seeds + ledger | Text + seed baselines + accepted ledger | Extract nine Story Ledger layers | `pass1a_story_layer_v1` | Story Layer Quality Gate | — |
+| Story Layer Quality Gate | Phase 1A | Generated layers + benchmarks | Validate per-layer quality | `ledger_quality_report_v1` | Review Gate | — |
+| Review Gate | Author + quality report | Valid/degraded/suppressed layers | Author review/approval | `accepted_story_ledger_v1` | Phase 2 | — |
+| Phase 2 | Accepted ledger | Accepted story authority + criteria | Craft evaluation | phase2/evaluation artifacts | Report / Revise handoff | — |
+| Revision Handoff | Evaluation | Anchored findings | Normalize operations | `revision_opportunity_ledger_v1` | Revise Queue / TrustedPath | — |
+| Revise Queue | Revision ledger | Anchored operations | Author-controlled decisions | `revision_ledger_decisions` | Manuscript repair | — |
 
 ---
 
-# Phase 0 Warmup quality gate
+# Phase 0 — Authority Binding
+
+## Architecture
+
+Phase 0 is a **deterministic authority-binding stage**. It does NOT re-read or re-summarize Dream/Gold/Canon docs per job. Instead, it loads a **precomputed certified calibration baseline** (`phase0_calibration_baseline_v1`) that was generated offline/admin-time from static governance documents.
+
+Runtime Phase 0 performs:
+1. Load `phase0_calibration_baseline_v1` (precomputed)
+2. Verify version/checksum integrity
+3. Confirm required authority paths are present
+4. Select route/scope based on manuscript metadata
+5. Persist `phase0_authority_proof_v1` linking to baseline version/checksum
+
+**No LLM calls in Phase 0.** All document interpretation happens at build/admin time when the calibration baseline is generated.
+
+## SLA / timing target
+
+| Metric | Target | Hard limit |
+|---|---|---|
+| Phase 0 completion (authority binding + route selection) | 12–15 seconds | 20 seconds |
+| Manuscript minimum word count (submission gate) | 200 words | Enforced by `EVAL_MIN_MANUSCRIPT_WORDS` (default: 200) |
 
 ## Required inputs
 
-- PHASE_0_WARMUP_BENCHMARK_MANIFEST.md
-- WHAT_NOT_TO_DO.md
-- STORY_LEDGER_LAYER_FAILURE_MODES.md
-- REVISIONGRADE_FAIL_CLOSED_RULES.md
-- SIPOC_INPUT_OUTPUT_QUALITY_GATES.md
-- SEED_AND_PHASE_1A_GOVERNANCE.md
-- Applicable benchmark docs
+- `phase0_calibration_baseline_v1` (precomputed, versioned, checksummed)
+- Manuscript metadata (word count, structure)
 
 ## Required output
 
-- Compact warmup context.
-- Selected benchmark references.
-- Selected route: short-form, long-form, or long-form multi-layer where possible.
-- No live PR mining.
+- `phase0_authority_proof_v1` containing:
+  - Calibration baseline version/checksum linkage
+  - Authority paths confirmed
+  - Selected route: short-form / long-form / long-form multi-layer
+  - Route rationale
+  - No live PR mining
 
 ## Quality metrics
 
 | Metric | Minimum |
 |---|---|
-| Manifest resolved | yes |
-| Required warmup docs available | yes |
-| PR history loaded at runtime | no |
-| Benchmark path list present | yes |
-| Fail-closed doctrine loaded | yes |
+| Calibration baseline loaded | yes |
+| Baseline checksum verified | yes |
+| Authority paths confirmed | yes |
+| Route selected | yes |
+| Phase 0 duration ≤ 20s | yes |
 
 ---
 
-# SEED quality gate
+# Phase 0.5A — Story Seed Generation
+
+**This is the first manuscript-understanding stage.** It uses the certified calibration baseline + manuscript to generate provisional scaffolds.
 
 ## Required inputs
 
-- Manuscript metadata.
-- Word count / scope estimate.
-- Warmup context.
-- Benchmark targets.
+- `phase0_authority_proof_v1` (from Phase 0)
+- `phase0_calibration_baseline_v1` (precomputed)
+- Manuscript text
+- Word count / scope estimate
+- Route selection from Phase 0
 
 ## Required outputs
 
@@ -72,12 +93,20 @@ story_map_seed_v1
 evaluation_seed_v1
 ```
 
+## SLA / output targets
+
+| Metric | Target |
+|---|---|
+| Combined seed output | minimum 500 words |
+| Seed generation timing | scope-dependent (separate from Phase 0 SLA) |
+
 ## Quality metrics
 
 | Metric | Minimum |
 |---|---|
 | story_map_seed_v1 exists | yes |
 | evaluation_seed_v1 exists | yes |
+| Combined seed output ≥ 500 words | yes |
 | all 9 Story Ledger layer scaffolds present | yes |
 | all candidate input collections present | yes |
 | all 13 criteria scaffolded | yes |
@@ -109,6 +138,44 @@ seed_fit_gap_report_v1
 | Fit-gap report persisted | yes |
 | Phase 1A blocked on incomplete seed | yes |
 | Error code on block | SEED_FIT_GAP_BLOCKED |
+
+---
+
+# Phase 0.5A — Enhanced Ledger (`full_context_story_ledger_v1`)
+
+**This is a separate stage from Phase 0 seed generation.** It runs AFTER seeds are produced and generates the deep 9-layer story ledger from full manuscript context.
+
+## SLA / timing target
+
+| Metric | Target | Hard limit |
+|---|---|---|
+| Phase 0.5A completion | scope-dependent | 180 seconds |
+| Output size | scope-dependent (typically 3,000–10,000 words for 5,000-word manuscript) | — |
+
+**Note:** Phase 0.5A timing does NOT count against the Phase 0 12–15s seed SLA. These are distinct pipeline stages with independent budgets.
+
+## Required inputs
+
+- `story_map_seed_v1`
+- `evaluation_seed_v1`
+- Manuscript text (full context)
+- Chunk routing manifest
+
+## Required output
+
+```text
+full_context_story_ledger_v1
+```
+
+## Quality metrics
+
+| Metric | Minimum |
+|---|---|
+| 9 canonical layers present | yes |
+| Layer structure valid | yes |
+| Canonical hard facts populated | yes |
+| Acceptance checks populated | yes |
+| Source authority: full manuscript context | yes |
 
 ---
 

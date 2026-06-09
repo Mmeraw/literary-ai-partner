@@ -43,10 +43,19 @@ If unset, these paths fail loudly by design.
 ## Evaluation Reliability Minimum (Policy)
 
 - Canonical evaluation fail-closed gate is enforced in `lib/evaluation/processor.ts` before `runPipeline`.
-- Runtime policy minimum is **200 words**.
+- Runtime policy minimum is **200 words** (default: `EVAL_MIN_MANUSCRIPT_WORDS=200`).
 - Env control precedence:
-   1. `EVAL_MIN_MANUSCRIPT_WORDS` (primary)
+   1. `EVAL_MIN_MANUSCRIPT_WORDS` (primary, default: 200)
    2. `EVAL_MIN_MANUSCRIPT_CHARS` (temporary backward-compatibility fallback)
+
+## Phase 0 Timing Canon
+
+- Phase 0 is **authority binding** (load precomputed calibration baseline, verify checksum, select route). No LLM calls.
+- Phase 0 target: **12–15 seconds**, hard limit: **20 seconds**.
+- Phase 0 output: `phase0_authority_proof_v1`.
+- Phase 0.5A (Story Seeds): `story_map_seed_v1` + `evaluation_seed_v1` — minimum 500 words combined seed output.
+- `full_context_story_ledger_v1` is Phase 0.5A (Enhanced Ledger) — separate stage, separate SLA, NOT counted against Phase 0 timing.
+- Phase 0.5A SLA: scope-dependent, hard limit 180 seconds.
 
 ## Worker Runtime Guardrails (Canonical)
 
