@@ -20,6 +20,7 @@ import {
 } from "@/lib/evaluation/backwardRelook";
 import { applyShortFormEvidenceGate, runShortFormEvidenceGate } from "@/lib/evaluation/pipeline/shortFormEvidenceGate";
 import { runShortFormFinalSanityCheck } from "@/lib/evaluation/pipeline/shortFormFinalSanityCheck";
+import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 
 type PipelineFailureEnvelope = {
   failure_origin: string;
@@ -350,6 +351,172 @@ function repairTruncatedRecommendationActions(
   };
 }
 
+type PersistenceSanitizerPatternKey =
+  | "MALFORMED_DOUBLE_MODAL"
+  | "MALFORMED_WOULD_BENEFIT_BECAUSE"
+  | "MALFORMED_BENEFIT_FROM_ONE_BECAUSE"
+  | "MALFORMED_WOULD_BECAUSE"
+  | "OFF_TOPIC_STUDIES_ARE_MIXED"
+  | "OFF_TOPIC_SAFE_INJECTION_SITES";
+
+type PersistenceSanitizerMetrics = {
+  replacements_total: number;
+  touched_fields: number;
+  by_pattern: Record<PersistenceSanitizerPatternKey, number>;
+};
+
+type PersistenceSanitizerPattern = {
+  key: PersistenceSanitizerPatternKey;
+  source: string;
+  replacement: string;
+};
+
+const PERSISTENCE_SANITIZER_PATTERNS: PersistenceSanitizerPattern[] = [
+  {
+    key: "MALFORMED_DOUBLE_MODAL",
+    source: String.raw`\b(would|could|should)\s+(would|could|should)\b`,
+    replacement: "$1",
+  },
+  {
+    key: "MALFORMED_WOULD_BENEFIT_BECAUSE",
+    source: String.raw`\bwould\s+benefit\s+from\s+one\s+because\b`,
+    replacement: "would benefit because",
+  },
+  {
+    key: "MALFORMED_BENEFIT_FROM_ONE_BECAUSE",
+    source: String.raw`\bbenefit\s+from\s+one\s+because\b`,
+    replacement: "benefit because",
+  },
+  {
+    key: "MALFORMED_WOULD_BECAUSE",
+    source: String.raw`\b(?:would|could|should)\s+because\b`,
+    replacement: "because",
+  },
+  {
+    key: "OFF_TOPIC_STUDIES_ARE_MIXED",
+    source: String.raw`\bstudies\s+are\s+mixed\s+on\s+the\s+success\s+of\s+safe\s+injection\s+sites?\b`,
+    replacement: "scene-specific evidence is mixed",
+  },
+  {
+    key: "OFF_TOPIC_SAFE_INJECTION_SITES",
+    source: String.raw`\bsafe\s+injection\s+sites?\b`,
+    replacement: "scene-specific evidence",
+  },
+];
+
+function createPersistenceSanitizerMetrics(): PersistenceSanitizerMetrics {
+  return {
+    replacements_total: 0,
+    touched_fields: 0,
+    by_pattern: {
+      MALFORMED_DOUBLE_MODAL: 0,
+      MALFORMED_WOULD_BENEFIT_BECAUSE: 0,
+      MALFORMED_BENEFIT_FROM_ONE_BECAUSE: 0,
+      MALFORMED_WOULD_BECAUSE: 0,
+      OFF_TOPIC_STUDIES_ARE_MIXED: 0,
+      OFF_TOPIC_SAFE_INJECTION_SITES: 0,
+    },
+  };
+}
+
+function sanitizeTextForPersistence(value: string, metrics?: PersistenceSanitizerMetrics): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+
+  let repaired = normalized;
+  for (const pattern of PERSISTENCE_SANITIZER_PATTERNS) {
+    const matcher = new RegExp(pattern.source, "gi");
+    const matches = repaired.match(matcher);
+    if (matches && matches.length > 0 && metrics) {
+      metrics.replacements_total += matches.length;
+      metrics.by_pattern[pattern.key] += matches.length;
+    }
+    repaired = repaired.replace(matcher, pattern.replacement);
+  }
+
+  return mistakeProofText(repaired, "").trim();
+}
+
+function sanitizeNonEmptyTextForPersistence(value: string, metrics: PersistenceSanitizerMetrics): string {
+  const cleaned = sanitizeTextForPersistence(value, metrics);
+  const fallback = value.trim();
+  const resolved = cleaned || fallback;
+  if (resolved !== fallback) {
+    metrics.touched_fields += 1;
+  }
+  return resolved;
+}
+
+function sanitizeEvaluationResultForPersistence(evaluationResult: EvaluationResultV2): {
+  result: EvaluationResultV2;
+  metrics: PersistenceSanitizerMetrics;
+} {
+  const metrics = createPersistenceSanitizerMetrics();
+
+  return {
+    result: {
+      ...evaluationResult,
+      overview: {
+        ...evaluationResult.overview,
+        one_paragraph_summary: sanitizeNonEmptyTextForPersistence(evaluationResult.overview.one_paragraph_summary, metrics),
+        top_3_strengths: evaluationResult.overview.top_3_strengths.map((item) => sanitizeNonEmptyTextForPersistence(item, metrics)),
+        top_3_risks: evaluationResult.overview.top_3_risks.map((item) => sanitizeNonEmptyTextForPersistence(item, metrics)),
+      },
+      criteria: evaluationResult.criteria.map((criterion) => ({
+        ...criterion,
+        rationale: sanitizeNonEmptyTextForPersistence(criterion.rationale, metrics),
+        evidence: criterion.evidence.map((item) => ({
+          ...item,
+          snippet: sanitizeNonEmptyTextForPersistence(item.snippet, metrics),
+          note: typeof item.note === "string" ? sanitizeNonEmptyTextForPersistence(item.note, metrics) : item.note,
+        })),
+        recommendations: criterion.recommendations.map((recommendation) => ({
+          ...recommendation,
+          action: sanitizeNonEmptyTextForPersistence(recommendation.action, metrics),
+          expected_impact: sanitizeNonEmptyTextForPersistence(recommendation.expected_impact, metrics),
+          anchor_snippet:
+            typeof recommendation.anchor_snippet === "string"
+              ? sanitizeNonEmptyTextForPersistence(recommendation.anchor_snippet, metrics)
+              : recommendation.anchor_snippet,
+          mechanism:
+            typeof recommendation.mechanism === "string"
+              ? sanitizeNonEmptyTextForPersistence(recommendation.mechanism, metrics)
+              : recommendation.mechanism,
+          specific_fix:
+            typeof recommendation.specific_fix === "string"
+              ? sanitizeNonEmptyTextForPersistence(recommendation.specific_fix, metrics)
+              : recommendation.specific_fix,
+          reader_effect:
+            typeof recommendation.reader_effect === "string"
+              ? sanitizeNonEmptyTextForPersistence(recommendation.reader_effect, metrics)
+              : recommendation.reader_effect,
+          symptom:
+            typeof recommendation.symptom === "string"
+              ? sanitizeNonEmptyTextForPersistence(recommendation.symptom, metrics)
+              : recommendation.symptom,
+          mistake_proofing:
+            typeof recommendation.mistake_proofing === "string"
+              ? sanitizeNonEmptyTextForPersistence(recommendation.mistake_proofing, metrics)
+              : recommendation.mistake_proofing,
+        })),
+      })),
+      recommendations: {
+        quick_wins: evaluationResult.recommendations.quick_wins.map((item) => ({
+          ...item,
+          action: sanitizeNonEmptyTextForPersistence(item.action, metrics),
+          why: sanitizeNonEmptyTextForPersistence(item.why, metrics),
+        })),
+        strategic_revisions: evaluationResult.recommendations.strategic_revisions.map((item) => ({
+          ...item,
+          action: sanitizeNonEmptyTextForPersistence(item.action, metrics),
+          why: sanitizeNonEmptyTextForPersistence(item.why, metrics),
+        })),
+      },
+    },
+    metrics,
+  };
+}
+
 export async function persistEvaluationResultV2(params: {
   supabase: SupabaseClient;
   jobId: string;
@@ -366,7 +533,19 @@ export async function persistEvaluationResultV2(params: {
 
   const wordCount = readManuscriptWordCount(params.progressSnapshot);
   const shortFormReadiness = applyShortFormReadinessMetadata(params.evaluationResult, wordCount);
-  let evaluationResult = applyAuthorityCompositeCap(shortFormReadiness.result);
+  const persistenceSanitizer = sanitizeEvaluationResultForPersistence(
+    applyAuthorityCompositeCap(shortFormReadiness.result),
+  );
+  let evaluationResult = persistenceSanitizer.result;
+
+  if (persistenceSanitizer.metrics.replacements_total > 0 || persistenceSanitizer.metrics.touched_fields > 0) {
+    console.info("[Eval2PersistenceSanitizer] contamination mitigation applied", {
+      job_id: params.jobId,
+      replacements_total: persistenceSanitizer.metrics.replacements_total,
+      touched_fields: persistenceSanitizer.metrics.touched_fields,
+      by_pattern: persistenceSanitizer.metrics.by_pattern,
+    });
+  }
 
   if (shortFormReadiness.blockingReason) {
     const rejectedAt = new Date().toISOString();
@@ -448,8 +627,6 @@ export async function persistEvaluationResultV2(params: {
   } | null = null;
 
   if (!structuralValidation.ok) {
-    // TS loses discriminated-union narrowing on `let` bindings that are reassigned;
-    // extract issues with explicit type to restore access to .code/.path/.message.
     const failedIssues: import("@/lib/evaluation/validateEvaluationArtifact").ArtifactValidationIssue[] = structuralValidation.issues;
     const truncatedOnlyIssues = failedIssues.filter(
       (issue) => issue.code === "CRITERION_RECOMMENDATION_TRUNCATED",
@@ -782,6 +959,7 @@ export async function persistEvaluationResultV2(params: {
     confidence,
     propagation: readPropagationSummary(evaluationResult),
     backward_relook: buildBackwardRelookTrace(backwardRelook),
+    persistence_sanitizer: persistenceSanitizer.metrics,
     ...(boundaryRepairMetadata ? { boundary_auto_repair: boundaryRepairMetadata } : {}),
   };
 

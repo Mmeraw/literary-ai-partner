@@ -7,6 +7,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { persistEvaluationResultV2 } from "../../../lib/evaluation/persistEvaluationResultV2";
 import { validateEvaluationArtifact as validateStructuralArtifact } from "@/lib/evaluation/validateEvaluationArtifact";
+import { validateDownloadParity } from "@/lib/evaluation/downloadParityGate";
 
 function isIsoTimestamp(value: unknown): boolean {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -489,5 +490,61 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
     expect(persistedProgress.recoverable_repair_code).toBe("CRITERION_RECOMMENDATION_TRUNCATED");
     expect(persistedProgress.recoverable_repair_result).toBe("passed_after_revalidation");
     expect(isIsoTimestamp(persistedProgress.recoverable_repair_at)).toBe(true);
+  });
+
+  test("sanitizes malformed/off-topic contamination before persistence so downloads remain available", async () => {
+    const supabase = makeSupabaseStub();
+    const contaminated = makeValidEvaluationResultV2();
+
+    contaminated.overview.one_paragraph_summary =
+      "This section would because malformed connectors leaked through.";
+    contaminated.overview.top_3_risks = [
+      "At the scene level, studies are mixed on the success of safe injection sites.",
+      "Another risk remains visible.",
+      "Third risk is concrete.",
+    ];
+    contaminated.criteria[0].rationale =
+      "The diagnosis could would drift because malformed connective logic remained.";
+    contaminated.criteria[0].recommendations = [
+      {
+        priority: "medium",
+        action:
+          "Insert one concrete stakes beat; At the scene level, studies are mixed on the success of safe injection sites. would because the stakes signal arrives too late.",
+        expected_impact: "Improves clarity and scene consequence.",
+        specific_fix: "This sequence may benefit from one because the connective logic is broken.",
+      },
+    ];
+
+    const persistResult = await persistEvaluationResultV2({
+      supabase: supabase as unknown as SupabaseClient,
+      jobId: "job-step1-contamination-sanitized",
+      manuscriptId: 110,
+      evaluationResult: contaminated,
+      sourceHash: "sha256:contamination-sanitized",
+      progressSnapshot: { phase: "phase_2", phase_status: "running" },
+      totalUnits: 5,
+      completedUnits: 5,
+    });
+
+    expect(persistResult.persisted).toBe(true);
+    expect(supabase.rpcCalls).toHaveLength(1);
+
+    const persistedArtifact = supabase.rpcCalls[0].payload.p_artifact_content as EvaluationResultV2;
+    const persistedProgress = supabase.rpcCalls[0].payload.p_progress as Record<string, unknown>;
+    const gateEnforcement = (persistedProgress.gate_enforcement ?? {}) as Record<string, unknown>;
+    const persistenceSanitizer = (gateEnforcement.persistence_sanitizer ?? {}) as Record<string, unknown>;
+    const asText = JSON.stringify(persistedArtifact).toLowerCase();
+
+    expect(asText).not.toContain("safe injection sites");
+    expect(asText).not.toContain("would because");
+    expect(asText).not.toContain("could would");
+    expect(asText).not.toContain("benefit from one because");
+
+    const parity = validateDownloadParity(persistedArtifact as unknown as Record<string, unknown>);
+    expect(parity.pass).toBe(true);
+    expect(typeof persistenceSanitizer.replacements_total).toBe("number");
+    expect((persistenceSanitizer.replacements_total as number)).toBeGreaterThan(0);
+    expect(typeof persistenceSanitizer.touched_fields).toBe("number");
+    expect((persistenceSanitizer.touched_fields as number)).toBeGreaterThan(0);
   });
 });
