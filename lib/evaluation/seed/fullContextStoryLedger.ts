@@ -139,8 +139,8 @@ export type FullContextStoryLedger = {
 
 const PROMPT_VERSION = 'phase05a-full-context-story-ledger-v1';
 
-function buildFullContextSystemPrompt(workType?: string): string {
-  const route = inferSeedRoute(workType);
+function buildFullContextSystemPrompt(workType?: string, wordCount?: number): string {
+  const route = inferSeedRoute(workType, wordCount);
   return `You are Phase 0.5A, the full-manuscript Story Ledger seed writer for RevisionGrade.
 
 Your job: Read the ENTIRE manuscript in one pass and produce a comprehensive 9-layer Story Ledger with explicit failure conditions.
@@ -538,7 +538,7 @@ export async function generateFullContextStoryLedger(
 
   const startMs = Date.now();
 
-  const systemPrompt = buildFullContextSystemPrompt(input.workType);
+  const systemPrompt = buildFullContextSystemPrompt(input.workType, input.wordCount);
   const userPrompt = buildUserPrompt({
     title: input.title,
     workType: input.workType,

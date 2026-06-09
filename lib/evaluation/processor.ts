@@ -176,6 +176,7 @@ import {
   assessLedgerQuality,
   type FullContextStoryLedger,
 } from '@/lib/evaluation/seed/fullContextStoryLedger';
+import { inferWorkTypeFromWordCount } from '@/lib/evaluation/seed/benchmarkContextBuilder';
 import {
   generateEditorialDreamSeed,
 } from '@/lib/evaluation/seed/editorialDreamSeedGenerator';
@@ -5563,6 +5564,10 @@ export async function processEvaluationJob(
     const timeoutPayloadText = manuscriptWithContent.content || '';
     const sourceWordCount = countWords(timeoutSourceText);
     const payloadWordCount = countWords(timeoutPayloadText);
+
+    // Word-count-aware work type: never blindly default to 'novel' for a 5K-word manuscript.
+    const effectiveWorkType = manuscriptWithContent.work_type
+      || inferWorkTypeFromWordCount(Math.max(sourceWordCount, payloadWordCount));
     const timeoutInputText =
       payloadWordCount >= sourceWordCount ? timeoutPayloadText : timeoutSourceText;
     const timeoutScopeProfile = classifySubmissionScope(timeoutInputText, chunkRouting.chunk_count);
@@ -5986,7 +5991,7 @@ export async function processEvaluationJob(
           pipelineResultP3 = await runPipeline({
             manuscriptText: manuscriptWithContent.content || '',
             manuscriptChunks: manuscriptChunksForPipeline,
-            workType: manuscriptWithContent.work_type || 'novel',
+            workType: effectiveWorkType,
             title: manuscriptWithContent.title,
             jobId: String(job.id),
             model: getCanonicalPipelineModel(openAiModel),
@@ -6433,7 +6438,7 @@ export async function processEvaluationJob(
           manuscriptText: manuscriptWithContent.content || '',
           userId: manuscriptWithContent.user_id,
           title: manuscriptWithContent.title,
-          workType: manuscriptWithContent.work_type || 'novel',
+          workType: effectiveWorkType,
           openAiModel,
           openaiApiKey,
           evalOpenAiTimeoutMs,
@@ -6527,7 +6532,7 @@ export async function processEvaluationJob(
                 manuscriptId: Number(job.manuscript_id),
                 manuscriptText,
                 title: manuscriptWithContent.title,
-                workType: manuscriptWithContent.work_type || 'novel',
+                workType: effectiveWorkType,
                 wordCount,
                 openaiApiKey,
                 model: openAiModel,
@@ -6667,7 +6672,7 @@ export async function processEvaluationJob(
                 manuscriptId: Number(job.manuscript_id),
                 manuscriptText: manuscriptTextForDream,
                 title: manuscriptWithContent.title,
-                workType: manuscriptWithContent.work_type || 'novel',
+                workType: effectiveWorkType,
                 wordCount: wordCountForDream,
                 isMultiLayer: wordCountForDream >= 75_000,
                 openaiApiKey,
@@ -7085,7 +7090,7 @@ export async function processEvaluationJob(
                   return runPass3Preflight({
                     manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
                     title: manuscriptWithContent.title,
-                    workType: manuscriptWithContent.work_type || 'novel',
+                    workType: effectiveWorkType,
                     jobId: String(job.id),
                     manuscriptId: Number(job.manuscript_id),
                     openaiApiKey,
@@ -7100,7 +7105,7 @@ export async function processEvaluationJob(
             const pass1aBatchResult = await runPass1a({
               manuscriptText: manuscriptWithContent.content || '',
               manuscriptChunks: batchChunks,
-              workType: manuscriptWithContent.work_type || 'novel',
+              workType: effectiveWorkType,
               title: manuscriptWithContent.title,
               seedContextBlock: phase1aSeedContextBlock,
               ledgerContextBlock: phase1aLedgerContextBlock || undefined,
@@ -7284,7 +7289,7 @@ export async function processEvaluationJob(
                   runPass3Preflight({
                     manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
                     title: manuscriptWithContent.title,
-                    workType: manuscriptWithContent.work_type || 'novel',
+                    workType: effectiveWorkType,
                     jobId: String(job.id),
                     manuscriptId: Number(job.manuscript_id),
                     openaiApiKey,
@@ -7604,7 +7609,7 @@ export async function processEvaluationJob(
               runPass3Preflight({
                 manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
                 title: manuscriptWithContent.title,
-                workType: manuscriptWithContent.work_type || 'novel',
+                workType: effectiveWorkType,
                 jobId: String(job.id),
                 manuscriptId: Number(job.manuscript_id),
                 openaiApiKey,
@@ -8835,7 +8840,7 @@ export async function processEvaluationJob(
             runPass1({
               manuscriptText: manuscriptWithContent.content || '',
               manuscriptChunks: manuscriptChunksForPipeline,
-              workType: manuscriptWithContent.work_type || 'novel',
+              workType: effectiveWorkType,
               title: manuscriptWithContent.title,
               executionMode: 'TRUSTED_PATH',
               openaiApiKey,
@@ -8851,7 +8856,7 @@ export async function processEvaluationJob(
             runPass2({
               manuscriptText: manuscriptWithContent.content || '',
               manuscriptChunks: manuscriptChunksForPipeline,
-              workType: manuscriptWithContent.work_type || 'novel',
+              workType: effectiveWorkType,
               title: manuscriptWithContent.title,
               executionMode: 'TRUSTED_PATH',
               model: getCanonicalPass2Model(openAiModel),
@@ -9887,7 +9892,7 @@ export async function processEvaluationJob(
     }
     const d2EvalRunId = effectiveEvaluationResult.ids?.evaluation_run_id ?? crypto.randomUUID();
     const d2MatrixVersion = 'work_type_matrix.v1';
-    const d2WorkType = (manuscriptWithContent.work_type || 'novel').toLowerCase().replace(/\s+/g, '_');
+    const d2WorkType = effectiveWorkType.toLowerCase().replace(/\s+/g, '_');
     const d2GeneratedAt = new Date().toISOString();
     const d2ReproAnchor = `${d2EvalRunId}|${d2GeneratedAt}|${d2MatrixVersion}`;
 

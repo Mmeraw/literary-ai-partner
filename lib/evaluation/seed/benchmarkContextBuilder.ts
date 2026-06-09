@@ -20,14 +20,29 @@ import { buildCompactTemplateBlock, buildCompactStoryLedgerBlock, type DreamTemp
 export type SeedRoute = 'LONG_FORM' | 'SHORT_FORM';
 
 /**
- * Infers the evaluation route from a work type string.
- * Short stories and excerpts use SHORT_FORM; everything else uses LONG_FORM.
+ * Infers the evaluation route from word count and work type.
+ * Manuscripts under 25,000 words are always SHORT_FORM regardless of work type.
+ * Above 25,000, short stories and excerpts use SHORT_FORM; everything else uses LONG_FORM.
  */
-export function inferSeedRoute(workType?: string | null): SeedRoute {
+export function inferSeedRoute(workType?: string | null, wordCount?: number | null): SeedRoute {
+  if (wordCount != null && wordCount < 25_000) return 'SHORT_FORM';
   if (!workType) return 'LONG_FORM';
   const normalized = workType.toLowerCase().trim();
   const shortFormTypes = ['short_story', 'short story', 'excerpt', 'flash', 'flash_fiction', 'sample', 'chapter'];
   return shortFormTypes.some((t) => normalized.includes(t)) ? 'SHORT_FORM' : 'LONG_FORM';
+}
+
+/**
+ * Infers a work type label from word count when the manuscript has no explicit
+ * work_type set. Uses standard publishing classification boundaries.
+ */
+export function inferWorkTypeFromWordCount(wordCount: number): string {
+  if (wordCount < 200) return 'flash_fiction';
+  if (wordCount < 750) return 'flash_fiction';
+  if (wordCount < 7_500) return 'short_story';
+  if (wordCount < 20_000) return 'novelette';
+  if (wordCount < 50_000) return 'novella';
+  return 'novel';
 }
 
 // ── 9-Layer Template Structure ──────────────────────────────────────────────

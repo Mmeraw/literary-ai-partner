@@ -279,14 +279,19 @@ export function getCanonicalSeedModel(overrideModel?: string): string {
 /**
  * Ledger model resolver.
  *
+ * The full-context story ledger is the ground truth for characters,
+ * relationships, and narrative structure — a weak seed cascades into
+ * weak downstream evaluations. Defaults to EVAL_SYNTHESIS_MODEL (the
+ * strong model) rather than EVAL_CHEAP_MODEL.
+ *
  * Resolution order:
  *  1) EVAL_LEDGER_MODEL
- *  2) EVAL_CHEAP_MODEL
+ *  2) EVAL_SYNTHESIS_MODEL
  *  3) optional overrideModel
  *  4) canonical runtime default (EVAL_OPENAI_MODEL)
  */
 export function getCanonicalLedgerModel(overrideModel?: string): string {
-  return resolveEnvBackedModel(["EVAL_LEDGER_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
+  return resolveEnvBackedModel(["EVAL_LEDGER_MODEL", "EVAL_SYNTHESIS_MODEL"], overrideModel);
 }
 
 /**

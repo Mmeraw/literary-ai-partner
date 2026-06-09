@@ -49,6 +49,7 @@ export type GenerateSemanticSeedArtifactsInput = {
   manuscriptText: string;
   title?: string;
   workType?: string | null;
+  wordCount?: number | null;
   generatedAt?: string;
   openaiApiKey?: string | null;
   model?: string;
@@ -303,7 +304,8 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     record = buildFallbackSeedRecord({ title, workType, parseError: 'missing_openai_key' });
   } else {
     try {
-      const route = inferSeedRoute(workType);
+      const wordCount = input.wordCount ?? (input.manuscriptText ? input.manuscriptText.split(/\s+/).filter(Boolean).length : undefined);
+      const route = inferSeedRoute(workType, wordCount);
       const completion = await createOpenAICompletion({
         apiKey,
         model,
