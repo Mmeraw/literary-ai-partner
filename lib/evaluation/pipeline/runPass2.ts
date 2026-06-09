@@ -11,6 +11,7 @@
  */
 
 import OpenAI from "openai";
+import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS2_SYSTEM_PROMPT, PASS2_PROMPT_VERSION, buildPass2UserPrompt } from "./prompts/pass2-editorial";
 import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture, ManuscriptChunkEvidence } from "./types";
@@ -402,6 +403,7 @@ export interface RunPass2Options {
   isChunkUnit?: boolean;
   workType: string;
   title: string;
+  englishVariant?: EnglishVariant | string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
   model?: string;
