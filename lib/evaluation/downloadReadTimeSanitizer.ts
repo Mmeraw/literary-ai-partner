@@ -9,20 +9,15 @@
  * This is the permanent fix for the "temporarily unavailable" download
  * blocker: contaminated text in stored artifacts no longer fails the
  * parity gate because it's cleaned before validation.
+ *
+ * All forbidden patterns are imported from the shared registry
+ * (reportForbiddenPatterns.ts) — the single source of truth.
  */
 
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
+import { getForbiddenReplacements } from '@/lib/evaluation/reportForbiddenPatterns';
 
-// Identical patterns to persistEvaluationResultV2.ts PERSISTENCE_SANITIZER_PATTERNS
-// and downloadParityGate.ts MALFORMED_PATTERNS — kept in sync.
-const DOWNLOAD_SANITIZER_PATTERNS: Array<{ re: RegExp; replacement: string }> = [
-  { re: /\b(would|could|should)\s+(would|could|should)\b/gi, replacement: '$1' },
-  { re: /\bwould\s+benefit\s+from\s+one\s+because\b/gi, replacement: 'would benefit because' },
-  { re: /\bbenefit\s+from\s+one\s+because\b/gi, replacement: 'benefit because' },
-  { re: /\b(?:would|could|should)\s+because\b/gi, replacement: 'because' },
-  { re: /\bstudies\s+are\s+mixed\s+on\s+the\s+success\s+of\s+safe\s+injection\s+sites?\b/gi, replacement: 'scene-specific evidence is mixed' },
-  { re: /\bsafe\s+injection\s+sites?\b/gi, replacement: 'scene-specific evidence' },
-];
+const DOWNLOAD_SANITIZER_PATTERNS = getForbiddenReplacements();
 
 function sanitizeText(value: string): string {
   if (!value) return value;
