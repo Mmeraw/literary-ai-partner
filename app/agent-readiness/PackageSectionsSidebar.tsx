@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 const sections = [
   { label: "Query Letter", href: "/agent-readiness/query-letter" },
@@ -22,8 +22,25 @@ function isActive(pathname: string, currentHash: string, href: string): boolean 
 }
 
 export default function PackageSectionsSidebar() {
+  return (
+    <Suspense fallback={<aside className="lg:sticky lg:top-24 self-start border border-rg-cream2/10 bg-rg-ink2/40 p-5" />}>
+      <PackageSectionsSidebarInner />
+    </Suspense>
+  );
+}
+
+function PackageSectionsSidebarInner() {
   const pathname = usePathname() || "/";
+  const searchParams = useSearchParams();
   const [currentHash, setCurrentHash] = useState("");
+
+  // Preserve manuscriptId + evaluationJobId across nav
+  const queryString = (() => {
+    const manuscriptId = searchParams.get('manuscriptId');
+    const evaluationJobId = searchParams.get('evaluationJobId');
+    if (!manuscriptId || !evaluationJobId) return '';
+    return `?manuscriptId=${manuscriptId}&evaluationJobId=${evaluationJobId}`;
+  })();
 
   useEffect(() => {
     const syncHash = () => setCurrentHash(window.location.hash || "");
@@ -42,7 +59,7 @@ export default function PackageSectionsSidebar() {
           return (
             <Link
               key={section.href}
-              href={section.href}
+              href={`${section.href}${queryString}`}
               className={[
                 "block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] transition-colors",
                 active

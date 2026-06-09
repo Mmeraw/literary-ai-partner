@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
 export type AgentReadinessManuscriptOption = {
@@ -497,7 +497,7 @@ export default function AgentReadinessClient({
   }, [manuscripts, requestedEvaluationJobId, requestedManuscriptId]);
 
   const [selectedKey, setSelectedKey] = useState(initialSelectedKey);
-  const [sectionStates] = useState<Record<SectionId, SectionState>>({
+  const [sectionStates, setSectionStates] = useState<Record<SectionId, SectionState>>({
     "query-letter": { status: "empty", content: "" },
     "unique":       { status: "empty", content: "" },
     "synopsis":     { status: "empty", content: "" },
@@ -506,11 +506,126 @@ export default function AgentReadinessClient({
     "author-bio":   { status: "empty", content: "" },
   });
 
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [generateAllProgress, setGenerateAllProgress] = useState("");
+  const [generateAllError, setGenerateAllError] = useState<string | null>(null);
+
   const selectedManuscript = manuscripts.find((m) => manuscriptKey(m) === selectedKey) ?? null;
   const approvedCount = Object.values(sectionStates).filter(s => s.status === "approved").length;
   const allApproved   = approvedCount === REQUIRED_SECTIONS.length;
   const allSectionsStarted = Object.values(sectionStates).every((s) => s.status !== "empty");
+  const hasAnyContent = Object.values(sectionStates).some(s => s.content.length > 0);
   const canGenerateFinalPackage = Boolean(selectedManuscript) && allSectionsStarted;
+
+  // Map API section names to UI section IDs
+  const API_TO_UI: Record<string, SectionId> = {
+    query_letter: "query-letter",
+    what_makes_unique: "unique",
+    synopsis: "synopsis",
+    query_pitch: "query-pitch",
+    comparables: "comparables",
+    author_bio: "author-bio",
+  };
+
+  const handleGenerateAll = useCallback(async () => {
+    if (!selectedManuscript) return;
+    setGeneratingAll(true);
+    setGenerateAllError(null);
+    setGenerateAllProgress("Starting generation...");
+
+    try {
+      const res = await fetch('/api/agent-readiness/generate-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manuscriptId: Number(selectedManuscript.manuscriptId),
+          evaluationJobId: selectedManuscript.evaluationJobId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGenerateAllError(data.error || `Failed (${res.status})`);
+        return;
+      }
+
+      // Update section states with generated content
+      const newStates = { ...sectionStates };
+      for (const [apiKey, result] of Object.entries(data.results as Record<string, { content: string; wordCount: number; error?: string }>)) {
+        const uiKey = API_TO_UI[apiKey];
+        if (uiKey && result.content) {
+          newStates[uiKey] = {
+            status: "draft",
+            content: result.content,
+            wordCount: result.wordCount,
+          };
+        }
+      }
+      setSectionStates(newStates);
+
+      const { summary } = data;
+      setGenerateAllProgress(`Complete: ${summary.generated}/${summary.total} sections generated`);
+      if (summary.errors?.length) {
+        setGenerateAllError(`Some sections failed: ${summary.errors.join('; ')}`);
+      }
+    } catch (err) {
+      setGenerateAllError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setGeneratingAll(false);
+    }
+  }, [selectedManuscript, sectionStates]);
+
+  const handleDownload = useCallback(async (format: 'txt' | 'docx') => {
+    if (!selectedManuscript) return;
+
+    const sections: Record<string, string> = {};
+    const UI_TO_API: Record<SectionId, string> = {
+      "query-letter": "query_letter",
+      "unique": "what_makes_unique",
+      "synopsis": "synopsis",
+      "query-pitch": "query_pitch",
+      "comparables": "comparables",
+      "author-bio": "author_bio",
+    };
+
+    for (const [uiKey, state] of Object.entries(sectionStates)) {
+      if (state.content) {
+        const apiKey = UI_TO_API[uiKey as SectionId];
+        if (apiKey) sections[apiKey] = state.content;
+      }
+    }
+
+    try {
+      const res = await fetch('/api/agent-readiness/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manuscriptTitle: selectedManuscript.title,
+          format,
+          sections,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setGenerateAllError(err.error || 'Download failed');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedManuscript.title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-')}-Submission-Package.${format === 'docx' ? 'doc' : 'txt'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setGenerateAllError(err instanceof Error ? err.message : 'Download failed');
+    }
+  }, [selectedManuscript, sectionStates]);
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
@@ -643,37 +758,100 @@ export default function AgentReadinessClient({
             ))}
           </div>
 
+          {/* Generate All Sections */}
           <div style={{
-            border: `1px solid ${canGenerateFinalPackage ? T.gold : T.border}`,
+            border: `1px solid ${T.gold}60`,
             padding: "1.25rem 1.5rem",
-            marginBottom: "2.5rem",
-            backgroundColor: canGenerateFinalPackage ? "rgba(169,142,74,0.06)" : T.panel,
+            marginBottom: "1rem",
+            backgroundColor: "rgba(169,142,74,0.06)",
           }}>
             <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-              Complete Package
+              One-Click Generation
             </p>
             <h2 style={{ fontFamily: T.serif, fontSize: "1.25rem", color: T.cream, marginBottom: "0.625rem" }}>
-              Generate the final package after the sections above are complete.
+              Generate All Sections at Once
             </h2>
             <p style={{ fontSize: "0.75rem", color: T.dim, lineHeight: 1.6, marginBottom: "1rem" }}>
-              {canGenerateFinalPackage
-                ? "All required sections have been started. You can now compile the manuscript-specific package."
-                : selectedManuscript
-                ? "Complete the required sections above before generating the final package."
-                : "Choose a manuscript and complete the required sections above before generating the final package."}
+              {selectedManuscript
+                ? "Generates Query Pitch, Synopsis, What Makes Unique, Comparables, and Query Letter in one click. Author Bio requires your materials (paste in the Bio section)."
+                : "Choose a manuscript above to enable one-click generation."}
             </p>
-            <button disabled={!canGenerateFinalPackage} style={{
-              fontFamily: T.mono, fontSize: "0.75rem", fontWeight: 700,
-              letterSpacing: "0.1em", textTransform: "uppercase",
-              backgroundColor: canGenerateFinalPackage ? T.gold : "transparent",
-              color: canGenerateFinalPackage ? T.ink : T.dim,
-              border: canGenerateFinalPackage ? "none" : `1px solid ${T.border}`,
-              padding: "0.875rem 1.75rem",
-              cursor: canGenerateFinalPackage ? "pointer" : "not-allowed",
-              opacity: canGenerateFinalPackage ? 1 : 0.55,
-            }}>
-              Generate Final Package
+            {generateAllProgress && (
+              <p style={{ fontSize: "0.75rem", color: T.cream2, marginBottom: "0.75rem" }}>{generateAllProgress}</p>
+            )}
+            {generateAllError && (
+              <p style={{ fontSize: "0.75rem", color: T.oxblood, marginBottom: "0.75rem" }}>{generateAllError}</p>
+            )}
+            <button
+              disabled={!selectedManuscript || generatingAll}
+              onClick={handleGenerateAll}
+              style={{
+                fontFamily: T.mono, fontSize: "0.75rem", fontWeight: 700,
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                backgroundColor: selectedManuscript && !generatingAll ? T.gold : "transparent",
+                color: selectedManuscript && !generatingAll ? T.ink : T.dim,
+                border: selectedManuscript && !generatingAll ? "none" : `1px solid ${T.border}`,
+                padding: "0.875rem 1.75rem",
+                cursor: selectedManuscript && !generatingAll ? "pointer" : "not-allowed",
+                opacity: selectedManuscript && !generatingAll ? 1 : 0.55,
+              }}
+            >
+              {generatingAll ? "Generating..." : "Generate All Sections"}
             </button>
+          </div>
+
+          {/* Download Package */}
+          <div style={{
+            border: `1px solid ${hasAnyContent ? T.gold : T.border}`,
+            padding: "1.25rem 1.5rem",
+            marginBottom: "2.5rem",
+            backgroundColor: hasAnyContent ? "rgba(169,142,74,0.06)" : T.panel,
+          }}>
+            <p style={{ fontSize: "0.5625rem", color: T.gold, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+              Download Package
+            </p>
+            <h2 style={{ fontFamily: T.serif, fontSize: "1.25rem", color: T.cream, marginBottom: "0.625rem" }}>
+              Export your submission package
+            </h2>
+            <p style={{ fontSize: "0.75rem", color: T.dim, lineHeight: 1.6, marginBottom: "1rem" }}>
+              {hasAnyContent
+                ? "Download all generated sections as a formatted submission-ready document."
+                : "Generate sections above first, then download the complete package."}
+            </p>
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <button
+                disabled={!hasAnyContent}
+                onClick={() => handleDownload('txt')}
+                style={{
+                  fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  backgroundColor: hasAnyContent ? T.gold : "transparent",
+                  color: hasAnyContent ? T.ink : T.dim,
+                  border: hasAnyContent ? "none" : `1px solid ${T.border}`,
+                  padding: "0.75rem 1.5rem",
+                  cursor: hasAnyContent ? "pointer" : "not-allowed",
+                  opacity: hasAnyContent ? 1 : 0.55,
+                }}
+              >
+                Download .TXT
+              </button>
+              <button
+                disabled={!hasAnyContent}
+                onClick={() => handleDownload('docx')}
+                style={{
+                  fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  backgroundColor: "transparent",
+                  color: hasAnyContent ? T.gold : T.dim,
+                  border: `1px solid ${hasAnyContent ? T.gold : T.border}`,
+                  padding: "0.75rem 1.5rem",
+                  cursor: hasAnyContent ? "pointer" : "not-allowed",
+                  opacity: hasAnyContent ? 1 : 0.55,
+                }}
+              >
+                Download .DOC
+              </button>
+            </div>
           </div>
 
           <div style={{

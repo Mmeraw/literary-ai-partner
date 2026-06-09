@@ -12,7 +12,8 @@
  */
 
 import Link from "next/link";
-import React, { useCallback, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import React, { Suspense, useCallback, useState } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
@@ -119,10 +120,61 @@ const SAVE_BTN: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export default function QueryLetterPage() {
+export default function QueryLetterPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0F0D0A' }} />}>
+      <QueryLetterPage />
+    </Suspense>
+  );
+}
+
+function QueryLetterPage() {
+  const searchParams = useSearchParams();
+  const manuscriptId = searchParams.get('manuscriptId');
+  const evaluationJobId = searchParams.get('evaluationJobId');
+
   const [body, setBody] = useState("");
   const [unique, setUnique] = useState("");
   const [approved, setApproved] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+
+  const callGenerate = useCallback(async (section: 'query_letter' | 'what_makes_unique', mode: 'generate' | 'regenerate' | 'improve') => {
+    if (!manuscriptId || !evaluationJobId) {
+      setGenError('No manuscript selected. Go back and select a manuscript with a completed evaluation.');
+      return;
+    }
+    setGenerating(true);
+    setGenError(null);
+    try {
+      const res = await fetch('/api/agent-readiness/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manuscriptId: Number(manuscriptId),
+          evaluationJobId,
+          section,
+          mode,
+          existingContent: section === 'query_letter' ? body : unique,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGenError(data.error || 'Generation failed');
+        return;
+      }
+      if (section === 'query_letter') {
+        setBody(data.content);
+      } else {
+        setUnique(data.content);
+      }
+      setApproved(false);
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setGenerating(false);
+    }
+  }, [manuscriptId, evaluationJobId, body, unique]);
   const generatedLetter = [
     unique.trim() ? `What Makes This Novel Unique:\n\n${unique.trim()}` : "",
     body.trim() ? `Query Letter:\n\n${body.trim()}` : "",
@@ -244,47 +296,85 @@ export default function QueryLetterPage() {
           </div>
         )}
 
+        {/* Generation error */}
+        {genError && (
+          <div style={{
+            border: `1px solid ${T.oxblood}40`, padding: "0.75rem 1.25rem",
+            backgroundColor: "rgba(122,30,30,0.08)", fontSize: "0.75rem", color: T.oxblood,
+            marginBottom: "1rem", lineHeight: 1.5,
+          }}>
+            {genError}
+          </div>
+        )}
+
         {/* Action row */}
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "2rem" }}>
-          <button style={{
-            fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-            letterSpacing: "0.1em", textTransform: "uppercase",
-            backgroundColor: T.gold, color: T.ink, border: "none",
-            padding: "0.625rem 1.25rem", cursor: "pointer",
-          }}>
-            Generate
+          <button
+            onClick={() => callGenerate('query_letter', 'generate')}
+            disabled={generating}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: generating ? T.dim : T.gold, color: T.ink, border: "none",
+              padding: "0.625rem 1.25rem", cursor: generating ? "wait" : "pointer",
+              opacity: generating ? 0.6 : 1,
+            }}
+          >
+            {generating ? "Generating..." : "Generate"}
           </button>
-          <button style={{
-            fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-            letterSpacing: "0.1em", textTransform: "uppercase",
-            backgroundColor: "transparent", color: T.cream2,
-            border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem", cursor: "pointer",
-          }}>
+          <button
+            onClick={() => callGenerate('query_letter', 'regenerate')}
+            disabled={generating}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.cream2,
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: generating ? "wait" : "pointer", opacity: generating ? 0.5 : 1,
+            }}
+          >
             Regenerate
           </button>
-          <button style={{
-            fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-            letterSpacing: "0.1em", textTransform: "uppercase",
-            backgroundColor: "transparent", color: T.cream2,
-            border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem", cursor: "pointer",
-          }}>
+          <button
+            onClick={() => callGenerate('query_letter', 'improve')}
+            disabled={generating || body.trim().length < 20}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.cream2,
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: generating || body.trim().length < 20 ? "not-allowed" : "pointer",
+              opacity: generating || body.trim().length < 20 ? 0.4 : 1,
+            }}
+          >
             Improve
           </button>
-          <button style={{
-            fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-            letterSpacing: "0.1em", textTransform: "uppercase",
-            backgroundColor: "transparent", color: T.cream2,
-            border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem", cursor: "pointer",
-          }}>
+          <button
+            onClick={() => navigator.clipboard.writeText(body)}
+            disabled={!body.trim()}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.cream2,
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: body.trim() ? "pointer" : "not-allowed",
+              opacity: body.trim() ? 1 : 0.4,
+            }}
+          >
             Copy
           </button>
-          <button style={{
-            fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-            letterSpacing: "0.1em", textTransform: "uppercase",
-            backgroundColor: "transparent", color: T.dim,
-            border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem", cursor: "pointer",
-          }}>
-            Restore Version
+          <button
+            onClick={() => callGenerate('what_makes_unique', 'generate')}
+            disabled={generating}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.dim,
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: generating ? "wait" : "pointer", opacity: generating ? 0.5 : 1,
+            }}
+          >
+            {generating ? "..." : "Gen. Unique"}
           </button>
           <button
             onClick={() => !overLimit && setApproved(true)}

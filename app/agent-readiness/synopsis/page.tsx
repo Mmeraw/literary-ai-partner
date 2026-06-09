@@ -12,8 +12,10 @@
  */
 
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { Suspense, useState, useCallback } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
+import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
+import { SectionActionRow } from "../components/SectionActionRow";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
@@ -124,11 +126,28 @@ const SAVE_BTN: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export default function SynopsisPage() {
+export default function SynopsisPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0F0D0A' }} />}>
+      <SynopsisPage />
+    </Suspense>
+  );
+}
+
+function SynopsisPage() {
   const [selected, setSelected] = useState<SynopsisLength>("standard");
   const [content,  setContent]  = useState("");
   const [approved, setApproved] = useState(false);
   const generatedSynopsis = content;
+
+  const genState = useAgentReadinessGenerate();
+  const handleGenerate = useCallback(async (_section: string, mode: 'generate' | 'regenerate' | 'improve') => {
+    const result = await genState.generate('synopsis', mode, { existingContent: content });
+    if (result) {
+      setContent(result.content);
+      setApproved(false);
+    }
+  }, [genState, content]);
 
   const wordCount = countWords(content);
   const limits: Record<SynopsisLength, [number, number]> = {
@@ -231,36 +250,17 @@ export default function SynopsisPage() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          {["Generate", "Regenerate", "Improve", "Copy", "Restore Version"].map(label => (
-            <button key={label} style={{
-              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-              letterSpacing: "0.1em", textTransform: "uppercase",
-              backgroundColor: label === "Generate" ? T.gold : "transparent",
-              color: label === "Generate" ? T.ink : T.cream2,
-              border: label === "Generate" ? "none" : `1px solid ${T.border}`,
-              padding: "0.625rem 1.25rem", cursor: "pointer",
-            }}>
-              {label}
-            </button>
-          ))}
-          <button
-            onClick={() => !overLimit && content.trim().length > 50 && setApproved(true)}
-            disabled={overLimit || content.trim().length < 50}
-            style={{
-              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-              letterSpacing: "0.1em", textTransform: "uppercase",
-              backgroundColor: approved ? "#5A8A5A" : "transparent",
-              color: approved ? "#F2EFEA" : "#5A8A5A",
-              border: `1px solid ${overLimit ? T.border : "#5A8A5A"}`,
-              padding: "0.625rem 1.25rem",
-              cursor: overLimit || content.trim().length < 50 ? "not-allowed" : "pointer",
-              opacity: overLimit || content.trim().length < 50 ? 0.4 : 1,
-            }}
-          >
-            {approved ? "✓ Approved" : "Lock / Approve"}
-          </button>
-        </div>
+        <SectionActionRow
+          section="synopsis"
+          generating={genState.generating}
+          error={genState.error}
+          content={content}
+          approved={approved}
+          overLimit={overLimit}
+          onGenerate={handleGenerate}
+          onApprove={() => !overLimit && content.trim().length > 50 && setApproved(true)}
+          onCopy={() => navigator.clipboard.writeText(content)}
+        />
 
         <div style={{ marginTop: "2rem" }}>
           <Link href="/agent-readiness" style={{ fontFamily: T.mono, fontSize: "0.5625rem", color: T.dim, letterSpacing: "0.1em", textDecoration: "none" }}>
