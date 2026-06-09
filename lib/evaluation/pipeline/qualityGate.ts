@@ -374,12 +374,22 @@ export function runQualityGate(
   });
 
   // ── Check 4: Recommendation length (50–1500 chars) ──────────────────────
+  // Recommendations with substantive candidate prose (A/B/C variants) may have
+  // legitimately terse action text (e.g. "tighten exposition") — treat those as
+  // warnings, not hard failures. The prose itself carries the editorial value.
   const shortRecs: string[] = [];
+  const shortRecsWithProse: string[] = [];
   const longRecs: string[] = [];
   for (const c of synthesis.criteria) {
     for (const r of c.recommendations) {
-      if (r.action.length < QG_MIN_REC_LENGTH)
-        shortRecs.push(`${c.key}: "${r.action}"`);
+      if (r.action.length < QG_MIN_REC_LENGTH) {
+        const hasProse = typeof r.candidate_text_a === "string" && r.candidate_text_a.trim().length > 20;
+        if (hasProse) {
+          shortRecsWithProse.push(`${c.key}: "${r.action}" (has candidate prose)`);
+        } else {
+          shortRecs.push(`${c.key}: "${r.action}"`);
+        }
+      }
       if (r.action.length > QG_MAX_REC_LENGTH)
         longRecs.push(`${c.key} (${r.action.length} chars)`);
     }
@@ -391,7 +401,9 @@ export function runQualityGate(
     details:
       shortRecs.length > 0
         ? `${shortRecs.length} recommendation(s) shorter than ${QG_MIN_REC_LENGTH} chars`
-        : `All recommendations ≥ ${QG_MIN_REC_LENGTH} chars`,
+        : shortRecsWithProse.length > 0
+          ? `${shortRecsWithProse.length} short action(s) accepted — candidate prose present`
+          : `All recommendations ≥ ${QG_MIN_REC_LENGTH} chars`,
   });
   checks.push({
     check_id: "rec_max_length",
