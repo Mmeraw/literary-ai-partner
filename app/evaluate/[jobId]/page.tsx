@@ -124,15 +124,15 @@ export default async function EvaluationReportPage({ params }: PageProps) {
                 <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
                 <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
                 <HeaderField label="Report Type" value="Short-Form Evaluation" />
-                <HeaderField label="Genre" value="Not Specified" confidenceLabel="Low Confidence" capitalize />
-                <HeaderField label="Shelf" value="Not available" confidenceLabel="Low Confidence" />
+                <HeaderField label="Genre" value="Not specified" />
+                <HeaderField label="Shelf" value="Not available" />
                 <HeaderField label="Submitted Word Count" value="Calculating" />
                 <HeaderField label="Estimated Manuscript Pages" value="Not available" />
                 <HeaderField label="Reading Grade Level" value="Not available" />
                 <HeaderField label="Dialogue/Narrative Ratio" value="Not available" />
-                <HeaderField label="Market Readiness" value="Review" confidenceLabel="Low Confidence" />
+                <HeaderField label="Market Readiness" value="Review" />
                 <HeaderField label="Date Generated" value="Not available" />
-                <HeaderField label="Target Audience" value="Not available" confidenceLabel="Low Confidence" />
+                <HeaderField label="Target Audience" value="Not available" />
               </dl>
 
               {submissionPreview && (
