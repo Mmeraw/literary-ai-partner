@@ -21,6 +21,7 @@ import {
 import { applyShortFormEvidenceGate, runShortFormEvidenceGate } from "@/lib/evaluation/pipeline/shortFormEvidenceGate";
 import { runShortFormFinalSanityCheck } from "@/lib/evaluation/pipeline/shortFormFinalSanityCheck";
 import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
+import { FORBIDDEN_PATTERNS, getForbiddenCodes } from "@/lib/evaluation/reportForbiddenPatterns";
 
 type PipelineFailureEnvelope = {
   failure_origin: string;
@@ -351,71 +352,26 @@ function repairTruncatedRecommendationActions(
   };
 }
 
-type PersistenceSanitizerPatternKey =
-  | "MALFORMED_DOUBLE_MODAL"
-  | "MALFORMED_WOULD_BENEFIT_BECAUSE"
-  | "MALFORMED_BENEFIT_FROM_ONE_BECAUSE"
-  | "MALFORMED_WOULD_BECAUSE"
-  | "OFF_TOPIC_STUDIES_ARE_MIXED"
-  | "OFF_TOPIC_SAFE_INJECTION_SITES";
-
 type PersistenceSanitizerMetrics = {
   replacements_total: number;
   touched_fields: number;
-  by_pattern: Record<PersistenceSanitizerPatternKey, number>;
+  by_pattern: Record<string, number>;
 };
 
-type PersistenceSanitizerPattern = {
-  key: PersistenceSanitizerPatternKey;
-  source: string;
-  replacement: string;
-};
-
-const PERSISTENCE_SANITIZER_PATTERNS: PersistenceSanitizerPattern[] = [
-  {
-    key: "MALFORMED_DOUBLE_MODAL",
-    source: String.raw`\b(would|could|should)\s+(would|could|should)\b`,
-    replacement: "$1",
-  },
-  {
-    key: "MALFORMED_WOULD_BENEFIT_BECAUSE",
-    source: String.raw`\bwould\s+benefit\s+from\s+one\s+because\b`,
-    replacement: "would benefit because",
-  },
-  {
-    key: "MALFORMED_BENEFIT_FROM_ONE_BECAUSE",
-    source: String.raw`\bbenefit\s+from\s+one\s+because\b`,
-    replacement: "benefit because",
-  },
-  {
-    key: "MALFORMED_WOULD_BECAUSE",
-    source: String.raw`\b(?:would|could|should)\s+because\b`,
-    replacement: "because",
-  },
-  {
-    key: "OFF_TOPIC_STUDIES_ARE_MIXED",
-    source: String.raw`\bstudies\s+are\s+mixed\s+on\s+the\s+success\s+of\s+safe\s+injection\s+sites?\b`,
-    replacement: "scene-specific evidence is mixed",
-  },
-  {
-    key: "OFF_TOPIC_SAFE_INJECTION_SITES",
-    source: String.raw`\bsafe\s+injection\s+sites?\b`,
-    replacement: "scene-specific evidence",
-  },
-];
+// Patterns now imported from shared registry (reportForbiddenPatterns.ts).
+// This guarantees write-time sanitizer, read-time sanitizer, and parity gate
+// can never drift.
+const PERSISTENCE_SANITIZER_PATTERNS = FORBIDDEN_PATTERNS;
 
 function createPersistenceSanitizerMetrics(): PersistenceSanitizerMetrics {
+  const by_pattern: Record<string, number> = {};
+  for (const code of getForbiddenCodes()) {
+    by_pattern[code] = 0;
+  }
   return {
     replacements_total: 0,
     touched_fields: 0,
-    by_pattern: {
-      MALFORMED_DOUBLE_MODAL: 0,
-      MALFORMED_WOULD_BENEFIT_BECAUSE: 0,
-      MALFORMED_BENEFIT_FROM_ONE_BECAUSE: 0,
-      MALFORMED_WOULD_BECAUSE: 0,
-      OFF_TOPIC_STUDIES_ARE_MIXED: 0,
-      OFF_TOPIC_SAFE_INJECTION_SITES: 0,
-    },
+    by_pattern,
   };
 }
 
@@ -429,7 +385,7 @@ function sanitizeTextForPersistence(value: string, metrics?: PersistenceSanitize
     const matches = repaired.match(matcher);
     if (matches && matches.length > 0 && metrics) {
       metrics.replacements_total += matches.length;
-      metrics.by_pattern[pattern.key] += matches.length;
+      metrics.by_pattern[pattern.code] += matches.length;
     }
     repaired = repaired.replace(matcher, pattern.replacement);
   }
