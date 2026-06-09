@@ -12,6 +12,15 @@
  *
  * All forbidden patterns are imported from the shared registry
  * (reportForbiddenPatterns.ts) — the single source of truth.
+ *
+ * GOVERNANCE RULE: This sanitizer ONLY touches RG-generated editorial text.
+ * It must NEVER mutate manuscript-owned content:
+ *   - anchor_snippet        (direct manuscript quotation)
+ *   - evidence_snippets[*].snippet  (manuscript excerpt)
+ *   - any preserved author text
+ * If an author literally wrote a phrase that matches a forbidden pattern,
+ * that quotation must remain exactly as written. Altering evidence is a
+ * governance violation.
  */
 
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
@@ -74,18 +83,18 @@ export function sanitizeResultForDownload<T extends Record<string, unknown>>(res
           if (typeof rec.specific_fix === 'string') rec.specific_fix = sanitizeText(rec.specific_fix);
           if (typeof rec.expected_impact === 'string') rec.expected_impact = sanitizeText(rec.expected_impact);
           if (typeof rec.mechanism === 'string') rec.mechanism = sanitizeText(rec.mechanism);
-          if (typeof rec.anchor_snippet === 'string') rec.anchor_snippet = sanitizeText(rec.anchor_snippet);
+          // anchor_snippet is a direct manuscript quotation — never sanitize author text.
           if (typeof rec.reader_effect === 'string') rec.reader_effect = sanitizeText(rec.reader_effect);
           if (typeof rec.symptom === 'string') rec.symptom = sanitizeText(rec.symptom);
           if (typeof rec.mistake_proofing === 'string') rec.mistake_proofing = sanitizeText(rec.mistake_proofing);
         }
       }
 
-      // Sanitize evidence_snippets
+      // evidence_snippets[*].snippet is manuscript content — never sanitize author text.
+      // Only sanitize the editorial .note annotation.
       if (Array.isArray(criterion.evidence_snippets)) {
         for (const snippet of criterion.evidence_snippets as Array<Record<string, unknown>>) {
           if (!isRecord(snippet)) continue;
-          if (typeof snippet.snippet === 'string') snippet.snippet = sanitizeText(snippet.snippet);
           if (typeof snippet.note === 'string') snippet.note = sanitizeText(snippet.note);
         }
       }

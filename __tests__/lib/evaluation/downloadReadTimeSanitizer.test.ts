@@ -310,4 +310,47 @@ describe('downloadReadTimeSanitizer', () => {
     const studiesCodes = parity.violations.filter(v => v.code === 'OFF_TOPIC_STUDIES_ARE_MIXED');
     expect(studiesCodes.length).toBe(1);
   });
+
+  // ── Governance: manuscript evidence must never be mutated ──
+
+  it('does NOT sanitize anchor_snippet (manuscript quotation)', () => {
+    const manuscriptQuote = 'Studies are mixed on the success of safe injection sites in Vancouver.';
+    const result = makeValidResult();
+    (result.criteria as Array<Record<string, unknown>>)[0].recommendations = [
+      {
+        action: 'Studies are mixed on the success of safe injection sites should be revised.',
+        specific_fix: 'Rewrite the opening paragraph.',
+        anchor_snippet: manuscriptQuote,
+      },
+    ];
+
+    sanitizeResultForDownload(result as unknown as Record<string, unknown>);
+
+    // Editorial fields ARE sanitized
+    const rec = ((result.criteria as Array<Record<string, unknown>>)[0].recommendations as Array<Record<string, unknown>>)[0];
+    expect(rec.action).not.toContain('safe injection sites');
+
+    // Manuscript quotation is preserved exactly
+    expect(rec.anchor_snippet).toBe(manuscriptQuote);
+  });
+
+  it('does NOT sanitize evidence_snippets[*].snippet (manuscript content)', () => {
+    const manuscriptExcerpt = 'Studies are mixed on the success of safe injection sites in the Lower Mainland.';
+    const result = makeValidResult();
+    (result.criteria as Array<Record<string, unknown>>)[0].evidence_snippets = [
+      {
+        snippet: manuscriptExcerpt,
+        note: 'This passage would because the connective logic is broken — needs editorial revision.',
+      },
+    ];
+
+    sanitizeResultForDownload(result as unknown as Record<string, unknown>);
+
+    // Manuscript excerpt is preserved exactly — never alter author text
+    const snippets = (result.criteria as Array<Record<string, unknown>>)[0].evidence_snippets as Array<Record<string, unknown>>;
+    expect(snippets[0].snippet).toBe(manuscriptExcerpt);
+
+    // Editorial note IS sanitized (malformed "would because" pattern)
+    expect(snippets[0].note).not.toMatch(/\bwould\s+because\b/i);
+  });
 });

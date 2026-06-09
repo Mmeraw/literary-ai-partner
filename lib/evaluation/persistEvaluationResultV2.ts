@@ -421,19 +421,17 @@ function sanitizeEvaluationResultForPersistence(evaluationResult: EvaluationResu
       criteria: evaluationResult.criteria.map((criterion) => ({
         ...criterion,
         rationale: sanitizeNonEmptyTextForPersistence(criterion.rationale, metrics),
+        // evidence[*].snippet is manuscript content — never sanitize author text.
+        // Only sanitize the editorial .note annotation.
         evidence: criterion.evidence.map((item) => ({
           ...item,
-          snippet: sanitizeNonEmptyTextForPersistence(item.snippet, metrics),
           note: typeof item.note === "string" ? sanitizeNonEmptyTextForPersistence(item.note, metrics) : item.note,
         })),
         recommendations: criterion.recommendations.map((recommendation) => ({
           ...recommendation,
           action: sanitizeNonEmptyTextForPersistence(recommendation.action, metrics),
           expected_impact: sanitizeNonEmptyTextForPersistence(recommendation.expected_impact, metrics),
-          anchor_snippet:
-            typeof recommendation.anchor_snippet === "string"
-              ? sanitizeNonEmptyTextForPersistence(recommendation.anchor_snippet, metrics)
-              : recommendation.anchor_snippet,
+          // anchor_snippet is a direct manuscript quotation — never sanitize author text.
           mechanism:
             typeof recommendation.mechanism === "string"
               ? sanitizeNonEmptyTextForPersistence(recommendation.mechanism, metrics)
