@@ -209,7 +209,7 @@ function ComparablesPage() {
 
         {/* Generate CTA */}
         <div style={{ display: "flex", gap: "0.75rem", marginBottom: "2rem", flexWrap: "wrap" }}>
-          <button style={{
+          <button onClick={() => handleGenerateComps('generate')} style={{
             fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
             letterSpacing: "0.1em", textTransform: "uppercase",
             backgroundColor: T.gold, color: T.ink, border: "none",
@@ -217,7 +217,7 @@ function ComparablesPage() {
           }}>
             Build Comps for Query Package
           </button>
-          <button style={{
+          <button onClick={() => handleGenerateComps('regenerate')} style={{
             fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
             letterSpacing: "0.1em", textTransform: "uppercase",
             backgroundColor: "transparent", color: T.cream2,
