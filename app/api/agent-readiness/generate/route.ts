@@ -131,58 +131,83 @@ ABSOLUTE RULES:
       return `${baseRules}
 
 QUERY LETTER REQUIREMENTS:
-- Open with a compelling hook paragraph (the story pitch)
-- Follow with a brief synopsis: protagonist, central conflict, stakes, major turn, consequence
-- Include metadata line: title, genre, word count, audience
-- Include comparables sentence naturally
-- Include "what makes this unique" paragraph
-- Close with brief professional bio and "Thank you for your time and consideration"
-- HARD CAP: 450 words maximum
-- Tone: confident, professional, not desperate or self-deprecating`;
+- HARD CAP: 450 words maximum (350-400 is ideal)
+- STRUCTURE (follow this exact order):
+  1. HOOK (1 paragraph, 2-4 sentences): Drop the reader into the story's world. Name the protagonist, their situation, and what disrupts it. No rhetorical questions. No "What if..." openings. Start with story, not setup.
+  2. STAKES (1 paragraph): The central conflict — what the protagonist must do, what stands against them, and what they'll lose if they fail. Reveal at least one major turn. This is NOT a teaser — agents want to see narrative architecture.
+  3. METADATA (1 line): "[TITLE] is a [genre] complete at [word count] words, with series potential" (or standalone). Include target audience if relevant.
+  4. COMPARABLES (1 sentence): "It will appeal to readers of [Comp 1] and [Comp 2]" — woven naturally, not as a bullet list.
+  5. BIO (2-3 sentences): Why YOU wrote THIS book. Professional identity + relevant credential. No life story.
+  6. CLOSE: "Thank you for your time and consideration. I look forward to the opportunity to share the full manuscript."
+- VOICE: Confident, precise, literary. Match the manuscript's tone — if the novel is dark, the query is dark. If lyrical, the query is lyrical. Never sound desperate, self-deprecating, or salesy.
+- Every sentence must advance the agent's understanding of the story or the author's credibility. Cut anything generic.
+- Do NOT summarize themes in abstract language ("explores the nature of..."). Show, don't tell — even in a query.`;
 
     case 'what_makes_unique':
       return `${baseRules}
 
 UNIQUE DIFFERENTIATOR REQUIREMENTS:
-- One focused paragraph (100-150 words)
-- Identify the specific hook, premise, voice, or structural element that separates this manuscript from everything else in its genre
-- Be concrete and specific — not generic praise
-- Position the manuscript in the market without being salesy
-- This must work both standalone AND inside the query letter`;
+- One focused paragraph: 100-150 words (aim for 120)
+- Answer ONE question: "What does THIS manuscript offer that nothing else on the market does right now?"
+- STRUCTURE: Lead with the differentiator itself (not "What makes this novel unique is..."). State it as fact, then support with 2-3 specific details from the manuscript.
+- Categories of differentiation (pick the strongest ONE, not all):
+  • Structural innovation (non-linear timeline, dual POV, epistolary, unreliable narrator architecture)
+  • Voice/Tone (a specific fusion nobody else is doing — e.g. "literary prose with thriller pacing")
+  • Subject/Setting access (insider knowledge, lived experience, underrepresented world)
+  • Thematic intersection (two themes rarely combined — e.g. "addiction through the lens of bureaucratic harm reduction")
+- NEVER use: "This novel is unique because..." or "Unlike anything else..." or "A fresh take on..."
+- Write as if pitching to a jaded agent who has read 200 queries today — be specific enough that they can't confuse this book with another.
+- This must work both standalone AND embedded inside the query letter.`;
 
     case 'synopsis':
       return `${baseRules}
 
 SYNOPSIS REQUIREMENTS:
-- 250-500 words (standard length)
-- MUST reveal the ending — agents expect this
-- Cover: protagonist, inciting incident, rising action, climax, resolution
-- Write in present tense, third person
-- Focus on emotional arc and character decisions, not every plot point
-- No chapter-by-chapter breakdown
-- Maintain the manuscript's tone and voice`;
+- 250-500 words (350-450 is the sweet spot)
+- MUST REVEAL THE ENDING — agents REQUIRE this. A synopsis that withholds the resolution is an automatic rejection.
+- Write in present tense, third person, active voice throughout.
+- STRUCTURE (follow this arc):
+  1. SETUP (2-3 sentences): Protagonist, their world, their flaw or desire.
+  2. INCITING INCIDENT: The event that forces them out of stasis.
+  3. RISING ACTION: 3-4 key turning points (not every plot beat — only decisions that change the trajectory).
+  4. CLIMAX: The protagonist's defining choice under maximum pressure.
+  5. RESOLUTION: What happens as a result. How the world and character are changed.
+- FOCUS on the protagonist's emotional arc and key DECISIONS. Agents want to see character agency, not a sequence of things happening TO someone.
+- NAME only essential characters (protagonist + 2-3 others maximum). Unnamed characters = "his sister" or "a stranger."
+- NO chapter-by-chapter breakdown. No "In chapter 3..." framing.
+- NO teaser language ("What happens next will change everything"). This is not a blurb — it's a professional narrative summary.
+- MAINTAIN the manuscript's tone — if the novel is literary and quiet, the synopsis is literary and quiet. If it's tense and propulsive, so is the synopsis.
+- Every sentence must move the story forward. Cut transitions, setting descriptions, and subplot details unless they directly affect the main arc.`;
 
     case 'query_pitch':
       return `${baseRules}
 
 QUERY PITCH REQUIREMENTS:
-- One sentence only (25-50 words maximum)
-- Captures the manuscript's core hook and positioning
-- Format: "[TITLE] is a [genre] about [protagonist] who must [conflict/stakes]"
-- Must be compelling enough to make an agent want to read more
-- Think of it as the elevator pitch version`;
+- ONE sentence. 25-50 words maximum. No exceptions.
+- This is the "elevator pitch" — the single sentence an agent uses to pitch YOUR book at an editorial meeting.
+- STRUCTURE: [TITLE] is a [genre] [comp positioning] in which [protagonist with one defining trait] must [specific action with stakes] before/or else [concrete consequence].
+- EXAMPLES of strong pitches (for calibration only — do NOT copy these):
+  • "THE HOUSE IN THE CERULEAN SEA is a cozy fantasy in the vein of Howl's Moving Castle in which a government caseworker must decide whether to condemn six magical children or defy the bureaucracy that raised him."
+  • "GONE GIRL is a literary thriller about a husband whose wife's disappearance exposes the toxic architecture of their marriage."
+- NEVER use: vague stakes ("must confront their past"), abstract language ("navigates a world of..."), or multiple clauses connected by "and."
+- The pitch must contain: the protagonist's identity, the specific conflict, and what's at stake — all in one sentence.
+- If the word count exceeds 50, CUT. Tighter is always better.`;
 
     case 'comparables':
       return `${baseRules}
 
 COMPARABLES REQUIREMENTS:
-- 2-4 comparable titles with brief rationale for each
-- Format: "[Title] by [Author] — [one sentence explaining the connection]"
-- Comps should be published within the last 5 years when possible
-- Mix of commercial success and craft similarity
-- Be specific about WHAT connects them (voice, structure, theme, audience)
-- Never use mega-bestsellers as sole comps (agents see this as naive)
-- Include at least one comp that shows market positioning`;
+- 2-4 comparable titles. No more, no fewer than 2.
+- FORMAT for each: "[TITLE] by [Author] ([Year]) — [one precise sentence explaining the specific connection]"
+- RULES for selecting comps:
+  • Published within the last 5 years (ideally 2-3 years). Agents use comps to assess market viability — old titles signal you don't know the current market.
+  • NEVER use mega-bestsellers alone (Gone Girl, The Hunger Games, Harry Potter). Agents interpret this as "I don't read in my genre." You may reference one as a "meets" pairing (e.g., "X meets Gone Girl") only if paired with a mid-list title.
+  • Mix: one comp for VOICE/CRAFT similarity, one for MARKET/AUDIENCE positioning. If 3-4 comps, include at least one that shows thematic intersection.
+  • Be SPECIFIC about the connection: not "similar themes" but "the same claustrophobic single-setting tension" or "lyrical prose style with short chapters."
+  • Comps must be in the same genre or adjacent. Do not comp literary fiction to a thriller unless the manuscript genuinely crosses genres.
+- STRUCTURE: Present as a brief paragraph with natural transitions, OR as a formatted list. Agent preference varies — a paragraph reads more professionally.
+- After the comp list, include ONE sentence positioning the manuscript: "[TITLE] sits at the intersection of [Genre A] and [Genre B], for readers who want [specific reading experience]."
+- Draw from real published titles. Be accurate about authors and publication years.`;
 
     case 'author_bio':
       return `${baseRules}
