@@ -99,7 +99,7 @@ export default async function EvaluationReportPage({ params }: PageProps) {
           <h1 className="font-rg-serif text-2xl font-semibold text-stone-950">Report not available yet</h1>
           <p className="mt-2 text-stone-700">This evaluation is still being prepared or could not be loaded.</p>
           <div className="mt-4">
-            <EvaluationUnavailableReloadButton />
+            <EvaluationUnavailableReloadButton jobId={jobId} />
           </div>
         </section>
       </main>
