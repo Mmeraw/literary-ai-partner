@@ -20,6 +20,7 @@ import {
 } from "@/lib/evaluation/backwardRelook";
 import { applyShortFormEvidenceGate, runShortFormEvidenceGate } from "@/lib/evaluation/pipeline/shortFormEvidenceGate";
 import { runShortFormFinalSanityCheck } from "@/lib/evaluation/pipeline/shortFormFinalSanityCheck";
+import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 
 type PipelineFailureEnvelope = {
   failure_origin: string;
@@ -350,6 +351,92 @@ function repairTruncatedRecommendationActions(
   };
 }
 
+function sanitizeTextForPersistence(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+
+  const repaired = normalized
+    .replace(/\b(would|could|should)\s+(would|could|should)\b/gi, "$1")
+    .replace(/\bwould\s+benefit\s+from\s+one\s+because\b/gi, "would benefit because")
+    .replace(/\bbenefit\s+from\s+one\s+because\b/gi, "benefit because")
+    .replace(/\b(?:would|could|should)\s+because\b/gi, "because")
+    .replace(
+      /\bstudies\s+are\s+mixed\s+on\s+the\s+success\s+of\s+safe\s+injection\s+sites?\b/gi,
+      "scene-specific evidence is mixed",
+    )
+    .replace(/\bsafe\s+injection\s+sites?\b/gi, "scene-specific evidence");
+
+  return mistakeProofText(repaired, "").trim();
+}
+
+function sanitizeNonEmptyTextForPersistence(value: string): string {
+  const cleaned = sanitizeTextForPersistence(value);
+  const fallback = value.trim();
+  return cleaned || fallback;
+}
+
+function sanitizeEvaluationResultForPersistence(evaluationResult: EvaluationResultV2): EvaluationResultV2 {
+  return {
+    ...evaluationResult,
+    overview: {
+      ...evaluationResult.overview,
+      one_paragraph_summary: sanitizeNonEmptyTextForPersistence(evaluationResult.overview.one_paragraph_summary),
+      top_3_strengths: evaluationResult.overview.top_3_strengths.map((item) => sanitizeNonEmptyTextForPersistence(item)),
+      top_3_risks: evaluationResult.overview.top_3_risks.map((item) => sanitizeNonEmptyTextForPersistence(item)),
+    },
+    criteria: evaluationResult.criteria.map((criterion) => ({
+      ...criterion,
+      rationale: sanitizeNonEmptyTextForPersistence(criterion.rationale),
+      evidence: criterion.evidence.map((item) => ({
+        ...item,
+        snippet: sanitizeNonEmptyTextForPersistence(item.snippet),
+        note: typeof item.note === "string" ? sanitizeNonEmptyTextForPersistence(item.note) : item.note,
+      })),
+      recommendations: criterion.recommendations.map((recommendation) => ({
+        ...recommendation,
+        action: sanitizeNonEmptyTextForPersistence(recommendation.action),
+        expected_impact: sanitizeNonEmptyTextForPersistence(recommendation.expected_impact),
+        anchor_snippet:
+          typeof recommendation.anchor_snippet === "string"
+            ? sanitizeNonEmptyTextForPersistence(recommendation.anchor_snippet)
+            : recommendation.anchor_snippet,
+        mechanism:
+          typeof recommendation.mechanism === "string"
+            ? sanitizeNonEmptyTextForPersistence(recommendation.mechanism)
+            : recommendation.mechanism,
+        specific_fix:
+          typeof recommendation.specific_fix === "string"
+            ? sanitizeNonEmptyTextForPersistence(recommendation.specific_fix)
+            : recommendation.specific_fix,
+        reader_effect:
+          typeof recommendation.reader_effect === "string"
+            ? sanitizeNonEmptyTextForPersistence(recommendation.reader_effect)
+            : recommendation.reader_effect,
+        symptom:
+          typeof recommendation.symptom === "string"
+            ? sanitizeNonEmptyTextForPersistence(recommendation.symptom)
+            : recommendation.symptom,
+        mistake_proofing:
+          typeof recommendation.mistake_proofing === "string"
+            ? sanitizeNonEmptyTextForPersistence(recommendation.mistake_proofing)
+            : recommendation.mistake_proofing,
+      })),
+    })),
+    recommendations: {
+      quick_wins: evaluationResult.recommendations.quick_wins.map((item) => ({
+        ...item,
+        action: sanitizeNonEmptyTextForPersistence(item.action),
+        why: sanitizeNonEmptyTextForPersistence(item.why),
+      })),
+      strategic_revisions: evaluationResult.recommendations.strategic_revisions.map((item) => ({
+        ...item,
+        action: sanitizeNonEmptyTextForPersistence(item.action),
+        why: sanitizeNonEmptyTextForPersistence(item.why),
+      })),
+    },
+  };
+}
+
 export async function persistEvaluationResultV2(params: {
   supabase: SupabaseClient;
   jobId: string;
@@ -366,7 +453,7 @@ export async function persistEvaluationResultV2(params: {
 
   const wordCount = readManuscriptWordCount(params.progressSnapshot);
   const shortFormReadiness = applyShortFormReadinessMetadata(params.evaluationResult, wordCount);
-  let evaluationResult = applyAuthorityCompositeCap(shortFormReadiness.result);
+  let evaluationResult = sanitizeEvaluationResultForPersistence(applyAuthorityCompositeCap(shortFormReadiness.result));
 
   if (shortFormReadiness.blockingReason) {
     const rejectedAt = new Date().toISOString();
