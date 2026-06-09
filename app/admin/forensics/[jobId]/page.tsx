@@ -65,6 +65,7 @@ interface ForensicData {
     enforced: boolean;
   }>;
   retryAnalytics: {
+    policy_deployed: boolean;
     total_retry_attempts: number;
     retry_success_count: number;
     retry_failure_count: number;
@@ -427,20 +428,44 @@ export default function ForensicViewPage() {
           Self-correction telemetry: retry attempts, success/failure rates, quarantine decisions, and fail-closed status
         </p>
 
-        {/* Empty state for pre-policy jobs */}
-        {retryAnalytics.total_retry_attempts === 0 &&
-         retryAnalytics.quarantine_count === 0 &&
-         retryAnalytics.fail_closed_count === 0 &&
-         retryAnalytics.retry_events.length === 0 ? (
-          <div className="rounded border border-slate-200 bg-slate-50 px-4 py-5 text-center">
-            <p className="text-sm font-semibold text-slate-700">
-              No self-correction attempts recorded for this job.
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              This may mean the job completed before the self-correction policy was deployed, or no retryable gate violations occurred.
-            </p>
-          </div>
-        ) : (
+        {/* Three-state empty logic: Not measured / Measured: no violations / Measured: action taken */}
+        {(() => {
+          const hasActivity = retryAnalytics.total_retry_attempts > 0 ||
+            retryAnalytics.quarantine_count > 0 ||
+            retryAnalytics.fail_closed_count > 0 ||
+            retryAnalytics.retry_events.length > 0;
+
+          if (!hasActivity && !retryAnalytics.policy_deployed) {
+            // State 1: Pre-policy — NOT MEASURED
+            return (
+              <div className="rounded border border-amber-200 bg-amber-50 px-4 py-5 text-center">
+                <p className="text-sm font-bold text-amber-900">
+                  ⚠ Not measured
+                </p>
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  No self-correction telemetry exists for this job. This job completed before the self-correction policy was deployed. Empty does not mean clean.
+                </p>
+              </div>
+            );
+          }
+
+          if (!hasActivity && retryAnalytics.policy_deployed) {
+            // State 2: Post-policy, no violations — MEASURED: CLEAN
+            return (
+              <div className="rounded border border-green-200 bg-green-50 px-4 py-5 text-center">
+                <p className="text-sm font-bold text-green-900">
+                  Measured: no retryable violations
+                </p>
+                <p className="mt-1 text-xs font-medium text-green-800">
+                  Self-correction policy was active for this job. No gate violations triggered retry or quarantine actions.
+                </p>
+              </div>
+            );
+          }
+
+          // State 3: Has activity — show full metrics
+          return null;
+        })() || (
           <>
             {/* Metrics grid */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">

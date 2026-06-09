@@ -328,3 +328,81 @@ describe("Forensic Stage Inference", () => {
     });
   });
 });
+
+// ── Retry/Quarantine Analytics: three-state regression tests ──────────────────
+
+describe("Retry/Quarantine Analytics — three-state classification", () => {
+  /**
+   * Inline the state classification logic from the UI.
+   * Given retryAnalytics shape, returns which UI state renders.
+   */
+  function classifyRetryState(retryAnalytics: {
+    policy_deployed: boolean;
+    total_retry_attempts: number;
+    quarantine_count: number;
+    fail_closed_count: number;
+    retry_events: unknown[];
+  }): "not_measured" | "measured_clean" | "measured_action_taken" {
+    const hasActivity =
+      retryAnalytics.total_retry_attempts > 0 ||
+      retryAnalytics.quarantine_count > 0 ||
+      retryAnalytics.fail_closed_count > 0 ||
+      retryAnalytics.retry_events.length > 0;
+
+    if (!hasActivity && !retryAnalytics.policy_deployed) {
+      return "not_measured";
+    }
+    if (!hasActivity && retryAnalytics.policy_deployed) {
+      return "measured_clean";
+    }
+    return "measured_action_taken";
+  }
+
+  it("pre-policy job with no self_correction renders 'not_measured' (never '0 failures' or 'clean')", () => {
+    // Simulates old Sister-style job: progress.self_correction was undefined
+    const result = classifyRetryState({
+      policy_deployed: false,
+      total_retry_attempts: 0,
+      quarantine_count: 0,
+      fail_closed_count: 0,
+      retry_events: [],
+    });
+    expect(result).toBe("not_measured");
+    expect(result).not.toBe("measured_clean");
+  });
+
+  it("post-policy job with no violations renders 'measured_clean'", () => {
+    // Simulates new job where self_correction policy was active but nothing triggered
+    const result = classifyRetryState({
+      policy_deployed: true,
+      total_retry_attempts: 0,
+      quarantine_count: 0,
+      fail_closed_count: 0,
+      retry_events: [],
+    });
+    expect(result).toBe("measured_clean");
+  });
+
+  it("post-policy job with retry attempts renders 'measured_action_taken'", () => {
+    const result = classifyRetryState({
+      policy_deployed: true,
+      total_retry_attempts: 2,
+      quarantine_count: 1,
+      fail_closed_count: 0,
+      retry_events: [{ event: "retry", stage: "quality_gate", result: "success" }],
+    });
+    expect(result).toBe("measured_action_taken");
+  });
+
+  it("pre-policy job with retry events still renders 'measured_action_taken'", () => {
+    // Edge case: timeline has retry events even if policy_deployed is false
+    const result = classifyRetryState({
+      policy_deployed: false,
+      total_retry_attempts: 1,
+      quarantine_count: 0,
+      fail_closed_count: 0,
+      retry_events: [{ event: "retry", stage: "pass2", result: "failure" }],
+    });
+    expect(result).toBe("measured_action_taken");
+  });
+});

@@ -117,7 +117,9 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const failureEnvelope = (progress.pipeline_failure_envelope ?? {}) as Record<string, unknown>;
     const failureDiagnostics = (progress.pipeline_failure_diagnostics ?? {}) as Record<string, unknown>;
     const chunkRouting = (progress.chunk_routing ?? {}) as Record<string, unknown>;
-    const selfCorrection = (progress.self_correction ?? {}) as Record<string, unknown>;
+    const selfCorrectionRaw = progress.self_correction;
+    const selfCorrectionPolicyDeployed = selfCorrectionRaw !== undefined && selfCorrectionRaw !== null;
+    const selfCorrection = (selfCorrectionRaw ?? {}) as Record<string, unknown>;
 
     // Determine which stage failed
     const failedStageRaw = (failureEnvelope.pipeline_stage ?? failureEnvelope.failed_at ?? job.phase_status ?? "") as string;
@@ -261,6 +263,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       )
     );
     const retryAnalytics = {
+      policy_deployed: selfCorrectionPolicyDeployed,
       total_retry_attempts: selfCorrectionSummary.attempts || retryEvents.filter((e) => String(e.event).includes("retry")).length,
       retry_success_count: selfCorrectionSummary.successes || retryEvents.filter((e) => String(e.event).includes("retry") && e.result === "success").length,
       retry_failure_count: selfCorrectionSummary.failures || retryEvents.filter((e) => String(e.event).includes("retry") && e.result === "failure").length,
