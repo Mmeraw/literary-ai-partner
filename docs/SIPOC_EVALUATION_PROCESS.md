@@ -62,6 +62,20 @@ Stage result taxonomy:
 - `retry_pass` / `retry_fail` — self-correction attempted
 - `not_reached` — stage never executed
 
+#### Contamination Trace
+
+Per-recommendation lifecycle tracking (answers: where did this recommendation enter, mutate, survive, or get quarantined?):
+- Created: which pipeline stage originated the recommendation (`source_pass` field → Pass 1/2/3)
+- Modified: which stage merged/rewrote it (Pass 3 synthesis for recs originated in Pass 1/2)
+- Flagged: which gate detected a violation (Integrity Gate S08/S09)
+- Quarantined: whether the rec was removed before author-facing output
+- Reason: violation code(s) explaining quarantine decision
+
+Status categories:
+- `CLEAN` — recommendation passed all gates without flags
+- `FLAGGED` — gate detected potential issue but rec survived (PASS_MINIMUM+ tier)
+- `QUARANTINED` — rec removed from output (FAIL tier, violation codes logged)
+
 ## Runtime Doctrine
 
 1. Evaluation is constrained by evidence, not schema.

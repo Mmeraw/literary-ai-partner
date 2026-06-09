@@ -249,6 +249,124 @@ export async function GET(req: NextRequest, context: RouteContext) {
     // Quality gate checks (if available)
     const qualityGateChecks = (failureDiagnostics.quality_gate_checks ?? []) as Array<Record<string, unknown>>;
 
+    // ── Contamination Trace ─────────────────────────────────────────────────
+    // Per-recommendation lifecycle: created → modified → flagged → quarantined
+    // Reads from the evaluation_result_v2 artifact + quality gate diagnostics
+    let contaminationTrace: Array<{
+      criterion: string;
+      index: number;
+      action_preview: string;
+      source_pass: number | null;
+      created_stage: string;
+      modified_stage: string | null;
+      flagged_by: string | null;
+      quarantined: boolean;
+      quarantine_reason: string | null;
+      integrity_tier: string | null;
+      violation_codes: string[];
+    }> = [];
+
+    // Fetch the evaluation_result_v2 artifact content
+    const { data: evalArtifact } = await supabase
+      .from("evaluation_artifacts")
+      .select("content")
+      .eq("job_id", jobId)
+      .eq("artifact_type", "evaluation_result_v2")
+      .maybeSingle();
+
+    if (evalArtifact?.content) {
+      const evalContent = evalArtifact.content as Record<string, unknown>;
+      const criteria = (evalContent.criteria ?? []) as Array<{
+        key: string;
+        recommendations: Array<{
+          action: string;
+          source_pass?: number;
+          priority?: string;
+          anchor_snippet?: string;
+          symptom?: string;
+          cause?: string;
+          mechanism?: string;
+          specific_fix?: string;
+          fix_direction?: string;
+          reader_effect?: string;
+          expected_impact?: string;
+        }>;
+      }>;
+
+      // Get quarantined rec info from quality gate diagnostics
+      const qgRecIntegrityCheck = qualityGateChecks.find(
+        (c) => (c as Record<string, unknown>).check_id === "rec_integrity"
+      ) as Record<string, unknown> | undefined;
+      const qgDetails = (qgRecIntegrityCheck?.details ?? "") as string;
+
+      for (const criterion of criteria) {
+        for (let i = 0; i < (criterion.recommendations ?? []).length; i++) {
+          const rec = criterion.recommendations[i];
+          const sourcePass = rec.source_pass ?? null;
+
+          // Determine created stage from source_pass
+          let createdStage = "pass3_synthesis";
+          if (sourcePass === 1) createdStage = "pass1_craft";
+          else if (sourcePass === 2) createdStage = "pass2_editorial";
+
+          // Determine if modified (source pass != 3 means it was originated earlier then merged in Pass 3)
+          const modifiedStage = sourcePass && sourcePass < 3 ? "pass3_synthesis" : null;
+
+          // Check if this rec was mentioned in integrity gate details
+          const wasFlagged = qgDetails.includes(criterion.key) && qgDetails.includes("FAIL");
+
+          contaminationTrace.push({
+            criterion: criterion.key,
+            index: i,
+            action_preview: rec.action?.substring(0, 100) ?? "(empty)",
+            source_pass: sourcePass,
+            created_stage: createdStage,
+            modified_stage: modifiedStage,
+            flagged_by: wasFlagged ? "Integrity Gate (S09)" : null,
+            quarantined: false, // If it's in the result, it survived
+            quarantine_reason: null,
+            integrity_tier: null, // Would need to re-run gate for per-rec tier
+            violation_codes: [],
+          });
+        }
+      }
+
+      // Also fetch pass_outputs_diagnostic for quarantined recs
+      const { data: diagArtifact } = await supabase
+        .from("evaluation_artifacts")
+        .select("content")
+        .eq("job_id", jobId)
+        .eq("artifact_type", "pass_outputs_diagnostic_v1")
+        .maybeSingle();
+
+      if (diagArtifact?.content) {
+        const diagContent = diagArtifact.content as Record<string, unknown>;
+        const quarantinedRecs = (diagContent.quarantined_recommendations ?? diagContent.filtered_recommendations ?? []) as Array<{
+          criterion?: string;
+          action?: string;
+          reason?: string;
+          violation_codes?: string[];
+          tier?: string;
+        }>;
+
+        for (const qRec of quarantinedRecs) {
+          contaminationTrace.push({
+            criterion: qRec.criterion ?? "unknown",
+            index: -1,
+            action_preview: qRec.action?.substring(0, 100) ?? "(quarantined)",
+            source_pass: null,
+            created_stage: "pass2_editorial",
+            modified_stage: "pass3_synthesis",
+            flagged_by: "Integrity Gate (S08/S09)",
+            quarantined: true,
+            quarantine_reason: qRec.reason ?? "FAIL tier",
+            integrity_tier: qRec.tier ?? "FAIL",
+            violation_codes: qRec.violation_codes ?? [],
+          });
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       job: {
@@ -279,6 +397,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         authority: spec.authority,
         enforced: stages.find((s) => s.id === spec.id)?.result !== "not_reached",
       })),
+      contaminationTrace,
     });
   } catch (err) {
     console.error("[Forensic View] Unexpected error:", err);

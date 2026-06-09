@@ -64,6 +64,19 @@ interface ForensicData {
     authority: string;
     enforced: boolean;
   }>;
+  contaminationTrace: Array<{
+    criterion: string;
+    index: number;
+    action_preview: string;
+    source_pass: number | null;
+    created_stage: string;
+    modified_stage: string | null;
+    flagged_by: string | null;
+    quarantined: boolean;
+    quarantine_reason: string | null;
+    integrity_tier: string | null;
+    violation_codes: string[];
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +203,7 @@ export default function ForensicViewPage() {
     );
   }
 
-  const { job, stages, artifacts, selfCorrection, qualityGateChecks, canonCompliance } = data;
+  const { job, stages, artifacts, selfCorrection, qualityGateChecks, canonCompliance, contaminationTrace } = data;
   const failedStages = stages.filter((s) => s.result === "fail" || s.result === "retry_fail");
   const passedStages = stages.filter((s) => s.result === "pass" || s.result === "inferred_pass" || s.result === "retry_pass");
 
@@ -501,6 +514,149 @@ export default function ForensicViewPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Contamination Trace */}
+      {contaminationTrace && contaminationTrace.length > 0 && (
+        <div className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-950 mb-3">Contamination Trace</h2>
+          <p className="text-xs font-medium text-slate-600 mb-3">
+            Per-recommendation lifecycle: where each recommendation was created, modified, flagged, or quarantined
+          </p>
+
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="rounded border border-slate-200 bg-slate-50 p-3 text-center">
+              <div className="text-2xl font-extrabold text-slate-900">{contaminationTrace.length}</div>
+              <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Total Recs</div>
+            </div>
+            <div className="rounded border border-green-200 bg-green-50 p-3 text-center">
+              <div className="text-2xl font-extrabold text-green-900">
+                {contaminationTrace.filter((r) => !r.quarantined && !r.flagged_by).length}
+              </div>
+              <div className="text-xs font-semibold text-green-700 uppercase tracking-wide">Clean</div>
+            </div>
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-center">
+              <div className="text-2xl font-extrabold text-amber-900">
+                {contaminationTrace.filter((r) => r.flagged_by && !r.quarantined).length}
+              </div>
+              <div className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Flagged</div>
+            </div>
+            <div className="rounded border border-red-200 bg-red-50 p-3 text-center">
+              <div className="text-2xl font-extrabold text-red-900">
+                {contaminationTrace.filter((r) => r.quarantined).length}
+              </div>
+              <div className="text-xs font-semibold text-red-700 uppercase tracking-wide">Quarantined</div>
+            </div>
+          </div>
+
+          {/* Trace table */}
+          <div className="overflow-x-auto max-h-96 overflow-y-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-xs">
+              <thead className="bg-slate-100 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left font-bold text-slate-900">Criterion</th>
+                  <th className="px-3 py-2 text-left font-bold text-slate-900">Action</th>
+                  <th className="px-3 py-2 text-left font-bold text-slate-900">Created</th>
+                  <th className="px-3 py-2 text-left font-bold text-slate-900">Modified</th>
+                  <th className="px-3 py-2 text-left font-bold text-slate-900">Flagged</th>
+                  <th className="px-3 py-2 text-left font-bold text-slate-900">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {contaminationTrace.map((rec, i) => (
+                  <tr key={i} className={rec.quarantined ? "bg-red-50" : rec.flagged_by ? "bg-amber-50" : ""}>
+                    <td className="px-3 py-2 font-mono font-semibold text-slate-900 whitespace-nowrap">
+                      {rec.criterion}
+                    </td>
+                    <td className="px-3 py-2 text-slate-800 max-w-xs truncate" title={rec.action_preview}>
+                      {rec.action_preview}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="rounded bg-blue-50 px-2 py-0.5 font-semibold text-blue-800 ring-1 ring-blue-200">
+                        {rec.created_stage.replace(/_/g, " ")}
+                        {rec.source_pass && <span className="ml-1 text-blue-600">(P{rec.source_pass})</span>}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {rec.modified_stage ? (
+                        <span className="rounded bg-purple-50 px-2 py-0.5 font-semibold text-purple-800 ring-1 ring-purple-200">
+                          {rec.modified_stage.replace(/_/g, " ")}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {rec.flagged_by ? (
+                        <span className="rounded bg-amber-50 px-2 py-0.5 font-semibold text-amber-800 ring-1 ring-amber-200">
+                          {rec.flagged_by}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {rec.quarantined ? (
+                        <span className="rounded bg-red-100 px-2 py-0.5 font-bold text-red-900 ring-1 ring-red-300">
+                          QUARANTINED
+                        </span>
+                      ) : rec.flagged_by ? (
+                        <span className="rounded bg-amber-100 px-2 py-0.5 font-bold text-amber-900 ring-1 ring-amber-300">
+                          FLAGGED
+                        </span>
+                      ) : (
+                        <span className="rounded bg-green-100 px-2 py-0.5 font-bold text-green-900 ring-1 ring-green-300">
+                          CLEAN
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Quarantine details (expanded for quarantined recs) */}
+          {contaminationTrace.some((r) => r.quarantined) && (
+            <div className="mt-4 rounded border border-red-200 bg-red-50 p-4">
+              <h3 className="text-sm font-bold text-red-900 mb-2">Quarantined Recommendations</h3>
+              <div className="space-y-2">
+                {contaminationTrace
+                  .filter((r) => r.quarantined)
+                  .map((rec, i) => (
+                    <div key={i} className="rounded border border-red-200 bg-white p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-xs font-bold text-red-800">{rec.criterion}</span>
+                        {rec.integrity_tier && (
+                          <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-900 ring-1 ring-red-200">
+                            Tier: {rec.integrity_tier}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-800 truncate mb-1" title={rec.action_preview}>
+                        {rec.action_preview}
+                      </p>
+                      {rec.quarantine_reason && (
+                        <p className="text-xs font-semibold text-red-800">
+                          Reason: {rec.quarantine_reason}
+                        </p>
+                      )}
+                      {rec.violation_codes.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {rec.violation_codes.map((code, ci) => (
+                            <span key={ci} className="rounded bg-red-100 px-2 py-0.5 text-xs font-mono font-semibold text-red-800">
+                              {code}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Artifacts */}
       <div className="rounded-lg border border-slate-300 bg-white p-5 shadow-sm">
