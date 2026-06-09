@@ -986,15 +986,143 @@ function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolea
   });
 }
 
+// ── Recommendation Action Normalizer ──────────────────────────────────────────
+// Makes valid outputs tidy; does NOT launder invalid outputs.
+// Strategy:
+//   1. Normalize whitespace.
+//   2. If action lacks terminal punctuation but otherwise appears to be a complete
+//      imperative clause (≥4 words, starts with a verb-like token), append period.
+//   3. If action is a noun phrase, heading, fragment, dangling clause, or < 4 words,
+//      return null to signal rejection (recommendation stripped from output).
+
+/**
+ * Determines whether an action is a structurally valid imperative clause
+ * that just happens to be missing terminal punctuation.
+ * Returns false for noun phrases, headings, dangling clauses, fragments.
+ */
+function isRepairableImperative(text: string): boolean {
+  const words = text.split(/\s+/);
+  if (words.length < 4) return false;
+
+  // Noun-phrase / heading detection: starts with article or adjective without verb
+  const lowerFirst = words[0].toLowerCase();
+  const nounPhraseStarters = ['the', 'a', 'an', 'more', 'better', 'less', 'some', 'overall'];
+  if (nounPhraseStarters.includes(lowerFirst)) return false;
+
+  // Dangling clause detection: starts with subordinating conjunction
+  const danglingStarters = ['because', 'since', 'although', 'while', 'when', 'if', 'unless', 'after', 'before', 'until'];
+  if (danglingStarters.includes(lowerFirst)) return false;
+
+  // Fragment detection: very short and no verb-like structure
+  if (words.length < 5 && !/(?:ing|ate|ify|ize|ise|ect|ude|ain|ove|ert|ish)\b/i.test(text)) {
+    // Likely a stub like "Increase consequence" or "Stronger voice"
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Normalize a recommendation action. Returns the tidied action string,
+ * or null if the action is structurally invalid and must be rejected.
+ *
+ * The normalizer makes valid outputs tidy; it does NOT launder invalid outputs.
+ * - Valid complete sentence → return as-is (whitespace normalized)
+ * - Valid imperative clause missing only punctuation → append period
+ * - Fragment / noun phrase / heading / dangling clause / < 4 words → return null (reject)
+ */
+export function normalizeRecommendationAction(action: string): string | null {
+  if (!action || action.trim().length === 0) return null;
+
+  // Normalize whitespace
+  const trimmed = action.trim().replace(/\s+/g, ' ');
+
+  // Already a complete sentence (terminal punctuation + 4+ words)
+  if (/[.!?]["')\]]*$/.test(trimmed)) {
+    const sentences = trimmed.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+    if (sentences.some((s) => s.trim().split(/\s+/).length >= 4)) {
+      return trimmed;
+    }
+    // Has punctuation but no sentence with 4+ words → reject
+    return null;
+  }
+
+  // Missing terminal punctuation — check if this is a repairable imperative
+  if (isRepairableImperative(trimmed)) {
+    return trimmed + '.';
+  }
+
+  // Cannot tidy — structurally invalid (noun phrase, heading, fragment, etc.)
+  return null;
+}
+
+/**
+ * Scope context for recommendation density enforcement.
+ * Density requirements scale with submission size and available evidence.
+ */
+export type Pass2ScopeContext = {
+  /** Manuscript word count — drives density tier */
+  manuscriptWordCount?: number;
+};
+
+/**
+ * Determine the minimum number of recommendations required for a low-scoring
+ * criterion, given scope and evidence density.
+ *
+ * Rule: required = min(scopeMinimum, uniqueEvidenceAnchorCount)
+ * If uniqueEvidenceAnchorCount === 0, do not fabricate recommendations.
+ *
+ * Tier table (for score ≤ 5):
+ *   < 1,000 words   → minimum 1 if ≥1 anchor exists
+ *   1,000–2,999     → minimum 1 if ≥1 anchor exists
+ *   3,000–24,999    → minimum 2 if ≥2 anchors exist
+ *   25,000+         → minimum 2 if ≥2 anchors exist
+ */
+function requiredPass2RecommendationCount(params: {
+  score: number;
+  manuscriptWordCount: number;
+  uniqueEvidenceAnchorCount: number;
+}): number {
+  const { score, manuscriptWordCount, uniqueEvidenceAnchorCount } = params;
+
+  if (score > 5 || uniqueEvidenceAnchorCount <= 0) return 0;
+
+  const scopeMinimum =
+    manuscriptWordCount < 1_000
+      ? 1
+      : manuscriptWordCount < 3_000
+        ? 1
+        : manuscriptWordCount < 25_000
+          ? 2
+          : 2;
+
+  return Math.min(scopeMinimum, uniqueEvidenceAnchorCount);
+}
+
+/**
+ * Count unique evidence anchors by deduplicating on normalized snippet text.
+ */
+function countUniqueEvidenceAnchors(
+  evidence: Array<{ snippet?: string | null }> = [],
+): number {
+  return new Set(
+    evidence
+      .map((entry) => entry.snippet?.trim().toLowerCase())
+      .filter((snippet): snippet is string => Boolean(snippet)),
+  ).size;
+}
+
 /**
  * Parse and validate a raw OpenAI response for Pass 2.
  * Pure function — no I/O, deterministic, fully testable.
  *
  * @param raw Unknown JSON object from OpenAI
+ * @param fallbackModel Model ID fallback for provenance
+ * @param scopeContext Optional scope info for density enforcement
  * @returns Validated SinglePassOutput with axis="editorial_literary"
  * @throws on invalid structure, empty criteria, or parse errors
  */
-export function parsePass2Response(raw: string, fallbackModel?: string): SinglePassOutput {
+export function parsePass2Response(raw: string, fallbackModel?: string, scopeContext?: Pass2ScopeContext): SinglePassOutput {
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
@@ -1040,27 +1168,49 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
         })
       : [];
 
-    const recommendations = Array.isArray(c["recommendations"])
-      ? (c["recommendations"] as unknown[]).map((r) => {
-          const rec = r as Record<string, unknown>;
-          const priority = String(rec["priority"] ?? "medium");
-          return {
-            priority: (priority === "high" || priority === "low" ? priority : "medium") as "high" | "medium" | "low",
-            action: String(rec["action"] ?? ""),
-            expected_impact: String(rec["expected_impact"] ?? ""),
-            anchor_snippet: String(rec["anchor_snippet"] ?? ""),
-            issue_family:
-              (rec["issue_family"] ?? "scene_structure") as AxisCriterionResult["recommendations"][number]["issue_family"],
-            strategic_lever:
-              (rec["strategic_lever"] ?? "scene_goal_clarity") as AxisCriterionResult["recommendations"][number]["strategic_lever"],
-            revision_granularity:
-              (rec["revision_granularity"] ?? "scene") as AxisCriterionResult["recommendations"][number]["revision_granularity"],
-            candidate_text_a: typeof rec["candidate_text_a"] === "string" ? rec["candidate_text_a"].trim() : undefined,
-            candidate_text_b: typeof rec["candidate_text_b"] === "string" ? rec["candidate_text_b"].trim() : undefined,
-            candidate_text_c: typeof rec["candidate_text_c"] === "string" ? rec["candidate_text_c"].trim() : undefined,
-          };
-        })
-      : [];
+    const rawRecommendations = Array.isArray(c["recommendations"]) ? (c["recommendations"] as unknown[]) : [];
+    const rejectedActions: string[] = [];
+    const recommendations = rawRecommendations
+      .filter((r) => {
+        const rec = r as Record<string, unknown>;
+        const rawAction = String(rec["action"] ?? "").trim();
+        const normalized = normalizeRecommendationAction(rawAction);
+        if (normalized === null) {
+          rejectedActions.push(rawAction);
+          return false;
+        }
+        return true;
+      })
+      .map((r) => {
+        const rec = r as Record<string, unknown>;
+        const priority = String(rec["priority"] ?? "medium");
+        const action = normalizeRecommendationAction(String(rec["action"] ?? "").trim()) as string;
+        return {
+          priority: (priority === "high" || priority === "low" ? priority : "medium") as "high" | "medium" | "low",
+          action,
+          expected_impact: String(rec["expected_impact"] ?? ""),
+          anchor_snippet: String(rec["anchor_snippet"] ?? ""),
+          issue_family:
+            (rec["issue_family"] ?? "scene_structure") as AxisCriterionResult["recommendations"][number]["issue_family"],
+          strategic_lever:
+            (rec["strategic_lever"] ?? "scene_goal_clarity") as AxisCriterionResult["recommendations"][number]["strategic_lever"],
+          revision_granularity:
+            (rec["revision_granularity"] ?? "scene") as AxisCriterionResult["recommendations"][number]["revision_granularity"],
+          candidate_text_a: typeof rec["candidate_text_a"] === "string" ? rec["candidate_text_a"].trim() : undefined,
+          candidate_text_b: typeof rec["candidate_text_b"] === "string" ? rec["candidate_text_b"].trim() : undefined,
+          candidate_text_c: typeof rec["candidate_text_c"] === "string" ? rec["candidate_text_c"].trim() : undefined,
+        };
+      });
+
+    // Log rejected recommendations with reason/count — never silently remove
+    if (rejectedActions.length > 0) {
+      console.warn(`[Pass2][ActionNormalizer] Rejected ${rejectedActions.length} recommendation(s) for criterion "${key}":`, {
+        rejected_count: rejectedActions.length,
+        surviving_count: recommendations.length,
+        rejected_actions: rejectedActions,
+        reason: "structurally_invalid_action (fragment/noun_phrase/heading/dangling_clause)",
+      });
+    }
 
     // PR-D: Reject missing/non-finite/out-of-range scores instead of silently coercing to 0.
     const rawScore = c["score_0_10"];
@@ -1079,6 +1229,22 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
       reasonCodes.push("NO_TEXTUAL_ANCHOR");
       // Cap at 5 but never below 1
       boundedScore = Math.max(1, Math.min(boundedScore, 5));
+    }
+
+    // Density enforcement: minimums capped by evidence anchors. Never fabricate extras.
+    const uniqueAnchors = countUniqueEvidenceAnchors(evidence as Array<{ snippet?: string | null }>);
+    const requiredCount = requiredPass2RecommendationCount({
+      score: boundedScore ?? 10,
+      manuscriptWordCount: scopeContext?.manuscriptWordCount ?? 3000,
+      uniqueEvidenceAnchorCount: uniqueAnchors,
+    });
+
+    if (recommendations.length < requiredCount && rawRecommendations.length > 0) {
+      throw new Error(
+        `[Pass2] RECOMMENDATION_DENSITY_UNMET: Criterion "${key}" ` +
+        `score=${boundedScore}, words=${scopeContext?.manuscriptWordCount ?? 'unknown'}, ` +
+        `anchors=${uniqueAnchors}, required=${requiredCount}, valid=${recommendations.length}`
+      );
     }
 
     criteria.push({
