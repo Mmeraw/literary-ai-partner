@@ -1293,9 +1293,13 @@ export function parsePass3Response(
     const rawFitSummary = typeof rawEntry?.["fit_summary"] === "string" ? rawEntry["fit_summary"].trim() : "";
     const rawGapSummary = typeof rawEntry?.["gap_summary"] === "string" ? rawEntry["gap_summary"].trim() : "";
 
-    // Deterministic 9-10 recommendation suppression (canon rule):
-    // Scores 9-10 must NOT carry severity-tagged recommendations.
-    const suppressedRecommendations = finalScore >= 9 ? [] : recommendations;
+    // Deterministic 9-10 recommendation filtering (canon rule):
+    // Scores 9-10 may carry at most 1 "consider"-severity recommendation.
+    const suppressedRecommendations = finalScore >= 9
+      ? recommendations
+          .filter((r) => (r as Record<string, unknown>).severity === "consider" || (r as Record<string, unknown>).priority === "consider")
+          .slice(0, 1)
+      : recommendations;
 
     criteria.push({
       key,
