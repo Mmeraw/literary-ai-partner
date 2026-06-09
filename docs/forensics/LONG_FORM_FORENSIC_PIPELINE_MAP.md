@@ -458,6 +458,139 @@ The Self-Correction Policy (PR #1051) applies at these long-form-specific points
 
 ---
 
+## CRITICAL FINDINGS (Investigation 2025-06-09)
+
+### FINDING 1: Review Gate Is DISABLED — Hidden Bypass Active
+
+**File:** `lib/evaluation/reviewGate/containmentMode.ts:1`
+
+```typescript
+export const STORY_LEDGER_APPROVAL_ENABLED = false;
+```
+
+**Impact:** The Review Gate — the ONLY long-form-specific user-facing approval gate — is currently **disabled for all evaluations**. Both short-form AND long-form bypass the gate via `containmentBypass = !STORY_LEDGER_APPROVAL_ENABLED` (processor.ts:8696).
+
+**What actually happens:**
+1. Phase 1A completes → `buildReviewGateHandoff()` runs → produces a valid handoff
+2. `containmentBypass` is `true` → job jumps directly to `phase_2`
+3. `autoAcceptStoryLedgerKickForward()` creates an `accepted_story_ledger_v1` artifact WITHOUT user review
+4. The accepted ledger feeds into Pass 2 as `characterLedgerBlock` context
+
+**Why this exists:** The comment says "temporarily disabled while semantic containment safeguards are being implemented." The safeguard is `assessLedgerCorruption()` — a corruption scoring system that checks whether the ledger is "usable" (not structurally destroyed). If `corruptionAssessment.usable === false`, the auto-accept throws.
+
+**Risk classification: CLASS 1 (Hidden Bypass)**
+- This is exactly the pattern the user warned about: `Long-form → special case → alternate artifact acceptance`
+- The auto-accept path has corruption scoring but NO prose quality check
+- A ledger with garbled prose entries (structurally valid, semantically garbage) will pass
+- The ledger corruption assessor only checks: missing layers, structural shape, field presence — NOT content quality
+
+**Recommended action:** When Review Gate is re-enabled, add prose quality checks (S06b-style) to the ledger entries before user approval. Until then, document this bypass as a known governance gap.
+
+---
+
+### FINDING 2: DREAM Consumes CANONICAL Artifacts (Correct Architecture)
+
+**File:** `app/api/workers/process-dream/route.ts:364-672`
+
+DREAM operates on **canonical persisted artifacts**, NOT reconstructed state:
+
+1. **Input 1: `evaluation_result_v2` artifact** (line 369-385) — loaded from `evaluation_artifacts` table by `job_id` + `artifact_type='evaluation_result_v2'`. Falls back to `evaluation_result_v1`. This is the SAME canonical artifact that feeds webpage/PDF/DOCX/TXT downloads.
+
+2. **Input 2: `manuscript_chunks`** (line 390-408) — loaded from `manuscript_chunks` table by `manuscript_id`. These are the SAME persisted chunks used during the main evaluation.
+
+3. **Input 3: `accepted_story_ledger_v1`** (line 617-638) — optional. Loads `governance_rail` from the accepted ledger to build author corrections block.
+
+4. **Reconstructed state: `pass2aStructuredContext`** (line 605-608) — THIS is re-derived from chunks at DREAM time using `buildPass2aStructuredContext()`. This is NOT loaded from a persisted artifact.
+
+**Risk assessment:**
+- ✅ Criteria/scores: canonical (from persisted `evaluation_result_v2`)
+- ✅ Manuscript chunks: canonical (from persisted `manuscript_chunks`)
+- ⚠️ `pass2aStructuredContext`: **RECONSTRUCTED** — built fresh from chunks, not loaded from a canonical artifact
+- ⚠️ No `pass2aStructuredContext` is ever persisted as an artifact — so DREAM's context may differ from what the main evaluation used if the context-building logic changes between pipeline version and DREAM worker version
+
+**Doctrine verdict:** DREAM is 90% canonical. The 10% risk is the reconstructed `pass2aStructuredContext`. If `buildPass2aStructuredContext()` is ever modified, DREAM synthesis could diverge from what the main pipeline used. Consider persisting `pass2aStructuredContext` as an artifact during the main evaluation, then loading it in DREAM.
+
+---
+
+### FINDING 3: WAVE Consumes In-Memory SynthesisOutput (Transformed Projection)
+
+**File:** `lib/evaluation/waveRevision.ts:104-111`, `processor.ts` (WAVE caller)
+
+WAVE Readiness Layer consumes a **`WaveHandoff` object** built from in-memory state:
+
+```typescript
+export interface WaveHandoff {
+  manuscriptText: string;         // Full manuscript text (in-memory)
+  synthesis: SynthesisOutput;      // Pass 3 synthesis output (in-memory)
+  characterLedgerV2: CharacterLedgerV2 | undefined;  // Character ledger (in-memory)
+  wordCount: number;
+  jobId: string;
+  manuscriptVersionId: string | null;
+}
+```
+
+**Architecture:**
+```
+runPipeline() → SynthesisOutput (in-memory)
+     ↓
+persistEvaluationResultV2() → evaluation_result_v2 artifact (canonical)
+     ↓
+executeWaveRevision(handoff) → WAVE uses in-memory SynthesisOutput, NOT the persisted artifact
+```
+
+**WAVE does NOT read from the canonical artifact.** It receives the `SynthesisOutput` directly from memory after `runPipeline()` returns but before the job is marked complete. This is fine because:
+- WAVE runs in the same request as `runPipeline()`
+- The in-memory `SynthesisOutput` IS what gets persisted as `evaluation_result_v2`
+- There is no version drift risk WITHIN a single evaluation run
+
+**However:** The Revise Queue (workbench) later loads recommendations from the PERSISTED `evaluation_result_v2`. So the Revise Queue → WAVE patch pipeline has a different data source than the initial WAVE Readiness Layer. The flow is:
+
+```
+WAVE Readiness Layer: in-memory SynthesisOutput → wave_revision_plan_v1
+Revise Queue: persisted evaluation_result_v2 → workbench cards → revision pipeline
+```
+
+These SHOULD be identical (same data, just one persisted and one in-memory). But if the persistence step transforms or drops any fields, the Revise Queue would see different data than what WAVE originally planned against.
+
+**Doctrine verdict:** Architecture is CORRECT but relies on an implicit invariant: `persistEvaluationResultV2()` must losslessly serialize `SynthesisOutput`. If that invariant is ever violated, WAVE plans and Revise Queue execution would diverge.
+
+---
+
+### FINDING 4: Self-Correction Policy Has NO Telemetry Infrastructure
+
+**File:** `lib/evaluation/pipeline/selfCorrectionPolicy.ts` (PR #1051, not yet merged)
+
+The self-correction policy defines:
+- `getGateFailurePolicy()` → returns retry count, quarantine settings, user message
+- `buildRetryContext()` → builds injection payload for LLM retry
+- `buildQuarantineArtifact()` → builds quarantine record for persistence
+
+**What is NOT present:**
+- ❌ No counter/metric for violations detected
+- ❌ No counter for retry success vs failure
+- ❌ No counter for quarantine events
+- ❌ No counter for fail-closed events
+- ❌ No aggregation table or time-series tracking
+- ❌ No dashboard integration
+
+The policy defines BEHAVIOR but not OBSERVABILITY. When a gate fires:
+- The `QuarantineArtifact` is persisted (artifact_type = `quarantine_<stage>`)
+- `console.log` / `console.error` lines exist in the processor
+- But there is no structured telemetry that could answer: "How many times did the handoff gate fire this week?"
+
+**Recommended action:** Add a `self_correction_events` table (or log to `evaluation_artifacts` with a countable artifact_type) that records:
+```
+event_type: 'violation_detected' | 'retry_success' | 'retry_failure' | 'quarantine' | 'fail_closed'
+gate: string (e.g., 'S06b_HANDOFF', 'S07_INTEGRITY')
+violation_codes: string[]
+job_id: string
+timestamp: string
+```
+
+This would let you answer: "Is the system healing or simply failing more politely?"
+
+---
+
 ## APPENDIX: File Reference Map
 
 | Component | File | Purpose |
