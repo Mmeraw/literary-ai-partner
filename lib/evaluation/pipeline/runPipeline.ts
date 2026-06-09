@@ -16,6 +16,7 @@
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
 import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
+import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate";
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
 import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
 // runPass3bLongform runtime import removed — now called from /api/workers/process-dream (issue #543)
@@ -1599,6 +1600,57 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         title: opts.title,
       },
     );
+  }
+
+  // ── S06b: Pass 1/2 Handoff Gate ─────────────────────────────────────────
+  // Deterministic prose-quality gate: validates Pass 1+2 output before synthesis.
+  // Blocks garbled text, scaffold residue, broken modals from reaching Pass 3.
+  // Canon: Runtime Doctrine #11/#13, Volume III §III.PL5, SIPOC S06b_HANDOFF_GATE
+  {
+    const handoffResult = runPass12HandoffGate(pass1Output, pass2Output);
+    if (!handoffResult.ok) {
+      console.warn("[Pipeline][HandoffGate] Violations detected", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        total_violations: handoffResult.total_violations,
+        pass1_violations: handoffResult.pass1_violations,
+        pass2_violations: handoffResult.pass2_violations,
+        check_summary: handoffResult.check_summary,
+      });
+
+      if (!shouldPassHandoffGate(handoffResult)) {
+        timings.total_ms = nowMs() - pipelineStartMs;
+        logPipelineTimings("failure", {
+          manuscriptId: opts.manuscriptId,
+          title: opts.title,
+          workType: opts.workType,
+          failedAt: "pass2",
+          errorCode: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+          timings,
+        });
+        return {
+          ok: false,
+          error: `Pass 1/2 Handoff Gate failed: ${handoffResult.total_violations} violation(s) — ${handoffResult.violations.slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+          error_code: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+          failed_at: "pass2",
+          failure_details: {
+            handoff_gate: {
+              total_violations: handoffResult.total_violations,
+              pass1_violations: handoffResult.pass1_violations,
+              pass2_violations: handoffResult.pass2_violations,
+              check_summary: handoffResult.check_summary,
+              first_violations: handoffResult.violations.slice(0, 10),
+            },
+          },
+        };
+      }
+
+      // Below threshold — log warning but proceed
+      console.log("[Pipeline][HandoffGate] Below threshold — proceeding with warnings", {
+        manuscript_id: opts.manuscriptId ?? null,
+        violations_allowed: handoffResult.total_violations,
+      });
+    }
   }
 
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
