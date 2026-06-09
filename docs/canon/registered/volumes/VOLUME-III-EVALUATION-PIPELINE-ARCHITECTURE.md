@@ -50,7 +50,9 @@ The canonical pass vocabulary maps to the current runtime phases:
 | Pass 1 (Structural) | Phase 2 — `runPass1()` | `runPass1.ts` |
 | Pass 2 (Independent) | Phase 2 — `runPass2()` | `runPass2.ts` |
 | Pass 3 (Convergence) | Phase 3 — `runPass3Synthesis()` | `runPass3Synthesis.ts` |
-| Pass 4 (Quality Gate) | Phase 3 — `runQualityGateV2()` | `runPipeline.ts` |
+| Pass 4 (QualityGateV2) | Phase 3 — `runQualityGateV2()` | `runPipeline.ts` |
+
+**Note on naming:** "Pass 4" is the Volume III canonical name; the SIPOC runtime identifier is `S09_QUALITYGATEV2`. Both refer to the same deterministic gate. This volume uses "Pass 4" for readability; runtime code and SIPOC use `QualityGateV2`.
 
 No stage may be skipped. No stage may be merged. No stage may be bypassed.
 
@@ -73,6 +75,14 @@ Each pass operates under distinct authority:
 - Pass 1: Structural Authority
 - Pass 2: Independent Analytical Authority
 - Pass 3: Convergence Authority
+
+### III.PL5 — Prose Quality Gate Rule
+Every LLM output has a prose quality gate before it advances to the next stage. Gates that check only structure or length are insufficient — sentence completeness and scaffold-residue detection are required.
+- **Handoff Gate (S06b):** validates Pass 1/2 output before reaching Pass 3 synthesis
+- **Recommendation Integrity Gate (S07):** validates Pass 3 recommendations before normalization. No malformed, garbled, or generic recommendation may reach the author.
+
+### III.PL6 — Evidence Ownership Rule
+Manuscript quotations (`anchor_snippet`, `evidence_snippets[*].snippet`) are author-owned evidence records. No pipeline stage may sanitize, rewrite, or mutate author-owned content. Only RG-generated editorial text may be cleaned or transformed.
 
 ---
 
@@ -197,3 +207,7 @@ No transitions may be skipped. No states may be bypassed.
 This pipeline is not a workflow. It is a governed state machine that controls narrative evaluation, revision, and validation.
 
 **One-Line System Law:** A manuscript may advance only if its current state is valid, complete, and passes all required gate conditions — otherwise, progression is blocked.
+
+**Prose Quality Doctrine:** Every LLM output has a prose quality gate before it advances to the next stage. This is not optional. Handoff cannot feed garbage to synthesis. Synthesis cannot feed malformed recommendations to the author.
+
+**Evidence Sovereignty:** Manuscript quotations are the author’s property. They exist as forensic evidence of where findings originate. The system may annotate them, display them, and reference them — but never alter them.
