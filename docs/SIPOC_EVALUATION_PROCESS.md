@@ -76,6 +76,30 @@ Status categories:
 - `FLAGGED` — gate detected potential issue but rec survived (PASS_MINIMUM+ tier)
 - `QUARANTINED` — rec removed from output (FAIL tier, violation codes logged)
 
+#### Retry/Quarantine Analytics
+
+Operational self-correction telemetry (answers: is the system healing or failing more politely?):
+
+Metrics tracked per job:
+- `total_retry_attempts` — number of gate violation retries attempted
+- `retry_success_count` — retries that resolved the violation
+- `retry_failure_count` — retries that failed (exhausted budget)
+- `quarantine_count` — recommendations/stages quarantined after failed retry
+- `fail_closed_count` — jobs/stages that failed closed (no further processing)
+- `top_violation_codes` — most frequent defect patterns triggering retries
+- `affected_stage` — pipeline stage where self-correction was triggered
+- `retry_events` — detailed log of each retry event (event type, stage, result, reason, timestamp)
+
+Data sources:
+- `progress.self_correction` (job-level retry/quarantine state)
+- `progress.quality_violations` (quality gate violation details)
+- `pipeline_logs` (timeline events matching retry/quarantine/fail_closed patterns)
+- Recommendation integrity gate quarantine metadata
+
+Empty state handling:
+- Pre-policy jobs (no telemetry): display explicit "not measured" state — empty ≠ clean
+- Post-policy jobs with no violations: display "0 attempts, no retryable violations occurred"
+
 ## Runtime Doctrine
 
 1. Evaluation is constrained by evidence, not schema.
