@@ -175,13 +175,20 @@ COMPARABLES REQUIREMENTS:
       return `${baseRules}
 
 AUTHOR BIO REQUIREMENTS:
-- Third person, professional tone
-- 75-150 words
+- Third person, professional tone — punchy and authoritative, not passive or generic
+- 75-150 words (aim for 100-120 for maximum impact)
 - ONLY include facts from the author-supplied materials — NEVER invent credentials
-- Include: relevant writing experience, publications, education, professional background
-- If author has no publishing credits, focus on life experience relevant to the manuscript
-- End with location (city/state) if provided
-- Do NOT include: age, marital status, pet names, or irrelevant personal details`;
+- STRUCTURE (follow this order):
+  1. LEAD with professional identity + "turned novelist/author" (use active phrasing, e.g. "former X turned novelist" — never "transitioned into a career as")
+  2. IMMEDIATELY connect the author to THIS manuscript — why they are uniquely positioned to write it (lived experience in the setting, professional expertise relevant to the theme, etc.)
+  3. BRIEFLY mention 1-2 other completed works to signal range (titles only, no plot summaries)
+  4. ONE standout credential that signals authority or memorability (e.g. pitched on Dragons' Den, Stanford certification, military rank, UN peacekeeping, 3,300 flying hours)
+  5. CLOSE with current location
+- VOICE: Use "turned" not "transitioned into." Use active constructions. Every sentence must earn its place.
+- PRIORITIZE facts that explain WHY this author writes THIS book over generic résumé padding
+- If author has no publishing credits, focus on life experience relevant to the manuscript — this IS the "why you" factor agents look for
+- Do NOT include: age, marital status, pet names, generic adjectives, or any fact that doesn't serve the agent's question "why should I trust this person to write this book?"
+- Do NOT enumerate degrees or jobs as a list — weave the most relevant ones into a narrative`;
 
     default:
       return baseRules;
@@ -378,6 +385,7 @@ ${contextSummary}`;
   if (section === 'author_bio') {
     if (authorBioInput && authorBioInput.trim().length > 10) {
       userMessage += `\n\nAUTHOR-SUPPLIED BIO MATERIALS:\n${authorBioInput}`;
+      userMessage += `\n\nIMPORTANT: The manuscript being queried is "${ctx.manuscript.title}". The bio MUST connect the author's background to why they are uniquely positioned to write this specific book. Lead with their professional identity, then immediately tie their lived experience or expertise to this manuscript's subject matter.`;
     } else {
       return NextResponse.json({
         error: 'Author Bio requires author-supplied materials (resume, CV, bio notes). No credentials can be invented.',
