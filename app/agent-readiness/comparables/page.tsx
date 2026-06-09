@@ -15,7 +15,7 @@
  */
 
 import Link from "next/link";
-import React, { useState, useCallback } from "react";
+import React, { Suspense, useState, useCallback } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
 import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
 
@@ -120,7 +120,15 @@ const SAVE_BTN: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export default function ComparablesPage() {
+export default function ComparablesPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0F0D0A' }} />}>
+      <ComparablesPage />
+    </Suspense>
+  );
+}
+
+function ComparablesPage() {
   const [comps,       setComps]       = useState<Comp[]>([{ ...EMPTY_COMP }, { ...EMPTY_COMP }]);
   const [genreLane,   setGenreLane]   = useState("");
   const [audience,    setAudience]    = useState("");

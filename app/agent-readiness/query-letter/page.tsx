@@ -13,7 +13,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import React, { Suspense, useCallback, useState } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
@@ -120,7 +120,15 @@ const SAVE_BTN: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export default function QueryLetterPage() {
+export default function QueryLetterPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0F0D0A' }} />}>
+      <QueryLetterPage />
+    </Suspense>
+  );
+}
+
+function QueryLetterPage() {
   const searchParams = useSearchParams();
   const manuscriptId = searchParams.get('manuscriptId');
   const evaluationJobId = searchParams.get('evaluationJobId');

@@ -9,7 +9,7 @@
  */
 
 import Link from "next/link";
-import React, { useCallback, useRef, useState } from "react";
+import React, { Suspense, useCallback, useRef, useState } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
 import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
 
@@ -201,7 +201,15 @@ const INPUT_FIELDS: { id: string; label: string; placeholder: string; required: 
   { id: "publications", label: "Prior Publications",         placeholder: "Magazine, anthology, journal credits...",                                 required: false },
 ];
 
-export default function AuthorBioPage() {
+export default function AuthorBioPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0F0D0A' }} />}>
+      <AuthorBioPage />
+    </Suspense>
+  );
+}
+
+function AuthorBioPage() {
   const [bioText,      setBioText]      = useState("");
   const [resumeText,   setResumeText]   = useState("");
   const [penName,      setPenName]      = useState("");

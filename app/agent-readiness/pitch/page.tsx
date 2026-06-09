@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import React, { useState, useCallback } from "react";
+import React, { Suspense, useState, useCallback } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
 import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
 
@@ -108,7 +108,15 @@ const SAVE_BTN: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export default function PitchPage() {
+export default function PitchPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0F0D0A' }} />}>
+      <PitchPage />
+    </Suspense>
+  );
+}
+
+function PitchPage() {
   const [elevator,         setElevator]        = useState("");
   const [paragraph,        setParagraph]        = useState("");
   const [elevatorApproved, setElevatorApproved] = useState(false);

@@ -12,7 +12,7 @@
  */
 
 import Link from "next/link";
-import React, { useState, useCallback } from "react";
+import React, { Suspense, useState, useCallback } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
 import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
 import { SectionActionRow } from "../components/SectionActionRow";
@@ -126,7 +126,15 @@ const SAVE_BTN: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export default function SynopsisPage() {
+export default function SynopsisPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0F0D0A' }} />}>
+      <SynopsisPage />
+    </Suspense>
+  );
+}
+
+function SynopsisPage() {
   const [selected, setSelected] = useState<SynopsisLength>("standard");
   const [content,  setContent]  = useState("");
   const [approved, setApproved] = useState(false);
