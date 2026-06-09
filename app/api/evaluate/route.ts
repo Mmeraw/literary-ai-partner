@@ -12,6 +12,7 @@ import { computeEnrichment } from '@/lib/evaluation/enrichment/computeEnrichment
 import { routeNarrativeEvaluationPreflight } from '@/lib/evaluation/preflight/manuscriptTypeRouting';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
+import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
 import {
   normalizeEvaluationMode,
   normalizeVoicePreservationMode,
@@ -164,6 +165,7 @@ export async function POST(req: Request) {
           ? body.voice_preservation_mode
           : undefined,
     );
+    const selectedEnglishVariant = normalizeEnglishVariant(body?.english_variant);
     const trimmedText = manuscriptTextInput.trim();
 
     let manuscriptId: number | null = null;
@@ -292,7 +294,7 @@ export async function POST(req: Request) {
           allow_industry_discovery: false,
           is_final: false,
           source: 'paste',
-          english_variant: 'us',
+          english_variant: selectedEnglishVariant,
           word_count: wordCount,
         })
         .select('id')
@@ -405,7 +407,7 @@ export async function POST(req: Request) {
         phase_status: 'queued',
         policy_family: policyFamilyForEvaluationMode(selectedEvaluationMode),
         voice_preservation_level: voicePreservationLevelForMode(selectedVoicePreservationMode),
-        english_variant: 'us',
+        english_variant: selectedEnglishVariant,
         queued_at: new Date().toISOString(),
         ...(Object.keys(instantEnrichment).length > 0 ? { progress: instantEnrichment } : {}),
       })

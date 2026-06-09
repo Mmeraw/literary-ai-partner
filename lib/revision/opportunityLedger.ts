@@ -8,6 +8,7 @@ import {
 import { type SlaeGroundingStatus } from './slae';
 import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
+import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
 import {
   hydrateLedgerCandidates,
   HYDRATION_MODEL,
@@ -1833,7 +1834,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
 
   const { data: jobRow, error: jobReadError } = await supabase
     .from('evaluation_jobs')
-    .select('id, manuscript_id, evaluation_project_id, evaluation_result, policy_family, voice_preservation_level')
+    .select('id, manuscript_id, evaluation_project_id, evaluation_result, policy_family, voice_preservation_level, english_variant')
     .eq('id', jobId)
     .maybeSingle();
 
@@ -1864,6 +1865,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     evaluationPayload,
     job: jobRow,
   });
+  const selectedEnglishVariant = normalizeEnglishVariant(jobRow.english_variant);
   const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(evaluationPayload);
 
   let ledgerQualityReportContent: unknown = null;
@@ -2058,6 +2060,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
         cause: o.cause,
         fix_direction: o.fix_direction,
         reader_effect: o.reader_effect,
+        english_variant: selectedEnglishVariant,
       }));
 
       const enrichmentResult = await enrichDiagnosticFields(enrichmentInput);
@@ -2136,6 +2139,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
           revision_operation: o.revision_operation,
           evaluation_mode: modeContract.evaluation_mode,
           manuscript_context: manuscriptContext,
+          english_variant: selectedEnglishVariant,
         });
       }
 
@@ -2202,6 +2206,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
                 revision_operation: o.revision_operation,
                 evaluation_mode: modeContract.evaluation_mode,
                 manuscript_context: findChunkForAnchor(o.evidence_anchor),
+                english_variant: selectedEnglishVariant,
               }));
               try {
                 const regenResult = await regenerateCandidatesForQualityFailed(regenInput, openaiApiKey);

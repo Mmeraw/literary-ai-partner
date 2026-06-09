@@ -32,6 +32,7 @@ import {
   ChunkRoutingNotEngagedError,
 } from "./failures";
 import { annotateWeakCriteria, getPass1WeakCriteriaThreshold } from "./weakCriteriaCheck";
+import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 const PASS1_TEMPERATURE = 0.3;
 
 // Mirror of processor.ts STRUCTURAL_CHUNKING_THRESHOLD_WORDS. Kept duplicated
@@ -420,6 +421,8 @@ export interface RunPass1Options {
   isChunkUnit?: boolean;
   workType: string;
   title: string;
+  /** Evaluate-time selected English variant for generated author-facing output. */
+  englishVariant?: EnglishVariant | string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   registry: CanonRegistry;
   // NOTE: model is intentionally absent — Pass1 model authority is not caller-controlled.
@@ -773,6 +776,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
     manuscriptText: opts.manuscriptText,
     workType: opts.workType,
     title: opts.title,
+    englishVariant: opts.englishVariant,
     executionMode: opts.executionMode,
     scopeProfile: opts.scopeProfile,
     characterLedgerBlock: opts.characterLedgerBlock,

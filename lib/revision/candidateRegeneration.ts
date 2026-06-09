@@ -77,6 +77,7 @@ export type RegenCandidate = {
   revision_operation?: string;
   evaluation_mode?: string;
   manuscript_context?: string;
+  english_variant?: string;
 };
 
 export type RegenResult = {
@@ -119,6 +120,7 @@ export async function regenerateCandidatesForQualityFailed(
     revision_operation: opp.revision_operation,
     evaluation_mode: opp.evaluation_mode,
     manuscript_context: opp.manuscript_context,
+    english_variant: opp.english_variant,
   }));
 
   for (let attempt = 0; attempt < MAX_REGEN_ATTEMPTS; attempt++) {

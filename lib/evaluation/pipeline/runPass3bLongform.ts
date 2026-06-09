@@ -46,6 +46,7 @@ import type {
 import type { SubmissionScopeProfile } from "./submissionScope";
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
+import { buildEnglishVariantPromptBlock, type EnglishVariant } from "@/lib/evaluation/englishVariant";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -221,6 +222,8 @@ export interface RunPass3bOptions {
   jobId?: string;
   /** Canon-backed genre expectation context from EvaluationResultV2 governance transparency. */
   genreExpectationContext?: GenreExpectationMetadata | null;
+  /** Evaluate-time selected English variant for generated author-facing output. */
+  englishVariant?: EnglishVariant | string;
 }
 
 export type TruthfulFallbackReport = {
@@ -675,6 +678,7 @@ function buildSynthesisPrompt(params: {
   criteria: SynthesizedCriterion[];
   chapterIndex?: string | null;
   genreExpectationContext?: GenreExpectationMetadata | null;
+  englishVariant?: EnglishVariant | string;
 }): string {
   const scoreSummary = params.criteria.map((c) => {
     const label = CRITERIA_METADATA[c.key as keyof typeof CRITERIA_METADATA]?.label ?? c.key;
@@ -706,9 +710,12 @@ function buildSynthesisPrompt(params: {
     ? `\nCHAPTER INDEX (authoritative — use these real chapter numbers in arc_map and revision_plan)\n${params.chapterIndex}\n`
     : "";
   const genreContractSection = formatGenreExpectationContractForPass3b(params.genreExpectationContext);
+  const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
 
   return `Produce the DREAM long-form evaluation document (EXCLUDING criterion_analyses — those are pre-computed below).
 ${correctionsSection}
+${englishVariantBlock}
+
 MANUSCRIPT FACTS
 - Title: ${params.title}
 - Word count: ${params.wordCount.toLocaleString()}
@@ -838,6 +845,7 @@ async function runPass3bChunked(
     criteria: opts.criteria,
     chapterIndex: opts.chapterIndex,
     genreExpectationContext: opts.genreExpectationContext,
+    englishVariant: opts.englishVariant,
   });
 
   const synthesisCompletion = await createCompletion({
@@ -945,6 +953,7 @@ export async function runPass3bLongform(
     authorCorrectionsBlock: opts.authorCorrectionsBlock,
     chapterIndex: opts.chapterIndex,
     genreExpectationContext: opts.genreExpectationContext,
+    englishVariant: opts.englishVariant,
   });
 
   console.log(`[Pass3b] request model=${selectedModel} max_tokens=${maxTokens} title="${opts.title}" words=${opts.wordCount} chunks=${opts.manuscriptChunks.length}`);

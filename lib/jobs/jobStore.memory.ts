@@ -3,6 +3,7 @@ import { assertValidTransition } from "./transitions";
 import { debugLog } from "./logging";
 import { assertNotProductionMemoryStore } from "./guards";
 import { validateProgressSchema } from "./canon";
+import { normalizeEnglishVariant } from "@/lib/evaluation/englishVariant";
 
 // Production Safety: Ensure memory store is never used in production
 // Memory store is for tests/dev only - not concurrent-safe or durable
@@ -54,7 +55,7 @@ function getStore(): Map<string, Job> {
   return _store;
 }
 
-export function createJob(input: { manuscript_id: string; manuscript_version_id?: string; job_type: JobType; user_id: string; sensitivity_mode?: string; voice_preservation_level?: string }): Job {
+export function createJob(input: { manuscript_id: string; manuscript_version_id?: string; job_type: JobType; user_id: string; sensitivity_mode?: string; voice_preservation_level?: string; english_variant?: string }): Job {
   const store = getStore();
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -79,6 +80,7 @@ export function createJob(input: { manuscript_id: string; manuscript_version_id?
     created_at: now,
     updated_at: now,
     last_heartbeat: null,
+    english_variant: normalizeEnglishVariant(input.english_variant),
   };
 
   store.set(id, job);

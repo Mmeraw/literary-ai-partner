@@ -16,6 +16,7 @@
  */
 
 import OpenAI from 'openai';
+import { buildEnglishVariantPromptBlock } from '@/lib/evaluation/englishVariant';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ export type HydrationOpportunity = {
   evaluation_mode?: string;
   /** Surrounding manuscript paragraph/chunk containing the anchor. Improves SLAE pass rate. */
   manuscript_context?: string;
+  /** Evaluate-time selected English variant for generated candidate prose. */
+  english_variant?: string;
 };
 
 export type HydrationCandidates = {
@@ -214,6 +217,7 @@ function operationInstruction(operation?: string): string {
 }
 
 function buildUserMessage(opportunities: HydrationOpportunity[]): string {
+  const englishVariantBlock = buildEnglishVariantPromptBlock(opportunities[0]?.english_variant);
   const items = opportunities
     .map(
       (o, i) =>
@@ -231,6 +235,8 @@ function buildUserMessage(opportunities: HydrationOpportunity[]): string {
     .join('\n---\n');
 
   return `For each opportunity below, produce exactly 3 distinct, manuscript-ready prose candidates.
+
+${englishVariantBlock}
 
 Hard rules:
 - Return prose only inside candidate_a/b/c. Do not return advice, diagnosis, rationale, summary, bullets, labels, or explanations.

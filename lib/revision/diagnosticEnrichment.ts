@@ -13,6 +13,7 @@
  */
 
 import OpenAI from 'openai';
+import { buildEnglishVariantPromptBlock } from '@/lib/evaluation/englishVariant';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,8 @@ export type EnrichmentOpportunity = {
   cause?: string;
   fix_direction?: string;
   reader_effect?: string;
+  /** Evaluate-time selected English variant for generated diagnostic text. */
+  english_variant?: string;
 };
 
 export type EnrichmentResult = {
@@ -80,6 +83,7 @@ function buildEnrichmentPrompt(
   opportunity: EnrichmentOpportunity,
   missingFields: DiagnosticField[],
 ): string {
+  const englishVariantBlock = buildEnglishVariantPromptBlock(opportunity.english_variant);
   const fieldDescriptions: Record<DiagnosticField, string> = {
     symptom: 'SYMPTOM — the observable craft problem on the page that the reader experiences. Without this, the author cannot trust the recommendation because they do not know what problem it solves.',
     cause: 'CAUSE — the craft mechanism creating the problem. This explains WHY the issue exists at this location, not just WHAT the issue is.',
@@ -92,6 +96,8 @@ function buildEnrichmentPrompt(
     .join('\n');
 
   return `You are a senior literary editor producing diagnostic analysis for a Revise Queue card.
+
+${englishVariantBlock}
 
 A recommendation was produced but is INCOMPLETE. The following required diagnostic fields are MISSING:
 

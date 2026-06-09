@@ -47,6 +47,7 @@ import { persistFinalExternalAudit } from '@/lib/evaluation/pipeline/finalExtern
 import { checkJobCancellation } from '@/lib/jobs/cancellationCheck';
 import type { ManuscriptChunkEvidence } from '@/lib/evaluation/pipeline/types';
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
+import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -70,6 +71,7 @@ const DREAM_OPENAI_TIMEOUT_MS = 750_000;
 type DreamJobRow = {
   id: string;
   manuscript_id: number;
+  english_variant: string | null;
   // word_count comes from manuscripts join, not evaluation_jobs (evaluation_jobs has no word_count column)
   word_count: number | null;
   manuscripts: {
@@ -278,6 +280,7 @@ async function findPendingDreamJobs(
       `
       id,
       manuscript_id,
+      english_variant,
       manuscripts!inner(user_id, title, work_type, word_count)
     `,
     )
@@ -299,6 +302,7 @@ async function findPendingDreamJobs(
   const pending = ((candidateJobs as unknown) as Array<{
     id: string;
     manuscript_id: number;
+    english_variant: string | null;
     manuscripts: Array<{ user_id: string; title: string | null; work_type: string | null; word_count: number | null }> | { user_id: string; title: string | null; work_type: string | null; word_count: number | null } | null;
   }>)
     .map((j): DreamJobRow => {
@@ -306,6 +310,7 @@ async function findPendingDreamJobs(
       return {
         id: j.id,
         manuscript_id: j.manuscript_id,
+        english_variant: j.english_variant,
         word_count: ms?.word_count ?? null,
         manuscripts: ms,
       };
@@ -663,6 +668,7 @@ async function processDreamJob(
     chapterIndex,
     jobId,
     genreExpectationContext,
+    englishVariant: normalizeEnglishVariant(job.english_variant),
   });
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);

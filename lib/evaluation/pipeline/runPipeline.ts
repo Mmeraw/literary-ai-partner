@@ -128,6 +128,7 @@ import {
   ManuscriptExceedsHardCeilingError,
 } from "./failures";
 import { getConfiguredChunkCap } from "./chunkCap";
+import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the chunked path MUST engage — see runPipeline guard below.
@@ -192,6 +193,8 @@ export interface RunPipelineOptions {
   /** Dependency injection for governance injection map loader (testing only). */
   _governanceInjectionMapLoader?: () => GovernanceInjectionMap;
   manuscriptId?: string;
+  /** Evaluate-time selected English variant for all generated author-facing output. */
+  englishVariant?: EnglishVariant | string;
   executionMode?: "TRUSTED_PATH" | "STUDIO";
   /** Dependency injection for lessons-learned engine (testing only). */
   _lessonsLearned?: {
@@ -1067,6 +1070,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscriptChunks: opts.manuscriptChunks,
       workType: opts.workType,
       title: opts.title,
+      englishVariant: opts.englishVariant,
       executionMode: opts.executionMode,
       openaiApiKey: opts.openaiApiKey,
       jobId: opts.jobId,
@@ -1117,6 +1121,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscriptChunks: opts.manuscriptChunks,
       workType: opts.workType,
       title: opts.title,
+      englishVariant: opts.englishVariant,
       executionMode: opts.executionMode,
       model: opts.model,
       openaiApiKey: opts.openaiApiKey,

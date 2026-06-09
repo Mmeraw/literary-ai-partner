@@ -114,6 +114,9 @@ export type JobRecord = {
 
   // Denormalized from manuscripts table for UI display
   manuscript_title?: string | null;
+
+  // Selected at Evaluate time; governs generated author-facing output language.
+  english_variant?: string | null;
 };
 
 export type GetJobApiResponse =

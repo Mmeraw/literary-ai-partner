@@ -12,6 +12,8 @@
  * Max tokens: 2000 per call
  */
 
+import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
+
 export const PASS4_REWRITE_VERSION = "pass4-voice-rewrite-v1";
 
 export const PASS4_SYSTEM_PROMPT = `You are a revision prose generator working in the author's voice.
@@ -60,6 +62,8 @@ RULES:
 export interface Pass4RewriteInput {
   /** The original passage that needs revision */
   originalPassage: string;
+   /** Evaluate-time selected English variant for generated rewrite candidates. */
+   englishVariant?: string;
   /** The editorial instruction / fix direction */
   editorialInstruction: string;
   /** The diagnosed symptom */
@@ -79,6 +83,7 @@ export interface Pass4RewriteInput {
 }
 
 export function buildPass4UserPrompt(input: Pass4RewriteInput): string {
+   const englishVariantBlock = buildEnglishVariantPromptBlock(input.englishVariant);
   const variantInstruction = input.trustedPathOnly
     ? `Produce ONE manuscript-ready variant (the recommended fix) that addresses the diagnosed issue while maintaining the author's voice. Output as JSON:
 {
@@ -91,7 +96,9 @@ export function buildPass4UserPrompt(input: Pass4RewriteInput): string {
   "c": "full replacement text for variant C"
 }`;
 
-  return `VOICE CONTEXT (study this to match the author's style):
+   return `${englishVariantBlock}
+
+VOICE CONTEXT (study this to match the author's style):
 """
 ${input.voiceContext}
 """
