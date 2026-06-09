@@ -27,6 +27,11 @@ import type {
   CharacterLedgerV2,
 } from "./types";
 import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
+import {
+  checkRecommendationIntegrity,
+  meetsMinimumTier,
+  type IntegrityResult,
+} from "./recommendationIntegrityGate";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
@@ -1075,6 +1080,45 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
         retryFired,
       },
     });
+  }
+
+  // ── Recommendation Integrity Gate — filter FAIL-tier before persistence ──
+  // Parser preserves raw LLM output for debugging/traceability.
+  // Pipeline governs: quarantine malformed/generic recommendations so they
+  // never reach persistence or rendering. Defence-in-depth: qualityGate.ts
+  // also verifies post-filter. Admin/debug sees quarantined metadata only.
+  let quarantinedRecCount = 0;
+  for (const criterion of synthesis.criteria) {
+    const accepted: typeof criterion.recommendations = [];
+    for (const rec of criterion.recommendations) {
+      const intResult = checkRecommendationIntegrity({
+        action: rec.action,
+        symptom: rec.symptom,
+        cause: rec.cause,
+        fix_direction: rec.fix_direction,
+        specific_fix: rec.specific_fix,
+        reader_effect: rec.reader_effect,
+        mechanism: rec.mechanism,
+        expected_impact: rec.expected_impact,
+        anchor_snippet: rec.anchor_snippet,
+        surface: "evaluation_report",
+      });
+      if (meetsMinimumTier(intResult, "evaluation_report")) {
+        accepted.push(rec);
+      } else {
+        quarantinedRecCount++;
+        const codes = intResult.violations.map((v) => v.code).join(", ");
+        console.warn(
+          `[Pass3-IntegrityGate] QUARANTINED: criterion=${criterion.key} action="${rec.action.slice(0, 60)}…" tier=${intResult.tier} score=${intResult.quality_score} violations=[${codes}]`,
+        );
+      }
+    }
+    criterion.recommendations = accepted;
+  }
+  if (quarantinedRecCount > 0) {
+    console.info(
+      `[Pass3-IntegrityGate] Quarantined ${quarantinedRecCount} FAIL-tier recommendation(s) before persistence.`,
+    );
   }
 
   // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial

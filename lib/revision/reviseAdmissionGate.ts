@@ -1,6 +1,10 @@
 import { evaluateCardCandidateQuality, type CandidateQualityInput } from './candidateQuality';
 import { runCanonGate } from './canonGate';
 import { runVoiceGate } from './voiceGate';
+import {
+  checkRecommendationIntegrity,
+  meetsMinimumTier,
+} from '@/lib/evaluation/pipeline/recommendationIntegrityGate';
 
 export interface ReviseAdmissionOpportunity {
   opportunity_id: string;
@@ -99,6 +103,22 @@ export function runWorkbenchAdmissionGate(
   }
   if (!opportunity.readerEffect || opportunity.readerEffect.trim().length < DIAGNOSTIC_MIN_LENGTH) {
     reasons.push('DIAGNOSTIC_MISSING_READER_EFFECT');
+  }
+
+  // ── Recommendation Integrity Gate — Revise Queue requires PASS_STRONG+ ──
+  // Uses the shared recommendationIntegrityGate to validate text integrity and
+  // editorial usefulness. Cards below PASS_STRONG are withheld from the workbench.
+  const integrityResult = checkRecommendationIntegrity({
+    action: opportunity.fixDirection ?? undefined,
+    symptom: opportunity.symptom ?? undefined,
+    cause: opportunity.cause ?? undefined,
+    reader_effect: opportunity.readerEffect ?? undefined,
+    anchor_snippet: opportunity.anchor ?? undefined,
+  });
+  if (!meetsMinimumTier(integrityResult, "revise_queue")) {
+    const codes = integrityResult.violations.map((v) => v.code).join(", ");
+    reasons.push(`INTEGRITY_BELOW_PASS_STRONG`);
+    if (codes) reasons.push(...integrityResult.violations.map((v) => `INTEGRITY_${v.code}`));
   }
 
   const result = runReviseAdmissionGate(toReviseAdmissionOpportunity(opportunity));
