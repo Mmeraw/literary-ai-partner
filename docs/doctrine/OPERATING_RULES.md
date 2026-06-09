@@ -81,7 +81,9 @@ These must ALWAYS hold true:
 - A failed prose-quality gate produces **quarantine**, not silent pass-through
 - Gates that check only structure or length are **insufficient** — sentence completeness and scaffold-residue detection are required
 
-## Self-Correction Policy (PR 3)
+## Self-Correction Policy
+
+> See full specification: [`docs/doctrine/SELF_CORRECTION_POLICY.md`](./SELF_CORRECTION_POLICY.md)
 
 When gates fail:
 
@@ -90,6 +92,8 @@ When gates fail:
 3. **Fail closed** — if retry fails, no partial success is reported as final
 4. **Admin-visible failure code** — machine-readable failure reason logged
 5. **User-safe message** — human-readable explanation if failure reaches user boundary
+
+Runtime enforcement: `lib/evaluation/pipeline/selfCorrectionPolicy.ts`
 
 ---
 
