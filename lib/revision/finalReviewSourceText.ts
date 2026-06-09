@@ -106,6 +106,7 @@ export function scrubInternalReportLeakage(value: string | null | undefined): st
   return text
     .split(/\n/g)
     .filter((line) => !/\b(Evaluation Job ID|Job Status|Report ready|Word Count|Created|Updated|Generated|CONFIDENCE VARIES ACROSS THIS REPORT|Evaluation Provenance|Score Ledger|Chunks? Analyzed|Successfully Processed|Engine:|Provider:|Prompt Version|gpt-|openai|sampled prompt window|compressed manuscript reference window|too few chunks)\b/i.test(line))
+    .filter((line) => !/^\s*(criterion_id|score_0_10|preflight_status|grounding_status|context_quality|hydration_eligible|hydration_ineligibility_reasons|candidate_text_[abc]|revision_operation|opportunity_id|artifact_type|artifact_version)\s*:/i.test(line))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

@@ -51,6 +51,7 @@ import { canViewEvaluationOperationalDetails } from "@/lib/auth/evaluationOperat
 import { isStoryLedgerAdmin } from "@/lib/ledger/storyLedgerVisibility";
 import { floorScoreForDisplay, formatScoreForDisplay } from "@/lib/ui/score-formatting";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { sanitizeResultForDownload } from "@/lib/evaluation/downloadReadTimeSanitizer";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -643,6 +644,11 @@ export default async function EvaluationReportPage({
   const artifact = artifactResult?.data ?? null;
   const artifactSource = artifactResult?.source ?? null;
   const isProduction = process.env.NODE_ENV === "production";
+
+  // ── Read-time sanitization — clean malformed text before rendering to author ──
+  if (artifact) {
+    sanitizeResultForDownload(artifact as unknown as Record<string, unknown>);
+  }
 
   // Extract manuscript_word_count + hard_fail_present from progress JSONB
   // so they can be seeded into initialPollerJob and shown in the metadata grid

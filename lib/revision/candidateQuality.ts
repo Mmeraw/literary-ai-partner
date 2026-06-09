@@ -66,6 +66,19 @@ const COMMENTARY_PATTERNS = [
   /\bconsider (?:changing|adding|removing)\b/i,
   /\bto improve this\b/i,
   /\bas an ai\b/i,
+  // Editorial meta-language: the candidate tells the author what to do
+  // instead of providing executable prose
+  /\bthe reader (?:would|will|could|should|needs? to)\b/i,
+  /\bthis scene should\b/i,
+  /\bthe passage would be (?:stronger|better|improved)\b/i,
+  /\bthe author (?:should|could|would|needs? to)\b/i,
+  /\bwould benefit from\b/i,
+  /\bit would be beneficial to\b/i,
+  /\ba revision here could\b/i,
+  /\bone might (?:improve|strengthen|enhance|consider)\b/i,
+  /\bshowed? rather than (?:told|telling)\b/i,
+  /\b(?:should|could) be expanded\b/i,
+  /\b(?:needs?|lacks?|is missing) (?:an? )?(?:emotional|narrative|structural)\b/i,
 ];
 
 function normalize(value: string | null | undefined): string {

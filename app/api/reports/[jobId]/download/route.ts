@@ -31,6 +31,7 @@ import {
   type UnifiedEvaluationDocument,
 } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
+import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
@@ -2702,6 +2703,11 @@ export async function GET(
   }
 
   const result = rawResult as ExportableResult;
+
+  // ── Read-time sanitization — clean malformed text in stored artifacts ──
+  // This fixes ALL existing evaluations that were persisted before the write-time
+  // sanitizer was deployed. Without this, the parity gate rejects them permanently.
+  sanitizeResultForDownload(result as unknown as Record<string, unknown>);
 
   // ── Download Parity Gate — reject incomplete artifacts before building ──
   const parity = validateDownloadParity(result);

@@ -432,7 +432,7 @@ function stringArrayFromUnknown(raw: unknown): string[] {
     : [];
 }
 
-function resolveReviseContextQuality(ledgerQualityReportContent: unknown): ReviseContextQualityDecision {
+export function resolveReviseContextQuality(ledgerQualityReportContent: unknown, evaluationMode?: string): ReviseContextQualityDecision {
   if (!isRecord(ledgerQualityReportContent)) {
     return {
       status: 'clean',
@@ -470,6 +470,26 @@ function resolveReviseContextQuality(ledgerQualityReportContent: unknown): Revis
     gateReadyStatus === 'blocked_content_hard_fail' ||
     gateReadyStatus === 'repair_required'
   ) {
+    // In TESTIMONY mode (memoir, personal essay), "no POV characters" is
+    // expected — the unnamed first-person narrator IS the protagonist.
+    // Downgrade from 'blocked' to 'limited' so the Revise queue can proceed.
+    const isTestimonyPovSoftening =
+      evaluationMode?.toUpperCase() === 'TESTIMONY' &&
+      gateReadyStatus === 'repair_required' &&
+      blockingReasons.every((reason) =>
+        /\bno pov\b|no protagonist\b|narrator is unnamed\b/i.test(reason),
+      );
+
+    if (isTestimonyPovSoftening) {
+      return {
+        status: 'limited',
+        source: 'ledger_quality_report_v1',
+        gate_ready_status: gateReadyStatus,
+        blocking_reasons: blockingReasons,
+        degraded_layers: degradedLayers,
+      };
+    }
+
     return {
       status: 'blocked',
       source: 'ledger_quality_report_v1',
@@ -1782,7 +1802,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     // but a present degraded report must constrain Revise below.
   }
 
-  const contextQualityDecision = resolveReviseContextQuality(ledgerQualityReportContent);
+  const contextQualityDecision = resolveReviseContextQuality(ledgerQualityReportContent, modeContract.evaluation_mode);
   // A job has exactly one authoritative Revise Queue ledger, but the persisted
   // row is not a cache authority. Always rebuild from the canonical evaluation
   // artifacts for this job and upsert over the existing row. This prevents stale
