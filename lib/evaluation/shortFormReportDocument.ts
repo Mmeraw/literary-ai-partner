@@ -334,10 +334,10 @@ export function buildShortFormEvaluationDocument(input: {
           ? result.metrics.manuscript.word_count.toLocaleString()
           : 'Not available',
       estimatedPages: estimatePages(result.metrics?.manuscript?.word_count),
-      readingGradeLevel: typeof readingGrade === 'number' ? `${readingGrade} (Flesch-Kincaid)` : 'Not available',
+      readingGradeLevel: typeof readingGrade === 'number' ? `${Math.floor(readingGrade)} (Flesch-Kincaid)` : 'Not available',
       dialogueNarrativeRatio:
         typeof dialogue === 'number'
-          ? `${dialogue}% dialogue / ${(typeof narrative === 'number' ? narrative : computedNarrative ?? 0)}% narrative`
+          ? `${Math.floor(dialogue)}% dialogue / ${Math.floor(typeof narrative === 'number' ? narrative : computedNarrative ?? 0)}% narrative`
           : 'Not available',
       dateGenerated: formatDate(result.generated_at),
       genreConfidenceLabel: genreConf,

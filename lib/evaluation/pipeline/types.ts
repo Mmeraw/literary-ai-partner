@@ -328,6 +328,7 @@ export type SynthesisOutput = {
     trigger_warnings?: string[];
     diagnosed_genre?: string;
     target_audience?: string;
+    dominant_craft_engine?: string;
   };
   /**
    * Diagnostic spine — extracted by Pass 3 before criteria scoring begins.

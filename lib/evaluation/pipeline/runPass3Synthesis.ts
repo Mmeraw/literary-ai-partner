@@ -1508,12 +1508,15 @@ export function parsePass3Response(
   const extractedTargetAudience = typeof rawEnrichment["target_audience"] === "string" && rawEnrichment["target_audience"].trim()
     ? rawEnrichment["target_audience"].trim()
     : undefined;
+  const extractedCraftEngine = typeof rawEnrichment["dominant_craft_engine"] === "string" && rawEnrichment["dominant_craft_engine"].trim()
+    ? rawEnrichment["dominant_craft_engine"].trim()
+    : undefined;
   const metadataExpectationContext = expectationContext
     ? resolveExpectationProfiles({
         workType: expectationContext.work_type,
         diagnosedGenre: extractedDiagnosedGenre ?? expectationContext.diagnosed_genre,
         shelfTargetAudience: extractedTargetAudience ?? expectationContext.shelf_target_audience,
-        dominantCraftEngine: expectationContext.dominant_craft_engine,
+        dominantCraftEngine: extractedCraftEngine ?? expectationContext.dominant_craft_engine,
       })
     : null;
 
@@ -1536,12 +1539,13 @@ export function parsePass3Response(
         : {}),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
-    enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience)
+    enrichment: (extractedPremise || extractedTriggerWarnings?.length || extractedDiagnosedGenre || extractedTargetAudience || metadataExpectationContext)
       ? {
           premise: extractedPremise,
           trigger_warnings: extractedTriggerWarnings,
           diagnosed_genre: extractedDiagnosedGenre,
           target_audience: extractedTargetAudience,
+          dominant_craft_engine: metadataExpectationContext?.dominant_craft_engine,
         }
       : undefined,
     diagnostic_spine: rawSpineObj ? extractedSpine : undefined,

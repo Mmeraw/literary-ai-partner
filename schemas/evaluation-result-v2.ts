@@ -219,6 +219,8 @@ export type EvaluationResultV2 = {
     diagnosed_genre?: string;
     /** Pipeline-diagnosed likely audience/readership for the submitted text. */
     target_audience?: string;
+    /** Dominant craft engine driving reader engagement (e.g. "atmosphere", "voice", "propulsion"). */
+    dominant_craft_engine?: string;
     /** Flesch-Kincaid Grade Level computed from manuscript text. */
     reading_grade_level?: number;
     /** Percentage of text identified as quoted dialogue (0–100). */
