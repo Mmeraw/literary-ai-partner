@@ -120,7 +120,7 @@ describe('Phase Architecture v2 — Phase 2 guard helper', () => {
     expect(result.progress_patch.pass3a_gate_validity).toBe('gate_valid');
   });
 
-  it('blocks Phase 2 when checklist accepted_story_context_v1 is missing', () => {
+  it('blocks Phase 2 when checklist accepted_story_ledger_v1 is missing', () => {
     const result = guardPhase2Start(
       doneProgress,
       {
@@ -135,7 +135,7 @@ describe('Phase Architecture v2 — Phase 2 guard helper', () => {
     expect(result.progress_patch.phase2_preflight_gate_code).toBe('CHECKLIST_REQUIRED_INPUT_MISSING');
   });
 
-  it('allows Phase 2 when legacy preconditions and checklist accepted context are valid', () => {
+  it('allows Phase 2 when legacy preconditions and checklist accepted_story_ledger are valid', () => {
     const result = guardPhase2Start(
       doneProgress,
       {
@@ -143,7 +143,7 @@ describe('Phase Architecture v2 — Phase 2 guard helper', () => {
         pass3_preflight_draft_v1: artifact('preflight'),
       },
       {
-        accepted_story_context_v1: checklistArtifact('accepted_story_context_v1'),
+        accepted_story_ledger_v1: checklistArtifact('accepted_story_ledger_v1'),
       },
     );
 

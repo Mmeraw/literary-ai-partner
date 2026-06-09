@@ -308,7 +308,7 @@ Governance requirements for identifier changes:
 - **Process / runtime code surface:**
   - `lib/evaluation/phase1a/buildLedgerQualityReport.ts`
   - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (semantic_gate row)
-- **Output:** `ledger_quality_report_v1` — per-layer classification + `semantic_gate_result_v1` + `accepted_story_context_v1`
+- **Output:** `ledger_quality_report_v1` — per-layer classification → feeds Review Gate which produces `accepted_story_ledger_v1`
 - **Output acceptance metrics:**
   - Every visible layer classified: valid / degraded_with_caution / suppressed_insufficient_evidence / suppressed_conflicting_signals / failed_benchmark_minimum
   - Failed benchmark minimum blocks approval

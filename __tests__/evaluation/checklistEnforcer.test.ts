@@ -78,11 +78,11 @@ describe('Phase Architecture v2 checklist-as-code enforcer', () => {
     expect(result.missing_inputs).toContain('story_map_seed_v1');
   });
 
-  it('blocks Phase 2 without accepted_story_context_v1', () => {
+  it('blocks Phase 2 without accepted_story_ledger_v1', () => {
     const result = assertChecklistPhaseMayStart('phase_2', {});
 
     expect(result.ok).toBe(false);
-    expect(result.missing_inputs).toContain('accepted_story_context_v1');
+    expect(result.missing_inputs).toContain('accepted_story_ledger_v1');
   });
 
   it('requires degraded artifacts to carry reason codes before use', () => {
