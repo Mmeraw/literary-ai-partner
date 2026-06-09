@@ -55,41 +55,53 @@ export default function AdminJobsPage() {
 
   if (loading) {
     return (
-      <main className="p-6">
-        <p className="text-gray-500">Loading jobs...</p>
-      </main>
+      <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
+        <p className="font-medium text-slate-700">Loading jobs...</p>
+      </section>
     );
   }
 
   if (error) {
     return (
-      <main className="p-6">
-        <p className="text-red-600">Error: {error}</p>
-        <Link href="/admin" className="text-blue-600 underline mt-2 inline-block">
-          Back to Admin
+      <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+          <p className="font-semibold text-red-800">Error: {error}</p>
+        </div>
+        <Link
+          href="/admin"
+          className="mt-4 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900"
+        >
+          ← Back to Admin
         </Link>
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className="p-6 max-w-6xl mx-auto">
-      <div className="mb-4">
-        <Link href="/admin" className="text-blue-600 underline text-sm">
-          &larr; Back to Admin
-        </Link>
-      </div>
-      <h1 className="text-2xl font-semibold mb-4">Evaluation Jobs</h1>
+    <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
+      <Link
+        href="/admin"
+        className="text-sm font-semibold text-blue-700 hover:text-blue-900"
+      >
+        ← Back to Admin
+      </Link>
 
-      <div className="mb-4 flex gap-2 flex-wrap">
+      <h1 className="mt-4 text-3xl font-bold text-slate-950">
+        Evaluation Jobs
+      </h1>
+
+      <div className="mt-4 flex gap-2 flex-wrap">
         {["all", "queued", "running", "complete", "failed"].map((s) => (
           <button
             key={s}
-            onClick={() => { setLoading(true); setStatusFilter(s); }}
-            className={`px-3 py-1 rounded text-sm border ${
+            onClick={() => {
+              setLoading(true);
+              setStatusFilter(s);
+            }}
+            className={`rounded px-3 py-1.5 text-sm font-semibold border ${
               statusFilter === s
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                ? "bg-blue-700 text-white border-blue-700"
+                : "bg-white text-slate-800 border-slate-300 hover:bg-slate-50"
             }`}
           >
             {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -97,49 +109,84 @@ export default function AdminJobsPage() {
         ))}
       </div>
 
-      <p className="text-sm text-gray-500 mb-4">{jobs.length} job(s) found</p>
+      <p className="mt-4 text-sm font-medium text-slate-700">
+        {jobs.length} job(s) found
+      </p>
 
       {jobs.length === 0 ? (
-        <p className="text-gray-500">No jobs found for this filter.</p>
+        <div className="mt-6 rounded-lg border border-slate-300 bg-white p-8 text-center">
+          <p className="font-semibold text-slate-800">
+            No jobs found for this filter.
+          </p>
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border border-gray-200">
-            <thead className="bg-gray-50">
+        <div className="mt-6 overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-slate-300 text-sm">
+            <thead className="bg-slate-100">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">ID</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Status</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Phase</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Attempts</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Created</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Last Error</th>
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  ID
+                </th>
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  Phase
+                </th>
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  Attempts
+                </th>
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  Created
+                </th>
+                <th className="px-4 py-3 text-left font-bold text-slate-900">
+                  Last Error
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200 bg-white">
               {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-mono text-xs">{job.id.slice(0, 8)}...</td>
-                  <td className="px-3 py-2">
+                <tr key={job.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 whitespace-nowrap font-mono text-xs font-semibold text-blue-700">
+                    <Link
+                      href={`/evaluate/${job.id}`}
+                      className="hover:text-blue-900 hover:underline"
+                    >
+                      {job.id.slice(0, 8)}...
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                      className={`inline-block rounded px-2 py-0.5 text-xs font-bold ${
                         job.status === "complete"
-                          ? "bg-green-100 text-green-800"
+                          ? "bg-green-50 text-green-800 ring-1 ring-green-200"
                           : job.status === "failed"
-                          ? "bg-red-100 text-red-800"
-                          : job.status === "running"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-gray-100 text-gray-800"
+                            ? "bg-red-50 text-red-800 ring-1 ring-red-200"
+                            : job.status === "running"
+                              ? "bg-blue-50 text-blue-800 ring-1 ring-blue-200"
+                              : "bg-slate-50 text-slate-800 ring-1 ring-slate-200"
                       }`}
                     >
                       {job.status}
                     </span>
                   </td>
-                  <td className="px-3 py-2">{job.phase ?? "-"}</td>
-                  <td className="px-3 py-2">{job.attempt_count}/{job.max_attempts}</td>
-                  <td className="px-3 py-2 text-xs">
+                  <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                    {job.phase ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                    {job.attempt_count}/{job.max_attempts}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs font-medium text-slate-700">
                     {new Date(job.created_at).toLocaleString()}
                   </td>
-                  <td className="px-3 py-2 text-xs text-red-600 max-w-xs truncate">
-                    {job.last_error ?? "-"}
+                  <td className="px-4 py-3">
+                    {job.last_error ? (
+                      <span className="block max-w-md truncate rounded bg-red-50 px-2 py-1 font-semibold text-red-800 ring-1 ring-red-200">
+                        {job.last_error}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -147,6 +194,6 @@ export default function AdminJobsPage() {
           </table>
         </div>
       )}
-    </main>
+    </section>
   );
 }
