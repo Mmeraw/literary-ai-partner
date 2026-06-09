@@ -39,6 +39,7 @@ function makeCriterion(
         mechanism: "the paragraph transition lacks sharp consequence framing",
         specific_fix: "tighten one sentence-level transition",
         reader_effect: "continuity and preserved momentum",
+        symptom: "Test symptom: craft issue identified at this location.",
       },
     ],
     ...overrides,

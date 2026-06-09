@@ -1837,7 +1837,9 @@ function parseRecommendations(
         mechanism: String(r["mechanism"] ?? "").trim(),
         specific_fix: String(r["specific_fix"] ?? "").trim(),
         reader_effect: String(r["reader_effect"] ?? "").trim(),
-        symptom: typeof r["symptom"] === "string" ? r["symptom"].trim() : undefined,
+        symptom: typeof r["symptom"] === "string" && r["symptom"].trim().length > 0
+          ? r["symptom"].trim()
+          : buildSymptomFromContext(String(r["mechanism"] ?? "").trim(), String(r["action"] ?? "").trim(), criterionKey),
         mistake_proofing: typeof r["mistake_proofing"] === "string" ? r["mistake_proofing"].trim() : undefined,
         candidate_text_a: typeof r["candidate_text_a"] === "string" ? r["candidate_text_a"].trim() : undefined,
         candidate_text_b: typeof r["candidate_text_b"] === "string" ? r["candidate_text_b"].trim() : undefined,
@@ -2091,6 +2093,48 @@ function buildCriterionAwareReaderEffectDefault(criterionKey: SynthesizedCriteri
   }
 }
 
+/**
+ * Derive a symptom from mechanism/action text when the LLM didn't provide one.
+ * Every recommendation MUST have a symptom — it defines the observable problem.
+ */
+function buildSymptomFromContext(
+  mechanism: string,
+  action: string,
+  criterionKey: SynthesizedCriterion["key"],
+): string {
+  // Prefer mechanism (causal explanation) as the basis for symptom.
+  if (mechanism && mechanism.length >= 10) {
+    // Mechanism often starts with "the..." — capitalize and frame as observable symptom.
+    const cleaned = mechanism.replace(/^the\s+/i, "").trim();
+    return `The passage ${cleaned.charAt(0).toLowerCase()}${cleaned.slice(1)}`;
+  }
+  // Criterion-aware default symptoms when nothing else is available.
+  switch (criterionKey) {
+    case "character":
+      return "Character motivation or decision logic is unclear at this location, weakening reader trust.";
+    case "sceneConstruction":
+      return "Scene cause-and-effect sequencing is disrupted, reducing structural coherence.";
+    case "dialogue":
+      return "Speaker intent or attribution is unclear, reducing tension in the exchange.";
+    case "pacing":
+      return "Forward momentum stalls at this location due to reflective or expository weight.";
+    case "voice":
+      return "Psychic distance or POV rendering is inconsistent, breaking narrative immersion.";
+    case "theme":
+      return "Thematic signal is abstract rather than embodied, reducing emotional resonance.";
+    case "narrativeDrive":
+      return "Stakes or decision pressure diffuses before reaching the reader, weakening narrative urgency.";
+    case "worldbuilding":
+      return "Sensory grounding is absent, leaving the reader unanchored in the setting.";
+    case "tone":
+      return "Tonal register shifts without a clear trigger, disrupting emotional continuity.";
+    case "marketability":
+      return "Genre expectations are not established early enough, reducing submission alignment.";
+    default:
+      return "A concrete craft issue weakens reader clarity or momentum at this location.";
+  }
+}
+
 function extractIntentFragment(action: string): string {
   const normalized = action.replace(/\s+/g, " ").trim();
   if (!normalized) return "";
@@ -2204,17 +2248,17 @@ function deterministicHash(text: string): number {
 function summarizeAnchorContext(anchorSnippet: string): string {
   const normalized = anchorSnippet
     .replace(/\s+/g, " ")
-    .replace(/^["“”']+|["“”']+$/g, "")
+    .replace(/^[\u201c\u201d"']+|[\u201c\u201d"']+$/g, "")
     .trim();
-  if (!normalized) return "the current passage";
+  if (!normalized) return "the selected passage";
 
-  const shortened = normalized.length > 64
-    ? normalized.slice(0, 64).replace(/\s+\S*$/, "").trim()
-    : normalized;
-  const lowered = `${shortened.charAt(0).toLowerCase()}${shortened.slice(1)}`;
-  return lowered || "the current passage";
+  // Extract just the first few words for a brief reference label.
+  // Do NOT embed full manuscript text into action templates — that causes
+  // downstream contamination when action becomes rationale/title/symptom.
+  const words = normalized.split(/\s+/);
+  const preview = words.slice(0, 5).join(" ");
+  return `the passage near \u201c${preview}\u2026\u201d`;
 }
-
 function capitalizeSentence(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return "";
@@ -2292,10 +2336,10 @@ const ACTION_TEMPLATES_BY_FAMILY: Record<RecommendationFamily, readonly ((params
       `The structural turn at ${context} is close, but the causal order is inverted. Move the trigger ahead of reflection so the section can ${intentTail}.`,
   ],
   opportunity: [
-    ({ context, intentTail }) =>
-      `The material in ${context} has stronger upside than the current phrasing shows. Framing the beat as a specific reader-facing promise could ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `There is a clear editorial opportunity in ${context}: convert the abstract claim into a concrete outcome cue to ${intentTail}.`,
+    ({ intentTail }) =>
+      `Reframe the abstract statement as a specific reader-facing promise to ${intentTail}.`,
+    ({ intentTail }) =>
+      `Convert the abstract claim into a concrete outcome cue to ${intentTail}.`,
   ],
   scene_level: [
     ({ context, intentTail }) =>
@@ -2433,6 +2477,11 @@ function buildDensityRepairRecommendations(
       mechanism,
       specific_fix: specificFix,
       reader_effect: readerEffect,
+      // Populate structured fields so downstream doesn't collapse action -> rationale -> title/symptom
+      symptom: `The evaluation identified a concrete craft issue at this location that may weaken reader clarity or momentum.`,
+      cause: mechanism,
+      rationale: specificFix,
+      fix_direction: specificFix,
     });
   }
 
@@ -2607,6 +2656,9 @@ function backfillRecommendationsFromAxis(
           mechanism: "",
           specific_fix: "",
           reader_effect: "",
+          symptom: typeof (r as Record<string, unknown>).symptom === "string" && ((r as Record<string, unknown>).symptom as string).trim().length > 0
+            ? ((r as Record<string, unknown>).symptom as string).trim()
+            : buildSymptomFromContext("", String(r.action ?? "").trim(), criterionKey),
         };
         // Run through normalizer so the specificity triple is populated/repaired
         const normalized = normalizeRecommendationContract(base);

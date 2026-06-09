@@ -237,8 +237,14 @@ export type SynthesizedCriterion = {
      * For anchorless recommendations this may be "" — gate fires on the genuine generic content.
      */
     reader_effect: string;
-    /** What the reader experiences as a result of the issue — the observable problem. */
-    symptom?: string;
+    /** What the reader experiences as a result of the issue — the observable problem. REQUIRED: every recommendation must define its symptom. */
+    symptom: string;
+    /** Root cause explanation — why the problem exists at this location. */
+    cause?: string;
+    /** Explicit editorial rationale for this specific recommendation. */
+    rationale?: string;
+    /** Concrete fix direction — what the revision should accomplish. */
+    fix_direction?: string;
     /** What must not be damaged or lost when applying this fix. */
     mistake_proofing?: string;
     /** Primary copy-paste-ready candidate repair prose for Revise Queue. */

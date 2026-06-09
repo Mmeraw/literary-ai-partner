@@ -58,6 +58,7 @@ function makeCriterion(
         mechanism: "the current draft does not yet demonstrate clear mastery of this criterion",
         specific_fix: "grounding specific textual evidence",
         reader_effect: `reader connection for ${key}`,
+        symptom: "Test symptom: craft issue identified at this location.",
       },
     ],
     ...overrides,

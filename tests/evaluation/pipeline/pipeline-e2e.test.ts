@@ -117,6 +117,7 @@ function makeSynthesisOutput(): SynthesisOutput {
           mechanism: "the current phrasing blunts tension before the decision point",
           specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
           reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
+          symptom: "Test symptom: craft issue identified at this location.",
         },
       ],
     })),
@@ -558,6 +559,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         mechanism: "the current phrasing blunts tension before the decision point",
         specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
         reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
+        symptom: "Test symptom: craft issue identified at this location.",
       },
     ];
 
@@ -575,6 +577,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         mechanism: "the current phrasing blunts tension before the decision point",
         specific_fix: "replace the abstract transition beat with a concrete cause-and-effect move",
         reader_effect: "clearer escalation chain, improving urgency and comprehension at the turn",
+        symptom: "Test symptom: craft issue identified at this location.",
       },
     ];
 
@@ -1290,6 +1293,7 @@ describe("synthesisToEvaluationResult adapter", () => {
             mechanism: "the criterion lacks grounding in specific textual moments",
             specific_fix: `grounding ${key} in specific textual moments`,
             reader_effect: "significant improvement in criterion quality",
+            symptom: "Test symptom: craft issue identified at this location.",
           },
           {
             priority: "medium" as const,
@@ -1303,6 +1307,7 @@ describe("synthesisToEvaluationResult adapter", () => {
             mechanism: "the criterion needs continued development throughout the manuscript",
             specific_fix: `developing ${key} throughout the manuscript`,
             reader_effect: "incremental improvement in criterion quality",
+            symptom: "Test symptom: craft issue identified at this location.",
           },
         ],
       })),

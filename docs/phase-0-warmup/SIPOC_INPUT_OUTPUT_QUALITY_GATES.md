@@ -239,6 +239,7 @@ accepted_story_ledger_v1
 - Evaluation findings.
 - Accepted story authority.
 - Evidence anchors.
+- Six-part diagnostic per recommendation (symptom, cause, fix_direction, reader_effect, evidence, operation).
 
 ## Required output
 
@@ -256,6 +257,28 @@ revision_opportunity_ledger_v1
 | forbidden meta-commentary absent | yes |
 | no anchor = no opportunity | enforced |
 | vague advice routed to Needs Targeting | yes |
+| symptom populated (≥10 chars, not template text) | yes |
+| cause populated (≥10 chars, craft mechanism) | yes |
+| fix_direction populated (≥10 chars, actionable) | yes |
+| reader_effect populated (≥10 chars, impact statement) | yes |
+| rationale is evidence-based (not contaminated) | yes |
+| revision_operation specified | yes |
+
+## Kick-backward behavior
+
+If a recommendation arrives from Pass 3 without complete diagnostic fields:
+
+1. `symptom` missing → derive from mechanism/action via `buildSymptomFromContext()`
+2. `cause` missing → derive from `mechanism` field if available; otherwise hold for regeneration
+3. `fix_direction` missing → derive from `recommendation` field if actionable; otherwise hold
+4. `reader_effect` missing → derive from `expected_impact` if present; otherwise hold
+5. `revision_operation` missing → infer from action text via `inferLedgerRevisionOperation()`
+
+If derivation fails → opportunity enters `needs_diagnostic_enrichment` status and is blocked until the upstream supplier (Pass 3) regenerates with explicit diagnostic fields.
+
+## Contamination rejection
+
+Any field matching template meta-phrases (e.g., "There is a clear editorial opportunity in...", "This passage would benefit from...") is treated as contaminated input and blocked. The system logs the contamination source for telemetry.
 
 ---
 
