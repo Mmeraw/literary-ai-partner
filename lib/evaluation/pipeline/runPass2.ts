@@ -1036,6 +1036,9 @@ export function parsePass2Response(raw: string, fallbackModel?: string): SingleP
               (rec["strategic_lever"] ?? "scene_goal_clarity") as AxisCriterionResult["recommendations"][number]["strategic_lever"],
             revision_granularity:
               (rec["revision_granularity"] ?? "scene") as AxisCriterionResult["recommendations"][number]["revision_granularity"],
+            candidate_text_a: typeof rec["candidate_text_a"] === "string" ? rec["candidate_text_a"].trim() : undefined,
+            candidate_text_b: typeof rec["candidate_text_b"] === "string" ? rec["candidate_text_b"].trim() : undefined,
+            candidate_text_c: typeof rec["candidate_text_c"] === "string" ? rec["candidate_text_c"].trim() : undefined,
           };
         })
       : [];

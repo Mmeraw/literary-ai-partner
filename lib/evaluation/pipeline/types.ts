@@ -156,6 +156,12 @@ export type AxisCriterionResult = {
     strategic_lever: StrategicLever;
     /** Where the fix primarily operates */
     revision_granularity: RevisionGranularity;
+    /** Primary copy-paste-ready candidate repair prose for Revise Queue. */
+    candidate_text_a?: string;
+    /** Rhythm/cadence variant candidate repair prose for Revise Queue. */
+    candidate_text_b?: string;
+    /** Bolder rendering-shift candidate repair prose for Revise Queue. */
+    candidate_text_c?: string;
   }[];
 };
 
