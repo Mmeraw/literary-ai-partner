@@ -123,7 +123,10 @@ function candidateEchoesAnchor(candidate: string, anchor: string): boolean {
 }
 
 function looksLikeEditorialAdvice(text: string): boolean {
-  return /\b(reader|narrative|theme|arc|stakes|craft|manuscript|criterion|diagnostic|revision|prose|passage|scene should|this shows|this would)\b/i.test(text);
+  // Match multi-word editorial/analytical phrases, not single literary words that
+  // appear in valid manuscript prose (e.g. "narrative", "theme", "stakes").
+  // A character saying "the stakes were too high" is prose, not advice.
+  return /\b(the reader (?:will|would|should|can|might)|reader experience|narrative arc should|narrative tension should|this (?:shows|demonstrates|illustrates|reveals|creates|builds)|this would (?:improve|strengthen|enhance|create)|scene should (?:be|have|include)|the manuscript|the criterion|the diagnostic|craft-level|revision opportunity|prose control|thematic resonance should|on the page)\b/i.test(text);
 }
 
 function looksLikeGenericLiteraryFiller(text: string): boolean {
