@@ -830,7 +830,7 @@ export default async function EvaluationReportPage({
     : null;
   const verdictPresentation = getOverallReadinessPresentation(overallScore);
   const verdict = verdictPresentation.label;
-  const generatedLabel = canonicalDoc?.titleBlock.dateGenerated ?? "Not available";
+  const generatedLabel = canonicalDoc?.titleBlock.dateGenerated ?? (job.created_at ? formatDetailDate(job.created_at) : "Not available");
   const reportType = canonicalDoc?.titleBlock.reportType ?? (isLongForm ? "Long-Form Evaluation" : "Short-Form Evaluation");
   const displayWordCount = wordCount ?? progressWordCount;
   const estimatedPages = typeof displayWordCount === "number" ? Math.ceil(displayWordCount / 250) : null;
@@ -907,7 +907,7 @@ export default async function EvaluationReportPage({
               />
             </p>
             <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)] lg:items-start">
-              <dl className="grid gap-x-12 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+              <dl className="grid gap-x-12 gap-y-5 text-sm sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
                 <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
                 <div><dt className="font-semibold text-stone-950">Report Type</dt><dd className="text-stone-700">{reportType}</dd></div>
@@ -916,7 +916,7 @@ export default async function EvaluationReportPage({
                   <HeaderField label="Shelf" value={canonicalDoc.titleBlock.shelf} confidenceLabel={shelfConfidenceLabel} />
                 )}
                 {canonicalDoc?.titleBlock.genreExpectationContract && (
-                  <div className="sm:col-span-2 xl:col-span-3">
+                  <div className="sm:col-span-2 xl:col-span-3 2xl:col-span-4">
                     <dt className="font-semibold text-stone-950">Genre Expectations</dt>
                     <dd className="text-stone-700">
                       {canonicalDoc.titleBlock.genreExpectationContract.contractSummary}
