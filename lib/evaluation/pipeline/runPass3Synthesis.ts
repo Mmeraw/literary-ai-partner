@@ -2637,6 +2637,37 @@ function backfillEvidenceFromAxis(
   return deduped;
 }
 
+/**
+ * When a backfilled recommendation has a terse action (common for Pass 2 chunk
+ * recs like "tighten exposition"), enrich it from the recommendation's own
+ * context fields so the action reads as a complete editorial instruction.
+ * Only fires when action < 50 chars; longer actions are kept as-is.
+ */
+function enrichShortAction(
+  action: string,
+  expectedImpact: string,
+  issueFamily: string | undefined,
+  anchorSnippet: string,
+): string {
+  if (action.length >= 50) return action;
+  const parts: string[] = [action];
+  if (issueFamily && !action.toLowerCase().includes(issueFamily.toLowerCase())) {
+    parts.push(`to address ${issueFamily}`);
+  }
+  if (expectedImpact && !action.toLowerCase().includes(expectedImpact.toLowerCase())) {
+    parts.push(`which ${expectedImpact}`);
+  }
+  const enriched = parts.join(" — ");
+  if (enriched.length >= 50) return enriched;
+  if (anchorSnippet) {
+    const snippet = anchorSnippet.length > 80
+      ? anchorSnippet.slice(0, 77) + "..."
+      : anchorSnippet;
+    return `${enriched} (near: "${snippet}")`;
+  }
+  return enriched;
+}
+
 function backfillRecommendationsFromAxis(
   pass1: SinglePassOutput,
   pass2: SinglePassOutput,
@@ -2648,11 +2679,20 @@ function backfillRecommendationsFromAxis(
     if (!passCriterion) return [];
     return passCriterion.recommendations
       .map((r) => {
+        const rawAction = String(r.action ?? "").trim();
+        const rawExpectedImpact = String(r.expected_impact ?? "").trim();
+        const rawAnchorSnippet = String(r.anchor_snippet ?? "").trim();
+        const enrichedAction = enrichShortAction(
+          rawAction,
+          rawExpectedImpact,
+          r.issue_family,
+          rawAnchorSnippet,
+        );
         const base = {
           priority: r.priority,
-          action: String(r.action ?? "").trim(),
-          expected_impact: String(r.expected_impact ?? "").trim(),
-          anchor_snippet: String(r.anchor_snippet ?? "").trim(),
+          action: enrichedAction,
+          expected_impact: rawExpectedImpact,
+          anchor_snippet: rawAnchorSnippet,
           source_pass: sourcePass,
           issue_family: r.issue_family,
           strategic_lever: r.strategic_lever,
@@ -2662,7 +2702,7 @@ function backfillRecommendationsFromAxis(
           reader_effect: "",
           symptom: typeof (r as Record<string, unknown>).symptom === "string" && ((r as Record<string, unknown>).symptom as string).trim().length > 0
             ? ((r as Record<string, unknown>).symptom as string).trim()
-            : buildSymptomFromContext("", String(r.action ?? "").trim(), criterionKey),
+            : buildSymptomFromContext("", rawAction, criterionKey),
         };
         // Run through normalizer so the specificity triple is populated/repaired
         const normalized = normalizeRecommendationContract(base);
