@@ -1851,6 +1851,11 @@ export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | unde
   if (isTerminalFailureCode(code)) return 0;
   if (!code) return 2;
 
+  // S06b Self-Correction Policy: handoff gate failures get exactly 1 retry.
+  // LLM may produce clean output on a second attempt; if retry also fails,
+  // the failure becomes terminal (quarantine + fail closed).
+  if (code.startsWith('HANDOFF_')) return 1;
+
   if (code === 'PROCESSOR_UNCAUGHT_ERROR') return 2;
 
   if (
