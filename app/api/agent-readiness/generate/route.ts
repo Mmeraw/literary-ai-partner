@@ -74,6 +74,13 @@ const PLACEHOLDER_PATTERNS = [
   /\[PLACEHOLDER\b/i,
 ];
 
+const WORD_MINIMUMS: Partial<Record<SectionType, number>> = {
+  query_letter: 200,
+  synopsis: 150,
+  author_bio: 50,
+  what_makes_unique: 60,
+};
+
 function qualityGate(text: string, section: SectionType): { pass: boolean; reason?: string } {
   if (!text || text.trim().length < 20) {
     return { pass: false, reason: 'Output too short — generation failed' };
@@ -95,6 +102,12 @@ function qualityGate(text: string, section: SectionType): { pass: boolean; reaso
   const limit = WORD_LIMITS[section];
   if (wordCount > limit * 1.1) {
     return { pass: false, reason: `Exceeds word limit: ${wordCount}/${limit} words` };
+  }
+
+  // Minimum word count — reject thin output that won't serve agents
+  const minWords = WORD_MINIMUMS[section];
+  if (minWords && wordCount < minWords) {
+    return { pass: false, reason: `Output too thin (${wordCount} words) — minimum ${minWords} words required for agent-ready ${section}` };
   }
 
   return { pass: true };
@@ -383,16 +396,26 @@ ${contextSummary}`;
 
   // Special handling for author bio
   if (section === 'author_bio') {
-    if (authorBioInput && authorBioInput.trim().length > 10) {
-      userMessage += `\n\nAUTHOR-SUPPLIED BIO MATERIALS:\n${authorBioInput}`;
-      userMessage += `\n\nIMPORTANT: The manuscript being queried is "${ctx.manuscript.title}". The bio MUST connect the author's background to why they are uniquely positioned to write this specific book. Lead with their professional identity, then immediately tie their lived experience or expertise to this manuscript's subject matter.`;
-    } else {
+    const trimmedBio = authorBioInput?.trim() ?? '';
+    
+    if (trimmedBio.length < 50) {
       return NextResponse.json({
-        error: 'Author Bio requires author-supplied materials (resume, CV, bio notes). No credentials can be invented.',
+        error: trimmedBio.length === 0
+          ? 'Author Bio requires author-supplied materials (resume, CV, bio notes). No credentials can be invented.'
+          : `Author Bio input too brief (${trimmedBio.length} characters). Please provide at least 50 characters of background information — a sentence or two about your professional background, education, or life experience relevant to your writing.`,
         section: 'author_bio',
         needsInput: true,
       }, { status: 422 });
     }
+
+    // Cap input at 5000 chars to prevent context overflow while preserving most CVs
+    const BIO_INPUT_MAX = 5000;
+    const cappedBio = trimmedBio.length > BIO_INPUT_MAX
+      ? trimmedBio.substring(0, BIO_INPUT_MAX) + '\n\n[Input truncated — only first 5,000 characters used]'
+      : trimmedBio;
+
+    userMessage += `\n\nAUTHOR-SUPPLIED BIO MATERIALS:\n${cappedBio}`;
+    userMessage += `\n\nIMPORTANT: The manuscript being queried is "${ctx.manuscript.title}". The bio MUST connect the author's background to why they are uniquely positioned to write this specific book. Lead with their professional identity, then immediately tie their lived experience or expertise to this manuscript's subject matter.`;
   }
 
   // Call OpenAI
