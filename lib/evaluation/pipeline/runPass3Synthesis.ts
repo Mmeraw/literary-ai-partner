@@ -2669,6 +2669,10 @@ function backfillRecommendationsFromAxis(
         return {
           ...normalized,
           action: clampRecommendationAction(normalized.action),
+          // Carry through candidate prose from Pass 1/2 chunk cache
+          ...(typeof r.candidate_text_a === "string" && r.candidate_text_a.trim() ? { candidate_text_a: r.candidate_text_a.trim() } : {}),
+          ...(typeof r.candidate_text_b === "string" && r.candidate_text_b.trim() ? { candidate_text_b: r.candidate_text_b.trim() } : {}),
+          ...(typeof r.candidate_text_c === "string" && r.candidate_text_c.trim() ? { candidate_text_c: r.candidate_text_c.trim() } : {}),
         };
       })
       .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);

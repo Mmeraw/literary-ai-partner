@@ -1928,6 +1928,85 @@ export async function assertPass12HandoffExistsBeforePhase3Queue(
   }
 }
 
+/**
+ * SIPOC content-level mistake-proofing: recover missing recommendations in a
+ * handoff's pass2Output by reading the upstream pass2_chunk_cache_v1 artifact.
+ *
+ * When the chunk aggregator (or any upstream bug) produces a pass2Output with
+ * empty recommendations arrays, this function reads the chunk cache and merges
+ * the per-chunk recommendations back into the criteria, preserving candidate
+ * prose fields (candidate_text_a/b/c).
+ *
+ * Returns true if any recommendations were recovered.
+ */
+async function recoverHandoffRecommendationsFromChunkCache(
+  supabase: SupabaseClient<any, any, any>,
+  jobId: string,
+  pass2Output: SinglePassOutput,
+): Promise<boolean> {
+  const totalRecs = pass2Output.criteria.reduce(
+    (sum, c) => sum + (c.recommendations?.length ?? 0), 0,
+  );
+  if (totalRecs > 0) return false; // Nothing to recover
+
+  const { data: cacheRow } = await supabase
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'pass2_chunk_cache_v1')
+    .maybeSingle();
+
+  if (!cacheRow?.content) {
+    console.warn(`[SIPOC recovery] ${jobId}: pass2_chunk_cache_v1 not found — cannot recover recommendations`);
+    return false;
+  }
+
+  const chunks = (cacheRow.content as Record<string, unknown>).chunks as
+    Record<string, { result?: { criteria?: Array<{ key?: string; recommendations?: unknown[] }> } }> | undefined;
+  if (!chunks) return false;
+
+  // Build a map of criterion key → merged recommendations from all chunks
+  const recoveredRecs = new Map<string, unknown[]>();
+  for (const chunkData of Object.values(chunks)) {
+    const criteria = chunkData?.result?.criteria;
+    if (!Array.isArray(criteria)) continue;
+    for (const crit of criteria) {
+      if (!crit.key || !Array.isArray(crit.recommendations)) continue;
+      const existing = recoveredRecs.get(crit.key) ?? [];
+      existing.push(...crit.recommendations);
+      recoveredRecs.set(crit.key, existing);
+    }
+  }
+
+  if (recoveredRecs.size === 0) return false;
+
+  // Merge recovered recommendations into pass2Output criteria (deduplicate by anchor_snippet)
+  let totalRecovered = 0;
+  for (const criterion of pass2Output.criteria) {
+    const chunkRecs = recoveredRecs.get(criterion.key);
+    if (!chunkRecs || chunkRecs.length === 0) continue;
+
+    const seenAnchors = new Set(
+      criterion.recommendations.map(r => (r.anchor_snippet ?? '').trim().toLowerCase()),
+    );
+    for (const rec of chunkRecs) {
+      const r = rec as typeof criterion.recommendations[number];
+      const anchor = (r.anchor_snippet ?? '').trim().toLowerCase();
+      if (anchor && !seenAnchors.has(anchor)) {
+        criterion.recommendations.push(r);
+        seenAnchors.add(anchor);
+        totalRecovered++;
+      }
+    }
+  }
+
+  if (totalRecovered > 0) {
+    console.log(`[SIPOC recovery] ${jobId}: recovered ${totalRecovered} recommendations from pass2_chunk_cache_v1 into pass2Output`);
+  }
+
+  return totalRecovered > 0;
+}
+
 type UpstreamArtifactRow = {
   id?: string | null;
   job_id?: string | null;
@@ -5695,6 +5774,12 @@ export async function processEvaluationJob(
         const cachedPass1 = handoff.pass1Output;
         const cachedPass2 = handoff.pass2Output;
 
+        // SIPOC mistake-proofing: if handoff pass2Output has empty recommendations
+        // (upstream aggregator bug or data corruption), recover from chunk cache.
+        if (cachedPass2) {
+          await recoverHandoffRecommendationsFromChunkCache(supabase, String(job.id), cachedPass2);
+        }
+
         const phase3Runners = cachedPass2 !== null
           ? {
               runPass1: async () => cachedPass1,
@@ -8962,6 +9047,11 @@ export async function processEvaluationJob(
 
           const pass1ResultP2: SinglePassOutput = capturedPass1;
           const pass2ResultP2: SinglePassOutput = capturedPass2 ?? capturedPass1; // Pass 2 present when ok=true
+
+          // SIPOC mistake-proofing: if aggregator produced empty recommendations,
+          // recover from upstream chunk cache before writing handoff.
+          await recoverHandoffRecommendationsFromChunkCache(supabase, String(job.id), pass2ResultP2);
+
           // Write pass12_handoff_v1
           const handoffContentP2 = {
             pass1Output: pass1ResultP2,
@@ -9075,9 +9165,13 @@ export async function processEvaluationJob(
           return { success: false, error: 'phase_2 short: Pass 1 output not captured' };
         }
 
+        // SIPOC mistake-proofing: recover empty recommendations from chunk cache
+        const pass2ResultP2Short: SinglePassOutput = capturedPass2Short ?? capturedPass1Short;
+        await recoverHandoffRecommendationsFromChunkCache(supabase, String(job.id), pass2ResultP2Short);
+
         const handoffContentP2Short = {
           pass1Output: capturedPass1Short,
-          pass2Output: capturedPass2Short ?? capturedPass1Short,
+          pass2Output: pass2ResultP2Short,
           chunk_count: manuscriptChunksForPipeline?.length ?? 1,
           captured_at: new Date().toISOString(),
           schema_version: 'pass12_handoff_v1',
