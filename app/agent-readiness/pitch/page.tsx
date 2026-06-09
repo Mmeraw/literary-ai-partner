@@ -7,8 +7,9 @@
  */
 
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
+import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
@@ -113,6 +114,15 @@ export default function PitchPage() {
   const [elevatorApproved, setElevatorApproved] = useState(false);
   const generatedPitch = [elevator, paragraph].filter(s => s.trim().length > 0).join("\n\n");
 
+  const genState = useAgentReadinessGenerate();
+  const handleGeneratePitch = useCallback(async (mode: 'generate' | 'regenerate' | 'improve') => {
+    const result = await genState.generate('query_pitch', mode, { existingContent: elevator });
+    if (result) {
+      setElevator(result.content);
+      setElevatorApproved(false);
+    }
+  }, [genState, elevator]);
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
       <div className="mx-auto grid max-w-[1220px] gap-8 px-6 py-12 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -156,15 +166,24 @@ export default function PitchPage() {
           />
           <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
             {["Generate", "Regenerate", "Improve", "Copy"].map(label => (
-              <button key={label} style={{
-                fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-                letterSpacing: "0.1em", textTransform: "uppercase",
-                backgroundColor: label === "Generate" ? T.gold : "transparent",
-                color: label === "Generate" ? T.ink : T.cream2,
-                border: label === "Generate" ? "none" : `1px solid ${T.border}`,
-                padding: "0.5rem 1rem", cursor: "pointer",
-              }}>{label}</button>
+              <button
+                key={label}
+                onClick={() => {
+                  if (label === 'Copy') navigator.clipboard.writeText(elevator);
+                  else handleGeneratePitch(label.toLowerCase() as 'generate' | 'regenerate' | 'improve');
+                }}
+                disabled={genState.generating || (label === 'Improve' && elevator.trim().length < 10)}
+                style={{
+                  fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  backgroundColor: label === "Generate" ? (genState.generating ? T.dim : T.gold) : "transparent",
+                  color: label === "Generate" ? T.ink : T.cream2,
+                  border: label === "Generate" ? "none" : `1px solid ${T.border}`,
+                  padding: "0.5rem 1rem", cursor: genState.generating ? "wait" : "pointer",
+                  opacity: genState.generating ? 0.6 : 1,
+                }}>{genState.generating && label === 'Generate' ? 'Generating...' : label}</button>
             ))}
+            {genState.error && <span style={{ fontSize: '0.6875rem', color: '#7A1E1E' }}>{genState.error}</span>}
             <button
               onClick={() => elevator.trim().length > 10 && setElevatorApproved(true)}
               disabled={elevator.trim().length < 10}
@@ -209,14 +228,27 @@ export default function PitchPage() {
           />
           <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
             {["Generate", "Regenerate", "Improve", "Copy"].map(label => (
-              <button key={label} style={{
-                fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
-                letterSpacing: "0.1em", textTransform: "uppercase",
-                backgroundColor: label === "Generate" ? T.gold : "transparent",
-                color: label === "Generate" ? T.ink : T.cream2,
-                border: label === "Generate" ? "none" : `1px solid ${T.border}`,
-                padding: "0.5rem 1rem", cursor: "pointer",
-              }}>{label}</button>
+              <button
+                key={label}
+                onClick={() => {
+                  if (label === 'Copy') navigator.clipboard.writeText(paragraph);
+                  else {
+                    const mode = label.toLowerCase() as 'generate' | 'regenerate' | 'improve';
+                    genState.generate('what_makes_unique', mode, { existingContent: paragraph }).then(r => {
+                      if (r) { setParagraph(r.content); }
+                    });
+                  }
+                }}
+                disabled={genState.generating || (label === 'Improve' && paragraph.trim().length < 10)}
+                style={{
+                  fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  backgroundColor: label === "Generate" ? (genState.generating ? T.dim : T.gold) : "transparent",
+                  color: label === "Generate" ? T.ink : T.cream2,
+                  border: label === "Generate" ? "none" : `1px solid ${T.border}`,
+                  padding: "0.5rem 1rem", cursor: genState.generating ? "wait" : "pointer",
+                  opacity: genState.generating ? 0.6 : 1,
+                }}>{genState.generating && label === 'Generate' ? '...' : label}</button>
             ))}
           </div>
         </div>

@@ -9,8 +9,9 @@
  */
 
 import Link from "next/link";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
+import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
@@ -211,6 +212,28 @@ export default function AuthorBioPage() {
   const [generatedBio, setGeneratedBio] = useState("");
   const [authorProfileSourceType, setAuthorProfileSourceType] = useState<AuthorProfileSourceType>("infer");
   const [authorProfileSourceUploadName, setAuthorProfileSourceUploadName] = useState("");
+
+  const genState = useAgentReadinessGenerate();
+  const handleGenerateBio = useCallback(async (mode: 'generate' | 'regenerate' | 'improve') => {
+    // Collect all author-supplied materials
+    const authorMaterials = [
+      bioText && `Author bio: ${bioText}`,
+      resumeText && `Resume/CV: ${resumeText}`,
+      penName && `Pen name: ${penName}`,
+      isDebut && 'This is a debut novel.',
+      ...Object.entries(fields).filter(([, v]) => v.trim()).map(([k, v]) => `${k}: ${v}`),
+    ].filter(Boolean).join('\n');
+
+    const result = await genState.generate('author_bio', mode, {
+      existingContent: generatedBio,
+      authorBioInput: authorMaterials,
+    });
+    if (result) {
+      setGeneratedBio(result.content);
+      setConfirmed(false);
+      setApproved(false);
+    }
+  }, [genState, bioText, resumeText, penName, isDebut, fields, generatedBio]);
   const [authorProfileSourceUploadStatus, setAuthorProfileSourceUploadStatus] = useState<AuthorProfileSourceUploadStatus>("idle");
   const [authorProfileSourceUploadMessage, setAuthorProfileSourceUploadMessage] = useState("");
   const authorProfileSourceUploadRef = useRef<HTMLInputElement | null>(null);
@@ -460,26 +483,69 @@ export default function AuthorBioPage() {
           </div>
         )}
 
+        {/* Generation error */}
+        {genState.error && (
+          <div style={{
+            border: '1px solid rgba(122,30,30,0.4)', padding: '0.75rem 1.25rem',
+            backgroundColor: 'rgba(122,30,30,0.08)', fontSize: '0.75rem', color: '#7A1E1E',
+            marginBottom: '1rem', lineHeight: 1.5,
+          }}>
+            {genState.error}
+          </div>
+        )}
+
         {/* Generate */}
         <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
           <button
-            onClick={() => setGeneratedBio("Michael J. Meraw is a former Canadian Armed Forces pilot and aerospace executive turned novelist. He writes literary suspense, eco-horror, and speculative fiction about survival, moral consequence, and the systems — natural and human — that trap people inside them. Operated from British Columbia, Canada, and Sinaloa, Mexico. Meraw draws on lived regional experience for his work and previously founded a startup and pitched on CBC's Dragons' Den.")}
+            onClick={() => handleGenerateBio('generate')}
+            disabled={genState.generating}
             style={{
               fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
               letterSpacing: "0.1em", textTransform: "uppercase",
-              backgroundColor: T.gold, color: T.ink, border: "none",
-              padding: "0.625rem 1.25rem", cursor: "pointer",
+              backgroundColor: genState.generating ? T.dim : T.gold, color: T.ink, border: "none",
+              padding: "0.625rem 1.25rem", cursor: genState.generating ? "wait" : "pointer",
+              opacity: genState.generating ? 0.6 : 1,
             }}>
-            Generate Bio
+            {genState.generating ? "Generating..." : "Generate Bio"}
           </button>
-          {["Regenerate", "Improve", "Copy"].map(label => (
-            <button key={label} style={{
+          <button
+            onClick={() => handleGenerateBio('regenerate')}
+            disabled={genState.generating}
+            style={{
               fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
               letterSpacing: "0.1em", textTransform: "uppercase",
               backgroundColor: "transparent", color: T.cream2,
-              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem", cursor: "pointer",
-            }}>{label}</button>
-          ))}
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: genState.generating ? "wait" : "pointer", opacity: genState.generating ? 0.5 : 1,
+            }}>
+            Regenerate
+          </button>
+          <button
+            onClick={() => handleGenerateBio('improve')}
+            disabled={genState.generating || generatedBio.trim().length < 20}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.cream2,
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: genState.generating || generatedBio.trim().length < 20 ? "not-allowed" : "pointer",
+              opacity: genState.generating || generatedBio.trim().length < 20 ? 0.4 : 1,
+            }}>
+            Improve
+          </button>
+          <button
+            onClick={() => navigator.clipboard.writeText(generatedBio)}
+            disabled={!generatedBio.trim()}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.cream2,
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: generatedBio.trim() ? "pointer" : "not-allowed",
+              opacity: generatedBio.trim() ? 1 : 0.4,
+            }}>
+            Copy
+          </button>
         </div>
 
         {/* Generated bio */}

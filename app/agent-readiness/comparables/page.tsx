@@ -15,8 +15,9 @@
  */
 
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import PackageSectionsSidebar from "../PackageSectionsSidebar";
+import { useAgentReadinessGenerate } from "../hooks/useAgentReadinessGenerate";
 
 // ─── Web Speech API mic input ───────────────────────────────────────────────
 
@@ -125,6 +126,17 @@ export default function ComparablesPage() {
   const [audience,    setAudience]    = useState("");
   const [positioning, setPositioning] = useState("");
   const [compSentence, setCompSentence] = useState("");
+
+  const genState = useAgentReadinessGenerate();
+  const handleGenerateComps = useCallback(async (mode: 'generate' | 'regenerate' | 'improve') => {
+    const result = await genState.generate('comparables', mode, {
+      existingContent: compSentence || positioning,
+    });
+    if (result) {
+      setCompSentence(result.content);
+      setApproved(false);
+    }
+  }, [genState, compSentence, positioning]);
   const [appealBrief,  setAppealBrief]  = useState({
     hook:        "",
     agentAppeal: "",
@@ -361,16 +373,59 @@ export default function ComparablesPage() {
           </div>
         )}
 
+        {/* Generation error */}
+        {genState.error && (
+          <div style={{
+            border: '1px solid rgba(122,30,30,0.4)', padding: '0.75rem 1.25rem',
+            backgroundColor: 'rgba(122,30,30,0.08)', fontSize: '0.75rem', color: '#7A1E1E',
+            marginBottom: '1rem', lineHeight: 1.5,
+          }}>
+            {genState.error}
+          </div>
+        )}
+
         {/* Actions */}
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          {["Copy", "Restore Version"].map(label => (
-            <button key={label} style={{
+          <button
+            onClick={() => handleGenerateComps('generate')}
+            disabled={genState.generating}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: genState.generating ? T.dim : T.gold, color: T.ink, border: "none",
+              padding: "0.625rem 1.25rem", cursor: genState.generating ? "wait" : "pointer",
+              opacity: genState.generating ? 0.6 : 1,
+            }}
+          >
+            {genState.generating ? "Generating..." : "Generate Comps"}
+          </button>
+          <button
+            onClick={() => handleGenerateComps('regenerate')}
+            disabled={genState.generating}
+            style={{
               fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
               letterSpacing: "0.1em", textTransform: "uppercase",
               backgroundColor: "transparent", color: T.cream2,
-              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem", cursor: "pointer",
-            }}>{label}</button>
-          ))}
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: genState.generating ? "wait" : "pointer", opacity: genState.generating ? 0.5 : 1,
+            }}
+          >
+            Regenerate
+          </button>
+          <button
+            onClick={() => navigator.clipboard.writeText(compSentence || generatedComps || '')}
+            disabled={!hasContent}
+            style={{
+              fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              backgroundColor: "transparent", color: T.cream2,
+              border: `1px solid ${T.border}`, padding: "0.625rem 1.25rem",
+              cursor: hasContent ? "pointer" : "not-allowed",
+              opacity: hasContent ? 1 : 0.4,
+            }}
+          >
+            Copy
+          </button>
           <button
             onClick={() => hasContent && setApproved(true)}
             disabled={!hasContent}
