@@ -1500,7 +1500,7 @@ export function parsePass3Response(
     const remainingCap = totalRecCap - protectedSet.size;
     const keepSet = new Set([
       ...protectedSet,
-      ...unprotectedRecs.slice(0, Math.max(0, remainingCap)).map(r => `${r.criterionIdx}:${r.recIdx}`),
+      ...unprotectedRecs.slice(0, remainingCap < 0 ? 0 : remainingCap).map(r => `${r.criterionIdx}:${r.recIdx}`),
     ]);
 
     for (let ci = 0; ci < finalCriteria.length; ci++) {
