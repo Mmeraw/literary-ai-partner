@@ -463,17 +463,18 @@ export function isCriterionComplete(c: EvaluationCriterionV2): boolean {
   if (c.status === "SCORABLE") {
     const requiredAnchors = minAnchorsFor(c.key);
     const hasRequiredAnchors = c.evidence.length >= requiredAnchors;
-    const dialogueUnderAnchorSoftFail =
-      c.key === "dialogue" &&
-      SOFT_FAIL_DIALOGUE_ENABLED &&
-      c.evidence.length < requiredAnchors;
+    const borderlineSoftFail =
+      c.evidence.length >= requiredAnchors - 1 &&
+      typeof c.score_0_10 === "number" &&
+      c.score_0_10 >= 0 &&
+      c.score_0_10 <= 10;
 
     return (
       c.scorable === true &&
       typeof c.score_0_10 === "number" &&
       c.score_0_10 >= 0 &&
       c.score_0_10 <= 10 &&
-      (hasRequiredAnchors || dialogueUnderAnchorSoftFail)
+      (hasRequiredAnchors || borderlineSoftFail)
     );
   }
 
