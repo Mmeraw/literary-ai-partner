@@ -1461,14 +1461,16 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   pass1Output = pass1Settled.value;
   pass2Output = pass2Settled.value;
 
-  // ── Pass 1/2 OUTPUT Completeness Gate (SIPOC dual-checkpoint) ───────────
-  // Validates that each pass produced structurally complete data before it
-  // flows downstream. Critical violations (missing scores) fail the pipeline;
-  // warnings (empty evidence, short rationale) are logged but non-blocking.
+  // ── Pass 1 OUTPUT + Pass 2 OUTPUT Completeness Gates (SIPOC dual-checkpoint)
+  // SIPOC: OUTPUT side of Pass 1 and Pass 2 boundaries.
+  // Validates each pass produced structurally complete data before downstream.
+  // Also serves as Pass 3 INPUT data-completeness check (same data, no mutation).
+  // Critical violations (missing scores) → KICK BACKWARD (fail pipeline);
+  // Warnings (empty evidence, short rationale) → LOG but proceed.
   {
     const pass1Completeness = validatePass1OutputCompleteness(pass1Output);
     if (pass1Completeness.violations.length > 0) {
-      console.warn("[Pipeline][CompletenessGate][Pass1] violations detected", {
+      console.warn("[Pipeline][CompletenessGate] Pass 1 OUTPUT → Pass 3 INPUT: violations detected", {
         manuscript_id: opts.manuscriptId ?? null,
         title: opts.title,
         critical: pass1Completeness.criticalCount,
@@ -1477,6 +1479,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
     }
     if (!pass1Completeness.ok) {
+      console.error("[Pipeline][SIPOC-KICK-BACKWARD] Pass 1 OUTPUT → Pass 3 INPUT: rejected — data too incomplete to hand off", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        critical_violations: pass1Completeness.criticalCount,
+      });
       timings.total_ms = nowMs() - pipelineStartMs;
       logPipelineTimings("failure", {
         manuscriptId: opts.manuscriptId,
@@ -1488,7 +1495,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
       return {
         ok: false,
-        error: `Pass 1 output completeness gate failed: ${pass1Completeness.criticalCount} critical violation(s) — ${pass1Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        error: `SIPOC KICK-BACKWARD (Pass 1 OUTPUT → Pass 3 INPUT): ${pass1Completeness.criticalCount} critical violation(s) — ${pass1Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        sipoc_boundary: "pass1_output→pass3_input",
         error_code: "PASS1_OUTPUT_INCOMPLETE",
         failed_at: "pass1",
         failure_details: {
@@ -1503,7 +1511,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
     const pass2Completeness = validatePass2OutputCompleteness(pass2Output);
     if (pass2Completeness.violations.length > 0) {
-      console.warn("[Pipeline][CompletenessGate][Pass2] violations detected", {
+      console.warn("[Pipeline][CompletenessGate] Pass 2 OUTPUT → Pass 3 INPUT: violations detected", {
         manuscript_id: opts.manuscriptId ?? null,
         title: opts.title,
         critical: pass2Completeness.criticalCount,
@@ -1512,6 +1520,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
     }
     if (!pass2Completeness.ok) {
+      console.error("[Pipeline][SIPOC-KICK-BACKWARD] Pass 2 OUTPUT → Pass 3 INPUT: rejected — data too incomplete to hand off", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        critical_violations: pass2Completeness.criticalCount,
+      });
       timings.total_ms = nowMs() - pipelineStartMs;
       logPipelineTimings("failure", {
         manuscriptId: opts.manuscriptId,
@@ -1523,7 +1536,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
       return {
         ok: false,
-        error: `Pass 2 output completeness gate failed: ${pass2Completeness.criticalCount} critical violation(s) — ${pass2Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        error: `SIPOC KICK-BACKWARD (Pass 2 OUTPUT → Pass 3 INPUT): ${pass2Completeness.criticalCount} critical violation(s) — ${pass2Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        sipoc_boundary: "pass2_output→pass3_input",
         error_code: "PASS2_OUTPUT_INCOMPLETE",
         failed_at: "pass2",
         failure_details: {
@@ -1790,8 +1804,10 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     );
   }
 
-  // ── S06b: Pass 1/2 Handoff Gate ─────────────────────────────────────────
-  // Deterministic prose-quality gate: validates Pass 1+2 output before synthesis.
+  // ── Pass 3 INPUT Gate: Prose Quality (S06b_HANDOFF_GATE) ────────────────
+  // SIPOC dual-checkpoint: INPUT side of Pass 3 boundary.
+  // Validates prose quality of Pass 1+2 output before synthesis consumes it.
+  // Data completeness was already validated by Pass 1/2 OUTPUT gates above.
   // Blocks garbled text, scaffold residue, broken modals from reaching Pass 3.
   // Canon: Runtime Doctrine #11/#13, Volume III §III.PL5, SIPOC S06b_HANDOFF_GATE
   {
@@ -1986,12 +2002,13 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // ── Pass 3 OUTPUT Completeness Gate (SIPOC dual-checkpoint) ─────────────
-  // Validates Pass 3 synthesis produced structurally complete data before
-  // it flows into QG. Critical failures (missing scores) block the pipeline.
+  // SIPOC: OUTPUT side of Pass 3 boundary.
+  // Validates synthesis produced structurally complete data before QG.
+  // Critical failures (missing scores) → KICK BACKWARD (fail pipeline).
   {
     const pass3Completeness = validatePass3OutputCompleteness(pass3Output);
     if (pass3Completeness.violations.length > 0) {
-      console.warn("[Pipeline][CompletenessGate][Pass3] violations detected", {
+      console.warn("[Pipeline][CompletenessGate] Pass 3 OUTPUT → QG INPUT: violations detected", {
         manuscript_id: opts.manuscriptId ?? null,
         title: opts.title,
         critical: pass3Completeness.criticalCount,
@@ -2000,6 +2017,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
     }
     if (!pass3Completeness.ok) {
+      console.error("[Pipeline][SIPOC-KICK-BACKWARD] Pass 3 OUTPUT → QG INPUT: rejected — synthesis too incomplete to send to quality gate", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        critical_violations: pass3Completeness.criticalCount,
+      });
       timings.total_ms = nowMs() - pipelineStartMs;
       logPipelineTimings("failure", {
         manuscriptId: opts.manuscriptId,
@@ -2011,7 +2033,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
       return {
         ok: false,
-        error: `Pass 3 output completeness gate failed: ${pass3Completeness.criticalCount} critical violation(s) — ${pass3Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        error: `SIPOC KICK-BACKWARD (Pass 3 OUTPUT → QG INPUT): ${pass3Completeness.criticalCount} critical violation(s) — ${pass3Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        sipoc_boundary: "pass3_output→qg_input",
         error_code: "PASS3_OUTPUT_INCOMPLETE",
         failed_at: "pass3",
         failure_details: {
@@ -2059,6 +2082,27 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       title: opts.title,
       repaired_recommendations: specificityResult.repairedCount,
     });
+  }
+
+  // ── QG INPUT Completeness Gate (SIPOC dual-checkpoint) ──────────────────
+  // SIPOC: INPUT side of QG boundary. Final structural check after all
+  // repairs (dedupe, density, specificity) to ensure no dirty data enters QG.
+  // This is a WARNING-ONLY gate — repairs should have fixed everything, but
+  // we log any remaining gaps for pipeline health monitoring.
+  {
+    const preQgCheck = validatePass3OutputCompleteness(pass3Output);
+    if (preQgCheck.violations.length > 0) {
+      console.warn("[Pipeline][CompletenessGate] QG INPUT (post-repair): violations remain after dedupe→density→specificity", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        critical: preQgCheck.criticalCount,
+        warnings: preQgCheck.violations.length - preQgCheck.criticalCount,
+        violations: preQgCheck.violations.slice(0, 5).map((v) => `${v.code}:${v.criterion_key}`),
+      });
+    }
+    // QG INPUT gate is warn-only: if critical issues remain after all repairs,
+    // they indicate a systemic problem the repair chain failed to fix.
+    // Let QG evaluate and provide its own diagnostic rather than double-blocking.
   }
 
   const pass4StartMs = nowMs();

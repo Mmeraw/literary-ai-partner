@@ -497,6 +497,7 @@ describe("runPipeline (e2e with injected runners)", () => {
       // missing criteria BEFORE data reaches QG — this is the desired behavior.
       expect(result.error_code).toBe("PASS3_OUTPUT_INCOMPLETE");
       expect(result.failed_at).toBe("pass3");
+      expect(result.sipoc_boundary).toBe("pass3_output→qg_input");
     }
   });
 
