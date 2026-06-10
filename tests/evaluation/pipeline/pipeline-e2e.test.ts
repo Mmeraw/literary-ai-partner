@@ -475,7 +475,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     }
   });
 
-  it("returns ok=false with quality gate error code when QG rejects output", async () => {
+  it("returns ok=false when Pass 3 output is incomplete (SIPOC completeness gate catches missing criteria before QG)", async () => {
     mockRunPass3.mockResolvedValueOnce(makeTruncatedSynthesisOutput());
 
     const result = await runPipeline({
@@ -493,8 +493,10 @@ describe("runPipeline (e2e with injected runners)", () => {
 
     expect(result.ok).toBe(false);
     if (isPipelineFailure(result)) {
-      expect(result.error_code).toBe("QG_CRITERIA_MISSING");
-      expect(result.failed_at).toBe("pass4");
+      // SIPOC dual-checkpoint: Pass 3 output completeness gate now catches
+      // missing criteria BEFORE data reaches QG — this is the desired behavior.
+      expect(result.error_code).toBe("PASS3_OUTPUT_INCOMPLETE");
+      expect(result.failed_at).toBe("pass3");
     }
   });
 
