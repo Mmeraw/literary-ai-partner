@@ -5004,7 +5004,7 @@ export async function processEvaluationJob(
         phase: failedPhase,
         phase_status: 'failed',
         dashboard_status: 'technical_review_required',
-        recovery_message: 'We\'ve detected a quality issue with your evaluation and our team is investigating. You\'ll receive an email when your report is ready. Your manuscript and all completed analysis have been preserved — no action is needed on your part.',
+        recovery_message: 'We\'ve detected a quality issue with your evaluation and our team is investigating. You\'ll receive an email when your report is ready. Your writing and all completed analysis have been preserved — no action is needed on your part.',
         total_units:
           typeof progressState.total_units === 'number'
             ? progressState.total_units
@@ -7131,7 +7131,7 @@ export async function processEvaluationJob(
             ...progressWithoutStalePhase1aFields,
             phase: 'phase_1a',
             phase_status: 'running',
-            message: 'Analyzing manuscript',
+            message: 'Analyzing writing',
             phase_log: [
               ...((Array.isArray(progressWithoutStalePhase1aFields.phase_log)
                 ? progressWithoutStalePhase1aFields.phase_log
@@ -7260,7 +7260,7 @@ export async function processEvaluationJob(
           // instead of resetting the progress bar backward.
           const resumeChunkFraction = totalChunks > 0 ? completedIndexes.size / totalChunks : 0;
           const resumeProgressUnits = Math.max(10, Math.round(10 + resumeChunkFraction * 30));
-          await markRunning('Analyzing manuscript', resumeProgressUnits, 'phase_1a');
+          await markRunning('Analyzing writing', resumeProgressUnits, 'phase_1a');
 
           console.log(`[phase_1a] ${jobId}: batch ${batchIndex + 1}/${batchesTotal} — processing chunks [${batchSliceIndexes.join(',')}] budget=${budgetMs}ms`);
 
@@ -7701,7 +7701,7 @@ export async function processEvaluationJob(
               ...progressState,
               phase: 'phase_1a',
               phase_status: 'queued',
-              message: `Analyzing manuscript (${completedAfterBatch.size}/${totalChunks} sections)`,
+              message: `Analyzing writing (${completedAfterBatch.size}/${totalChunks} sections)`,
               total_units: 100,
               completed_units: selfChainProgressPercent,
               track_c_status: trackCStatusForSelfChain,
@@ -7895,7 +7895,7 @@ export async function processEvaluationJob(
               ...progressState,
               phase: 'phase_1a',
               phase_status: 'queued',
-              message: 'Analyzing manuscript (finalizing review)',
+              message: 'Analyzing writing (finalizing review)',
               track_c_status: 'running',
               phase1a_batch_state: {
                 ...((progressState.phase1a_batch_state as Record<string, unknown>) ?? {}),

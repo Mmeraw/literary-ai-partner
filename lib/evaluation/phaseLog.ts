@@ -10,7 +10,7 @@
  *
  * where PhaseLogEntry = {
  *   stage:  string            // internal key e.g. "phase_1a"
- *   label:  string            // user-facing e.g. "Analyzing manuscript"
+ *   label:  string            // user-facing e.g. "Analyzing writing"
  *   event:  "entered" | "passed" | "failed"
  *   at:     string            // ISO timestamp
  * }
@@ -34,8 +34,8 @@ export interface PhaseLogEntry {
 
 /** Canonical user-facing label for each internal phase key. */
 export const PHASE_STAGE_LABELS: Record<string, string> = {
-  phase_0:       "Preparing manuscript",
-  phase_1a:      "Analyzing manuscript",
+  phase_0:       "Preparing evaluation",
+  phase_1a:      "Analyzing writing",
   review_gate:   "Story Layer Review",
   phase_2:       "Reconciling passes",
   phase_3:       "Preparing report",
