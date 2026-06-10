@@ -1431,9 +1431,10 @@ export function parsePass3Response(
   const TEMPLATE_GATE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
   for (const c of finalCriteria) {
     if (c.final_score_0_10 >= 9) continue;
-    // NOTE: governance-suppressed criteria must STILL be repaired here.
-    // The template gate requires density for all scored criteria regardless of
-    // whether earlier LLM recs were suppressed by governance/diagnostic-spine.
+    // NOTE: density repair must still backfill governance-suppressed criteria.
+    // Although the template gate has an isGovernanceSuppressed exemption,
+    // downstream mappings/dedupe/gate state may not preserve the suppression
+    // exemption reliably — scored criteria should remain gate-complete.
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
     const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 0;
     if (minRecs === 0) continue;
@@ -1518,9 +1519,9 @@ export function parsePass3Response(
   // inject a pre-validated deterministic rec that is guaranteed to pass isMeaningfulRecommendation.
   for (const c of finalCriteria) {
     if (c.final_score_0_10 >= 9) continue;
-    // NOTE: governance-suppressed criteria must STILL get last-resort recs.
-    // The template gate validates density for ALL scored criteria; suppression
-    // only removes unsafe LLM recs — it does not exempt from density floor.
+    // NOTE: governance-suppressed criteria must still get last-resort recs.
+    // Although the gate has a suppression exemption, downstream dedupe/mapping
+    // may not preserve that state — backfill is the safer contract.
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
     const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 0;
     if (minRecs === 0) continue;

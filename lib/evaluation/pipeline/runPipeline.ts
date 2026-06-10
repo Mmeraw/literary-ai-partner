@@ -15,7 +15,8 @@
 
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
-import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
+import { runPass3Synthesis as defaultRunPass3, buildLastResortRecommendations } from "./runPass3Synthesis";
+import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate";
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
 import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
@@ -746,6 +747,46 @@ function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
       criteria,
     },
     removedCount,
+  };
+}
+
+/**
+ * Enforce template density floor after pre-gate deduplication.
+ *
+ * dedupeRecommendationsPreGate() can remove duplicate action text across criteria,
+ * potentially leaving a criterion below the density floor even though synthesis repair
+ * already backfilled it. This safety net re-injects last-resort recs for any criterion
+ * that fell below the floor after dedupe.
+ */
+const POST_DEDUPE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
+
+function enforceTemplateDensityAfterPreGateDedupe(synthesis: SynthesisOutput): {
+  synthesis: SynthesisOutput;
+  restoredCount: number;
+} {
+  let restoredCount = 0;
+  const criteria = synthesis.criteria.map((criterion) => {
+    if (criterion.final_score_0_10 == null || criterion.final_score_0_10 >= 9) return criterion;
+    const bucket = criterion.final_score_0_10 <= 5 ? "<=5" : criterion.final_score_0_10 <= 7 ? "6-7" : "8";
+    const minRecs = POST_DEDUPE_DENSITY_FLOOR[bucket] ?? 0;
+    if (minRecs === 0) return criterion;
+
+    const meaningful = criterion.recommendations.filter((r) => isMeaningfulRecommendation(r));
+    if (meaningful.length >= minRecs) return criterion;
+
+    const needed = minRecs - meaningful.length;
+    const lastResort = buildLastResortRecommendations(criterion.key, criterion.final_score_0_10, needed);
+    restoredCount += lastResort.length;
+
+    return {
+      ...criterion,
+      recommendations: [...criterion.recommendations, ...lastResort],
+    };
+  });
+
+  return {
+    synthesis: { ...synthesis, criteria },
+    restoredCount,
   };
 }
 
@@ -1809,6 +1850,18 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscript_id: opts.manuscriptId ?? null,
       title: opts.title,
       removed_recommendations: dedupeResult.removedCount,
+    });
+  }
+
+  // Post-dedupe density enforcement: dedupe may strip the only meaningful rec
+  // for a criterion, leaving it below the template gate density floor.
+  const densityResult = enforceTemplateDensityAfterPreGateDedupe(pass3Output);
+  pass3Output = densityResult.synthesis;
+  if (densityResult.restoredCount > 0) {
+    console.log("[Pipeline][PostDedupe] density fallback restored", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      restored_recommendations: densityResult.restoredCount,
     });
   }
 
