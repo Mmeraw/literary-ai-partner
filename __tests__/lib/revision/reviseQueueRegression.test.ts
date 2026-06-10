@@ -34,6 +34,13 @@ import {
   applyPatchFromPreview,
   sha256,
 } from '@/lib/revision/revisePatchLifecycle';
+import { CRITERIA_KEYS } from '@/schemas/criteria-keys';
+import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
+import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
+import {
+  summarizePropagationIntegrity,
+  normalizeSummaryWithBottomWeaknesses,
+} from '@/lib/evaluation/pipeline/propagationIntegrity';
 
 jest.mock('@/lib/revision/logRevisionEvent', () => ({
   logRevisionEvent: jest.fn(async () => undefined),
@@ -526,5 +533,196 @@ describe('Queue Extraction — Idempotency & Unicode', () => {
       expect(typeof opp.evidence_anchor).toBe('string');
       expect(opp.evidence_anchor.length).toBeGreaterThan(5);
     }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 8. END-TO-END: REVISE QUEUE → SUMMARY → QG GATE
+// ══════════════════════════════════════════════════════════════════════════════
+
+function makeE2EFixture(scoreOverrides: Partial<Record<string, number>> = {}): EvaluationResultV2 {
+  return {
+    schema_version: 'evaluation_result_v2',
+    ids: {
+      evaluation_run_id: 'run-e2e-regression',
+      job_id: 'job-e2e-queue-summary-qg',
+      manuscript_id: 888,
+      user_id: '00000000-0000-0000-0000-000000000888',
+    },
+    generated_at: new Date().toISOString(),
+    engine: {
+      model: 'o3',
+      provider: 'openai',
+      prompt_version: 'pass1+pass2+pass3',
+    },
+    overview: {
+      verdict: 'revise',
+      overall_score_0_100: 62,
+      scored_criteria_count: CRITERIA_KEYS.length,
+      one_paragraph_summary:
+        'The manuscript demonstrates competent narrative technique with clear authorial intent.',
+      top_3_strengths: ['concept', 'voice', 'character'],
+      top_3_risks: ['dialogue', 'sceneConstruction', 'pacing'],
+    },
+    criteria: CRITERIA_KEYS.map((key) => ({
+      key,
+      scorable: true as const,
+      status: 'SCORABLE' as const,
+      signal_present: true,
+      signal_strength: 'SUFFICIENT' as const,
+      confidence_band: 'MEDIUM' as const,
+      score_0_10: scoreOverrides[key] ?? 7,
+      scorability_status: 'scorable_confident' as const,
+      rationale: `Criterion ${key} shows observable writing characteristics.`,
+      evidence: [
+        { snippet: `Evidence A for ${key}.` },
+        { snippet: `Evidence B for ${key}.` },
+        { snippet: `Evidence C for ${key}.` },
+      ],
+      recommendations: [
+        {
+          priority: 'medium' as const,
+          action: `Revise ${key} through targeted manuscript edits.`,
+          expected_impact: `Improves ${key} quality measurably.`,
+        },
+      ],
+    })),
+    recommendations: {
+      quick_wins: [],
+      strategic_revisions: [],
+    },
+    metrics: {
+      manuscript: {},
+      processing: {},
+    },
+    artifacts: [],
+    governance: {
+      confidence: 0.84,
+      warnings: [],
+      limitations: [],
+      policy_family: 'multi-pass-dual-axis',
+      observability_warnings: [],
+    },
+  } as unknown as EvaluationResultV2;
+}
+
+describe('E2E: Revise Queue → Summary → QG Gate (v2_summary_weakness_presence)', () => {
+  it('Sister regression: queue produces opportunities AND QG fails when summary omits bottom-score criteria', () => {
+    const fixture = makeE2EFixture({ dialogue: 4, sceneConstruction: 5 });
+
+    // Step 1: Revise queue correctly generates opportunities from the evaluation
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Step 2: QG fails because summary doesn't mention bottom-score criteria
+    const qgResult = runQualityGateV2(fixture);
+    expect(qgResult.pass).toBe(false);
+
+    const weaknessCheck = qgResult.checks.find((c) => c.check_id === 'v2_summary_weakness_presence');
+    expect(weaknessCheck).toBeDefined();
+    expect(weaknessCheck!.passed).toBe(false);
+    expect(weaknessCheck!.error_code).toBe('QG_SUMMARY_OMITS_WEAKNESS');
+  });
+
+  it('Sister regression: deterministic repair patches summary and QG passes end-to-end', () => {
+    const fixture = makeE2EFixture({ dialogue: 4, sceneConstruction: 5 });
+
+    // QG fails initially
+    const firstRun = runQualityGateV2(fixture);
+    expect(firstRun.pass).toBe(false);
+    const hardFailedChecks = firstRun.checks.filter((c) => !c.passed);
+    expect(hardFailedChecks.length).toBe(1);
+    expect(hardFailedChecks[0].check_id).toBe('v2_summary_weakness_presence');
+
+    // Deterministic repair
+    const propagation = summarizePropagationIntegrity(fixture.criteria);
+    expect(propagation.bottomScoreCriteria).toContain('dialogue');
+    expect(propagation.bottomScoreCriteria).toContain('sceneConstruction');
+
+    const repairedSummary = normalizeSummaryWithBottomWeaknesses(
+      fixture.overview.one_paragraph_summary,
+      propagation.bottomScoreCriteria,
+    );
+    expect(repairedSummary.toLowerCase()).toContain('dialogue');
+    expect(repairedSummary.toLowerCase()).toContain('scene construction');
+
+    // Apply repair and verify revise queue still works
+    fixture.overview.one_paragraph_summary = repairedSummary;
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // QG passes after repair
+    const secondRun = runQualityGateV2(fixture);
+    expect(secondRun.pass).toBe(true);
+  });
+
+  it('randomized bottom-2 criteria: repair always makes QG pass', () => {
+    // Run 5 randomized iterations
+    for (let iteration = 0; iteration < 5; iteration++) {
+      const scores: Partial<Record<string, number>> = {};
+      for (const key of CRITERIA_KEYS) {
+        scores[key] = Math.floor(Math.random() * 7) + 4; // 4-10 range ensures scorable
+      }
+
+      // Pick 2 random criteria and set them very low (2-4)
+      const shuffled = [...CRITERIA_KEYS].sort(() => Math.random() - 0.5);
+      const bottom2Keys = shuffled.slice(0, 2);
+      for (const key of bottom2Keys) {
+        scores[key] = Math.floor(Math.random() * 3) + 2; // 2-4 (guaranteed bottom)
+      }
+
+      const fixture = makeE2EFixture(scores);
+
+      // QG should fail (summary doesn't mention the bottom criteria)
+      const firstRun = runQualityGateV2(fixture);
+
+      // If it already passes (criteria too close in score), skip this iteration
+      if (firstRun.pass) continue;
+
+      // Apply deterministic repair
+      const propagation = summarizePropagationIntegrity(fixture.criteria);
+      const repairedSummary = normalizeSummaryWithBottomWeaknesses(
+        fixture.overview.one_paragraph_summary,
+        propagation.bottomScoreCriteria,
+      );
+      fixture.overview.one_paragraph_summary = repairedSummary;
+
+      // QG must pass after repair — always
+      const secondRun = runQualityGateV2(fixture);
+      expect(secondRun.pass).toBe(true);
+
+      // Verify bottom-score criteria are mentioned in repaired summary
+      for (const key of propagation.bottomScoreCriteria) {
+        const readable = key
+          .replace(/([a-z])([A-Z])/g, '$1 $2')
+          .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+          .toLowerCase();
+        expect(repairedSummary.toLowerCase()).toContain(readable);
+      }
+    }
+  });
+
+  it('queue opportunities still include correct severity after summary repair', () => {
+    const fixture = makeE2EFixture({ dialogue: 4, sceneConstruction: 5, pacing: 3 });
+
+    // Repair summary
+    const propagation = summarizePropagationIntegrity(fixture.criteria);
+    const repairedSummary = normalizeSummaryWithBottomWeaknesses(
+      fixture.overview.one_paragraph_summary,
+      propagation.bottomScoreCriteria,
+    );
+    fixture.overview.one_paragraph_summary = repairedSummary;
+
+    // QG passes
+    const qgResult = runQualityGateV2(fixture);
+    expect(qgResult.pass).toBe(true);
+
+    // Opportunities still correctly reflect severity from scores
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Low-score criteria (≤4) should produce "must" severity opportunities
+    const mustOpps = opportunities.filter((o) => o.severity === 'must');
+    expect(mustOpps.length).toBeGreaterThan(0);
   });
 });
