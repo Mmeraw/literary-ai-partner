@@ -4833,6 +4833,35 @@ export async function processEvaluationJob(
         });
     };
 
+    // ── Persistence lock ─────────────────────────────────────────────────────
+    // Before entering the artifact persistence critical section, the worker
+    // declares a "persistence lock" by setting worker_pulse_at to a FUTURE
+    // timestamp (NOW + PERSISTENCE_CEILING). The watchdog's query
+    // (worker_pulse_at < NOW - 20s) naturally skips jobs with future
+    // timestamps, structurally preventing the split-brain race where the
+    // watchdog kills a job mid-persistence.
+    //
+    // If the worker crashes, the future timestamp will eventually become stale
+    // (after PERSISTENCE_CEILING + 20s ≈ 5min 20s), and the watchdog will
+    // intervene normally. This is a positive-declaration model: the worker
+    // TELLS the watchdog "I'm in a critical section" rather than relying on
+    // absence-of-signal inference.
+    const PERSISTENCE_CEILING_MS = 5 * 60 * 1000; // 5 minutes
+
+    const declarePersistenceLock = (label: string) => {
+      const lockUntil = new Date(Date.now() + PERSISTENCE_CEILING_MS).toISOString();
+      void supabase
+        .from('evaluation_jobs')
+        .update({ worker_pulse_at: lockUntil })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING)
+        .then(({ error }: { error: unknown }) => {
+          if (error) {
+            console.warn(`[${label}] persistence lock stamp failed (non-fatal)`, error);
+          }
+        });
+    };
+
     const markRunning = async (
       message: string,
       completedUnits: number,
@@ -10372,7 +10401,10 @@ export async function processEvaluationJob(
       expectedClaimedBy,
     });
 
-    pulseWorker('persistence/before-artifact-writes');
+    // Declare persistence lock — tells watchdog "I'm in a critical section,
+    // do NOT kill me." Uses future timestamp so watchdog's stale-pulse query
+    // naturally skips this job.
+    declarePersistenceLock('persistence/lock-acquired');
     await markRunning(
       'Persisting evaluation artifacts',
       98,
@@ -10448,6 +10480,8 @@ export async function processEvaluationJob(
       );
     }
 
+    declarePersistenceLock('persistence/after-template-completeness');
+
     const persistArtifactsStartedAt = startLatencyStage({
       jobId,
       stage: 'persist_artifacts',
@@ -10478,6 +10512,7 @@ export async function processEvaluationJob(
         progressSnapshot: existingProgress,
         totalUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
         completedUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
+        onHeartbeat: () => declarePersistenceLock('persistence/during-persist'),
       });
 
       if (!persistenceResult.persisted) {
@@ -10507,6 +10542,9 @@ export async function processEvaluationJob(
 
         return { success: false, error: failureReason };
       }
+
+      // Release persistence lock — resume normal watchdog visibility.
+      pulseWorker('persistence/lock-released');
 
       console.log(
         `[Processor] ${jobId}: EXIT persistEvaluationResultV2 artifactId=${persistenceResult.artifactId}`,

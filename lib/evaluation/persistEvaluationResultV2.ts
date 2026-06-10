@@ -480,6 +480,8 @@ export async function persistEvaluationResultV2(params: {
   progressSnapshot: Record<string, unknown>;
   totalUnits: number;
   completedUnits: number;
+  /** Optional heartbeat callback — prevents watchdog from killing the job during persistence. */
+  onHeartbeat?: () => void;
 }): Promise<PersistEvaluationResultV2Result> {
   if (!Number.isFinite(params.manuscriptId) || params.manuscriptId <= 0) {
     throw new Error(`Invalid manuscript_id for persistEvaluationResultV2: ${params.manuscriptId}`);
@@ -500,6 +502,8 @@ export async function persistEvaluationResultV2(params: {
       by_pattern: persistenceSanitizer.metrics.by_pattern,
     });
   }
+
+  params.onHeartbeat?.();
 
   if (shortFormReadiness.blockingReason) {
     const rejectedAt = new Date().toISOString();
@@ -571,6 +575,8 @@ export async function persistEvaluationResultV2(params: {
       reason: shortFormReadiness.blockingReason,
     };
   }
+
+  params.onHeartbeat?.();
 
   let structuralValidation = validateStructuralArtifact(evaluationResult);
   let boundaryRepairMetadata: {
@@ -899,6 +905,8 @@ export async function persistEvaluationResultV2(params: {
     };
   }
 
+  params.onHeartbeat?.();
+
   const completionTime = new Date().toISOString();
   const completionStatus = normalizeEvaluationJobStatus(JOB_STATUS.COMPLETE) as JobStatus;
   const validValidity = normalizeEvaluationValidityStatus("valid");
@@ -955,6 +963,8 @@ export async function persistEvaluationResultV2(params: {
     completed_at: completionTime,
     phase2_completed_at: completionTime,
   };
+
+  params.onHeartbeat?.();
 
   const { data: atomicRows, error: atomicError } = await params.supabase.rpc(
     "persist_evaluation_v2_atomic",

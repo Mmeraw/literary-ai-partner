@@ -95,6 +95,15 @@ async function kickWorker(): Promise<void> {
 // worker_pulse_at is written at every real chunk completion. If it hasn't
 // moved in IDLE_PULSE_THRESHOLD_SECS but the lease heartbeat is still
 // alive, the worker is frozen mid-LLM-call and must be rescued immediately.
+//
+// PERSISTENCE LOCK CONVENTION: When a worker enters the artifact persistence
+// critical section, it sets worker_pulse_at to a FUTURE timestamp (NOW + 5min).
+// This query (worker_pulse_at < NOW - 20s) naturally skips future timestamps,
+// so the watchdog cannot kill a job that has declared a persistence lock.
+// If the worker crashes mid-persistence, the future timestamp will eventually
+// become stale (after ~5min 20s), and the watchdog will intervene normally.
+// This is a positive-declaration model: the worker TELLS the watchdog it is
+// in a critical section rather than relying on absence-of-signal inference.
 const IDLE_PULSE_THRESHOLD_SECS = 20;
 
 async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: number }> {
@@ -116,9 +125,14 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
   // to internalize scoring criteria. The 20s idle-pulse threshold would wrongly
   // rescue it mid-calibration. Phase 0 gets the full 60s stale-heartbeat window
   // from failStaleRunningJobs and the 90s null-pulse grace in rescueNullPulseOrphans.
+  // CRITICAL: never rescue jobs with completed_units >= 98 — the worker is in the
+  // artifact persistence critical section. The worker declares this by setting
+  // completed_units=98 via markRunning('Persisting evaluation artifacts', 98, ...).
+  // Killing a job mid-persistence causes the split-brain race where watchdog sets
+  // phase_status=failed while persistence tries to set phase_status=complete.
   const { data: idleCandidates, error } = await supabase
     .from('evaluation_jobs')
-    .select('id, phase, phase_status, attempt_count, max_attempts')
+    .select('id, phase, phase_status, attempt_count, max_attempts, completed_units')
     .eq('status', 'running')
     .neq('phase_status', 'awaiting_approval')
     .neq('phase', 'phase_0')
@@ -133,6 +147,14 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
     // Skip terminal-attempt jobs — let failStaleRunningJobs handle those.
     if (typeof job.attempt_count === 'number' && typeof job.max_attempts === 'number'
         && job.attempt_count >= job.max_attempts) continue;
+
+    // PERSISTENCE LOCK: skip jobs in artifact persistence critical section.
+    // The worker sets completed_units=98 before entering persistence.
+    // Killing mid-persistence causes split-brain (failed vs complete race).
+    if (typeof job.completed_units === 'number' && job.completed_units >= 98) {
+      console.log(`[Watchdog/idle] Skipping job ${job.id} — persistence lock active (completed_units=${job.completed_units})`);
+      continue;
+    }
 
     // Exponential backoff: increment attempt_count and set next_attempt_at so
     // the claim RPC won't re-pick this job until the backoff window expires.
