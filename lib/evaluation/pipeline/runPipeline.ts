@@ -24,6 +24,7 @@ import {
 } from "./runPass3Synthesis";
 import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate";
+import { validatePass1OutputCompleteness, validatePass2OutputCompleteness, validatePass3OutputCompleteness } from "./passOutputCompletenessGate";
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
 import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
 // runPass3bLongform runtime import removed — now called from /api/workers/process-dream (issue #543)
@@ -1460,6 +1461,82 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   pass1Output = pass1Settled.value;
   pass2Output = pass2Settled.value;
 
+  // ── Pass 1/2 OUTPUT Completeness Gate (SIPOC dual-checkpoint) ───────────
+  // Validates that each pass produced structurally complete data before it
+  // flows downstream. Critical violations (missing scores) fail the pipeline;
+  // warnings (empty evidence, short rationale) are logged but non-blocking.
+  {
+    const pass1Completeness = validatePass1OutputCompleteness(pass1Output);
+    if (pass1Completeness.violations.length > 0) {
+      console.warn("[Pipeline][CompletenessGate][Pass1] violations detected", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        critical: pass1Completeness.criticalCount,
+        warnings: pass1Completeness.violations.length - pass1Completeness.criticalCount,
+        violations: pass1Completeness.violations.slice(0, 5).map((v) => `${v.code}:${v.criterion_key}`),
+      });
+    }
+    if (!pass1Completeness.ok) {
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass1",
+        errorCode: "PASS1_OUTPUT_INCOMPLETE",
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 1 output completeness gate failed: ${pass1Completeness.criticalCount} critical violation(s) — ${pass1Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        error_code: "PASS1_OUTPUT_INCOMPLETE",
+        failed_at: "pass1",
+        failure_details: {
+          completeness_gate: {
+            critical_count: pass1Completeness.criticalCount,
+            violations: pass1Completeness.violations,
+          },
+        },
+      };
+    }
+    pass1Output = pass1Completeness.output;
+
+    const pass2Completeness = validatePass2OutputCompleteness(pass2Output);
+    if (pass2Completeness.violations.length > 0) {
+      console.warn("[Pipeline][CompletenessGate][Pass2] violations detected", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        critical: pass2Completeness.criticalCount,
+        warnings: pass2Completeness.violations.length - pass2Completeness.criticalCount,
+        violations: pass2Completeness.violations.slice(0, 5).map((v) => `${v.code}:${v.criterion_key}`),
+      });
+    }
+    if (!pass2Completeness.ok) {
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass2",
+        errorCode: "PASS2_OUTPUT_INCOMPLETE",
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 2 output completeness gate failed: ${pass2Completeness.criticalCount} critical violation(s) — ${pass2Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        error_code: "PASS2_OUTPUT_INCOMPLETE",
+        failed_at: "pass2",
+        failure_details: {
+          completeness_gate: {
+            critical_count: pass2Completeness.criticalCount,
+            violations: pass2Completeness.violations,
+          },
+        },
+      };
+    }
+    pass2Output = pass2Completeness.output;
+  }
+
   // ── Pass 2 Lexical Independence Guard ──────────────────────────────────
   // Detects and rewrites true_overlap between Pass 2 and Pass 1 rationale.
   // Rewrite trigger: observed_overlap_count >= 5.
@@ -1906,6 +1983,46 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       registry,
     });
     if (llrPreArtifactGeneration) return llrPreArtifactGeneration;
+  }
+
+  // ── Pass 3 OUTPUT Completeness Gate (SIPOC dual-checkpoint) ─────────────
+  // Validates Pass 3 synthesis produced structurally complete data before
+  // it flows into QG. Critical failures (missing scores) block the pipeline.
+  {
+    const pass3Completeness = validatePass3OutputCompleteness(pass3Output);
+    if (pass3Completeness.violations.length > 0) {
+      console.warn("[Pipeline][CompletenessGate][Pass3] violations detected", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        critical: pass3Completeness.criticalCount,
+        warnings: pass3Completeness.violations.length - pass3Completeness.criticalCount,
+        violations: pass3Completeness.violations.slice(0, 5).map((v) => `${v.code}:${v.criterion_key}`),
+      });
+    }
+    if (!pass3Completeness.ok) {
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings("failure", {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: "pass3",
+        errorCode: "PASS3_OUTPUT_INCOMPLETE",
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 3 output completeness gate failed: ${pass3Completeness.criticalCount} critical violation(s) — ${pass3Completeness.violations.filter((v) => v.severity === "critical").slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+        error_code: "PASS3_OUTPUT_INCOMPLETE",
+        failed_at: "pass3",
+        failure_details: {
+          completeness_gate: {
+            critical_count: pass3Completeness.criticalCount,
+            violations: pass3Completeness.violations,
+          },
+        },
+      };
+    }
+    pass3Output = pass3Completeness.output;
   }
 
   // ── Pass 4: Quality Gate (deterministic) ───────────────────────────────
