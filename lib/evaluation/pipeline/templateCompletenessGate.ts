@@ -148,7 +148,7 @@ function normalizedGenre(value: unknown): string | null {
   return trimmed;
 }
 
-function isMeaningfulRecommendation(value: unknown): value is RecommendationLike {
+export function isMeaningfulRecommendation(value: unknown): value is RecommendationLike {
   if (!value || typeof value !== 'object') return false;
   const rec = value as RecommendationLike;
   const fields = [
