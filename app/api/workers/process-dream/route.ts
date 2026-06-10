@@ -686,8 +686,9 @@ async function processDreamJob(
       'revision_plan', 'releasability', 'acceptance_checks', 'calibration_notes',
       'repo_summary', 'manuscript_integrity_issues',
     ] as const;
-    const presentSections = dreamSections.filter((k) => k in longformDoc && (longformDoc as Record<string, unknown>)[k] != null);
-    const missingSections = dreamSections.filter((k) => !(k in longformDoc) || (longformDoc as Record<string, unknown>)[k] == null);
+    const docRecord = longformDoc as unknown as Record<string, unknown>;
+    const presentSections = dreamSections.filter((k) => k in longformDoc && docRecord[k] != null);
+    const missingSections = dreamSections.filter((k) => !(k in longformDoc) || docRecord[k] == null);
     if (missingSections.length > 0) {
       // This should not happen (validateDreamDocument throws) but kick-backward if it does
       console.error(`[SIPOC-KICK-BACKWARD] WAVE OUTPUT → Author: rejected — DREAM document missing sections: ${missingSections.join(', ')}`, {
