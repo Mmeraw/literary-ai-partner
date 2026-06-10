@@ -548,6 +548,31 @@ function cleanReportText(text: unknown, fallback = '—', _options: { blockTrunc
   return mistakeProofText(text, fallback);
 }
 
+/** Word-wrap a string to `width` columns, preserving existing line breaks. */
+function wrapText(text: string, width = 78): string {
+  return text
+    .split('\n')
+    .map((paragraph) => {
+      if (paragraph.length <= width) return paragraph;
+      const words = paragraph.split(/\s+/);
+      const wrapped: string[] = [];
+      let line = '';
+      for (const word of words) {
+        if (line.length === 0) {
+          line = word;
+        } else if (line.length + 1 + word.length <= width) {
+          line += ' ' + word;
+        } else {
+          wrapped.push(line);
+          line = word;
+        }
+      }
+      if (line) wrapped.push(line);
+      return wrapped.join('\n');
+    })
+    .join('\n');
+}
+
 function toPdfSafeText(value: unknown, fallback = '-'): string {
   return cleanReportText(value, fallback)
     .normalize('NFKC')
@@ -1068,14 +1093,14 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('ONE-PARAGRAPH PITCH');
   lines.push(sub);
   lines.push('');
-  lines.push(cleanReportText(doc.oneParagraphPitch));
+  lines.push(wrapText(cleanReportText(doc.oneParagraphPitch)));
   lines.push('');
 
   lines.push(sub);
   lines.push('ONE-SENTENCE PITCH');
   lines.push(sub);
   lines.push('');
-  lines.push(cleanReportText(doc.oneSentencePitch));
+  lines.push(wrapText(cleanReportText(doc.oneSentencePitch)));
   lines.push('');
 
   if (doc.premise) {
@@ -1083,7 +1108,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
     lines.push('PREMISE');
     lines.push(sub);
     lines.push('');
-    lines.push(cleanReportText(doc.premise));
+    lines.push(wrapText(cleanReportText(doc.premise)));
     lines.push('');
   }
 
@@ -1091,7 +1116,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('CONTENT WARNINGS');
   lines.push(sub);
   lines.push('');
-  doc.contentWarnings.forEach((warning) => lines.push(`• ${cleanReportText(warning)}`));
+  doc.contentWarnings.forEach((warning) => lines.push(wrapText(`• ${cleanReportText(warning)}`)));
   lines.push('');
 
   lines.push(sub);
@@ -1108,21 +1133,21 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('EXECUTIVE SUMMARY');
   lines.push(sub);
   lines.push('');
-  lines.push(cleanReportText(doc.executiveSummary));
+  lines.push(wrapText(cleanReportText(doc.executiveSummary)));
   lines.push('');
 
   lines.push(sub);
   lines.push('TOP STRENGTHS');
   lines.push(sub);
   lines.push('');
-  doc.topStrengths.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
+  doc.topStrengths.forEach((item, i) => lines.push(wrapText(`${i + 1}. ${cleanReportText(item)}`)));
   lines.push('');
 
   lines.push(sub);
   lines.push('TOP RISKS');
   lines.push(sub);
   lines.push('');
-  doc.topRisks.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
+  doc.topRisks.forEach((item, i) => lines.push(wrapText(`${i + 1}. ${cleanReportText(item)}`)));
   lines.push('');
 
   lines.push(sub);
@@ -1130,7 +1155,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push(sub);
   lines.push('');
   if (doc.topRecommendations.length > 0) {
-    doc.topRecommendations.forEach((item, i) => lines.push(`${i + 1}. ${cleanReportText(item)}`));
+    doc.topRecommendations.forEach((item, i) => lines.push(wrapText(`${i + 1}. ${cleanReportText(item)}`)));
   } else {
     lines.push('See per-criterion opportunities below for detailed revision guidance.');
   }
@@ -1161,7 +1186,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
     if (detail.supportLabel) lines.push(`Status: ${cleanReportText(detail.supportLabel)}`);
     lines.push('');
     if (detail.rationaleLabel) lines.push(`${detail.rationaleLabel}:`);
-    lines.push(cleanReportText(detail.rationaleText));
+    lines.push(wrapText(cleanReportText(detail.rationaleText)));
 
     if (detail.recommendations.length > 0) {
       lines.push('');
@@ -1172,13 +1197,13 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
         if (detailRows.length > 0) {
           detailRows.forEach(([label, value]) => {
             if (label === 'Evidence') {
-              lines.push(`    ${label}: \u201c${value}\u201d`);
+              lines.push(wrapText(`    ${label}: \u201c${value}\u201d`));
             } else {
-              lines.push(`    ${label}: ${value}`);
+              lines.push(wrapText(`    ${label}: ${value}`));
             }
           });
         } else {
-          lines.push(`    ${cleanReportText(recommendation.action, 'No action provided.')}`);
+          lines.push(wrapText(`    ${cleanReportText(recommendation.action, 'No action provided.')}`));
         }
       });
     }
@@ -1195,11 +1220,11 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
       lines.push('Quick Wins:');
       doc.actionItems.quickWins.forEach((item, i) => {
         const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
-        lines.push(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`);
-        if (item.anchor_snippet) lines.push(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`);
-        if (item.candidate_text_a) lines.push(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`);
-        if (item.reader_effect) lines.push(`     Reader Effect: ${cleanReportText(item.reader_effect)}`);
-        if (item.why) lines.push(`     Why: ${cleanReportText(item.why)}`);
+        lines.push(wrapText(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`));
+        if (item.anchor_snippet) lines.push(wrapText(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`));
+        if (item.candidate_text_a) lines.push(wrapText(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`));
+        if (item.reader_effect) lines.push(wrapText(`     Reader Effect: ${cleanReportText(item.reader_effect)}`));
+        if (item.why) lines.push(wrapText(`     Why: ${cleanReportText(item.why)}`));
         if (item.manuscript_coordinates) lines.push(`     Location: ${cleanReportText(item.manuscript_coordinates)}`);
       });
       lines.push('');
@@ -1209,11 +1234,11 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
       lines.push('Strategic Revisions:');
       doc.actionItems.strategicRevisions.forEach((item, i) => {
         const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
-        lines.push(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`);
-        if (item.anchor_snippet) lines.push(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`);
-        if (item.candidate_text_a) lines.push(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`);
-        if (item.reader_effect) lines.push(`     Reader Effect: ${cleanReportText(item.reader_effect)}`);
-        if (item.why) lines.push(`     Why: ${cleanReportText(item.why)}`);
+        lines.push(wrapText(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`));
+        if (item.anchor_snippet) lines.push(wrapText(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`));
+        if (item.candidate_text_a) lines.push(wrapText(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`));
+        if (item.reader_effect) lines.push(wrapText(`     Reader Effect: ${cleanReportText(item.reader_effect)}`));
+        if (item.why) lines.push(wrapText(`     Why: ${cleanReportText(item.why)}`));
         if (item.manuscript_coordinates) lines.push(`     Location: ${cleanReportText(item.manuscript_coordinates)}`);
       });
       lines.push('');
@@ -1225,7 +1250,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
     lines.push('MANUSCRIPT-SCALE CONTINUITY FINDINGS');
     lines.push(sub);
     lines.push('');
-    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => lines.push(`• ${cleanReportText(item)}`));
+    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => lines.push(wrapText(`• ${cleanReportText(item)}`)));
     lines.push('');
 
     lines.push(sub);
@@ -1235,9 +1260,9 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
     doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
       lines.push(`Priority ${item.priority}: ${cleanReportText(item.title)}`);
       lines.push(`Location: ${cleanReportText(item.location)}`);
-      lines.push(`Operation: ${cleanReportText(item.operation)}`);
-      lines.push(`Recommendation: ${cleanReportText(item.recommendation)}`);
-      lines.push(`Rationale: ${cleanReportText(item.rationale)}`);
+      lines.push(wrapText(`Operation: ${cleanReportText(item.operation)}`));
+      lines.push(wrapText(`Recommendation: ${cleanReportText(item.recommendation)}`));
+      lines.push(wrapText(`Rationale: ${cleanReportText(item.rationale)}`));
       lines.push('');
     });
   }
@@ -1248,7 +1273,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
       lines.push(heading);
       lines.push(sub);
       lines.push('');
-      items.forEach((item) => lines.push(`• ${cleanReportText(item)}`));
+      items.forEach((item) => lines.push(wrapText(`• ${cleanReportText(item)}`)));
       lines.push('');
     };
 
@@ -1263,7 +1288,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
     lines.push('READINESS / RELEASABILITY POSTURE');
     lines.push(sub);
     lines.push('');
-    lines.push(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture));
+    lines.push(wrapText(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture)));
     lines.push('');
   }
 
@@ -1271,14 +1296,14 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('CONFIDENCE EXPLANATION');
   lines.push(sub);
   lines.push('');
-  lines.push(cleanReportText(doc.confidenceExplanation));
+  lines.push(wrapText(cleanReportText(doc.confidenceExplanation)));
   lines.push('');
 
   lines.push(sub);
   lines.push('AUTHOR-FACING DISCLAIMER');
   lines.push(sub);
   lines.push('');
-  lines.push(cleanReportText(doc.disclaimer));
+  lines.push(wrapText(cleanReportText(doc.disclaimer)));
 
   return lines.join('\n');
 }
