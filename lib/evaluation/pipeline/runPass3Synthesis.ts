@@ -1516,6 +1516,7 @@ export function parsePass3Response(
   // inject a pre-validated deterministic rec that is guaranteed to pass isMeaningfulRecommendation.
   for (const c of finalCriteria) {
     if (c.final_score_0_10 >= 9) continue;
+    if (hasGovernanceSuppressedRecommendations(c)) continue;
     const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : "8";
     const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 0;
     if (minRecs === 0) continue;
