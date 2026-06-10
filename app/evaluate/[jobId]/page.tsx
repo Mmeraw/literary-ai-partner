@@ -153,9 +153,9 @@ export default async function EvaluationReportPage({ params }: PageProps) {
             <HeaderField label="Genre" value="Not specified" />
             <HeaderField label="Shelf" value="Not available" />
             <HeaderField label="Submitted Word Count" value={wordCount ? wordCount.toLocaleString() : "Calculating"} />
-            <HeaderField label="Estimated Manuscript Pages" value={wordCount ? Math.ceil(wordCount / 250).toLocaleString() : "Not available"} />
-            <HeaderField label="Reading Grade Level" value={readingGradeLevel ? readingGradeLevel.toFixed(1) : "Not available"} />
-            <HeaderField label="Dialogue/Narrative Ratio" value={dialoguePercentage != null && narrativePercentage != null ? `${dialoguePercentage.toFixed(1)}% / ${narrativePercentage.toFixed(1)}%` : "Not available"} />
+            <HeaderField label="Estimated Manuscript Pages" value={wordCount ? Math.floor(wordCount / 250).toLocaleString() : "Not available"} />
+            <HeaderField label="Reading Grade Level" value={readingGradeLevel ? String(Math.floor(readingGradeLevel)) : "Not available"} />
+            <HeaderField label="Dialogue/Narrative Ratio" value={dialoguePercentage != null && narrativePercentage != null ? `${Math.floor(dialoguePercentage)}% / ${Math.floor(narrativePercentage)}%` : "Not available"} />
             <HeaderField label="Market Readiness" value="Review" />
             <HeaderField label="Date Generated" value={phase0CompletedAt ? new Date(phase0CompletedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "Not available"} />
             <HeaderField label="Target Audience" value="Not available" />
