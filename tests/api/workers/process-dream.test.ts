@@ -217,7 +217,37 @@ function buildLongformDoc() {
     prompt_version: 'pass3b_longform_v1',
     generated_at: '2026-05-17T00:00:00.000Z',
     model: 'gpt-5',
-    criterion_analyses: [],
+    executive_verdict: 'A compelling manuscript with strong narrative voice.',
+    dream_scores: { quality: 72, readiness: 65, commercial: 60, literary: 78 },
+    market_shelf: { best_shelf: 'Literary Fiction', shelf_neighbors: [], comparison_space: [], marketable_hook: 'hook', market_danger: 'none' },
+    what_not_to_become: ['generic thriller'],
+    structural_stack: [{ layer_name: 'plot', function: 'drive', status: 'strong' as const, revision_note: 'none' }],
+    arc_map: [{ act_name: 'Act 1', chapter_range: '1-5', primary_function: 'setup', revision_priority: 'low' }],
+    criterion_analyses: CANONICAL_CRITERION_KEYS.map((key) => ({
+      key, score: 7, confidence: 'Moderate' as const, fit_evidence: ['evidence'], gap_evidence: [], revision_queue: [],
+    })),
+    layer_analyses: [{ layer_name: 'plot', status: 'strong', needed_revision: 'none' }],
+    cross_layer_integration: [{ motif: 'test', description: 'test', integration_quality: 'strong' as const, revision_note: 'none' }],
+    symbolic_audit: { preserved_symbols: [], doctrine_strengths: ['strong voice'], doctrine_risks: [], audit_conclusion: 'pass' },
+    reader_experience: {
+      first_act: { reader_question: 'who?', emotional_state: 'curious', risk: 'low' },
+      middle: { reader_question: 'why?', emotional_state: 'engaged', risk: 'low' },
+      final_act: { reader_question: 'resolved?', emotional_state: 'satisfied', risk: 'low' },
+      aftertaste: 'memorable',
+    },
+    revision_plan: [
+      { priority: 1, title: 'Fix pacing', goal: 'tighten mid', actions: ['cut filler'], acceptance_check: 'flows' },
+      { priority: 2, title: 'Deepen char', goal: 'add layers', actions: ['add scene'], acceptance_check: 'resonates' },
+      { priority: 3, title: 'Polish prose', goal: 'refine voice', actions: ['edit ch3'], acceptance_check: 'consistent' },
+    ],
+    releasability: [{ dimension: 'plot', current_status: 'solid', verdict: 'Ready' as const }],
+    acceptance_checks: { required_detection: ['narrative arc'], failure_conditions: ['missing resolution'] },
+    calibration_notes: ['Score calibrated against literary fiction benchmarks'],
+    repo_summary: {
+      benchmark_name: 'test', source: 'pipeline', evaluation_type: 'full_manuscript',
+      overall_score: 72, readiness_score: 65, primary_strengths: ['voice'], primary_blockers: ['pacing'], gold_standard_requirement: 'revise pacing',
+    },
+    manuscript_integrity_issues: [],
   } as unknown as Awaited<ReturnType<typeof runPass3bLongform>>;
 }
 
