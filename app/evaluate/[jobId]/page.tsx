@@ -25,8 +25,7 @@ type EvaluationJob = {
   status: string | null;
   last_error: string | null;
   failure_code: string | null;
-  submitted_author_name?: string | null;
-  submitted_project_title?: string | null;
+  progress?: Record<string, unknown> | null;
   manuscripts?:
     | { user_id: string | null; title?: string | null }
     | Array<{ user_id: string | null; title?: string | null }>
@@ -67,7 +66,7 @@ async function getJob(jobId: string): Promise<EvaluationJob | null> {
   const supabase = createAdminClient();
   const { data: job } = await supabase
     .from("evaluation_jobs")
-    .select("id, user_id, manuscript_id, status, last_error, failure_code, manuscripts(user_id,title)")
+    .select("id, user_id, manuscript_id, status, last_error, failure_code, progress, manuscripts(user_id,title)")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -89,8 +88,14 @@ export default async function EvaluationReportPage({ params }: PageProps) {
   const manuscriptTitle = Array.isArray(job?.manuscripts)
     ? job?.manuscripts?.[0]?.title ?? null
     : job?.manuscripts?.title ?? null;
-  const submittedAuthorName = job?.submitted_author_name ?? null;
-  const submittedProjectTitle = job?.submitted_project_title ?? null;
+  const progress = (job?.progress as Record<string, unknown> | null) ?? {};
+  const submittedAuthorName = (progress.submitted_author_name as string | null) ?? null;
+  const submittedProjectTitle = (progress.submitted_project_title as string | null) ?? null;
+  const wordCount = (progress.manuscript_word_count as number | null) ?? null;
+  const readingGradeLevel = (progress.enrichment_reading_grade_level as number | null) ?? null;
+  const dialoguePercentage = (progress.enrichment_dialogue_percentage as number | null) ?? null;
+  const narrativePercentage = (progress.enrichment_narrative_percentage as number | null) ?? null;
+  const phase0CompletedAt = (progress.phase0_completed_at as string | null) ?? null;
   const submissionPreview = await getSubmissionPreviewByManuscriptId(job?.manuscript_id ?? null);
 
   if (!job) {
@@ -147,12 +152,12 @@ export default async function EvaluationReportPage({ params }: PageProps) {
             <HeaderField label="Report Type" value="Short-Form Evaluation" />
             <HeaderField label="Genre" value="Not specified" />
             <HeaderField label="Shelf" value="Not available" />
-            <HeaderField label="Submitted Word Count" value="Calculating" />
-            <HeaderField label="Estimated Manuscript Pages" value="Not available" />
-            <HeaderField label="Reading Grade Level" value="Not available" />
-            <HeaderField label="Dialogue/Narrative Ratio" value="Not available" />
+            <HeaderField label="Submitted Word Count" value={wordCount ? wordCount.toLocaleString() : "Calculating"} />
+            <HeaderField label="Estimated Manuscript Pages" value={wordCount ? Math.floor(wordCount / 250).toLocaleString() : "Not available"} />
+            <HeaderField label="Reading Grade Level" value={readingGradeLevel ? String(Math.floor(readingGradeLevel)) : "Not available"} />
+            <HeaderField label="Dialogue/Narrative Ratio" value={dialoguePercentage != null && narrativePercentage != null ? `${Math.floor(dialoguePercentage)}% / ${Math.floor(narrativePercentage)}%` : "Not available"} />
             <HeaderField label="Market Readiness" value="Review" />
-            <HeaderField label="Date Generated" value="Not available" />
+            <HeaderField label="Date Generated" value={phase0CompletedAt ? new Date(phase0CompletedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "Not available"} />
             <HeaderField label="Target Audience" value="Not available" />
           </dl>
 
