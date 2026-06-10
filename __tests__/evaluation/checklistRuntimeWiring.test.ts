@@ -57,7 +57,8 @@ describe('checklist runtime wiring helpers', () => {
 
     expect(selected.resume_mode).toBe('checklist_resume_safe');
     expect(selected.checkpoint_artifact_type).toBe('pass12_handoff_v1');
-    expect(selected.target_phase).toBe('phase_2');
+    // pass12_handoff_v1 is Phase 2 OUTPUT — resume at phase_3, not phase_2.
+    expect(selected.target_phase).toBe('phase_3');
   });
 
   it('falls back to legacy phase2 handoff when no checklist resume-safe artifact exists', () => {
@@ -67,7 +68,8 @@ describe('checklist runtime wiring helpers', () => {
     });
 
     expect(selected.resume_mode).toBe('phase2_handoff');
-    expect(selected.target_phase).toBe('phase_2');
+    // Legacy handoff also means Phase 2 completed — resume at phase_3.
+    expect(selected.target_phase).toBe('phase_3');
   });
 
   it('falls back to chunk checkpoint before full restart', () => {
@@ -85,5 +87,80 @@ describe('checklist runtime wiring helpers', () => {
 
     expect(selected.resume_mode).toBe('full_restart');
     expect(selected.target_phase).toBe('phase_1a');
+  });
+
+  // ── Regression: Phase 2/3 loop root cause ─────────────────────────────
+  // pass12_handoff_v1 is the FINAL output of Phase 2. When it exists,
+  // recovery must target phase_3, never phase_2. The previous mapping
+  // (pass12_handoff_v1 → phase_2) caused a crash→replay loop where
+  // Phase 3 crashes would route back to Phase 2 unnecessarily.
+
+  it('pass12_handoff_v1 resume targets phase_3, not phase_2 (Phase 2/3 loop regression)', () => {
+    const selected = selectResumeCheckpoint({
+      rows: [row('pass12_handoff_v1')],
+    });
+
+    expect(selected.resume_mode).toBe('checklist_resume_safe');
+    expect(selected.checkpoint_artifact_type).toBe('pass12_handoff_v1');
+    expect(selected.target_phase).toBe('phase_3');
+    expect(selected.target_phase).not.toBe('phase_2');
+  });
+
+  it('accepted_story_ledger_v1 resume correctly targets phase_2 (Phase 1A output)', () => {
+    const selected = selectResumeCheckpoint({
+      rows: [row('accepted_story_ledger_v1')],
+    });
+
+    expect(selected.resume_mode).toBe('checklist_resume_safe');
+    expect(selected.checkpoint_artifact_type).toBe('accepted_story_ledger_v1');
+    expect(selected.target_phase).toBe('phase_2');
+  });
+
+  it('evaluation_result_v2 resume targets phase_3 (Phase 3 output)', () => {
+    const selected = selectResumeCheckpoint({
+      rows: [row('evaluation_result_v2')],
+    });
+
+    expect(selected.resume_mode).toBe('checklist_resume_safe');
+    expect(selected.checkpoint_artifact_type).toBe('evaluation_result_v2');
+    expect(selected.target_phase).toBe('phase_3');
+  });
+
+  it('revision_opportunity_ledger_v1 resume targets phase_3', () => {
+    const selected = selectResumeCheckpoint({
+      rows: [row('revision_opportunity_ledger_v1')],
+    });
+
+    expect(selected.resume_mode).toBe('checklist_resume_safe');
+    expect(selected.checkpoint_artifact_type).toBe('revision_opportunity_ledger_v1');
+    expect(selected.target_phase).toBe('phase_3');
+  });
+
+  it('Phase 3 crash with valid handoff + chunk caches resumes at phase_3, not phase_2', () => {
+    // Simulates the exact Sister crash scenario:
+    // Phase 2 completed (all 3 artifacts exist), Phase 3 crashed.
+    const selected = selectResumeCheckpoint({
+      rows: [
+        row('pass1_chunk_cache_v1'),
+        row('pass2_chunk_cache_v1'),
+        row('pass12_handoff_v1'),
+      ],
+      hasLegacyPhase2Handoff: true,
+      hasLegacyChunkCheckpoint: true,
+    });
+
+    expect(selected.target_phase).toBe('phase_3');
+    expect(selected.checkpoint_artifact_type).toBe('pass12_handoff_v1');
+  });
+
+  it('legacy handoff fallback also targets phase_3 (not phase_2)', () => {
+    // When no checklist-resume-safe artifact matches but legacy handoff exists.
+    const selected = selectResumeCheckpoint({
+      rows: [],
+      hasLegacyPhase2Handoff: true,
+    });
+
+    expect(selected.resume_mode).toBe('phase2_handoff');
+    expect(selected.target_phase).toBe('phase_3');
   });
 });

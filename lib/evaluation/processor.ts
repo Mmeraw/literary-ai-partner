@@ -2311,7 +2311,7 @@ export async function assertPhase3UpstreamInputsCanonical(
  *        a) Terminal failure code (QG_*, PASS4_REFUSAL_*, governance) → kill, never rescue.
  *        b) attempt_count >= max_attempts → kill terminally, no more rescues.
  *        c) Same stage + same error_code repeated twice → kill, not an infra problem.
- *        d) pass12_handoff_v1 artifact exists → rescue to phase_2/queued.
+ *        d) pass12_handoff_v1 artifact exists → rescue to phase_3/queued.
  *        f) Otherwise → true freeze mid-pipeline, mark failed (resume button appears).
  *
  * 2. AGE-BASED KILL (13 min stale, EVAL_STALE_RUNNING_MINUTES)
@@ -3963,7 +3963,7 @@ export async function selfRecoverRetryableFailedJobs(options?: { targetJobId?: s
 
   let query = supabase
     .from('evaluation_jobs')
-    .select('id, manuscript_id, status, phase, phase_status, failure_code, progress, attempt_count, max_attempts, created_at, updated_at')
+    .select('id, manuscript_id, status, phase, phase_status, failure_code, last_error, failure_envelope, failed_at, claimed_by, worker_pulse_at, progress, attempt_count, max_attempts, created_at, updated_at')
     .eq('status', JOB_STATUS.FAILED);
 
   if (options?.targetJobId) {
@@ -3988,6 +3988,11 @@ export async function selfRecoverRetryableFailedJobs(options?: { targetJobId?: s
     phase: string | null;
     phase_status: string | null;
     failure_code: string | null;
+    last_error: string | null;
+    failure_envelope: Record<string, unknown> | null;
+    failed_at: string | null;
+    claimed_by: string | null;
+    worker_pulse_at: string | null;
     progress: Record<string, unknown> | null;
     manuscript_id?: number | null;
     attempt_count?: number | null;
@@ -4119,6 +4124,50 @@ export async function selfRecoverRetryableFailedJobs(options?: { targetJobId?: s
       hasLegacyChunkCheckpoint,
     });
     const targetPhase = checkpointDecision.target_phase;
+
+    // ── Durable failure diagnostic snapshot ──────────────────────────────
+    // Capture the CURRENT failure state before self-recovery clears it.
+    // Without this, retry sets last_error/failure_code to null, making
+    // the system blind to what actually crashed.
+    const lastSuccessfulArtifact = resumeRows.length > 0
+      ? resumeRows[resumeRows.length - 1]
+      : null;
+    const failureDiagnostic = {
+      snapshot_at: nowIso,
+      job_id: row.id,
+      phase: row.phase,
+      phase_status: row.phase_status,
+      attempt_count: row.attempt_count ?? null,
+      completed_units: typeof existingProgress.completed_units === 'number'
+        ? existingProgress.completed_units : null,
+      failure_code: failureCode,
+      last_error: row.last_error ?? null,
+      failure_envelope: row.failure_envelope ?? null,
+      failed_at: row.failed_at ?? null,
+      worker_id: row.claimed_by ?? null,
+      worker_pulse_at: row.worker_pulse_at ?? null,
+      last_successful_artifact_type: lastSuccessfulArtifact?.artifact_type ?? null,
+      last_successful_artifact_created_at: lastSuccessfulArtifact?.created_at ?? null,
+      resume_target_phase: targetPhase,
+      resume_mode: checkpointDecision.resume_mode,
+      phase3_error: existingProgress.phase3_error ?? null,
+      phase3_substage: existingProgress.phase3_substage ?? existingProgress.message ?? null,
+    };
+
+    // Append to durable failure_history array in progress JSONB.
+    const existingHistory = Array.isArray(existingProgress.failure_history)
+      ? existingProgress.failure_history as unknown[]
+      : [];
+    const failureHistory = [...existingHistory, failureDiagnostic].slice(-10);
+
+    console.log('[Worker] self-recovery: persisting failure diagnostic before clearing', {
+      job_id: row.id,
+      failure_code: failureCode,
+      phase: row.phase,
+      target_phase: targetPhase,
+      snapshot_index: failureHistory.length,
+    });
+
     const nextProgress = {
       ...existingProgress,
       phase: targetPhase,
@@ -4135,6 +4184,7 @@ export async function selfRecoverRetryableFailedJobs(options?: { targetJobId?: s
       self_recovery_checkpoint_artifact_id: checkpointDecision.checkpoint_artifact_id ?? null,
       dashboard_status: 'recovery_in_progress',
       recovery_message: 'Evaluation delayed — recovery is in progress.',
+      failure_history: failureHistory,
     };
 
     const { data: updateRow, error: updateError } = await supabase
@@ -9543,9 +9593,37 @@ export async function processEvaluationJob(
           error_code: pipelineResult.error_code,
           failed_at: pipelineResult.failed_at,
         });
+
+        // Persist durable failure diagnostic before re-queue clears context.
+        const phase3DiagnosticEntry = {
+          snapshot_at: pass3CompletedAt,
+          job_id: jobId,
+          phase: 'phase_3',
+          phase_status: 'failed',
+          attempt_count: phase3RetryCount,
+          completed_units: typeof progressState.completed_units === 'number'
+            ? progressState.completed_units : null,
+          failure_code: pipelineResult.error_code ?? null,
+          last_error: `${pipelineResult.error_code}: ${pipelineResult.error}`,
+          failed_at: pipelineResult.failed_at ?? null,
+          substage: pipelineResult.failed_at ?? 'pass3_synthesis',
+          resume_target_phase: 'phase_3',
+          resume_mode: 'phase3_inline_retry',
+        };
+        const existingPhase3History = Array.isArray(
+          (progressState as Record<string, unknown>).failure_history,
+        )
+          ? (progressState as Record<string, unknown>).failure_history as unknown[]
+          : [];
+        const phase3FailureHistory = [
+          ...existingPhase3History,
+          phase3DiagnosticEntry,
+        ].slice(-10);
+
         (progressState as Record<string, unknown>).phase_3_retry_count = nextRetry;
         (progressState as Record<string, unknown>).phase_3_last_retry_at = pass3CompletedAt;
         (progressState as Record<string, unknown>).phase_3_last_error = pipelineResult.error_code;
+        (progressState as Record<string, unknown>).failure_history = phase3FailureHistory;
         await supabase
           .from('evaluation_jobs')
           .update({
