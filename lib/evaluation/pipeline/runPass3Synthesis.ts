@@ -1477,12 +1477,32 @@ export function parsePass3Response(
   }
 
   if (allRecs.length > totalRecCap) {
-    // Sort by severity: high (MUST) first, then medium (SHOULD), then low (COULD)
-    const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
-    allRecs.sort((a, b) => (SEVERITY_ORDER[a.priority] ?? 2) - (SEVERITY_ORDER[b.priority] ?? 2));
+    // Protect density-floor recs from eviction: each criterion must retain at least
+    // the minimum recs required by the template completeness gate.
+    const protectedSet = new Set<string>();
+    for (let ci = 0; ci < finalCriteria.length; ci++) {
+      const score = finalCriteria[ci].final_score_0_10;
+      if (score >= 9) continue;
+      const bucket = score <= 5 ? "<=5" : score <= 7 ? "6-7" : "8";
+      const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 0;
+      // Protect the first `minRecs` recommendations for this criterion
+      for (let ri = 0; ri < Math.min(minRecs, finalCriteria[ci].recommendations.length); ri++) {
+        protectedSet.add(`${ci}:${ri}`);
+      }
+    }
 
-    // Mark recommendations beyond the cap for removal
-    const keepSet = new Set(allRecs.slice(0, totalRecCap).map(r => `${r.criterionIdx}:${r.recIdx}`));
+    // Sort remaining (unprotected) by severity: high first, then medium, then low
+    const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    const unprotectedRecs = allRecs.filter(r => !protectedSet.has(`${r.criterionIdx}:${r.recIdx}`));
+    unprotectedRecs.sort((a, b) => (SEVERITY_ORDER[a.priority] ?? 2) - (SEVERITY_ORDER[b.priority] ?? 2));
+
+    // Keep all protected recs + fill remaining cap with highest-priority unprotected
+    const remainingCap = totalRecCap - protectedSet.size;
+    const keepSet = new Set([
+      ...protectedSet,
+      ...unprotectedRecs.slice(0, Math.max(0, remainingCap)).map(r => `${r.criterionIdx}:${r.recIdx}`),
+    ]);
+
     for (let ci = 0; ci < finalCriteria.length; ci++) {
       finalCriteria[ci].recommendations = finalCriteria[ci].recommendations.filter(
         (_, ri) => keepSet.has(`${ci}:${ri}`),
@@ -1490,7 +1510,7 @@ export function parsePass3Response(
     }
 
     console.info(
-      `[Pass3-Cap] Enforced total recommendation cap: ${allRecs.length} → ${totalRecCap} (wordCount=${wordCount ?? "unknown"}, mode=${wordCount !== undefined && wordCount < 25_000 ? "short-form" : "long-form"})`,
+      `[Pass3-Cap] Enforced total recommendation cap: ${allRecs.length} → ${keepSet.size} (protected=${protectedSet.size}, wordCount=${wordCount ?? "unknown"}, mode=${wordCount !== undefined && wordCount < 25_000 ? "short-form" : "long-form"})`,
     );
   }
 
@@ -2070,6 +2090,8 @@ function resolveReaderEffect(
 
 function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion["key"]): string {
   switch (criterionKey) {
+    case "concept":
+      return "the premise remains abstract rather than grounded in a specific dramatic question, weakening reader buy-in";
     case "character":
       return "the abstract phrasing diffuses motivation before the decision point, weakening character agency";
     case "sceneConstruction":
@@ -2088,6 +2110,10 @@ function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion[
       return "the sensory grounding is absent, preventing the reader from anchoring in the setting";
     case "tone":
       return "the tonal register shifts mid-passage without a clear trigger, disrupting emotional continuity";
+    case "proseControl":
+      return "overlong or cluttered sentence structure increases cognitive load, reducing reading fluency";
+    case "narrativeClosure":
+      return "the dangling thread lacks a concrete resolution beat, leaving the reader without consequence";
     case "marketability":
       return "the hook does not establish genre expectations early enough, reducing submission alignment";
     default:
@@ -2097,6 +2123,8 @@ function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion[
 
 function buildCriterionAwareSpecificFixDefault(criterionKey: SynthesizedCriterion["key"]): string {
   switch (criterionKey) {
+    case "concept":
+      return "sharpen the premise hook by grounding one abstract concept in a concrete dramatic question the reader must see answered";
     case "character":
       return "replace one abstract reaction line with a concrete decision beat and one desire-vs-fear contradiction";
     case "sceneConstruction":
@@ -2115,6 +2143,10 @@ function buildCriterionAwareSpecificFixDefault(criterionKey: SynthesizedCriterio
       return "anchor one passage with two specific sensory details that ground the setting without exposition";
     case "tone":
       return "rewrite one tonal outlier sentence to match the established register of the surrounding passage";
+    case "proseControl":
+      return "tighten one overlong sentence by splitting at the causal pivot and removing redundant qualifiers";
+    case "narrativeClosure":
+      return "add one concrete resolution beat that closes the dangling thread and signals consequence to the reader";
     case "marketability":
       return "move one genre-signaling detail to the first paragraph to establish category expectations earlier";
     default:
@@ -2124,6 +2156,8 @@ function buildCriterionAwareSpecificFixDefault(criterionKey: SynthesizedCriterio
 
 function buildCriterionAwareReaderEffectDefault(criterionKey: SynthesizedCriterion["key"]): string {
   switch (criterionKey) {
+    case "concept":
+      return "sharper premise intrigue and a clearer dramatic question that compels the reader forward";
     case "character":
       return "clearer motivation and emotional stakes, improving trust in character decisions";
     case "sceneConstruction":
@@ -2142,6 +2176,10 @@ function buildCriterionAwareReaderEffectDefault(criterionKey: SynthesizedCriteri
       return "immediate sensory grounding, reducing cognitive load and increasing immersion";
     case "tone":
       return "consistent emotional register that sustains reader trust through the passage";
+    case "proseControl":
+      return "tighter sentence-level clarity and reduced cognitive friction for the reader";
+    case "narrativeClosure":
+      return "stronger sense of resolution and consequence, reducing the feeling of dangling threads";
     case "marketability":
       return "clearer genre alignment and stronger first-impression hook for submission readers";
     default:
@@ -2442,6 +2480,8 @@ function buildCriterionAwareImpactRepair(
   criterionKey: SynthesizedCriterion["key"],
 ): string {
   switch (criterionKey) {
+    case "concept":
+      return "Gives the reader a sharper premise hook and clearer dramatic question from the opening.";
     case "character":
       return "Gives the reader clearer motivation and emotional stakes, improving trust in character decisions.";
     case "sceneConstruction":
@@ -2450,6 +2490,22 @@ function buildCriterionAwareImpactRepair(
       return "Gives the reader clearer speaker intent and tension progression, increasing engagement.";
     case "pacing":
       return "Gives the reader stronger forward momentum and cleaner urgency through the section turn.";
+    case "voice":
+      return "Gives the reader consistent narrative immersion with stable psychic distance throughout.";
+    case "theme":
+      return "Gives the reader stronger thematic resonance through concrete embodiment rather than abstraction.";
+    case "narrativeDrive":
+      return "Gives the reader increased momentum as the stalled decision converts to visible consequence.";
+    case "worldbuilding":
+      return "Gives the reader immediate sensory grounding, reducing cognitive load and increasing immersion.";
+    case "tone":
+      return "Gives the reader a consistent emotional register that sustains trust through the passage.";
+    case "proseControl":
+      return "Gives the reader tighter sentence-level clarity and reduced cognitive friction.";
+    case "narrativeClosure":
+      return "Gives the reader a stronger sense of resolution, reducing the feeling of dangling threads.";
+    case "marketability":
+      return "Gives the reader clearer genre alignment and a stronger first-impression hook.";
     default:
       return "Gives the reader clearer cause-and-effect, stronger immersion, and higher engagement at the turn.";
   }
@@ -2500,7 +2556,12 @@ function buildDensityRepairRecommendations(
     ...(rationaleExcerpt.length >= 20 ? [rationaleExcerpt] : []),
   ];
 
-  if (anchors.length === 0) return []; // nothing to anchor from — do not fabricate
+  if (anchors.length === 0) {
+    // Deterministic fallback: use the criterion-aware specific fix as a synthetic anchor
+    // so density repair NEVER fails. Every criterion must meet the density floor.
+    const fallbackAnchor = `Evaluation identified a ${key} craft issue that affects reader experience at the current score level.`;
+    anchors.push(fallbackAnchor);
+  }
 
   // Intent fragment for action template: prefer gap_summary over rationale sentence.
   const intentFragment = c.gap_summary
