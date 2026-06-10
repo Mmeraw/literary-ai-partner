@@ -2763,7 +2763,7 @@ const LAST_RESORT_RECS: Record<string, {
   },
 };
 
-function buildLastResortRecommendations(
+export function buildLastResortRecommendations(
   key: SynthesizedCriterion["key"],
   score: number,
   needed: number,
