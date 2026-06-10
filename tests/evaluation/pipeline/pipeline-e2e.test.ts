@@ -608,7 +608,12 @@ describe("runPipeline (e2e with injected runners)", () => {
       const recs0 = result.synthesis.criteria[0].recommendations;
       const recs1 = result.synthesis.criteria[1].recommendations;
       expect(recs0).toHaveLength(1);
-      expect(recs1).toHaveLength(0);
+      // Dedupe removes the duplicate action from criteria[1], but post-dedupe
+      // density enforcement injects a last-resort fallback (score=7 requires 1 rec).
+      // The original duplicate must NOT survive:
+      expect(recs1.some((r) => r.action === recs0[0].action)).toBe(false);
+      // Density floor ensures at least 1 meaningful rec:
+      expect(recs1.length).toBeGreaterThanOrEqual(1);
     }
   });
 

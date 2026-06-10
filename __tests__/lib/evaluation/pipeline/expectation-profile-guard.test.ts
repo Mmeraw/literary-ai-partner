@@ -118,7 +118,11 @@ describe("expectation profile recommendation guard", () => {
 
     const pacing = parsed.criteria.find((c) => c.key === "pacing");
     expect(pacing).toBeDefined();
-    expect(pacing?.recommendations).toHaveLength(0);
+    // Expectation-profile guard suppresses the unsafe propulsion rec, but
+    // density repair injects a safe deterministic fallback (score=7 → 1 rec).
+    expect(pacing?.recommendations).toHaveLength(1);
+    // The original propulsion directive must NOT survive:
+    expect(pacing?.recommendations?.some((r) => /increase momentum/i.test(r.action))).toBe(false);
   });
 
   test("does not over-suppress thriller/commercial suspense propulsion diagnostics", () => {

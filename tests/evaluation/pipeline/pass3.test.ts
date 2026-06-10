@@ -9,7 +9,7 @@ import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
-import { validateTemplateCompleteness } from "@/lib/evaluation/pipeline/templateCompletenessGate";
+import { validateTemplateCompleteness, isMeaningfulRecommendation } from "@/lib/evaluation/pipeline/templateCompletenessGate";
 import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
@@ -925,5 +925,96 @@ describe("consequence tracking contract", () => {
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
     expect(result.criteria[0].decision_points).toHaveLength(1);
     expect(result.criteria[0].decision_points[0].length).toBeGreaterThan(0);
+  });
+
+  // ── PR #1078 Regression: governance-suppressed criteria must still get density repair ──
+  // Root cause of TEMPLATE_COMPLETENESS_GATE_FAILED for Sister + River evaluations:
+  // narrativeClosure scored 7/10 but had 0 meaningful recommendations after governance
+  // suppression removed LLM recs. The final fallback was skipping these criteria.
+
+  it("governance-suppressed narrativeClosure (score=7) still gets backfilled recommendations", () => {
+    const fixture = makePass3Fixture();
+    // Find narrativeClosure and set up the failure scenario:
+    // - score 7 (density floor requires 1 meaningful rec)
+    // - 0 recommendations (LLM produced nothing)
+    // - governance-suppression technical defect present
+    const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
+    (fixture.criteria[ncIdx] as Record<string, unknown>) = {
+      ...fixture.criteria[ncIdx],
+      final_score_0_10: 7,
+      recommendations: [],
+      technical_defects: [
+        {
+          code: "DIAGNOSTIC_SPINE_PROMISE_MISMATCH",
+          author_facing_reason: "Recommendation guard suppressed unsafe recommendations that contradicted the manuscript's diagnostic spine.",
+          retryable: false,
+        },
+      ],
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const nc = result.criteria.find((c) => c.key === "narrativeClosure");
+    expect(nc).toBeDefined();
+
+    // Must have at least 1 meaningful recommendation despite governance suppression
+    const meaningfulRecs = nc!.recommendations.filter((r) => isMeaningfulRecommendation(r));
+    expect(meaningfulRecs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("governance-suppressed narrativeClosure passes template completeness gate after repair", () => {
+    const fixture = makePass3Fixture({
+      enrichment: {
+        premise: "A family story about loss and memory.",
+        trigger_warnings: ["grief"],
+        diagnosed_genre: "literary fiction",
+        target_audience: "Adult readers of literary fiction exploring family dynamics and grief.",
+      },
+    });
+    // Set up governance-suppressed narrativeClosure with 0 recs
+    const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
+    (fixture.criteria[ncIdx] as Record<string, unknown>) = {
+      ...fixture.criteria[ncIdx],
+      final_score_0_10: 7,
+      recommendations: [],
+      technical_defects: [
+        {
+          code: "DIAGNOSTIC_SPINE_PROMISE_MISMATCH",
+          author_facing_reason: "Recommendation guard suppressed unsafe recommendations that contradicted the manuscript's diagnostic spine.",
+          retryable: false,
+        },
+      ],
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const v2 = synthesisToEvaluationResultV2({
+      synthesis: result,
+      ids: { evaluation_run_id: "test", job_id: "test", manuscript_id: 1, user_id: "test" },
+      sourceText: "The morning was damp and overcast, the river restless in its banks.",
+      manuscriptText: "The morning was damp and overcast, the river restless in its banks.",
+    });
+
+    const gateResult = validateTemplateCompleteness(v2);
+    const densityViolations = gateResult.violations.filter(
+      (v) => v.code === "DENSITY_FLOOR_VIOLATION" && v.criterion === "narrativeClosure",
+    );
+    expect(densityViolations).toHaveLength(0);
+  });
+
+  it("zero-rec narrativeClosure (no governance defects) also gets backfilled", () => {
+    const fixture = makePass3Fixture();
+    // Score 7 with 0 recs and NO governance defects — pure LLM omission
+    const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
+    fixture.criteria[ncIdx] = {
+      ...fixture.criteria[ncIdx],
+      final_score_0_10: 7,
+      recommendations: [],
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const nc = result.criteria.find((c) => c.key === "narrativeClosure");
+    expect(nc).toBeDefined();
+
+    const meaningfulRecs = nc!.recommendations.filter((r) => isMeaningfulRecommendation(r));
+    expect(meaningfulRecs.length).toBeGreaterThanOrEqual(1);
   });
 });
