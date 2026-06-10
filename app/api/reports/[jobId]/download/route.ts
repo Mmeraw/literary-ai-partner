@@ -1576,8 +1576,14 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     children.push(para('See per-criterion opportunities below for detailed revision guidance.'));
   }
 
-  children.push(makeHeading('13 Criteria Score Grid'));
-  children.push(new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '' })] }));
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 260, after: 90 },
+      pageBreakBefore: true,
+      children: [new TextRun({ text: '13 Criteria Score Grid', bold: true, color: docxHex(RG.oxblood), size: 28 })],
+    }),
+  );
   children.push(
     new Table({
       rows: [
