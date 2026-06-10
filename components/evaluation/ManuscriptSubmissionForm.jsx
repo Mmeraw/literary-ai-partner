@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 const INPUT_METHODS = [
   {
@@ -272,15 +272,19 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
     manuscriptTextRef.current = event.currentTarget.value;
 
     if (manuscriptTextRef.current.length > 0) {
-      if (selectedManuscriptId !== null) setSelectedManuscriptId(null);
-      if (activeInputMethod !== "paste") setActiveInputMethod("paste");
+      startTransition(() => {
+        setSelectedManuscriptId((prev) => (prev !== null ? null : prev));
+        setActiveInputMethod((prev) => (prev !== "paste" ? "paste" : prev));
+      });
     }
 
     clearPendingPastedTextSummary();
     pastedTextSummaryTimerRef.current = window.setTimeout(() => {
       pastedTextSummaryTimerRef.current = null;
-      updatePastedTextSummaryNow(getCurrentPastedText());
-    }, 180);
+      startTransition(() => {
+        updatePastedTextSummaryNow(getCurrentPastedText());
+      });
+    }, 350);
   };
 
   const removeManuscriptsLocally = (manuscriptIds) => {
