@@ -13,6 +13,7 @@ import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
 import { sanitizeCMOSCriterion, sanitizeCMOSOverall } from "../cmosSanitizer";
+import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import type {
   SinglePassOutput,
   SynthesisOutput,
@@ -1435,15 +1436,9 @@ export function parsePass3Response(
     const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 0;
     if (minRecs === 0) continue;
 
-    // Count recs that would satisfy isMeaningfulRecommendation in the template gate:
-    // need ≥1 meaningful field AND a non-empty specific_fix or action (12+ chars).
-    const satisfiesGate = (r: SynthesizedCriterion["recommendations"][number]): boolean => {
-      const fields = [r.anchor_snippet, r.mechanism, r.specific_fix, r.action, r.reader_effect, r.expected_impact];
-      const meaningful = fields.filter((f) => typeof f === "string" && f.trim().length >= 12).length;
-      const actionish = (r.specific_fix?.trim() ?? "").length >= 12 || (r.action?.trim() ?? "").length >= 12;
-      return meaningful >= 1 && actionish;
-    };
-    const satisfyingCount = c.recommendations.filter(satisfiesGate).length;
+    // Use the EXACT same isMeaningfulRecommendation check as the template gate
+    // to avoid divergence (e.g., GENERIC_RE filtering, PLACEHOLDER_RE checks).
+    const satisfyingCount = c.recommendations.filter((r) => isMeaningfulRecommendation(r)).length;
     if (satisfyingCount >= minRecs) continue;
 
     const needed = minRecs - satisfyingCount;
