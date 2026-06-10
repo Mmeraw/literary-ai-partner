@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const SHORT_FORM_COPY = "This typically takes 3–8 minutes.";
 const LONG_FORM_COPY =
-  "For long-form manuscripts, this stage can take 20–60 minutes depending on manuscript length, queue depth, and worker load.";
+  "For long-form writing, this stage can take 20–60 minutes depending on length, queue depth, and worker load.";
 
 export default function EvaluationTimingCopyGuard() {
   const pathname = usePathname() || "/";

@@ -61,7 +61,7 @@ function evalStatusLabel(job, purpose) {
     const phase = job.progress?.phase;
     if (phase === "phase_3") return "Preparing report";
     if (phase === "phase_2") return "Building diagnosis";
-    return "Analyzing manuscript";
+    return "Analyzing writing";
   }
   if (job.status === "queued") return purpose === "calibration" ? "Calibration queued" : "Processing";
   if (job.status === "failed") return purpose === "calibration" ? "Calibration failed" : "Needs attention";

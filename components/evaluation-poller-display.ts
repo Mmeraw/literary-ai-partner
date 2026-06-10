@@ -273,7 +273,7 @@ function getProgressDisplayRaw(
     return {
       label: "Building your report...",
       valueLabel: "67%",
-      helperText: "RevisionGrade is analyzing the manuscript, validating findings, and preparing the final report.",
+      helperText: "RevisionGrade is analyzing your writing, validating findings, and preparing the final report.",
       indeterminate: false,
       percentage: 67,
       color: "blue",
@@ -285,13 +285,13 @@ function getProgressDisplayRaw(
     const fraction = job.phase_unit_fraction ?? 1;
     const isEarly = fraction < 0.5;
     return {
-      label: isEarly ? "Diagnosing your manuscript..." : "Understanding your story...",
+      label: isEarly ? "Diagnosing your writing..." : "Understanding your story...",
       valueLabel: isEarly ? "15%" : "35%",
       percentage: isEarly ? 15 : 35,
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: "Analyzing your manuscript's story, structure, and craft signals."
+      helperText: "Analyzing your writing's story, structure, and craft signals."
     };
   }
 
@@ -303,7 +303,7 @@ function getProgressDisplayRaw(
       color: "blue",
       hardStop: false,
       indeterminate: false,
-      helperText: job.phase_message ?? "Your manuscript has been received. Preparing your evaluation.",
+      helperText: job.phase_message ?? "Your writing has been received. Preparing your evaluation.",
     };
   }
 
@@ -311,7 +311,7 @@ function getProgressDisplayRaw(
     return {
       label: "Starting your evaluation...",
       valueLabel: "2%",
-      helperText: job.phase_message ?? "Your manuscript has been received. Your evaluation will begin shortly.",
+      helperText: job.phase_message ?? "Your writing has been received. Your evaluation will begin shortly.",
       indeterminate: false,
       percentage: 2,
       color: "blue",
@@ -351,7 +351,7 @@ function getProgressDisplayRaw(
     return {
       label: "Building your report...",
       valueLabel: `${pct}%`,
-      helperText: "RevisionGrade is analyzing the manuscript, validating findings, and preparing the final report.",
+      helperText: "RevisionGrade is analyzing your writing, validating findings, and preparing the final report.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -367,11 +367,11 @@ function getProgressDisplayRaw(
     const pct = elapsedDrift(job.phase1_started_at, rangeMin, rangeMax, _now);
     return {
       label: isEarly
-        ? "Diagnosing your manuscript..."
+        ? "Diagnosing your writing..."
         : "Understanding your story...",
       valueLabel: `${pct}%`,
       helperText: isEarly
-        ? "Analyzing your manuscript's story, structure, and craft signals."
+        ? "Analyzing your writing's story, structure, and craft signals."
         : "Exploring your characters, relationships, and narrative arc.",
       indeterminate: false,
       percentage: pct,
@@ -383,9 +383,9 @@ function getProgressDisplayRaw(
   if (job.phase === "phase_1a") {
     const pct = elapsedDrift(job.phase1_started_at, 15, 34, _now);
     return {
-      label: "Diagnosing your manuscript...",
+      label: "Diagnosing your writing...",
       valueLabel: `${pct}%`,
-      helperText: "Analyzing your manuscript's story, structure, and craft signals.",
+      helperText: "Analyzing your writing's story, structure, and craft signals.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
@@ -398,7 +398,7 @@ function getProgressDisplayRaw(
     return {
       label: "Preparing your evaluation",
       valueLabel: `${pct}%`,
-      helperText: "Your manuscript has been received and your evaluation is starting.",
+      helperText: "Your writing has been received and your evaluation is starting.",
       indeterminate: false,
       percentage: pct,
       color: "blue",
