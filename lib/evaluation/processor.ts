@@ -7232,7 +7232,17 @@ export async function processEvaluationJob(
                     openaiApiKey,
                     supabase,
                     _chunkConcurrency: phase1aConfig.preflightConcurrency,
-                    _onChunkHeartbeat: () => { /* watchdog pulse */ },
+                    _onChunkHeartbeat: () => {
+                      const pulseNow = new Date().toISOString();
+                      void supabase
+                        .from('evaluation_jobs')
+                        .update({ worker_pulse_at: pulseNow })
+                        .eq('id', jobId)
+                        .eq('status', JOB_STATUS.RUNNING)
+                        .then(({ error: pulseErr }: { error: unknown }) => {
+                          if (pulseErr) console.warn('[track_c/parallel] worker_pulse_at stamp failed (non-fatal)', pulseErr);
+                        });
+                    },
                   });
                 })()
               : null;
@@ -7431,7 +7441,17 @@ export async function processEvaluationJob(
                     openaiApiKey,
                     supabase,
                     _chunkConcurrency: phase1aConfig.preflightConcurrency,
-                    _onChunkHeartbeat: () => { /* watchdog pulse */ },
+                    _onChunkHeartbeat: () => {
+                      const pulseNow = new Date().toISOString();
+                      void supabase
+                        .from('evaluation_jobs')
+                        .update({ worker_pulse_at: pulseNow })
+                        .eq('id', jobId)
+                        .eq('status', JOB_STATUS.RUNNING)
+                        .then(({ error: pulseErr }: { error: unknown }) => {
+                          if (pulseErr) console.warn('[track_c/race] worker_pulse_at stamp failed (non-fatal)', pulseErr);
+                        });
+                    },
                   }),
                   trackCTimeout,
                 ]);
@@ -7751,7 +7771,17 @@ export async function processEvaluationJob(
                 openaiApiKey,
                 supabase,
                 _chunkConcurrency: phase1aConfig.preflightConcurrency,
-                _onChunkHeartbeat: () => { /* watchdog pulse */ },
+                _onChunkHeartbeat: () => {
+                  const pulseNow = new Date().toISOString();
+                  void supabase
+                    .from('evaluation_jobs')
+                    .update({ worker_pulse_at: pulseNow })
+                    .eq('id', jobId)
+                    .eq('status', JOB_STATUS.RUNNING)
+                    .then(({ error: pulseErr }: { error: unknown }) => {
+                      if (pulseErr) console.warn('[track_c/standalone] worker_pulse_at stamp failed (non-fatal)', pulseErr);
+                    });
+                },
               }),
               timeoutPromise,
             ]);
