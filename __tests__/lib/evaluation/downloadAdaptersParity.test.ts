@@ -127,7 +127,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     const html = testing.renderCanonicalTemplateHtml(canonicalDoc);
 
     // TXT must include all 6 diagnostic fields
-    expect(txt).toContain('Evidence: A dark truck, fast, heading toward the river.');
+    expect(txt).toContain('Evidence: \u201cA dark truck, fast, heading toward the river.\u201d');
     expect(txt).toContain('Symptom: Stakes or decision pressure diffuses before reaching the reader.');
     expect(txt).toContain('Cause: Mid-chapter tension release without replacement hook.');
     expect(txt).toContain('Fix direction: Insert a ticking-clock reminder every 800 words.');

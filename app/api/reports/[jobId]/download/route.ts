@@ -71,6 +71,7 @@ const RG = {
   surface:    '#FAF7F2',
   surfaceAlt: '#FFFDF9',
   border:     '#D9D0C3',
+  borderLight:'#E6DED2',
   textPrimary:'#1C1814',
   textMuted:  '#5C5549',
   textFaint:  '#9A9087',
@@ -1139,37 +1140,48 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('13 CRITERIA SCORE GRID');
   lines.push(sub);
   lines.push('');
+  // Compute column widths for aligned table
+  const labelWidth = Math.max(...doc.criteriaScoreGrid.map((r) => r.label.length), 'Criterion'.length);
+  const scoreWidth = Math.max(...doc.criteriaScoreGrid.map((r) => r.scoreLabel.length), 'Score'.length);
+  lines.push(`${'Criterion'.padEnd(labelWidth)}   ${'Score'.padEnd(scoreWidth)}   Confidence`);
+  lines.push(`${'\u2500'.repeat(labelWidth)}   ${'\u2500'.repeat(scoreWidth)}   ${'─'.repeat(18)}`);
   doc.criteriaScoreGrid.forEach((row) => {
-    lines.push(`${row.label} | ${row.scoreLabel} | ${row.confidenceLabel}`);
+    lines.push(`${row.label.padEnd(labelWidth)}   ${row.scoreLabel.padEnd(scoreWidth)}   ${row.confidenceLabel}`);
   });
   lines.push('');
 
   lines.push(sub);
   lines.push('CRITERION RATIONALES & SURFACED OPPORTUNITIES');
   lines.push(sub);
-  lines.push('');
-  doc.criterionDetails.forEach((detail) => {
+  doc.criterionDetails.forEach((detail, idx) => {
+    lines.push('');
+    if (idx > 0) lines.push('  · · ·');
+    lines.push('');
     lines.push(`${detail.label} — ${detail.scoreLabel} (${detail.confidenceLabel})`);
     if (detail.supportLabel) lines.push(`Status: ${cleanReportText(detail.supportLabel)}`);
+    lines.push('');
     if (detail.rationaleLabel) lines.push(`${detail.rationaleLabel}:`);
     lines.push(cleanReportText(detail.rationaleText));
 
     if (detail.recommendations.length > 0) {
-      lines.push('Opportunities:');
+      lines.push('');
+      lines.push(`  OPPORTUNITIES (${detail.recommendations.length})`);
       detail.recommendations.forEach((recommendation, index) => {
-        lines.push(`  ${index + 1}. [${exportSeverity(recommendation.priority)}]`);
+        lines.push(`  ${exportSeverity(recommendation.priority).toUpperCase()} #${index + 1}`);
         const detailRows = opportunityRows(recommendation as ExportRecommendation);
         if (detailRows.length > 0) {
           detailRows.forEach(([label, value]) => {
-            lines.push(`     ${label}: ${value}`);
+            if (label === 'Evidence') {
+              lines.push(`    ${label}: \u201c${value}\u201d`);
+            } else {
+              lines.push(`    ${label}: ${value}`);
+            }
           });
         } else {
-          lines.push(`     ${cleanReportText(recommendation.action, 'No action provided.')}`);
+          lines.push(`    ${cleanReportText(recommendation.action, 'No action provided.')}`);
         }
       });
     }
-
-    lines.push('');
   });
 
   // ── Action Items ───────────────────────────────────────────────────
@@ -1276,20 +1288,20 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
   const detailCards = doc.criterionDetails
     .map((detail) => {
       const recHtml = detail.recommendations.length > 0
-        ? detail.recommendations.map((r, index) => {
+        ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
             const rows = opportunityRows(r as ExportRecommendation);
             const detailHtml = rows.length > 0
-              ? `<div class="opp-details" style="margin-top:4px;padding-left:12px">${rows.map(([label, value]) => label === 'Evidence' ? `<p style="font-size:9pt;color:#5C5549;margin:2px 0"><strong>${escapeHtml(label)}:</strong> <em>\u201c${escapeHtml(value)}\u201d</em></p>` : `<p style="font-size:9pt;color:#5C5549;margin:2px 0"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')}</div>`
-              : `<p style="margin:2px 0;padding-left:12px;font-size:9pt">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
-            return `<div style="margin-bottom:8px"><span style="font-weight:700;color:#8B2E2E;font-size:9.5pt">[${escapeHtml(exportSeverity(r.priority))}] #${index + 1}</span>${detailHtml}</div>`;
-          }).join('')
-        : '<p>No surfaced opportunities for this criterion.</p>';
+              ? rows.map(([label, value]) => label === 'Evidence' ? `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> <em>\u201c${escapeHtml(value)}\u201d</em></p>` : `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')
+              : `<p class="opp-row">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
+            return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
+          }).join('')}</div>`
+        : '';
       return `
       <article class="card">
         <h3>${escapeHtml(detail.label)} <small><span class="criterion-score ${scorePaletteClassFromLabel(detail.scoreLabel)}">${escapeHtml(detail.scoreLabel)}</span> · <span class="confidence-text ${confidencePaletteClass(detail.confidenceLabel)}">${escapeHtml(detail.confidenceLabel)}</span></small></h3>
-        ${detail.supportLabel ? `<p><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
-        ${detail.rationaleLabel ? `<p><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
-        <p>${escapeHtml(cleanReportText(detail.rationaleText))}</p>
+        ${detail.supportLabel ? `<p style="font-size:9.5pt"><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
+        ${detail.rationaleLabel ? `<p style="margin-bottom:4px"><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
+        <p style="font-size:10pt;line-height:1.5">${escapeHtml(cleanReportText(detail.rationaleText))}</p>
         ${recHtml}
       </article>`;
     })
@@ -1297,27 +1309,35 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
 
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(doc.title)} - RevisionGrade Report</title><style>
     @page{size:Letter;margin:0.72in 0.7in 0.82in;@bottom-center{content:'RevisionGrade™ | Page ' counter(page);color:#9A9087;font-size:9pt}}
-    body{font-family:Georgia,serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.2in;line-height:1.55}
-    .cover{background:#fff;border:1px solid #D9D0C3;border-radius:10px;padding:22px 24px;margin:0 0 16px;break-after:page}
+    body{font-family:Georgia,serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.2in;line-height:1.55;font-size:10.5pt}
+    .cover{background:#fff;border:1px solid #D9D0C3;border-radius:10px;padding:28px 30px;margin:0 0 16px;break-after:page}
     .brand{font-family:Helvetica,Arial,sans-serif;font-size:19pt;font-weight:800;color:#8B2E2E;letter-spacing:.02em}
     .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#5C5549;margin-top:4px}
-    .hero{display:grid;grid-template-columns:1fr 220px;gap:12px;margin-top:14px}
-    .title{font-size:24pt;line-height:1.18;color:#1C1814;margin:0 0 6px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:11pt;margin:0}
-    .score-box{background:#1C1814;border:2px solid #B8922A;border-radius:8px;padding:12px;color:#F5EFE0}
-    .score-box .label{font-family:Helvetica,Arial,sans-serif;font-size:9pt;text-transform:uppercase;color:#C8A96E;letter-spacing:.06em}
-    .score-box .value{font-size:34pt;font-weight:700;line-height:1.05;margin-top:4px}
-    .score-box .verdict{margin-top:8px;font-family:Helvetica,Arial,sans-serif;font-size:10pt;text-transform:uppercase;color:#F5E9C8}
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.metric{padding:10px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
-    .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-    .metric div{font-family:Helvetica,Arial,sans-serif;font-size:10pt;color:#1C1814}
-    section{background:#fff;border:1px solid #D9D0C3;border-radius:8px;padding:20px;margin:0 0 16px;break-inside:avoid}
-    h2{margin:0 0 10px;color:#8B2E2E;font-family:Helvetica,Arial,sans-serif} h3{margin:0 0 8px} small{font-weight:normal;color:#5C5549}
+    .hero{display:grid;grid-template-columns:1fr 200px;gap:16px;margin-top:18px}
+    .title{font-size:22pt;line-height:1.2;color:#1C1814;margin:0 0 6px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:11pt;margin:0}
+    .score-box{background:#1C1814;border:2px solid #B8922A;border-radius:8px;padding:14px 16px;color:#F5EFE0;text-align:center}
+    .score-box .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#C8A96E;letter-spacing:.06em}
+    .score-box .value{font-size:32pt;font-weight:700;line-height:1.1;margin-top:4px}
+    .score-box .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#F5E9C8;letter-spacing:.04em}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+    .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+    .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
+    section{background:#fff;border:1px solid #D9D0C3;border-radius:8px;padding:18px 20px;margin:0 0 14px;break-inside:avoid}
+    h2{margin:0 0 10px;color:#8B2E2E;font-family:Helvetica,Arial,sans-serif;font-size:13pt;border-bottom:2px solid #E6DED2;padding-bottom:6px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11pt} small{font-weight:normal;color:#5C5549}
     ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
-    table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #E6DED2;padding:8px;text-align:left;vertical-align:top}
-    .card{margin-bottom:12px;padding:12px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px}
+    table{width:100%;border-collapse:collapse} th{font-family:Helvetica,Arial,sans-serif;font-size:9pt;text-transform:uppercase;color:#5C5549;letter-spacing:.03em} th,td{border-bottom:1px solid #E6DED2;padding:7px 8px;text-align:left;vertical-align:top}
+    .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:6px;break-inside:avoid}
+    .opp-block{margin-top:10px;padding:10px 14px;background:#FAF7F2;border-left:3px solid #D9D0C3;border-radius:0 4px 4px 0}
+    .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8B2E2E;margin-bottom:6px}
+    .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
+    .opp-row strong{color:#5C5549}
+    .opp-row em{color:#6B5E52;font-style:italic}
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong,.readiness-strong{color:#3A6B2A}.score-watch,.readiness-watch{color:#8B5E1A}.score-risk,.readiness-risk{color:#8B2020}.score-muted,.readiness-muted{color:#5C5549}
-    .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
-    .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:9pt;line-height:1.45}
+    .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
+    .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
+    .action-card{margin-bottom:8px;padding:10px 14px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:5px}
+    .action-card .action-text{font-weight:600;color:#1C1814;font-size:10pt}
+    .action-card .action-meta{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549;margin-top:3px}
   </style></head><body>
     <header class="cover">
       <div class="brand">RevisionGrade™ Evaluation Report</div>
@@ -1367,7 +1387,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
-    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<article class="card"><p><strong>${i + 1}.</strong> ${escapeHtml(cleanReportText(item.action))}${tags ? ` <em>[${escapeHtml(tags)}]</em>` : ''}</p>${item.why ? `<p style="font-size:9pt;color:#5C5549">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</article>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<article class="card"><p><strong>${i + 1}.</strong> ${escapeHtml(cleanReportText(item.action))}${tags ? ` <em>[${escapeHtml(tags)}]</em>` : ''}</p>${item.why ? `<p style="font-size:9pt;color:#5C5549">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</article>`; }).join('')}` : ''}</section>` : ''}
+    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
     <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     <section><h2>Author-Facing Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
@@ -1529,10 +1549,20 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     new Table({
       rows: [
         new TableRow({
+          tableHeader: true,
           children: [
-            new TableCell({ children: [new Paragraph('Criterion')] }),
-            new TableCell({ children: [new Paragraph('Score')] }),
-            new TableCell({ children: [new Paragraph('Confidence')] }),
+            new TableCell({
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Criterion', bold: true, size: 18, color: docxHex(RG.textMuted) })] })],
+            }),
+            new TableCell({
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Score', bold: true, size: 18, color: docxHex(RG.textMuted) })] })],
+            }),
+            new TableCell({
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Confidence', bold: true, size: 18, color: docxHex(RG.textMuted) })] })],
+            }),
           ],
         }),
         ...doc.criteriaScoreGrid.map(
@@ -1562,14 +1592,19 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     }),
   );
 
+  children.push(makeDivider());
   children.push(makeHeading('Criterion Rationales & Surfaced Opportunities'));
-  doc.criterionDetails.forEach((detail) => {
+  doc.criterionDetails.forEach((detail, detailIdx) => {
+    if (detailIdx > 0) {
+      children.push(new Paragraph({ spacing: { before: 160, after: 0 }, children: [new TextRun({ text: '' })] }));
+    }
     children.push(
       new Paragraph({
-        spacing: { after: 90 },
+        spacing: { before: 100, after: 90 },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: docxHex(RG.borderLight) } },
         children: [
-          new TextRun({ text: `${detail.label} — `, bold: true, size: 22, color: docxHex(RG.textPrimary) }),
-          new TextRun({ text: detail.scoreLabel, bold: true, size: 22, color: docxHex(scorePaletteColorFromLabel(detail.scoreLabel)) }),
+          new TextRun({ text: `${detail.label} — `, bold: true, size: 24, color: docxHex(RG.textPrimary) }),
+          new TextRun({ text: detail.scoreLabel, bold: true, size: 24, color: docxHex(scorePaletteColorFromLabel(detail.scoreLabel)) }),
           new TextRun({ text: ' (', size: 22, color: docxHex(RG.textMuted) }),
           new TextRun({ text: detail.confidenceLabel, bold: true, size: 22, color: docxHex(confidencePaletteColor(detail.confidenceLabel)) }),
           new TextRun({ text: ')', size: 22, color: docxHex(RG.textMuted) }),
@@ -1580,10 +1615,15 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     if (detail.rationaleLabel) children.push(para(`${detail.rationaleLabel}:`));
     children.push(para(detail.rationaleText));
     if (detail.recommendations.length > 0) {
+      children.push(new Paragraph({
+        spacing: { before: 120, after: 60 },
+        children: [new TextRun({ text: `OPPORTUNITIES (${detail.recommendations.length})`, bold: true, size: 18, color: docxHex(RG.textMuted) })],
+      }));
       detail.recommendations.forEach((rec, index) => {
         children.push(new Paragraph({
           spacing: { before: 80, after: 40 },
-          children: [new TextRun({ text: `[${exportSeverity(rec.priority)}] #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood) })],
+          indent: { left: 240 },
+          children: [new TextRun({ text: `${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood) })],
         }));
         const rows = opportunityRows(rec as ExportRecommendation);
         if (rows.length > 0) {
@@ -1591,22 +1631,29 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
             if (label === 'Evidence') {
               children.push(new Paragraph({
                 spacing: { after: 40 },
-                indent: { left: 360 },
-                children: [new TextRun({ text: `${label}: \u201c${cleanReportText(value)}\u201d`, italics: true, size: 18, color: docxHex(RG.textMuted) })],
+                indent: { left: 480 },
+                children: [
+                  new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted) }),
+                  new TextRun({ text: `\u201c${cleanReportText(value)}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted) }),
+                ],
               }));
             } else {
               children.push(new Paragraph({
                 spacing: { after: 40 },
-                indent: { left: 360 },
+                indent: { left: 480 },
                 children: [
-                  new TextRun({ text: `${label}: `, bold: true, size: 18, color: docxHex(RG.textMuted) }),
-                  new TextRun({ text: cleanReportText(value), size: 18, color: docxHex(RG.textPrimary) }),
+                  new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted) }),
+                  new TextRun({ text: cleanReportText(value), size: 19, color: docxHex(RG.textPrimary) }),
                 ],
               }));
             }
           });
         } else {
-          children.push(para(cleanReportText(rec.action, 'No action provided.')));
+          children.push(new Paragraph({
+            spacing: { after: 40 },
+            indent: { left: 480 },
+            children: [new TextRun({ text: cleanReportText(rec.action, 'No action provided.'), size: 20, color: docxHex(RG.textPrimary) })],
+          }));
         }
       });
     }
