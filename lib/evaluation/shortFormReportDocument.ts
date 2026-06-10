@@ -222,6 +222,29 @@ function deriveVerdict(overallScore: number | null, fallbackVerdict?: string): s
   return fallback.length > 0 ? fallback : 'Not Market Ready';
 }
 
+const FALLBACK_AUDIENCE_VALUES = new Set([
+  'adult readers',
+  'not available',
+  'not specified',
+  'unknown',
+  '',
+]);
+
+function isFallbackAudience(value: string): boolean {
+  return FALLBACK_AUDIENCE_VALUES.has(value.trim().toLowerCase());
+}
+
+const FALLBACK_GENRE_VALUES = new Set([
+  'not specified',
+  'not available',
+  'unknown',
+  '',
+]);
+
+function isFallbackGenre(value: string): boolean {
+  return FALLBACK_GENRE_VALUES.has(value.trim().toLowerCase());
+}
+
 function estimatePages(wordCount: number | null | undefined): string {
   if (typeof wordCount !== 'number' || !Number.isFinite(wordCount) || wordCount <= 0) return 'Not available';
   return `${Math.max(1, Math.ceil(wordCount / 250)).toLocaleString()} at 250 words/page`;
@@ -340,11 +363,14 @@ export function buildShortFormEvaluationDocument(input: {
           ? `${Math.floor(dialogue)}% dialogue / ${Math.floor(typeof narrative === 'number' ? narrative : computedNarrative ?? 0)}% narrative`
           : 'Not available',
       dateGenerated: formatDate(result.generated_at),
-      genreConfidenceLabel: genreConf,
+      // Suppress confidence badge when genre is a fallback ("Not specified") — absence is not uncertainty.
+      genreConfidenceLabel: isFallbackGenre(clean(result.metrics?.manuscript?.genre, 'Not specified')) ? null : genreConf,
       marketReadinessConfidenceLabel: marketConf,
       overallScoreConfidenceLabel: overallConf,
       audienceConfidenceLabel: audienceConf.label,
-      audienceTentative: audienceConf.tentative,
+      // Only mark tentative when audience was actually inferred from manuscript.
+      // Fallback/default values ("Adult Readers", "Not available") are absence, not uncertainty.
+      audienceTentative: audienceConf.tentative && !isFallbackAudience(clean(result.metrics?.manuscript?.target_audience, 'Adult Readers')),
       headerContract,
       genreExpectationContract,
     },

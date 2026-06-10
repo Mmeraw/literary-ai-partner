@@ -273,7 +273,7 @@ function getProgressDisplayRaw(
     return {
       label: "Building your report...",
       valueLabel: "67%",
-      helperText: "Building your report across all thirteen evaluation criteria.",
+      helperText: "RevisionGrade is analyzing the manuscript, validating findings, and preparing the final report.",
       indeterminate: false,
       percentage: 67,
       color: "blue",
@@ -351,7 +351,7 @@ function getProgressDisplayRaw(
     return {
       label: "Building your report...",
       valueLabel: `${pct}%`,
-      helperText: "Building your report across all thirteen evaluation criteria.",
+      helperText: "RevisionGrade is analyzing the manuscript, validating findings, and preparing the final report.",
       indeterminate: false,
       percentage: pct,
       color: "blue",

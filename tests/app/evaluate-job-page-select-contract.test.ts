@@ -46,9 +46,9 @@ describe('evaluate job page query contract', () => {
 
   test('report header uses spaced columns and right-side preview panel', () => {
     expect(source).toContain('const HeaderField = ({');
-    expect(source).toContain('xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]');
-    expect(source).toContain('gap-x-16 gap-y-5');
-    expect(source).toContain('rounded-lg border border-stone-200 bg-stone-50 p-4');
+    expect(source).toContain('xl:grid-cols-[1fr_320px]');
+    expect(source).toContain('gap-x-10 gap-y-6');
+    expect(source).toContain('rounded-lg border border-stone-200 bg-stone-50 px-5 py-4');
     expect(source).toContain('whitespace-nowrap rounded-full');
     expect(source).toContain('label="Genre"');
     expect(source).toContain('label="Market Readiness"');
