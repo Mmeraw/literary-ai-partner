@@ -1140,37 +1140,48 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('13 CRITERIA SCORE GRID');
   lines.push(sub);
   lines.push('');
+  // Compute column widths for aligned table
+  const labelWidth = Math.max(...doc.criteriaScoreGrid.map((r) => r.label.length), 'Criterion'.length);
+  const scoreWidth = Math.max(...doc.criteriaScoreGrid.map((r) => r.scoreLabel.length), 'Score'.length);
+  lines.push(`${'Criterion'.padEnd(labelWidth)}   ${'Score'.padEnd(scoreWidth)}   Confidence`);
+  lines.push(`${'\u2500'.repeat(labelWidth)}   ${'\u2500'.repeat(scoreWidth)}   ${'─'.repeat(18)}`);
   doc.criteriaScoreGrid.forEach((row) => {
-    lines.push(`${row.label} | ${row.scoreLabel} | ${row.confidenceLabel}`);
+    lines.push(`${row.label.padEnd(labelWidth)}   ${row.scoreLabel.padEnd(scoreWidth)}   ${row.confidenceLabel}`);
   });
   lines.push('');
 
   lines.push(sub);
   lines.push('CRITERION RATIONALES & SURFACED OPPORTUNITIES');
   lines.push(sub);
-  lines.push('');
-  doc.criterionDetails.forEach((detail) => {
+  doc.criterionDetails.forEach((detail, idx) => {
+    lines.push('');
+    if (idx > 0) lines.push('  · · ·');
+    lines.push('');
     lines.push(`${detail.label} — ${detail.scoreLabel} (${detail.confidenceLabel})`);
     if (detail.supportLabel) lines.push(`Status: ${cleanReportText(detail.supportLabel)}`);
+    lines.push('');
     if (detail.rationaleLabel) lines.push(`${detail.rationaleLabel}:`);
     lines.push(cleanReportText(detail.rationaleText));
 
     if (detail.recommendations.length > 0) {
-      lines.push('Opportunities:');
+      lines.push('');
+      lines.push(`  OPPORTUNITIES (${detail.recommendations.length})`);
       detail.recommendations.forEach((recommendation, index) => {
-        lines.push(`  ${index + 1}. [${exportSeverity(recommendation.priority)}]`);
+        lines.push(`  ${exportSeverity(recommendation.priority).toUpperCase()} #${index + 1}`);
         const detailRows = opportunityRows(recommendation as ExportRecommendation);
         if (detailRows.length > 0) {
           detailRows.forEach(([label, value]) => {
-            lines.push(`     ${label}: ${value}`);
+            if (label === 'Evidence') {
+              lines.push(`    ${label}: \u201c${value}\u201d`);
+            } else {
+              lines.push(`    ${label}: ${value}`);
+            }
           });
         } else {
-          lines.push(`     ${cleanReportText(recommendation.action, 'No action provided.')}`);
+          lines.push(`    ${cleanReportText(recommendation.action, 'No action provided.')}`);
         }
       });
     }
-
-    lines.push('');
   });
 
   // ── Action Items ───────────────────────────────────────────────────
