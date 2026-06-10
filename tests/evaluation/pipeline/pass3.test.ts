@@ -939,7 +939,7 @@ describe("consequence tracking contract", () => {
     // - 0 recommendations (LLM produced nothing)
     // - governance-suppression technical defect present
     const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
-    fixture.criteria[ncIdx] = {
+    (fixture.criteria[ncIdx] as Record<string, unknown>) = {
       ...fixture.criteria[ncIdx],
       final_score_0_10: 7,
       recommendations: [],
@@ -972,7 +972,7 @@ describe("consequence tracking contract", () => {
     });
     // Set up governance-suppressed narrativeClosure with 0 recs
     const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
-    fixture.criteria[ncIdx] = {
+    (fixture.criteria[ncIdx] as Record<string, unknown>) = {
       ...fixture.criteria[ncIdx],
       final_score_0_10: 7,
       recommendations: [],
@@ -988,7 +988,7 @@ describe("consequence tracking contract", () => {
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
     const v2 = synthesisToEvaluationResultV2({
       synthesis: result,
-      ids: { evaluation_run_id: "test", job_id: "test", manuscript_id: "test", user_id: "test" },
+      ids: { evaluation_run_id: "test", job_id: "test", manuscript_id: 1, user_id: "test" },
       sourceText: "The morning was damp and overcast, the river restless in its banks.",
       manuscriptText: "The morning was damp and overcast, the river restless in its banks.",
     });
