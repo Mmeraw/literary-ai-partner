@@ -1521,7 +1521,7 @@ export function runQualityGateV2(
           technical_defects: [
             ...(criterion.technical_defects ?? []),
             {
-              code: "BORDERLINE_CONFIDENCE_SCORE_CAPPED" as const,
+              code: "BORDERLINE_CONFIDENCE_SCORE_CAPPED",
               author_facing_reason:
                 `Score was capped from ${criterion.score_0_10} to ${cap} due to borderline evidence confidence.`,
               retryable: false,
