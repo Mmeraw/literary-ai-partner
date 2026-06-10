@@ -1013,7 +1013,7 @@ describe('selfRecoverRetryableFailedJobs', () => {
     const updatePayload = stub.updateMock.mock.calls[0]?.[0];
     expect(updatePayload).toEqual(expect.objectContaining({
       status: 'queued',
-      phase: 'phase_2',
+      phase: 'phase_3',
       phase_status: 'queued',
       last_error: null,
       failure_code: null,
@@ -1022,7 +1022,7 @@ describe('selfRecoverRetryableFailedJobs', () => {
       lease_token: null,
     }));
     expect(updatePayload.progress).toEqual(expect.objectContaining({
-      phase: 'phase_2',
+      phase: 'phase_3',
       phase_status: 'queued',
       self_recovery_count: 2,
       self_recovery_source: 'worker_auto_recovery',
