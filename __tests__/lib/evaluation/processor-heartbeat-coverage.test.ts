@@ -141,7 +141,10 @@ describe("processor heartbeat coverage invariants", () => {
   // ── Persistence path coverage ───────────────────────────────────────
 
   test("persistence path has heartbeat before artifact writes", () => {
-    expect(processorCode).toContain("pulseWorker('persistence/before-artifact-writes')");
+    // The persistence lock replaces the old pulseWorker call — it sets
+    // worker_pulse_at to a future timestamp, structurally preventing
+    // watchdog from killing the job mid-persistence.
+    expect(processorCode).toContain("declarePersistenceLock('persistence/lock-acquired')");
   });
 
   // ── Phase 1A heartbeat coverage ─────────────────────────────────────
