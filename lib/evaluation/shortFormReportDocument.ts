@@ -157,6 +157,10 @@ export type ShortFormEvaluationDocument = {
   topRecommendations: string[];
   criteriaScoreGrid: ShortFormCriterionGridRow[];
   criterionDetails: ShortFormCriterionDetail[];
+  actionItems: {
+    quickWins: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
+    strategicRevisions: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
+  };
   confidenceExplanation: string;
   disclaimer: string;
 };
@@ -391,6 +395,16 @@ export function buildShortFormEvaluationDocument(input: {
     topRecommendations: topRecommendations.map((item) => mistakeProofText(item)).filter(Boolean),
     criteriaScoreGrid,
     criterionDetails,
+    actionItems: {
+      quickWins: (Array.isArray(result.recommendations?.quick_wins)
+        ? result.recommendations!.quick_wins
+        : []
+      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
+      strategicRevisions: (Array.isArray(result.recommendations?.strategic_revisions)
+        ? result.recommendations!.strategic_revisions
+        : []
+      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
+    },
     confidenceExplanation:
       input.confidenceExplanation ??
       'Confidence reflects how strongly each diagnosis is supported by direct textual evidence in the submitted material. High confidence indicates strong evidence; moderate confidence indicates meaningful but potentially ambiguous evidence; low confidence indicates limited or conflicting evidence and should be treated as a prompt for review.',

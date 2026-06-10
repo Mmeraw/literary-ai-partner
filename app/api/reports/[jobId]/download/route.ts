@@ -1157,12 +1157,48 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
     if (detail.recommendations.length > 0) {
       lines.push('Opportunities:');
       detail.recommendations.forEach((recommendation, index) => {
-        lines.push(`  ${index + 1}. [${exportSeverity(recommendation.priority)}] ${cleanReportText(recommendation.action, 'No action provided.')}`);
+        lines.push(`  ${index + 1}. [${exportSeverity(recommendation.priority)}]`);
+        const detailRows = opportunityRows(recommendation as ExportRecommendation);
+        if (detailRows.length > 0) {
+          detailRows.forEach(([label, value]) => {
+            lines.push(`     ${label}: ${value}`);
+          });
+        } else {
+          lines.push(`     ${cleanReportText(recommendation.action, 'No action provided.')}`);
+        }
       });
     }
 
     lines.push('');
   });
+
+  // ── Action Items ───────────────────────────────────────────────────
+  if (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) {
+    lines.push(sub);
+    lines.push('ACTION ITEMS');
+    lines.push(sub);
+    lines.push('');
+
+    if (doc.actionItems.quickWins.length > 0) {
+      lines.push('Quick Wins:');
+      doc.actionItems.quickWins.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        lines.push(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`);
+        if (item.why) lines.push(`     Why: ${cleanReportText(item.why)}`);
+      });
+      lines.push('');
+    }
+
+    if (doc.actionItems.strategicRevisions.length > 0) {
+      lines.push('Strategic Revisions:');
+      doc.actionItems.strategicRevisions.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        lines.push(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`);
+        if (item.why) lines.push(`     Why: ${cleanReportText(item.why)}`);
+      });
+      lines.push('');
+    }
+  }
 
   if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
     lines.push(sub);
@@ -1238,14 +1274,25 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     .join('');
 
   const detailCards = doc.criterionDetails
-    .map((detail) => `
+    .map((detail) => {
+      const recHtml = detail.recommendations.length > 0
+        ? detail.recommendations.map((r, index) => {
+            const rows = opportunityRows(r as ExportRecommendation);
+            const detailHtml = rows.length > 0
+              ? `<div class="opp-details" style="margin-top:4px;padding-left:12px">${rows.map(([label, value]) => label === 'Evidence' ? `<p style="font-size:9pt;color:#5C5549;margin:2px 0"><strong>${escapeHtml(label)}:</strong> <em>\u201c${escapeHtml(value)}\u201d</em></p>` : `<p style="font-size:9pt;color:#5C5549;margin:2px 0"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')}</div>`
+              : `<p style="margin:2px 0;padding-left:12px;font-size:9pt">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
+            return `<div style="margin-bottom:8px"><span style="font-weight:700;color:#8B2E2E;font-size:9.5pt">[${escapeHtml(exportSeverity(r.priority))}] #${index + 1}</span>${detailHtml}</div>`;
+          }).join('')
+        : '<p>No surfaced opportunities for this criterion.</p>';
+      return `
       <article class="card">
         <h3>${escapeHtml(detail.label)} <small><span class="criterion-score ${scorePaletteClassFromLabel(detail.scoreLabel)}">${escapeHtml(detail.scoreLabel)}</span> · <span class="confidence-text ${confidencePaletteClass(detail.confidenceLabel)}">${escapeHtml(detail.confidenceLabel)}</span></small></h3>
         ${detail.supportLabel ? `<p><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
         ${detail.rationaleLabel ? `<p><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
         <p>${escapeHtml(cleanReportText(detail.rationaleText))}</p>
-        ${detail.recommendations.length > 0 ? `<ul class="rg-ordered-list">${detail.recommendations.map((r, index) => `<li><span class="rg-list-marker">${index + 1}.</span><span>${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</span></li>`).join('')}</ul>` : '<p>No surfaced opportunities for this criterion.</p>'}
-      </article>`)
+        ${recHtml}
+      </article>`;
+    })
     .join('');
 
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(doc.title)} - RevisionGrade Report</title><style>
@@ -1320,6 +1367,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
+    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<article class="card"><p><strong>${i + 1}.</strong> ${escapeHtml(cleanReportText(item.action))}${tags ? ` <em>[${escapeHtml(tags)}]</em>` : ''}</p>${item.why ? `<p style="font-size:9pt;color:#5C5549">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</article>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<article class="card"><p><strong>${i + 1}.</strong> ${escapeHtml(cleanReportText(item.action))}${tags ? ` <em>[${escapeHtml(tags)}]</em>` : ''}</p>${item.why ? `<p style="font-size:9pt;color:#5C5549">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</article>`; }).join('')}` : ''}</section>` : ''}
     <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     <section><h2>Author-Facing Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
@@ -1532,9 +1580,76 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     if (detail.rationaleLabel) children.push(para(`${detail.rationaleLabel}:`));
     children.push(para(detail.rationaleText));
     if (detail.recommendations.length > 0) {
-      detail.recommendations.forEach((rec, index) => children.push(docxListPara(cleanReportText(rec.action, 'No action provided.'), `${index + 1}.`)));
+      detail.recommendations.forEach((rec, index) => {
+        children.push(new Paragraph({
+          spacing: { before: 80, after: 40 },
+          children: [new TextRun({ text: `[${exportSeverity(rec.priority)}] #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood) })],
+        }));
+        const rows = opportunityRows(rec as ExportRecommendation);
+        if (rows.length > 0) {
+          rows.forEach(([label, value]) => {
+            if (label === 'Evidence') {
+              children.push(new Paragraph({
+                spacing: { after: 40 },
+                indent: { left: 360 },
+                children: [new TextRun({ text: `${label}: \u201c${cleanReportText(value)}\u201d`, italics: true, size: 18, color: docxHex(RG.textMuted) })],
+              }));
+            } else {
+              children.push(new Paragraph({
+                spacing: { after: 40 },
+                indent: { left: 360 },
+                children: [
+                  new TextRun({ text: `${label}: `, bold: true, size: 18, color: docxHex(RG.textMuted) }),
+                  new TextRun({ text: cleanReportText(value), size: 18, color: docxHex(RG.textPrimary) }),
+                ],
+              }));
+            }
+          });
+        } else {
+          children.push(para(cleanReportText(rec.action, 'No action provided.')));
+        }
+      });
     }
   });
+
+  // ── Action Items ────────────────────────────────────────────────────
+  if (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) {
+    children.push(makeHeading('Action Items'));
+    if (doc.actionItems.quickWins.length > 0) {
+      children.push(new Paragraph({
+        spacing: { before: 80, after: 60 },
+        children: [new TextRun({ text: 'Quick Wins', bold: true, size: 22, color: docxHex(RG.textPrimary) })],
+      }));
+      doc.actionItems.quickWins.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: `${i + 1}. ${cleanReportText(item.action)}`, bold: true, size: 20, color: docxHex(RG.textPrimary) }),
+            ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
+          ],
+        }));
+        if (item.why) children.push(para(`Why: ${cleanReportText(item.why)}`));
+      });
+    }
+    if (doc.actionItems.strategicRevisions.length > 0) {
+      children.push(new Paragraph({
+        spacing: { before: 80, after: 60 },
+        children: [new TextRun({ text: 'Strategic Revisions', bold: true, size: 22, color: docxHex(RG.textPrimary) })],
+      }));
+      doc.actionItems.strategicRevisions.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: `${i + 1}. ${cleanReportText(item.action)}`, bold: true, size: 20, color: docxHex(RG.textPrimary) }),
+            ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
+          ],
+        }));
+        if (item.why) children.push(para(`Why: ${cleanReportText(item.why)}`));
+      });
+    }
+  }
 
   if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
     children.push(makeHeading('Manuscript-Scale Continuity Findings'));
