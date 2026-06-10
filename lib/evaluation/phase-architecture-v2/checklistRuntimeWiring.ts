@@ -117,11 +117,17 @@ export function assertWorkerPhaseEntry(
 }
 
 function targetPhaseForArtifact(artifactType: ChecklistArtifactType | undefined): 'phase_1a' | 'phase_2' | 'phase_3' {
-  if (artifactType === 'pass12_handoff_v1' || artifactType === 'accepted_story_ledger_v1') {
+  // accepted_story_ledger_v1 is produced by Phase 1A / Review Gate.
+  // Its presence means Phase 2 can start — resume target is phase_2.
+  if (artifactType === 'accepted_story_ledger_v1') {
     return 'phase_2';
   }
 
+  // pass12_handoff_v1 is produced by Phase 2. Its presence means Phase 2
+  // is COMPLETE — resume target is phase_3, not phase_2. Routing back to
+  // phase_2 causes an unnecessary Phase 2 replay loop on Phase 3 crashes.
   if (
+    artifactType === 'pass12_handoff_v1' ||
     artifactType === 'evaluation_result_v2' ||
     artifactType === 'revision_opportunity_ledger_v1'
   ) {
@@ -155,7 +161,7 @@ export function selectResumeCheckpoint(params: {
     return {
       selected: null,
       resume_mode: 'phase2_handoff',
-      target_phase: 'phase_2',
+      target_phase: 'phase_3',
     };
   }
 
