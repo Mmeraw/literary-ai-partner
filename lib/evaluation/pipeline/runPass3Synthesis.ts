@@ -2112,7 +2112,7 @@ function resolveReaderEffect(
   return "";
 }
 
-function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion["key"]): string {
+export function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion["key"]): string {
   switch (criterionKey) {
     case "concept":
       return "the premise remains abstract rather than grounded in a specific dramatic question, weakening reader buy-in";
@@ -2145,7 +2145,7 @@ function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion[
   }
 }
 
-function buildCriterionAwareSpecificFixDefault(criterionKey: SynthesizedCriterion["key"]): string {
+export function buildCriterionAwareSpecificFixDefault(criterionKey: SynthesizedCriterion["key"]): string {
   switch (criterionKey) {
     case "concept":
       return "sharpen the premise hook by grounding one abstract concept in a concrete dramatic question the reader must see answered";
@@ -2178,7 +2178,7 @@ function buildCriterionAwareSpecificFixDefault(criterionKey: SynthesizedCriterio
   }
 }
 
-function buildCriterionAwareReaderEffectDefault(criterionKey: SynthesizedCriterion["key"]): string {
+export function buildCriterionAwareReaderEffectDefault(criterionKey: SynthesizedCriterion["key"]): string {
   switch (criterionKey) {
     case "concept":
       return "sharper premise intrigue and a clearer dramatic question that compels the reader forward";

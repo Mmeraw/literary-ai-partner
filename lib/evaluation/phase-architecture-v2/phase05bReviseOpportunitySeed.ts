@@ -150,6 +150,10 @@ export function buildPhase05bReviseOpportunitySeed(input: BuildPhase05bReviseSee
   opportunity_errors?: Record<string, string[]>;
 } {
   if (!isAuthorityProofUsable(input.authorityProof)) {
+    console.error('[SIPOC-KICK-BACKWARD] Phase 5 OUTPUT → Author: rejected — authority proof missing or invalid', {
+      job_id: input.jobId,
+      sipoc_boundary: 'phase5_output→author',
+    });
     return {
       ok: false,
       code: 'PHASE05B_AUTHORITY_PROOF_MISSING_OR_INVALID',
@@ -166,6 +170,13 @@ export function buildPhase05bReviseOpportunitySeed(input: BuildPhase05bReviseSee
   }
 
   if (Object.keys(opportunityErrors).length > 0) {
+    console.error('[SIPOC-KICK-BACKWARD] Phase 5 OUTPUT → Author: rejected — opportunity contract invalid', {
+      job_id: input.jobId,
+      sipoc_boundary: 'phase5_output→author',
+      invalid_opportunities: Object.keys(opportunityErrors).length,
+      total_opportunities: input.opportunities.length,
+      sample_errors: Object.entries(opportunityErrors).slice(0, 3).map(([id, errs]) => `${id}: ${errs.slice(0, 2).join(', ')}`),
+    });
     return {
       ok: false,
       code: 'PHASE05B_OPPORTUNITY_CONTRACT_INVALID',
@@ -195,6 +206,14 @@ export function buildPhase05bReviseOpportunitySeed(input: BuildPhase05bReviseSee
     is_resume_safe: true,
     opportunities: input.opportunities,
   };
+
+  // ── SIPOC OUTPUT Gate: Phase 5 OUTPUT → Author: validated ──────────────
+  console.log('[SIPOC] Phase 5 OUTPUT → Author: validated — revise opportunity seed passes contract', {
+    job_id: input.jobId,
+    sipoc_boundary: 'phase5_output→author',
+    opportunities_count: input.opportunities.length,
+    semantic_status: semanticStatus,
+  });
 
   return {
     ok: true,

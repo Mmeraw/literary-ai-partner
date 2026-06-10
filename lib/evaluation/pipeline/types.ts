@@ -687,6 +687,8 @@ export type PipelineResult =
       error: string;
       error_code: string;
       failed_at: "pass1" | "pass2" | "pass3" | "pass4";
+      /** SIPOC boundary label showing which handoff was rejected (e.g. "pass1_output→pass3_input") */
+      sipoc_boundary?: string;
       /**
        * Pass 4 status snapshot. Present whenever the failure can be attributed
        * to (or annotated with) external adjudication. When failed_at==="pass4"
@@ -800,6 +802,17 @@ export type PipelineResult =
             field: string;
             detail: string;
             rec_index?: number;
+          }>;
+        };
+        /** SIPOC dual-checkpoint completeness gate failure diagnostics. */
+        completeness_gate?: {
+          critical_count: number;
+          violations: Array<{
+            code: string;
+            criterion_key: string;
+            field: string;
+            detail: string;
+            severity: "critical" | "warning";
           }>;
         };
       };
