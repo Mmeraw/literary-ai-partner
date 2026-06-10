@@ -310,7 +310,7 @@ describe('hardStopGovernance', () => {
     );
 
     expect(decision?.code).toBe('PIPELINE_GLOBAL_SLA_EXCEEDED');
-    expect(decision?.reason).toBe('Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved.');
+    expect(decision?.reason).toBe('Evaluation delayed — recovery is in progress. Your writing and completed analysis have been preserved.');
     expect(decision?.reason).not.toContain('created_at=');
     expect(decision?.internalReason).toContain('created_at=2026-06-07T00:56:18.322Z');
   });
