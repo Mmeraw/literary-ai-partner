@@ -56,7 +56,13 @@ function detectPurpose(title) {
 }
 
 function evalStatusLabel(job, purpose) {
-  if (job.status === "running") return purpose === "calibration" ? "Calibration in progress" : "Preparing report";
+  if (job.status === "running") {
+    if (purpose === "calibration") return "Calibration in progress";
+    const phase = job.progress?.phase;
+    if (phase === "phase_3") return "Preparing report";
+    if (phase === "phase_2") return "Building diagnosis";
+    return "Analyzing manuscript";
+  }
   if (job.status === "queued") return purpose === "calibration" ? "Calibration queued" : "Processing";
   if (job.status === "failed") return purpose === "calibration" ? "Calibration failed" : "Needs attention";
   if (job.status === "complete") return purpose === "calibration" ? "Calibration complete" : "Report ready";
