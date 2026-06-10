@@ -1440,15 +1440,42 @@ export function runQualityGateV2(
    * scorable_low_confidence criteria are exempt from hard-fail anchor threshold
    * checks. Thin support for this narrow class is warning-only; it does not
    * invalidate scorability by itself.
+   *
+   * Soft-fail enhancement: criteria with borderline confidence (<60) that are
+   * only 1 anchor short of the threshold are also exempt from hard-fail. This
+   * prevents premature INSUFFICIENT_SIGNAL when the LLM produced a usable score
+   * but couldn't attach quite enough evidence. Applies to all 13 criteria.
    */
+  const QG_BORDERLINE_CONFIDENCE_THRESHOLD = 60;
+
+  const isBorderlineSoftFail = (c: (typeof criteria)[number]): boolean =>
+    c.scorability_status === "scorable" &&
+    typeof c.confidence_score_0_100 === "number" &&
+    c.confidence_score_0_100 < QG_BORDERLINE_CONFIDENCE_THRESHOLD &&
+    c.evidence.length >= minAnchorsFor(c.key) - 1;
+
+  const borderlineSoftFailed: string[] = [];
   const scoredMissingAnchors = criteria
-    .filter(
-      (c) =>
-        c.status === "SCORABLE" &&
-        c.scorability_status !== "scorable_low_confidence" &&
-        c.evidence.length < minAnchorsFor(c.key),
-    )
+    .filter((c) => {
+      if (c.status !== "SCORABLE") return false;
+      if (c.scorability_status === "scorable_low_confidence") return false;
+      if (c.evidence.length >= minAnchorsFor(c.key)) return false;
+      if (isBorderlineSoftFail(c)) {
+        borderlineSoftFailed.push(
+          `${c.key}:${c.evidence.length}<${minAnchorsFor(c.key)}(confidence=${c.confidence_score_0_100})`,
+        );
+        return false;
+      }
+      return true;
+    })
     .map((c) => `${c.key}:${c.evidence.length}<${minAnchorsFor(c.key)}`);
+
+  if (borderlineSoftFailed.length > 0) {
+    warnings.push(
+      `BORDERLINE_ANCHOR_SOFT_FAIL: ${borderlineSoftFailed.join(",")}`,
+    );
+  }
+
   checks.push({
     check_id: "v2_scored_anchor_threshold",
     passed: scoredMissingAnchors.length === 0,
@@ -1474,6 +1501,7 @@ export function runQualityGateV2(
   }
 
   const scoreConfidenceMismatchDetails: string[] = [];
+  const borderlineScoreCapped: string[] = [];
   const downgradedCriteria: EvaluationResultV2["criteria"] = criteria.map((criterion): EvaluationResultV2["criteria"][number] => {
     if (
       criterion.status === "SCORABLE" &&
@@ -1481,6 +1509,27 @@ export function runQualityGateV2(
       typeof criterion.score_0_10 === "number" &&
       criterion.score_0_10 > maxLowConfidenceScoreFor(criterion.key)
     ) {
+      // Soft-fail: if borderline (just 1 anchor short, confidence < 60),
+      // cap the score to the low-confidence maximum instead of downgrading
+      // to INSUFFICIENT_SIGNAL. This preserves a usable (capped) score.
+      if (isBorderlineSoftFail(criterion)) {
+        const cap = maxLowConfidenceScoreFor(criterion.key);
+        borderlineScoreCapped.push(`${criterion.key}:${criterion.score_0_10}→${cap}`);
+        return {
+          ...criterion,
+          score_0_10: cap,
+          technical_defects: [
+            ...(criterion.technical_defects ?? []),
+            {
+              code: "BORDERLINE_CONFIDENCE_SCORE_CAPPED",
+              author_facing_reason:
+                `Score was capped from ${criterion.score_0_10} to ${cap} due to borderline evidence confidence.`,
+              retryable: false,
+            },
+          ],
+        };
+      }
+
       scoreConfidenceMismatchDetails.push(`${criterion.key}:${criterion.score_0_10}`);
 
       const technicalDefects =
@@ -1514,8 +1563,16 @@ export function runQualityGateV2(
     return criterion;
   });
 
+  if (borderlineScoreCapped.length > 0) {
+    warnings.push(
+      `BORDERLINE_CONFIDENCE_SCORE_CAPPED: ${borderlineScoreCapped.join(",")}`,
+    );
+  }
+
   const criteriaForPostAlignmentChecks =
-    scoreConfidenceMismatchDetails.length > 0 ? downgradedCriteria : criteria;
+    (scoreConfidenceMismatchDetails.length > 0 || borderlineScoreCapped.length > 0)
+      ? downgradedCriteria
+      : criteria;
 
   checks.push({
     check_id: "v2_fidelity_score_confidence_alignment",
@@ -1624,7 +1681,7 @@ export function runQualityGateV2(
   );
 
   const downgradedResult =
-    scoreConfidenceMismatchDetails.length > 0
+    (scoreConfidenceMismatchDetails.length > 0 || borderlineScoreCapped.length > 0)
       ? {
           ...result,
           overview: {

@@ -593,4 +593,143 @@ describe("runQualityGateV2 integration", () => {
       ),
     ).toBe(true);
   });
+
+  describe("borderline anchor soft-fail (all 13 criteria)", () => {
+    it("soft-fails when confidence < 60 and evidence is 1 short of threshold", () => {
+      const fixture = makeBaseV2Fixture();
+      const dialogueIndex = CRITERIA_KEYS.indexOf("dialogue");
+
+      // dialogue requires 2 anchors; give it 1 with low confidence
+      fixture.criteria[dialogueIndex] = {
+        ...fixture.criteria[dialogueIndex],
+        score_0_10: 6,
+        evidence: [
+          { snippet: "You must be kidding me . . . We want to plug slugs, and you threaten us with your dullness." },
+        ],
+        confidence_level: "low",
+        confidence_score_0_100: 55,
+        scorability_status: "scorable",
+      } as EvaluationResultV2["criteria"][number];
+
+      const result = runQualityGateV2(fixture);
+      const anchorCheck = result.checks.find(
+        (check) => check.check_id === "v2_scored_anchor_threshold",
+      );
+      expect(anchorCheck?.passed).toBe(true);
+      expect(
+        result.warnings.some((w) => w.includes("BORDERLINE_ANCHOR_SOFT_FAIL")),
+      ).toBe(true);
+    });
+
+    it("soft-fails score-confidence alignment with score cap instead of INSUFFICIENT_SIGNAL", () => {
+      const fixture = makeBaseV2Fixture();
+      const dialogueIndex = CRITERIA_KEYS.indexOf("dialogue");
+
+      // dialogue: score=6, cap=5, confidence=55, 1 anchor (borderline)
+      fixture.criteria[dialogueIndex] = {
+        ...fixture.criteria[dialogueIndex],
+        score_0_10: 6,
+        evidence: [
+          { snippet: "You must be kidding me . . . We want to plug slugs." },
+        ],
+        confidence_level: "low",
+        confidence_score_0_100: 55,
+        scorability_status: "scorable",
+      } as EvaluationResultV2["criteria"][number];
+
+      const result = runQualityGateV2(fixture);
+
+      // Should NOT be downgraded to INSUFFICIENT_SIGNAL
+      expect(
+        result.checks.find(
+          (c) => c.check_id === "v2_fidelity_score_confidence_alignment",
+        )?.passed,
+      ).toBe(true);
+
+      // Should have the borderline cap warning
+      expect(
+        result.warnings.some((w) => w.includes("BORDERLINE_CONFIDENCE_SCORE_CAPPED")),
+      ).toBe(true);
+
+      // Downgraded result should have capped score (5) not null
+      expect(result.downgradedResult).toBeDefined();
+      const capped = result.downgradedResult!.criteria[dialogueIndex];
+      expect(capped.score_0_10).toBe(5);
+      expect(capped.status).toBe("SCORABLE");
+    });
+
+    it("applies borderline soft-fail uniformly across all 13 criteria", () => {
+      // Each criterion that requires >=2 anchors should soft-fail with 1 anchor + low confidence
+      const criteriaRequiring2 = CRITERIA_KEYS.filter((key) => {
+        // From MIN_ANCHORS: concept=2, narrativeDrive=2, character=2, voice=2,
+        // sceneConstruction=2, dialogue=2, theme=2, pacing=2, proseControl=2,
+        // tone=2, marketability=2 (worldbuilding=1, narrativeClosure=1)
+        return !["worldbuilding", "narrativeClosure"].includes(key);
+      });
+
+      for (const key of criteriaRequiring2) {
+        const fixture = makeBaseV2Fixture();
+        const idx = CRITERIA_KEYS.indexOf(key);
+
+        fixture.criteria[idx] = {
+          ...fixture.criteria[idx],
+          score_0_10: 6,
+          evidence: [
+            { snippet: `Single borderline anchor for ${key} criterion.` },
+          ],
+          confidence_level: "low",
+          confidence_score_0_100: 58,
+          scorability_status: "scorable",
+        } as EvaluationResultV2["criteria"][number];
+
+        const result = runQualityGateV2(fixture);
+        const anchorCheck = result.checks.find(
+          (c) => c.check_id === "v2_scored_anchor_threshold",
+        );
+        expect(anchorCheck?.passed).toBe(true);
+      }
+    });
+
+    it("still hard-fails when confidence >= 60 (not borderline)", () => {
+      const fixture = makeBaseV2Fixture();
+      const dialogueIndex = CRITERIA_KEYS.indexOf("dialogue");
+
+      fixture.criteria[dialogueIndex] = {
+        ...fixture.criteria[dialogueIndex],
+        score_0_10: 6,
+        evidence: [
+          { snippet: "Single anchor but high confidence." },
+        ],
+        confidence_level: "moderate",
+        confidence_score_0_100: 75,
+        scorability_status: "scorable",
+      } as EvaluationResultV2["criteria"][number];
+
+      const result = runQualityGateV2(fixture);
+      const anchorCheck = result.checks.find(
+        (c) => c.check_id === "v2_scored_anchor_threshold",
+      );
+      expect(anchorCheck?.passed).toBe(false);
+    });
+
+    it("still hard-fails when evidence is 2+ below threshold (not just 1 short)", () => {
+      const fixture = makeBaseV2Fixture();
+      const dialogueIndex = CRITERIA_KEYS.indexOf("dialogue");
+
+      fixture.criteria[dialogueIndex] = {
+        ...fixture.criteria[dialogueIndex],
+        score_0_10: 6,
+        evidence: [], // 0 anchors, needs 2 — 2 short, not borderline
+        confidence_level: "low",
+        confidence_score_0_100: 50,
+        scorability_status: "scorable",
+      } as EvaluationResultV2["criteria"][number];
+
+      const result = runQualityGateV2(fixture);
+      const anchorCheck = result.checks.find(
+        (c) => c.check_id === "v2_scored_anchor_threshold",
+      );
+      expect(anchorCheck?.passed).toBe(false);
+    });
+  });
 });
