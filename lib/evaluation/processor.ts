@@ -73,6 +73,10 @@ import type { ProviderTelemetryEntry } from '@/lib/evaluation/pipeline/providerT
 import { classifySubmissionScope, countWords } from '@/lib/evaluation/pipeline/submissionScope';
 import { runQualityGateV2, QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE } from '@/lib/evaluation/pipeline/qualityGate';
 import {
+  summarizePropagationIntegrity,
+  normalizeSummaryWithBottomWeaknesses,
+} from '@/lib/evaluation/pipeline/propagationIntegrity';
+import {
   validateTemplateCompleteness,
   TEMPLATE_COMPLETENESS_USER_MESSAGE,
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
@@ -9902,11 +9906,51 @@ export async function processEvaluationJob(
       })),
     });
 
-    const qualityGateV2 = runQualityGateV2(evaluationResult, {
+    let qualityGateV2 = runQualityGateV2(evaluationResult, {
       criteria: artifactCriteria,
       ledger: scoreLedger,
       efg: excellenceFilter,
     }, scopeProfileForV2Gate);
+
+    // ── Deterministic QG summary weakness repair ─────────────────────────────
+    // If the ONLY hard failure is v2_summary_weakness_presence, the evaluation
+    // content is valid — only the overview summary text omitted bottom-score
+    // weakness criteria names. Repair deterministically (no LLM retry) by
+    // patching the summary with normalizeSummaryWithBottomWeaknesses, then
+    // re-run QG. This avoids killing an otherwise complete evaluation over a
+    // presentation/template defect.
+    if (!qualityGateV2.pass) {
+      const hardFailedChecks = qualityGateV2.checks.filter((check) => !check.passed);
+      const isOnlySummaryWeakness =
+        hardFailedChecks.length === 1 &&
+        hardFailedChecks[0].check_id === 'v2_summary_weakness_presence';
+
+      if (isOnlySummaryWeakness) {
+        const propagation = summarizePropagationIntegrity(evaluationResult.criteria);
+        const repairedSummary = normalizeSummaryWithBottomWeaknesses(
+          evaluationResult.overview.one_paragraph_summary,
+          propagation.bottomScoreCriteria,
+        );
+
+        console.log(
+          `[Processor] ${jobId}: deterministic QG summary repair — patching overview summary to name bottom-score weaknesses: ${propagation.bottomScoreCriteria.join(', ')}`,
+        );
+
+        evaluationResult.overview.one_paragraph_summary = repairedSummary;
+
+        qualityGateV2 = runQualityGateV2(evaluationResult, {
+          criteria: artifactCriteria,
+          ledger: scoreLedger,
+          efg: excellenceFilter,
+        }, scopeProfileForV2Gate);
+
+        if (qualityGateV2.pass) {
+          console.log(
+            `[Processor] ${jobId}: QG summary repair succeeded — evaluation continues`,
+          );
+        }
+      }
+    }
 
     if (!qualityGateV2.pass) {
       const failedChecks = qualityGateV2.checks
