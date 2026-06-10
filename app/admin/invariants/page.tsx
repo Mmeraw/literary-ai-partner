@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 type InvariantRow = {
   id: string;
@@ -79,72 +80,69 @@ export default function InvariantsPage() {
   }, [load]);
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Invariants</h1>
+    <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header>
+          <Link href="/admin" className="text-sm text-rg-gold underline">← Back to Admin</Link>
+          <p className="mt-4 font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Admin · Invariants</p>
+          <h1 className="mt-2 font-rg-serif text-3xl font-semibold">Invariants</h1>
+        </header>
 
-      <div style={{ marginBottom: 12 }}>
-        Generated at: {generatedAt ?? "\u2014"}
+        <p className="text-sm text-rg-cream2/70">
+          Generated at: {generatedAt ?? "\u2014"}
+        </p>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="rounded bg-rg-gold px-4 py-2 text-sm font-bold text-rg-ink hover:bg-amber-400 disabled:bg-rg-cream2/20 disabled:text-rg-cream2/40 disabled:cursor-not-allowed"
+          >
+            {loading ? "Refreshing\u2026" : "Refresh"}
+          </button>
+        </div>
+
+        {message ? (
+          <div className="text-rg-cream2/70">{message}</div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-rg-cream2/15 bg-rg-ink2/70">
+            <table className="min-w-full divide-y divide-rg-cream2/10 text-sm">
+              <thead className="bg-rg-ink2">
+                <tr>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">ID</th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">Name</th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">Status</th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">Severity</th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">Observed Count</th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">Sample Job IDs</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rg-cream2/10">
+                {rows.map((r) => (
+                  <tr key={r.id} className="transition hover:bg-rg-ink2/50">
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream">{r.id}</td>
+                    <td className="px-4 py-3 text-rg-cream">{r.name}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">{r.status}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">{r.severity}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">{r.observed_count}</td>
+                    <td className="px-4 py-3 text-rg-cream2/70">
+                      {r.sample_job_ids?.length ? r.sample_job_ids.join(", ") : "\u2014"}
+                    </td>
+                  </tr>
+                ))}
+                {rows.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-3 text-rg-cream2/40" colSpan={6}>
+                      No invariants to display.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 6,
-            border: "1px solid #ccc",
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "Refreshing\u2026" : "Refresh"}
-        </button>
-      </div>
-
-      {message ? (
-        <div>{message}</div>
-      ) : (
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            border: "1px solid #ddd",
-          }}
-        >
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>ID</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Name</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Status</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Severity</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Observed Count</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Sample Job IDs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.id}</td>
-                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.name}</td>
-                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.status}</td>
-                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.severity}</td>
-                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.observed_count}</td>
-                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>
-                  {r.sample_job_ids?.length ? r.sample_job_ids.join(", ") : "\u2014"}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 ? (
-              <tr>
-                <td style={{ padding: 8 }} colSpan={6}>
-                  No invariants to display.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      )}
-    </div>
+    </main>
   );
 }

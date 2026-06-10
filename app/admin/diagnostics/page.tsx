@@ -123,49 +123,51 @@ export default function DiagnosticsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "complete":
-        return "bg-green-50 text-green-900 border border-green-300 ring-1 ring-green-200";
+        return "bg-green-900/30 text-green-300 border border-green-400/30 ring-1 ring-green-400/20";
       case "failed":
-        return "bg-red-50 text-red-900 border border-red-300 ring-1 ring-red-200";
+        return "bg-red-900/30 text-red-300 border border-red-400/30 ring-1 ring-red-400/20";
       case "running":
-        return "bg-blue-50 text-blue-900 border border-blue-300 ring-1 ring-blue-200";
+        return "bg-blue-900/30 text-blue-300 border border-blue-400/30 ring-1 ring-blue-400/20";
       case "queued":
-        return "bg-amber-50 text-amber-900 border border-amber-300 ring-1 ring-amber-200";
+        return "bg-amber-900/30 text-amber-300 border border-amber-400/30 ring-1 ring-amber-400/20";
       default:
-        return "bg-slate-50 text-slate-900 border border-slate-300 ring-1 ring-slate-200";
+        return "bg-rg-ink2 text-rg-cream2/70 border border-rg-cream2/20 ring-1 ring-rg-cream2/10";
     }
   };
 
   if (loading && !data) {
     return (
-      <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
-        <div className="animate-pulse">
-          <div className="h-8 bg-slate-200 rounded w-64 mb-8"></div>
+      <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl animate-pulse">
+          <div className="h-8 bg-rg-ink2 rounded w-64 mb-8"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-slate-200 rounded"></div>
+              <div key={i} className="h-32 bg-rg-ink2 rounded"></div>
             ))}
           </div>
         </div>
-      </section>
+      </main>
     );
   }
 
   if (error) {
     return (
-      <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
-        <div className="rounded-lg border border-red-300 bg-red-50 p-6">
-          <h2 className="text-lg font-bold text-red-900 mb-2">
-            Error Loading Diagnostics
-          </h2>
-          <p className="font-semibold text-red-800">{error}</p>
-          <button
-            onClick={fetchDiagnostics}
-            className="mt-4 rounded bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-800"
-          >
-            Retry
-          </button>
+      <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-lg border border-red-400/30 bg-red-900/20 p-6">
+            <h2 className="text-lg font-bold text-red-300 mb-2">
+              Error Loading Diagnostics
+            </h2>
+            <p className="font-semibold text-red-300/80">{error}</p>
+            <button
+              onClick={fetchDiagnostics}
+              className="mt-4 rounded bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-800"
+            >
+              Retry
+            </button>
+          </div>
         </div>
-      </section>
+      </main>
     );
   }
 
@@ -174,37 +176,40 @@ export default function DiagnosticsPage() {
   const { snapshot, phaseMetrics, recentFailures } = data;
 
   return (
-    <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
+    <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-8">
       {/* Header */}
-      <div className="mb-8 flex flex-wrap justify-between items-center gap-4">
+      <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-950">
+          <Link href="/admin" className="text-sm text-rg-gold underline">← Back to Admin</Link>
+          <p className="mt-4 font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Admin · System Diagnostics</p>
+          <h1 className="mt-2 font-rg-serif text-3xl font-semibold">
             System Diagnostics
           </h1>
-          <p className="mt-1 text-sm font-medium text-slate-700">
+          <p className="mt-2 text-sm text-rg-cream2/70">
             Last updated: {formatTimestamp(snapshot.snapshotAt)}
           </p>
         </div>
         <div className="flex gap-3 items-center">
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <label className="flex items-center gap-2 text-sm text-rg-cream2/70">
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded border-slate-400"
+              className="rounded border-rg-cream2/30"
             />
             Auto-refresh (10s)
           </label>
           <button
             onClick={fetchDiagnostics}
             disabled={loading}
-            className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 disabled:bg-slate-300 disabled:text-slate-500"
+            className="rounded bg-rg-gold px-4 py-2 text-sm font-bold text-rg-ink hover:bg-amber-400 disabled:bg-rg-cream2/20 disabled:text-rg-cream2/40"
           >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
           <Link
             href="/admin/jobs/dead-letter"
-            className="rounded bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
+            className="rounded border border-rg-cream2/20 bg-rg-ink2/70 px-4 py-2 text-sm font-bold text-rg-cream hover:border-rg-gold/60"
           >
             Dead Letter Queue
           </Link>
@@ -212,7 +217,7 @@ export default function DiagnosticsPage() {
       </div>
 
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           title="Total Jobs"
           value={snapshot.totalJobs.toString()}
@@ -248,8 +253,8 @@ export default function DiagnosticsPage() {
       </div>
 
       {/* Jobs by Status */}
-      <div className="rounded-lg border border-slate-300 bg-white p-6 shadow-sm mb-8">
-        <h2 className="text-xl font-bold text-slate-950 mb-4">
+      <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-6">
+        <h2 className="text-xl font-bold text-rg-cream mb-4">
           Jobs by Status
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -269,47 +274,47 @@ export default function DiagnosticsPage() {
 
       {/* Phase Timing Metrics */}
       {phaseMetrics.length > 0 && (
-        <div className="rounded-lg border border-slate-300 bg-white p-6 shadow-sm mb-8">
-          <h2 className="text-xl font-bold text-slate-950 mb-4">
+        <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-6">
+          <h2 className="text-xl font-bold text-rg-cream mb-4">
             Phase Timing Metrics
           </h2>
-          <div className="overflow-x-auto rounded-lg border border-slate-300">
-            <table className="min-w-full divide-y divide-slate-300 text-sm">
-              <thead className="bg-slate-100">
+          <div className="overflow-x-auto rounded-lg border border-rg-cream2/10">
+            <table className="min-w-full divide-y divide-rg-cream2/10 text-sm">
+              <thead className="bg-rg-ink2">
                 <tr>
-                  <th className="px-4 py-3 text-left font-bold text-slate-900 uppercase tracking-wide text-xs">
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
                     Phase
                   </th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-900 uppercase tracking-wide text-xs">
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
                     Count
                   </th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-900 uppercase tracking-wide text-xs">
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
                     Avg Duration
                   </th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-900 uppercase tracking-wide text-xs">
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
                     P50
                   </th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-900 uppercase tracking-wide text-xs">
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
                     P95
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody className="divide-y divide-rg-cream2/10">
                 {phaseMetrics.map((metric) => (
-                  <tr key={metric.phase} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-900">
+                  <tr key={metric.phase} className="transition hover:bg-rg-ink2/50">
+                    <td className="px-4 py-3 whitespace-nowrap font-semibold text-rg-cream">
                       {metric.phase}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">
                       {metric.count}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">
                       {formatDuration(metric.avgDurationMs)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">
                       {formatDuration(metric.p50DurationMs)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">
                       {formatDuration(metric.p95DurationMs)}
                     </td>
                   </tr>
@@ -322,38 +327,38 @@ export default function DiagnosticsPage() {
 
       {/* Recent Failures */}
       {recentFailures.length > 0 && (
-        <div className="rounded-lg border border-slate-300 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-950 mb-4">
+        <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-6">
+          <h2 className="text-xl font-bold text-rg-cream mb-4">
             Recent Failures
           </h2>
           <div className="space-y-4">
             {recentFailures.map((failure) => (
               <div
                 key={failure.id}
-                className="rounded-lg border border-red-300 bg-red-50 p-4"
+                className="rounded-lg border border-red-400/30 bg-red-900/20 p-4"
               >
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <span className="text-sm font-bold text-slate-900">
+                    <span className="text-sm font-bold text-rg-cream">
                       Job ID:
                     </span>
-                    <span className="ml-2 font-mono text-sm font-semibold text-blue-700">
+                    <span className="ml-2 font-mono text-sm font-semibold text-rg-gold">
                       {failure.id}
                     </span>
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">
+                  <span className="text-xs text-rg-cream2/70">
                     {formatTimestamp(failure.failed_at)}
                   </span>
                 </div>
-                <div className="text-sm font-semibold text-slate-900 mb-2">
-                  <span className="font-bold">Phase:</span>{" "}
-                  <span className="text-slate-800">{failure.phase}</span>
-                  <span className="mx-2">|</span>
-                  <span className="font-bold">Manuscript:</span>{" "}
-                  <span className="text-slate-800">{failure.manuscript_id}</span>
+                <div className="text-sm text-rg-cream2/70 mb-2">
+                  <span className="font-bold text-rg-cream">Phase:</span>{" "}
+                  <span>{failure.phase}</span>
+                  <span className="mx-2 text-rg-cream2/30">|</span>
+                  <span className="font-bold text-rg-cream">Manuscript:</span>{" "}
+                  <span>{failure.manuscript_id}</span>
                 </div>
                 {failure.last_error && (
-                  <pre className="rounded bg-red-100 p-2 text-xs font-semibold text-red-800 ring-1 ring-red-200 overflow-x-auto">
+                  <pre className="rounded bg-red-900/30 p-2 text-xs font-semibold text-red-300 ring-1 ring-red-400/30 overflow-x-auto">
                     {JSON.stringify(failure.last_error, null, 2)}
                   </pre>
                 )}
@@ -362,13 +367,14 @@ export default function DiagnosticsPage() {
           </div>
           <Link
             href="/admin/jobs/dead-letter"
-            className="mt-4 inline-block text-sm font-bold text-blue-700 hover:text-blue-900"
+            className="mt-4 inline-block text-sm font-bold text-rg-gold hover:text-rg-cream"
           >
             View all failed jobs →
           </Link>
         </div>
       )}
-    </section>
+      </div>
+    </main>
   );
 }
 
@@ -380,19 +386,19 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, color }: MetricCardProps) {
   const colorClasses = {
-    blue: "bg-blue-50 text-blue-900 border-blue-300 ring-1 ring-blue-200",
-    red: "bg-red-50 text-red-900 border-red-300 ring-1 ring-red-200",
-    green: "bg-green-50 text-green-900 border-green-300 ring-1 ring-green-200",
-    amber: "bg-amber-50 text-amber-900 border-amber-300 ring-1 ring-amber-200",
-    slate: "bg-slate-50 text-slate-900 border-slate-300 ring-1 ring-slate-200",
+    blue: "bg-blue-900/30 text-blue-300 border-blue-400/30 ring-1 ring-blue-400/20",
+    red: "bg-red-900/30 text-red-300 border-red-400/30 ring-1 ring-red-400/20",
+    green: "bg-green-900/30 text-green-300 border-green-400/30 ring-1 ring-green-400/20",
+    amber: "bg-amber-900/30 text-amber-300 border-amber-400/30 ring-1 ring-amber-400/20",
+    slate: "bg-rg-ink2 text-rg-cream2/70 border-rg-cream2/20 ring-1 ring-rg-cream2/10",
   };
 
   return (
     <div className={`rounded-lg border p-6 ${colorClasses[color]}`}>
-      <div className="text-xs font-bold uppercase tracking-wide mb-2">
+      <div className="font-rg-mono text-[10px] uppercase tracking-[0.18em] text-rg-cream2/50 mb-2">
         {title}
       </div>
-      <div className="text-4xl font-extrabold">{value}</div>
+      <div className="text-4xl font-extrabold text-rg-cream">{value}</div>
     </div>
   );
 }

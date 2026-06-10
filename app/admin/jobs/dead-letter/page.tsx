@@ -99,172 +99,177 @@ export default function DeadLetterQueuePage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-6 py-8 text-slate-950">
-      <Link
-        href="/admin/jobs"
-        className="text-sm font-semibold text-blue-700 hover:text-blue-900"
-      >
-        ← Back to Admin Jobs
-      </Link>
-
-      <h1 className="mt-4 text-3xl font-bold text-slate-950">Failed Jobs</h1>
-
-      <p className="mt-1 text-sm font-medium text-slate-700">
-        Jobs in the canonical failed state. Retrying resets status to queued and
-        clears failed_at.
-      </p>
-
-      {loading && (
-        <div className="mt-8 text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
-          <p className="mt-4 text-sm font-medium text-slate-700">
-            Loading failed jobs...
-          </p>
-        </div>
-      )}
-
-      {error && (
-        <div className="mt-6 rounded-lg border border-red-300 bg-red-50 p-4">
-          <p className="font-semibold text-red-800">
-            <strong>Error:</strong> {error}
-          </p>
-          <button
-            onClick={() => fetchFailedJobs()}
-            className="mt-2 text-sm font-semibold text-red-700 hover:text-red-900 underline"
+    <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header>
+          <Link
+            href="/admin/jobs"
+            className="text-sm text-rg-gold underline"
           >
-            Try again
-          </button>
-        </div>
-      )}
+            ← Back to Admin Jobs
+          </Link>
+          <p className="mt-4 font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">
+            Admin · Dead Letter Queue
+          </p>
+          <h1 className="mt-2 font-rg-serif text-3xl font-semibold">Failed Jobs</h1>
+          <p className="mt-2 text-sm text-rg-cream2/70">
+            Jobs in the canonical failed state. Retrying resets status to queued and
+            clears failed_at.
+          </p>
+        </header>
 
-      {!loading && !error && jobs.length === 0 && (
-        <div className="mt-8 text-center py-12 rounded-lg border border-slate-300 bg-white">
-          <p className="font-semibold text-slate-800">
-            No failed jobs found.
+        {loading && (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-rg-gold"></div>
+            <p className="mt-4 text-sm text-rg-cream2/70">
+              Loading failed jobs...
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-lg border border-red-400/30 bg-red-900/20 p-4">
+            <p className="font-semibold text-red-300">
+              <strong>Error:</strong> {error}
+            </p>
+            <button
+              onClick={() => fetchFailedJobs()}
+              className="mt-2 text-sm font-semibold text-red-300 hover:text-red-200 underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && jobs.length === 0 && (
+          <div className="text-center py-12 rounded-lg border border-rg-cream2/15 bg-rg-ink2/70">
+            <p className="font-semibold text-rg-cream2/70">
+              No failed jobs found.
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && jobs.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border border-rg-cream2/15 bg-rg-ink2/70">
+            <table className="min-w-full divide-y divide-rg-cream2/10 text-sm">
+              <thead className="bg-rg-ink2">
+                <tr>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    Job ID
+                  </th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    Manuscript
+                  </th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    User Email
+                  </th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    Phase
+                  </th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    Attempts
+                  </th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    Failed At
+                  </th>
+                  <th className="px-4 py-3 text-left font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    Reason
+                  </th>
+                  <th className="px-4 py-3 text-right font-rg-mono text-xs uppercase tracking-wider text-rg-gold">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rg-cream2/10">
+                {jobs.map((job) => (
+                  <tr key={job.id} className="transition hover:bg-rg-ink2/50">
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-xs font-semibold">
+                      <Link
+                        href={`/evaluate/${job.id}`}
+                        className="text-rg-gold hover:text-rg-cream underline"
+                      >
+                        {job.id.slice(0, 8)}...
+                      </Link>
+                      <Link
+                        href={`/admin/forensics/${job.id}`}
+                        className="ml-2 text-amber-300 hover:text-amber-200 font-semibold text-xs"
+                        title="SIPOC Forensic View"
+                      >
+                        forensic
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap font-semibold text-rg-cream">
+                      {job.manuscript_id}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">
+                      {job.owner_email ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="font-semibold text-rg-cream">
+                        {job.phase || "—"}
+                      </div>
+                      <div className="text-xs text-rg-cream2/50">
+                        {job.phase_status || "—"}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span
+                        className={
+                          job.attempt_count >= job.max_attempts
+                            ? "font-bold text-red-400"
+                            : "font-semibold text-rg-cream"
+                        }
+                      >
+                        {job.attempt_count} / {job.max_attempts}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-rg-cream2/70">
+                      {formatDate(job.failed_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="block max-w-md truncate rounded bg-red-900/30 px-2 py-1 font-semibold text-red-300 ring-1 ring-red-400/30">
+                        {job.last_error || "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                      <button
+                        onClick={() => retryJob(job.id, "Manual admin retry")}
+                        disabled={retryingJobs.has(job.id)}
+                        className="rounded bg-rg-gold px-3 py-1.5 text-xs font-bold text-rg-ink hover:bg-amber-400 disabled:bg-rg-cream2/20 disabled:text-rg-cream2/40 disabled:cursor-not-allowed"
+                      >
+                        {retryingJobs.has(job.id) ? "Retrying..." : "Retry Now"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="text-sm text-rg-cream2/70">
+          <p>
+            <strong className="text-rg-cream">Total failed jobs:</strong>{" "}
+            {jobs.length}
+          </p>
+          <p className="mt-2">
+            <strong className="text-rg-cream">Note:</strong> Retrying a job
+            resets its state to{" "}
+            <code className="rounded bg-rg-ink2 px-1.5 py-0.5 font-mono text-xs font-semibold text-rg-gold ring-1 ring-rg-cream2/20">
+              queued
+            </code>{" "}
+            and clears{" "}
+            <code className="rounded bg-rg-ink2 px-1.5 py-0.5 font-mono text-xs font-semibold text-rg-gold ring-1 ring-rg-cream2/20">
+              failed_at
+            </code>
+            , but preserves{" "}
+            <code className="rounded bg-rg-ink2 px-1.5 py-0.5 font-mono text-xs font-semibold text-rg-gold ring-1 ring-rg-cream2/20">
+              attempt_count
+            </code>
+            .
           </p>
         </div>
-      )}
-
-      {!loading && !error && jobs.length > 0 && (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-slate-300 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-slate-300 text-sm">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="px-4 py-3 text-left font-bold text-slate-900">
-                  Job ID
-                </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-900">
-                  Manuscript
-                </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-900">
-                  User Email
-                </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-900">
-                  Phase
-                </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-900">
-                  Attempts
-                </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-900">
-                  Failed At
-                </th>
-                <th className="px-4 py-3 text-left font-bold text-slate-900">
-                  Reason
-                </th>
-                <th className="px-4 py-3 text-right font-bold text-slate-900">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 whitespace-nowrap font-mono text-xs font-semibold text-blue-700">
-                    <Link
-                      href={`/evaluate/${job.id}`}
-                      className="hover:text-blue-900 hover:underline"
-                    >
-                      {job.id.slice(0, 8)}...
-                    </Link>
-                    <Link
-                      href={`/admin/forensics/${job.id}`}
-                      className="ml-2 text-amber-700 hover:text-amber-900 font-semibold text-xs"
-                      title="SIPOC Forensic View"
-                    >
-                      forensic
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-900">
-                    {job.manuscript_id}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-800">
-                    {job.owner_email ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="font-semibold text-slate-900">
-                      {job.phase || "—"}
-                    </div>
-                    <div className="text-xs font-medium text-slate-600">
-                      {job.phase_status || "—"}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span
-                      className={
-                        job.attempt_count >= job.max_attempts
-                          ? "font-bold text-red-700"
-                          : "font-semibold text-slate-900"
-                      }
-                    >
-                      {job.attempt_count} / {job.max_attempts}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-800">
-                    {formatDate(job.failed_at)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="block max-w-md truncate rounded bg-red-50 px-2 py-1 font-semibold text-red-800 ring-1 ring-red-200">
-                      {job.last_error || "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-right">
-                    <button
-                      onClick={() => retryJob(job.id, "Manual admin retry")}
-                      disabled={retryingJobs.has(job.id)}
-                      className="rounded bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
-                    >
-                      {retryingJobs.has(job.id) ? "Retrying..." : "Retry Now"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="mt-6 text-sm font-medium text-slate-700">
-        <p>
-          <strong className="text-slate-900">Total failed jobs:</strong>{" "}
-          {jobs.length}
-        </p>
-        <p className="mt-2">
-          <strong className="text-slate-900">Note:</strong> Retrying a job
-          resets its state to{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-900 ring-1 ring-slate-300">
-            queued
-          </code>{" "}
-          and clears{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-900 ring-1 ring-slate-300">
-            failed_at
-          </code>
-          , but preserves{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-900 ring-1 ring-slate-300">
-            attempt_count
-          </code>
-          .
-        </p>
       </div>
-    </section>
+    </main>
   );
 }
