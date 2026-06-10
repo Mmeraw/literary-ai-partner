@@ -4933,6 +4933,7 @@ export async function processEvaluationJob(
         last_heartbeat: now,
         last_heartbeat_at: now,
         heartbeat_at: now,
+        worker_pulse_at: now,
         updated_at: now,
         // Per-stage timestamps — only real DB columns via getPhaseStartTimestamps
         ...stageTimestampPatch,
@@ -5310,7 +5311,7 @@ export async function processEvaluationJob(
     }
 
     // 2. Update status to running
-    await markRunning('Fetching manuscript', 2, executionPhase);
+    await markRunning('Fetching writing', 2, executionPhase);
 
     // NOTE: phase0_started_at / phase0_completed_at are written ONLY by runPhase0GoldPrimer().
     // Do NOT stamp them here for direct phase_1a entries — that produces false Phase 0 timings.

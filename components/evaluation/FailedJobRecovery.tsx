@@ -181,7 +181,7 @@ export function FailedJobRecovery({
       <div className="space-y-4 rounded-lg border border-red-200 bg-red-50 p-5">
         <p className="text-sm font-semibold text-red-900">Evaluation cancelled</p>
         <p className="text-sm text-red-800">
-          Your manuscript was not evaluated to completion. No score or report was generated.
+          Your writing was not evaluated to completion. No score or report was generated.
         </p>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -206,7 +206,7 @@ export function FailedJobRecovery({
       <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50 p-5">
         <p className="text-sm text-amber-800">
           This issue may be recoverable. Continue will ask RevisionGrade to resume from the last
-          known safe checkpoint. You do not need to upload your manuscript again unless the
+          known safe checkpoint. You do not need to upload your writing again unless the
           problem continues.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -259,7 +259,7 @@ export function FailedJobRecovery({
   ) : hasPhase2Handoff ? (
     <span>
       RevisionGrade found saved progress after the main analysis passes. Continue will use the
-      safest saved point; you do not need to upload your manuscript again.
+      safest saved point; you do not need to upload your writing again.
     </span>
   ) : resumeMode === "chunk_checkpoint" ? (
     <span>
@@ -270,7 +270,7 @@ export function FailedJobRecovery({
   ) : (
     <span>
       This issue may be recoverable. Continue will ask RevisionGrade to proceed from the safest
-      available saved point; you do not need to upload your manuscript again unless the problem
+      available saved point; you do not need to upload your writing again unless the problem
       continues.
     </span>
   );

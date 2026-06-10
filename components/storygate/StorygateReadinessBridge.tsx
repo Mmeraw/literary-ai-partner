@@ -88,7 +88,7 @@ export default function StorygateReadinessBridge() {
           className="text-2xl md:text-3xl font-bold mb-4"
           style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}
         >
-          If your manuscript has been diagnosed, repaired, and professionally packaged, Storygate Studio is the next gate.
+          If your work has been diagnosed, repaired, and professionally packaged, Storygate Studio is the next gate.
         </p>
         <p className="text-base max-w-3xl mx-auto" style={{ color: C.ash }}>
           RevisionGrade helps establish the readiness signal. Storygate Studio gives that signal a controlled path toward verified publishing professionals.

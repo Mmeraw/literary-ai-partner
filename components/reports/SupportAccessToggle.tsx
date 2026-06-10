@@ -16,18 +16,18 @@ type SupportAccessToggleProps = {
 
 const SCOPE_COPY = {
   evaluation_telemetry: {
-    off: 'Allow the RevisionGrade support team to view evaluation diagnostics for troubleshooting. Your manuscript text is never shared.',
-    on: 'Support team can view evaluation diagnostics for this submission. Your manuscript text is never shared.',
+    off: 'Allow the RevisionGrade support team to view evaluation diagnostics for troubleshooting. Your writing is never shared.',
+    on: 'Support team can view evaluation diagnostics for this submission. Your writing is never shared.',
     label: 'Evaluation Support Access',
   },
   revision_data: {
-    off: 'Allow the RevisionGrade support team to view your revision queue and diagnostic findings for this evaluation. Your manuscript text is never shared.',
-    on: 'Support team can view your revision queue and diagnostic findings. Your manuscript text is never shared.',
+    off: 'Allow the RevisionGrade support team to view your revision queue and diagnostic findings for this evaluation. Your writing is never shared.',
+    on: 'Support team can view your revision queue and diagnostic findings. Your writing is never shared.',
     label: 'Revision Support Access',
   },
   full: {
-    off: 'Allow the RevisionGrade support team to view evaluation diagnostics and revision data for troubleshooting. Your manuscript text is never shared.',
-    on: 'Support team can view evaluation diagnostics and revision data for this submission. Your manuscript text is never shared.',
+    off: 'Allow the RevisionGrade support team to view evaluation diagnostics and revision data for troubleshooting. Your writing is never shared.',
+    on: 'Support team can view evaluation diagnostics and revision data for this submission. Your writing is never shared.',
     label: 'Full Support Access',
   },
 } as const;

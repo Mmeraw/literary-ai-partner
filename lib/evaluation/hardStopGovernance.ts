@@ -64,7 +64,7 @@ export interface MaxAgeKillSwitchPartition {
 export const REVISIONGRADE_SUPPORT_EMAIL = 'support@revisiongrade.com' as const;
 
 const AUTHOR_SAFE_SYNC_MESSAGE =
-  'Evaluation paused while synchronizing progress. Your manuscript and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
+  'Evaluation paused while synchronizing progress. Your writing and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
 
 const PHASE_ADVANCE_ORDER = [
   'phase_0',
@@ -437,7 +437,7 @@ export function classifyQueuedHardStop(job: QueueHardStopCandidate, args: {
   if (isGlobalSlaExceeded(job, args)) {
     return {
       code: 'PIPELINE_GLOBAL_SLA_EXCEEDED',
-      reason: 'Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved.',
+      reason: 'Evaluation delayed — recovery is in progress. Your writing and completed analysis have been preserved.',
       internalReason: `Global pipeline SLA exceeded for non-terminal job: created_at=${job.created_at ?? 'null'}, updated_at=${job.updated_at ?? 'null'}.`,
     };
   }

@@ -444,7 +444,7 @@ export async function sendCompletenessAlertEmail(
 
 export const TEMPLATE_COMPLETENESS_USER_MESSAGE =
   "We've detected a quality issue with your evaluation and our team is investigating. " +
-  "You'll receive an email when your report is ready. Your manuscript and all completed " +
+  "You'll receive an email when your report is ready. Your writing and all completed " +
   "analysis have been preserved — no action is needed on your part.";
 
 export const TEMPLATE_COMPLETENESS_FAILURE_CODE = 'TEMPLATE_COMPLETENESS_GATE_FAILED';
