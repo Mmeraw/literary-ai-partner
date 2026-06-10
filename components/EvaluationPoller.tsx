@@ -264,8 +264,11 @@ export function EvaluationPoller({
     }
     redirectDeadlineRef.current = null;
     setPendingRedirectDelayMs(null);
-    router.push(`/evaluate/${jobId}/report`);
-  }, [jobId, router]);
+    // Navigate directly to the report page — avoids the intermediate
+    // /evaluate/[jobId]/report server-redirect stub which can silently
+    // fail in Next.js App Router client-side navigation.
+    window.location.href = `/reports/${jobId}`;
+  }, [jobId]);
 
   const scheduleNextPoll = useCallback(
     (delay: number) => {
