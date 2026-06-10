@@ -146,8 +146,8 @@ export default function HeaderNav() {
     setSigningOut(false);
   }
 
-  const linkCls       = "text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-cream transition-colors duration-150";
-  const activeLinkCls = "text-xs tracking-widest uppercase font-rg-mono text-rg-gold";
+  const linkCls       = "text-sm tracking-wider uppercase font-rg-mono text-rg-cream hover:text-white transition-colors duration-150";
+  const activeLinkCls = "text-sm tracking-wider uppercase font-rg-mono text-rg-gold";
   const mobileLinkCls = "block rounded-sm border border-rg-cream2/10 px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream";
   const mobileActiveLinkCls = "block rounded-sm border border-rg-gold/50 px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold";
 
@@ -175,7 +175,7 @@ export default function HeaderNav() {
           <span className="hidden text-rg-cream font-rg-serif text-sm tracking-wide sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        <nav className="hidden items-center justify-center gap-5 lg:flex lg:flex-1">
+        <nav className="hidden items-center justify-center gap-3 lg:flex lg:flex-1">
           {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
           {isAuthed && <NavLink href="/manuscripts">Manuscripts</NavLink>}
 
@@ -232,8 +232,8 @@ export default function HeaderNav() {
             <button
               type="button"
               onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); setReviseOpen(false); }}
-              className="text-xs tracking-widest uppercase font-rg-mono transition-colors duration-150 hover:opacity-80"
-              style={{ color: "#FF0000" }}
+              className="text-sm tracking-wider uppercase font-rg-mono font-bold transition-colors duration-150 hover:opacity-80"
+              style={{ color: "#FF0000", textShadow: "0 0 6px rgba(255,0,0,0.4)" }}
               aria-expanded={sgOpen}
               aria-haspopup="menu"
               aria-controls="sg-menu"
@@ -287,7 +287,7 @@ export default function HeaderNav() {
               onClick={handleSignOut}
               disabled={signingOut}
               data-testid="nav-signout"
-              className="text-xs tracking-widest uppercase font-rg-mono text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
+              className="text-sm tracking-wider uppercase font-rg-mono text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
             >
               {signingOut ? "Signing out…" : "Sign out"}
             </button>
