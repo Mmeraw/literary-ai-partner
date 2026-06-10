@@ -802,6 +802,17 @@ export type PipelineResult =
             rec_index?: number;
           }>;
         };
+        /** SIPOC dual-checkpoint completeness gate failure diagnostics. */
+        completeness_gate?: {
+          critical_count: number;
+          violations: Array<{
+            code: string;
+            criterion_key: string;
+            field: string;
+            detail: string;
+            severity: "critical" | "warning";
+          }>;
+        };
       };
       /**
        * Full gate diagnostic payload for artifact persistence (Phase 2.7 audit).
