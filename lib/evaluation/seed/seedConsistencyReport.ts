@@ -71,6 +71,21 @@ export type SeedContradictionReportV1 = {
 };
 
 /**
+ * Detect abstract or compound seed entities that should be excluded from
+ * character-level consistency checks. These are not real characters and
+ * produce false-positive "missed" results.
+ */
+function isAbstractSeedEntity(name: string): boolean {
+  const n = name.toLowerCase().trim();
+  // Compound entities (e.g. "Protagonist/Christine")
+  if (n.includes('/')) return true;
+  // Abstract concepts that are not characters
+  const abstractPatterns = /^(themes?|narrative\s*structure|setting|plot|conflict|symbolism|tone|mood|style|motif)$/i;
+  if (abstractPatterns.test(n)) return true;
+  return false;
+}
+
+/**
  * Normalize a name for fuzzy matching: lowercase, collapse whitespace,
  * strip common prefixes/suffixes.
  */
@@ -108,12 +123,19 @@ export function buildSeedConsistencyReport(args: {
 }): SeedContradictionReportV1 {
   const now = args.generatedAt ?? new Date().toISOString();
 
+  // Filter out abstract/compound seed entities that aren't real characters.
+  // These produce false-positive "missed" results when compared against the
+  // character extraction output.
+  const filteredSeedEntityNames = args.seedEntityNames.filter(
+    (name) => !isAbstractSeedEntity(name),
+  );
+
   const seedEntities: SeedEntityEntry[] = [];
   const extractionEntities: ExtractionEntityEntry[] = [];
   const matchedExtractions = new Set<string>();
 
   // Phase 1: Match seed entities against extraction
-  for (const seedName of args.seedEntityNames) {
+  for (const seedName of filteredSeedEntityNames) {
     let matched = false;
     for (const extractedName of args.extractedEntityNames) {
       if (matchedExtractions.has(extractedName)) continue;
@@ -173,7 +195,7 @@ export function buildSeedConsistencyReport(args: {
   const novelJustifiedCount = extractionEntities.filter((e) => e.status === 'novel_justified').length;
   const novelUnjustifiedCount = extractionEntities.filter((e) => e.status === 'novel_unjustified').length;
 
-  const seedCount = args.seedEntityNames.length;
+  const seedCount = filteredSeedEntityNames.length;
   const extractionCount = args.extractedEntityNames.length;
 
   const driftRatio = seedCount > 0

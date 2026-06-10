@@ -77,8 +77,11 @@ export function isEntityTypingContaminated(name: string): boolean {
   if (/\bUnknown\b/i.test(n)) return true;
   if (/^Primary\s+(He|She|They|It|Him|Her)\b/i.test(n)) return true;
   if (/^(he|she|they|it|him|her|his|hers|their)[_\s]/i.test(n)) return true;
-  if (/^(central|main|primary|secondary|unnamed|minor|background)[_\s]/i.test(n)) return true;
-  if (/\bunnamed\b/i.test(n)) return true;
+  if (/^(central|main|primary|secondary|minor|background)[_\s]/i.test(n)) return true;
+  // "Unnamed" is only contamination when it's a bare placeholder (e.g. "unnamed_1").
+  // "Unnamed first-person narrator" or "Unnamed protagonist" are valid character
+  // designations in first-person nonfiction/memoir — not contamination.
+  if (/\bunnamed\b/i.test(n) && !/\b(narrator|protagonist|character|speaker|voice)\b/i.test(n)) return true;
   return false;
 }
 
