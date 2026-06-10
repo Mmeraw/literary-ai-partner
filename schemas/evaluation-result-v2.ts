@@ -188,12 +188,36 @@ export type EvaluationResultV2 = {
       why: string;
       effort: "low" | "medium" | "high";
       impact: "low" | "medium" | "high";
+      /** Verbatim manuscript passage this recommendation targets (evidence) */
+      anchor_snippet?: string;
+      /** Location in manuscript (e.g. "chapter:3:paragraph:7") */
+      manuscript_coordinates?: string;
+      /** Craft mechanism or narrative device to apply */
+      mechanism?: string;
+      /** Specific reader emotion/reaction altered by this revision */
+      reader_effect?: string;
+      /** Proposed replacement prose (copy-paste-ready) */
+      candidate_text_a?: string;
+      /** Source criterion key */
+      criterion_key?: string;
     }>;
     strategic_revisions: Array<{
       action: string;
       why: string;
       effort: "low" | "medium" | "high";
       impact: "low" | "medium" | "high";
+      /** Verbatim manuscript passage this recommendation targets (evidence) */
+      anchor_snippet?: string;
+      /** Location in manuscript (e.g. "chapter:3:paragraph:7") */
+      manuscript_coordinates?: string;
+      /** Craft mechanism or narrative device to apply */
+      mechanism?: string;
+      /** Specific reader emotion/reaction altered by this revision */
+      reader_effect?: string;
+      /** Proposed replacement prose (copy-paste-ready) */
+      candidate_text_a?: string;
+      /** Source criterion key */
+      criterion_key?: string;
     }>;
   };
   metrics: {

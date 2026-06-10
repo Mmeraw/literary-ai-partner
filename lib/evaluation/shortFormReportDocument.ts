@@ -158,8 +158,42 @@ export type ShortFormEvaluationDocument = {
   criteriaScoreGrid: ShortFormCriterionGridRow[];
   criterionDetails: ShortFormCriterionDetail[];
   actionItems: {
-    quickWins: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
-    strategicRevisions: Array<{ action: string; why?: string; effort?: string; impact?: string }>;
+    quickWins: Array<{
+      action: string;
+      why?: string;
+      effort?: string;
+      impact?: string;
+      /** Verbatim manuscript passage (evidence / "Original Passage") */
+      anchor_snippet?: string;
+      /** Location in manuscript */
+      manuscript_coordinates?: string;
+      /** Craft mechanism or narrative device */
+      mechanism?: string;
+      /** Reader emotion/reaction altered */
+      reader_effect?: string;
+      /** Proposed replacement prose ("Suggested Revision") */
+      candidate_text_a?: string;
+      /** Source criterion key */
+      criterion_key?: string;
+    }>;
+    strategicRevisions: Array<{
+      action: string;
+      why?: string;
+      effort?: string;
+      impact?: string;
+      /** Verbatim manuscript passage (evidence / "Original Passage") */
+      anchor_snippet?: string;
+      /** Location in manuscript */
+      manuscript_coordinates?: string;
+      /** Craft mechanism or narrative device */
+      mechanism?: string;
+      /** Reader emotion/reaction altered */
+      reader_effect?: string;
+      /** Proposed replacement prose ("Suggested Revision") */
+      candidate_text_a?: string;
+      /** Source criterion key */
+      criterion_key?: string;
+    }>;
   };
   confidenceExplanation: string;
   disclaimer: string;
@@ -399,11 +433,11 @@ export function buildShortFormEvaluationDocument(input: {
       quickWins: (Array.isArray(result.recommendations?.quick_wins)
         ? result.recommendations!.quick_wins
         : []
-      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
+      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string; criterion_key?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
       strategicRevisions: (Array.isArray(result.recommendations?.strategic_revisions)
         ? result.recommendations!.strategic_revisions
         : []
-      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
+      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string; criterion_key?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
     },
     confidenceExplanation:
       input.confidenceExplanation ??

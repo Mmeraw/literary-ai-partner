@@ -1285,6 +1285,12 @@ function normalizeCrossRecommendation(
     why: whyRaw.trim(),
     effort: normalizeEffortOrImpact(raw.effort),
     impact: normalizeEffortOrImpact(raw.impact),
+    ...(typeof raw.anchor_snippet === 'string' && raw.anchor_snippet.trim() ? { anchor_snippet: raw.anchor_snippet.trim() } : {}),
+    ...(typeof raw.manuscript_coordinates === 'string' && raw.manuscript_coordinates.trim() ? { manuscript_coordinates: raw.manuscript_coordinates.trim() } : {}),
+    ...(typeof raw.mechanism === 'string' && raw.mechanism.trim() ? { mechanism: raw.mechanism.trim() } : {}),
+    ...(typeof raw.reader_effect === 'string' && raw.reader_effect.trim() ? { reader_effect: raw.reader_effect.trim() } : {}),
+    ...(typeof raw.candidate_text_a === 'string' && raw.candidate_text_a.trim() ? { candidate_text_a: raw.candidate_text_a.trim() } : {}),
+    ...(typeof raw.criterion_key === 'string' && raw.criterion_key.trim() ? { criterion_key: raw.criterion_key.trim() } : {}),
   };
 }
 
