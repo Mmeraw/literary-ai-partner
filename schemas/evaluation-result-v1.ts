@@ -124,6 +124,18 @@ export type EvaluationResultV1 = {
       effort: "low" | "medium" | "high";
       /** Expected impact */
       impact: "low" | "medium" | "high";
+      /** Verbatim manuscript passage this recommendation targets */
+      anchor_snippet?: string;
+      /** Location in manuscript (e.g. "chapter:3:paragraph:7") */
+      manuscript_coordinates?: string;
+      /** Craft mechanism or narrative device to apply */
+      mechanism?: string;
+      /** Specific reader emotion/reaction altered by this revision */
+      reader_effect?: string;
+      /** Proposed replacement prose (copy-paste-ready) */
+      candidate_text_a?: string;
+      /** Source criterion key */
+      criterion_key?: string;
     }>;
     
     /** Strategic revisions: higher effort, fundamental improvements */
@@ -136,6 +148,18 @@ export type EvaluationResultV1 = {
       effort: "low" | "medium" | "high";
       /** Expected impact */
       impact: "low" | "medium" | "high";
+      /** Verbatim manuscript passage this recommendation targets */
+      anchor_snippet?: string;
+      /** Location in manuscript (e.g. "chapter:3:paragraph:7") */
+      manuscript_coordinates?: string;
+      /** Craft mechanism or narrative device to apply */
+      mechanism?: string;
+      /** Specific reader emotion/reaction altered by this revision */
+      reader_effect?: string;
+      /** Proposed replacement prose (copy-paste-ready) */
+      candidate_text_a?: string;
+      /** Source criterion key */
+      criterion_key?: string;
     }>;
   };
 

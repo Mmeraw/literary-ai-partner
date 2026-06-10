@@ -156,6 +156,7 @@ import type {
   EnforcementDecision,
 } from "@/lib/governance/lessonsLearned";
 import type { GovernanceDecision } from "@/lib/evaluation/governance/evaluatePass4Governance";
+import { buildEnrichedActionItems } from "@/lib/evaluation/actionItemQualityGate";
 
 // Pass 4 governance result type — derived from evaluatePass4Governance return
 type Pass4GovernanceResult = GovernanceDecision;
@@ -2497,33 +2498,19 @@ export function synthesisToEvaluationResult(
     };
   });
 
-  // Derive quick_wins (high-priority recs from all criteria)
-  const quick_wins = synthesis.criteria
-    .flatMap((c) =>
-      c.recommendations
-        .filter((r) => r.priority === "high")
-        .map((r) => ({
-          action: r.action,
-          why: r.expected_impact,
-          effort: "medium" as const,
-          impact: "high" as const,
-        })),
-    )
-    .slice(0, 5);
+  // Derive quick_wins (high-priority recs) with quality gate: diversity + dedup
+  const quick_wins = buildEnrichedActionItems(
+    synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    "high",
+    5,
+  );
 
-  // Derive strategic_revisions (medium-priority recs)
-  const strategic_revisions = synthesis.criteria
-    .flatMap((c) =>
-      c.recommendations
-        .filter((r) => r.priority === "medium")
-        .map((r) => ({
-          action: r.action,
-          why: r.expected_impact,
-          effort: "medium" as const,
-          impact: "medium" as const,
-        })),
-    )
-    .slice(0, 5);
+  // Derive strategic_revisions (medium-priority recs) with quality gate: diversity + dedup
+  const strategic_revisions = buildEnrichedActionItems(
+    synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    "medium",
+    5,
+  );
 
   const completenessAssessment = assessCriteriaCompleteness(criteria);
 
@@ -2706,31 +2693,18 @@ export function synthesisToEvaluationResultV2(
 
   const derivedConfidence = deriveGovernanceConfidenceFromCriteria(criteria, propagation);
 
-  const quick_wins = criteria
-    .flatMap((c) =>
-      c.recommendations
-        .filter((r) => r.priority === "high")
-        .map((r) => ({
-          action: r.action,
-          why: r.expected_impact,
-          effort: "medium" as const,
-          impact: "high" as const,
-        })),
-    )
-    .slice(0, 5);
+  // Quality-gated Action Items: diversity selection + semantic dedup + anchor preservation
+  const quick_wins = buildEnrichedActionItems(
+    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    "high",
+    5,
+  );
 
-  const strategic_revisions = criteria
-    .flatMap((c) =>
-      c.recommendations
-        .filter((r) => r.priority === "medium")
-        .map((r) => ({
-          action: r.action,
-          why: r.expected_impact,
-          effort: "medium" as const,
-          impact: "medium" as const,
-        })),
-    )
-    .slice(0, 5);
+  const strategic_revisions = buildEnrichedActionItems(
+    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    "medium",
+    5,
+  );
 
   const coverageLimited =
     certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable;

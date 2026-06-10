@@ -704,7 +704,29 @@ export default async function ReportPage({
                         {qw.impact} impact
                       </span>
                     </div>
+                    {qw.anchor_snippet && (
+                      <p className="text-sm text-gray-600 mt-1 italic border-l-2 border-gray-300 pl-2">
+                        <span className="font-medium not-italic text-gray-700">Original Passage:</span>{" "}
+                        &ldquo;{qw.anchor_snippet}&rdquo;
+                      </p>
+                    )}
+                    {qw.candidate_text_a && (
+                      <p className="text-sm text-emerald-700 mt-1 italic border-l-2 border-emerald-300 pl-2">
+                        <span className="font-medium not-italic">Suggested Revision:</span>{" "}
+                        &ldquo;{qw.candidate_text_a}&rdquo;
+                      </p>
+                    )}
+                    {qw.reader_effect && (
+                      <p className="text-xs text-purple-700 mt-1">
+                        <span className="font-medium">Reader Effect:</span> {qw.reader_effect}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-700 leading-relaxed">{qw.why}</p>
+                    {qw.manuscript_coordinates && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        <span className="font-medium">Location:</span> {qw.manuscript_coordinates}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -729,7 +751,29 @@ export default async function ReportPage({
                         {sr.impact} impact
                       </span>
                     </div>
+                    {sr.anchor_snippet && (
+                      <p className="text-sm text-gray-600 mt-1 italic border-l-2 border-gray-300 pl-2">
+                        <span className="font-medium not-italic text-gray-700">Original Passage:</span>{" "}
+                        &ldquo;{sr.anchor_snippet}&rdquo;
+                      </p>
+                    )}
+                    {sr.candidate_text_a && (
+                      <p className="text-sm text-emerald-700 mt-1 italic border-l-2 border-emerald-300 pl-2">
+                        <span className="font-medium not-italic">Suggested Revision:</span>{" "}
+                        &ldquo;{sr.candidate_text_a}&rdquo;
+                      </p>
+                    )}
+                    {sr.reader_effect && (
+                      <p className="text-xs text-purple-700 mt-1">
+                        <span className="font-medium">Reader Effect:</span> {sr.reader_effect}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-700 leading-relaxed">{sr.why}</p>
+                    {sr.manuscript_coordinates && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        <span className="font-medium">Location:</span> {sr.manuscript_coordinates}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

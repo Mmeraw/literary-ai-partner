@@ -1196,7 +1196,11 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
       doc.actionItems.quickWins.forEach((item, i) => {
         const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
         lines.push(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`);
+        if (item.anchor_snippet) lines.push(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`);
+        if (item.candidate_text_a) lines.push(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`);
+        if (item.reader_effect) lines.push(`     Reader Effect: ${cleanReportText(item.reader_effect)}`);
         if (item.why) lines.push(`     Why: ${cleanReportText(item.why)}`);
+        if (item.manuscript_coordinates) lines.push(`     Location: ${cleanReportText(item.manuscript_coordinates)}`);
       });
       lines.push('');
     }
@@ -1206,7 +1210,11 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
       doc.actionItems.strategicRevisions.forEach((item, i) => {
         const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
         lines.push(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`);
+        if (item.anchor_snippet) lines.push(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`);
+        if (item.candidate_text_a) lines.push(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`);
+        if (item.reader_effect) lines.push(`     Reader Effect: ${cleanReportText(item.reader_effect)}`);
         if (item.why) lines.push(`     Why: ${cleanReportText(item.why)}`);
+        if (item.manuscript_coordinates) lines.push(`     Location: ${cleanReportText(item.manuscript_coordinates)}`);
       });
       lines.push('');
     }
@@ -1387,7 +1395,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
-    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
+    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> <em>"${escapeHtml(cleanReportText(item.anchor_snippet))}"</em></p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> <em>"${escapeHtml(cleanReportText(item.candidate_text_a))}"</em></p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> <em>"${escapeHtml(cleanReportText(item.anchor_snippet))}"</em></p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> <em>"${escapeHtml(cleanReportText(item.candidate_text_a))}"</em></p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
     <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     <section><h2>Author-Facing Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
@@ -1676,7 +1684,39 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
             ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
           ],
         }));
+        if (item.anchor_snippet) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: `"${cleanReportText(item.anchor_snippet)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.candidate_text_a) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: `"${cleanReportText(item.candidate_text_a)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.reader_effect) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.reader_effect), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
         if (item.why) children.push(para(`Why: ${cleanReportText(item.why)}`));
+        if (item.manuscript_coordinates) children.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Location: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.manuscript_coordinates), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
       });
     }
     if (doc.actionItems.strategicRevisions.length > 0) {
@@ -1693,7 +1733,39 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
             ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
           ],
         }));
+        if (item.anchor_snippet) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: `"${cleanReportText(item.anchor_snippet)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.candidate_text_a) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: `"${cleanReportText(item.candidate_text_a)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.reader_effect) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.reader_effect), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
         if (item.why) children.push(para(`Why: ${cleanReportText(item.why)}`));
+        if (item.manuscript_coordinates) children.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Location: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.manuscript_coordinates), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
       });
     }
   }
@@ -2468,7 +2540,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
     if (quickWins.length > 0) {
       children.push(bodyPara('Quick Wins', { bold: true, size: 22, color: RG.oxblood }));
-      quickWins.forEach((qw: { action?: string; why?: string; effort?: string; impact?: string }) => {
+      quickWins.forEach((qw: { action?: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string }) => {
         const actionText = cleanReportText(qw.action ?? '');
         const effortTag = qw.effort ? ` [${qw.effort} effort]` : '';
         const impactTag = qw.impact ? ` [${qw.impact} impact]` : '';
@@ -2479,8 +2551,48 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
             new TextRun({ text: effortTag + impactTag, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
           ],
         }));
+        if (qw.anchor_snippet) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(qw.anchor_snippet)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (qw.candidate_text_a) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(qw.candidate_text_a)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (qw.reader_effect) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(qw.reader_effect), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
         if (qw.why) {
           children.push(bodyPara(cleanReportText(qw.why), { size: 19, color: RG.textMuted }));
+        }
+        if (qw.manuscript_coordinates) {
+          children.push(new Paragraph({
+            spacing: { after: 40 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Location: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(qw.manuscript_coordinates), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
         }
       });
       children.push(spacer());
@@ -2488,7 +2600,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
     if (strategicRevisions.length > 0) {
       children.push(bodyPara('Strategic Revisions', { bold: true, size: 22, color: RG.oxblood }));
-      strategicRevisions.forEach((sr: { action?: string; why?: string; effort?: string; impact?: string }) => {
+      strategicRevisions.forEach((sr: { action?: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string }) => {
         const actionText = cleanReportText(sr.action ?? '');
         const effortTag = sr.effort ? ` [${sr.effort} effort]` : '';
         const impactTag = sr.impact ? ` [${sr.impact} impact]` : '';
@@ -2499,8 +2611,48 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
             new TextRun({ text: effortTag + impactTag, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
           ],
         }));
+        if (sr.anchor_snippet) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(sr.anchor_snippet)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (sr.candidate_text_a) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(sr.candidate_text_a)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (sr.reader_effect) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(sr.reader_effect), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
         if (sr.why) {
           children.push(bodyPara(cleanReportText(sr.why), { size: 19, color: RG.textMuted }));
+        }
+        if (sr.manuscript_coordinates) {
+          children.push(new Paragraph({
+            spacing: { after: 40 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Location: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(sr.manuscript_coordinates), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
         }
       });
       children.push(spacer());
