@@ -34,8 +34,11 @@ export function buildReportPitches(input: PitchInput): {
   const summary = clean(input.summary);
   const title = clean(input.title) || 'the submitted work';
 
-  const oneParagraphPitch = premise || summary || `RevisionGrade evaluated ${title}.`;
-  const oneSentencePitch = firstSentence(premise || summary) || `RevisionGrade evaluated ${title}.`;
+  // When both premise and summary exist, use summary for the pitch so that
+  // the "One-Paragraph Pitch" section is distinct from the "Premise" section.
+  // Previously both were set to `premise`, producing identical text.
+  const oneParagraphPitch = (premise && summary) ? summary : (premise || summary || `RevisionGrade evaluated ${title}.`);
+  const oneSentencePitch = firstSentence((premise && summary) ? summary : (premise || summary)) || `RevisionGrade evaluated ${title}.`;
 
   return { oneParagraphPitch, oneSentencePitch };
 }

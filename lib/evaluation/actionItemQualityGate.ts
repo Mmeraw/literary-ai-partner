@@ -178,9 +178,23 @@ export function buildEnrichedActionItems(
       if (rec.candidate_text_a && rec.candidate_text_a.trim().length > 0) sortScore += 2;
       if (rec.manuscript_coordinates && rec.manuscript_coordinates.trim().length > 0) sortScore += 1;
 
+      // Deduplicate `why` vs `reader_effect`: if expected_impact is identical
+      // to reader_effect (a common LLM conflation), derive `why` from mechanism
+      // or specific_fix instead so each field adds distinct value.
+      const rawWhy = (rec.expected_impact || "").trim();
+      const rawReaderEffect = (rec.reader_effect || "").trim();
+      let why: string;
+      if (rawWhy && rawReaderEffect && rawWhy.toLowerCase() === rawReaderEffect.toLowerCase()) {
+        // Fields are identical — use mechanism or specific_fix as the "why"
+        const altWhy = (rec.mechanism || rec.specific_fix || "").trim();
+        why = altWhy || rawWhy;
+      } else {
+        why = rawWhy;
+      }
+
       const item = {
         action: rec.action,
-        why: rec.expected_impact || "",
+        why,
         effort: effortLabel as "low" | "medium" | "high",
         impact: impactLabel as "low" | "medium" | "high",
         anchor_snippet: rec.anchor_snippet || undefined,
