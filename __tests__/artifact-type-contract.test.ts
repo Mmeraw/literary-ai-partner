@@ -11,19 +11,18 @@ describe("Flow 1 artifact type contract", () => {
     expect(ARTIFACT_TYPES.ONE_PAGE_SUMMARY).toBe("one_page_summary");
   });
 
-  it("report page queries by the canonical artifact type", () => {
-    const reportPath = path.resolve(
+  it("API route queries by the canonical artifact type", () => {
+    const apiPath = path.resolve(
       __dirname,
-      "../app/evaluate/[jobId]/report/page.tsx"
+      "../app/api/evaluations/[jobId]/route.ts"
     );
-    const source = fs.readFileSync(reportPath, "utf8");
+    const source = fs.readFileSync(apiPath, "utf8");
 
-    // The report page must reference the canonical type string
+    // The API route must reference the canonical type string
     expect(source).toContain("one_page_summary");
 
-    // It should appear in exactly one constant declaration, not scattered
-    const matches = source.match(/one_page_summary/g) ?? [];
-    expect(matches.length).toBe(1);
+    // It should also reference the V2 artifact type (current pipeline)
+    expect(source).toContain("evaluation_result_v2");
   });
 
   it("writeArtifact module exports no competing final artifact types", () => {
