@@ -112,14 +112,17 @@ export default async function EvaluationReportPage({ params }: PageProps) {
     );
   }
 
-  const isRunningOrQueued = job.status === "running" || job.status === "queued";
+  const isTerminal = job.status === "complete" || job.status === "failed";
 
   const isFailed = job.status === "failed";
 
   return (
     <main className="mx-auto max-w-7xl p-8">
-      {/* Progress bar — shown for active jobs */}
-      {isRunningOrQueued && (
+      {/* Progress bar — shown for all non-terminal jobs.
+          Previously gated on isRunningOrQueued which missed edge cases where
+          status hadn't transitioned to "queued"/"running" at SSR time, causing
+          the progress bar to not render until a hard refresh. */}
+      {!isTerminal && (
         <section className="mb-6">
           <EvaluationPoller
             jobId={jobId}
