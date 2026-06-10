@@ -97,24 +97,35 @@ export async function GET(
       return NextResponse.json(payload, { status: 409 });
     }
 
-    // 5) Read from evaluation_artifacts (canonical source for Flow 1)
-    const { data: artifact, error: artifactError } = await supabase
-      .from("evaluation_artifacts")
-      .select("content")
-      .eq("job_id", jobId)
-      .eq("artifact_type", "one_page_summary")
-      .maybeSingle();
+    // 5) Read from evaluation_artifacts (canonical source)
+    // Try evaluation_result_v2 first (current pipeline), then one_page_summary (legacy)
+    let artifactContent: unknown = null;
+    let artifactError: { message: string } | null = null;
 
-    if (artifactError) {
-      console.warn(`[evaluations/${jobId}] artifact lookup error:`, artifactError.message);
+    for (const artifactType of ["evaluation_result_v2", "one_page_summary"] as const) {
+      const { data: artifact, error: err } = await supabase
+        .from("evaluation_artifacts")
+        .select("content")
+        .eq("job_id", jobId)
+        .eq("artifact_type", artifactType)
+        .maybeSingle();
+
+      if (err) {
+        console.warn(`[evaluations/${jobId}] artifact lookup error (${artifactType}):`, err.message);
+        artifactError = err;
+        continue;
+      }
+
+      if (artifact?.content) {
+        artifactContent = artifact.content;
+        break;
+      }
     }
 
-
     // 6) Fall back to evaluation_result on evaluation_jobs if no artifact found
-    // Determine source: artifact is canonical, inline is fallback
-    const fromArtifact = !artifactError && artifact?.content;
+    const fromArtifact = !!artifactContent;
     const evaluationResult = fromArtifact
-      ? artifact.content
+      ? artifactContent
       : (job.evaluation_result ?? null);
     const source: "artifact" | "inline_job_result" = fromArtifact
       ? "artifact"

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManuscriptText } from "@/lib/manuscripts/chunks";
 import EvaluationUnavailableReloadButton from "@/components/evaluation/EvaluationUnavailableReloadButton";
@@ -113,8 +114,13 @@ export default async function EvaluationReportPage({ params }: PageProps) {
   }
 
   const isTerminal = job.status === "complete" || job.status === "failed";
-
   const isFailed = job.status === "failed";
+
+  // Redirect to the full report page when the evaluation completed successfully.
+  // This page only shows metadata; the actual criteria/scores render at /reports.
+  if (job.status === "complete") {
+    redirect(`/reports/${jobId}`);
+  }
 
   return (
     <main className="mx-auto max-w-7xl p-8">
@@ -126,8 +132,8 @@ export default async function EvaluationReportPage({ params }: PageProps) {
         <section className="mb-6">
           <EvaluationPoller
             jobId={jobId}
-            redirectOnComplete={false}
-            refreshOnComplete={true}
+            redirectOnComplete={true}
+            refreshOnComplete={false}
           />
         </section>
       )}
