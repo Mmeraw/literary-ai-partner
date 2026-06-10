@@ -74,7 +74,7 @@ export interface EvaluationCostCap {
 }
 
 const USER_SAFE_COST_CAP_MESSAGE =
-  "We detected a quality issue with your evaluation and our team is investigating. Your manuscript and completed analysis have been preserved.";
+  "We detected a quality issue with your evaluation and our team is investigating. Your writing and completed analysis have been preserved.";
 
 // Internal hard caps. These are deliberately above observed normal spend, but
 // low enough to stop runaway duplicate calls, loops, or retry storms quickly.

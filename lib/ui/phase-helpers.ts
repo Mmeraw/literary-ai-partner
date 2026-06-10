@@ -23,7 +23,7 @@ export function getPhaseSpecificCopy(
     return {
       phase: null,
       displayCopy: "Preparing evaluation…",
-      description: "Your manuscript is being queued for analysis",
+      description: "Your writing is being queued for analysis",
     };
   }
 

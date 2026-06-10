@@ -863,7 +863,7 @@ export function SourceIntegrityLayer({
             {/* Author action guidance */}
             <p style={{ margin: "14px 0 0", fontSize: 13, color: C.textFaint, fontStyle: "italic", lineHeight: 1.6 }}>
               {effectiveStatus === "FAILED"
-                ? "This evaluation cannot proceed until the blocking issue is resolved. Please re-upload your manuscript or contact support."
+                ? "This evaluation cannot proceed until the blocking issue is resolved. Please re-upload your writing or contact support."
                 : "You may add context below if something is intentional. Otherwise, RevisionGrade will not treat missing extraction data as an author problem."}
             </p>
           </div>
@@ -900,7 +900,7 @@ export function SourceIntegrityLayer({
       />
       <p style={{ margin: "8px 0 0", fontSize: 12, color: C.textMuted, lineHeight: 1.6 }}>
         Your note will be saved as <strong>Author Context</strong> and used in the next analysis step
-        or re-evaluation. It will not rewrite your manuscript.
+        or re-evaluation. It will not rewrite your writing.
       </p>
     </LayerShell>
   );
@@ -918,7 +918,7 @@ export function PovStructureLayer({
       <LayerShell
         empty
         emptyLabel="POV structure not yet mapped."
-        emptyDetail="This layer will appear once the system has analysed narrative perspective across your manuscript."
+        emptyDetail="This layer will appear once the system has analysed narrative perspective across your writing."
       />
     );
 

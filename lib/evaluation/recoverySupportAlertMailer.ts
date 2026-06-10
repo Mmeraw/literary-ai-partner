@@ -55,10 +55,10 @@ interface RecoverySupportAlertDeps {
 }
 
 const RECOVERY_ALERT_DEFAULT_SAFE_MESSAGE =
-  'Evaluation paused while synchronizing progress. Your manuscript and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
+  'Evaluation paused while synchronizing progress. Your writing and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
 
 export const MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE =
-  'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your manuscript and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.';
+  'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your writing and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.';
 
 function buildEmailIdempotencyKey(parts: Array<string | number | null | undefined>): string {
   return parts
@@ -134,7 +134,7 @@ function renderEvaluationMajorIssueUserEmailBody(payload: EvaluationMajorIssueUs
     `Job ID: ${payload.job_id}`,
     ...(typeof payload.manuscript_id === 'number' ? [`Manuscript ID: ${payload.manuscript_id}`] : []),
     '',
-    'Engineering support has been alerted and is investigating. Your manuscript and completed analysis have been preserved, and you do not need to retry.',
+    'Engineering support has been alerted and is investigating. Your writing and completed analysis have been preserved, and you do not need to retry.',
     '',
     'We will email you again when the problem has been fixed.',
     '',

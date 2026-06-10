@@ -590,7 +590,7 @@ function Module1StoryLayer({
             <h2 style={{ margin: "14px 0 10px", ...T.h2 }}>Story Layer Map</h2>
             <p style={{ margin: 0, maxWidth: "62ch", ...T.bodyLg }}>
               This is not the score report. It is the narrative map — what
-              RevisionGrade believes your manuscript contains before craft diagnosis
+              RevisionGrade believes your writing contains before craft diagnosis
               begins. Review each layer and record your decision.
             </p>
           </div>
@@ -709,7 +709,7 @@ function Module1StoryLayer({
               Review each layer before approving
             </p>
             <p style={{ margin: 0, ...T.body }}>
-              RevisionGrade extracted these story facts from your manuscript. Work
+              RevisionGrade extracted these story facts from your writing. Work
               through each visible layer and mark it as correct, correct with a
               note, wrong, or wrong with an explanation. This records diagnostic
               decisions only.

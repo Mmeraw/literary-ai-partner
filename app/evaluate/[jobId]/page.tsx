@@ -67,7 +67,7 @@ async function getJob(jobId: string): Promise<EvaluationJob | null> {
   const supabase = createAdminClient();
   const { data: job } = await supabase
     .from("evaluation_jobs")
-    .select("id, user_id, manuscript_id, status, last_error, failure_code, progress, manuscripts(user_id,title)")
+    .select("id, user_id, manuscript_id, status, last_error, failure_code, progress, created_at, manuscripts(user_id,title)")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -97,6 +97,7 @@ export default async function EvaluationReportPage({ params }: PageProps) {
   const dialoguePercentage = (progress.enrichment_dialogue_percentage as number | null) ?? null;
   const narrativePercentage = (progress.enrichment_narrative_percentage as number | null) ?? null;
   const phase0CompletedAt = (progress.phase0_completed_at as string | null) ?? null;
+  const jobCreatedAt = (job as Record<string, unknown>)?.created_at as string | null ?? null;
   const submissionPreview = await getSubmissionPreviewByManuscriptId(job?.manuscript_id ?? null);
 
   if (!job) {
@@ -163,10 +164,10 @@ export default async function EvaluationReportPage({ params }: PageProps) {
             <HeaderField label="Shelf" value="Not available" />
             <HeaderField label="Submitted Word Count" value={wordCount ? wordCount.toLocaleString() : "Calculating"} />
             <HeaderField label="Estimated Manuscript Pages" value={wordCount ? Math.floor(wordCount / 250).toLocaleString() : "Not available"} />
-            <HeaderField label="Reading Grade Level" value={readingGradeLevel ? String(Math.floor(readingGradeLevel)) : "Not available"} />
+            <HeaderField label="Reading Grade Level" value={readingGradeLevel ? `${Math.floor(readingGradeLevel)} (Flesch-Kincaid)` : "Not available"} />
             <HeaderField label="Dialogue/Narrative Ratio" value={dialoguePercentage != null && narrativePercentage != null ? `${Math.floor(dialoguePercentage)}% / ${Math.floor(narrativePercentage)}%` : "Not available"} />
             <HeaderField label="Market Readiness" value="Review" />
-            <HeaderField label="Date Generated" value={phase0CompletedAt ? new Date(phase0CompletedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "Not available"} />
+            <HeaderField label="Date Generated" value={(phase0CompletedAt || jobCreatedAt) ? new Date((phase0CompletedAt || jobCreatedAt)!).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "Not available"} />
             <HeaderField label="Target Audience" value="Not available" />
           </dl>
 
@@ -184,7 +185,7 @@ export default async function EvaluationReportPage({ params }: PageProps) {
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-red-700">Evaluation Details</p>
           <h2 className="mt-1 font-rg-serif text-2xl font-semibold text-stone-950">Evaluation needs review</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-700">
-            This report did not pass internal quality assurance and completeness checks. RevisionGrade is investigating and your manuscript has been preserved.
+            This report did not pass internal quality assurance and completeness checks. RevisionGrade is investigating and your writing has been preserved.
           </p>
           <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
             <div>

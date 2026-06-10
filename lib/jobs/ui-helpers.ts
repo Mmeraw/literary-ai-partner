@@ -155,11 +155,11 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
   // Internal phase codes (phase_1a, phase_2, etc.) are NEVER shown to users.
   let phaseDisplay = "";
   if (status === "queued" || phase === "phase_0") {
-    phaseDisplay = "Preparing manuscript";
+    phaseDisplay = "Preparing evaluation";
   } else if (phase === "phase_1a") {
-    phaseDisplay = phase_status === "complete" ? "Analyzing manuscript — Complete" : "Analyzing manuscript";
+    phaseDisplay = phase_status === "complete" ? "Analyzing writing — Complete" : "Analyzing writing";
   } else if (phase === "review_gate") {
-    phaseDisplay = phase_status === "awaiting_approval" ? "Awaiting approval" : "Analyzing manuscript";
+    phaseDisplay = phase_status === "awaiting_approval" ? "Awaiting approval" : "Analyzing writing";
   } else if (phase === "phase_2") {
     const p2Status = phase_status === "complete" ? " — Complete" : phase_status === "failed" ? " — Failed" : "";
     // Distinguish early phase_2 (building diagnosis) from running (reconciling passes)

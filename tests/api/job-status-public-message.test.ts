@@ -24,7 +24,7 @@ jest.mock('@/lib/evaluation/processor', () => ({
 
 jest.mock('@/lib/evaluation/recoverySupportAlertMailer', () => ({
   MAJOR_TECHNICAL_ISSUE_PUBLIC_MESSAGE:
-    'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your manuscript and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.',
+    'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your writing and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.',
 }));
 
 const mockGetJob = getJob as jest.MockedFunction<typeof getJob>;
@@ -50,7 +50,7 @@ describe('GET /api/jobs/[jobId] public failure messaging', () => {
       progress: {
         phase: 'phase_3',
         phase_status: 'failed',
-        recovery_message: 'Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved.',
+        recovery_message: 'Evaluation delayed — recovery is in progress. Your writing and completed analysis have been preserved.',
       },
       total_units: 100,
       completed_units: 98,
@@ -75,7 +75,7 @@ describe('GET /api/jobs/[jobId] public failure messaging', () => {
     };
 
     expect(response.status).toBe(200);
-    expect(json.job.public_status_message).toBe('Evaluation delayed — recovery is in progress. Your manuscript and completed analysis have been preserved.');
+    expect(json.job.public_status_message).toBe('Evaluation delayed — recovery is in progress. Your writing and completed analysis have been preserved.');
     expect(json.job.public_status_message).not.toContain('created_at=');
     expect(json.job.last_error).toBeUndefined();
     expect(json.job.failure_code).toBeUndefined();
@@ -94,7 +94,7 @@ describe('GET /api/jobs/[jobId] public failure messaging', () => {
         phase: 'phase_3',
         phase_status: 'failed',
         dashboard_status: 'technical_review_required',
-        recovery_message: 'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your manuscript and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.',
+        recovery_message: 'We hit a technical issue that needs engineering support. Our team has been alerted and is investigating. Your writing and completed analysis have been preserved; you do not need to retry. We will notify you by email when the problem has been fixed.',
       },
       total_units: 100,
       completed_units: 98,

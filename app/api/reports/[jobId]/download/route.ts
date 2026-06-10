@@ -296,7 +296,7 @@ function docxListPara(text: string, marker = '\u2022'): Paragraph {
 // ── Confidence Explanation (template section 13) ────────────────────
 const CONFIDENCE_EXPLANATION = {
   title: 'What Does Confidence Mean?',
-  intro: 'Confidence reflects how strongly each diagnosis is supported by direct evidence in your manuscript.',
+  intro: 'Confidence reflects how strongly each diagnosis is supported by direct evidence in your writing.',
   levels: [
     { label: 'High', description: 'Strong textual evidence supports this diagnosis.' },
     { label: 'Moderate', description: 'Enough evidence to identify the issue, but some ambiguity remains.' },

@@ -376,6 +376,6 @@ export function decisionFromChecks(checks: PhasePrerequisiteCheck[]): PhasePrere
     blockingCodes: blocking.map((check) => check.code ?? `${check.name.toUpperCase()}_${check.status.toUpperCase()}`),
     publicMessage: blocking.length === 0
       ? null
-      : 'We encountered a technical issue while processing your manuscript. To protect report accuracy, RevisionGrade paused this evaluation rather than generating an incomplete or potentially misleading report. Your manuscript and completed analysis have been preserved.',
+      : 'We encountered a technical issue while processing your writing. To protect report accuracy, RevisionGrade paused this evaluation rather than generating an incomplete or potentially misleading report. Your writing and completed analysis have been preserved.',
   };
 }
