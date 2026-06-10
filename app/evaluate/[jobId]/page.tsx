@@ -124,45 +124,44 @@ export default async function EvaluationReportPage({ params }: PageProps) {
         </section>
       )}
 
-      <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
+      <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
+        {/* Top bar: title left, back button right */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A6A1F]">Evaluation Report</p>
-            <h1 className="mt-2 font-rg-serif text-4xl font-semibold text-stone-950">{manuscriptTitle ?? "Evaluation"}</h1>
+            <h1 className="mt-2 font-rg-serif text-3xl font-semibold text-stone-950 sm:text-4xl">{manuscriptTitle ?? "Evaluation"}</h1>
             <p className="mt-2 text-sm text-stone-500">
               <span className="font-medium text-stone-700">Reference ID:</span> <span className="break-all font-mono text-stone-900">{jobId}</span>
             </p>
-
-            <div className="mt-6 grid gap-10 xl:grid-cols-[1fr_320px] xl:items-start">
-              <dl className="grid gap-x-10 gap-y-6 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
-                <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
-                <HeaderField label="Report Type" value="Short-Form Evaluation" />
-                <HeaderField label="Genre" value="Not specified" />
-                <HeaderField label="Shelf" value="Not available" />
-                <HeaderField label="Submitted Word Count" value="Calculating" />
-                <HeaderField label="Estimated Manuscript Pages" value="Not available" />
-                <HeaderField label="Reading Grade Level" value="Not available" />
-                <HeaderField label="Dialogue/Narrative Ratio" value="Not available" />
-                <HeaderField label="Market Readiness" value="Review" />
-                <HeaderField label="Date Generated" value="Not available" />
-                <HeaderField label="Target Audience" value="Not available" />
-              </dl>
-
-              {submissionPreview && (
-                <section className="rounded-lg border border-stone-200 bg-stone-50 px-5 py-4">
-                  <h2 className="text-sm font-semibold text-stone-950">Submission Preview</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-stone-700">{submissionPreview}</p>
-                </section>
-              )}
-            </div>
           </div>
+          <Link href="/evaluate" className="inline-flex shrink-0 items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
+            Back to Evaluate
+          </Link>
+        </div>
 
-          <aside className="grid w-full shrink-0 gap-4 lg:w-72">
-            <Link href="/evaluate" className="inline-flex items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-base font-medium text-stone-700 hover:bg-stone-50">
-              Back to Evaluate
-            </Link>
-          </aside>
+        {/* Body: metadata left, submission preview right */}
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px] lg:items-start">
+          <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 md:grid-cols-3">
+            <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
+            <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
+            <HeaderField label="Report Type" value="Short-Form Evaluation" />
+            <HeaderField label="Genre" value="Not specified" />
+            <HeaderField label="Shelf" value="Not available" />
+            <HeaderField label="Submitted Word Count" value="Calculating" />
+            <HeaderField label="Estimated Manuscript Pages" value="Not available" />
+            <HeaderField label="Reading Grade Level" value="Not available" />
+            <HeaderField label="Dialogue/Narrative Ratio" value="Not available" />
+            <HeaderField label="Market Readiness" value="Review" />
+            <HeaderField label="Date Generated" value="Not available" />
+            <HeaderField label="Target Audience" value="Not available" />
+          </dl>
+
+          {submissionPreview && (
+            <section className="rounded-lg border border-stone-200 bg-stone-50 px-5 py-4">
+              <h2 className="text-sm font-semibold text-stone-950">Submission Preview</h2>
+              <p className="mt-2 text-sm leading-relaxed text-stone-700">{submissionPreview}</p>
+            </section>
+          )}
         </div>
       </section>
 
