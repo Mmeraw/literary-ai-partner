@@ -107,6 +107,13 @@ function isCanonicalIdentityDefectBlocker(blocker: RecommendationBlocker): boole
     return /invalid canonical|placeholder|contradict|conflict|collision|ambiguous|unresolved alias|missing required character id/.test(rule);
   }
 
+  // existing_feature_violation and co_presence_violation are content-level
+  // guardrails, not identity defects. They may reference character names
+  // (e.g. "Unnamed first-person narrator") without indicating an identity problem.
+  if (blocker.type === 'existing_feature_violation' || blocker.type === 'co_presence_violation') {
+    return false;
+  }
+
   return /identity|alias|name/.test(rule);
 }
 
