@@ -8,8 +8,11 @@
 import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
-import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
-import { validateTemplateCompleteness } from "@/lib/evaluation/pipeline/templateCompletenessGate";
+import {
+  enforceTemplateDensityAfterPreGateDedupe,
+  synthesisToEvaluationResultV2,
+} from "@/lib/evaluation/pipeline/runPipeline";
+import { isMeaningfulRecommendation, validateTemplateCompleteness } from "@/lib/evaluation/pipeline/templateCompletenessGate";
 import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
@@ -518,6 +521,178 @@ describe("parsePass3Response", () => {
     // The density repair should satisfy the gate — no DENSITY_FLOOR_VIOLATION expected
     const densityViolations = gateResult.violations.filter((v) => v.code === "DENSITY_FLOOR_VIOLATION");
     expect(densityViolations).toHaveLength(0);
+  });
+
+  it("density repair: final verification backfills narrativeClosure after governance suppression", () => {
+    const fixture = makePass3Fixture({
+      diagnostic_spine: {
+        primary_reader_promise: "slow accumulation, atmosphere, ambiguity, and lingering dread",
+        central_argument: "This chapter is strongest when its dread-forward closure remains atmospheric rather than propulsive.",
+        confidence: "high",
+      },
+    });
+
+    const narrativeClosureIndex = fixture.criteria.findIndex((c) => c.key === "narrativeClosure");
+    expect(narrativeClosureIndex).toBeGreaterThanOrEqual(0);
+
+    fixture.criteria[narrativeClosureIndex] = {
+      ...fixture.criteria[narrativeClosureIndex],
+      craft_score: 7,
+      editorial_score: 7,
+      final_score_0_10: 7,
+      evidence: [{ snippet: "The river went quiet at the end, leaving the blood memory unresolved." }],
+      final_rationale:
+        "Narrative closure is partially effective, but the final image leaves the local chapter consequence under-signaled for the reader.",
+      recommendations: [
+        {
+          priority: "medium",
+          action: "Add a decision beat to increase momentum before the final image resolves.",
+          expected_impact: "This would increase momentum and make the ending more propulsive.",
+          anchor_snippet: "The river went quiet at the end, leaving the blood memory unresolved.",
+          issue_family: "closure",
+          strategic_lever: "closure_state_lock",
+          revision_granularity: "scene",
+        },
+      ],
+    };
+
+    const synthesis = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const narrativeClosure = synthesis.criteria.find((c) => c.key === "narrativeClosure");
+    expect(narrativeClosure).toBeTruthy();
+    expect(narrativeClosure!.recommendations.filter(isMeaningfulRecommendation).length).toBeGreaterThanOrEqual(1);
+
+    const v2 = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "density-repair-governance-suppression-test",
+        job_id: "00000000-0000-0000-0000-000000000002",
+        manuscript_id: 1,
+        user_id: "test-user",
+      },
+      manuscriptText: "The river went quiet at the end, leaving the blood memory unresolved.",
+      title: "The River Remembers Blood",
+      llmEnrichment: synthesis.enrichment,
+      scopeProfile: {
+        inputScale: "standard_chapter",
+        wordCount: 3375,
+        chunkCount: 1,
+        scorableCount: 13,
+        confidenceCapSummary: "MODERATE",
+        scopePolicyVersion: "v2",
+      } as import("@/lib/evaluation/pipeline/submissionScope").SubmissionScopeProfile,
+    });
+    const gateResult = validateTemplateCompleteness(v2 as Parameters<typeof validateTemplateCompleteness>[0]);
+
+    expect(gateResult.violations).not.toContainEqual(
+      expect.objectContaining({
+        code: "DENSITY_FLOOR_VIOLATION",
+        criterion: "narrativeClosure",
+      }),
+    );
+  });
+
+  it("density repair: final verification backfills narrativeClosure when score 7 has zero recommendations", () => {
+    const fixture = makePass3Fixture();
+    const narrativeClosureIndex = fixture.criteria.findIndex((c) => c.key === "narrativeClosure");
+    expect(narrativeClosureIndex).toBeGreaterThanOrEqual(0);
+
+    fixture.criteria[narrativeClosureIndex] = {
+      ...fixture.criteria[narrativeClosureIndex],
+      craft_score: 7,
+      editorial_score: 7,
+      final_score_0_10: 7,
+      evidence: [],
+      final_rationale: "Narrative closure is partially effective, but the final chapter beat leaves the local consequence under-signaled for the reader.",
+      recommendations: [],
+    };
+
+    const synthesis = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const narrativeClosure = synthesis.criteria.find((c) => c.key === "narrativeClosure");
+    expect(narrativeClosure).toBeTruthy();
+    expect(narrativeClosure!.final_score_0_10).toBe(7);
+    expect(narrativeClosure!.recommendations.filter(isMeaningfulRecommendation)).toHaveLength(1);
+
+    const v2 = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "density-repair-zero-narrative-closure-test",
+        job_id: "00000000-0000-0000-0000-000000000003",
+        manuscript_id: 1,
+        user_id: "test-user",
+      },
+      manuscriptText: "The river went quiet at the end, leaving the blood memory unresolved.",
+      title: "The River Remembers Blood",
+      llmEnrichment: synthesis.enrichment,
+      scopeProfile: {
+        inputScale: "standard_chapter",
+        wordCount: 3375,
+        chunkCount: 1,
+        scorableCount: 13,
+        confidenceCapSummary: "MODERATE",
+        scopePolicyVersion: "v2",
+      } as import("@/lib/evaluation/pipeline/submissionScope").SubmissionScopeProfile,
+    });
+    const gateResult = validateTemplateCompleteness(v2 as Parameters<typeof validateTemplateCompleteness>[0]);
+
+    expect(gateResult.violations).not.toContainEqual(
+      expect.objectContaining({
+        code: "DENSITY_FLOOR_VIOLATION",
+        criterion: "narrativeClosure",
+      }),
+    );
+  });
+
+  it("density repair: post-dedupe fallback restores narrativeClosure before V2 template gate", () => {
+    const fixture = makePass3Fixture();
+    const synthesis = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const strippedSynthesis = {
+      ...synthesis,
+      criteria: synthesis.criteria.map((criterion) =>
+        criterion.key === "narrativeClosure"
+          ? {
+              ...criterion,
+              final_score_0_10: 7,
+              recommendations: [],
+            }
+          : criterion,
+      ),
+    };
+
+    const repaired = enforceTemplateDensityAfterPreGateDedupe(strippedSynthesis);
+    expect(repaired.addedCount).toBe(1);
+
+    const narrativeClosure = repaired.synthesis.criteria.find((c) => c.key === "narrativeClosure");
+    expect(narrativeClosure).toBeTruthy();
+    expect(narrativeClosure!.recommendations.filter(isMeaningfulRecommendation)).toHaveLength(1);
+
+    const v2 = synthesisToEvaluationResultV2({
+      synthesis: repaired.synthesis,
+      ids: {
+        evaluation_run_id: "density-repair-post-dedupe-test",
+        job_id: "00000000-0000-0000-0000-000000000004",
+        manuscript_id: 1,
+        user_id: "test-user",
+      },
+      manuscriptText: "The river went quiet at the end, leaving the blood memory unresolved.",
+      title: "The River Remembers Blood",
+      llmEnrichment: repaired.synthesis.enrichment,
+      scopeProfile: {
+        inputScale: "standard_chapter",
+        wordCount: 3375,
+        chunkCount: 1,
+        scorableCount: 13,
+        confidenceCapSummary: "MODERATE",
+        scopePolicyVersion: "v2",
+      } as import("@/lib/evaluation/pipeline/submissionScope").SubmissionScopeProfile,
+    });
+    const gateResult = validateTemplateCompleteness(v2 as Parameters<typeof validateTemplateCompleteness>[0]);
+
+    expect(gateResult.violations).not.toContainEqual(
+      expect.objectContaining({
+        code: "DENSITY_FLOOR_VIOLATION",
+        criterion: "narrativeClosure",
+      }),
+    );
   });
 
   it("density repair: score-9 criterion is not touched by density repair", () => {

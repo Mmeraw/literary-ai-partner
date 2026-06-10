@@ -15,7 +15,10 @@
 
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
-import { runPass3Synthesis as defaultRunPass3 } from "./runPass3Synthesis";
+import {
+  buildLastResortRecommendations,
+  runPass3Synthesis as defaultRunPass3,
+} from "./runPass3Synthesis";
 import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate";
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
 import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
@@ -110,6 +113,7 @@ import {
   normalizeSummaryWithBottomWeaknesses,
   summarizePropagationIntegrity,
 } from "./propagationIntegrity";
+import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import { computeEnrichment } from "@/lib/evaluation/enrichment/computeEnrichment";
 import {
   getCanonicalPass1Model,
@@ -746,6 +750,48 @@ function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
       criteria,
     },
     removedCount,
+  };
+}
+
+const TEMPLATE_GATE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
+
+export function enforceTemplateDensityAfterPreGateDedupe(synthesis: SynthesisOutput): {
+  synthesis: SynthesisOutput;
+  addedCount: number;
+} {
+  let addedCount = 0;
+
+  const criteria = synthesis.criteria.map((criterion) => {
+    if (criterion.final_score_0_10 >= 9) return criterion;
+
+    const bucket = criterion.final_score_0_10 <= 5 ? "<=5" : criterion.final_score_0_10 <= 7 ? "6-7" : "8";
+    const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 0;
+    if (minRecs === 0) return criterion;
+
+    const currentMeaningful = criterion.recommendations.filter((rec) => isMeaningfulRecommendation(rec)).length;
+    if (currentMeaningful >= minRecs) return criterion;
+
+    const shortfall = minRecs - currentMeaningful;
+    const fallbackRecommendations = buildLastResortRecommendations(
+      criterion.key,
+      criterion.final_score_0_10,
+      shortfall,
+    );
+
+    addedCount += fallbackRecommendations.length;
+
+    return {
+      ...criterion,
+      recommendations: [...criterion.recommendations, ...fallbackRecommendations],
+    };
+  });
+
+  return {
+    synthesis: {
+      ...synthesis,
+      criteria,
+    },
+    addedCount,
   };
 }
 
@@ -1809,6 +1855,15 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscript_id: opts.manuscriptId ?? null,
       title: opts.title,
       removed_recommendations: dedupeResult.removedCount,
+    });
+  }
+  const postDedupeDensity = enforceTemplateDensityAfterPreGateDedupe(pass3Output);
+  pass3Output = postDedupeDensity.synthesis;
+  if (postDedupeDensity.addedCount > 0) {
+    console.log("[Pipeline][PreGate] post-dedupe density fallback applied", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      added_recommendations: postDedupeDensity.addedCount,
     });
   }
 
