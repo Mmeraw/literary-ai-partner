@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManuscriptText } from "@/lib/manuscripts/chunks";
 import EvaluationUnavailableReloadButton from "@/components/evaluation/EvaluationUnavailableReloadButton";
+import { EvaluationPoller } from "@/components/EvaluationPoller";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -106,10 +107,23 @@ export default async function EvaluationReportPage({ params }: PageProps) {
     );
   }
 
+  const isRunningOrQueued = job.status === "running" || job.status === "queued";
+
   const isFailed = job.status === "failed";
 
   return (
     <main className="mx-auto max-w-7xl p-8">
+      {/* Progress bar — shown for active jobs */}
+      {isRunningOrQueued && (
+        <section className="mb-6">
+          <EvaluationPoller
+            jobId={jobId}
+            redirectOnComplete={false}
+            refreshOnComplete={true}
+          />
+        </section>
+      )}
+
       <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1">
