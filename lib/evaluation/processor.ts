@@ -4759,6 +4759,26 @@ export async function processEvaluationJob(
       console.log(`[Processor] ${jobId}: phase deadline refreshed — anchor=${anchor} deadline=${new Date(hardDeadlineMs).toISOString()}`);
     };
 
+    // ── Centralized worker heartbeat ────────────────────────────────────────
+    // Stamp worker_pulse_at at every phase boundary and before/after any
+    // long-running operation (DB reads, artifact loads, LLM calls). The
+    // watchdog has a 20s idle-pulse threshold — any silent gap longer than
+    // that will cause a legitimate worker to be killed. This single function
+    // replaces all ad-hoc and no-op heartbeat callbacks.
+    const pulseWorker = (label: string) => {
+      const pulseNow = new Date().toISOString();
+      void supabase
+        .from('evaluation_jobs')
+        .update({ worker_pulse_at: pulseNow })
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING)
+        .then(({ error }: { error: unknown }) => {
+          if (error) {
+            console.warn(`[${label}] worker_pulse_at stamp failed (non-fatal)`, error);
+          }
+        });
+    };
+
     const markRunning = async (
       message: string,
       completedUnits: number,
@@ -5669,6 +5689,7 @@ export async function processEvaluationJob(
     //     bottom of the persistence path detects executionPhase==='phase_3' and
     //     runs WAVE inline instead of re-queueing phase_3.
     if (executionPhase === 'phase_3') {
+      pulseWorker('phase3/entry');
       try {
         await assertPhase3UpstreamInputsCanonical(supabase, String(job.id), Number(job.manuscript_id));
       } catch (phase3InputErr) {
@@ -5683,6 +5704,7 @@ export async function processEvaluationJob(
       }
 
       // ── GOVERNANCE GATE: Phase 3 also requires accepted_story_ledger_v1 ──
+      pulseWorker('phase3/before-governance-gate');
       const { buildAuthorCorrectionsBlock: buildCorrectionsBlockP3 } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
 
       const { data: p3LedgerRow, error: p3LedgerErr } = await supabase
@@ -5731,6 +5753,7 @@ export async function processEvaluationJob(
         console.log(`[phase_3] ${jobId}: clean approval — no author corrections to inject`);
       }
       // ── END GOVERNANCE GATE ──
+      pulseWorker('phase3/after-governance-gate');
 
       const { data: handoffPresenceRow } = await supabase
         .from('evaluation_artifacts')
@@ -5763,15 +5786,18 @@ export async function processEvaluationJob(
       // Read handoff + ledger + preflight, build runners, run runPipeline,
       // assign outer pipelineResult, fall through to persistence path.
       if (!hasEvalResult) {
+        pulseWorker('phase3/before-pass3b-synthesis');
         await markRunning('Running Pass 3B synthesis', 80, 'phase_3');
         refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
+        pulseWorker('phase3/before-handoff-read');
         const { data: handoffRow, error: handoffReadError } = await supabase
           .from('evaluation_artifacts')
           .select('content')
           .eq('job_id', job.id)
           .eq('artifact_type', 'pass12_handoff_v1')
           .maybeSingle();
+        pulseWorker('phase3/after-handoff-read');
 
         if (handoffReadError || !handoffRow?.content) {
           console.error(`[phase_3] ${jobId}: handoff artifact read failed`,
@@ -5810,6 +5836,7 @@ export async function processEvaluationJob(
             };
 
         // Read prebuilt character ledger (built by phase_1a)
+        pulseWorker('phase3/before-ledger-read');
         let prebuiltCharacterLedgerP3: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
         try {
           const { data: ledgerArtifactP3 } = await supabase
@@ -5832,6 +5859,7 @@ export async function processEvaluationJob(
         }
 
         // Read prebuilt Pass 3A preflight (soft — absence triggers PREFLIGHT UNAVAILABLE in Pass 3B)
+        pulseWorker('phase3/before-preflight-read');
         let prebuiltPreflightDraftP3: Pass3PreflightDraft | undefined;
         try {
           const { data: preflightArtifactP3 } = await supabase
@@ -5935,6 +5963,7 @@ export async function processEvaluationJob(
           return { success: true };
         }
 
+        pulseWorker('phase3/before-pipeline-run');
         const runPipelineStartedAtP3 = startLatencyStage({
           jobId,
           stage: 'pipeline_run',
@@ -7232,17 +7261,7 @@ export async function processEvaluationJob(
                     openaiApiKey,
                     supabase,
                     _chunkConcurrency: phase1aConfig.preflightConcurrency,
-                    _onChunkHeartbeat: () => {
-                      const pulseNow = new Date().toISOString();
-                      void supabase
-                        .from('evaluation_jobs')
-                        .update({ worker_pulse_at: pulseNow })
-                        .eq('id', jobId)
-                        .eq('status', JOB_STATUS.RUNNING)
-                        .then(({ error: pulseErr }: { error: unknown }) => {
-                          if (pulseErr) console.warn('[track_c/parallel] worker_pulse_at stamp failed (non-fatal)', pulseErr);
-                        });
-                    },
+                    _onChunkHeartbeat: () => pulseWorker('phase1a/track-c-parallel'),
                   });
                 })()
               : null;
@@ -7441,17 +7460,7 @@ export async function processEvaluationJob(
                     openaiApiKey,
                     supabase,
                     _chunkConcurrency: phase1aConfig.preflightConcurrency,
-                    _onChunkHeartbeat: () => {
-                      const pulseNow = new Date().toISOString();
-                      void supabase
-                        .from('evaluation_jobs')
-                        .update({ worker_pulse_at: pulseNow })
-                        .eq('id', jobId)
-                        .eq('status', JOB_STATUS.RUNNING)
-                        .then(({ error: pulseErr }: { error: unknown }) => {
-                          if (pulseErr) console.warn('[track_c/race] worker_pulse_at stamp failed (non-fatal)', pulseErr);
-                        });
-                    },
+                    _onChunkHeartbeat: () => pulseWorker('phase1a/track-c-race'),
                   }),
                   trackCTimeout,
                 ]);
@@ -7771,17 +7780,7 @@ export async function processEvaluationJob(
                 openaiApiKey,
                 supabase,
                 _chunkConcurrency: phase1aConfig.preflightConcurrency,
-                _onChunkHeartbeat: () => {
-                  const pulseNow = new Date().toISOString();
-                  void supabase
-                    .from('evaluation_jobs')
-                    .update({ worker_pulse_at: pulseNow })
-                    .eq('id', jobId)
-                    .eq('status', JOB_STATUS.RUNNING)
-                    .then(({ error: pulseErr }: { error: unknown }) => {
-                      if (pulseErr) console.warn('[track_c/standalone] worker_pulse_at stamp failed (non-fatal)', pulseErr);
-                    });
-                },
+                _onChunkHeartbeat: () => pulseWorker('phase1a/track-c-standalone'),
               }),
               timeoutPromise,
             ]);
@@ -8843,12 +8842,15 @@ export async function processEvaluationJob(
       // Phase 2 was triggered without any guard. Insert a deterministic settle
       // delay so any in-flight Phase 1 commit can land before Phase 2 reads.
       // Stabilization pause before Phase 2 — ensure Phase 1 artifacts are fully committed.
+      pulseWorker('phase2/entry');
       console.log(`[phase_2] ${jobId}: stabilizing before Phase 2 start`);
       await stabilize();
 
+      pulseWorker('phase2/after-stabilize');
       await markRunning('Resuming from phase 1 handoff', 55, 'phase_2');
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
+      pulseWorker('phase2/before-upstream-canonical-assert');
       try {
         await assertPhase2UpstreamInputsCanonical(supabase, String(job.id), Number(job.manuscript_id));
       } catch (phase2InputErr) {
@@ -8864,6 +8866,7 @@ export async function processEvaluationJob(
 
       // ── GOVERNANCE GATE: accepted_story_ledger_v1 is required before Phase 2 ──
       // This is the author-approved contract. Phase 2 must not score from unverified extraction.
+      pulseWorker('phase2/before-governance-gate');
       const { buildAuthorCorrectionsBlock: buildCorrectionsBlock } = await import('@/lib/evaluation/pipeline/prompts/pass2-editorial');
 
       const { data: acceptedLedgerRow, error: acceptedLedgerErr } = await supabase
@@ -8924,6 +8927,7 @@ export async function processEvaluationJob(
         console.log(`[phase_2] ${jobId}: clean approval — no author corrections to inject`);
       }
       // ── END GOVERNANCE GATE ──
+      pulseWorker('phase2/after-governance-gate');
 
       const runPass12ForHandoffRecovery = async (
         prebuiltLedger:
@@ -8947,19 +8951,7 @@ export async function processEvaluationJob(
             ? buildLedgerBlockForPrompt(prebuiltLedger.ledger, prebuiltLedger.ledgerV2)
             : '';
 
-          const chunkHeartbeat = () => {
-            const pulseNow = new Date().toISOString();
-            void supabase
-              .from('evaluation_jobs')
-              .update({ worker_pulse_at: pulseNow })
-              .eq('id', jobId)
-              .eq('status', JOB_STATUS.RUNNING)
-              .then(({ error }: { error: unknown }) => {
-                if (error) {
-                  console.warn('[phase_2] worker_pulse_at stamp failed (non-fatal)', error);
-                }
-              });
-          };
+          const chunkHeartbeat = () => pulseWorker('phase2/chunk-heartbeat');
 
           // ── Load Pass 1 + Pass 2 chunk caches for checkpoint resume ──
           const pass12SourceHash = createHash('sha256')
@@ -8974,6 +8966,7 @@ export async function processEvaluationJob(
           const pass1ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
           const pass2ChunkResults: Record<number, { result: SinglePassOutput; completed_at: string }> = {};
 
+          pulseWorker('phase2/before-chunk-cache-load');
           try {
             const [pass1CacheRow, pass2CacheRow] = await Promise.all([
               supabase
@@ -8989,6 +8982,7 @@ export async function processEvaluationJob(
                 .eq('artifact_type', 'pass2_chunk_cache_v1')
                 .maybeSingle(),
             ]);
+            pulseWorker('phase2/after-chunk-cache-load');
 
             const pass1Content = pass1CacheRow.data?.content as { source_hash?: string; chunks?: Record<string, { result: SinglePassOutput; completed_at?: string }> } | null;
             if (pass1Content?.chunks && pass1Content.source_hash === pass12SourceHash) {
@@ -9066,6 +9060,7 @@ export async function processEvaluationJob(
             }
           };
 
+          pulseWorker('phase2/before-chunk-processing');
           const [pass1Settled, pass2Settled] = await Promise.allSettled([
             runPass1({
               manuscriptText: manuscriptWithContent.content || '',
@@ -9148,6 +9143,7 @@ export async function processEvaluationJob(
         }
       };
 
+      pulseWorker('phase2/before-handoff-read');
       const { data: handoffRow, error: handoffReadError } = await supabase
         .from('evaluation_artifacts')
         .select('content')
@@ -9179,6 +9175,7 @@ export async function processEvaluationJob(
           );
 
           // Read prebuilt character ledger from phase_1a (soft — absent = no grounding)
+          pulseWorker('phase2/before-ledger-read-longform');
           let prebuiltLedgerP2: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
           try {
             const { data: ledgerArtifactP2 } = await supabase
@@ -9204,6 +9201,7 @@ export async function processEvaluationJob(
           // _runners intercepts the real runPass1/runPass2 outputs so we can write
           // pass12_handoff_v1. Pass 3B (synthesis) still runs inside this call but its
           // output is discarded — phase_3 owns synthesis and will re-run it via handoff.
+          pulseWorker('phase2/before-pass12-recovery-longform');
           const leaseRenewalIntervalMsP2 = 30_000;
           const leaseRenewalLoopP2 = setInterval(() => {
             void renewEvaluationJobLease({
@@ -9360,6 +9358,7 @@ export async function processEvaluationJob(
         );
 
         // Read prebuilt character ledger (soft — absent = no grounding)
+        pulseWorker('phase2/before-ledger-read-shortform');
         let prebuiltLedgerP2Short: { ledger: Pass1aCharacterLedger; ledgerV2: CharacterLedgerV2 } | undefined;
         try {
           const { data: ledgerArtifactP2Short } = await supabase
@@ -9376,6 +9375,7 @@ export async function processEvaluationJob(
           }
         } catch (_ledgerErrShort) { /* non-fatal */ }
 
+        pulseWorker('phase2/before-pass12-recovery-shortform');
         const leaseRenewalLoopP2Short = setInterval(() => {
           void renewEvaluationJobLease({ supabase, jobId, leaseMs: runtimeConfig.worker.leaseMs, stage: 'phase_2_short_renewal', hardDeadlineMs }).catch(() => {});
         }, 30_000);
@@ -9452,6 +9452,7 @@ export async function processEvaluationJob(
         // Handoff artifact found — phase_2 has nothing to do. Pass 3B synthesis
         // is owned by phase_3 now. Queue phase_3 and return immediately.
         // DO NOT delete pass12_handoff_v1 — phase_3 reads it for synthesis.
+        pulseWorker('phase2/handoff-present-queue-phase3');
         console.log(
           `[Processor] ${jobId}: phase_2 — handoff present, queueing phase_3 (Pass 3B synthesis owns synthesis)`,
         );
@@ -10249,6 +10250,7 @@ export async function processEvaluationJob(
       expectedClaimedBy,
     });
 
+    pulseWorker('persistence/before-artifact-writes');
     await markRunning(
       'Persisting evaluation artifacts',
       98,
