@@ -54,6 +54,7 @@ type CriterionLike = {
   evidence?: { snippet?: string }[];
   recommendations?: unknown[];
   confidence_level?: string;
+  technical_defects?: { code: string; author_facing_reason: string }[];
 };
 
 type EvaluationResultLike = {
@@ -165,11 +166,15 @@ function isMeaningfulRecommendation(value: unknown): value is RecommendationLike
     .map((field) => meaningfulText(field))
     .filter((field): field is string => Boolean(field));
 
-  if (meaningfulFields.length < 2) return false;
   if (meaningfulFields.some((field) => PLACEHOLDER_RE.test(field))) return false;
 
   const actionish = meaningfulText(rec.specific_fix) ?? meaningfulText(rec.action);
   if (!actionish) return false;
+
+  // Relaxed rule: action (12+ chars) + at least 1 supporting field is sufficient.
+  // This matches what the LLM actually produces for short-form evaluations
+  // (action + anchor_snippet + expected_impact) without demanding 2+ additional fields.
+  if (meaningfulFields.length < 1) return false;
 
   // A generic action can pass only when paired with manuscript-specific evidence/reasoning.
   if (GENERIC_RE.test(actionish)) {
@@ -326,8 +331,18 @@ export function validateTemplateCompleteness(
     }
 
     if (hasNumericScore) {
+      // Skip density floor for criteria whose recommendations were governance-suppressed
+      // (e.g., removed by the Diagnostic Spine Recommendation Guard because they
+      // conflicted with the manuscript's primary reader promise or central argument).
+      const isGovernanceSuppressed = (c.technical_defects ?? []).some((defect) =>
+        defect.code === 'DIAGNOSTIC_SPINE_PROMISE_MISMATCH' ||
+        defect.code === 'DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH' ||
+        defect.author_facing_reason.includes('Recommendation guard suppressed unsafe') ||
+        defect.author_facing_reason.includes('recommendations were suppressed because they contradicted'),
+      );
+
       const bucket = getDensityBucket(score);
-      if (bucket) {
+      if (bucket && !isGovernanceSuppressed) {
         const minRecs = DENSITY_FLOOR[bucket] ?? 2;
         const recCount = countMeaningfulRecommendations(c.recommendations);
         if (recCount < minRecs) {

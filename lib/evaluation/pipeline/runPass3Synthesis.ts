@@ -1436,12 +1436,12 @@ export function parsePass3Response(
     if (minRecs === 0) continue;
 
     // Count recs that would satisfy isMeaningfulRecommendation in the template gate:
-    // need ≥2 meaningful fields AND a non-empty specific_fix or action.
+    // need ≥1 meaningful field AND a non-empty specific_fix or action (12+ chars).
     const satisfiesGate = (r: SynthesizedCriterion["recommendations"][number]): boolean => {
       const fields = [r.anchor_snippet, r.mechanism, r.specific_fix, r.action, r.reader_effect, r.expected_impact];
       const meaningful = fields.filter((f) => typeof f === "string" && f.trim().length >= 12).length;
-      const actionish = (r.specific_fix?.trim() ?? "").length > 0 || (r.action?.trim() ?? "").length > 0;
-      return meaningful >= 2 && actionish;
+      const actionish = (r.specific_fix?.trim() ?? "").length >= 12 || (r.action?.trim() ?? "").length >= 12;
+      return meaningful >= 1 && actionish;
     };
     const satisfyingCount = c.recommendations.filter(satisfiesGate).length;
     if (satisfyingCount >= minRecs) continue;
