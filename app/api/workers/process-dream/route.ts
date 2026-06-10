@@ -673,6 +673,38 @@ async function processDreamJob(
 
   console.log(`[DreamWorker] ${jobId}: DREAM synthesis complete — persisting artifact`);
 
+  // ── SIPOC OUTPUT Gate: WAVE (Pass 3b) OUTPUT → Author ─────────────────────
+  // Validates the DREAM document meets completeness requirements before persisting.
+  // runPass3bLongform already validates internally (throws on failure), but this
+  // explicit SIPOC checkpoint provides boundary-labeled observability for the
+  // admin dashboard / pipeline health forensics.
+  {
+    const dreamSections = [
+      'executive_verdict', 'dream_scores', 'market_shelf', 'what_not_to_become',
+      'structural_stack', 'arc_map', 'criterion_analyses', 'layer_analyses',
+      'cross_layer_integration', 'symbolic_audit', 'reader_experience',
+      'revision_plan', 'releasability', 'acceptance_checks', 'calibration_notes',
+      'repo_summary', 'manuscript_integrity_issues',
+    ] as const;
+    const presentSections = dreamSections.filter((k) => k in longformDoc && (longformDoc as Record<string, unknown>)[k] != null);
+    const missingSections = dreamSections.filter((k) => !(k in longformDoc) || (longformDoc as Record<string, unknown>)[k] == null);
+    if (missingSections.length > 0) {
+      // This should not happen (validateDreamDocument throws) but kick-backward if it does
+      console.error(`[SIPOC-KICK-BACKWARD] WAVE OUTPUT → Author: rejected — DREAM document missing sections: ${missingSections.join(', ')}`, {
+        job_id: jobId,
+        sipoc_boundary: 'wave_output→author',
+        missing_sections: missingSections,
+      });
+      throw new Error(`[SIPOC] WAVE OUTPUT gate failed: DREAM document missing ${missingSections.length} required section(s): ${missingSections.join(', ')}`);
+    }
+    const criterionCount = Array.isArray(longformDoc.criterion_analyses) ? longformDoc.criterion_analyses.length : 0;
+    const revisionPlanCount = Array.isArray(longformDoc.revision_plan) ? longformDoc.revision_plan.length : 0;
+    console.log(`[SIPOC] WAVE OUTPUT → Author: validated — ${presentSections.length}/17 sections, ${criterionCount} criterion analyses, ${revisionPlanCount} revision priorities`, {
+      job_id: jobId,
+      sipoc_boundary: 'wave_output→author',
+    });
+  }
+
   // 6. Persist longform_document_v1 artifact
   // Source hash uses job+manuscript identity + prompt_version + model for idempotency.
   // We do NOT include manuscriptText here (too large); chunk count proxies content identity.
