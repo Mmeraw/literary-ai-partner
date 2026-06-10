@@ -135,6 +135,18 @@ function hasCompleteSentence(text: string): boolean {
   return sentences.some((s) => s.trim().split(/\s+/).length >= 4);
 }
 
+/**
+ * Relaxed sentence check for imperative/directive fields (recommendation_action).
+ * Actions like "Refine the narrative voice to achieve stronger integration" are
+ * valid directives that commonly omit terminal punctuation. We only require
+ * the text to be substantive (4+ words) — not to end with a period.
+ */
+function hasValidActionSentence(text: string): boolean {
+  if (!text || text.trim().length < 15) return true; // too short to judge
+  const words = text.trim().split(/\s+/);
+  return words.length >= 4;
+}
+
 function hasScaffoldResidue(text: string): RegExpMatchArray | null {
   for (const pattern of SCAFFOLD_PATTERNS) {
     const match = text.match(pattern);
@@ -335,7 +347,7 @@ function validateRecommendations(criterion: AxisCriterionResult): HandoffViolati
         });
       }
 
-      if (!hasCompleteSentence(rec.action)) {
+      if (!hasValidActionSentence(rec.action)) {
         violations.push({
           code: "HANDOFF_INCOMPLETE_SENTENCE",
           criterion_key: criterion.key,

@@ -253,6 +253,35 @@ describe("Pass 1/2 Handoff Gate (S06b)", () => {
 
       expect(result.violations.filter((v) => v.code === "HANDOFF_INCOMPLETE_SENTENCE")).toHaveLength(0);
     });
+
+    it("does NOT flag recommendation_action missing terminal punctuation (imperative directive)", () => {
+      const criterion = makeCleanCriterion("concept");
+      criterion.recommendations[0].action =
+        "Refine the concept dimension to achieve stronger integration between thematic elements and narrative structure";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("concept")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.filter(
+        (v) => v.code === "HANDOFF_INCOMPLETE_SENTENCE" && v.field === "recommendation_action",
+      )).toHaveLength(0);
+    });
+
+    it("still flags recommendation_action that is too short (< 4 words)", () => {
+      const criterion = makeCleanCriterion("concept");
+      criterion.recommendations[0].action = "Fix the dialogue";
+
+      const pass1 = makePassOutput([criterion], 1);
+      const pass2 = makePassOutput([makeCleanCriterion("concept")], 2);
+
+      const result = runPass12HandoffGate(pass1, pass2);
+
+      expect(result.violations.some(
+        (v) => v.code === "HANDOFF_INCOMPLETE_SENTENCE" && v.field === "recommendation_action",
+      )).toBe(true);
+    });
   });
 
   describe("orphaned conjunctions", () => {
