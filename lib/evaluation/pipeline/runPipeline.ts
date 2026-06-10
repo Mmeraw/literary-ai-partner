@@ -15,7 +15,13 @@
 
 import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
-import { runPass3Synthesis as defaultRunPass3, buildLastResortRecommendations } from "./runPass3Synthesis";
+import {
+  runPass3Synthesis as defaultRunPass3,
+  buildLastResortRecommendations,
+  buildCriterionAwareMechanismDefault,
+  buildCriterionAwareSpecificFixDefault,
+  buildCriterionAwareReaderEffectDefault,
+} from "./runPass3Synthesis";
 import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate";
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
@@ -787,6 +793,66 @@ function enforceTemplateDensityAfterPreGateDedupe(synthesis: SynthesisOutput): {
   return {
     synthesis: { ...synthesis, criteria },
     restoredCount,
+  };
+}
+
+/**
+ * Editorial specificity repair — SIPOC mistake-proofing step.
+ *
+ * Runs AFTER density enforcement and BEFORE the Quality Gate.
+ * For any recommendation that has a non-empty anchor_snippet but is missing
+ * mechanism, specific_fix, or reader_effect, backfills from criterion-aware
+ * deterministic defaults. This ensures the editorial quality gate
+ * (QG_EDITORIAL_GENERIC_FEEDBACK) never fails due to hollow LLM output when
+ * contextual evidence is present.
+ *
+ * Design: only recommendations with anchor context are repaired — anchorless
+ * recommendations are intentionally left empty so the gate can correctly
+ * identify truly generic content.
+ */
+function enforceEditorialSpecificityBeforeGate(synthesis: SynthesisOutput): {
+  synthesis: SynthesisOutput;
+  repairedCount: number;
+} {
+  let repairedCount = 0;
+  const criteria = synthesis.criteria.map((criterion) => {
+    if (!criterion.recommendations || criterion.recommendations.length === 0) return criterion;
+
+    const recommendations = criterion.recommendations.map((rec) => {
+      // Only repair anchored recommendations — anchorless recs should fail the gate.
+      if (!rec.anchor_snippet || rec.anchor_snippet.trim().length === 0) return rec;
+
+      let patched = false;
+      let mechanism = rec.mechanism;
+      let specificFix = rec.specific_fix;
+      let readerEffect = rec.reader_effect;
+
+      if (!mechanism || mechanism.trim().length === 0) {
+        mechanism = buildCriterionAwareMechanismDefault(criterion.key);
+        patched = true;
+      }
+      if (!specificFix || specificFix.trim().length === 0) {
+        specificFix = buildCriterionAwareSpecificFixDefault(criterion.key);
+        patched = true;
+      }
+      if (!readerEffect || readerEffect.trim().length === 0) {
+        readerEffect = buildCriterionAwareReaderEffectDefault(criterion.key);
+        patched = true;
+      }
+
+      if (patched) {
+        repairedCount++;
+        return { ...rec, mechanism, specific_fix: specificFix, reader_effect: readerEffect };
+      }
+      return rec;
+    });
+
+    return { ...criterion, recommendations };
+  });
+
+  return {
+    synthesis: { ...synthesis, criteria },
+    repairedCount,
   };
 }
 
@@ -1862,6 +1928,19 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscript_id: opts.manuscriptId ?? null,
       title: opts.title,
       restored_recommendations: densityResult.restoredCount,
+    });
+  }
+
+  // Editorial specificity repair: backfill mechanism/specific_fix/reader_effect
+  // for anchored recommendations that the LLM left hollow. This is the SIPOC
+  // mistake-proofing step between Pass 3 output and Quality Gate.
+  const specificityResult = enforceEditorialSpecificityBeforeGate(pass3Output);
+  pass3Output = specificityResult.synthesis;
+  if (specificityResult.repairedCount > 0) {
+    console.log("[Pipeline][SpecificityRepair] backfilled editorial fields", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      repaired_recommendations: specificityResult.repairedCount,
     });
   }
 
