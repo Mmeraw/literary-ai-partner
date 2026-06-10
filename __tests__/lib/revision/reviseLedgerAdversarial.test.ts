@@ -224,7 +224,7 @@ describe('Revision Ledger Adversarial Regression', () => {
 
   // ── Case 9: Diagnosis exists but no revision action ─────────────────────
   describe('Case 9: diagnosis without revision action', () => {
-    it('still produces opportunity when diagnosis populated but recommendation empty', () => {
+    it('produces opportunity when recommendation empty but fix_direction + candidates provide executable path', () => {
       const payload = makePayload([
         {
           key: 'pacing',
@@ -233,16 +233,45 @@ describe('Revision Ledger Adversarial Regression', () => {
             diagnosis: 'The pacing collapses in the middle section where summary replaces scene.',
             recommendation: '',
             anchor_snippet: 'She turned the corner and everything changed.',
+            // fix_direction, candidate_text_a/b/c, symptom, cause all populated via makeRec
           })],
         },
       ]);
       const opps = buildRevisionOpportunitiesFromEvaluationPayload(payload);
-      // Pipeline uses other diagnostic fields (symptom, cause, fix_direction)
-      // as the revision action, so populated diagnosis + anchor → valid opportunity
+      // Pipeline uses fix_direction + candidates as the revision action
       expect(opps.length).toBeGreaterThanOrEqual(1);
       for (const opp of opps) {
         expect(opp.evidence_anchor.length).toBeGreaterThan(5);
+        // Must have executable revision content — not just a diagnosis
+        const hasFixDirection = typeof opp.fix_direction === 'string' && opp.fix_direction.trim().length > 10;
+        const hasCandidateA = typeof opp.candidate_text_a === 'string' && opp.candidate_text_a.trim().length > 10;
+        const hasCandidateB = typeof opp.candidate_text_b === 'string' && opp.candidate_text_b.trim().length > 10;
+        expect(hasFixDirection || hasCandidateA || hasCandidateB).toBe(true);
       }
+    });
+
+    it('rejects opportunity when diagnosis only — no fix_direction, no candidates, no anchor', () => {
+      const payload = makePayload([
+        {
+          key: 'pacing',
+          score_0_10: 4,
+          recommendations: [makeRec({
+            diagnosis: 'The pacing collapses in the middle section.',
+            recommendation: '',
+            anchor_snippet: '',
+            fix_direction: '',
+            candidate_text_a: '',
+            candidate_text_b: '',
+            candidate_text_c: '',
+            symptom: '',
+            cause: '',
+            reader_effect: '',
+          })],
+        },
+      ]);
+      const opps = buildRevisionOpportunitiesFromEvaluationPayload(payload);
+      // Diagnosis alone with no anchor, no fix_direction, no candidates → rejected
+      expect(opps).toHaveLength(0);
     });
 
     it('rejects opportunity when both diagnosis AND anchor are empty', () => {
