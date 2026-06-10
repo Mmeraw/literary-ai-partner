@@ -736,8 +736,8 @@ export function EvaluationPoller({
               {(job.status === 'queued' || job.status === 'running') && (
                 <p className="text-xs text-stone-400 mt-2">
                   {isLongFormJob(job)
-                    ? 'Full-length manuscripts can take over an hour to evaluate.'
-                    : 'Short manuscripts typically take 15 minutes or more to evaluate.'}
+                    ? 'Full-length works can take over an hour to evaluate.'
+                    : 'Short writing typically takes 15 minutes or more to evaluate.'}
                 </p>
               )}
             </div>
