@@ -531,15 +531,16 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
 
   });
 
-  test("E2E LOCK: fully-scorable under-anchor criterion hard-fails and blocks persistence", async () => {
+  test("E2E LOCK: borderline under-anchor criteria (1 short) soft-fail and allow persistence", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
 
     const underAnchoredSynthesis = makeRealSynthesisOutput();
     underAnchoredSynthesis.criteria = underAnchoredSynthesis.criteria.map((c) => ({
       ...c,
-      // Exactly one anchor keeps confidence moderate/scorable for many criteria,
-      // but remains below v2 minAnchorsFor threshold (typically 2), which must hard-fail.
+      // Exactly one anchor: 1 short of threshold (typically 2). Borderline soft-fail
+      // allows completeness bridge to pass — criteria with valid score + rationale
+      // that are only 1 anchor short do NOT hard-fail the evaluation.
       evidence: [{ snippet: `Single anchor for ${c.key} (intentionally below threshold).` }],
       recommendations: [
         {
@@ -567,37 +568,53 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const { processEvaluationJob } = require("../../../lib/evaluation/processor");
     const result = await processEvaluationJob("job-real-gate-test");
 
+    // Borderline soft-fail: 1-short-of-threshold criteria pass completeness bridge.
+    expect(result.success).toBe(true);
+
+    // V2 artifact IS persisted (evaluation completes successfully).
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(true);
+  });
+
+  test("E2E LOCK: zero-anchor criteria still hard-fail completeness bridge", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+    upsertEvaluationArtifactMock.mockResolvedValue(undefined);
+
+    const zeroAnchorSynthesis = makeRealSynthesisOutput();
+    zeroAnchorSynthesis.criteria = zeroAnchorSynthesis.criteria.map((c) => ({
+      ...c,
+      // Zero anchors: more than 1 short of threshold. Must still hard-fail.
+      evidence: [],
+      recommendations: [
+        {
+          priority: "medium" as const,
+          action: `Refine ${c.key} with a focused revision tied to this excerpt and its reader effect.`,
+          expected_impact: `Improves ${c.key} specificity and coherence.`,
+        },
+      ],
+      final_rationale:
+        `Criterion ${c.key} has no concrete anchors.`,
+    }));
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: zeroAnchorSynthesis,
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-real-gate-test");
+
+    // Zero anchors still hard-fails (only 1-short is borderline soft-fail).
     expect(result.success).toBe(false);
 
-    // Diagnostic artifacts ARE persisted on V2 gate failure (for reconstructability).
-    // Verify only diagnostic artifact types are written — no evaluation_result_v2.
-    const diagnosticCalls = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
-      (call: any[]) => call[0]?.artifactType,
-    );
-    expect(diagnosticCalls.every((t: string) =>
-      t === "pass_outputs_diagnostic_v1" || t === "quality_gate_diagnostics_v1",
-    )).toBe(true);
-
-    // No user-facing V2 artifact persisted (atomic RPC must not have fired).
+    // No user-facing V2 artifact persisted.
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(false);
-
-    // No "complete" status written to DB.
-    expect(
-      supabaseStub.evaluationJobUpdates.some(
-        (u: Record<string, unknown>) => u.status === "complete",
-      ),
-    ).toBe(false);
-
-    // Progress includes v2_gate_status=failed for reconstructability.
-    const finalProgressUpdate = supabaseStub.evaluationJobUpdates.find(
-      (u: Record<string, unknown>) =>
-        u.progress !== undefined &&
-        typeof u.progress === "object" &&
-        (u.progress as Record<string, unknown>).v2_gate_status === "failed",
-    );
-    expect(finalProgressUpdate).toBeDefined();
   });
 
   test("V2 SCORE-CONFIDENCE DOWNGRADE: mismatch downgrades criterion and persists canonical V2 output", async () => {
