@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   ARTIFACT_REGISTRY,
+  AUTHORITY_SOURCE_REGISTRY,
   FIELD_REGISTRY,
   KICK_MATRIX,
   PROCESS_REGISTRY,
@@ -104,6 +105,19 @@ writeCsv('renderer_consumption_matrix.csv', RENDERER_CONSUMPTION_MATRIX, [
   'parityRequiredFields',
   'currentFitGapStatus',
   'remediationPr',
+]);
+
+writeCsv('authority_source_registry.csv', AUTHORITY_SOURCE_REGISTRY, [
+  'authorityId',
+  'family',
+  'title',
+  'path',
+  'appliesToStageIds',
+  'appliesToArtifacts',
+  'runtimeBinding',
+  'surfacedInSipocUi',
+  'executionUse',
+  'notes',
 ]);
 
 console.log(`[fipoc:export] wrote registries to ${OUT_DIR}`);

@@ -9,6 +9,7 @@ These registry files make the SIPOC visible as spreadsheet-style contracts:
 - `field_registry.csv` — canonical source and render-consumption contract for author-visible fields.
 - `kick_matrix.csv` — dirty-data detection, backward kick, retry, and blocking behavior.
 - `renderer_consumption_matrix.csv` — which surfaces may render which fields and what inputs are forbidden.
+- `authority_source_registry.csv` — canon, governance, reference, benchmark, template, DREAM, GOLD standard, exemplar, SIPOC, and registry authority docs that must surface in SIPOC UI/execution.
 
 The executable source of truth is `lib/evaluation/fipocRegistry.ts`. These CSVs are human review mirrors for planning and audit. Runtime behavior is intentionally unchanged in PR #1112; later PRs implement the missing critical contracts.
 
@@ -19,3 +20,4 @@ The executable source of truth is `lib/evaluation/fipocRegistry.ts`. These CSVs 
 3. Gate 15 / final audit / dialogue canon failures must block author exposure when configured as blocking.
 4. WAVE, DREAM, Canon Governance, and Final External Audit are active production stages, not deferred.
 5. Renderers must format only; they must not recalculate report type, score, genre, criteria, confidence, warnings, pitch, premise, or entity names.
+6. Canon/governance/reference/benchmark/template/DREAM/GOLD standard/exemplar docs are explicit authority sources and must not be hidden implementation lore.

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   ARTIFACT_REGISTRY,
+  AUTHORITY_SOURCE_REGISTRY,
   FIELD_REGISTRY,
   KICK_MATRIX,
   PROCESS_REGISTRY,
@@ -57,10 +58,12 @@ describe('executable FIPOC registry', () => {
       fitGapStatus: 'critical',
     }));
     expect(phase5?.outputArtifacts).toEqual(expect.arrayContaining([
+      'unified_evaluation_document_v1',
       'author_exposure_certification_v1',
       'report_render_manifest_v1',
     ]));
     expect(phase5?.failureCodes).toEqual(expect.arrayContaining([
+      'PHASE5_TEMPLATE_CONTRACT_FAIL',
       'PHASE5_RENDER_PARITY_FAIL',
       'PHASE5_BANNED_ENTITY',
       'PHASE5_SCORE_DRIFT',
@@ -113,8 +116,22 @@ describe('executable FIPOC registry', () => {
   });
 
   test('author-visible fields require UnifiedEvaluationDocument parity and forbid renderer derivation', () => {
-    expect(FIELD_REGISTRY.length).toBeGreaterThanOrEqual(30);
+    expect(FIELD_REGISTRY.length).toBeGreaterThanOrEqual(40);
     expectUnique(FIELD_REGISTRY.map((entry) => entry.field), 'field');
+
+    expect(FIELD_REGISTRY.map((entry) => entry.field)).toEqual(expect.arrayContaining([
+      'evaluationMode',
+      'evaluationTemplateName',
+      'evaluationTemplatePath',
+      'overallScoreConfidence',
+      'marketReadinessConfidence',
+      'genreConfidence',
+      'targetAudienceConfidence',
+      'shelfConfidence',
+      'recommendedCount',
+      'optionalCount',
+      'considerCount',
+    ]));
 
     for (const field of FIELD_REGISTRY) {
       expect(field.validatorStageId).toBe('S10b_PHASE5_AUTHOR_EXPOSURE_GATE');
@@ -145,6 +162,7 @@ describe('executable FIPOC registry', () => {
       rendererMayDerive: false,
     }));
     expect(webpage?.forbiddenInputs).toEqual(expect.arrayContaining([
+      'direct evaluation_result_v2 rendering without UnifiedEvaluationDocument',
       'local score calculation',
       'local page calculation',
     ]));
@@ -161,6 +179,7 @@ describe('executable FIPOC registry', () => {
     expect(blocking.length).toBeGreaterThan(10);
     expect(blocking.map((entry) => entry.failureCode)).toEqual(expect.arrayContaining([
       'PHASE5_RENDER_PARITY_FAIL',
+      'PHASE5_TEMPLATE_CONTRACT_FAIL',
       'WAVE_DERIVATION_EMPTY',
       'DIALOGUE_CANON_EXECUTION_FAILED',
       'FINAL_AUDIT_CONTRADICTION',
@@ -182,6 +201,65 @@ describe('executable FIPOC registry', () => {
     }
   });
 
+  test('authority source registry exposes canon governance reference benchmark template DREAM GOLD and exemplar docs for SIPOC UI and execution', () => {
+    expect(AUTHORITY_SOURCE_REGISTRY.length).toBeGreaterThanOrEqual(20);
+    expectUnique(AUTHORITY_SOURCE_REGISTRY.map((entry) => entry.authorityId), 'authorityId');
+
+    expect(AUTHORITY_SOURCE_REGISTRY.map((entry) => entry.family)).toEqual(expect.arrayContaining([
+      'benchmark',
+      'canon',
+      'template',
+      'dream',
+      'gold_standard',
+      'exemplar',
+      'governance',
+      'reference',
+      'sipoc',
+      'registry',
+    ]));
+
+    expect(AUTHORITY_SOURCE_REGISTRY.map((entry) => entry.path)).toEqual(expect.arrayContaining([
+      'docs/SIPOC_EVALUATION_PROCESS.md',
+      'docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md',
+      'docs/canon/registered/control/BENCHMARK-CHARTER.md',
+      'docs/governance/DREAM_OUTPUT_SPEC.md',
+      'docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md',
+      'docs/governance/DREAM_STATE_LONGFORM_CANON.md',
+      'docs/governance/seed-phase-template-alignment-contract.md',
+      'docs/governance/phase-2-calibration-template.md',
+      'docs/GOLDEN_SPINE.md',
+      'docs/VERIFICATION_GOLD_STANDARD.md',
+      'docs/canon/intake/_md/Normalized Gold Standard CANONICAL ACCEPTANCE COMPARATOR v1.md',
+      'docs/templates/evaluation/short-form-evaluation-template.md',
+      'docs/templates/evaluation/long-form-evaluation-template.md',
+      'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
+      'docs/templates/evaluation/evaluation-rendering-contract.md',
+      'docs/templates/evaluation/surface-parity-matrix.md',
+      'docs/benchmarks/templates/dream-longform-layered-template.md',
+      'docs/gold-standards/recommendation-integrity-dream-standard.md',
+      'docs/gold-standards/revise-queue-rendering-exemplars.md',
+      'docs/gold-standards/sister-revise-queue-dream-ledger.md',
+      'lib/evaluation/fipocRegistry.ts',
+    ]));
+
+    const knownStageIds = new Set(PROCESS_REGISTRY.map((entry) => entry.stageId));
+    const knownArtifactIds = new Set(ARTIFACT_REGISTRY.map((entry) => entry.artifact));
+
+    for (const entry of AUTHORITY_SOURCE_REGISTRY) {
+      expect(entry.surfacedInSipocUi).toBe(true);
+      expect(entry.executionUse.length).toBeGreaterThan(20);
+      expect(entry.appliesToStageIds.length).toBeGreaterThan(0);
+      expect(entry.appliesToArtifacts.length).toBeGreaterThan(0);
+      expect(fs.existsSync(path.join(process.cwd(), entry.path))).toBe(true);
+      for (const stageId of entry.appliesToStageIds) {
+        expect(knownStageIds.has(stageId)).toBe(true);
+      }
+      for (const artifact of entry.appliesToArtifacts) {
+        expect(knownArtifactIds.has(artifact)).toBe(true);
+      }
+    }
+  });
+
   test('CSV mirrors exist and have row counts matching executable registry arrays', () => {
     const registryDir = path.join(process.cwd(), 'docs/registries');
     const expectedCounts: Record<string, number> = {
@@ -190,6 +268,7 @@ describe('executable FIPOC registry', () => {
       'field_registry.csv': FIELD_REGISTRY.length,
       'kick_matrix.csv': KICK_MATRIX.length,
       'renderer_consumption_matrix.csv': RENDERER_CONSUMPTION_MATRIX.length,
+      'authority_source_registry.csv': AUTHORITY_SOURCE_REGISTRY.length,
     };
 
     for (const [filename, rowCount] of Object.entries(expectedCounts)) {

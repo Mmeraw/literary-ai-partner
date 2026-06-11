@@ -99,11 +99,11 @@ Use **Insufficient Evidence** when the sample, coverage, or evidence base does n
 ## Revision Opportunity Summary
 
 - **Total Revision Opportunities:** `<XX>`
-- **High Priority:** `<X>`
-- **Medium Priority:** `<X>`
-- **Low Priority:** `<X>`
+- **Recommended:** `<X>`
+- **Optional:** `<X>`
+- **Consider:** `<X>`
 
-Priority labels indicate recommended urgency. Do not imply that the evaluation report applies repairs; repairs belong to Revise Queue.
+Recommended / Optional / Consider labels indicate author-facing revision posture. Do not imply that the evaluation report applies repairs; repairs belong to Revise Queue.
 
 ---
 
