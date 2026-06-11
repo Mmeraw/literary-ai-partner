@@ -805,9 +805,10 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('REVISIONGRADE™ EVALUATION REPORT');
   lines.push(sep);
   lines.push(`Manuscript Title: ${metadata.displayTitle}`);
+  lines.push(`Reference ID: ${jobId}`);
   lines.push(`Report Type: ${metadata.reportType}`);
   if (metadata.genre) lines.push(`Genre: ${metadata.genre}`);
-  if (metadata.targetAudience) lines.push(`Target Audience: ${metadata.targetAudience}`);
+  if (metadata.targetAudience) lines.push(wrapText(`Target Audience: ${metadata.targetAudience}`));
   if (metadata.shelf) lines.push(`Shelf: ${metadata.shelf}`);
   if (metadata.wordCount) lines.push(`Submitted Word Count: ${metadata.wordCount.toLocaleString()}`);
   if (metadata.estimatedPages) lines.push(`Estimated Manuscript Pages: ${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page`);
@@ -872,41 +873,12 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push(sub);
   lines.push('');
   lines.push(`Total Revision Opportunities: ${opportunitySummary.total}`);
-  lines.push(`High Priority: ${opportunitySummary.high}`);
-  lines.push(`Medium Priority: ${opportunitySummary.medium}`);
-  lines.push(`Low Priority: ${opportunitySummary.low}`);
+  lines.push(`Recommended: ${opportunitySummary.high}`);
+  lines.push(`Optional: ${opportunitySummary.medium}`);
+  lines.push(`Consider: ${opportunitySummary.low}`);
   lines.push('');
-  lines.push('Priority labels indicate the recommended urgency of each revision opportunity.');
+  lines.push('Recommendation tiers indicate the suggested urgency of each revision opportunity.');
   lines.push('');
-
-  if (enrichment?.reading_grade_level != null) {
-    lines.push(sub);
-    lines.push('READING GRADE LEVEL');
-    lines.push(sub);
-    lines.push('');
-    lines.push(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`);
-    lines.push('');
-    lines.push('Reading Grade Level measures prose complexity, NOT audience appropriateness.');
-    lines.push('A manuscript may score at a young-adult reading level (grades 6-8) while');
-    lines.push('containing graphic violence, sexual content, or other material unsuitable');
-    lines.push('for younger readers. Always cross-reference Content Warnings above for');
-    lines.push('content suitability guidance.');
-    lines.push('');
-  }
-
-  if (enrichment?.dialogue_percentage != null) {
-    lines.push(sub);
-    lines.push('DIALOGUE VS. NARRATIVE RATIO');
-    lines.push(sub);
-    lines.push('');
-    lines.push(`Dialogue: ${Math.floor(enrichment.dialogue_percentage)}%`);
-    lines.push(`Narrative: ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}%`);
-    lines.push('');
-    lines.push('Most commercially successful novels contain 25-35% dialogue. Genre');
-    lines.push('expectations vary: literary fiction trends lower (15-25%), thrillers');
-    lines.push('and romance trend higher (30-45%).');
-    lines.push('');
-  }
 
   lines.push(sub);
   lines.push('EXECUTIVE SUMMARY');
@@ -1053,7 +1025,7 @@ function buildCanonicalTemplateDocument(
   });
 }
 
-function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
+function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): string {
   const lines: string[] = [];
   const sep = '='.repeat(72);
   const sub = '-'.repeat(72);
@@ -1062,17 +1034,18 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('REVISIONGRADE™ EVALUATION REPORT');
   lines.push(sep);
   lines.push(`Manuscript Title: ${doc.title}`);
+  if (jobId) lines.push(`Reference ID: ${jobId}`);
   lines.push(`Report Type: ${doc.titleBlock.reportType}`);
   const genreConf = doc.titleBlock.genreConfidenceLabel ? ` (${doc.titleBlock.genreConfidenceLabel})` : '';
   lines.push(`Genre: ${doc.titleBlock.genre}${genreConf}`);
   if (doc.titleBlock.genreExpectationContract) {
-    lines.push(`Genre Expectations: ${doc.titleBlock.genreExpectationContract.contractSummary}`);
+    lines.push(wrapText(`Genre Expectations: ${doc.titleBlock.genreExpectationContract.contractSummary}`));
     if (doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0) {
       lines.push(`Reader Emphasis: ${doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}`);
     }
   }
   const audiencePrefix = doc.titleBlock.audienceTentative ? 'Tentative: ' : '';
-  lines.push(`Target Audience: ${audiencePrefix}${doc.titleBlock.targetAudience} (${doc.titleBlock.audienceConfidenceLabel})`);
+  lines.push(wrapText(`Target Audience: ${audiencePrefix}${doc.titleBlock.targetAudience} (${doc.titleBlock.audienceConfidenceLabel})`));
   if (doc.titleBlock.shelf) {
     const shelfConf = doc.titleBlock.shelfConfidenceLabel ? ` (${doc.titleBlock.shelfConfidenceLabel})` : '';
     lines.push(`Shelf: ${doc.titleBlock.shelf}${shelfConf}`);
@@ -1118,15 +1091,17 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('');
   doc.contentWarnings.forEach((warning) => lines.push(wrapText(`• ${cleanReportText(warning)}`)));
   lines.push('');
+  lines.push('Consider including content warnings in book marketing or front matter.');
+  lines.push('');
 
   lines.push(sub);
   lines.push('REVISION OPPORTUNITY SUMMARY');
   lines.push(sub);
   lines.push('');
   lines.push(`Total Revision Opportunities: ${doc.revisionOpportunitySummary.total}`);
-  lines.push(`High Priority: ${doc.revisionOpportunitySummary.high}`);
-  lines.push(`Medium Priority: ${doc.revisionOpportunitySummary.medium}`);
-  lines.push(`Low Priority: ${doc.revisionOpportunitySummary.low}`);
+  lines.push(`Recommended: ${doc.revisionOpportunitySummary.high}`);
+  lines.push(`Optional: ${doc.revisionOpportunitySummary.medium}`);
+  lines.push(`Consider: ${doc.revisionOpportunitySummary.low}`);
   lines.push('');
 
   lines.push(sub);
@@ -1308,7 +1283,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   return lines.join('\n');
 }
 
-function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
+function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = ''): string {
   const list = (items: string[], options: { ordered?: boolean } = {}) =>
     items.length > 0
       ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(cleanReportText(item))}</span></li>`).join('')}</ul>`
@@ -1379,6 +1354,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
         <div>
           <h1 class="title">${escapeHtml(doc.title)}</h1>
           <p class="subtitle">${escapeHtml(doc.titleBlock.reportType)}</p>
+          ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
         </div>
         <aside class="score-box">
           <div class="label">Overall Score</div>
@@ -1403,8 +1379,8 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
     <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneParagraphPitch))}</p></section>
     <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneSentencePitch))}</p></section>
     ${doc.premise ? `<section><h2>Premise</h2><p>${escapeHtml(cleanReportText(doc.premise))}</p></section>` : ''}
-    <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}</section>
-    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric"><strong>Total</strong><div>${doc.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>High Priority</strong><div>${doc.revisionOpportunitySummary.high}</div></div><div class="metric"><strong>Medium Priority</strong><div>${doc.revisionOpportunitySummary.medium}</div></div><div class="metric"><strong>Low Priority</strong><div>${doc.revisionOpportunitySummary.low}</div></div></div></section>
+    <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
+    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric"><strong>Total</strong><div>${doc.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${doc.revisionOpportunitySummary.high}</div></div><div class="metric"><strong>Optional</strong><div>${doc.revisionOpportunitySummary.medium}</div></div><div class="metric"><strong>Consider</strong><div>${doc.revisionOpportunitySummary.low}</div></div></div></section>
     <section><h2>Executive Summary</h2><p>${escapeHtml(cleanReportText(doc.executiveSummary))}</p></section>
     <section><h2>Top Strengths</h2>${list(doc.topStrengths, { ordered: true })}</section>
     <section><h2>Top Risks</h2>${list(doc.topRisks, { ordered: true })}</section>
@@ -1426,7 +1402,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
   </body></html>`;
 }
 
-async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promise<Buffer> {
+async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId = ''): Promise<Buffer> {
   const makeHeading = (text: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
@@ -1465,6 +1441,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     });
 
   const metadataTableRows: TableRow[] = [
+    ...(jobId ? [['Reference ID', jobId] as [string, string]] : []),
     ['Report Type', doc.titleBlock.reportType],
     ['Overall Score', `${doc.titleBlock.overallScoreLabel}${doc.titleBlock.overallScoreConfidenceLabel ? ` (${doc.titleBlock.overallScoreConfidenceLabel})` : ''}`],
     ['Market Readiness', `${doc.titleBlock.marketReadiness}${doc.titleBlock.marketReadinessConfidenceLabel ? ` (${doc.titleBlock.marketReadinessConfidenceLabel})` : ''}`],
@@ -1559,10 +1536,11 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
 
   children.push(makeHeading('Content Warnings'));
   doc.contentWarnings.forEach((item) => children.push(docxListPara(item)));
+  children.push(para('Consider including content warnings in book marketing or front matter.'));
 
   children.push(makeHeading('Revision Opportunity Summary'));
   children.push(para(`Total: ${doc.revisionOpportunitySummary.total}`));
-  children.push(para(`High: ${doc.revisionOpportunitySummary.high} | Medium: ${doc.revisionOpportunitySummary.medium} | Low: ${doc.revisionOpportunitySummary.low}`));
+  children.push(para(`Recommended: ${doc.revisionOpportunitySummary.high} | Optional: ${doc.revisionOpportunitySummary.medium} | Consider: ${doc.revisionOpportunitySummary.low}`));
   children.push(makeHeading('Executive Summary'));
   children.push(para(doc.executiveSummary));
   children.push(makeHeading('Top Strengths'));
@@ -1915,6 +1893,7 @@ function renderPremiumReportHtml(
   dream: LongformDreamDocument | null,
   enrichment: EnrichmentData,
   ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null },
+  jobId = '',
 ): string {
   const pitches = buildReportPitches({
     premise: enrichment?.premise,
@@ -2050,6 +2029,7 @@ function renderPremiumReportHtml(
     <div class="rule"></div>
     <h1>${escapeHtml(metadata.displayTitle)}</h1>
     <p class="subtitle">${escapeHtml(metadata.reportType)}</p>
+    <p style="margin:0.06in 0 0;color:#5c5549;font-family:Helvetica,Arial,sans-serif;font-size:9pt;">Reference ID: ${escapeHtml(jobId)}</p>
     <div class="cover-grid">
       <dl class="metadata">
         ${renderMetric('Genre', metadata.genre ?? 'Not specified')}
@@ -2076,10 +2056,8 @@ function renderPremiumReportHtml(
   ${enrichment?.premise ? `<section class="section"><h2>Premise</h2>${renderHtmlParagraph(enrichment.premise)}</section>` : ''}
   <section class="section"><h2>Content Warnings</h2>${renderHtmlList(enrichment?.trigger_warnings, 'No content warnings identified.')}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
   <section class="section"><h2>Revision Opportunity Summary</h2><div class="score-grid">${[
-    ['Total', opportunitySummary.total], ['High Priority', opportunitySummary.high], ['Medium Priority', opportunitySummary.medium], ['Low Priority', opportunitySummary.low],
-  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Priority labels indicate the recommended urgency of each revision opportunity.</p></section>
-  ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
-  ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}<p>Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).</p></section>` : ''}
+    ['Total', opportunitySummary.total], ['Recommended', opportunitySummary.high], ['Optional', opportunitySummary.medium], ['Consider', opportunitySummary.low],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Recommendation tiers indicate the suggested urgency of each revision opportunity.</p></section>
   <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
   <section class="section"><h2>Top Strengths</h2>${renderHtmlOrderedList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
   <section class="section"><h2>Top Risks</h2>${renderHtmlOrderedList(result.overview.top_3_risks, 'No risks supplied.')}</section>
@@ -2133,10 +2111,10 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
 }
 
 
-async function buildPdfReport(result: ExportableResult, title: string | null, _jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
+async function buildPdfReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream, enrichment);
   const summaryFallback = buildSummaryFallback(result);
-  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment, ledger);
+  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment, ledger, jobId);
   return await buildChromiumPdf(html);
 }
 
@@ -2314,6 +2292,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
   // Metadata block
   const metaLines = [
+    metaRow('Reference ID', jobId),
     metaRow('Genre', metadata.genre),
     metaRow('Target Audience', metadata.targetAudience),
     metaRow('Shelf', metadata.shelf),
@@ -2355,9 +2334,9 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     rows: [new TableRow({
       children: [
         ['Total', opportunitySummary.total],
-        ['High Priority', opportunitySummary.high],
-        ['Medium Priority', opportunitySummary.medium],
-        ['Low Priority', opportunitySummary.low],
+        ['Recommended', opportunitySummary.high],
+        ['Optional', opportunitySummary.medium],
+        ['Consider', opportunitySummary.low],
       ].map(([label, value]) => new TableCell({
         width: { size: 25, type: WidthType.PERCENTAGE },
         borders: DOCX_NO_BORDERS,
@@ -2371,18 +2350,6 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     width: { size: 100, type: WidthType.PERCENTAGE },
   }));
   children.push(bodyPara('Priority labels indicate the recommended urgency of each revision opportunity.', { size: 18, color: RG.textMuted }));
-
-  if (enrichment?.reading_grade_level != null) {
-    children.push(brandHeading('Reading Grade Level', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`));
-    children.push(bodyPara('Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Content Warnings above for content suitability guidance.', { size: 18, color: RG.textMuted }));
-  }
-
-  if (enrichment?.dialogue_percentage != null) {
-    children.push(brandHeading('Dialogue vs. Narrative Ratio', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`));
-    children.push(bodyPara('Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).', { size: 18, color: RG.textMuted }));
-  }
 
   // ── Summary ─────────────────────────────────────────────────────
   children.push(brandHeading('Executive Summary', HeadingLevel.HEADING_2));
@@ -3096,7 +3063,7 @@ export async function GET(
   const canonicalDoc = buildCanonicalTemplateDocument(result, title, enrichment, evaluationMode, dream);
 
   if (format === 'txt') {
-    const body = buildCanonicalTemplateTxt(canonicalDoc);
+    const body = buildCanonicalTemplateTxt(canonicalDoc, jobId);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -3108,7 +3075,7 @@ export async function GET(
 
   if (format === 'pdf') {
     try {
-      const html = renderCanonicalTemplateHtml(canonicalDoc);
+      const html = renderCanonicalTemplateHtml(canonicalDoc, jobId);
       const buffer = await buildChromiumPdf(html);
       if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
         throw new Error('Generated artifact does not contain valid PDF header bytes');
@@ -3138,7 +3105,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildCanonicalTemplateDocx(canonicalDoc);
+  const buffer = await buildCanonicalTemplateDocx(canonicalDoc, jobId);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
