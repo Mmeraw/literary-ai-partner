@@ -35,6 +35,7 @@ import {
   correctScopeLanguage,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
+import { buildReportPitches } from '@/lib/evaluation/reportTemplateContract';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
@@ -394,7 +395,7 @@ export default async function ReportPage({
     <div className="min-h-screen bg-gray-50">
       {printMode && <AutoPrintOnLoad enabled />}
       <div className="max-w-5xl mx-auto px-4 py-6 sm:px-8">
-        {/* Header */}
+        {/* Header + Title Block (template section 1) */}
         <header className="mb-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -430,6 +431,29 @@ export default async function ReportPage({
               <DownloadReportButton jobId={params.jobId} />
             </div>
           </div>
+          {/* Title Block metadata grid (template-mandated fields) */}
+          {(() => {
+            const overallScore = overview.overall_score_0_100;
+            const marketReadiness = typeof overallScore === 'number' && Number.isFinite(overallScore)
+              ? (overallScore >= 90 ? 'Market Ready' : overallScore >= 80 ? 'Near Market Ready' : 'Not Market Ready')
+              : 'Review';
+            const genre = result.metrics?.manuscript?.genre || 'Not specified';
+            const v2Enrichment = isEvaluationResultV2(resultRaw) ? (resultRaw as EvaluationResultV2).enrichment : null;
+            const targetAudience = v2Enrichment?.target_audience || result.metrics?.manuscript?.target_audience || 'Not available';
+            const submittedWordCount = result.metrics?.manuscript?.word_count;
+            const estimatedPages = submittedWordCount ? Math.floor(submittedWordCount / 250) : null;
+            return (
+              <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm border-t border-gray-200 pt-4">
+                <div><dt className="text-gray-500">Report Type</dt><dd className="font-medium text-gray-900">Short-Form Evaluation</dd></div>
+                <div><dt className="text-gray-500">Overall Score</dt><dd className="font-medium text-gray-900">{overallScore}/100</dd></div>
+                <div><dt className="text-gray-500">Market Readiness</dt><dd className="font-medium text-gray-900">{marketReadiness}</dd></div>
+                <div><dt className="text-gray-500">Genre</dt><dd className="font-medium text-gray-900">{genre}</dd></div>
+                <div><dt className="text-gray-500">Target Audience</dt><dd className="font-medium text-gray-900">{targetAudience}</dd></div>
+                {submittedWordCount ? <div><dt className="text-gray-500">Submitted Word Count</dt><dd className="font-medium text-gray-900">{submittedWordCount.toLocaleString()}</dd></div> : null}
+                {estimatedPages ? <div><dt className="text-gray-500">Estimated Pages</dt><dd className="font-medium text-gray-900">{estimatedPages.toLocaleString()} at 250 words/page</dd></div> : null}
+              </dl>
+            );
+          })()}
         </header>
 
         <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 leading-relaxed print-hidden">
@@ -456,6 +480,28 @@ export default async function ReportPage({
             <p className={integrityBanner.detailClassName}>{integrityBanner.message}</p>
           </section>
         )}
+
+        {/* ── One-Paragraph Pitch (template section 2) + One-Sentence Pitch (template section 3) ── */}
+        {(() => {
+          const enrichment = isEvaluationResultV2(result) ? (result as EvaluationResultV2).enrichment : null;
+          const pitches = buildReportPitches({
+            premise: enrichment?.premise,
+            summary: overview.one_paragraph_summary,
+            title: displayTitle,
+          });
+          return (
+            <>
+              <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-3">One-Paragraph Pitch</h2>
+                <p className="text-gray-700 leading-relaxed">{mistakeProofText(pitches.oneParagraphPitch)}</p>
+              </section>
+              <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-3">One-Sentence Pitch</h2>
+                <p className="text-gray-700 leading-relaxed font-medium">{mistakeProofText(pitches.oneSentencePitch)}</p>
+              </section>
+            </>
+          );
+        })()}
 
         {/* Overview Section — hidden for long-form until Narrative Synthesis (Part 2) lands */}
         {(!isLongForm || dreamDoc) && (
