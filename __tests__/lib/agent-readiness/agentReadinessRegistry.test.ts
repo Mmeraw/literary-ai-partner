@@ -302,8 +302,8 @@ describe('AGENT_READINESS_KICK_MATRIX', () => {
 // ─── Authority Source Registry ────────────────────────────────────────────────
 
 describe('AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY', () => {
-  test('has 8 authority sources', () => {
-    expect(AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY).toHaveLength(8);
+  test('has 9 authority sources', () => {
+    expect(AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY).toHaveLength(9);
   });
 
   test('all authorityIds are unique', () => {
@@ -331,6 +331,17 @@ describe('AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY', () => {
     const gov = AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY.find((a) => a.authorityId === 'AI_GOVERNANCE');
     expect(gov).toBeDefined();
     expect(gov!.appliesToStageIds).toHaveLength(9);
+  });
+
+  test('SIPOC_AGENT_READINESS authority source references the docs file', () => {
+    const sipoc = AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY.find((a) => a.authorityId === 'SIPOC_AGENT_READINESS');
+    expect(sipoc).toBeDefined();
+    expect(sipoc!.path).toBe('docs/SIPOC_AGENT_READINESS_PROCESS.md');
+    // Must apply to all 9 stages
+    expect(sipoc!.appliesToStageIds).toHaveLength(9);
+    // File must exist on disk
+    const abs = path.resolve(__dirname, '../../../', sipoc!.path);
+    expect(fs.existsSync(abs)).toBe(true);
   });
 });
 
@@ -546,5 +557,40 @@ describe('Known gap guards (audit-locked)', () => {
     expect(artifact).toBeDefined();
     expect(artifact!.fitGapStatus).toBe('critical');
     expect(artifact!.dirtyDataRule).toMatch(/KNOWN GAP/i);
+  });
+
+  test('AR04_SECTION_PERSISTENCE is marked critical — DB failure is non-fatal', () => {
+    const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR04_SECTION_PERSISTENCE');
+    expect(stage).toBeDefined();
+    expect(stage!.fitGapStatus).toBe('critical');
+    expect(stage!.certificationStatus).toBe('missing_critical');
+    expect(stage!.notes).toMatch(/KNOWN GAP/i);
+    expect(stage!.notes).toMatch(/non-fatal/i);
+  });
+
+  test('AR08_EXPORT is marked gap — export does not enforce completeness or approval', () => {
+    const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR08_EXPORT');
+    expect(stage).toBeDefined();
+    expect(stage!.fitGapStatus).toBe('gap');
+    expect(stage!.certificationStatus).toBe('partial');
+    // The contract must document the actual gate: at least one section, not all 6 approved
+    expect(stage!.processContract).toMatch(/at least one section/i);
+    expect(stage!.notes).toMatch(/KNOWN GAP/i);
+    // Must NOT falsely claim the API enforces all-6-approved
+    expect(stage!.processContract).not.toMatch(/blocked.*all.*6.*approved/i);
+  });
+
+  test('agent_readiness_section_v1 artifact is marked critical — persistence non-fatal', () => {
+    const artifact = AGENT_READINESS_ARTIFACT_REGISTRY.find((a) => a.artifact === 'agent_readiness_section_v1');
+    expect(artifact).toBeDefined();
+    expect(artifact!.fitGapStatus).toBe('critical');
+    expect(artifact!.dirtyDataRule).toMatch(/KNOWN GAP/i);
+  });
+
+  test('SIPOC_AGENT_READINESS authority source doc exists on disk', () => {
+    const sipoc = AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY.find((a) => a.authorityId === 'SIPOC_AGENT_READINESS');
+    expect(sipoc).toBeDefined();
+    const abs = path.resolve(__dirname, '../../../', sipoc!.path);
+    expect(fs.existsSync(abs)).toBe(true);
   });
 });
