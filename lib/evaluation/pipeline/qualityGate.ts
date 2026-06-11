@@ -1304,6 +1304,34 @@ export function runQualityGate(
       );
     }
   }
+
+  // ── P5 Check: Voice & Strength Preservation — verify mistake_proofing acknowledges ───
+  // Checks that recommendations on criteria scoring ≤7 include mistake_proofing when
+  // protected criteria (≥8) exist. A recommendation that could damage Voice 9/10 without
+  // even acknowledging the risk is a voice-preservation failure.
+  {
+    const protectedCriteria = synthesis.criteria
+      .filter(c => c.final_score_0_10 >= 8)
+      .map(c => c.key);
+    if (protectedCriteria.length > 0) {
+      const missingPreservation: string[] = [];
+      for (const c of synthesis.criteria) {
+        if (c.final_score_0_10 >= 8) continue; // skip already-protected criteria
+        for (const r of c.recommendations ?? []) {
+          const mp = (r as Record<string, unknown>).mistake_proofing;
+          if (!mp || (typeof mp === "string" && mp.trim().length < 10)) {
+            missingPreservation.push(c.key);
+            break; // one flag per criterion is enough
+          }
+        }
+      }
+      if (missingPreservation.length > 0) {
+        warnings.push(
+          `[P5_VOICE_PRESERVATION][WARN] ${missingPreservation.length} weak criterion/criteria (≤7) have recommendations without mistake_proofing acknowledging protected strengths (${protectedCriteria.slice(0, 4).join(", ")}): ${missingPreservation.slice(0, 5).join(", ")}. Candidate text may damage high-scoring criteria.`,
+        );
+      }
+    }
+  }
   const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,

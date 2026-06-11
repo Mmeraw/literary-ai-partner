@@ -1475,6 +1475,26 @@ export function parsePass3Response(
     }
   }
 
+  // ── P5: Voice & Strength Preservation — tag recommendations with protected criteria ─────
+  // Identifies criteria scoring ≥8 as "protected strengths." Any recommendation on a criterion
+  // scoring ≤7 gets tagged with the protected criteria it must not damage. This enables the
+  // quality gate to verify that mistake_proofing acknowledges protected strengths.
+  {
+    const protectedCriteria = finalCriteria
+      .filter(c => c.final_score_0_10 >= 8)
+      .map(c => ({ key: c.key, score: c.final_score_0_10 }));
+    if (protectedCriteria.length > 0) {
+      const protectedKeys = protectedCriteria.map(p => p.key);
+      for (const c of finalCriteria) {
+        if (c.final_score_0_10 >= 8) continue; // don't tag recs on already-protected criteria
+        for (const r of c.recommendations) {
+          r.protected_criteria = protectedKeys;
+        }
+      }
+      console.info(`[Pass3-P5-VoicePreservation] Tagged recommendations on ${finalCriteria.filter(c => c.final_score_0_10 < 8).length} criterion/criteria with ${protectedKeys.length} protected strength(s): ${protectedKeys.join(", ")}`);
+    }
+  }
+
   // ── P4: Cross-Criterion Deduplication — collapse same-lever recommendations ────────────
   // When the same strategic_lever+granularity appears across multiple criteria, keep the
   // recommendation on the lowest-scoring criterion (most important) and remove duplicates.

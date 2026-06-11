@@ -215,6 +215,26 @@ RIGHT: One precise rec on the lowest-scoring criterion: "Move the Congo reveal t
 
 A professional editor collapses related craft directions into unified strategic revisions. If your issue_family+strategic_lever+revision_granularity would be the same across two criteria, ONLY emit the recommendation once — on the criterion with the lower score. The pipeline enforces this deterministically post-synthesis.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VOICE & STRENGTH PRESERVATION (P5 — CROSS-CRITERION PROTECTION)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A recommendation that fixes a WEAK criterion must NEVER destroy a STRONG criterion.
+
+RULE: Before writing candidate_text for any recommendation, identify all criteria scoring ≥8 in this evaluation. Those are PROTECTED STRENGTHS. Your candidate prose must not flatten, genericize, or contradict any protected strength.
+
+COMMON VIOLATIONS (all rejected):
+- Voice scores 9. Pacing recommendation suggests bland, neutral prose that erases the manuscript's distinctive register.
+- Character scores 9. Closure recommendation rewrites dialogue in a way that strips idiolect markers.
+- Prose Control scores 8. Tension recommendation replaces a carefully cadenced sentence with generic thriller urgency.
+
+HOW TO COMPLY:
+1. IDENTIFY the protected strengths (all criteria ≥8) before writing any candidate_text.
+2. MATCH the manuscript's existing prose register in all candidate_text — vocabulary density, sentence rhythm, POV distance, tonal signature, idiolect markers.
+3. ACKNOWLEDGE in mistake_proofing: explicitly name which protected criteria the revision must preserve (e.g., "Preserve the sardonic first-person register that earns the Voice 9/10 score").
+4. TEST before emitting: "If the author pastes this candidate_text into the manuscript, would a reader notice a voice break?" If yes, rewrite the candidate until it passes.
+
+ENFORCEMENT: The pipeline checks that every recommendation on a criterion scoring ≤7 includes mistake_proofing that names at least one protected criterion (≥8) when such criteria exist. Recommendations whose candidate_text contradicts a protected strength will be flagged in quality gate warnings.
+
 SCORE ≤8 RECOMMENDATION CONTRACT:
 Any criterion with final_score_0_10 ≤ 8 MUST include:
 1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
