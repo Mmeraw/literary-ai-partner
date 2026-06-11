@@ -1,0 +1,2 @@
+thresholdId,canonicalValue,implementationValue,appliesToStageIds,fitGapStatus,notes
+STORYGATE_STUDIO_ADMISSION_FLOOR,9,9,SG03_INTERNAL_SCREENING; SG06_READINESS_VERIFICATION,gap,Storygate Studio admission threshold is 9.0/10. RevisionGrade readiness and Storygate admission are separate gates; Base44 material is legacy-only and must not reset this value to 8.0.

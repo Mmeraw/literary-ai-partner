@@ -1,0 +1,29 @@
+field,artifact,required,nullable,canonicalValues,sourceStageId,validatorStageId,uiRendered,notes
+project_title,storygate_submission_request_v1,true,false,,SG01_CREATOR_SUBMISSION,SG02_INTAKE_VALIDATION,true,Creator-supplied title.
+primary_genre,storygate_submission_request_v1,true,false,,SG01_CREATOR_SUBMISSION,SG02_INTAKE_VALIDATION,true,Genre/market lane metadata.
+creator_name,storygate_submission_request_v1,true,false,,SG01_CREATOR_SUBMISSION,SG02_INTAKE_VALIDATION,false,Creator contact identity.
+creator_email,storygate_submission_request_v1,true,false,,SG01_CREATOR_SUBMISSION,SG02_INTAKE_VALIDATION,false,Creator contact email.
+query_letter,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field.
+synopsis,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field.
+author_bio,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field.
+elevator_pitch,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field.
+agent_pitch,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field.
+market_comparables,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field; comparables are not optional for Storygate admission.
+market_category,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,"Required Storygate package field; identifies the operational publishing category such as upmarket suspense, commercial thriller, literary fiction, historical mystery, speculative eco-thriller, or middle grade fantasy."
+target_audience,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field; identifies the intended readership and buying audience.
+market_position_statement,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field; explains where the manuscript sits on the publishing shelf beyond comparables alone.
+sample_pages,agent_readiness_package_v1,true,false,,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required Storygate package field.
+rights_declaration,agent_readiness_package_v1,true,false,confirmed,SG01_CREATOR_SUBMISSION,SG05_PACKAGE_VERIFICATION,true,Required explicit rights confirmation.
+status,storygate_submission_request_v1,true,false,SUBMITTED; REVIEWING; DECLINED; HOLD; APPROVED,SG01_CREATOR_SUBMISSION,SG03_INTERNAL_SCREENING,false,Canonical internal submission status set.
+screeningStatus,screening_result_v1,true,false,ELIGIBLE; AUTO_DECLINED; RECOMMEND_HUMAN_REVIEW,SG03_INTERNAL_SCREENING,SG03_INTERNAL_SCREENING,false,Creator-safe screening outcome.
+tier,tier_assignment_v1,true,false,Tier 1; Tier 2; Tier 3,SG04_TIER_ASSIGNMENT,SG04_TIER_ASSIGNMENT,false,Internal review tier only.
+eligible,storygate_eligibility_result_v1,true,false,true; false,SG06_READINESS_VERIFICATION,SG06_READINESS_VERIFICATION,true,"true iff package, 9.0/equivalent readiness, and rights gates all pass."
+readinessThreshold,storygate_eligibility_result_v1,true,false,9.0,SG06_READINESS_VERIFICATION,SG06_READINESS_VERIFICATION,true,Canonical Storygate Studio admission threshold. RevisionGrade readiness and Storygate admission are separate gates.
+visibility,project_listing_v1,true,false,private; restricted; active,SG08_LISTING_ACTIVATION,SG08_LISTING_ACTIVATION,false,Listing starts private/restricted by default.
+access_requires_approval,project_listing_v1,true,false,true,SG08_LISTING_ACTIVATION,SG10_CREATOR_ADMIN_APPROVAL,false,Creator/admin approval required before controlled access.
+verification_state,industry_verification_record_v1,true,false,verified; unverified,SG07_INDUSTRY_VERIFICATION,SG07_INDUSTRY_VERIFICATION,true,Admin-controlled trust signal.
+decision,access_request_v1,true,false,requested; approved; denied; revoked,SG09_ACCESS_REQUEST,SG10_CREATOR_ADMIN_APPROVAL,true,Access request lifecycle decision; no automatic grant on requested.
+allowed_artifacts,access_unlock_grant_v1,true,false,,SG10_CREATOR_ADMIN_APPROVAL,SG11_CONTROLLED_ACCESS,true,Creator-approved artifact subset for a requester/listing grant.
+action_type,access_log_event_v1,true,false,listing_created; request_access; grant_access; deny_access; view; download; verify_industry; revoke_access,SG12_ACCESS_LOGGING_REVOCATION,SG12_ACCESS_LOGGING_REVOCATION,false,Structured action type required for audit.
+validators_run,access_log_event_v1,true,false,,SG12_ACCESS_LOGGING_REVOCATION,SG12_ACCESS_LOGGING_REVOCATION,false,Required before SIPOC-enforced status.
+failure_codes,access_log_event_v1,true,true,,SG12_ACCESS_LOGGING_REVOCATION,SG12_ACCESS_LOGGING_REVOCATION,false,Required; empty array on pass.
