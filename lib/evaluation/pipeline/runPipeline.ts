@@ -258,6 +258,12 @@ export interface RunPipelineOptions {
    * MANDATORY hard fact constraints that downstream recommendations must respect.
    */
   _storyLedgerContextBlock?: string;
+  /**
+   * Canonical character names from the story ledger (primary_entities).
+   * When provided, deterministic post-processing in Pass 3 replaces any
+   * blocked character name references with canonical names.
+   */
+  _canonicalEntityNames?: string[];
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -1881,6 +1887,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         compactPreflightSummary,
         // Full-context story ledger ground truth (Phase 0.5a)
         storyLedgerContextBlock: opts._storyLedgerContextBlock,
+        // Canonical entity names for deterministic character name sanitization
+        canonicalEntityNames: opts._canonicalEntityNames,
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,

@@ -99,6 +99,7 @@ import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { pipelineLog } from "./pipelineLogger";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
+import { sanitizeSynthesisCharacterNames } from "./characterNameSanitizer";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -440,6 +441,12 @@ export interface RunPass3Options {
    * these facts is INVALID and must be suppressed.
    */
   storyLedgerContextBlock?: string;
+  /**
+   * Canonical character names from the story ledger (primary_entities).
+   * When provided, deterministic post-processing replaces any blocked
+   * character name references in synthesis output with canonical names.
+   */
+  canonicalEntityNames?: string[];
 }
 
 const LEDGER_UNAVAILABLE_WARNING =
@@ -1126,6 +1133,19 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     console.info(
       `[Pass3-IntegrityGate] Quarantined ${quarantinedRecCount} FAIL-tier recommendation(s) before persistence.`,
     );
+  }
+
+  // ── Deterministic character name sanitization ──────────────────────────────
+  // Belt-and-suspenders: after prompt enforcement, deterministically replace
+  // any blocked character names (No, Yes, Oh, Hey, etc.) that leaked through
+  // the LLM's free-text output with canonical names from the story ledger.
+  if (opts.canonicalEntityNames && opts.canonicalEntityNames.length > 0) {
+    const sanitizedCount = sanitizeSynthesisCharacterNames(synthesis, opts.canonicalEntityNames);
+    if (sanitizedCount > 0) {
+      console.info(
+        `[Pass3-NameAuthority] Deterministic sanitizer replaced blocked character names in ${sanitizedCount} field(s). Canonical names: [${opts.canonicalEntityNames.slice(0, 3).join(", ")}]`,
+      );
+    }
   }
 
   // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial
