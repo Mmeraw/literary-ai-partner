@@ -490,3 +490,61 @@ describe('CSV mirrors', () => {
     expect(csvRows).toBe(SECTION_WORD_LIMIT_REGISTRY.length);
   });
 });
+
+// ─── Known Gap Guards ──────────────────────────────────────────────────────────
+
+describe('Known gap guards (audit-locked)', () => {
+  test('AR07_BATCH_GENERATION is a batch orchestrator — not a package assembly stage', () => {
+    const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR07_BATCH_GENERATION');
+    expect(stage).toBeDefined();
+    // generate-all is the code surface for AR07 (batch generation), not AR08
+    expect(stage!.codeSurfaces).toContain('app/api/agent-readiness/generate-all/route.ts');
+    // AR07 does NOT produce agent_readiness_package_v1 (that belongs to AR08_EXPORT)
+    expect(stage!.outputArtifacts).not.toContain('agent_readiness_package_v1');
+    // AR07 produces section_generation_result_v1 (same as AR02)
+    expect(stage!.outputArtifacts).toContain('section_generation_result_v1');
+  });
+
+  test('AR08_EXPORT is the combined assembly+export stage (no separate package assembly route)', () => {
+    const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR08_EXPORT');
+    expect(stage).toBeDefined();
+    expect(stage!.codeSurfaces).toContain('app/api/agent-readiness/download/route.ts');
+    // The download route is both assembly and export
+    expect(stage!.processContract).toMatch(/both the assembly and export step/i);
+  });
+
+  test('AR05_AUTHOR_REVIEW is marked critical — approval is not persisted to DB', () => {
+    const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR05_AUTHOR_REVIEW');
+    expect(stage).toBeDefined();
+    expect(stage!.fitGapStatus).toBe('critical');
+    expect(stage!.certificationStatus).toBe('missing_critical');
+    // The notes must document the gap explicitly
+    expect(stage!.notes).toMatch(/KNOWN GAP/i);
+    expect(stage!.notes).toMatch(/Approve button/i);
+  });
+
+  test('AR06_COMPLETENESS_CHECK is marked critical — download gated on allSectionsStarted not allSectionsApproved', () => {
+    const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR06_COMPLETENESS_CHECK');
+    expect(stage).toBeDefined();
+    expect(stage!.fitGapStatus).toBe('critical');
+    expect(stage!.certificationStatus).toBe('missing_critical');
+    expect(stage!.notes).toMatch(/KNOWN GAP/i);
+    expect(stage!.notes).toMatch(/allSectionsStarted/i);
+  });
+
+  test('agent_readiness_package_v1 is marked critical — assembled inline, not from DB', () => {
+    const artifact = AGENT_READINESS_ARTIFACT_REGISTRY.find((a) => a.artifact === 'agent_readiness_package_v1');
+    expect(artifact).toBeDefined();
+    expect(artifact!.fitGapStatus).toBe('critical');
+    // Producer is AR08_EXPORT (assembly+export), not AR07
+    expect(artifact!.producerStageId).toBe('AR08_EXPORT');
+    expect(artifact!.dirtyDataRule).toMatch(/KNOWN GAP/i);
+  });
+
+  test('author_review_decision_v1 is marked critical — decision not persisted to DB', () => {
+    const artifact = AGENT_READINESS_ARTIFACT_REGISTRY.find((a) => a.artifact === 'author_review_decision_v1');
+    expect(artifact).toBeDefined();
+    expect(artifact!.fitGapStatus).toBe('critical');
+    expect(artifact!.dirtyDataRule).toMatch(/KNOWN GAP/i);
+  });
+});
