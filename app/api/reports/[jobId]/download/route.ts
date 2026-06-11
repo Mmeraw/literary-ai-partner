@@ -209,6 +209,7 @@ type ExportRecommendation = {
   action?: string;
   expected_impact?: string;
   anchor_snippet?: string;
+  anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
   symptom?: string;
   mechanism?: string;
   specific_fix?: string;
@@ -232,9 +233,18 @@ function getCriterionOpportunities(c: { recommendations?: unknown }): ExportReco
     .slice(0, 3);
 }
 
+function evidenceLabel(anchorType?: string): string {
+  switch (anchorType) {
+    case 'verbatim_quote': return 'Evidence';
+    case 'paraphrased_observation': return 'Observation';
+    case 'editorial_diagnosis': return 'Diagnostic Basis';
+    default: return 'Evidence';
+  }
+}
+
 function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
   const candidates: Array<[string, string | undefined]> = [
-    ['Evidence', r.anchor_snippet],
+    [evidenceLabel(r.anchor_type), r.anchor_snippet],
     ['Symptom', r.symptom],
     ['Cause', r.mechanism],
     ['Fix direction', r.specific_fix || r.action],
@@ -1172,7 +1182,11 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
         if (detailRows.length > 0) {
           detailRows.forEach(([label, value]) => {
             if (label === 'Evidence') {
+              // Verbatim quotes get quotation marks; observations/diagnoses do not
               lines.push(wrapText(`    ${label}: \u201c${value}\u201d`));
+            } else if (label === 'Observation' || label === 'Diagnostic Basis') {
+              // Non-verbatim evidence: no quotation marks
+              lines.push(wrapText(`    ${label}: ${value}`));
             } else {
               lines.push(wrapText(`    ${label}: ${value}`));
             }
@@ -1196,7 +1210,12 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
       doc.actionItems.quickWins.forEach((item, i) => {
         const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
         lines.push(wrapText(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`));
-        if (item.anchor_snippet) lines.push(wrapText(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`));
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = evidenceLabel(aType);
+          const quoted = aType === 'verbatim_quote' || !aType;
+          lines.push(wrapText(`     ${aLabel}: ${quoted ? '"' : ''}${cleanReportText(item.anchor_snippet)}${quoted ? '"' : ''}`));
+        }
         if (item.candidate_text_a) lines.push(wrapText(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`));
         if (item.reader_effect) lines.push(wrapText(`     Reader Effect: ${cleanReportText(item.reader_effect)}`));
         if (item.why) lines.push(wrapText(`     Why: ${cleanReportText(item.why)}`));
@@ -1210,7 +1229,12 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
       doc.actionItems.strategicRevisions.forEach((item, i) => {
         const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
         lines.push(wrapText(`  ${i + 1}. ${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`));
-        if (item.anchor_snippet) lines.push(wrapText(`     Original Passage: "${cleanReportText(item.anchor_snippet)}"`));
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = evidenceLabel(aType);
+          const quoted = aType === 'verbatim_quote' || !aType;
+          lines.push(wrapText(`     ${aLabel}: ${quoted ? '"' : ''}${cleanReportText(item.anchor_snippet)}${quoted ? '"' : ''}`));
+        }
         if (item.candidate_text_a) lines.push(wrapText(`     Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`));
         if (item.reader_effect) lines.push(wrapText(`     Reader Effect: ${cleanReportText(item.reader_effect)}`));
         if (item.why) lines.push(wrapText(`     Why: ${cleanReportText(item.why)}`));
@@ -1299,7 +1323,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
         ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
             const rows = opportunityRows(r as ExportRecommendation);
             const detailHtml = rows.length > 0
-              ? rows.map(([label, value]) => label === 'Evidence' ? `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> <em>\u201c${escapeHtml(value)}\u201d</em></p>` : `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')
+              ? rows.map(([label, value]) => label === 'Evidence' ? `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> <em>\u201c${escapeHtml(value)}\u201d</em></p>` : label === 'Observation' || label === 'Diagnostic Basis' ? `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>` : `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')
               : `<p class="opp-row">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
             return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
           }).join('')}</div>`
@@ -1646,12 +1670,23 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
         if (rows.length > 0) {
           rows.forEach(([label, value]) => {
             if (label === 'Evidence') {
+              // Verbatim quote: italicized with quotation marks
               children.push(new Paragraph({
                 spacing: { after: 40 },
                 indent: { left: 480 },
                 children: [
                   new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted) }),
                   new TextRun({ text: `\u201c${cleanReportText(value)}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted) }),
+                ],
+              }));
+            } else if (label === 'Observation' || label === 'Diagnostic Basis') {
+              // Non-verbatim evidence: no quotes, not italicized
+              children.push(new Paragraph({
+                spacing: { after: 40 },
+                indent: { left: 480 },
+                children: [
+                  new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted) }),
+                  new TextRun({ text: cleanReportText(value), size: 19, color: docxHex(RG.textMuted) }),
                 ],
               }));
             } else {
@@ -1693,14 +1728,19 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
             ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
           ],
         }));
-        if (item.anchor_snippet) children.push(new Paragraph({
-          spacing: { after: 20 },
-          indent: { left: 480 },
-          children: [
-            new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
-            new TextRun({ text: `"${cleanReportText(item.anchor_snippet)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
-          ],
-        }));
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = aType === 'paraphrased_observation' ? 'Observation' : aType === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage';
+          const quoted = aType === 'verbatim_quote' || !aType;
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: `${aLabel}: `, bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+              new TextRun({ text: quoted ? `"${cleanReportText(item.anchor_snippet)}"` : cleanReportText(item.anchor_snippet), italics: quoted, size: 18, color: docxHex(RG.textMuted) }),
+            ],
+          }));
+        }
         if (item.candidate_text_a) children.push(new Paragraph({
           spacing: { after: 20 },
           indent: { left: 480 },
@@ -1742,14 +1782,19 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
             ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
           ],
         }));
-        if (item.anchor_snippet) children.push(new Paragraph({
-          spacing: { after: 20 },
-          indent: { left: 480 },
-          children: [
-            new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
-            new TextRun({ text: `"${cleanReportText(item.anchor_snippet)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
-          ],
-        }));
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = aType === 'paraphrased_observation' ? 'Observation' : aType === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage';
+          const quoted = aType === 'verbatim_quote' || !aType;
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: `${aLabel}: `, bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+              new TextRun({ text: quoted ? `"${cleanReportText(item.anchor_snippet)}"` : cleanReportText(item.anchor_snippet), italics: quoted, size: 18, color: docxHex(RG.textMuted) }),
+            ],
+          }));
+        }
         if (item.candidate_text_a) children.push(new Paragraph({
           spacing: { after: 20 },
           indent: { left: 480 },

@@ -812,9 +812,11 @@ export default async function ReportPage({
                       </span>
                     </div>
                     {qw.anchor_snippet && (
-                      <p className="text-sm text-gray-600 mt-1 italic border-l-2 border-gray-300 pl-2">
-                        <span className="font-medium not-italic text-gray-700">Original Passage:</span>{" "}
-                        &ldquo;{qw.anchor_snippet}&rdquo;
+                      <p className={`text-sm text-gray-600 mt-1 ${(qw as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-gray-300 pl-2`}>
+                        <span className="font-medium not-italic text-gray-700">
+                          {(qw as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
+                        </span>{" "}
+                        {(qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? qw.anchor_snippet : <>&ldquo;{qw.anchor_snippet}&rdquo;</>}
                       </p>
                     )}
                     {qw.candidate_text_a && (
@@ -859,9 +861,11 @@ export default async function ReportPage({
                       </span>
                     </div>
                     {sr.anchor_snippet && (
-                      <p className="text-sm text-gray-600 mt-1 italic border-l-2 border-gray-300 pl-2">
-                        <span className="font-medium not-italic text-gray-700">Original Passage:</span>{" "}
-                        &ldquo;{sr.anchor_snippet}&rdquo;
+                      <p className={`text-sm text-gray-600 mt-1 ${(sr as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-gray-300 pl-2`}>
+                        <span className="font-medium not-italic text-gray-700">
+                          {(sr as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
+                        </span>{" "}
+                        {(sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? sr.anchor_snippet : <>&ldquo;{sr.anchor_snippet}&rdquo;</>}
                       </p>
                     )}
                     {sr.candidate_text_a && (

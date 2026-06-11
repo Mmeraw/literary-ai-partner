@@ -4,6 +4,7 @@ import { useState } from "react";
 type Opportunity = {
   priority?: string;
   anchor_snippet?: string;
+  anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
   symptom?: string;
   mechanism?: string;
   specific_fix?: string;
@@ -27,7 +28,10 @@ function OpportunityCard({ opp, idx }: { opp: Opportunity; idx: number }) {
   const label = severityLabel(opp.priority);
   const color = severityColor(opp.priority);
   const rows: [string, string][] = [];
-  if (opp.anchor_snippet) rows.push(["Evidence", opp.anchor_snippet]);
+  if (opp.anchor_snippet) {
+    const anchorLabel = opp.anchor_type === 'paraphrased_observation' ? 'Observation' : opp.anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Evidence';
+    rows.push([anchorLabel, opp.anchor_snippet]);
+  }
   if (opp.symptom) rows.push(["Symptom", opp.symptom]);
   if (opp.mechanism) rows.push(["Cause", opp.mechanism]);
   if (opp.specific_fix) rows.push(["Fix direction", opp.specific_fix]);
@@ -43,7 +47,7 @@ function OpportunityCard({ opp, idx }: { opp: Opportunity; idx: number }) {
         {rows.map(([k, v]) => (
           <p key={k} className="text-xs leading-relaxed">
             <span className="font-semibold">{k}:</span>{" "}
-            {k === "Evidence" ? <em>&ldquo;{v}&rdquo;</em> : v}
+            {k === "Evidence" ? <em>&ldquo;{v}&rdquo;</em> : k === "Observation" ? <>&ldquo;{v}&rdquo;</> : k === "Diagnostic Basis" ? v : v}
           </p>
         ))}
       </div>

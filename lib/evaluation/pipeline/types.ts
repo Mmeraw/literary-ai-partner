@@ -396,6 +396,7 @@ export type QualityGateResult = {
   warnings: string[];
   editorial_diagnostics?: EditorialDiagnostic[];
   editorial_diagnostics_summary?: EditorialDiagnosticsSummary;
+  evidence_grounding_report?: import("./evidenceGroundingGate").EvidenceGroundingReport;
 };
 
 // ── Completion capture / usage telemetry ───────────────────────────────────
