@@ -179,7 +179,7 @@ kick, authority, renderer/consumer, and certification gates.
 | File | Description |
 |---|---|
 | `revise_process_registry.csv` | 10 stages: RS01–RS10 |
-| `revise_artifact_registry.csv` | 12 canonical artifacts |
+| `revise_artifact_registry.csv` | 13 canonical artifacts |
 | `revise_field_registry.csv` | 18 canonical fields and enum contracts |
 | `revise_kick_matrix.csv` | 11 kick codes |
 | `revise_authority_source_registry.csv` | 9 authority sources |

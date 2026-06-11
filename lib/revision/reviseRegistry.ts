@@ -555,6 +555,18 @@ export const REVISE_ARTIFACT_REGISTRY: readonly ReviseArtifact[] = [
     fitGapStatus: 'gap',
   },
   {
+    artifact: 'revision_session_v1',
+    producerStageId: 'RS04_WORKBENCH_LOAD',
+    consumerStageIds: ['RS07_LEDGER_SYNC', 'RS08_COMPLETION'],
+    requiredFields: ['id', 'evaluation_run_id', 'source_version_id', 'status', 'findings_count', 'actionable_findings_count', 'created_at'],
+    completenessMetric: 'revision session has canonical status and source/evaluation linkage before proposals or decisions are persisted',
+    accuracyMetric: 'status is exactly: open | findings_ready | synthesis_started | proposals_ready | applied | failed; allowed transitions enforced by sessionTransitions.ts',
+    dirtyDataRule: 'illegal status transition must throw and must not write to the database',
+    regenerationOwnerStageId: 'RS04_WORKBENCH_LOAD',
+    requiredForAuthorExposure: false,
+    fitGapStatus: 'emerging',
+  },
+  {
     artifact: 'repair_cross_check_v1',
     producerStageId: 'RS09_CROSSCHECK_VERIFICATION',
     consumerStageIds: ['RS10_TRUSTEDPATH'],
