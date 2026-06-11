@@ -174,6 +174,19 @@ describe('Revise Registry — process registry', () => {
         .toMatchObject({ contract: true });
     }
   });
+
+  test('RS02 six-part diagnostic fields match runtime admission/ledger contract', () => {
+    const stage = REVISE_PROCESS_REGISTRY.find((s) => s.stageId === 'RS02_QUEUE_ADMISSION');
+    expect(stage).toBeDefined();
+    const fields = new Set(stage!.inputRequiredFields);
+    for (const field of ['symptom', 'cause', 'fixDirection', 'readerEffect', 'evidence_anchor', 'revision_operation']) {
+      expect(fields.has(field)).toBe(true);
+    }
+    expect(fields.has('operationNote')).toBe(false);
+    expect(fields.has('evidence')).toBe(false);
+    expect(stage!.notes).toContain('fixStrategy=fixDirection');
+    expect(stage!.notes).toContain('readerImpact=readerEffect');
+  });
 });
 
 describe('Revise Registry — artifact registry', () => {
@@ -204,6 +217,22 @@ describe('Revise Registry — artifact registry', () => {
         expect({ artifact: art.artifact, consumer, registered: registeredStageIds.has(consumer) })
           .toMatchObject({ registered: true });
       }
+    }
+  });
+
+  test('revise_card_v1 documents runtime diagnostic aliases without dropping canonical fields', () => {
+    const card = REVISE_ARTIFACT_REGISTRY.find((a) => a.artifact === 'revise_card_v1');
+    expect(card).toBeDefined();
+    const fields = new Set(card!.requiredFields);
+    for (const field of [
+      'fixDirection',
+      'readerEffect',
+      'diagnostic.fixStrategy',
+      'diagnostic.readerImpact',
+      'diagnostic.evidence.quotedExcerpt',
+      'diagnostic.operationTargeting',
+    ]) {
+      expect(fields.has(field)).toBe(true);
     }
   });
 });

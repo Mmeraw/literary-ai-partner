@@ -38,7 +38,7 @@ AGENT READINESS FACTORY   (future)
 ## Runtime Doctrine
 
 1. **Ledger-first.** Every queue item must trace to `revision_opportunity_ledger_v1`. No opportunity enters the Revise Queue without ledger backing.
-2. **Card contract governs admission.** Six-part diagnostic (symptom, cause, fixDirection, readerEffect, operationNote, evidence) must be fully populated. Partial items become `needs_targeting`, not deleted.
+2. **Card contract governs admission.** Six-part diagnostic (`symptom`, `cause`, `fixDirection`, `readerEffect`, `evidence_anchor`, `revision_operation`) must be fully populated. Partial items become `needs_targeting`, not deleted. UI/card display aliases are explicit: `fixStrategy = fixDirection`, `readerImpact = readerEffect`, `diagnostic.evidence.quotedExcerpt = evidence_anchor`, and `diagnostic.operationTargeting = revision_operation + location`.
 3. **Canonical enum values only.** `RevisionLedgerDecision`, `RevisionReadiness`, `WorkbenchMode`, `WorkbenchScope`, `CrossCheckVerdict`, `AuthorDecisionState` — all are contract values. Non-canonical values are CI-failing defects.
 4. **Illegal transitions throw; they do not write.** Session state machine and ledger sync follow the same contract as job state. No silent fallthrough.
 5. **Append-only ledger.** `revision_ledger_decisions` is never mutated. Undo is a new append row with `is_undo=true`. Mutations are forbidden.
