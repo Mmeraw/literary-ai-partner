@@ -269,11 +269,82 @@ export function planWaves(
   };
 }
 
+/**
+ * Bridge from the 13 canonical evaluation criterion keys to wave IDs.
+ *
+ * The wave registry uses its own internal criterionIds (e.g. STRUCTURE_SPINE,
+ * CLIMAX_CAUSALITY) that never appear in Pass 3 synthesis output. Pass 3 uses
+ * the 13 canonical keys (concept, narrativeDrive, etc.). Without this bridge,
+ * deriveWaveTargetsFromFindings returns zero matches for every evaluation —
+ * the token sets are completely disjoint.
+ *
+ * Mapping strategy:
+ *   - Structural/low-scoring criteria → structural + momentum waves
+ *   - Mid-scoring criteria → targeted craft waves
+ *   - High-scoring criteria → polish + continuity waves (still need checking)
+ *
+ * The wave IDs here mirror WAVE_CRITERION_FALLBACK_IDS in waveRevision.ts but
+ * are the PRIMARY derivation path, not a fallback.
+ */
+const CANONICAL_CRITERION_WAVE_BRIDGE: Record<string, number[]> = {
+  concept:           [1, 2, 9, 10],
+  narrativeDrive:    [2, 3, 7, 31, 32, 36],
+  character:         [15, 16, 17, 18, 19, 20],
+  voice:             [5, 11, 12, 13, 14],
+  sceneConstruction: [2, 3, 4, 42, 43, 44],
+  dialogue:          [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+  theme:             [1, 9, 10, 31],
+  worldbuilding:     [4, 39, 45, 46, 47, 48, 49],
+  pacing:            [7, 31, 32, 33, 34, 35],
+  proseControl:      [33, 34, 36, 37, 38, 39, 40, 51, 52, 53, 54, 55, 56, 57, 58, 60],
+  tone:              [11, 13, 14, 41, 48],
+  narrativeClosure:  [5, 6, 9, 10, 31, 44, 50, 59],
+  marketability:     [1, 2, 6, 51, 59, 60, 61, 62],
+};
+
+/**
+ * Polish/continuity waves applied to high-scoring criteria (8+).
+ * Even a score of 10 benefits from continuity audits and final polish.
+ */
+const HIGH_SCORE_POLISH_WAVE_IDS: Record<string, number[]> = {
+  concept:           [59, 60],
+  narrativeDrive:    [31, 59],
+  character:         [18, 48],
+  voice:             [14, 55],
+  sceneConstruction: [43, 44, 50],
+  dialogue:          [29, 30],
+  theme:             [9, 50],
+  worldbuilding:     [45, 49],
+  pacing:            [33, 35],
+  proseControl:      [51, 55, 56, 57, 58, 60],
+  tone:              [14, 48, 55],
+  narrativeClosure:  [50, 59],
+  marketability:     [59, 60, 61],
+};
+
+function extractCriteriaFromFindings(findings: Record<string, unknown>): Array<{ key: string; score: number }> {
+  const criteria = findings.criteria;
+  if (!Array.isArray(criteria)) return [];
+  return criteria
+    .map((c) => {
+      const rec = asRecord(c);
+      if (!rec) return null;
+      const key = typeof rec.key === 'string' ? rec.key : null;
+      const score = typeof rec.final_score_0_10 === 'number' ? rec.final_score_0_10 : null;
+      if (!key || score === null) return null;
+      return { key, score };
+    })
+    .filter((c): c is { key: string; score: number } => c !== null);
+}
+
 export function deriveWaveTargetsFromFindings(findings: Record<string, unknown>): number[] {
   const tokens = new Set<string>();
   collectStringTokens(findings, tokens);
 
   const matchedWaveIds = new Set<number>();
+
+  // Strategy 1: Match wave registry criterionIds against all string tokens in findings.
+  // This catches cases where findings contain registry-native IDs like "STRUCTURE_SPINE".
   for (const wave of WAVE_REGISTRY) {
     const normalizedCriteria = wave.criterionIds.map((criterionId) => normalizeCriterionKey(criterionId));
     if (normalizedCriteria.some((criterionId) => tokens.has(criterionId))) {
@@ -283,6 +354,44 @@ export function deriveWaveTargetsFromFindings(findings: Record<string, unknown>)
 
     if (tokens.has(normalizeCriterionKey(wave.name)) || tokens.has(String(wave.id))) {
       matchedWaveIds.add(wave.id);
+    }
+  }
+
+  // Strategy 2: Bridge the 13 canonical evaluation criterion keys to wave IDs.
+  // Pass 3 findings use canonical keys (concept, narrativeDrive, etc.) that do NOT
+  // appear in any wave's criterionIds — without this bridge, zero waves match.
+  //
+  // Score-aware selection:
+  //   ≤ 7  → full structural bridge (needs real revision work)
+  //   8-9  → polish + continuity waves only (strong but can be tightened)
+  //   10   → continuity audit waves only (verify nothing was missed)
+  const criteriaEntries = extractCriteriaFromFindings(findings);
+  for (const { key, score } of criteriaEntries) {
+    if (score <= 7) {
+      // Criteria needing revision: fire the full structural bridge
+      const bridgeIds = CANONICAL_CRITERION_WAVE_BRIDGE[key];
+      if (bridgeIds) {
+        for (const id of bridgeIds) {
+          if (VALID_WAVE_IDS.has(id)) matchedWaveIds.add(id);
+        }
+      }
+    }
+
+    // All criteria scoring ≤ 9 get polish/continuity waves
+    if (score <= 9) {
+      const polishIds = HIGH_SCORE_POLISH_WAVE_IDS[key];
+      if (polishIds) {
+        for (const id of polishIds) {
+          if (VALID_WAVE_IDS.has(id)) matchedWaveIds.add(id);
+        }
+      }
+    }
+
+    // Score 10 criteria: only continuity audit (wave 59 = Final Consistency, 60 = Hook Alignment)
+    if (score === 10) {
+      for (const id of [59, 60]) {
+        if (VALID_WAVE_IDS.has(id)) matchedWaveIds.add(id);
+      }
     }
   }
 
