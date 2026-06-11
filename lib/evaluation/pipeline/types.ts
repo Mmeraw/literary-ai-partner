@@ -299,8 +299,20 @@ export type SynthesisOutput = {
     /** Computed via Vol II-A §WCS */
     overall_score_0_100: number;
     verdict: "pass" | "revise" | "fail";
-    /** ≤500 chars */
+    /** ≤500 chars — diagnostic judgment paragraph (what's working, what needs revision, overall posture) */
     one_paragraph_summary: string;
+    /**
+     * Market-facing hook — 1 sentence, ≤150 chars.
+     * Purpose: sales copy / query letter lead. Must NOT overlap with one_paragraph_summary.
+     * Example: "A sardonic diamond dealer's retirement trip becomes a reckoning with mortality."
+     */
+    one_sentence_pitch?: string;
+    /**
+     * Story synopsis — 2–4 sentences, ≤400 chars.
+     * Purpose: back-cover copy / synopsis. Must NOT overlap with one_paragraph_summary or one_sentence_pitch.
+     * Names characters, central conflict, stakes, tonal register.
+     */
+    one_paragraph_pitch?: string;
     top_3_strengths: string[];
     top_3_risks: string[];
     /**

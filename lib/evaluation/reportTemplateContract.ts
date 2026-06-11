@@ -2,6 +2,10 @@ type PitchInput = {
   premise?: string | null;
   summary?: string | null;
   title?: string | null;
+  /** P1: dedicated one_sentence_pitch from Pass 3 overall (when available) */
+  one_sentence_pitch?: string | null;
+  /** P1: dedicated one_paragraph_pitch from Pass 3 overall (when available) */
+  one_paragraph_pitch?: string | null;
 };
 
 type CriterionWithRecommendations = {
@@ -34,11 +38,16 @@ export function buildReportPitches(input: PitchInput): {
   const summary = clean(input.summary);
   const title = clean(input.title) || 'the submitted work';
 
-  // When both premise and summary exist, use summary for the pitch so that
-  // the "One-Paragraph Pitch" section is distinct from the "Premise" section.
-  // Previously both were set to `premise`, producing identical text.
-  const oneParagraphPitch = (premise && summary) ? summary : (premise || summary || `RevisionGrade evaluated ${title}.`);
-  const oneSentencePitch = firstSentence((premise && summary) ? summary : (premise || summary)) || `RevisionGrade evaluated ${title}.`;
+  // P1: Use dedicated pitch fields from Pass 3 when available.
+  // These are semantically distinct from one_paragraph_summary (diagnostic) and premise (factual setup).
+  const dedicatedOneSentence = clean(input.one_sentence_pitch);
+  const dedicatedOneParagraph = clean(input.one_paragraph_pitch);
+
+  // Prefer dedicated fields; fall back to legacy derivation for backward compatibility.
+  const oneParagraphPitch = dedicatedOneParagraph
+    || ((premise && summary) ? summary : (premise || summary || `RevisionGrade evaluated ${title}.`));
+  const oneSentencePitch = dedicatedOneSentence
+    || firstSentence((premise && summary) ? summary : (premise || summary)) || `RevisionGrade evaluated ${title}.`;
 
   return { oneParagraphPitch, oneSentencePitch };
 }

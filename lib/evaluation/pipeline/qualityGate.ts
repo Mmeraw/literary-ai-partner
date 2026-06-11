@@ -528,6 +528,30 @@ export function runQualityGate(
     details: `Overview: ${overviewLen} chars (max ${QG_MAX_OVERVIEW_LENGTH})`,
   });
 
+  // ── Check 6b: Pitch/Summary Identity Separation (P1) ──────────────────────
+  // Warn (soft-fail) when one_sentence_pitch or one_paragraph_pitch duplicates the summary.
+  const oneSentencePitch = (synthesis.overall as Record<string, unknown>).one_sentence_pitch as string | undefined;
+  const oneParagraphPitch = (synthesis.overall as Record<string, unknown>).one_paragraph_pitch as string | undefined;
+  if (oneSentencePitch || oneParagraphPitch) {
+    const summaryNorm = synthesis.overall.one_paragraph_summary.trim().toLowerCase();
+    const sentenceNorm = (oneSentencePitch ?? "").trim().toLowerCase();
+    const paragraphNorm = (oneParagraphPitch ?? "").trim().toLowerCase();
+    const pitchDuplicates: string[] = [];
+    if (sentenceNorm && summaryNorm.includes(sentenceNorm)) pitchDuplicates.push("one_sentence_pitch ⊂ summary");
+    if (paragraphNorm && summaryNorm.includes(paragraphNorm)) pitchDuplicates.push("one_paragraph_pitch ⊂ summary");
+    if (sentenceNorm && paragraphNorm && paragraphNorm.includes(sentenceNorm)) pitchDuplicates.push("one_sentence_pitch ⊂ one_paragraph_pitch");
+    if (pitchDuplicates.length > 0) {
+      warnings.push(`[pitch_identity] Pitch/summary duplication detected: ${pitchDuplicates.join(", ")}. Sections should serve distinct editorial purposes.`);
+    }
+    checks.push({
+      check_id: "pitch_identity_separation",
+      passed: true, // soft-fail: warn only, never block
+      details: pitchDuplicates.length > 0
+        ? `Identity overlap: ${pitchDuplicates.join(", ")}`
+        : "Pitches are semantically distinct from summary",
+    });
+  }
+
   // ── Check 7: No duplicated recommendations ───────────────────────────────
   const actionsSeen = new Set<string>();
   const duplicates: string[] = [];

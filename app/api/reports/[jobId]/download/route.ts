@@ -806,6 +806,8 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     premise: enrichment?.premise,
     summary: result.overview.one_paragraph_summary,
     title: metadata.displayTitle,
+    one_sentence_pitch: (result.overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (result.overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
   });
   const inlineSummary = summarizeRevisionOpportunities(result.criteria);
   const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
@@ -1944,6 +1946,8 @@ function renderPremiumReportHtml(
     premise: enrichment?.premise,
     summary: result.overview.one_paragraph_summary,
     title: metadata.displayTitle,
+    one_sentence_pitch: (result.overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (result.overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
   });
   const inlineSummary = summarizeRevisionOpportunities(result.criteria);
   const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
@@ -2187,6 +2191,8 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     premise: enrichment?.premise,
     summary: result.overview.one_paragraph_summary,
     title: metadata.displayTitle,
+    one_sentence_pitch: (result.overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (result.overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
   });
   const inlineSummary = summarizeRevisionOpportunities(result.criteria);
   const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);

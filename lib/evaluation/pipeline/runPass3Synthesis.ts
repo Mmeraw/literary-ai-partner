@@ -1557,6 +1557,14 @@ export function parsePass3Response(
   const rawSummary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 500);
   const summary = enforceSummaryWeaknessPresence(rawSummary, criteria);
 
+  // P1: Extract dedicated pitch fields (distinct from summary/premise).
+  const rawOneSentencePitch = typeof rawOverall["one_sentence_pitch"] === "string"
+    ? rawOverall["one_sentence_pitch"].substring(0, 150).trim()
+    : undefined;
+  const rawOneParagraphPitch = typeof rawOverall["one_paragraph_pitch"] === "string"
+    ? rawOverall["one_paragraph_pitch"].substring(0, 400).trim()
+    : undefined;
+
   const strengths = Array.isArray(rawOverall["top_3_strengths"])
     ? (rawOverall["top_3_strengths"] as unknown[]).slice(0, 3).map(String)
     : [];
@@ -1578,6 +1586,8 @@ export function parsePass3Response(
     overall_score_0_100: overallScore0_100,
     verdict,
     one_paragraph_summary: summary,
+    ...(rawOneSentencePitch ? { one_sentence_pitch: rawOneSentencePitch } : {}),
+    ...(rawOneParagraphPitch ? { one_paragraph_pitch: rawOneParagraphPitch } : {}),
     top_3_strengths: strengths,
     top_3_risks: risks,
     submission_readiness: parseSubmissionReadiness(rawOverall["submission_readiness"], verdict, guardedCriteria),

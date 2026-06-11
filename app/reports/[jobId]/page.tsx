@@ -493,6 +493,8 @@ export default async function ReportPage({
             premise: enrichment?.premise,
             summary: overview.one_paragraph_summary,
             title: displayTitle,
+            one_sentence_pitch: (overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
+            one_paragraph_pitch: (overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
           });
           return (
             <>
