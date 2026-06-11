@@ -805,6 +805,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('REVISIONGRADE™ EVALUATION REPORT');
   lines.push(sep);
   lines.push(`Manuscript Title: ${metadata.displayTitle}`);
+  lines.push(`Reference ID: ${jobId}`);
   lines.push(`Report Type: ${metadata.reportType}`);
   if (metadata.genre) lines.push(`Genre: ${metadata.genre}`);
   if (metadata.targetAudience) lines.push(wrapText(`Target Audience: ${metadata.targetAudience}`));
@@ -1053,7 +1054,7 @@ function buildCanonicalTemplateDocument(
   });
 }
 
-function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
+function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): string {
   const lines: string[] = [];
   const sep = '='.repeat(72);
   const sub = '-'.repeat(72);
@@ -1062,6 +1063,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   lines.push('REVISIONGRADE™ EVALUATION REPORT');
   lines.push(sep);
   lines.push(`Manuscript Title: ${doc.title}`);
+  if (jobId) lines.push(`Reference ID: ${jobId}`);
   lines.push(`Report Type: ${doc.titleBlock.reportType}`);
   const genreConf = doc.titleBlock.genreConfidenceLabel ? ` (${doc.titleBlock.genreConfidenceLabel})` : '';
   lines.push(`Genre: ${doc.titleBlock.genre}${genreConf}`);
@@ -1308,7 +1310,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument): string {
   return lines.join('\n');
 }
 
-function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
+function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = ''): string {
   const list = (items: string[], options: { ordered?: boolean } = {}) =>
     items.length > 0
       ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(cleanReportText(item))}</span></li>`).join('')}</ul>`
@@ -1379,6 +1381,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
         <div>
           <h1 class="title">${escapeHtml(doc.title)}</h1>
           <p class="subtitle">${escapeHtml(doc.titleBlock.reportType)}</p>
+          ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
         </div>
         <aside class="score-box">
           <div class="label">Overall Score</div>
@@ -1426,7 +1429,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument): string {
   </body></html>`;
 }
 
-async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promise<Buffer> {
+async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId = ''): Promise<Buffer> {
   const makeHeading = (text: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
@@ -1465,6 +1468,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument): Promi
     });
 
   const metadataTableRows: TableRow[] = [
+    ...(jobId ? [['Reference ID', jobId] as [string, string]] : []),
     ['Report Type', doc.titleBlock.reportType],
     ['Overall Score', `${doc.titleBlock.overallScoreLabel}${doc.titleBlock.overallScoreConfidenceLabel ? ` (${doc.titleBlock.overallScoreConfidenceLabel})` : ''}`],
     ['Market Readiness', `${doc.titleBlock.marketReadiness}${doc.titleBlock.marketReadinessConfidenceLabel ? ` (${doc.titleBlock.marketReadinessConfidenceLabel})` : ''}`],
@@ -1915,6 +1919,7 @@ function renderPremiumReportHtml(
   dream: LongformDreamDocument | null,
   enrichment: EnrichmentData,
   ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null },
+  jobId = '',
 ): string {
   const pitches = buildReportPitches({
     premise: enrichment?.premise,
@@ -2050,6 +2055,7 @@ function renderPremiumReportHtml(
     <div class="rule"></div>
     <h1>${escapeHtml(metadata.displayTitle)}</h1>
     <p class="subtitle">${escapeHtml(metadata.reportType)}</p>
+    <p style="margin:0.06in 0 0;color:#5c5549;font-family:Helvetica,Arial,sans-serif;font-size:9pt;">Reference ID: ${escapeHtml(jobId)}</p>
     <div class="cover-grid">
       <dl class="metadata">
         ${renderMetric('Genre', metadata.genre ?? 'Not specified')}
@@ -2133,10 +2139,10 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
 }
 
 
-async function buildPdfReport(result: ExportableResult, title: string | null, _jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
+async function buildPdfReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
   const metadata = buildMetadata(result, title, dream, enrichment);
   const summaryFallback = buildSummaryFallback(result);
-  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment, ledger);
+  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment, ledger, jobId);
   return await buildChromiumPdf(html);
 }
 
@@ -2314,6 +2320,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
   // Metadata block
   const metaLines = [
+    metaRow('Reference ID', jobId),
     metaRow('Genre', metadata.genre),
     metaRow('Target Audience', metadata.targetAudience),
     metaRow('Shelf', metadata.shelf),
@@ -3096,7 +3103,7 @@ export async function GET(
   const canonicalDoc = buildCanonicalTemplateDocument(result, title, enrichment, evaluationMode, dream);
 
   if (format === 'txt') {
-    const body = buildCanonicalTemplateTxt(canonicalDoc);
+    const body = buildCanonicalTemplateTxt(canonicalDoc, jobId);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -3108,7 +3115,7 @@ export async function GET(
 
   if (format === 'pdf') {
     try {
-      const html = renderCanonicalTemplateHtml(canonicalDoc);
+      const html = renderCanonicalTemplateHtml(canonicalDoc, jobId);
       const buffer = await buildChromiumPdf(html);
       if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
         throw new Error('Generated artifact does not contain valid PDF header bytes');
@@ -3138,7 +3145,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildCanonicalTemplateDocx(canonicalDoc);
+  const buffer = await buildCanonicalTemplateDocx(canonicalDoc, jobId);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
