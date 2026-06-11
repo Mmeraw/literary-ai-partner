@@ -46,8 +46,8 @@ Author uploads manuscript
 │  Registries: docs/registries/revise/                               │
 └────────────────────────────────────────────────────────────────────┘
         │
-        │  revision_completion_record_v1
-        │  (accepted decisions, ledger sync, completion state)
+        │  revision ledger decisions + revision_completion_record_v1
+        │  (planned / missing-critical — RS08 completion certification not yet implemented)
         ▼
 ┌────────────────────────────────────────────────────────────────────┐
 │  FACTORY 3: AGENT READINESS                                        │
@@ -209,7 +209,9 @@ SIPOC-enforced.
 | Storygate | ⬜ | ⬜ | ⬜ | — | ⬜ No |
 
 **SIPOC-enforced** = every stage backed by real artifact, real persistence, real
-backward-kick, no UI simulation. No factory is SIPOC-enforced yet.
+backward-kick, no UI simulation. No factory is fully SIPOC-enforced yet.
+Evaluation, Revise, and Agent Readiness have partial enforcement and guard tests,
+but each has at least one missing-critical gap that prevents full certification.
 
 ---
 
@@ -220,6 +222,7 @@ backward-kick, no UI simulation. No factory is SIPOC-enforced yet.
 | Evaluation | Revise | `revision_opportunity_ledger_v1` | Prioritized revision opportunities with ledger backing |
 | Evaluation | Revise | `accepted_story_ledger_v1` | Canon-locked story facts gating Phase 2 |
 | Evaluation | Agent Readiness | `evaluation_result_v2` | Readiness score, narrative summary, mode |
+| Revise | Agent Readiness | revision ledger + `revision_completion_record_v1` *(planned / missing-critical — RS08 not implemented)* | Revision decisions; completion certification is a known gap |
 | Agent Readiness | Storygate | `agent_readiness_package_v1` | Professional submission package (query, synopsis, bio) |
 | Storygate | Industry | access record | Creator-approved, logged professional access |
 
@@ -255,5 +258,5 @@ These enum values are shared across factories and must not drift:
 | P2 | AR07/AR08 durable package entity (#1120) | — |
 | P2 | AR08 export gating (#1121) | #1118, #1119, #1120 |
 | P2 | AR09 package history (#1122) | #1120 |
-| P3 | Storygate SIPOC/FIPOC — create executable registry | — |
-| P3 | Update this document when Storygate SIPOC is complete | Storygate SIPOC |
+| P1 | Storygate SIPOC/FIPOC — create executable registry | — |
+| P1 | Update this document when Storygate SIPOC is complete | Storygate SIPOC |
