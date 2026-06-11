@@ -16,7 +16,7 @@ function csvEscape(value: unknown): string {
   return raw;
 }
 
-function writeCsv<T extends Record<string, unknown>>(filename: string, rows: T[], columns: Array<keyof T>): void {
+function writeCsv<T extends object>(filename: string, rows: T[], columns: Array<keyof T>): void {
   const lines = [
     columns.map((column) => csvEscape(String(column))).join(','),
     ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(',')),
