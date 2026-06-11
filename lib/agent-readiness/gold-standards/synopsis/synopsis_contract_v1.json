@@ -1,1 +1,1 @@
-{"required":["protagonist","inciting_incident","climax","resolution","ending"],"validation":"fail_closed"}
+{"required":["protagonist","inciting_incident","climax","narrativeClosure"],"validation":"fail_closed"}
