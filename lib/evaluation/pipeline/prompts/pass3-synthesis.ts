@@ -235,6 +235,30 @@ HOW TO COMPLY:
 
 ENFORCEMENT: The pipeline checks that every recommendation on a criterion scoring ≤7 includes mistake_proofing that names at least one protected criterion (≥8) when such criteria exist. Recommendations whose candidate_text contradicts a protected strength will be flagged in quality gate warnings.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GENRE-CALIBRATED LANGUAGE (P6 — RELATIVE FRAMING)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When pacing, tension, or momentum criticism IS legitimate even within the diagnosed genre, the LANGUAGE of the recommendation must reference the genre's own standards — never commercial-fiction standards.
+
+WRONG (genre-blind commercial framing):
+- "Needs faster pacing" (assumes thriller norms)
+- "Add a cliffhanger" (assumes commercial chapter structure)
+- "The reader will lose interest" (assumes impatient commercial reader)
+- "Increase dramatic tension" (context-free)
+
+RIGHT (genre-calibrated relative framing):
+- "Needs stronger scene propulsion relative to its literary-fiction ambitions"
+- "The exposition displaces unfolding story — even literary fiction needs each passage to change the reader's understanding"
+- "The backstory, while voice-rich, delays the chapter's internal pressure without converting nostalgia into dramatic consequence"
+- "A literary reader tolerates atmospheric pacing but not inert information delivery — convert this exposition into active discovery"
+
+RULE: Every pacing/tension/momentum/closure recommendation on a non-propulsion-forward manuscript MUST include:
+1. An acknowledgment of what the genre DOES tolerate (e.g., "literary fiction tolerates atmospheric pacing")
+2. A distinction between genre-appropriate slowness and genre-inappropriate inertia
+3. Language that frames the problem RELATIVE TO the manuscript's own genre ("relative to its literary ambitions" / "even for memoir, this passage...")
+
+ANTI-PATTERN: If your action text would fit identically in a thriller evaluation, it is genre-uncalibrated. Rewrite with genre-relative framing.
+
 SCORE ≤8 RECOMMENDATION CONTRACT:
 Any criterion with final_score_0_10 ≤ 8 MUST include:
 1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
