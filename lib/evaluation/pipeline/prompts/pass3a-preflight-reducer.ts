@@ -42,6 +42,8 @@ ARBITRATION QUESTIONS:
 - Flag co-presence violations (two characters together who should be separated).
 - These questions are your handoff to Pass 3B — be precise, evidence-grounded, actionable.
 
+CHARACTER NAME AUTHORITY: NEVER use dialogue fragments or common English words as character names. Words like "No", "Yes", "Oh", "Hey", "Well", "So" are NOT character names even if the manuscript text appears to use them. Use only the canonical names from the STORY LEDGER or character observations.
+
 Return ONLY valid JSON. No markdown fences, no prose commentary.`;
 
 export function buildPass3AReducerUserPrompt(params: {

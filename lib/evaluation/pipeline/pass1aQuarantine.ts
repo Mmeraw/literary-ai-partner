@@ -107,7 +107,7 @@ const VALID_NARRATIVE_WEIGHTS = new Set<string>([
  * 2. isDialogueFragmentName() — structural heuristic for single-word
  *    interjections / discourse markers the blocklist may have missed
  */
-const BLOCKED_CANONICAL_NAMES = new Set(
+export const BLOCKED_CANONICAL_NAMES = new Set(
   [
     // Interjections & dialogue fragments
     "no", "yes", "oh", "hey", "ok", "okay", "ah", "huh", "um", "uh",

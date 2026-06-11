@@ -902,7 +902,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   // Inject full-context story ledger ground truth into system prompt when available
   const effectiveSystemPrompt = opts.storyLedgerContextBlock
-    ? `${PASS3_SYSTEM_PROMPT}\n\n${opts.storyLedgerContextBlock}\n\nAny synthesis recommendation that contradicts the STORY LEDGER GROUND TRUTH above is INVALID. Do not recommend scenes for dead characters, do not claim stationary objects move, do not misattribute cosmology as geography.`
+    ? `${PASS3_SYSTEM_PROMPT}\n\n${opts.storyLedgerContextBlock}\n\nAny synthesis recommendation that contradicts the STORY LEDGER GROUND TRUTH above is INVALID. Do not recommend scenes for dead characters, do not claim stationary objects move, do not misattribute cosmology as geography.\n\nNAME AUTHORITY ENFORCEMENT: The CANONICAL CHARACTER NAME AUTHORITY section above is binding. In ALL output fields (final_rationale, recommendations, strengths, risks, summaries, pitches), refer to characters ONLY by the canonical names listed. NEVER use a blocked word (No, Yes, Oh, Hey, Well, So, etc.) as a character name or possessive (e.g. "No's"), even if the manuscript text appears to use it. Substitute the correct canonical name instead.`
     : PASS3_SYSTEM_PROMPT;
 
   const invokePass3Completion = (maxTokensForCall: number) =>
