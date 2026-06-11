@@ -1,0 +1,9 @@
+surface,route,consumedArtifacts,consumedFields,writeCapability,notes
+AgentReadinessMainPage,/agent-readiness,manuscript_context_v1; package_completeness_result_v1,manuscriptId; evaluationJobId; manuscriptTitle; packageStatus; allSectionsApproved,false,Manuscript selector + package status. Entry point to section workflow. URL params override dashboard default.
+QueryLetterPage,/agent-readiness/query-letter,agent_readiness_section_v1; manuscript_context_v1,content; status; manuscriptId; evaluationJobId,true,"Generate, edit, approve query_letter section. Carries manuscriptId in URL context."
+SynopsisPage,/agent-readiness/synopsis,agent_readiness_section_v1; manuscript_context_v1,content; status; manuscriptId; evaluationJobId,true,"Generate, edit, approve synopsis section."
+PitchPage,/agent-readiness/pitch,agent_readiness_section_v1; manuscript_context_v1,content; status; manuscriptId; evaluationJobId,true,"Generate, edit, approve query_pitch section."
+BioPage,/agent-readiness/bio,agent_readiness_section_v1; manuscript_context_v1,content; status; manuscriptId; evaluationJobId; authorBioInput,true,"Generate, edit, approve author_bio section. authorBioInput required. Must not invent credentials."
+ComparablesPage,/agent-readiness/comparables,agent_readiness_section_v1; manuscript_context_v1,content; status; manuscriptId; evaluationJobId,true,"Generate, edit, approve comparables section."
+HistoryPage,/agent-readiness/history,package_history_record_v1,manuscript_id; user_id; created_at; packageStatus,false,Read-only package version history. Future: bind to persistent package records.
+Dashboard,/dashboard,evaluation_job_record_v1,manuscriptId; evaluationJobId; status,false,Entry point to Agent Readiness. Links visible only for completed evaluations. URL shape: /agent-readiness?manuscriptId=<id>&evaluationJobId=<id>.

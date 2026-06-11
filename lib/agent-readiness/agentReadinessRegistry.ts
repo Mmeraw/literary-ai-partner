@@ -1,0 +1,1067 @@
+/**
+ * Agent Readiness Package — Executable SIPOC/FIPOC Registry
+ *
+ * Machine-checkable source of truth for the Agent Readiness Package workflow:
+ * manuscript eligibility → section generation → quality gate →
+ * author review → package assembly → export.
+ *
+ * Governance: docs/SIPOC_AGENT_READINESS_PROCESS.md
+ * Authority:  AI_GOVERNANCE.md (binding)
+ *
+ * Section canonical values:
+ *   query_letter | what_makes_unique | synopsis | query_pitch | comparables | author_bio
+ *
+ * Section status canonical values:  draft | approved
+ * Package status canonical values:  Not Started | Draft | Approved | Exported
+ * Generate mode canonical values:   generate | regenerate | improve
+ * Export format canonical values:   txt | docx
+ */
+
+// ─── Shared Enumerations ────────────────────────────────────────────────────
+
+export type AgentReadinessActiveState =
+  | 'active'
+  | 'planned_required'
+  | 'deferred';
+
+export type AgentReadinessCertificationStatus =
+  | 'proven'
+  | 'partial'
+  | 'emerging'
+  | 'missing_critical';
+
+export type AgentReadinessFitGapStatus = 'ok' | 'gap' | 'critical';
+
+export type SectionType =
+  | 'query_letter'
+  | 'what_makes_unique'
+  | 'synopsis'
+  | 'query_pitch'
+  | 'comparables'
+  | 'author_bio';
+
+export type SectionStatus = 'draft' | 'approved';
+
+export type PackageStatus = 'Not Started' | 'Draft' | 'Approved' | 'Exported';
+
+export type GenerateMode = 'generate' | 'regenerate' | 'improve';
+
+export type ExportFormat = 'txt' | 'docx';
+
+export type AgentReadinessAuthorityFamily =
+  | 'governance'
+  | 'doctrine'
+  | 'contract'
+  | 'gold_standard'
+  | 'rubric';
+
+// ─── Process Registry ───────────────────────────────────────────────────────
+
+export interface AgentReadinessProcessEntry {
+  sequence: number;
+  stageId: string;
+  processName: string;
+  activeState: AgentReadinessActiveState;
+  supplier: string;
+  inputArtifacts: string[];
+  inputRequiredFields: string[];
+  inputMetrics: string[];
+  codeSurfaces: string[];
+  processContract: string;
+  outputArtifacts: string[];
+  outputRequiredFields: string[];
+  outputMetrics: string[];
+  forwardKick: string;
+  backwardKick: string;
+  dirtyDataRules: string[];
+  failureCodes: string[];
+  consumers: string[];
+  uiExposed: boolean;
+  certificationStatus: AgentReadinessCertificationStatus;
+  fitGapStatus: AgentReadinessFitGapStatus;
+  notes: string;
+}
+
+export const AGENT_READINESS_PROCESS_REGISTRY: readonly AgentReadinessProcessEntry[] = [
+  {
+    sequence: 1,
+    stageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    processName: 'Manuscript Eligibility Gate',
+    activeState: 'active',
+    supplier: 'Author (URL context or dashboard default)',
+    inputArtifacts: ['evaluation_job_record_v1'],
+    inputRequiredFields: ['manuscriptId', 'evaluationJobId', 'status'],
+    inputMetrics: ['eligible_manuscript_count', 'latest_completed_evaluation_date'],
+    codeSurfaces: ['app/agent-readiness/page.tsx', 'lib/dashboard/getDashboardEvaluations.ts'],
+    processContract: 'Only evaluations with status ≠ running, failed, queued, canceled, incomplete are eligible. Sort by latest completed date first. If no eligible manuscript exists, render blocked state with guidance.',
+    outputArtifacts: ['manuscript_context_v1'],
+    outputRequiredFields: ['manuscriptId', 'evaluationJobId', 'manuscriptTitle', 'packageStatus'],
+    outputMetrics: ['eligible_count', 'selected_manuscript_readiness_score'],
+    forwardKick: 'AR02_SECTION_GENERATION',
+    backwardKick: 'none — blocked state rendered if no eligible manuscript',
+    dirtyDataRules: [
+      'Exclude failed evaluations from eligible list.',
+      'Exclude running and queued evaluations.',
+      'evaluationJobId must be a valid UUID present in the evaluation_jobs table.',
+    ],
+    failureCodes: ['INELIGIBLE_MANUSCRIPT', 'MISSING_CONTEXT', 'NO_COMPLETED_EVALUATION'],
+    consumers: ['AR02_SECTION_GENERATION', 'AR07_PACKAGE_ASSEMBLY'],
+    uiExposed: true,
+    certificationStatus: 'proven',
+    fitGapStatus: 'ok',
+    notes: 'URL params (manuscriptId, evaluationJobId) override dashboard default. Dashboard default = latest completed evaluation.',
+  },
+  {
+    sequence: 2,
+    stageId: 'AR02_SECTION_GENERATION',
+    processName: 'Section Generation (AI)',
+    activeState: 'active',
+    supplier: 'Author (section choice + mode) via /agent-readiness/<section> pages',
+    inputArtifacts: ['manuscript_context_v1', 'section_generation_request_v1', 'gold_standard_v1'],
+    inputRequiredFields: ['manuscriptId', 'evaluationJobId', 'section', 'mode'],
+    inputMetrics: ['token_count_input', 'generation_latency_ms'],
+    codeSurfaces: [
+      'app/api/agent-readiness/generate/route.ts',
+      'app/api/agent-readiness/generate-all/route.ts',
+    ],
+    processContract: 'Call OpenAI GPT-4o with evaluation report context and gold standard prompts. Apply word limits per section. Mode: generate (fresh) | regenerate (discard prior) | improve (refine existing). Sections: query_letter (≤450w), what_makes_unique (≤150w), synopsis (≤500w), query_pitch (≤50w), comparables (≤200w), author_bio (≤150w). Author bio requires authorBioInput; system must shape only supplied facts — never invent credentials.',
+    outputArtifacts: ['section_generation_result_v1'],
+    outputRequiredFields: ['content', 'wordCount', 'section'],
+    outputMetrics: ['word_count', 'generation_latency_ms'],
+    forwardKick: 'AR03_QUALITY_GATE',
+    backwardKick: 'none — new generation attempt on retry',
+    dirtyDataRules: [
+      'author_bio generation is blocked if authorBioInput is absent or < 50 chars.',
+      'generate-all generates 5 core sections; author_bio only if authorBioInput provided.',
+      'Sections generated sequentially in: query_pitch → what_makes_unique → synopsis → comparables → query_letter.',
+    ],
+    failureCodes: ['UNAUTHENTICATED', 'MISSING_CONTEXT', 'INELIGIBLE_MANUSCRIPT', 'GENERATION_TIMEOUT'],
+    consumers: ['AR03_QUALITY_GATE'],
+    uiExposed: false,
+    certificationStatus: 'proven',
+    fitGapStatus: 'ok',
+    notes: 'Model is configurable via AGENT_READINESS_MODEL env var (default gpt-4o). maxDuration=60s. TIMEOUT_MS=45_000.',
+  },
+  {
+    sequence: 3,
+    stageId: 'AR03_QUALITY_GATE',
+    processName: 'Section Quality Gate',
+    activeState: 'active',
+    supplier: 'AR02_SECTION_GENERATION output',
+    inputArtifacts: ['section_generation_result_v1'],
+    inputRequiredFields: ['content', 'wordCount', 'section'],
+    inputMetrics: ['quality_gate_pass_rate', 'rejection_reason_distribution'],
+    codeSurfaces: ['app/api/agent-readiness/generate/route.ts'],
+    processContract: 'Reject output if: text < 20 chars; contains editorial meta-language patterns; contains unresolved placeholder patterns ([Author Name], [Title], etc.); word count > limit × 1.1; word count < section minimum. Pass criteria must all hold simultaneously.',
+    outputArtifacts: ['quality_gate_result_v1'],
+    outputRequiredFields: ['qualityGatePass', 'section'],
+    outputMetrics: ['gate_pass_rate', 'rejection_reason_frequency'],
+    forwardKick: 'AR04_SECTION_PERSISTENCE (on pass)',
+    backwardKick: 'AR02_SECTION_GENERATION (on fail — client must retry)',
+    dirtyDataRules: [
+      'Do not persist any section that fails the quality gate.',
+      'qualityGateReason must be set on failure and must not be exposed as a user-facing error without sanitisation.',
+    ],
+    failureCodes: [
+      'OUTPUT_TOO_SHORT',
+      'EDITORIAL_META_LANGUAGE',
+      'UNRESOLVED_PLACEHOLDER',
+      'WORD_LIMIT_EXCEEDED',
+      'OUTPUT_TOO_THIN',
+    ],
+    consumers: ['AR04_SECTION_PERSISTENCE'],
+    uiExposed: false,
+    certificationStatus: 'proven',
+    fitGapStatus: 'ok',
+    notes: 'Word minimums: query_letter ≥200w, synopsis ≥150w, author_bio ≥50w, what_makes_unique ≥60w. query_pitch and comparables have no minimum.',
+  },
+  {
+    sequence: 4,
+    stageId: 'AR04_SECTION_PERSISTENCE',
+    processName: 'Section Persistence',
+    activeState: 'active',
+    supplier: 'AR03_QUALITY_GATE (pass)',
+    inputArtifacts: ['quality_gate_result_v1', 'section_generation_result_v1', 'manuscript_context_v1'],
+    inputRequiredFields: ['content', 'section', 'manuscriptId', 'user_id', 'qualityGatePass'],
+    inputMetrics: ['sections_persisted_total', 'db_write_latency_ms'],
+    codeSurfaces: ['app/api/agent-readiness/generate/route.ts'],
+    processContract: 'Upsert section record to agent_readiness_sections table with status=draft. Keyed by (user_id, manuscript_id, section_type). Must not persist if quality gate did not pass.',
+    outputArtifacts: ['agent_readiness_section_v1'],
+    outputRequiredFields: ['section_type', 'content', 'status', 'manuscript_id', 'user_id'],
+    outputMetrics: ['upsert_success_rate', 'sections_in_draft_count'],
+    forwardKick: 'AR05_AUTHOR_REVIEW',
+    backwardKick: 'none — DB failure must surface as 500, not masked as 400',
+    dirtyDataRules: [
+      'Never write a section with status=approved at generation time — approval is an explicit author action.',
+      'DB errors must not be masked as client (400) errors.',
+    ],
+    failureCodes: ['UNAUTHENTICATED', 'DB_WRITE_FAILURE', 'QUALITY_GATE_NOT_PASSED'],
+    consumers: ['AR05_AUTHOR_REVIEW', 'AR06_COMPLETENESS_CHECK'],
+    uiExposed: false,
+    certificationStatus: 'proven',
+    fitGapStatus: 'ok',
+    notes: 'Upsert (user_id, manuscript_id, section_type) — regeneration overwrites existing draft.',
+  },
+  {
+    sequence: 5,
+    stageId: 'AR05_AUTHOR_REVIEW',
+    processName: 'Author Review & Section Approval',
+    activeState: 'active',
+    supplier: 'Author',
+    inputArtifacts: ['agent_readiness_section_v1'],
+    inputRequiredFields: ['section_type', 'content', 'status'],
+    inputMetrics: ['section_approval_rate', 'sections_approved_count'],
+    codeSurfaces: [
+      'app/agent-readiness/query-letter/page.tsx',
+      'app/agent-readiness/synopsis/page.tsx',
+      'app/agent-readiness/pitch/page.tsx',
+      'app/agent-readiness/bio/page.tsx',
+      'app/agent-readiness/comparables/page.tsx',
+      'app/agent-readiness/AgentReadinessClient.tsx',
+    ],
+    processContract: 'Author may: read, edit, approve, or defer each section. Approve sets section status=approved. Deferred sections remain draft. Author bio must reflect only author-supplied facts — system must not invent credentials, awards, education, platform, or personal history.',
+    outputArtifacts: ['author_review_decision_v1'],
+    outputRequiredFields: ['section_type', 'decision', 'manuscript_id', 'user_id'],
+    outputMetrics: ['sections_approved_count', 'sections_deferred_count'],
+    forwardKick: 'AR06_COMPLETENESS_CHECK',
+    backwardKick: 'AR02_SECTION_GENERATION (on regenerate request)',
+    dirtyDataRules: [
+      'Author bio must not contain AI-invented facts. Only shape author-supplied input.',
+      'Section approval must persist to DB — not simulated in UI state only.',
+    ],
+    failureCodes: ['UNAUTHENTICATED', 'SECTION_NOT_FOUND'],
+    consumers: ['AR06_COMPLETENESS_CHECK'],
+    uiExposed: true,
+    certificationStatus: 'partial',
+    fitGapStatus: 'gap',
+    notes: 'Section approval persistence to DB is a known seam — current UI may hold approval state client-side only. Future persistence binds to (user_id, manuscript_id, section_type).',
+  },
+  {
+    sequence: 6,
+    stageId: 'AR06_COMPLETENESS_CHECK',
+    processName: 'Package Completeness Check',
+    activeState: 'active',
+    supplier: 'System (derived from agent_readiness_sections)',
+    inputArtifacts: ['agent_readiness_section_v1'],
+    inputRequiredFields: ['section_type', 'status', 'manuscript_id', 'user_id'],
+    inputMetrics: ['approved_section_count', 'completeness_ratio'],
+    codeSurfaces: ['app/agent-readiness/page.tsx'],
+    processContract: 'All 6 canonical sections (query_letter, what_makes_unique, synopsis, query_pitch, comparables, author_bio) must have status=approved before packageStatus transitions to Approved and the package assembly CTA is enabled.',
+    outputArtifacts: ['package_completeness_result_v1'],
+    outputRequiredFields: ['allSectionsApproved', 'approvedCount', 'manuscript_id'],
+    outputMetrics: ['completeness_ratio', 'blocked_assembly_count'],
+    forwardKick: 'AR07_PACKAGE_ASSEMBLY (when all 6 approved)',
+    backwardKick: 'AR05_AUTHOR_REVIEW (when any section not yet approved)',
+    dirtyDataRules: [
+      'Package assembly CTA must be disabled if fewer than 6 sections are approved.',
+      'packageStatus must not be set to Approved until all 6 sections are approved.',
+    ],
+    failureCodes: ['SECTIONS_NOT_ALL_APPROVED'],
+    consumers: ['AR07_PACKAGE_ASSEMBLY'],
+    uiExposed: true,
+    certificationStatus: 'partial',
+    fitGapStatus: 'gap',
+    notes: 'Until persistent package records exist, UI may show Not Started as placeholder. Future: bind packageStatus to a package record keyed by (user_id, manuscript_id, evaluation_job_id).',
+  },
+  {
+    sequence: 7,
+    stageId: 'AR07_PACKAGE_ASSEMBLY',
+    processName: 'Package Assembly',
+    activeState: 'active',
+    supplier: 'Author (explicit compile action) or generate-all orchestration',
+    inputArtifacts: ['agent_readiness_section_v1', 'manuscript_context_v1'],
+    inputRequiredFields: ['section_type', 'content', 'manuscriptTitle'],
+    inputMetrics: ['assembly_success_rate', 'total_sections_included'],
+    codeSurfaces: ['app/api/agent-readiness/generate-all/route.ts'],
+    processContract: 'Compile all approved sections into a single package record in canonical section order: query_pitch → query_letter → what_makes_unique → synopsis → comparables → author_bio. Package assembly is blocked if all 6 sections are not approved. Sets packageStatus=Approved on success.',
+    outputArtifacts: ['agent_readiness_package_v1'],
+    outputRequiredFields: ['manuscriptTitle', 'sections', 'packageStatus'],
+    outputMetrics: ['sections_included_count', 'assembly_latency_ms'],
+    forwardKick: 'AR08_EXPORT',
+    backwardKick: 'AR06_COMPLETENESS_CHECK (if sections missing)',
+    dirtyDataRules: [
+      'Do not assemble if any required section is missing or not approved.',
+      'Section order in assembled package must follow canonical order.',
+    ],
+    failureCodes: ['SECTIONS_NOT_ALL_APPROVED', 'UNAUTHENTICATED', 'ASSEMBLY_FAILURE'],
+    consumers: ['AR08_EXPORT'],
+    uiExposed: true,
+    certificationStatus: 'partial',
+    fitGapStatus: 'gap',
+    notes: 'generate-all generates sections sequentially then returns results; package assembly is the downstream compile step. Preferred CTA labels: "Generate Final Package" or "Compile Complete Package".',
+  },
+  {
+    sequence: 8,
+    stageId: 'AR08_EXPORT',
+    processName: 'Package Export',
+    activeState: 'active',
+    supplier: 'Author (explicit download action)',
+    inputArtifacts: ['agent_readiness_package_v1'],
+    inputRequiredFields: ['manuscriptTitle', 'sections', 'format'],
+    inputMetrics: ['export_download_count', 'format_distribution'],
+    codeSurfaces: ['app/api/agent-readiness/download/route.ts'],
+    processContract: 'Assemble package as .txt (plain text with dividers) or .docx (Word 2003 XML). Section order in export must match canonical assembly order. Export must not imply agent interest, representation, publication, sales, or market outcome.',
+    outputArtifacts: ['package_export_v1'],
+    outputRequiredFields: ['content', 'format', 'filename'],
+    outputMetrics: ['export_file_size_bytes', 'export_latency_ms'],
+    forwardKick: 'none — terminal export stage',
+    backwardKick: 'AR07_PACKAGE_ASSEMBLY (if package incomplete)',
+    dirtyDataRules: [
+      'Format must be exactly txt or docx — no other values accepted.',
+      'Export must not contain fabricated agent names, offer language, or market claims.',
+    ],
+    failureCodes: ['INVALID_FORMAT', 'MISSING_SECTIONS', 'UNAUTHENTICATED'],
+    consumers: ['Author (file download)'],
+    uiExposed: true,
+    certificationStatus: 'proven',
+    fitGapStatus: 'ok',
+    notes: 'Additional export targets (Copy Query Package, Save Package Version, Submit to Storygate Studio) are in doctrine scope but not yet fully implemented.',
+  },
+  {
+    sequence: 9,
+    stageId: 'AR09_HISTORY',
+    processName: 'Package History',
+    activeState: 'planned_required',
+    supplier: 'System (package records)',
+    inputArtifacts: ['agent_readiness_package_v1'],
+    inputRequiredFields: ['manuscript_id', 'user_id', 'packageStatus'],
+    inputMetrics: ['package_versions_count', 'history_view_frequency'],
+    codeSurfaces: ['app/agent-readiness/history/page.tsx'],
+    processContract: 'Display previous package versions per manuscript. Supports audit trail and re-export. Future: bind to persistent package record keyed by (user_id, manuscript_id, package_id).',
+    outputArtifacts: ['package_history_record_v1'],
+    outputRequiredFields: ['manuscript_id', 'user_id', 'created_at', 'packageStatus'],
+    outputMetrics: ['history_record_count'],
+    forwardKick: 'none — read-only view stage',
+    backwardKick: 'none',
+    dirtyDataRules: [
+      'History must not show packages from other users.',
+      'History is read-only — no edits may originate from this stage.',
+    ],
+    failureCodes: ['UNAUTHENTICATED', 'NO_PACKAGE_HISTORY'],
+    consumers: ['Author (read-only view)'],
+    uiExposed: true,
+    certificationStatus: 'missing_critical',
+    fitGapStatus: 'critical',
+    notes: 'Package persistence is a known future seam. Until package records exist, history page is a placeholder.',
+  },
+] as const;
+
+// ─── Artifact Registry ──────────────────────────────────────────────────────
+
+export interface AgentReadinessArtifactEntry {
+  artifact: string;
+  producerStageId: string;
+  consumerStageIds: string[];
+  requiredFields: string[];
+  completenessMetric: string;
+  accuracyMetric: string;
+  dirtyDataRule: string;
+  regenerationOwnerStageId: string;
+  requiredForPackageAssembly: boolean;
+  fitGapStatus: AgentReadinessFitGapStatus;
+}
+
+export const AGENT_READINESS_ARTIFACT_REGISTRY: readonly AgentReadinessArtifactEntry[] = [
+  {
+    artifact: 'evaluation_job_record_v1',
+    producerStageId: 'EVALUATION_PIPELINE (external)',
+    consumerStageIds: ['AR01_MANUSCRIPT_ELIGIBILITY', 'AR02_SECTION_GENERATION'],
+    requiredFields: ['manuscriptId', 'evaluationJobId', 'status', 'manuscriptTitle'],
+    completenessMetric: 'status field present and in canonical set',
+    accuracyMetric: 'status accurately reflects evaluation pipeline state',
+    dirtyDataRule: 'Only records with status ≠ running/failed/queued/canceled/incomplete are eligible.',
+    regenerationOwnerStageId: 'EVALUATION_PIPELINE (external)',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'manuscript_context_v1',
+    producerStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    consumerStageIds: ['AR02_SECTION_GENERATION', 'AR07_PACKAGE_ASSEMBLY', 'AR06_COMPLETENESS_CHECK'],
+    requiredFields: ['manuscriptId', 'evaluationJobId', 'manuscriptTitle', 'packageStatus'],
+    completenessMetric: 'all 4 required fields present',
+    accuracyMetric: 'manuscriptId and evaluationJobId reference valid DB records',
+    dirtyDataRule: 'Must not be constructed from failed or running evaluations.',
+    regenerationOwnerStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    requiredForPackageAssembly: true,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'section_generation_request_v1',
+    producerStageId: 'AR02_SECTION_GENERATION',
+    consumerStageIds: ['AR02_SECTION_GENERATION'],
+    requiredFields: ['manuscriptId', 'evaluationJobId', 'section', 'mode'],
+    completenessMetric: 'section is canonical SectionType; mode is canonical GenerateMode',
+    accuracyMetric: 'authorBioInput ≥ 50 chars when section = author_bio',
+    dirtyDataRule: 'author_bio generation must be blocked if authorBioInput absent or < 50 chars.',
+    regenerationOwnerStageId: 'AR02_SECTION_GENERATION',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'section_generation_result_v1',
+    producerStageId: 'AR02_SECTION_GENERATION',
+    consumerStageIds: ['AR03_QUALITY_GATE'],
+    requiredFields: ['content', 'wordCount', 'section'],
+    completenessMetric: 'content is non-empty string; wordCount > 0',
+    accuracyMetric: 'wordCount computed correctly from content',
+    dirtyDataRule: 'Must not be persisted before passing quality gate.',
+    regenerationOwnerStageId: 'AR02_SECTION_GENERATION',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'quality_gate_result_v1',
+    producerStageId: 'AR03_QUALITY_GATE',
+    consumerStageIds: ['AR04_SECTION_PERSISTENCE'],
+    requiredFields: ['qualityGatePass', 'section'],
+    completenessMetric: 'qualityGatePass boolean present',
+    accuracyMetric: 'all gate checks applied correctly per section type',
+    dirtyDataRule: 'qualityGateReason must be set when qualityGatePass=false.',
+    regenerationOwnerStageId: 'AR03_QUALITY_GATE',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'agent_readiness_section_v1',
+    producerStageId: 'AR04_SECTION_PERSISTENCE',
+    consumerStageIds: ['AR05_AUTHOR_REVIEW', 'AR06_COMPLETENESS_CHECK', 'AR07_PACKAGE_ASSEMBLY'],
+    requiredFields: ['section_type', 'content', 'status', 'manuscript_id', 'user_id'],
+    completenessMetric: 'all 5 required fields present; status in {draft, approved}',
+    accuracyMetric: 'content passed quality gate at generation time',
+    dirtyDataRule: 'status must not be set to approved at generation time. Only explicit author approval sets approved.',
+    regenerationOwnerStageId: 'AR04_SECTION_PERSISTENCE',
+    requiredForPackageAssembly: true,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'author_review_decision_v1',
+    producerStageId: 'AR05_AUTHOR_REVIEW',
+    consumerStageIds: ['AR06_COMPLETENESS_CHECK'],
+    requiredFields: ['section_type', 'decision', 'manuscript_id', 'user_id'],
+    completenessMetric: 'decision is approved or deferred',
+    accuracyMetric: 'decision reflects explicit author action — not inferred',
+    dirtyDataRule: 'Author bio decision must not override user-supplied facts with invented content.',
+    regenerationOwnerStageId: 'AR05_AUTHOR_REVIEW',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'gap',
+  },
+  {
+    artifact: 'package_completeness_result_v1',
+    producerStageId: 'AR06_COMPLETENESS_CHECK',
+    consumerStageIds: ['AR07_PACKAGE_ASSEMBLY'],
+    requiredFields: ['allSectionsApproved', 'approvedCount', 'manuscript_id'],
+    completenessMetric: 'approvedCount integer present; allSectionsApproved boolean present',
+    accuracyMetric: 'allSectionsApproved = (approvedCount === 6)',
+    dirtyDataRule: 'Must not assert allSectionsApproved=true with approvedCount < 6.',
+    regenerationOwnerStageId: 'AR06_COMPLETENESS_CHECK',
+    requiredForPackageAssembly: true,
+    fitGapStatus: 'gap',
+  },
+  {
+    artifact: 'agent_readiness_package_v1',
+    producerStageId: 'AR07_PACKAGE_ASSEMBLY',
+    consumerStageIds: ['AR08_EXPORT', 'AR09_HISTORY'],
+    requiredFields: ['manuscriptTitle', 'sections', 'packageStatus'],
+    completenessMetric: 'sections map contains all 6 canonical section keys',
+    accuracyMetric: 'all section content passed quality gate and was author-approved',
+    dirtyDataRule: 'Must not include sections with status=draft in assembled package.',
+    regenerationOwnerStageId: 'AR07_PACKAGE_ASSEMBLY',
+    requiredForPackageAssembly: true,
+    fitGapStatus: 'gap',
+  },
+  {
+    artifact: 'package_export_v1',
+    producerStageId: 'AR08_EXPORT',
+    consumerStageIds: ['Author (file download)'],
+    requiredFields: ['content', 'format', 'filename'],
+    completenessMetric: 'content non-empty; format is txt or docx',
+    accuracyMetric: 'file content matches assembled package exactly',
+    dirtyDataRule: 'format must be exactly txt or docx. No other values accepted.',
+    regenerationOwnerStageId: 'AR08_EXPORT',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'gold_standard_v1',
+    producerStageId: 'lib/agent-readiness/gold-standards (static)',
+    consumerStageIds: ['AR02_SECTION_GENERATION'],
+    requiredFields: ['section_type', 'rubric', 'examples'],
+    completenessMetric: 'gold standard file present on disk for relevant section types',
+    accuracyMetric: 'rubric aligns with current DREAM benchmark contract',
+    dirtyDataRule: 'Gold standard files must not be modified without a governance review.',
+    regenerationOwnerStageId: 'lib/agent-readiness/gold-standards (static)',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'ok',
+  },
+  {
+    artifact: 'package_history_record_v1',
+    producerStageId: 'AR09_HISTORY',
+    consumerStageIds: ['Author (read-only view)'],
+    requiredFields: ['manuscript_id', 'user_id', 'created_at', 'packageStatus'],
+    completenessMetric: 'all 4 required fields present',
+    accuracyMetric: 'packageStatus reflects actual assembly and export state',
+    dirtyDataRule: 'History must not show packages from other users. Read-only — no writes from history stage.',
+    regenerationOwnerStageId: 'none',
+    requiredForPackageAssembly: false,
+    fitGapStatus: 'critical',
+  },
+] as const;
+
+// ─── Field Registry ─────────────────────────────────────────────────────────
+
+export interface AgentReadinessFieldEntry {
+  field: string;
+  artifact: string;
+  required: boolean;
+  nullable: boolean;
+  canonicalValues?: string[];
+  sourceStageId: string;
+  validatorStageId: string;
+  uiRendered: boolean;
+  notes: string;
+}
+
+export const AGENT_READINESS_FIELD_REGISTRY: readonly AgentReadinessFieldEntry[] = [
+  {
+    field: 'manuscriptId',
+    artifact: 'manuscript_context_v1',
+    required: true,
+    nullable: false,
+    sourceStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    validatorStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    uiRendered: true,
+    notes: 'Numeric manuscript identifier. URL param overrides dashboard default.',
+  },
+  {
+    field: 'evaluationJobId',
+    artifact: 'manuscript_context_v1',
+    required: true,
+    nullable: false,
+    sourceStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    validatorStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    uiRendered: false,
+    notes: 'UUID of the evaluation job. Required for section generation prompts.',
+  },
+  {
+    field: 'manuscriptTitle',
+    artifact: 'manuscript_context_v1',
+    required: true,
+    nullable: false,
+    sourceStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    validatorStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    uiRendered: true,
+    notes: 'Displayed in Selected Manuscript panel and embedded in export document header.',
+  },
+  {
+    field: 'packageStatus',
+    artifact: 'manuscript_context_v1',
+    required: true,
+    nullable: false,
+    canonicalValues: ['Not Started', 'Draft', 'Approved', 'Exported'],
+    sourceStageId: 'AR06_COMPLETENESS_CHECK',
+    validatorStageId: 'AR06_COMPLETENESS_CHECK',
+    uiRendered: true,
+    notes: 'Manuscript-specific. Transitions: Not Started → Draft (first section generated) → Approved (all 6 approved) → Exported (download completed).',
+  },
+  {
+    field: 'section',
+    artifact: 'section_generation_request_v1',
+    required: true,
+    nullable: false,
+    canonicalValues: ['query_letter', 'what_makes_unique', 'synopsis', 'query_pitch', 'comparables', 'author_bio'],
+    sourceStageId: 'AR02_SECTION_GENERATION',
+    validatorStageId: 'AR02_SECTION_GENERATION',
+    uiRendered: false,
+    notes: 'Exactly 6 canonical values. No other section types permitted.',
+  },
+  {
+    field: 'mode',
+    artifact: 'section_generation_request_v1',
+    required: true,
+    nullable: false,
+    canonicalValues: ['generate', 'regenerate', 'improve'],
+    sourceStageId: 'AR02_SECTION_GENERATION',
+    validatorStageId: 'AR02_SECTION_GENERATION',
+    uiRendered: false,
+    notes: 'generate = fresh; regenerate = discard prior and generate fresh; improve = refine existing content.',
+  },
+  {
+    field: 'authorBioInput',
+    artifact: 'section_generation_request_v1',
+    required: false,
+    nullable: true,
+    sourceStageId: 'AR02_SECTION_GENERATION',
+    validatorStageId: 'AR02_SECTION_GENERATION',
+    uiRendered: true,
+    notes: 'Required when section=author_bio. Minimum 50 chars. System shapes only supplied facts — must not invent credentials.',
+  },
+  {
+    field: 'content',
+    artifact: 'agent_readiness_section_v1',
+    required: true,
+    nullable: false,
+    sourceStageId: 'AR04_SECTION_PERSISTENCE',
+    validatorStageId: 'AR03_QUALITY_GATE',
+    uiRendered: true,
+    notes: 'Generated section text. Must pass quality gate before persistence.',
+  },
+  {
+    field: 'wordCount',
+    artifact: 'section_generation_result_v1',
+    required: true,
+    nullable: false,
+    sourceStageId: 'AR02_SECTION_GENERATION',
+    validatorStageId: 'AR03_QUALITY_GATE',
+    uiRendered: true,
+    notes: 'Computed from content split on whitespace. Used by quality gate to enforce limits and minimums.',
+  },
+  {
+    field: 'status',
+    artifact: 'agent_readiness_section_v1',
+    required: true,
+    nullable: false,
+    canonicalValues: ['draft', 'approved'],
+    sourceStageId: 'AR04_SECTION_PERSISTENCE',
+    validatorStageId: 'AR05_AUTHOR_REVIEW',
+    uiRendered: true,
+    notes: 'Set to draft on persistence. Transitions to approved only by explicit author action.',
+  },
+  {
+    field: 'format',
+    artifact: 'package_export_v1',
+    required: true,
+    nullable: false,
+    canonicalValues: ['txt', 'docx'],
+    sourceStageId: 'AR08_EXPORT',
+    validatorStageId: 'AR08_EXPORT',
+    uiRendered: false,
+    notes: 'Exactly 2 canonical values. No other export formats permitted.',
+  },
+  {
+    field: 'qualityGatePass',
+    artifact: 'quality_gate_result_v1',
+    required: true,
+    nullable: false,
+    canonicalValues: ['true', 'false'],
+    sourceStageId: 'AR03_QUALITY_GATE',
+    validatorStageId: 'AR03_QUALITY_GATE',
+    uiRendered: false,
+    notes: 'Boolean. Must be true for section to proceed to persistence.',
+  },
+  {
+    field: 'qualityGateReason',
+    artifact: 'quality_gate_result_v1',
+    required: false,
+    nullable: true,
+    sourceStageId: 'AR03_QUALITY_GATE',
+    validatorStageId: 'AR03_QUALITY_GATE',
+    uiRendered: false,
+    notes: 'Populated on gate failure. Must not be directly exposed as raw DB/system error in client response.',
+  },
+  {
+    field: 'user_id',
+    artifact: 'agent_readiness_section_v1',
+    required: true,
+    nullable: false,
+    sourceStageId: 'AR04_SECTION_PERSISTENCE',
+    validatorStageId: 'AR02_SECTION_GENERATION',
+    uiRendered: false,
+    notes: 'Authenticated user ID from Supabase session. All write operations require authentication.',
+  },
+  {
+    field: 'allSectionsApproved',
+    artifact: 'package_completeness_result_v1',
+    required: true,
+    nullable: false,
+    canonicalValues: ['true', 'false'],
+    sourceStageId: 'AR06_COMPLETENESS_CHECK',
+    validatorStageId: 'AR06_COMPLETENESS_CHECK',
+    uiRendered: true,
+    notes: 'true iff all 6 canonical section types have status=approved for this (user_id, manuscript_id).',
+  },
+] as const;
+
+// ─── Kick Matrix ────────────────────────────────────────────────────────────
+
+export interface AgentReadinessKickEntry {
+  kickCode: string;
+  detectedAt: string;
+  description: string;
+  blocking: boolean;
+  blocksPackageAssembly: boolean;
+  remediation: string;
+  httpStatus: number;
+}
+
+export const AGENT_READINESS_KICK_MATRIX: readonly AgentReadinessKickEntry[] = [
+  {
+    kickCode: 'INELIGIBLE_MANUSCRIPT',
+    detectedAt: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    description: 'Selected manuscript evaluation status is running, failed, queued, canceled, or incomplete.',
+    blocking: true,
+    blocksPackageAssembly: true,
+    remediation: 'Author must wait for evaluation to complete or select a different manuscript.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'NO_COMPLETED_EVALUATION',
+    detectedAt: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    description: 'No eligible completed evaluation exists for the user. Cannot enter Agent Readiness workflow.',
+    blocking: true,
+    blocksPackageAssembly: true,
+    remediation: 'Author must complete a manuscript evaluation before generating an Agent Readiness Package.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'MISSING_CONTEXT',
+    detectedAt: 'AR02_SECTION_GENERATION',
+    description: 'manuscriptId or evaluationJobId missing from request.',
+    blocking: true,
+    blocksPackageAssembly: false,
+    remediation: 'Client must supply both manuscriptId and evaluationJobId.',
+    httpStatus: 400,
+  },
+  {
+    kickCode: 'UNAUTHENTICATED',
+    detectedAt: 'AR02_SECTION_GENERATION',
+    description: 'Request has no valid authenticated user session.',
+    blocking: true,
+    blocksPackageAssembly: true,
+    remediation: 'Author must log in before generating or assembling package sections.',
+    httpStatus: 401,
+  },
+  {
+    kickCode: 'OUTPUT_TOO_SHORT',
+    detectedAt: 'AR03_QUALITY_GATE',
+    description: 'Generated section text is fewer than 20 characters.',
+    blocking: true,
+    blocksPackageAssembly: false,
+    remediation: 'Retry generation. If persistent, check model and prompt configuration.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'EDITORIAL_META_LANGUAGE',
+    detectedAt: 'AR03_QUALITY_GATE',
+    description: 'Generated text contains editorial advisory phrasing (e.g., "the reader would benefit from", "consider adding").',
+    blocking: true,
+    blocksPackageAssembly: false,
+    remediation: 'Retry generation. Review prompt to reinforce direct authorial voice.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'UNRESOLVED_PLACEHOLDER',
+    detectedAt: 'AR03_QUALITY_GATE',
+    description: 'Generated text contains unresolved template placeholders (e.g., [Author Name], [Title]).',
+    blocking: true,
+    blocksPackageAssembly: false,
+    remediation: 'Retry generation. Ensure evaluation context was loaded correctly.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'WORD_LIMIT_EXCEEDED',
+    detectedAt: 'AR03_QUALITY_GATE',
+    description: 'Generated word count exceeds section limit by more than 10%.',
+    blocking: true,
+    blocksPackageAssembly: false,
+    remediation: 'Retry generation with tighter constraint. Per-section limits: query_letter 450, what_makes_unique 150, synopsis 500, query_pitch 50, comparables 200, author_bio 150.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'OUTPUT_TOO_THIN',
+    detectedAt: 'AR03_QUALITY_GATE',
+    description: 'Generated word count is below section minimum (query_letter <200, synopsis <150, author_bio <50, what_makes_unique <60).',
+    blocking: true,
+    blocksPackageAssembly: false,
+    remediation: 'Retry generation. Check prompt depth and evaluation context completeness.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'SECTIONS_NOT_ALL_APPROVED',
+    detectedAt: 'AR06_COMPLETENESS_CHECK',
+    description: 'Fewer than 6 canonical sections have status=approved. Package assembly blocked.',
+    blocking: true,
+    blocksPackageAssembly: true,
+    remediation: 'Author must review and approve all 6 sections before assembling the package.',
+    httpStatus: 422,
+  },
+  {
+    kickCode: 'INVALID_FORMAT',
+    detectedAt: 'AR08_EXPORT',
+    description: 'Requested export format is not txt or docx.',
+    blocking: true,
+    blocksPackageAssembly: false,
+    remediation: 'Set format to exactly "txt" or "docx".',
+    httpStatus: 400,
+  },
+] as const;
+
+// ─── Authority Source Registry ──────────────────────────────────────────────
+
+export interface AgentReadinessAuthoritySourceEntry {
+  authorityId: string;
+  family: AgentReadinessAuthorityFamily;
+  title: string;
+  path: string;
+  appliesToStageIds: string[];
+  appliesToArtifacts: string[];
+  executionUse: string;
+  notes: string;
+}
+
+export const AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY: readonly AgentReadinessAuthoritySourceEntry[] = [
+  {
+    authorityId: 'AR_WORKFLOW_DOCTRINE',
+    family: 'doctrine',
+    title: 'Agent Readiness Workflow Doctrine',
+    path: 'docs/product/agent-readiness-workflow-doctrine.md',
+    appliesToStageIds: ['AR01_MANUSCRIPT_ELIGIBILITY', 'AR02_SECTION_GENERATION', 'AR05_AUTHOR_REVIEW', 'AR06_COMPLETENESS_CHECK', 'AR07_PACKAGE_ASSEMBLY', 'AR08_EXPORT'],
+    appliesToArtifacts: ['manuscript_context_v1', 'agent_readiness_package_v1'],
+    executionUse: 'Binding doctrine for Agent Readiness Package workflow. Top = manuscript. Middle = sections. Bottom = final package.',
+    notes: 'Core rule: author confirms manuscript before generating any section. Export does not imply agent interest or representation.',
+  },
+  {
+    authorityId: 'AI_GOVERNANCE',
+    family: 'governance',
+    title: 'AI Governance',
+    path: 'AI_GOVERNANCE.md',
+    appliesToStageIds: ['AR01_MANUSCRIPT_ELIGIBILITY', 'AR02_SECTION_GENERATION', 'AR03_QUALITY_GATE', 'AR04_SECTION_PERSISTENCE', 'AR05_AUTHOR_REVIEW', 'AR06_COMPLETENESS_CHECK', 'AR07_PACKAGE_ASSEMBLY', 'AR08_EXPORT', 'AR09_HISTORY'],
+    appliesToArtifacts: ['agent_readiness_section_v1', 'agent_readiness_package_v1', 'quality_gate_result_v1'],
+    executionUse: 'Binding governance for all Agent Readiness stages. DB errors must not be masked as client errors. System must not invent author bio facts.',
+    notes: 'Illegal state transitions must throw. Author bio must reflect only author-supplied facts.',
+  },
+  {
+    authorityId: 'GENERATE_API',
+    family: 'contract',
+    title: 'Section Generation API',
+    path: 'app/api/agent-readiness/generate/route.ts',
+    appliesToStageIds: ['AR02_SECTION_GENERATION', 'AR03_QUALITY_GATE', 'AR04_SECTION_PERSISTENCE'],
+    appliesToArtifacts: ['section_generation_request_v1', 'section_generation_result_v1', 'quality_gate_result_v1', 'agent_readiness_section_v1'],
+    executionUse: 'Defines SectionType, GenerateMode, word limits, word minimums, quality gate patterns, and OpenAI model configuration.',
+    notes: 'Model default: gpt-4o. maxDuration: 60s. TIMEOUT_MS: 45_000.',
+  },
+  {
+    authorityId: 'GENERATE_ALL_API',
+    family: 'contract',
+    title: 'Generate All Sections API',
+    path: 'app/api/agent-readiness/generate-all/route.ts',
+    appliesToStageIds: ['AR02_SECTION_GENERATION', 'AR07_PACKAGE_ASSEMBLY'],
+    appliesToArtifacts: ['section_generation_request_v1', 'agent_readiness_package_v1'],
+    executionUse: 'Defines section generation order: query_pitch → what_makes_unique → synopsis → comparables → query_letter. author_bio generated only if authorBioInput provided and ≥50 chars.',
+    notes: 'Sequential generation. Errors per section are non-fatal to other sections.',
+  },
+  {
+    authorityId: 'DOWNLOAD_API',
+    family: 'contract',
+    title: 'Package Download API',
+    path: 'app/api/agent-readiness/download/route.ts',
+    appliesToStageIds: ['AR08_EXPORT'],
+    appliesToArtifacts: ['agent_readiness_package_v1', 'package_export_v1'],
+    executionUse: 'Defines export formats (txt/docx), section order in output (query_pitch → query_letter → what_makes_unique → synopsis → comparables → author_bio), and document formatting rules.',
+    notes: 'docx uses Word 2003 XML format for maximum client compatibility.',
+  },
+  {
+    authorityId: 'AUTHOR_BIO_GOLD_STANDARDS',
+    family: 'gold_standard',
+    title: 'Author Bio Gold Standards',
+    path: 'lib/agent-readiness/gold-standards/bio/agent_readiness_bio_gold_standards_v1.json',
+    appliesToStageIds: ['AR02_SECTION_GENERATION'],
+    appliesToArtifacts: ['gold_standard_v1', 'agent_readiness_section_v1'],
+    executionUse: 'Defines gold standard author bio examples and quality markers for GPT-4o prompt context.',
+    notes: 'Must not be modified without governance review.',
+  },
+  {
+    authorityId: 'AUTHOR_BIO_RUBRIC',
+    family: 'rubric',
+    title: 'Author Bio Rubric',
+    path: 'lib/agent-readiness/gold-standards/bio/author_bio_rubric_v1.md',
+    appliesToStageIds: ['AR02_SECTION_GENERATION', 'AR03_QUALITY_GATE'],
+    appliesToArtifacts: ['gold_standard_v1', 'quality_gate_result_v1'],
+    executionUse: 'Scoring rubric for author bio quality evaluation.',
+    notes: 'Author bio must not include invented credentials, awards, education, or personal history.',
+  },
+  {
+    authorityId: 'SYNOPSIS_GOLD_STANDARDS',
+    family: 'gold_standard',
+    title: 'Synopsis Contract',
+    path: 'lib/agent-readiness/gold-standards/synopsis/synopsis_contract_v1.json',
+    appliesToStageIds: ['AR02_SECTION_GENERATION'],
+    appliesToArtifacts: ['gold_standard_v1', 'agent_readiness_section_v1'],
+    executionUse: 'Defines synopsis contract and gold standard examples for GPT-4o prompt context.',
+    notes: 'Must not be modified without governance review.',
+  },
+] as const;
+
+// ─── Renderer / Consumer Matrix ─────────────────────────────────────────────
+
+export interface AgentReadinessRendererEntry {
+  surface: string;
+  route: string;
+  consumedArtifacts: string[];
+  consumedFields: string[];
+  writeCapability: boolean;
+  notes: string;
+}
+
+export const AGENT_READINESS_RENDERER_MATRIX: readonly AgentReadinessRendererEntry[] = [
+  {
+    surface: 'AgentReadinessMainPage',
+    route: '/agent-readiness',
+    consumedArtifacts: ['manuscript_context_v1', 'package_completeness_result_v1'],
+    consumedFields: ['manuscriptId', 'evaluationJobId', 'manuscriptTitle', 'packageStatus', 'allSectionsApproved'],
+    writeCapability: false,
+    notes: 'Manuscript selector + package status. Entry point to section workflow. URL params override dashboard default.',
+  },
+  {
+    surface: 'QueryLetterPage',
+    route: '/agent-readiness/query-letter',
+    consumedArtifacts: ['agent_readiness_section_v1', 'manuscript_context_v1'],
+    consumedFields: ['content', 'status', 'manuscriptId', 'evaluationJobId'],
+    writeCapability: true,
+    notes: 'Generate, edit, approve query_letter section. Carries manuscriptId in URL context.',
+  },
+  {
+    surface: 'SynopsisPage',
+    route: '/agent-readiness/synopsis',
+    consumedArtifacts: ['agent_readiness_section_v1', 'manuscript_context_v1'],
+    consumedFields: ['content', 'status', 'manuscriptId', 'evaluationJobId'],
+    writeCapability: true,
+    notes: 'Generate, edit, approve synopsis section.',
+  },
+  {
+    surface: 'PitchPage',
+    route: '/agent-readiness/pitch',
+    consumedArtifacts: ['agent_readiness_section_v1', 'manuscript_context_v1'],
+    consumedFields: ['content', 'status', 'manuscriptId', 'evaluationJobId'],
+    writeCapability: true,
+    notes: 'Generate, edit, approve query_pitch section.',
+  },
+  {
+    surface: 'BioPage',
+    route: '/agent-readiness/bio',
+    consumedArtifacts: ['agent_readiness_section_v1', 'manuscript_context_v1'],
+    consumedFields: ['content', 'status', 'manuscriptId', 'evaluationJobId', 'authorBioInput'],
+    writeCapability: true,
+    notes: 'Generate, edit, approve author_bio section. authorBioInput required. Must not invent credentials.',
+  },
+  {
+    surface: 'ComparablesPage',
+    route: '/agent-readiness/comparables',
+    consumedArtifacts: ['agent_readiness_section_v1', 'manuscript_context_v1'],
+    consumedFields: ['content', 'status', 'manuscriptId', 'evaluationJobId'],
+    writeCapability: true,
+    notes: 'Generate, edit, approve comparables section.',
+  },
+  {
+    surface: 'HistoryPage',
+    route: '/agent-readiness/history',
+    consumedArtifacts: ['package_history_record_v1'],
+    consumedFields: ['manuscript_id', 'user_id', 'created_at', 'packageStatus'],
+    writeCapability: false,
+    notes: 'Read-only package version history. Future: bind to persistent package records.',
+  },
+  {
+    surface: 'Dashboard',
+    route: '/dashboard',
+    consumedArtifacts: ['evaluation_job_record_v1'],
+    consumedFields: ['manuscriptId', 'evaluationJobId', 'status'],
+    writeCapability: false,
+    notes: 'Entry point to Agent Readiness. Links visible only for completed evaluations. URL shape: /agent-readiness?manuscriptId=<id>&evaluationJobId=<id>.',
+  },
+] as const;
+
+// ─── Certification Gate Registry ────────────────────────────────────────────
+
+export interface AgentReadinessCertificationGateEntry {
+  gateId: string;
+  description: string;
+  appliesToStageId: string;
+  enforced: boolean;
+  testEvidence: string;
+  notes: string;
+}
+
+export const AGENT_READINESS_CERTIFICATION_GATE_REGISTRY: readonly AgentReadinessCertificationGateEntry[] = [
+  {
+    gateId: 'ARCG01_MANUSCRIPT_ELIGIBILITY',
+    description: 'Only evaluations with status not in {running, failed, queued, canceled, incomplete} may enter the workflow.',
+    appliesToStageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
+    enforced: true,
+    testEvidence: '__tests__/lib/agent-readiness/agentReadinessRegistry.test.ts',
+    notes: 'Enforced in app/agent-readiness/page.tsx via completedRows filter.',
+  },
+  {
+    gateId: 'ARCG02_AUTH_GATE',
+    description: 'All section generation and persistence operations require authenticated user session.',
+    appliesToStageId: 'AR02_SECTION_GENERATION',
+    enforced: true,
+    testEvidence: '__tests__/lib/agent-readiness/agentReadinessRegistry.test.ts',
+    notes: 'getAuthenticatedUser() called in generate/route.ts.',
+  },
+  {
+    gateId: 'ARCG03_QUALITY_GATE',
+    description: 'Generated section must pass all quality gate checks before persistence: no meta-language, no placeholders, within word limit, above word minimum.',
+    appliesToStageId: 'AR03_QUALITY_GATE',
+    enforced: true,
+    testEvidence: '__tests__/lib/agent-readiness/agentReadinessRegistry.test.ts',
+    notes: '5 separate kick codes enforced by qualityGate() in generate/route.ts.',
+  },
+  {
+    gateId: 'ARCG04_NO_DRAFT_PERSISTENCE_AS_APPROVED',
+    description: 'Section status must be draft at persistence time. Only explicit author action transitions to approved.',
+    appliesToStageId: 'AR04_SECTION_PERSISTENCE',
+    enforced: true,
+    testEvidence: '__tests__/lib/agent-readiness/agentReadinessRegistry.test.ts',
+    notes: 'Enforced by registry field definition: status canonicalValues = [draft, approved]; initial write always draft.',
+  },
+  {
+    gateId: 'ARCG05_ALL_SECTIONS_APPROVED_BEFORE_ASSEMBLY',
+    description: 'Package assembly CTA is disabled if fewer than 6 sections are approved. allSectionsApproved must be true.',
+    appliesToStageId: 'AR06_COMPLETENESS_CHECK',
+    enforced: true,
+    testEvidence: '__tests__/lib/agent-readiness/agentReadinessRegistry.test.ts',
+    notes: 'Enforced in app/agent-readiness/page.tsx via getPackageStatuses() + allApproved check.',
+  },
+  {
+    gateId: 'ARCG06_AUTHOR_BIO_NO_INVENTED_FACTS',
+    description: 'Author bio generation must shape only author-supplied facts. Must not invent credentials, awards, education, platform, publications, or personal history.',
+    appliesToStageId: 'AR05_AUTHOR_REVIEW',
+    enforced: false,
+    testEvidence: 'lib/agent-readiness/gold-standards/bio/author_bio_rubric_v1.md',
+    notes: 'Enforced by prompt instructions and rubric. No automated test gate — rubric review required.',
+  },
+  {
+    gateId: 'ARCG07_EXPORT_FORMAT_VALID',
+    description: 'Export format must be exactly txt or docx. No other values accepted.',
+    appliesToStageId: 'AR08_EXPORT',
+    enforced: true,
+    testEvidence: '__tests__/lib/agent-readiness/agentReadinessRegistry.test.ts',
+    notes: 'Enforced by ExportFormat type in registry and format field canonicalValues.',
+  },
+  {
+    gateId: 'ARCG08_DB_ERRORS_NOT_MASKED',
+    description: 'Database and system errors must not be masked as client (400) errors.',
+    appliesToStageId: 'AR04_SECTION_PERSISTENCE',
+    enforced: true,
+    testEvidence: '__tests__/lib/agent-readiness/agentReadinessRegistry.test.ts',
+    notes: 'Per AI_GOVERNANCE.md. DB write failure must surface as 500.',
+  },
+] as const;
+
+// ─── Section Word Limit Contract ────────────────────────────────────────────
+
+export interface AgentReadinessSectionLimitEntry {
+  section: SectionType;
+  wordLimit: number;
+  wordMinimum: number | null;
+  hasMinimum: boolean;
+}
+
+export const SECTION_WORD_LIMIT_REGISTRY: readonly AgentReadinessSectionLimitEntry[] = [
+  { section: 'query_letter',      wordLimit: 450, wordMinimum: 200, hasMinimum: true },
+  { section: 'what_makes_unique', wordLimit: 150, wordMinimum: 60,  hasMinimum: true },
+  { section: 'synopsis',          wordLimit: 500, wordMinimum: 150, hasMinimum: true },
+  { section: 'query_pitch',       wordLimit: 50,  wordMinimum: null, hasMinimum: false },
+  { section: 'comparables',       wordLimit: 200, wordMinimum: null, hasMinimum: false },
+  { section: 'author_bio',        wordLimit: 150, wordMinimum: 50,  hasMinimum: true },
+] as const;

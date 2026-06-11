@@ -1,0 +1,16 @@
+field,artifact,required,nullable,canonicalValues,sourceStageId,validatorStageId,uiRendered,notes
+manuscriptId,manuscript_context_v1,true,false,,AR01_MANUSCRIPT_ELIGIBILITY,AR01_MANUSCRIPT_ELIGIBILITY,true,Numeric manuscript identifier. URL param overrides dashboard default.
+evaluationJobId,manuscript_context_v1,true,false,,AR01_MANUSCRIPT_ELIGIBILITY,AR01_MANUSCRIPT_ELIGIBILITY,false,UUID of the evaluation job. Required for section generation prompts.
+manuscriptTitle,manuscript_context_v1,true,false,,AR01_MANUSCRIPT_ELIGIBILITY,AR01_MANUSCRIPT_ELIGIBILITY,true,Displayed in Selected Manuscript panel and embedded in export document header.
+packageStatus,manuscript_context_v1,true,false,Not Started; Draft; Approved; Exported,AR06_COMPLETENESS_CHECK,AR06_COMPLETENESS_CHECK,true,Manuscript-specific. Transitions: Not Started → Draft (first section generated) → Approved (all 6 approved) → Exported (download completed).
+section,section_generation_request_v1,true,false,query_letter; what_makes_unique; synopsis; query_pitch; comparables; author_bio,AR02_SECTION_GENERATION,AR02_SECTION_GENERATION,false,Exactly 6 canonical values. No other section types permitted.
+mode,section_generation_request_v1,true,false,generate; regenerate; improve,AR02_SECTION_GENERATION,AR02_SECTION_GENERATION,false,generate = fresh; regenerate = discard prior and generate fresh; improve = refine existing content.
+authorBioInput,section_generation_request_v1,false,true,,AR02_SECTION_GENERATION,AR02_SECTION_GENERATION,true,Required when section=author_bio. Minimum 50 chars. System shapes only supplied facts — must not invent credentials.
+content,agent_readiness_section_v1,true,false,,AR04_SECTION_PERSISTENCE,AR03_QUALITY_GATE,true,Generated section text. Must pass quality gate before persistence.
+wordCount,section_generation_result_v1,true,false,,AR02_SECTION_GENERATION,AR03_QUALITY_GATE,true,Computed from content split on whitespace. Used by quality gate to enforce limits and minimums.
+status,agent_readiness_section_v1,true,false,draft; approved,AR04_SECTION_PERSISTENCE,AR05_AUTHOR_REVIEW,true,Set to draft on persistence. Transitions to approved only by explicit author action.
+format,package_export_v1,true,false,txt; docx,AR08_EXPORT,AR08_EXPORT,false,Exactly 2 canonical values. No other export formats permitted.
+qualityGatePass,quality_gate_result_v1,true,false,true; false,AR03_QUALITY_GATE,AR03_QUALITY_GATE,false,Boolean. Must be true for section to proceed to persistence.
+qualityGateReason,quality_gate_result_v1,false,true,,AR03_QUALITY_GATE,AR03_QUALITY_GATE,false,Populated on gate failure. Must not be directly exposed as raw DB/system error in client response.
+user_id,agent_readiness_section_v1,true,false,,AR04_SECTION_PERSISTENCE,AR02_SECTION_GENERATION,false,Authenticated user ID from Supabase session. All write operations require authentication.
+allSectionsApproved,package_completeness_result_v1,true,false,true; false,AR06_COMPLETENESS_CHECK,AR06_COMPLETENESS_CHECK,true,"true iff all 6 canonical section types have status=approved for this (user_id, manuscript_id)."
