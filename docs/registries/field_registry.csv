@@ -1,0 +1,36 @@
+field,artifact,canonicalPath,unifiedDocumentPath,required,nullable,sourceStageId,validatorStageId,consumers,uiRendered,rendererMustUseUnifiedDocument,rendererMayDerive,parityRequired
+title,evaluation_result_v2,metrics.manuscript.title,titleBlock.title,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+referenceId,evaluation_jobs_row,id,titleBlock.referenceId,true,false,S01_INTAKE,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+generatedDate,evaluation_result_v2,created_at,titleBlock.generatedDate,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+reportType,evaluation_result_v2,confirmed_mode,titleBlock.reportType,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+overallScore,evaluation_result_v2,overview.overall_score_0_100,titleBlock.overallScore,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+marketReadiness,evaluation_result_v2,overview.submission_readiness,titleBlock.marketReadiness,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+genre,evaluation_result_v2,enrichment.diagnosed_genre,titleBlock.genre,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+genreConfidence,evaluation_result_v2,enrichment.genre_confidence,titleBlock.shelfConfidenceLabel,false,true,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+targetAudience,evaluation_result_v2,metrics.manuscript.target_audience,titleBlock.targetAudience,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+shelf,evaluation_result_v2,enrichment.shelf,titleBlock.shelf,false,true,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+submittedWordCount,evaluation_result_v2,metrics.manuscript.word_count,titleBlock.submittedWordCount,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+estimatedPages,evaluation_result_v2,metrics.manuscript.word_count,titleBlock.estimatedPages,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+readingGradeLevel,evaluation_result_v2,metrics.readability.grade_level,titleBlock.readingGradeLevel,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+dialogueNarrativeRatio,evaluation_result_v2,metrics.dialogue_narrative_ratio,titleBlock.dialogueNarrativeRatio,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+confidentialityNotice,evaluation_result_v2,transparency.privacy_notice,confidentialityNotice,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+oneParagraphPitch,evaluation_result_v2,enrichment.one_paragraph_pitch,oneParagraphPitch,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+oneSentencePitch,evaluation_result_v2,enrichment.one_sentence_pitch,oneSentencePitch,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+premise,evaluation_result_v2,enrichment.premise,premise,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+contentWarnings,evaluation_result_v2,content_warnings,contentWarnings,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+revisionOpportunityTotal,evaluation_result_v2,criteria[].recommendations,revisionOpportunitySummary.total,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+recommendedCount,evaluation_result_v2,criteria[].recommendations[].priority,revisionOpportunitySummary.recommended,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+optionalCount,evaluation_result_v2,criteria[].recommendations[].priority,revisionOpportunitySummary.optional,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+considerCount,evaluation_result_v2,criteria[].recommendations[].priority,revisionOpportunitySummary.consider,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+executiveSummary,evaluation_result_v2,overview.executive_summary,executiveSummary,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+topStrengths,evaluation_result_v2,overview.top_strengths,topStrengths,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+topRisks,evaluation_result_v2,overview.top_risks,topRisks,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+topRecommendations,evaluation_result_v2,overview.top_recommendations,topRecommendations,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+criteriaScores,evaluation_result_v2,criteria[].final_score_0_10,criterionDetails[].score,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+confidenceLabels,evaluation_result_v2,criteria[].confidence,criterionDetails[].confidenceLabel,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+criterionRationales,evaluation_result_v2,criteria[].rationale,criterionDetails[].rationaleText,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+criterionRecommendations,evaluation_result_v2,criteria[].recommendations,criterionDetails[].recommendations,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+characterNames,evaluation_result_v2,governance.canonical_entity_names,entityDisplayNames,true,false,S08_ER2_NORMALIZATION,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt,true,true,false,true
+narrativeSynthesisMetrics,longform_document_v1,narrative_synthesis_metrics,modeSpecific.readinessReleasabilityPosture,false,true,ADJACENT_DREAM,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt; dream,true,true,false,true
+manuscriptScaleContinuity,longform_document_v1,continuityCoverageProof,modeSpecific.manuscriptScaleContinuityFindings,false,true,ADJACENT_DREAM,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt; dream,true,true,false,true
+revisionPriorityPlan,longform_document_v1,revision_plan,modeSpecific.revisionPriorityPlan,false,true,ADJACENT_DREAM,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,webpage; pdf; docx; txt; dream,true,true,false,true

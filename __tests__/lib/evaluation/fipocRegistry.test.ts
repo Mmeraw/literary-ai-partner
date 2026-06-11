@@ -1,0 +1,202 @@
+import fs from 'fs';
+import path from 'path';
+import {
+  ARTIFACT_REGISTRY,
+  FIELD_REGISTRY,
+  KICK_MATRIX,
+  PROCESS_REGISTRY,
+  RENDERER_CONSUMPTION_MATRIX,
+  getArtifact,
+  getBlockingKicks,
+  getProcess,
+  getRenderedFieldsForSurface,
+} from '@/lib/evaluation/fipocRegistry';
+
+const NON_STAGE_CONSUMERS = new Set([
+  'end_user',
+  'Revise Workbench',
+  'TrustedPath',
+]);
+
+const NON_STAGE_PRODUCERS = new Set([
+  'external_canon_build',
+]);
+
+function expectUnique(values: string[], label: string): void {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) dupes.add(value);
+    seen.add(value);
+  }
+  expect([...dupes]).toEqual([]);
+}
+
+describe('executable FIPOC registry', () => {
+  test('registers every active/pr_required process with immutable IDs and no duplicates', () => {
+    expect(PROCESS_REGISTRY.length).toBeGreaterThanOrEqual(20);
+    expectUnique(PROCESS_REGISTRY.map((entry) => entry.stageId), 'stageId');
+
+    for (const entry of PROCESS_REGISTRY) {
+      expect(entry.stageId).toMatch(/^(S\d{2}[a-z]?_|ADJACENT_)/);
+      expect(entry.processName.length).toBeGreaterThan(0);
+      expect(entry.processContract.length).toBeGreaterThan(20);
+      expect(entry.outputMetrics.length).toBeGreaterThan(0);
+      expect(entry.dirtyDataRules.length).toBeGreaterThan(0);
+      expect(entry.failureCodes.length).toBeGreaterThan(0);
+    }
+  });
+
+  test('captures Phase 5 author exposure as planned-required missing-critical gate', () => {
+    const phase5 = getProcess('S10b_PHASE5_AUTHOR_EXPOSURE_GATE');
+
+    expect(phase5).toBeDefined();
+    expect(phase5).toEqual(expect.objectContaining({
+      activeState: 'planned_required',
+      certificationStatus: 'missing_critical',
+      fitGapStatus: 'critical',
+    }));
+    expect(phase5?.outputArtifacts).toEqual(expect.arrayContaining([
+      'author_exposure_certification_v1',
+      'report_render_manifest_v1',
+    ]));
+    expect(phase5?.failureCodes).toEqual(expect.arrayContaining([
+      'PHASE5_RENDER_PARITY_FAIL',
+      'PHASE5_BANNED_ENTITY',
+      'PHASE5_SCORE_DRIFT',
+      'PHASE5_MISSING_AUDIT',
+      'PHASE5_UNCERTIFIED_OUTPUT',
+    ]));
+  });
+
+  test('registers active long-form stages promoted by PR #1111', () => {
+    for (const stageId of [
+      'ADJACENT_WAVE',
+      'ADJACENT_CANON_GOVERNANCE',
+      'ADJACENT_DREAM',
+      'ADJACENT_FINAL_EXTERNAL_AUDIT',
+    ]) {
+      const process = getProcess(stageId);
+      expect(process).toBeDefined();
+      expect(process?.activeState).toBe('long_form_active');
+      expect(process?.certificationStatus).toBe('active_partial');
+    }
+  });
+
+  test('all process output artifacts are registered with producer/consumer ownership', () => {
+    const registeredArtifacts = new Set(ARTIFACT_REGISTRY.map((entry) => entry.artifact));
+
+    for (const process of PROCESS_REGISTRY) {
+      for (const artifact of process.outputArtifacts) {
+        expect(registeredArtifacts.has(artifact)).toBe(true);
+      }
+    }
+
+    expectUnique(ARTIFACT_REGISTRY.map((entry) => entry.artifact), 'artifact');
+    for (const artifact of ARTIFACT_REGISTRY) {
+      const producerKnown = NON_STAGE_PRODUCERS.has(artifact.producerStageId) || Boolean(getProcess(artifact.producerStageId));
+      expect(producerKnown).toBe(true);
+      expect(artifact.requiredFields.length).toBeGreaterThan(0);
+      expect(artifact.completenessMetric.length).toBeGreaterThan(0);
+      expect(artifact.accuracyMetric.length).toBeGreaterThan(0);
+      expect(artifact.dirtyDataRule.length).toBeGreaterThan(0);
+    }
+  });
+
+  test('artifact consumers point to registered processes or explicitly external surfaces', () => {
+    for (const artifact of ARTIFACT_REGISTRY) {
+      for (const consumer of artifact.consumerStageIds) {
+        const known = NON_STAGE_CONSUMERS.has(consumer) || Boolean(getProcess(consumer));
+        expect(known).toBe(true);
+      }
+    }
+  });
+
+  test('author-visible fields require UnifiedEvaluationDocument parity and forbid renderer derivation', () => {
+    expect(FIELD_REGISTRY.length).toBeGreaterThanOrEqual(30);
+    expectUnique(FIELD_REGISTRY.map((entry) => entry.field), 'field');
+
+    for (const field of FIELD_REGISTRY) {
+      expect(field.validatorStageId).toBe('S10b_PHASE5_AUTHOR_EXPOSURE_GATE');
+      expect(field.rendererMustUseUnifiedDocument).toBe(true);
+      expect(field.rendererMayDerive).toBe(false);
+      expect(field.parityRequired).toBe(true);
+      expect(field.consumers).toEqual(expect.arrayContaining(['webpage']));
+      expect(getArtifact(field.artifact)).toBeDefined();
+    }
+  });
+
+  test('renderer matrix identifies webpage as critical and forbids local derivation on all surfaces', () => {
+    expect(RENDERER_CONSUMPTION_MATRIX.map((entry) => entry.surface).sort()).toEqual([
+      'docx',
+      'dream',
+      'pdf',
+      'txt',
+      'webpage',
+    ]);
+
+    const webpage = RENDERER_CONSUMPTION_MATRIX.find((entry) => entry.surface === 'webpage');
+    expect(webpage).toEqual(expect.objectContaining({
+      stageId: 'S11a_RENDERER_WEBPAGE',
+      canonicalInput: 'UnifiedEvaluationDocument',
+      currentFitGapStatus: 'critical',
+      remediationPr: 'PR #1113',
+      mayFormatOnly: true,
+      rendererMayDerive: false,
+    }));
+    expect(webpage?.forbiddenInputs).toEqual(expect.arrayContaining([
+      'local score calculation',
+      'local page calculation',
+    ]));
+
+    for (const renderer of RENDERER_CONSUMPTION_MATRIX) {
+      expect(renderer.rendererMayDerive).toBe(false);
+      expect(renderer.parityRequiredFields.length).toBeGreaterThan(0);
+    }
+  });
+
+  test('dirty-data kick matrix blocks author exposure for release-critical failures', () => {
+    const blocking = getBlockingKicks();
+
+    expect(blocking.length).toBeGreaterThan(10);
+    expect(blocking.map((entry) => entry.failureCode)).toEqual(expect.arrayContaining([
+      'PHASE5_RENDER_PARITY_FAIL',
+      'WAVE_DERIVATION_EMPTY',
+      'DIALOGUE_CANON_EXECUTION_FAILED',
+      'FINAL_AUDIT_CONTRADICTION',
+    ]));
+
+    for (const entry of blocking) {
+      expect(entry.retryLimit).toBeGreaterThanOrEqual(1);
+      expect(entry.kickBackTo.length).toBeGreaterThan(0);
+      expect(entry.ifRetryFails.toLowerCase()).toMatch(/block|fail|quarantine/);
+    }
+  });
+
+  test('rendered field helper returns the same fields as renderer parity matrix', () => {
+    for (const surface of ['webpage', 'pdf', 'docx', 'txt', 'dream'] as const) {
+      const helperFields = getRenderedFieldsForSurface(surface).map((entry) => entry.field).sort();
+      const matrix = RENDERER_CONSUMPTION_MATRIX.find((entry) => entry.surface === surface);
+      expect(matrix).toBeDefined();
+      expect([...matrix!.parityRequiredFields].sort()).toEqual(helperFields);
+    }
+  });
+
+  test('CSV mirrors exist and have row counts matching executable registry arrays', () => {
+    const registryDir = path.join(process.cwd(), 'docs/registries');
+    const expectedCounts: Record<string, number> = {
+      'process_registry.csv': PROCESS_REGISTRY.length,
+      'artifact_registry.csv': ARTIFACT_REGISTRY.length,
+      'field_registry.csv': FIELD_REGISTRY.length,
+      'kick_matrix.csv': KICK_MATRIX.length,
+      'renderer_consumption_matrix.csv': RENDERER_CONSUMPTION_MATRIX.length,
+    };
+
+    for (const [filename, rowCount] of Object.entries(expectedCounts)) {
+      const fullPath = path.join(registryDir, filename);
+      expect(fs.existsSync(fullPath)).toBe(true);
+      const lines = fs.readFileSync(fullPath, 'utf8').trim().split('\n');
+      expect(lines.length - 1).toBe(rowCount);
+    }
+  });
+});
