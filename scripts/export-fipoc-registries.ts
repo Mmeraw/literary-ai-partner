@@ -11,9 +11,11 @@ import {
 import {
   REVISE_ARTIFACT_REGISTRY,
   REVISE_AUTHORITY_SOURCE_REGISTRY,
+  REVISE_CERTIFICATION_GATE_REGISTRY,
   REVISE_FIELD_REGISTRY,
   REVISE_KICK_MATRIX,
   REVISE_PROCESS_REGISTRY,
+  REVISE_RENDERER_CONSUMPTION_MATRIX,
 } from '../lib/revision/reviseRegistry';
 
 const OUT_DIR = path.resolve('docs/registries');
@@ -209,6 +211,33 @@ writeReviseCsv('revise_authority_source_registry.csv', REVISE_AUTHORITY_SOURCE_R
   'appliesToStageIds',
   'appliesToArtifacts',
   'executionUse',
+  'notes',
+]);
+
+writeReviseCsv('revise_renderer_consumption_matrix.csv', REVISE_RENDERER_CONSUMPTION_MATRIX, [
+  'surface',
+  'stageId',
+  'codeSurface',
+  'canonicalInput',
+  'forbiddenInputs',
+  'mayFormatOnly',
+  'mayMutateState',
+  'requiredCertificationGate',
+  'parityRequiredFields',
+  'currentFitGapStatus',
+  'remediationPr',
+]);
+
+writeReviseCsv('revise_certification_gate_registry.csv', REVISE_CERTIFICATION_GATE_REGISTRY, [
+  'gateId',
+  'stageId',
+  'gateName',
+  'requiredInputArtifacts',
+  'requiredChecks',
+  'outputArtifact',
+  'blockingFailureCodes',
+  'certificationStatus',
+  'fitGapStatus',
   'notes',
 ]);
 

@@ -19,6 +19,8 @@ import {
   REVISE_FIELD_REGISTRY,
   REVISE_KICK_MATRIX,
   REVISE_AUTHORITY_SOURCE_REGISTRY,
+  REVISE_RENDERER_CONSUMPTION_MATRIX,
+  REVISE_CERTIFICATION_GATE_REGISTRY,
   AUTHOR_DECISION_TRANSITIONS,
   QUEUE_ITEM_LIFECYCLE_TRANSITIONS,
   type AuthorDecisionState,
@@ -74,6 +76,7 @@ const CANONICAL_REVISION_SESSION_STATUS = new Set([
 
 const registeredStageIds = new Set(REVISE_PROCESS_REGISTRY.map((s) => s.stageId));
 const registeredArtifacts = new Set(REVISE_ARTIFACT_REGISTRY.map((a) => a.artifact));
+const registeredCertificationGateIds = new Set(REVISE_CERTIFICATION_GATE_REGISTRY.map((g) => g.gateId));
 
 function csvRowCount(relPath: string): number {
   const fullPath = path.resolve(relPath);
@@ -323,6 +326,71 @@ describe('Revise Registry — authority source registry', () => {
   });
 });
 
+describe('Revise Registry — renderer/consumer matrix', () => {
+  test('has 6 consumer surfaces', () => {
+    expect(REVISE_RENDERER_CONSUMPTION_MATRIX).toHaveLength(6);
+  });
+
+  test('all renderer rows reference registered stages', () => {
+    for (const row of REVISE_RENDERER_CONSUMPTION_MATRIX) {
+      expect({ surface: row.surface, stageId: row.stageId, registered: registeredStageIds.has(row.stageId) })
+        .toMatchObject({ registered: true });
+    }
+  });
+
+  test('all renderer rows reference registered certification gates', () => {
+    for (const row of REVISE_RENDERER_CONSUMPTION_MATRIX) {
+      expect({ surface: row.surface, gate: row.requiredCertificationGate, registered: registeredCertificationGateIds.has(row.requiredCertificationGate) })
+        .toMatchObject({ registered: true });
+    }
+  });
+
+  test('author decision and TrustedPath surfaces may mutate state; queue/evidence surfaces may not', () => {
+    const decisionSurface = REVISE_RENDERER_CONSUMPTION_MATRIX.find((row) => row.surface === 'Author Decision Controls');
+    const trustedPathSurface = REVISE_RENDERER_CONSUMPTION_MATRIX.find((row) => row.surface === 'TrustedPath API');
+    const queueSurface = REVISE_RENDERER_CONSUMPTION_MATRIX.find((row) => row.surface === 'Revise Queue');
+    const evidenceSurface = REVISE_RENDERER_CONSUMPTION_MATRIX.find((row) => row.surface === 'Revise Workbench Evidence View');
+
+    expect(decisionSurface?.mayMutateState).toBe(true);
+    expect(trustedPathSurface?.mayMutateState).toBe(true);
+    expect(queueSurface?.mayMutateState).toBe(false);
+    expect(evidenceSurface?.mayMutateState).toBe(false);
+  });
+});
+
+describe('Revise Registry — certification gate registry', () => {
+  test('has 8 certification gates (RCG01–RCG08)', () => {
+    expect(REVISE_CERTIFICATION_GATE_REGISTRY).toHaveLength(8);
+  });
+
+  test('all certification gates reference registered stages', () => {
+    for (const gate of REVISE_CERTIFICATION_GATE_REGISTRY) {
+      expect({ gate: gate.gateId, stageId: gate.stageId, registered: registeredStageIds.has(gate.stageId) })
+        .toMatchObject({ registered: true });
+    }
+  });
+
+  test('all certification gate output artifacts are registered', () => {
+    for (const gate of REVISE_CERTIFICATION_GATE_REGISTRY) {
+      expect({ gate: gate.gateId, artifact: gate.outputArtifact, registered: registeredArtifacts.has(gate.outputArtifact) })
+        .toMatchObject({ registered: true });
+    }
+  });
+
+  test('completion certification is missing_critical / critical', () => {
+    const gate = REVISE_CERTIFICATION_GATE_REGISTRY.find((row) => row.gateId === 'RCG07_COMPLETION_CERTIFICATION');
+    expect(gate).toBeDefined();
+    expect(gate!.certificationStatus).toBe('missing_critical');
+    expect(gate!.fitGapStatus).toBe('critical');
+  });
+
+  test('TrustedPath certification requires approve-only behavior', () => {
+    const gate = REVISE_CERTIFICATION_GATE_REGISTRY.find((row) => row.gateId === 'RCG08_TRUSTEDPATH_CERTIFICATION');
+    expect(gate).toBeDefined();
+    expect(gate!.requiredChecks.join(' ')).toContain('verdict=approve only');
+  });
+});
+
 describe('Revise Registry — state machines', () => {
   test('author decision pending state can reach all 7 canonical decisions', () => {
     const transitions = AUTHOR_DECISION_TRANSITIONS['pending'];
@@ -373,5 +441,15 @@ describe('Revise Registry — CSV mirrors', () => {
   test('revise_authority_source_registry.csv row count matches REVISE_AUTHORITY_SOURCE_REGISTRY', () => {
     const csvRows = csvRowCount('docs/registries/revise/revise_authority_source_registry.csv');
     expect(csvRows).toBe(REVISE_AUTHORITY_SOURCE_REGISTRY.length);
+  });
+
+  test('revise_renderer_consumption_matrix.csv row count matches REVISE_RENDERER_CONSUMPTION_MATRIX', () => {
+    const csvRows = csvRowCount('docs/registries/revise/revise_renderer_consumption_matrix.csv');
+    expect(csvRows).toBe(REVISE_RENDERER_CONSUMPTION_MATRIX.length);
+  });
+
+  test('revise_certification_gate_registry.csv row count matches REVISE_CERTIFICATION_GATE_REGISTRY', () => {
+    const csvRows = csvRowCount('docs/registries/revise/revise_certification_gate_registry.csv');
+    expect(csvRows).toBe(REVISE_CERTIFICATION_GATE_REGISTRY.length);
   });
 });

@@ -738,6 +738,217 @@ export const REVISE_KICK_MATRIX: readonly ReviseKick[] = [
   },
 ];
 
+// ─── Renderer / Consumer Matrix ─────────────────────────────────────────────
+
+export type ReviseRendererConsumer = {
+  surface: string;
+  stageId: string;
+  codeSurface: string;
+  canonicalInput: string;
+  forbiddenInputs: string[];
+  mayFormatOnly: boolean;
+  mayMutateState: boolean;
+  requiredCertificationGate: string;
+  parityRequiredFields: string[];
+  currentFitGapStatus: 'proven' | 'emerging' | 'gap' | 'critical';
+  remediationPr: string;
+};
+
+export const REVISE_RENDERER_CONSUMPTION_MATRIX: readonly ReviseRendererConsumer[] = [
+  {
+    surface: 'Revise Queue',
+    stageId: 'RS03_QUEUE_PRIORITIZATION',
+    codeSurface: 'app/revise/page.tsx',
+    canonicalInput: 'revise_queue_v1',
+    forbiddenInputs: ['direct evaluation_result_v2 re-diagnosis', 'unbacked local-only queue item', 'fabricated readiness state'],
+    mayFormatOnly: true,
+    mayMutateState: false,
+    requiredCertificationGate: 'RCG02_QUEUE_ADMISSION_CERTIFICATION',
+    parityRequiredFields: ['opportunity_id', 'display_index', 'severity', 'scope', 'criterion', 'readiness', 'source'],
+    currentFitGapStatus: 'emerging',
+    remediationPr: 'future: durable queue lifecycle persistence and queue parity audit',
+  },
+  {
+    surface: 'Revise Workbench Evidence View',
+    stageId: 'RS04_WORKBENCH_LOAD',
+    codeSurface: 'app/revise/page.tsx; lib/revision/workbenchQueue.ts',
+    canonicalInput: 'workbench_opportunity_v1',
+    forbiddenInputs: ['unresolved anchor display', 'placeholder diagnostic fields', 'candidate text without source evidence'],
+    mayFormatOnly: true,
+    mayMutateState: false,
+    requiredCertificationGate: 'RCG03_WORKBENCH_EVIDENCE_CERTIFICATION',
+    parityRequiredFields: ['id', 'anchor', 'quoteHighlight', 'quoteRest', 'diagnostic', 'revisionOperation', 'readiness'],
+    currentFitGapStatus: 'emerging',
+    remediationPr: 'future: formal workbench evidence certification artifact',
+  },
+  {
+    surface: 'A/B/C Candidate Generator',
+    stageId: 'RS05_CANDIDATE_GENERATION',
+    codeSurface: 'app/api/revise/generate-rewrite/route.ts; lib/revision/runPass4VoiceRewrite.ts',
+    canonicalInput: 'workbench_opportunity_v1 + revision_mode_contract_v1',
+    forbiddenInputs: ['candidate not tied to opportunity_id', 'candidate generated without mode contract', 'candidate duplicating original text'],
+    mayFormatOnly: false,
+    mayMutateState: false,
+    requiredCertificationGate: 'RCG04_CANDIDATE_SET_CERTIFICATION',
+    parityRequiredFields: ['option_key', 'candidate_text', 'mechanism', 'rationale'],
+    currentFitGapStatus: 'emerging',
+    remediationPr: 'future: persisted candidate certification record',
+  },
+  {
+    surface: 'Author Decision Controls',
+    stageId: 'RS06_AUTHOR_DECISION',
+    codeSurface: 'app/revise/page.tsx',
+    canonicalInput: 'revision_candidate_set_v1',
+    forbiddenInputs: ['non-canonical decision', 'preselected decision', 'simulated author action'],
+    mayFormatOnly: false,
+    mayMutateState: true,
+    requiredCertificationGate: 'RCG05_AUTHOR_DECISION_CERTIFICATION',
+    parityRequiredFields: ['local_id', 'opportunity_id', 'decision', 'selected_option', 'client_created_at'],
+    currentFitGapStatus: 'emerging',
+    remediationPr: 'future: UI-level author decision enum certification',
+  },
+  {
+    surface: 'Revision Ledger Sync API',
+    stageId: 'RS07_LEDGER_SYNC',
+    codeSurface: 'lib/revision/ledger.ts',
+    canonicalInput: 'author_decision_v1',
+    forbiddenInputs: ['mutation of existing decision row', 'non-canonical decision write', 'undo without undone_local_id'],
+    mayFormatOnly: false,
+    mayMutateState: true,
+    requiredCertificationGate: 'RCG06_LEDGER_SYNC_CERTIFICATION',
+    parityRequiredFields: ['id', 'local_id', 'opportunity_id', 'decision', 'client_synced_at'],
+    currentFitGapStatus: 'gap',
+    remediationPr: 'future: formal append-only ledger sync certification artifact',
+  },
+  {
+    surface: 'TrustedPath API',
+    stageId: 'RS10_TRUSTEDPATH',
+    codeSurface: 'app/api/revise/trusted-path/route.ts; lib/revision/trustedPath.ts',
+    canonicalInput: 'repair_cross_check_v1 verdict=approve',
+    forbiddenInputs: ['flag verdict', 'reject verdict', 'unavailable verdict', 'pending verdict', 'already-decided finding'],
+    mayFormatOnly: false,
+    mayMutateState: true,
+    requiredCertificationGate: 'RCG08_TRUSTEDPATH_CERTIFICATION',
+    parityRequiredFields: ['ok', 'appliedCount', 'skippedCount', 'alreadyDecidedCount', 'appliedFindingIds', 'skippedReasons'],
+    currentFitGapStatus: 'emerging',
+    remediationPr: 'future: TrustedPath eligibility certification artifact',
+  },
+];
+
+// ─── Certification Gate Registry ────────────────────────────────────────────
+
+export type ReviseCertificationGate = {
+  gateId: string;
+  stageId: string;
+  gateName: string;
+  requiredInputArtifacts: string[];
+  requiredChecks: string[];
+  outputArtifact: string;
+  blockingFailureCodes: string[];
+  certificationStatus: ReviseCertificationStatus;
+  fitGapStatus: 'proven' | 'emerging' | 'gap' | 'critical';
+  notes: string;
+};
+
+export const REVISE_CERTIFICATION_GATE_REGISTRY: readonly ReviseCertificationGate[] = [
+  {
+    gateId: 'RCG01_LEDGER_CERTIFICATION',
+    stageId: 'RS01_LEDGER_ASSEMBLY',
+    gateName: 'Revision Opportunity Ledger Certification',
+    requiredInputArtifacts: ['evaluation_result_v2', 'author_exposure_certification_v1'],
+    requiredChecks: ['evaluation certified by Phase 5', 'every opportunity has evidence anchor or manuscript-wide support', 'opportunity_id unique'],
+    outputArtifact: 'revision_opportunity_ledger_v1',
+    blockingFailureCodes: ['LEDGER_EVIDENCE_MISSING', 'LEDGER_EMPTY'],
+    certificationStatus: 'partial',
+    fitGapStatus: 'gap',
+    notes: 'Ledger artifact exists; formal certification record is not yet emitted.',
+  },
+  {
+    gateId: 'RCG02_QUEUE_ADMISSION_CERTIFICATION',
+    stageId: 'RS02_QUEUE_ADMISSION',
+    gateName: 'Queue Admission Certification',
+    requiredInputArtifacts: ['revision_opportunity_ledger_v1', 'revision_mode_contract_v1'],
+    requiredChecks: ['Revise Card Contract passes or item becomes needs_targeting', 'admission_status canonical', 'readiness canonical'],
+    outputArtifact: 'revise_admission_result_v1',
+    blockingFailureCodes: ['ADMISSION_CARD_CONTRACT_FAIL', 'ADMISSION_CANON_GATE_FAIL', 'ADMISSION_VOICE_GATE_FAIL'],
+    certificationStatus: 'partial',
+    fitGapStatus: 'emerging',
+    notes: 'Admission gate is active; durable certification output is partial.',
+  },
+  {
+    gateId: 'RCG03_WORKBENCH_EVIDENCE_CERTIFICATION',
+    stageId: 'RS04_WORKBENCH_LOAD',
+    gateName: 'Workbench Evidence Certification',
+    requiredInputArtifacts: ['revise_queue_v1', 'revision_opportunity_ledger_v1'],
+    requiredChecks: ['anchor resolves in source manuscript', 'diagnostic fields populated', 'mode contract present'],
+    outputArtifact: 'workbench_opportunity_v1',
+    blockingFailureCodes: ['WORKBENCH_ANCHOR_UNRESOLVABLE', 'WORKBENCH_DIAGNOSTIC_INCOMPLETE', 'WORKBENCH_MODE_CONTRACT_MISSING'],
+    certificationStatus: 'emerging',
+    fitGapStatus: 'emerging',
+    notes: 'Workbench hydration is active; explicit evidence certification artifact is future work.',
+  },
+  {
+    gateId: 'RCG04_CANDIDATE_SET_CERTIFICATION',
+    stageId: 'RS05_CANDIDATE_GENERATION',
+    gateName: 'Candidate Set Certification',
+    requiredInputArtifacts: ['workbench_opportunity_v1', 'revision_mode_contract_v1'],
+    requiredChecks: ['candidate_text non-empty', 'candidate does not duplicate original', 'voice gate passes', 'canon gate passes'],
+    outputArtifact: 'revision_candidate_set_v1',
+    blockingFailureCodes: ['CANDIDATE_GENERATION_FAILED', 'CANDIDATE_VOICE_GATE_FAIL', 'CANDIDATE_CANON_GATE_FAIL', 'CANDIDATE_DUPLICATES_ORIGINAL'],
+    certificationStatus: 'partial',
+    fitGapStatus: 'emerging',
+    notes: 'Candidate generation and gates exist; persistent candidate certification is not yet formalized.',
+  },
+  {
+    gateId: 'RCG05_AUTHOR_DECISION_CERTIFICATION',
+    stageId: 'RS06_AUTHOR_DECISION',
+    gateName: 'Author Decision Certification',
+    requiredInputArtifacts: ['workbench_opportunity_v1', 'revision_candidate_set_v1'],
+    requiredChecks: ['decision canonical', 'custom decision has custom_text', 'UI does not preselect or fabricate author action'],
+    outputArtifact: 'author_decision_v1',
+    blockingFailureCodes: ['DECISION_INVALID_VALUE', 'DECISION_MISSING_OPPORTUNITY', 'DECISION_CUSTOM_EMPTY'],
+    certificationStatus: 'partial',
+    fitGapStatus: 'emerging',
+    notes: 'Local decision capture exists; formal decision certification occurs at ledger sync.',
+  },
+  {
+    gateId: 'RCG06_LEDGER_SYNC_CERTIFICATION',
+    stageId: 'RS07_LEDGER_SYNC',
+    gateName: 'Append-Only Ledger Sync Certification',
+    requiredInputArtifacts: ['author_decision_v1'],
+    requiredChecks: ['decision canonical before write', 'local_id unique', 'undo references valid undone_local_id', 'existing rows not mutated'],
+    outputArtifact: 'revision_ledger_decision_v1',
+    blockingFailureCodes: ['LEDGER_SYNC_VALIDATION_FAIL', 'LEDGER_SYNC_DB_ERROR', 'LEDGER_SYNC_DUPLICATE_LOCAL_ID'],
+    certificationStatus: 'partial',
+    fitGapStatus: 'gap',
+    notes: 'Append-only doctrine exists; formal no-mutation audit is a gap.',
+  },
+  {
+    gateId: 'RCG07_COMPLETION_CERTIFICATION',
+    stageId: 'RS08_COMPLETION',
+    gateName: 'Revision Completion Certification',
+    requiredInputArtifacts: ['revision_ledger_decision_v1', 'revise_queue_v1'],
+    requiredChecks: ['decided_count equals total_ready', 'no pending sync entries', 'completion_type canonical'],
+    outputArtifact: 'revision_completion_record_v1',
+    blockingFailureCodes: ['COMPLETION_PREMATURE', 'COMPLETION_PENDING_SYNC', 'COMPLETION_CERT_INVALID'],
+    certificationStatus: 'missing_critical',
+    fitGapStatus: 'critical',
+    notes: 'Required future stage. No formal completion record currently emitted.',
+  },
+  {
+    gateId: 'RCG08_TRUSTEDPATH_CERTIFICATION',
+    stageId: 'RS10_TRUSTEDPATH',
+    gateName: 'TrustedPath Eligibility and Auto-Apply Certification',
+    requiredInputArtifacts: ['repair_cross_check_v1', 'revision_opportunity_ledger_v1'],
+    requiredChecks: ['verdict=approve only', 'finding not already decided', 'source manuscript not mutated', 'ledger decision written as accepted_a'],
+    outputArtifact: 'trustedpath_result_v1',
+    blockingFailureCodes: ['TRUSTEDPATH_INELIGIBLE_VERDICT', 'TRUSTEDPATH_ALREADY_DECIDED', 'TRUSTEDPATH_LEDGER_WRITE_FAIL'],
+    certificationStatus: 'partial',
+    fitGapStatus: 'emerging',
+    notes: 'TrustedPath applies approved Option A repairs only. All non-approve verdicts route to manual review.',
+  },
+];
+
 // ─── Author Decision State Machine ───────────────────────────────────────────
 
 export type AuthorDecisionState =
