@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActorIdOrNull } from "@/lib/auth/actor";
 import { canReleaseEvaluationRead } from "@/lib/jobs/readReleaseGate";
+import { getAuthorExposureDecision } from "@/lib/evaluation/authorExposureCertification";
 
 type Body = {
   jobId?: string;
@@ -73,6 +74,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
     }
 
+    const exposureDecision = await getAuthorExposureDecision(admin, jobId);
+    if (exposureDecision.exposable === false) {
+      return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
+    }
+
     // Generate token directly (RPC won't work without auth.uid in evidence mode)
     const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const tokenHash = Buffer.from(
@@ -125,6 +131,11 @@ export async function POST(req: Request) {
     !ownerScopedJob ||
     !canReleaseEvaluationRead(ownerScopedJob)
   ) {
+    return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
+  }
+
+  const exposureDecision = await getAuthorExposureDecision(admin, jobId);
+  if (exposureDecision.exposable === false) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 

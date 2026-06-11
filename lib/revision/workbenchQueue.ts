@@ -5,6 +5,7 @@ import { ensureRevisionOpportunityLedgerArtifact } from './opportunityLedger'
 import { buildRevisionPackage, type RevisionPackage } from './revisionPackage'
 import { loadReviseQueueWarmupCorpus } from './reviseQueueWarmup'
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
+import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
 import {
   candidateTextIsCopyPasteReady,
@@ -1166,6 +1167,11 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
   if (jobError) return emptyPayload(jobError.message)
   if (!job) return emptyPayload('Evaluation job not found for this manuscript.')
   if (job.status !== 'complete') return emptyPayload('This evaluation is not complete yet. Revise can load after the report is finished.')
+
+  const exposureDecision = await getAuthorExposureDecision(supabase, evaluationJobId)
+  if (exposureDecision.exposable === false) {
+    return emptyPayload(`Evaluation is not releasable for author revise surfaces (author_exposure:${exposureDecision.reason}).`)
+  }
 
   const evaluationResultPayload = await loadEvaluationResultPayload(supabase, evaluationJobId)
   const modeContract = resolveRevisionModeContract({

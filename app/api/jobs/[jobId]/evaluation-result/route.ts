@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
+import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
 import { EvaluationResultV1, isEvaluationResultV1, validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { EvaluationResultV2, isEvaluationResultV2, validateEvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 
@@ -53,6 +54,23 @@ export async function GET(
       return NextResponse.json(
         {
           error: 'Evaluation not releasable',
+          job: {
+            id: job.id,
+            status: job.status,
+            validity_status: job.validity_status,
+            created_at: job.created_at,
+          },
+        },
+        { status: 404 },
+      );
+    }
+
+    const exposureDecision = await getAuthorExposureDecision(supabase, jobId);
+    if (exposureDecision.exposable === false) {
+      return NextResponse.json(
+        {
+          error: 'Evaluation not releasable',
+          details: `author_exposure:${exposureDecision.reason}`,
           job: {
             id: job.id,
             status: job.status,

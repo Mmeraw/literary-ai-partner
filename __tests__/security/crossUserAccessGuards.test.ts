@@ -29,6 +29,13 @@ describe('cross-user access guard contracts', () => {
     const source = read('app/api/report-shares/route.ts');
     expect(source).toContain('.eq("user_id", actorId)');
     expect(source).toContain('Job not found');
+    expect(source).toContain('getAuthorExposureDecision');
+  });
+
+  test('job artifacts endpoint enforces author exposure gate before serving artifacts', () => {
+    const source = read('app/api/jobs/[jobId]/artifacts/route.ts');
+    expect(source).toContain('getAuthorExposureDecision');
+    expect(source).toContain('Job not releasable');
   });
 
   test('admin costs endpoint requires admin guard', () => {

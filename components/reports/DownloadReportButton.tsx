@@ -15,17 +15,17 @@ const OPTIONS: { label: string; format: Format; description?: string }[] = [
   {
     label: 'PDF (.pdf)',
     format: 'pdf',
-    description: 'Professional branded PDF with cover page, scores, and full analysis.',
+    description: 'Premium editorial PDF following the canonical evaluation template.',
   },
   {
     label: 'Word (.docx)',
     format: 'docx',
-    description: 'Formatted Word document matching the webpage report.',
+    description: 'Polished Word report with native headings, tables, and callouts.',
   },
   {
     label: 'Plain Text (.txt)',
     format: 'txt',
-    description: 'Simple text export from the canonical result.',
+    description: 'Professional 78-column archival brief with the same report order.',
   },
 ];
 
