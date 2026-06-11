@@ -569,6 +569,44 @@ export default async function ReportPage({
           );
         })()}
 
+        {/* ── Revision Opportunity Summary ── */}
+        {(() => {
+          const allRecs = criteria.flatMap((c) =>
+            Array.isArray((c as Record<string, unknown>).recommendations)
+              ? ((c as Record<string, unknown>).recommendations as Array<{ priority?: string }>)
+              : []
+          );
+          const total = allRecs.length;
+          if (total === 0) return null;
+          const recommended = allRecs.filter((r) => r.priority === 'high').length;
+          const optional = allRecs.filter((r) => r.priority === 'medium').length;
+          const consider = allRecs.filter((r) => !r.priority || r.priority === 'low').length;
+          return (
+            <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Revision Opportunity Summary</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="rounded-md border bg-gray-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{total}</p>
+                </div>
+                <div className="rounded-md border bg-red-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-red-700">Recommended</p>
+                  <p className="mt-1 text-2xl font-bold text-red-900">{recommended}</p>
+                </div>
+                <div className="rounded-md border bg-amber-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Optional</p>
+                  <p className="mt-1 text-2xl font-bold text-amber-900">{optional}</p>
+                </div>
+                <div className="rounded-md border bg-blue-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Consider</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-900">{consider}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
+            </section>
+          );
+        })()}
+
         {/* Criteria Scores — hidden for long-form once dreamDoc lands (full synthesis is canonical) */}
         {(!isLongForm || !dreamDoc) && (
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">

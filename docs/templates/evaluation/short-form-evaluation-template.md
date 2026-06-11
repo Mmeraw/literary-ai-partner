@@ -166,12 +166,16 @@ Every completed report must include aggregate revision-opportunity counts:
 ## Revision Opportunity Summary
 
 Total Revision Opportunities: [XX]
-High Priority: [X]
-Medium Priority: [X]
-Low Priority: [X]
+Recommended: [X]
+Optional: [X]
+Consider: [X]
 ```
 
-Priority labels indicate the recommended urgency of each revision opportunity.
+Recommendation tiers indicate the suggested urgency of each revision opportunity:
+
+- **Recommended**: High-priority revisions that will meaningfully improve the manuscript.
+- **Optional**: Medium-priority revisions that strengthen craft but are not essential.
+- **Consider**: Lower-priority refinements the author may choose to adopt or defer.
 
 ---
 
