@@ -26,7 +26,7 @@ function csvEscape(value: unknown): string {
   return raw;
 }
 
-function writeCsv<T extends object>(filename: string, rows: T[], columns: Array<keyof T>): void {
+function writeCsv<T extends object>(filename: string, rows: readonly T[], columns: Array<keyof T>): void {
   const lines = [
     columns.map((column) => csvEscape(String(column))).join(','),
     ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(',')),
@@ -135,7 +135,7 @@ console.log(`[fipoc:export] wrote registries to ${OUT_DIR}`);
 
 const REVISE_OUT_DIR = path.resolve('docs/registries/revise');
 
-function writeReviseCsv<T extends object>(filename: string, rows: T[], columns: Array<keyof T>): void {
+function writeReviseCsv<T extends object>(filename: string, rows: readonly T[], columns: Array<keyof T>): void {
   const lines = [
     columns.map((column) => csvEscape(String(column))).join(','),
     ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(',')),
