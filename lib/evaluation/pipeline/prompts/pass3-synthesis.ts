@@ -193,6 +193,18 @@ Recommendation density floor (for criteria scoring ≤8):
 - TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined for long-form manuscripts (≥25,000 words). For short-form manuscripts (<25,000 words), the cap is 50 revision opportunities. Prioritize "recommended" severity first, then "optional", then "consider". If the evidence supports more than the cap, emit the most impactful opportunities up to the cap and stop.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRIORITY HIERARCHY (P3 — DETERMINISTIC SCORE-DRIVEN)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Recommendation priority MUST be derived from the criterion score. Do not output "medium" for everything — an author reading "0 high-priority items" when three criteria score 6/10 loses trust in the report's editorial authority.
+
+RULE (enforced deterministically post-synthesis — but set it correctly in output):
+  Score ≤6  → priority = "high"   (Recommended — weakest areas, fix first)
+  Score 7   → priority = "medium" (Optional — real revision targets, fix second)
+  Score ≥8  → priority = "low"    (Consider — enhancement only, fix last or ignore)
+
+A report with three 6-scoring criteria MUST have high-priority recommendations. "All medium" is never acceptable when scores indicate clear weakness.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CROSS-CRITERION DEDUPLICATION (P4 — STRATEGIC LEVER COLLAPSE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 When the SAME editorial lever applies across multiple criteria, DO NOT repeat it as separate recommendations. Instead, place the recommendation on the WEAKEST criterion (lowest score) and let the pipeline tag it with the other criteria it also addresses.

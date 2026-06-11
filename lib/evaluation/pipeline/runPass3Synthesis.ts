@@ -1459,6 +1459,22 @@ export function parsePass3Response(
     }
   }
 
+  // ── P3: Deterministic Priority Hierarchy — score-driven priority override ──────────────
+  // The LLM frequently outputs "medium" for everything. This deterministic override
+  // ensures priority reflects the score band, producing a credible hierarchy:
+  //   Score ≤6  → "high"   (Recommended — these are the weakest areas)
+  //   Score 7   → "medium" (Optional — real but non-urgent revision targets)
+  //   Score ≥8  → "low"    (Consider — enhancement opportunities only)
+  // This runs AFTER density repair so repaired recs also get correct priority.
+  for (const c of finalCriteria) {
+    const score = c.final_score_0_10;
+    const deterministicPriority: "high" | "medium" | "low" =
+      score <= 6 ? "high" : score === 7 ? "medium" : "low";
+    for (const r of c.recommendations) {
+      r.priority = deterministicPriority;
+    }
+  }
+
   // ── P4: Cross-Criterion Deduplication — collapse same-lever recommendations ────────────
   // When the same strategic_lever+granularity appears across multiple criteria, keep the
   // recommendation on the lowest-scoring criterion (most important) and remove duplicates.
@@ -1531,7 +1547,6 @@ export function parsePass3Response(
       console.info(`[Pass3-P4-Dedup] Collapsed ${removeSet.size} cross-criterion duplicate(s) across ${groups.size} strategic lever group(s)`);
     }
   }
-
   // ── Post-synthesis total recommendation cap: 100 for long-form (≥25k), 50 for short-form (<25k) ──
   const TOTAL_REC_CAP_LONG_FORM = 100;
   const TOTAL_REC_CAP_SHORT_FORM = 50;
@@ -2690,7 +2705,7 @@ function buildDensityRepairRecommendations(
     if (!action || !specificFix) continue; // guard — should never happen given defaults
 
     repaired.push({
-      priority: c.final_score_0_10 <= 5 ? "high" : "medium",
+      priority: c.final_score_0_10 <= 6 ? "high" : c.final_score_0_10 === 7 ? "medium" : "low",
       action: clampRecommendationAction(action),
       expected_impact: expectedImpact,
       anchor_snippet: anchorSnippet,
@@ -2864,7 +2879,7 @@ export function buildLastResortRecommendations(
   const recs: SynthesizedCriterion["recommendations"] = [];
   for (let i = 0; i < needed; i++) {
     recs.push({
-      priority: score <= 5 ? "high" : "medium",
+      priority: score <= 6 ? "high" : score === 7 ? "medium" : "low",
       action: template.action,
       specific_fix: template.specific_fix,
       anchor_snippet: template.anchor_snippet,
