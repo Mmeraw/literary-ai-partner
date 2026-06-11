@@ -833,4 +833,75 @@ describe("Recommendation Integrity Gate", () => {
       expect(meetsMinimumTier(withDiagnostics, "revise_queue")).toBe(true);
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // P2: Expanded Generic Detection + Raised Minimum Tier
+  // ─────────────────────────────────────────────────────────────────────────────
+  describe("P2: manuscript-specific revision strategy enforcement", () => {
+    it("rejects expanded workshop clichés (deepen, incorporate, heighten)", () => {
+      const genericActions = [
+        "Deepen the thematic exploration of materialism.",
+        "Incorporate more sensory details.",
+        "Heighten the dramatic tension.",
+        "Increase narrative urgency.",
+        "Develop the character more.",
+        "Make the dialogue stronger.",
+        "Introduce more conflict to the dialogue.",
+        "Add a dramatic question.",
+        "Create a sense of urgency.",
+      ];
+
+      for (const action of genericActions) {
+        const result = checkRecommendationIntegrity({
+          action,
+          symptom: "The passage near the diamond scene stalls momentum.",
+          cause: "Because exposition displaces dramatic action.",
+          reader_effect: "The reader loses urgency at the critical turn.",
+          anchor_snippet: '"the diamond industry has lost its appeal"',
+          surface: "evaluation_report",
+        });
+        expect(result.violations.some((v) => v.code === "GENERIC_WORKSHOP_LANGUAGE")).toBe(true);
+      }
+    });
+
+    it("accepts manuscript-specific revision strategy", () => {
+      const result = checkRecommendationIntegrity({
+        action: 'Cut the diamond-market exposition (paragraphs 3–5) after Calvin says "the industry has lost its appeal" and replace with a beat where Calvin notices Monty\'s hands shaking — converting telling into dramatic subtext.',
+        symptom: 'The passage near "the allure of diamonds" stalls because three paragraphs of economic exposition displace the unfolding dramatic question.',
+        cause: 'Because the backstory is delivered in summary rather than through character interaction, the reader receives information without experiencing the emotional stakes.',
+        reader_effect: 'The reader feels Monty\'s desperation through physical gesture rather than receiving Calvin\'s economic analysis as secondhand narration.',
+        anchor_snippet: '"the diamond industry has lost its appeal"',
+        surface: "evaluation_report",
+      });
+      expect(result.passed).toBe(true);
+      expect(result.tier).not.toBe("FAIL");
+    });
+
+    it("generic workshop phrases produce GENERIC_WORKSHOP_LANGUAGE violations that lower quality score", () => {
+      // A recommendation using workshop language should get penalized even if
+      // other fields are present — the score should be lower than a specific rec.
+      const generic = checkRecommendationIntegrity({
+        action: "Heighten the dramatic tension.",
+        symptom: "The passage near the diamond scene stalls momentum.",
+        cause: "Because exposition displaces dramatic action.",
+        reader_effect: "The reader loses urgency at the critical turn.",
+        anchor_snippet: '"the diamond industry has lost its appeal"',
+        surface: "evaluation_report",
+      });
+      const specific = checkRecommendationIntegrity({
+        action: 'Move the GeoCam offer reveal from page 8 to page 4, forcing Calvin to react before Monty\'s nostalgic digression dissipates his urgency.',
+        symptom: 'Near the GeoCam scene, three paragraphs of Monty\'s nostalgia separate the offer from Calvin\'s reaction.',
+        cause: 'Because the reveal is deferred past the emotional peak, readers have already metabolized the stakes.',
+        reader_effect: 'Reader experiences Calvin\'s shock in real-time rather than receiving it as narration.',
+        anchor_snippet: '"GeoCam wants to buy the whole operation"',
+        surface: "evaluation_report",
+      });
+      // Generic should have lower quality score than specific
+      expect(generic.quality_score).toBeLessThan(specific.quality_score);
+      // Generic should have the violation
+      expect(generic.violations.some((v) => v.code === "GENERIC_WORKSHOP_LANGUAGE")).toBe(true);
+      // Specific should not
+      expect(specific.violations.some((v) => v.code === "GENERIC_WORKSHOP_LANGUAGE")).toBe(false);
+    });
+  });
 });
