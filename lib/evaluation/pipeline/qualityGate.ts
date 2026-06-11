@@ -23,6 +23,7 @@
  *   QG_CONFIRMED_RATIONALE — agree-state criterion still contains "Confirmed." stub rationale
  *   QG_CRITERIA_SCOPE_SHAPE_MISMATCH — criterion status/score/scorability mismatches scope policy plan
  *   QG_REC_INTEGRITY_FAIL — recommendation failed integrity gate (FAIL tier: malformed text, missing fields, etc.)
+ *   QG_EVIDENCE_FABRICATION — >50% of anchor_snippets are not grounded in manuscript text (systemic fabrication)
  */
 
 import { createHash } from "node:crypto";
@@ -74,6 +75,11 @@ import {
   EDITORIAL_READER_EFFECT_MARKERS,
   EDITORIAL_SYMPTOM_MARKERS,
 } from "./editorialRecommendationContract";
+import {
+  runEvidenceGroundingGate,
+  stampAnchorTypes,
+  type EvidenceGroundingReport,
+} from "./evidenceGroundingGate";
 
 export const QG_MIN_REC_LENGTH = 50;
 /** Pathological runaway cap for the recommendation action body. Display teasers rendered from
@@ -466,6 +472,30 @@ export function runQualityGate(
         ? `${integrityFailures.length}/${totalRecs} recommendation(s) quarantined (FAIL tier): ${integrityFailures.join("; ")}. ${survivingRecs} surviving.`
         : "All recommendations meet PASS_MINIMUM+ integrity tier for evaluation report",
   });
+
+  // ── Check 4c: Evidence Grounding Gate — validate anchor_snippets against manuscript ──
+  // P0 trust gate: if manuscript text is available, classify every anchor_snippet
+  // as verbatim_quote, paraphrased_observation, or editorial_diagnosis.
+  // Recommendations with editorial_diagnosis anchors are flagged — they contain
+  // fabricated "evidence" (LLM diagnostic text, not manuscript quotes).
+  let evidenceGroundingReport: EvidenceGroundingReport | undefined;
+  if (manuscriptText && manuscriptText.trim().length > 0 && totalRecs > 0) {
+    evidenceGroundingReport = stampAnchorTypes(synthesis.criteria as never, manuscriptText);
+    const { diagnosis_count, total_recommendations, ungrounded } = evidenceGroundingReport;
+    // Fail-closed: if MORE THAN 50% of recommendations have ungrounded evidence,
+    // that indicates systemic fabrication. Individual ungrounded recs are flagged
+    // as warnings and quarantined at render time.
+    const fabricationRatio = total_recommendations > 0 ? diagnosis_count / total_recommendations : 0;
+    const systemicFabrication = fabricationRatio > 0.5;
+    checks.push({
+      check_id: "evidence_grounding",
+      passed: !systemicFabrication,
+      error_code: systemicFabrication ? "QG_EVIDENCE_FABRICATION" : undefined,
+      details: diagnosis_count > 0
+        ? `${diagnosis_count}/${total_recommendations} anchor(s) not grounded in manuscript text (${ungrounded.map(u => `${u.criterion_key}: "${u.anchor_snippet.substring(0, 40)}…"`).join("; ")})`
+        : `All ${total_recommendations} anchor(s) grounded in manuscript text`,
+    });
+  }
 
   // ── Check 5: Evidence excerpt length (≤200 chars) ────────────────────────
   const longEvidence: string[] = [];
@@ -1161,6 +1191,7 @@ export function runQualityGate(
           editorial_diagnostics_summary: buildEditorialDiagnosticsSummary(editorialDiagnostics),
         }
       : {}),
+    ...(evidenceGroundingReport ? { evidence_grounding_report: evidenceGroundingReport } : {}),
   };
 }
 
