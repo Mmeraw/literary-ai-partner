@@ -277,6 +277,12 @@ export type SynthesizedCriterion = {
      * Format: ["narrativeDrive", "pacing"] → "Also affects: Narrative Drive, Pacing"
      */
     collapsed_from_criteria?: string[];
+    /**
+     * P5 Voice & Strength Preservation: criteria scoring ≥8 that this
+     * recommendation must not damage. The pipeline tags this on all recs
+     * belonging to criteria scoring ≤7 when protected strengths exist.
+     */
+    protected_criteria?: string[];
   }[];
   /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
   confidence_score_0_100?: number;
