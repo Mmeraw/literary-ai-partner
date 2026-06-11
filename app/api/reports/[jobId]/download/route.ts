@@ -880,35 +880,6 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   lines.push('Recommendation tiers indicate the suggested urgency of each revision opportunity.');
   lines.push('');
 
-  if (enrichment?.reading_grade_level != null) {
-    lines.push(sub);
-    lines.push('READING GRADE LEVEL');
-    lines.push(sub);
-    lines.push('');
-    lines.push(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`);
-    lines.push('');
-    lines.push('Reading Grade Level measures prose complexity, NOT audience appropriateness.');
-    lines.push('A manuscript may score at a young-adult reading level (grades 6-8) while');
-    lines.push('containing graphic violence, sexual content, or other material unsuitable');
-    lines.push('for younger readers. Always cross-reference Content Warnings above for');
-    lines.push('content suitability guidance.');
-    lines.push('');
-  }
-
-  if (enrichment?.dialogue_percentage != null) {
-    lines.push(sub);
-    lines.push('DIALOGUE VS. NARRATIVE RATIO');
-    lines.push(sub);
-    lines.push('');
-    lines.push(`Dialogue: ${Math.floor(enrichment.dialogue_percentage)}%`);
-    lines.push(`Narrative: ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}%`);
-    lines.push('');
-    lines.push('Most commercially successful novels contain 25-35% dialogue. Genre');
-    lines.push('expectations vary: literary fiction trends lower (15-25%), thrillers');
-    lines.push('and romance trend higher (30-45%).');
-    lines.push('');
-  }
-
   lines.push(sub);
   lines.push('EXECUTIVE SUMMARY');
   lines.push(sub);
@@ -1119,6 +1090,8 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
   lines.push(sub);
   lines.push('');
   doc.contentWarnings.forEach((warning) => lines.push(wrapText(`• ${cleanReportText(warning)}`)));
+  lines.push('');
+  lines.push('Consider including content warnings in book marketing or front matter.');
   lines.push('');
 
   lines.push(sub);
@@ -1406,7 +1379,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
     <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneParagraphPitch))}</p></section>
     <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneSentencePitch))}</p></section>
     ${doc.premise ? `<section><h2>Premise</h2><p>${escapeHtml(cleanReportText(doc.premise))}</p></section>` : ''}
-    <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}</section>
+    <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
     <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric"><strong>Total</strong><div>${doc.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${doc.revisionOpportunitySummary.high}</div></div><div class="metric"><strong>Optional</strong><div>${doc.revisionOpportunitySummary.medium}</div></div><div class="metric"><strong>Consider</strong><div>${doc.revisionOpportunitySummary.low}</div></div></div></section>
     <section><h2>Executive Summary</h2><p>${escapeHtml(cleanReportText(doc.executiveSummary))}</p></section>
     <section><h2>Top Strengths</h2>${list(doc.topStrengths, { ordered: true })}</section>
@@ -1563,6 +1536,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
 
   children.push(makeHeading('Content Warnings'));
   doc.contentWarnings.forEach((item) => children.push(docxListPara(item)));
+  children.push(para('Consider including content warnings in book marketing or front matter.'));
 
   children.push(makeHeading('Revision Opportunity Summary'));
   children.push(para(`Total: ${doc.revisionOpportunitySummary.total}`));
@@ -2084,8 +2058,6 @@ function renderPremiumReportHtml(
   <section class="section"><h2>Revision Opportunity Summary</h2><div class="score-grid">${[
     ['Total', opportunitySummary.total], ['Recommended', opportunitySummary.high], ['Optional', opportunitySummary.medium], ['Consider', opportunitySummary.low],
   ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Recommendation tiers indicate the suggested urgency of each revision opportunity.</p></section>
-  ${enrichment?.reading_grade_level != null ? `<section class="section"><h2>Reading Grade Level</h2>${renderHtmlParagraph(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`)}<p>Reading Grade Level measures prose complexity, not audience appropriateness. Always cross-reference Content Warnings for content suitability guidance.</p></section>` : ''}
-  ${enrichment?.dialogue_percentage != null ? `<section class="section"><h2>Dialogue vs. Narrative Ratio</h2>${renderHtmlParagraph(dialogueRatio)}<p>Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).</p></section>` : ''}
   <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
   <section class="section"><h2>Top Strengths</h2>${renderHtmlOrderedList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
   <section class="section"><h2>Top Risks</h2>${renderHtmlOrderedList(result.overview.top_3_risks, 'No risks supplied.')}</section>
@@ -2378,18 +2350,6 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     width: { size: 100, type: WidthType.PERCENTAGE },
   }));
   children.push(bodyPara('Priority labels indicate the recommended urgency of each revision opportunity.', { size: 18, color: RG.textMuted }));
-
-  if (enrichment?.reading_grade_level != null) {
-    children.push(brandHeading('Reading Grade Level', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`));
-    children.push(bodyPara('Reading Grade Level measures prose complexity, NOT audience appropriateness. A manuscript may score at a young-adult reading level (grades 6\u20138) while containing graphic violence, sexual content, or other material unsuitable for younger readers. Always cross-reference Content Warnings above for content suitability guidance.', { size: 18, color: RG.textMuted }));
-  }
-
-  if (enrichment?.dialogue_percentage != null) {
-    children.push(brandHeading('Dialogue vs. Narrative Ratio', HeadingLevel.HEADING_2));
-    children.push(bodyPara(`${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`));
-    children.push(bodyPara('Most commercially successful novels contain 25\u201335% dialogue. Genre expectations vary: literary fiction trends lower (15\u201325%), thrillers and romance trend higher (30\u201345%).', { size: 18, color: RG.textMuted }));
-  }
 
   // ── Summary ─────────────────────────────────────────────────────
   children.push(brandHeading('Executive Summary', HeadingLevel.HEADING_2));
