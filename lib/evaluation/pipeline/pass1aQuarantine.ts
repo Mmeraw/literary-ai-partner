@@ -107,7 +107,7 @@ const VALID_NARRATIVE_WEIGHTS = new Set<string>([
  * 2. isDialogueFragmentName() — structural heuristic for single-word
  *    interjections / discourse markers the blocklist may have missed
  */
-const BLOCKED_CANONICAL_NAMES = new Set(
+export const BLOCKED_CANONICAL_NAMES = new Set(
   [
     // Interjections & dialogue fragments
     "no", "yes", "oh", "hey", "ok", "okay", "ah", "huh", "um", "uh",
@@ -158,12 +158,27 @@ const SHORT_PROPER_NAMES = new Set([
   "zach", "zara",
 ]);
 
-function isDialogueFragmentName(name: string): boolean {
+export function isDialogueFragmentName(name: string): boolean {
   const lower = name.toLowerCase().trim();
   if (/\s/.test(lower)) return false;
   if (/[\d\-']/.test(lower)) return false;
   if (lower.length <= 4 && !SHORT_PROPER_NAMES.has(lower)) return true;
   return false;
+}
+
+/**
+ * Deterministic guard: returns true when `name` is a valid character name
+ * that should be allowed through the pipeline. Returns false for blocked
+ * words and dialogue-fragment heuristic matches.
+ *
+ * Use this at ALL entity paths to enforce canonical name authority.
+ */
+export function isAllowedCharacterName(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  if (normalized.length === 0) return false;
+  if (BLOCKED_CANONICAL_NAMES.has(normalized)) return false;
+  if (isDialogueFragmentName(normalized)) return false;
+  return true;
 }
 
 const VALID_PRESENCE_TYPES = new Set<string>([

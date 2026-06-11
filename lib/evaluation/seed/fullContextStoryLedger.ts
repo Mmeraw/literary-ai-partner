@@ -33,6 +33,7 @@ import {
   inferSeedRoute,
   validateLedgerStructure,
 } from '@/lib/evaluation/seed/benchmarkContextBuilder';
+import { BLOCKED_CANONICAL_NAMES } from '@/lib/evaluation/pipeline/pass1aQuarantine';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -740,6 +741,29 @@ export function buildLedgerSeedContextBlock(ledger: FullContextStoryLedger): str
   for (const entity of ledger.layers.canonical_identity.must_not_omit) {
     lines.push(`  ★ ${entity}`);
   }
+  lines.push('');
+
+  // ── NAME AUTHORITY — the story ledger is the source of truth for character names ──
+  // This section ensures downstream phases (Pass 1, Pass 2, Pass 3) never use
+  // dialogue fragments or blocked words as character names, even if the manuscript
+  // text appears to use them as names.
+  lines.push('── CANONICAL CHARACTER NAME AUTHORITY ──');
+  lines.push('The story ledger is the ONLY source of truth for character names.');
+  lines.push('Use ONLY the following canonical names when referring to characters:');
+  for (const entity of ledger.layers.canonical_identity.primary_entities) {
+    lines.push(`  → ${entity}`);
+  }
+  lines.push('');
+  lines.push('BLOCKED — the following words are NEVER character names, even if they');
+  lines.push('appear in the manuscript text at the start of dialogue or as apparent aliases:');
+  // Surface the most common offenders explicitly
+  const topBlockedWords = ['No', 'Yes', 'Oh', 'Hey', 'Well', 'So', 'OK', 'Okay',
+    'Ah', 'Huh', 'Um', 'Uh', 'Sure', 'Right', 'Fine', 'Good', 'Bad',
+    'Please', 'Thanks', 'Sorry', 'Stop', 'Wait', 'Look', 'Listen',
+    'Come', 'Go', 'Run', 'Help'];
+  lines.push(`  ✗ ${topBlockedWords.join(', ')}`);
+  lines.push('If the manuscript text uses a blocked word as a character reference,');
+  lines.push('substitute the matching canonical name from the list above.');
 
   return lines.join('\n');
 }

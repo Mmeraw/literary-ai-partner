@@ -99,6 +99,7 @@ import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { pipelineLog } from "./pipelineLogger";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
+import { sanitizeSynthesisCharacterNames } from "./characterNameSanitizer";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -440,6 +441,12 @@ export interface RunPass3Options {
    * these facts is INVALID and must be suppressed.
    */
   storyLedgerContextBlock?: string;
+  /**
+   * Canonical character names from the story ledger (primary_entities).
+   * When provided, deterministic post-processing replaces any blocked
+   * character name references in synthesis output with canonical names.
+   */
+  canonicalEntityNames?: string[];
 }
 
 const LEDGER_UNAVAILABLE_WARNING =
@@ -902,7 +909,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
 
   // Inject full-context story ledger ground truth into system prompt when available
   const effectiveSystemPrompt = opts.storyLedgerContextBlock
-    ? `${PASS3_SYSTEM_PROMPT}\n\n${opts.storyLedgerContextBlock}\n\nAny synthesis recommendation that contradicts the STORY LEDGER GROUND TRUTH above is INVALID. Do not recommend scenes for dead characters, do not claim stationary objects move, do not misattribute cosmology as geography.`
+    ? `${PASS3_SYSTEM_PROMPT}\n\n${opts.storyLedgerContextBlock}\n\nAny synthesis recommendation that contradicts the STORY LEDGER GROUND TRUTH above is INVALID. Do not recommend scenes for dead characters, do not claim stationary objects move, do not misattribute cosmology as geography.\n\nNAME AUTHORITY ENFORCEMENT: The CANONICAL CHARACTER NAME AUTHORITY section above is binding. In ALL output fields (final_rationale, recommendations, strengths, risks, summaries, pitches), refer to characters ONLY by the canonical names listed. NEVER use a blocked word (No, Yes, Oh, Hey, Well, So, etc.) as a character name or possessive (e.g. "No's"), even if the manuscript text appears to use it. Substitute the correct canonical name instead.`
     : PASS3_SYSTEM_PROMPT;
 
   const invokePass3Completion = (maxTokensForCall: number) =>
@@ -1126,6 +1133,19 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     console.info(
       `[Pass3-IntegrityGate] Quarantined ${quarantinedRecCount} FAIL-tier recommendation(s) before persistence.`,
     );
+  }
+
+  // ── Deterministic character name sanitization ──────────────────────────────
+  // Belt-and-suspenders: after prompt enforcement, deterministically replace
+  // any blocked character names (No, Yes, Oh, Hey, etc.) that leaked through
+  // the LLM's free-text output with canonical names from the story ledger.
+  if (opts.canonicalEntityNames && opts.canonicalEntityNames.length > 0) {
+    const sanitizedCount = sanitizeSynthesisCharacterNames(synthesis, opts.canonicalEntityNames);
+    if (sanitizedCount > 0) {
+      console.info(
+        `[Pass3-NameAuthority] Deterministic sanitizer replaced blocked character names in ${sanitizedCount} field(s). Canonical names: [${opts.canonicalEntityNames.slice(0, 3).join(", ")}]`,
+      );
+    }
   }
 
   // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial

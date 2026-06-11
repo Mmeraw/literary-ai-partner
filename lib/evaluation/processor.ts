@@ -6120,6 +6120,7 @@ export async function processEvaluationJob(
 
         // Load full-context story ledger for Phase 2/3 grounding (if generated in Phase 0.5a)
         let phase23LedgerContextBlock: string | undefined;
+        let phase23CanonicalEntityNames: string[] | undefined;
         if (process.env.EVAL_FULL_CONTEXT_LEDGER === 'true') {
           try {
             const { data: ledgerRows } = await supabase
@@ -6131,6 +6132,11 @@ export async function processEvaluationJob(
             if (ledgerRows && ledgerRows.length > 0) {
               const ledger = (ledgerRows[0] as { content: FullContextStoryLedger }).content;
               phase23LedgerContextBlock = buildLedgerSeedContextBlock(ledger);
+              // Extract canonical entity names for deterministic character name sanitization
+              const canonIdLayer = ledger?.layers?.canonical_identity;
+              if (canonIdLayer && Array.isArray(canonIdLayer.primary_entities) && canonIdLayer.primary_entities.length > 0) {
+                phase23CanonicalEntityNames = canonIdLayer.primary_entities;
+              }
             }
           } catch (ledgerLoadErr) {
             console.warn(`[phase_2/3] ${jobId}: failed to load full-context ledger (non-fatal)`, {
@@ -6161,6 +6167,7 @@ export async function processEvaluationJob(
             ...(authorCorrectionsBlockP3 ? { _authorCorrectionsBlock: authorCorrectionsBlockP3 } : {}),
             _llrRecoveryMode: llrRecoveryMode,
             _storyLedgerContextBlock: phase23LedgerContextBlock,
+            _canonicalEntityNames: phase23CanonicalEntityNames,
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
                 supabase,
