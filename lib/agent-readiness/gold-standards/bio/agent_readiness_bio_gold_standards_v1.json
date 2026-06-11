@@ -1,0 +1,114 @@
+{
+  "id": "agent_readiness_bio_gold_standards_v1",
+  "version": 1,
+  "purpose": "DREAM/GOLD author bio exemplar, template, rubric, and fact-governance layer for RevisionGrade Agent Readiness.",
+  "runtime_rule": "Use exemplars for pattern calibration only. Never copy exemplar facts, credentials, residences, project titles, identity claims, or personal history into generated output unless those facts are present in the selected author's supplied materials or verified project metadata.",
+  "primary_rule": "Prefer manuscript-relevant authority over generic literary credentials.",
+  "bio_types": {
+    "query_letter_bio": {
+      "target_words": "75-130",
+      "purpose": "Concise credibility paragraph inside a query letter.",
+      "best_for": ["query letters", "agent-specific letters", "submission packages with tight word count"]
+    },
+    "agent_submission_bio": {
+      "target_words": "120-190",
+      "purpose": "Standalone agent-facing author bio for package sections and longer agency forms.",
+      "best_for": ["Agent Readiness package author bio", "long agency forms", "bio sheets"]
+    },
+    "short_form_submission_bio": {
+      "target_words": "50-85",
+      "purpose": "Compressed credibility bio for short form fields.",
+      "best_for": ["QueryTracker", "short bio fields", "low-age-signal forms"]
+    },
+    "website_press_bio": {
+      "target_words": "250-450",
+      "purpose": "Brand-forward author bio for website, press kit, and book pages.",
+      "best_for": ["author website", "media kit", "press materials", "book pages"]
+    }
+  },
+  "exemplars": [
+    {
+      "id": "gold_author_bio_cartel_babies_query_v1",
+      "section": "author_bio",
+      "bio_type": "query_letter_bio",
+      "tier": "dream_gold",
+      "category": "upmarket suspense / literary suspense",
+      "use_case": "Query-letter closing bio for a Sinaloa/cartel-system literary suspense manuscript.",
+      "strengths": [
+        "leads with relevant authority",
+        "connects regional experience to the manuscript",
+        "establishes literary brand without over-explaining",
+        "uses one memorable proof point",
+        "avoids generic writing biography language"
+      ]
+    },
+    {
+      "id": "gold_author_bio_cartel_babies_agent_submission_v1",
+      "section": "author_bio",
+      "bio_type": "agent_submission_bio",
+      "tier": "dream_gold",
+      "category": "standalone submission package bio",
+      "use_case": "Longer Agent Readiness author bio with authority, project lane, and literary brand.",
+      "strengths": [
+        "balances rank, professional background, and manuscript relevance",
+        "connects British Columbia and Culiacán/Sinaloa to the work",
+        "uses related projects to show coherent author brand",
+        "ends with literary positioning rather than résumé clutter"
+      ]
+    },
+    {
+      "id": "gold_author_bio_querytracker_short_v1",
+      "section": "author_bio",
+      "bio_type": "short_form_submission_bio",
+      "tier": "dream_gold",
+      "category": "short form bio",
+      "use_case": "Compressed QueryTracker-style author bio under strict field limits.",
+      "strengths": [
+        "fast credibility",
+        "low age-signal phrasing",
+        "clear author lane",
+        "short enough for form fields"
+      ]
+    },
+    {
+      "id": "gold_author_bio_website_press_v1",
+      "section": "author_bio",
+      "bio_type": "website_press_bio",
+      "tier": "gold",
+      "category": "website / press bio",
+      "use_case": "Brand-forward bio for websites, press kits, and book pages.",
+      "strengths": [
+        "strong thematic author brand",
+        "connects multiple projects",
+        "allows atmospheric language where query letters should not"
+      ]
+    }
+  ],
+  "qa_gates": {
+    "author_bio": [
+      "must_use_author_supplied_facts_only",
+      "must_not_invent_credentials",
+      "must_not_invent_awards_or_publications",
+      "must_not_invent_residence_or_identity_claims",
+      "must_connect_author_to_manuscript_when_possible",
+      "must_fit_requested_bio_type_and_length",
+      "must_avoid_generic_aspiring_author_language"
+    ]
+  },
+  "forbidden_unless_explicitly_supplied": [
+    "awards",
+    "publications",
+    "agent representation",
+    "bestseller claims",
+    "film or television deals",
+    "degrees or certifications",
+    "military decorations or tours",
+    "residence claims",
+    "identity claims"
+  ],
+  "files": {
+    "exemplars_markdown": "lib/agent-readiness/gold-standards/bio/gold_author_bio_dream_standards_v1.md",
+    "template": "lib/agent-readiness/gold-standards/bio/author_bio_template_v2.md",
+    "rubric": "lib/agent-readiness/gold-standards/bio/author_bio_rubric_v1.md"
+  }
+}
