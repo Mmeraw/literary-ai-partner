@@ -90,6 +90,21 @@ const GENERIC_COMMERCIAL_DIRECTIVE_RE =
 const MALFUNCTION_EVIDENCE_RE =
   /\b(stall(?:s|ed|ing)?|unclear|confus(?:e|ing|ion)|diffus(?:e|ing)|break(?:s|ing)|not landing|undercut(?:s|ting)?|reader (?:loses|lost)|fails? to|malfunction(?:ing)?)\b/i;
 
+/**
+ * P6 Genre Calibration: Detects commercial-fiction phrasing that should be
+ * reframed relative to the manuscript's genre when the genre is non-propulsion-forward.
+ * These phrases are not inherently wrong — they just need genre-relative context.
+ */
+const GENRE_UNCALIBRATED_PHRASING_RE =
+  /\b(needs? (?:faster|more) pacing|add (?:a )?cliffhanger|(?:the )?reader will (?:lose interest|get bored|put (?:it|the book) down)|increase (?:dramatic )?tension|needs? (?:a )?hook|keep (?:the reader|them) turning pages|page-turner|thriller-like|needs? urgency)\b/i;
+
+/**
+ * P6: Detects genre-calibrated phrasing — the presence of these signals
+ * indicates the recommendation IS properly genre-relative.
+ */
+const GENRE_CALIBRATED_SIGNAL_RE =
+  /\b(relative to (?:its|the|this)|for (?:this genre|literary fiction|memoir|the diagnosed genre)|even (?:literary|for literary|for memoir)|genre.{0,20}(?:tolerate|allow|expect|permit)|atmospheric pacing|contemplative|internal pressure|accumulative)\b/i;
+
 function genreExpectation(detail: GenreExpectationDetail): GenreExpectationDetail {
   return detail;
 }
@@ -594,6 +609,37 @@ export function hasExplicitProfileMalfunctionEvidence(rec: {
   const hasMalfunctionSignal = MALFUNCTION_EVIDENCE_RE.test(signalText);
   const hasAnchor = (rec.anchor_snippet ?? "").trim().length > 0;
   return hasMalfunctionSignal && hasAnchor;
+}
+
+/**
+ * P6 Genre Calibration: Checks if a recommendation uses commercial-fiction phrasing
+ * without genre-relative context. Returns true if the rec is uncalibrated (i.e., uses
+ * commercial phrasing without any genre-relative signal).
+ * Only applicable for non-propulsion-forward profiles.
+ */
+export function isGenreUncalibratedPhrasing(rec: {
+  action: string;
+  expected_impact?: string;
+  mechanism?: string;
+}): boolean {
+  const text = [rec.action, rec.expected_impact ?? "", rec.mechanism ?? ""].join(" ");
+  if (!GENRE_UNCALIBRATED_PHRASING_RE.test(text)) return false;
+  // If the rec also contains genre-calibrated signals, it's fine
+  if (GENRE_CALIBRATED_SIGNAL_RE.test(text)) return false;
+  return true;
+}
+
+/**
+ * P6: Checks if a given expectation context represents a non-propulsion-forward genre
+ * (i.e., a genre where commercial pacing language is inappropriate without calibration).
+ */
+export function isNonPropulsionGenre(context: ResolvedExpectationContext): boolean {
+  return context.expectation_profiles.some(profile =>
+    PROTECTED_MOMENTUM_PROFILES.has(profile) ||
+    profile === "voice_forward" ||
+    profile === "slow_burn" ||
+    profile === "emotional_payoff_forward",
+  );
 }
 
 export function shouldSuppressByExpectationProfile(

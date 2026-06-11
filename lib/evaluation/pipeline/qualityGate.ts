@@ -42,6 +42,7 @@ import type {
 import { analyzePovRendering } from "@/lib/evaluation/pov/analyzePovRendering";
 import { analyzeDialogueAttribution, analyzeDialogueAttributionForGate } from "@/lib/evaluation/pov/analyzeDialogueAttribution";
 import { validatePovCriterionEvidence } from "@/lib/evaluation/pov/validatePovCriterionEvidence";
+import { isGenreUncalibratedPhrasing } from "@/lib/evaluation/genreExpectationProfiles";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { EvaluationArtifact } from "./types";
 import type { ArtifactGateDecision } from "./gates";
@@ -1304,6 +1305,25 @@ export function runQualityGate(
       );
     }
   }
+  // ── P6 Check: Genre-Calibrated Language — detect commercial-fiction phrasing ────────────
+  // Checks recommendation action/impact/mechanism text for commercial-fiction phrasing
+  // that lacks genre-relative context. This is a soft warning (observability only).
+  {
+    const uncalibratedRecs: string[] = [];
+    for (const c of synthesis.criteria) {
+      for (const r of c.recommendations ?? []) {
+        if (isGenreUncalibratedPhrasing({ action: r.action ?? "", expected_impact: r.expected_impact, mechanism: (r as Record<string, unknown>).mechanism as string | undefined })) {
+          uncalibratedRecs.push(`${c.key}: "${(r.action ?? "").slice(0, 50)}..."`);
+        }
+      }
+    }
+    if (uncalibratedRecs.length > 0) {
+      warnings.push(
+        `[P6_GENRE_CALIBRATION][WARN] ${uncalibratedRecs.length} recommendation(s) use commercial-fiction phrasing without genre-relative context: ${uncalibratedRecs.slice(0, 5).join("; ")}. Pacing/tension advice should reference the manuscript's genre standards.`,
+      );
+    }
+  }
+
   const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,

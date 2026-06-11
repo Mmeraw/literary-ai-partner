@@ -68,6 +68,8 @@ import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig
 import { trackCompletionCost } from "@/lib/jobs/cost";
 import {
   genreExpectationContextForMetadata,
+  isGenreUncalibratedPhrasing,
+  isNonPropulsionGenre,
   resolveExpectationProfiles,
   shouldSuppressByExpectationProfile,
   type DominantCraftEngine,
@@ -1547,6 +1549,24 @@ export function parsePass3Response(
       console.info(`[Pass3-P4-Dedup] Collapsed ${removeSet.size} cross-criterion duplicate(s) across ${groups.size} strategic lever group(s)`);
     }
   }
+  // ── P6: Genre-Calibrated Language — flag uncalibrated commercial phrasing ────────────────
+  // For non-propulsion-forward genres (literary, memoir, slow-burn, etc.), recommendations
+  // that use commercial-fiction phrasing without genre-relative context are flagged.
+  // This is observability-only (soft warning) — the LLM prompt instructs correct framing.
+  if (expectationContext && isNonPropulsionGenre(expectationContext)) {
+    const uncalibratedRecs: string[] = [];
+    for (const c of finalCriteria) {
+      for (const r of c.recommendations) {
+        if (isGenreUncalibratedPhrasing({ action: r.action, expected_impact: r.expected_impact, mechanism: r.mechanism })) {
+          uncalibratedRecs.push(`${c.key}: "${r.action.slice(0, 60)}..."`);
+        }
+      }
+    }
+    if (uncalibratedRecs.length > 0) {
+      console.warn(`[Pass3-P6-GenreCalibration] ${uncalibratedRecs.length} recommendation(s) use commercial-fiction phrasing without genre-relative context: ${uncalibratedRecs.slice(0, 3).join("; ")}`);
+    }
+  }
+
   // ── Post-synthesis total recommendation cap: 100 for long-form (≥25k), 50 for short-form (<25k) ──
   const TOTAL_REC_CAP_LONG_FORM = 100;
   const TOTAL_REC_CAP_SHORT_FORM = 50;

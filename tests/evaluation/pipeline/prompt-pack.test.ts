@@ -151,7 +151,10 @@ describe("prompt pack governance specs", () => {
     // P4: CROSS-CRITERION DEDUPLICATION section must be present
     expect(PASS3_SYSTEM_PROMPT).toContain("CROSS-CRITERION DEDUPLICATION");
     expect(PASS3_SYSTEM_PROMPT).toContain("STRATEGIC LEVER COLLAPSE");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(29000);  // P3 (~700 chars) + P4 (~1100 chars)
+    // P6: GENRE-CALIBRATED LANGUAGE section must be present
+    expect(PASS3_SYSTEM_PROMPT).toContain("GENRE-CALIBRATED LANGUAGE");
+    expect(PASS3_SYSTEM_PROMPT).toContain("RELATIVE FRAMING");
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(30500);  // P3 (~700) + P4 (~1100) + P6 (~1500)
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",
