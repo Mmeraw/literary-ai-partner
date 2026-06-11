@@ -5,7 +5,8 @@ export type AuthorExposureBlockReason =
   | 'invalid_certification_payload'
   | 'decision_not_certified'
   | 'blocking_reasons_present'
-  | 'parity_check_failed';
+  | 'parity_check_failed'
+  | 'db_error';
 
 export type AuthorExposureDecision =
   | {
@@ -40,9 +41,14 @@ function asCertificationShape(content: unknown): CertificationShape | null {
   return direct;
 }
 
-function hasBlockingReasons(value: unknown): boolean {
-  if (!Array.isArray(value)) return false;
-  return value.some((entry) => {
+/**
+ * Returns true only when blocking_reasons is a present, well-formed array
+ * containing no real entries. Any other shape (undefined, null, string, object,
+ * non-empty array) is treated as a blocking signal — fail closed.
+ */
+function blockingReasonsAreClean(value: unknown): boolean {
+  if (!Array.isArray(value)) return false; // missing, wrong type → block
+  return !value.some((entry) => {
     if (typeof entry === 'string') return entry.trim().length > 0;
     if (entry && typeof entry === 'object') return Object.keys(entry as Record<string, unknown>).length > 0;
     return Boolean(entry);
@@ -101,11 +107,13 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
     };
   }
 
-  if (hasBlockingReasons(certification.blocking_reasons)) {
+  if (!blockingReasonsAreClean(certification.blocking_reasons)) {
     return {
       exposable: false,
       reason: 'blocking_reasons_present',
-      details: 'blocking_reasons is non-empty',
+      details: Array.isArray(certification.blocking_reasons)
+        ? 'blocking_reasons is non-empty'
+        : `blocking_reasons must be an array, got: ${typeof certification.blocking_reasons}`,
     };
   }
 
@@ -142,7 +150,7 @@ export async function getAuthorExposureDecision(
   if (error) {
     return {
       exposable: false,
-      reason: 'missing_certification',
+      reason: 'db_error',
       details: error.message,
     };
   }

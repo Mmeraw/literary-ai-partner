@@ -120,6 +120,43 @@ describe('evaluateAuthorExposureCertification', () => {
       expect(decision.certifiedAt).toBe('2026-01-01T00:00:00.000Z');
     }
   });
+
+  // blocking_reasons fail-closed contract: must be a present empty array
+  test('blocks when blocking_reasons is undefined (fail closed)', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      parity_results: { status: 'pass' },
+      // blocking_reasons intentionally absent
+    });
+    expect(decision).toMatchObject({ exposable: false, reason: 'blocking_reasons_present' });
+  });
+
+  test('blocks when blocking_reasons is null (fail closed)', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      blocking_reasons: null,
+      parity_results: { status: 'pass' },
+    });
+    expect(decision).toMatchObject({ exposable: false, reason: 'blocking_reasons_present' });
+  });
+
+  test('blocks when blocking_reasons is a string (fail closed)', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      blocking_reasons: 'none',
+      parity_results: { status: 'pass' },
+    });
+    expect(decision).toMatchObject({ exposable: false, reason: 'blocking_reasons_present' });
+  });
+
+  test('blocks when blocking_reasons is an object not an array (fail closed)', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      blocking_reasons: {},
+      parity_results: { status: 'pass' },
+    });
+    expect(decision).toMatchObject({ exposable: false, reason: 'blocking_reasons_present' });
+  });
 });
 
 describe('getAuthorExposureDecision', () => {
@@ -180,7 +217,7 @@ describe('getAuthorExposureDecision', () => {
     });
   });
 
-  test('returns missing_certification on DB error', async () => {
+  test('returns db_error on DB error (not missing_certification)', async () => {
     const admin = {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
@@ -203,7 +240,7 @@ describe('getAuthorExposureDecision', () => {
     const decision = await getAuthorExposureDecision(admin, 'job-1');
     expect(decision).toMatchObject({
       exposable: false,
-      reason: 'missing_certification',
+      reason: 'db_error',
       details: 'connection refused',
     });
   });

@@ -598,7 +598,7 @@ function wrapIndentedLines(
           continue;
         }
 
-        const candidate = `${current} ${word}`;
+        const candidate = `${current.trimEnd()} ${word}`;
         if (candidate.length <= width) {
           current = candidate;
           continue;

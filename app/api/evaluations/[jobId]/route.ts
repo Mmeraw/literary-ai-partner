@@ -100,12 +100,13 @@ export async function GET(
 
     const exposureDecision = await getAuthorExposureDecision(supabase, jobId);
     if (exposureDecision.exposable === false) {
+      const isSystemError = exposureDecision.reason === 'db_error';
       const payload: Err = {
         ok: false,
-        error: "Evaluation not releasable",
+        error: isSystemError ? 'System error checking author exposure certification' : 'Evaluation not releasable',
         details: `author_exposure:${exposureDecision.reason}`,
       };
-      return NextResponse.json(payload, { status: 409 });
+      return NextResponse.json(payload, { status: isSystemError ? 500 : 409 });
     }
 
     // 5) Read from evaluation_artifacts (canonical source)

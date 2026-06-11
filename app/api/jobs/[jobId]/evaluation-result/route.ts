@@ -67,9 +67,10 @@ export async function GET(
 
     const exposureDecision = await getAuthorExposureDecision(supabase, jobId);
     if (exposureDecision.exposable === false) {
+      const isSystemError = exposureDecision.reason === 'db_error';
       return NextResponse.json(
         {
-          error: 'Evaluation not releasable',
+          error: isSystemError ? 'System error checking author exposure certification' : 'Evaluation not releasable',
           details: `author_exposure:${exposureDecision.reason}`,
           job: {
             id: job.id,
@@ -78,7 +79,7 @@ export async function GET(
             created_at: job.created_at,
           },
         },
-        { status: 404 },
+        { status: isSystemError ? 500 : 404 },
       );
     }
 
