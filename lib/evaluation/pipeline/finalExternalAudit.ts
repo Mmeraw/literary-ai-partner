@@ -220,11 +220,22 @@ export function runFinalExternalAudit(input: {
     };
   }
 
+  // Hard-required: these artifacts MUST exist at audit time or the evaluation is incomplete.
+  // evaluation_result_v2 — always exists (written by main processor before DREAM worker fires)
+  // longform_document_v1 — just persisted by the DREAM worker before this audit runs
+  //
+  // NOT required at audit time:
+  // revision_opportunity_ledger_v1 — Revise-phase artifact, created when author initiates revision
+  // wave_revision_plan_v1 — written by main processor; missing = WARN, not BLOCK
   const missingRequired = [
     !checked.evaluation_result_v2?.present ? 'evaluation_result_v2' : null,
     !checked.longform_document_v1?.present ? 'longform_document_v1' : null,
-    !checked.revision_opportunity_ledger_v1?.present ? 'revision_opportunity_ledger_v1' : null,
-    input.multiLayer && !checked.wave_revision_plan_v1?.present ? 'wave_revision_plan_v1' : null,
+  ].filter((value): value is string => Boolean(value));
+
+  // Soft-checked: missing triggers WARN, not BLOCK
+  const missingOptional = [
+    !checked.wave_revision_plan_v1?.present ? 'wave_revision_plan_v1' : null,
+    input.multiLayer && !checked.revision_opportunity_ledger_v1?.present ? 'revision_opportunity_ledger_v1' : null,
   ].filter((value): value is string => Boolean(value));
 
   const packet = buildFinalExternalAuditPacket({ evaluationResult: input.evaluationResult, checkedArtifacts: checked });
@@ -233,13 +244,13 @@ export function runFinalExternalAudit(input: {
 
   const codes: FinalExternalAuditCode[] = [];
   if (missingRequired.includes('longform_document_v1')) codes.push('FINAL_AUDIT_MISSING_DREAM');
-  if (missingRequired.includes('wave_revision_plan_v1')) codes.push('FINAL_AUDIT_MISSING_WAVE');
+  if (missingOptional.includes('wave_revision_plan_v1')) codes.push('FINAL_AUDIT_MISSING_WAVE');
   if (lowCoverage) codes.push('FINAL_AUDIT_LOW_COVERAGE');
   if (!providerAvailable) codes.push('FINAL_AUDIT_PROVIDER_UNAVAILABLE');
 
   const requiredFailure = mode === 'required' && (missingRequired.length > 0 || !providerAvailable);
-  const optionalArtifactFailure = missingRequired.length > 0;
-  const blocking = requiredFailure || optionalArtifactFailure;
+  // Only hard-required artifacts cause BLOCK — optional missing artifacts are WARN
+  const blocking = requiredFailure || missingRequired.length > 0;
 
   const verdict: FinalExternalAuditVerdict = blocking
     ? 'BLOCK'
@@ -262,7 +273,7 @@ export function runFinalExternalAudit(input: {
     checked_artifacts: checked,
     coverage_summary: packet.coverage_summary,
     contradictions: [],
-    missing_required_artifacts: missingRequired,
+    missing_required_artifacts: [...missingRequired, ...missingOptional],
     provider: providerAvailable ? 'perplexity' : 'deterministic',
     model: providerAvailable ? 'sonar-compact-final-audit-v1' : 'deterministic-final-audit-v1',
     generated_at: generatedAt,
