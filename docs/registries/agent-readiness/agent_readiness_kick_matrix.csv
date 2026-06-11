@@ -1,0 +1,12 @@
+kickCode,detectedAt,description,blocking,blocksPackageAssembly,remediation,httpStatus
+INELIGIBLE_MANUSCRIPT,AR01_MANUSCRIPT_ELIGIBILITY,"Selected manuscript evaluation status is running, failed, queued, canceled, or incomplete.",true,true,Author must wait for evaluation to complete or select a different manuscript.,422
+NO_COMPLETED_EVALUATION,AR01_MANUSCRIPT_ELIGIBILITY,No eligible completed evaluation exists for the user. Cannot enter Agent Readiness workflow.,true,true,Author must complete a manuscript evaluation before generating an Agent Readiness Package.,422
+MISSING_CONTEXT,AR02_SECTION_GENERATION,manuscriptId or evaluationJobId missing from request.,true,false,Client must supply both manuscriptId and evaluationJobId.,400
+UNAUTHENTICATED,AR02_SECTION_GENERATION,Request has no valid authenticated user session.,true,true,Author must log in before generating or assembling package sections.,401
+OUTPUT_TOO_SHORT,AR03_QUALITY_GATE,Generated section text is fewer than 20 characters.,true,false,"Retry generation. If persistent, check model and prompt configuration.",422
+EDITORIAL_META_LANGUAGE,AR03_QUALITY_GATE,"Generated text contains editorial advisory phrasing (e.g., ""the reader would benefit from"", ""consider adding"").",true,false,Retry generation. Review prompt to reinforce direct authorial voice.,422
+UNRESOLVED_PLACEHOLDER,AR03_QUALITY_GATE,"Generated text contains unresolved template placeholders (e.g., [Author Name], [Title]).",true,false,Retry generation. Ensure evaluation context was loaded correctly.,422
+WORD_LIMIT_EXCEEDED,AR03_QUALITY_GATE,Generated word count exceeds section limit by more than 10%.,true,false,"Retry generation with tighter constraint. Per-section limits: query_letter 450, what_makes_unique 150, synopsis 500, query_pitch 50, comparables 200, author_bio 150.",422
+OUTPUT_TOO_THIN,AR03_QUALITY_GATE,"Generated word count is below section minimum (query_letter <200, synopsis <150, author_bio <50, what_makes_unique <60).",true,false,Retry generation. Check prompt depth and evaluation context completeness.,422
+SECTIONS_NOT_ALL_APPROVED,AR06_COMPLETENESS_CHECK,Fewer than 6 canonical sections have status=approved. Package assembly blocked.,true,true,Author must review and approve all 6 sections before assembling the package.,422
+INVALID_FORMAT,AR08_EXPORT,Requested export format is not txt or docx.,true,false,"Set format to exactly ""txt"" or ""docx"".",400

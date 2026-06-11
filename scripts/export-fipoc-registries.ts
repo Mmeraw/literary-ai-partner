@@ -17,6 +17,16 @@ import {
   REVISE_PROCESS_REGISTRY,
   REVISE_RENDERER_CONSUMPTION_MATRIX,
 } from '../lib/revision/reviseRegistry';
+import {
+  AGENT_READINESS_ARTIFACT_REGISTRY,
+  AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY,
+  AGENT_READINESS_CERTIFICATION_GATE_REGISTRY,
+  AGENT_READINESS_FIELD_REGISTRY,
+  AGENT_READINESS_KICK_MATRIX,
+  AGENT_READINESS_PROCESS_REGISTRY,
+  AGENT_READINESS_RENDERER_MATRIX,
+  SECTION_WORD_LIMIT_REGISTRY,
+} from '../lib/agent-readiness/agentReadinessRegistry';
 
 const OUT_DIR = path.resolve('docs/registries');
 
@@ -242,3 +252,101 @@ writeReviseCsv('revise_certification_gate_registry.csv', REVISE_CERTIFICATION_GA
 ]);
 
 console.log(`[fipoc:export] wrote revise registries to ${REVISE_OUT_DIR}`);
+
+// ─── Agent Readiness Package Exports ─────────────────────────────────────────
+
+const AR_OUT_DIR = path.join(OUT_DIR, 'agent-readiness');
+if (!fs.existsSync(AR_OUT_DIR)) fs.mkdirSync(AR_OUT_DIR, { recursive: true });
+
+function writeArCsv<T extends object>(filename: string, rows: readonly T[], columns: Array<keyof T>): void {
+  const lines = [
+    columns.join(','),
+    ...rows.map((row) => columns.map((col) => csvEscape(row[col])).join(',')),
+  ];
+  fs.writeFileSync(path.join(AR_OUT_DIR, filename), lines.join('\n') + '\n', 'utf8');
+}
+
+writeArCsv('agent_readiness_process_registry.csv', AGENT_READINESS_PROCESS_REGISTRY, [
+  'sequence',
+  'stageId',
+  'processName',
+  'activeState',
+  'supplier',
+  'inputArtifacts',
+  'outputArtifacts',
+  'certificationStatus',
+  'fitGapStatus',
+  'notes',
+]);
+
+writeArCsv('agent_readiness_artifact_registry.csv', AGENT_READINESS_ARTIFACT_REGISTRY, [
+  'artifact',
+  'producerStageId',
+  'consumerStageIds',
+  'requiredFields',
+  'completenessMetric',
+  'accuracyMetric',
+  'dirtyDataRule',
+  'requiredForPackageAssembly',
+  'fitGapStatus',
+]);
+
+writeArCsv('agent_readiness_field_registry.csv', AGENT_READINESS_FIELD_REGISTRY, [
+  'field',
+  'artifact',
+  'required',
+  'nullable',
+  'canonicalValues',
+  'sourceStageId',
+  'validatorStageId',
+  'uiRendered',
+  'notes',
+]);
+
+writeArCsv('agent_readiness_kick_matrix.csv', AGENT_READINESS_KICK_MATRIX, [
+  'kickCode',
+  'detectedAt',
+  'description',
+  'blocking',
+  'blocksPackageAssembly',
+  'remediation',
+  'httpStatus',
+]);
+
+writeArCsv('agent_readiness_authority_source_registry.csv', AGENT_READINESS_AUTHORITY_SOURCE_REGISTRY, [
+  'authorityId',
+  'family',
+  'title',
+  'path',
+  'appliesToStageIds',
+  'appliesToArtifacts',
+  'executionUse',
+  'notes',
+]);
+
+writeArCsv('agent_readiness_renderer_matrix.csv', AGENT_READINESS_RENDERER_MATRIX, [
+  'surface',
+  'route',
+  'consumedArtifacts',
+  'consumedFields',
+  'writeCapability',
+  'notes',
+]);
+
+writeArCsv('agent_readiness_certification_gate_registry.csv', AGENT_READINESS_CERTIFICATION_GATE_REGISTRY, [
+  'gateId',
+  'description',
+  'appliesToStageId',
+  'enforced',
+  'testEvidence',
+  'notes',
+]);
+
+writeArCsv('section_word_limit_registry.csv', SECTION_WORD_LIMIT_REGISTRY, [
+  'section',
+  'wordLimit',
+  'wordMinimum',
+  'hasMinimum',
+]);
+
+console.log(`[fipoc:export] wrote agent-readiness registries to ${AR_OUT_DIR}`);

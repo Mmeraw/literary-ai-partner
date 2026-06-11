@@ -1,0 +1,7 @@
+section,wordLimit,wordMinimum,hasMinimum
+query_letter,450,200,true
+what_makes_unique,150,60,true
+synopsis,500,150,true
+query_pitch,50,,false
+comparables,200,,false
+author_bio,150,50,true
