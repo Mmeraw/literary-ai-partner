@@ -261,8 +261,8 @@ export default function ReviseForensicsJobPage() {
               <h2 className="font-rg-serif text-xl text-rg-cream">Source Manifest Summary</h2>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {sourceRows.map(([label, value]) => (
-                  <div key={label} className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
-                    <p className="font-rg-mono text-[11px] uppercase tracking-[0.14em] text-rg-cream2/45">{label}</p>
+                  <div key={String(label)} className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+                    <p className="font-rg-mono text-[11px] uppercase tracking-[0.14em] text-rg-cream2/45">{String(label)}</p>
                     <p className="mt-1 break-words font-mono text-xs text-rg-cream2/80">{stringify(value)}</p>
                   </div>
                 ))}

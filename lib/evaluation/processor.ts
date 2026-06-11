@@ -5673,6 +5673,18 @@ export async function processEvaluationJob(
         post_chunk_reresolved: true,
         canonical_path_used: 'resolveManuscriptText.post_chunk_reconstruct',
       };
+    } else {
+      // Short-form / sub-threshold: no chunking occurred, so synthesize a
+      // single chunk from the full manuscript text.  Without this, Pass 3A
+      // receives an empty array and instantly fails with "all_chunks_failed".
+      const fullText = (manuscriptWithContent.content || '').trim();
+      if (fullText.length > 0) {
+        manuscriptChunksForPipeline = [{ chunk_index: 0, content: fullText }];
+        progressState.chunk_evidence = {
+          source: 'short_form_synthetic_single_chunk',
+          chunk_count: 1,
+        };
+      }
     }
 
     progressState.final_text_source = finalTextProvenance.final_text_source;
