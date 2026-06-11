@@ -1,0 +1,12 @@
+kickCode,triggeringStageId,targetStageId,triggerCondition,resolution,blocksAuthorExposure,severity
+LEDGER_EVIDENCE_MISSING,RS01_LEDGER_ASSEMBLY,S10b_PHASE5_AUTHOR_EXPOSURE_GATE,evaluation_result_v2 absent or not certified by Phase 5,Re-certify evaluation artifact via Phase 5 gate before ledger assembly,true,blocking
+ADMISSION_CARD_CONTRACT_FAIL,RS02_QUEUE_ADMISSION,RS01_LEDGER_ASSEMBLY,ledger_backing_coverage < 100% or opportunity fails six-part diagnostic,Opportunity moves to needs_targeting; ledger re-assembly required only if backing is absent,false,advisory
+ADMISSION_CANON_GATE_FAIL,RS02_QUEUE_ADMISSION,RS02_QUEUE_ADMISSION,"candidate_text violates canon gate (banned entity, voice violation)",Opportunity withheld; flagged for author targeting,false,advisory
+WORKBENCH_ANCHOR_UNRESOLVABLE,RS04_WORKBENCH_LOAD,RS02_QUEUE_ADMISSION,anchor text not found in source manuscript version,Opportunity kicked back to needs_targeting; author must retarget before retrying,false,advisory
+CANDIDATE_VOICE_GATE_FAIL,RS05_CANDIDATE_GENERATION,RS04_WORKBENCH_LOAD,generated candidate violates voice preservation contract for current mode,"Regenerate candidates; if persistent, escalate mode contract review",false,warning
+CANDIDATE_CANON_GATE_FAIL,RS05_CANDIDATE_GENERATION,RS04_WORKBENCH_LOAD,generated candidate introduces banned entity or non-canonical name,Regenerate candidates without the offending entity,false,warning
+LEDGER_SYNC_VALIDATION_FAIL,RS07_LEDGER_SYNC,RS06_AUTHOR_DECISION,non-canonical decision value or missing required field on sync write,Throw — do not write. Client must re-capture decision with canonical value.,true,blocking
+DECISION_INVALID_VALUE,RS06_AUTHOR_DECISION,RS06_AUTHOR_DECISION,decision value not in canonical set,UI must enforce enum dropdown; non-canonical values are CI-failing defects,true,blocking
+COMPLETION_PREMATURE,RS08_COMPLETION,RS07_LEDGER_SYNC,completion attempted with uncommitted decisions or decided_count < total_ready,Sync all pending decisions before certifying completion,true,blocking
+TRUSTEDPATH_INELIGIBLE_VERDICT,RS10_TRUSTEDPATH,RS06_AUTHOR_DECISION,TrustedPath called for finding with verdict != approve,Route to manual author review; do not auto-apply,false,advisory
+CROSSCHECK_INVALID_VERDICT,RS09_CROSSCHECK_VERIFICATION,RS06_AUTHOR_DECISION,non-canonical verdict returned from cross-check service,Default to unavailable; route to manual review. Log defect.,false,warning

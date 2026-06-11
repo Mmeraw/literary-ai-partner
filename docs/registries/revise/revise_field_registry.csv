@@ -1,0 +1,19 @@
+field,canonicalType,ownerArtifact,allowedValues,validationRule,fitGapStatus
+admission_status,enum,revise_admission_result_v1,admission_passed | withheld,Exactly these two values. Non-canonical values are CI-failing defects.,emerging
+readiness,enum,revise_card_v1,ready_for_revise | needs_targeting,Exactly these two values. Derived from card contract validation.,emerging
+decision,enum,author_decision_v1,accepted_a | accepted_b | accepted_c | custom | keep_original | reject | deferred,Exactly these seven values. Non-canonical values must not be written to the database.,emerging
+severity,enum,revise_queue_v1,must | should | could,"Mapped from ProposalSeverity (high=must, medium=should, low=could) in queue assembly.",emerging
+scope,enum,workbench_opportunity_v1,Line | Passage | Scene | Chapter | Structural | Manuscript,WorkbenchScope enum. Exact casing required.,emerging
+mode,enum,workbench_opportunity_v1,direct-rewrite | repair-brief,WorkbenchMode enum. Exact values required.,emerging
+revision_operation,enum,revision_opportunity_ledger_v1,replace_selected_passage | insert_before_selected_passage | insert_after_selected_passage | rewrite_full_paragraph | rewrite_multi_paragraph_span | compress_selected_passage | delete_selected_passage | split_paragraph | merge_paragraphs | reorder_within_section | needs_targeting,REVISION_OPERATIONS const array. needs_targeting is a valid operation value indicating the item requires targeting before workbench.,emerging
+option_key,enum,revision_candidate_set_v1,A | B | C,"Exactly A, B, or C. Option roles: A=recommended_repair, B=rhythm_variant, C=bolder_rendering_shift.",emerging
+verdict,enum,repair_cross_check_v1,approve | flag | reject | unavailable | pending,CrossCheckVerdict enum. Only approve propagates to TrustedPath.,emerging
+completion_type,enum,revision_completion_record_v1,full | partial | needs_targeting_deferred,"Planned field. full = all ready items decided. partial = some decided, some deferred. needs_targeting_deferred = all ready items decided; needs_targeting items explicitly deferred.",critical
+evaluation_mode,enum,revision_mode_contract_v1,STANDARD | TRANSGRESSIVE | TESTIMONY,"EvaluationMode enum, normalized from evaluation_result_v2.confirmed_mode. Never re-inferred in Revise.",emerging
+voice_preservation,enum,revision_mode_contract_v1,BALANCED | POLISHED | MAXIMUM,VoicePreservationMode enum. MAXIMUM activates strictest voice gate in candidate generation.,emerging
+source,enum,revise_queue_v1,evaluation | deep_revision | baseline_discovery | surface_polish,"WorkbenchSource enum. Priority order: evaluation first, surface_polish last.",emerging
+revision_session_status,enum,revision_session_v1,open | findings_ready | synthesis_started | proposals_ready | applied | failed,RevisionSessionStatus. Allowed transitions: open→findings_ready→synthesis_started→proposals_ready→applied|failed. applied and failed are terminal. Illegal transitions throw.,emerging
+local_id,string,author_decision_v1,,Client-generated unique identifier for each decision event. Must be globally unique within the session. Undo references undone_local_id.,emerging
+evidence_anchor,string,revision_opportunity_ledger_v1,,Exact text excerpt from source manuscript that anchors the finding. Required unless manuscript_wide_support=true.,emerging
+is_undo,boolean,revision_ledger_decision_v1,,Append-only undo log entry. True rows must reference a valid undone_local_id. Mutations to existing rows are forbidden.,gap
+ledger_backing_coverage,metric,revise_queue_v1,,Share of queue items sourced from revision_opportunity_ledger_v1. Must be 100% — no queue item without ledger backing.,emerging
