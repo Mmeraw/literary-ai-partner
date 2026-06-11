@@ -534,26 +534,10 @@ export default async function ReportPage({
       <div className="max-w-6xl mx-auto px-4 py-8 sm:px-8">
         {/* Header + Title Block (template section 1) */}
         <header className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] px-6 py-7 shadow-sm sm:px-8">
-          <div className="flex items-start justify-between gap-6">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B2E2E]">RevisionGrade™</p>
-              <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-[#1C1814] sm:text-4xl">{displayTitle}</h1>
-              <p className="mt-1 text-sm font-medium uppercase tracking-[0.08em] text-[#5C5549]">{canonicalDoc.titleBlock.reportType}</p>
-              {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
-                <p className="text-sm text-[#5C5549]">{manuscriptTitle}</p>
-              )}
-              <p className="mt-3 text-sm text-[#5C5549]">
-                Generated {canonicalDoc.titleBlock.dateGenerated}
-              </p>
-              <p className="mt-1 text-sm text-[#5C5549]">
-                <span className="font-medium text-[#1C1814]">Reference ID:</span>{' '}
-                <span className="font-mono text-[#1C1814]">{params.jobId}</span>{' '}
-                <CopyReferenceIdButton
-                  value={params.jobId}
-                  className="ml-2 inline-flex items-center rounded-sm border border-[#D9D0C3] px-2.5 py-1 text-xs font-medium text-[#5C5549] transition hover:bg-[#FAF7F2]"
-                />
-              </p>
-            </div>
+
+          {/* ── Top row: branding + action buttons ── */}
+          <div className="flex items-center justify-between gap-4 mb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B2E2E]">RevisionGrade™ — Editorial Readiness Assessment</p>
             <div className="shrink-0 flex items-center gap-3 print-hidden">
               {manuscriptId && (
                 <div className="flex flex-col items-center gap-0.5">
@@ -569,19 +553,53 @@ export default async function ReportPage({
               <DownloadReportButton jobId={params.jobId} />
             </div>
           </div>
-          {/* Title Block metadata grid (template-mandated fields) */}
+
+          {/* ── Hero: title + score card side by side ── */}
+          <div className="flex items-start gap-6">
+            {/* Title column */}
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-3xl font-bold leading-tight text-[#1C1814] sm:text-4xl">{displayTitle}</h1>
+              <p className="mt-2 text-sm font-medium uppercase tracking-[0.08em] text-[#5C5549]">{canonicalDoc.titleBlock.reportType}</p>
+              {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
+                <p className="mt-1 text-sm text-[#5C5549]">{manuscriptTitle}</p>
+              )}
+              <p className="mt-3 text-xs text-[#9A9087]">
+                Generated {canonicalDoc.titleBlock.dateGenerated}
+                {' · '}
+                <span className="font-mono">{params.jobId.slice(0, 8)}</span>
+                <CopyReferenceIdButton
+                  value={params.jobId}
+                  className="ml-1.5 inline-flex items-center rounded-sm border border-[#D9D0C3] px-2 py-0.5 text-xs font-medium text-[#5C5549] transition hover:bg-[#FAF7F2]"
+                />
+              </p>
+            </div>
+
+            {/* Score card — always visible without scrolling */}
+            <aside className="shrink-0 w-44 rounded-sm border-2 border-[#B8922A] bg-[#1C1814] px-4 py-4 text-center text-[#F5EFE0]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">Overall Score</p>
+              <p className="mt-1 font-serif text-4xl font-bold leading-none text-white">
+                {canonicalDoc.titleBlock.overallScoreLabel}
+              </p>
+              {canonicalDoc.titleBlock.overallScoreConfidenceLabel && (
+                <p className="mt-1 text-[10px] text-[#C8A96E]">{canonicalDoc.titleBlock.overallScoreConfidenceLabel}</p>
+              )}
+              <div className="mt-3 border-t border-[#B8922A] pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">Market Readiness</p>
+                <p className="mt-1 text-sm font-bold uppercase text-[#F5E9C8]">
+                  {canonicalDoc.titleBlock.marketReadiness}
+                </p>
+                {canonicalDoc.titleBlock.marketReadinessConfidenceLabel && (
+                  <p className="mt-0.5 text-[10px] text-[#C8A96E]">{canonicalDoc.titleBlock.marketReadinessConfidenceLabel}</p>
+                )}
+              </div>
+            </aside>
+          </div>
+
+          {/* ── Metadata grid (secondary — below the hero) ── */}
           <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden border border-[#D9D0C3] bg-[#D9D0C3] text-sm sm:grid-cols-3 lg:grid-cols-4">
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Report Type</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.reportType}</dd></div>
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Overall Score</dt><dd className="mt-1 font-semibold text-[#8B2E2E]">{canonicalDoc.titleBlock.overallScoreLabel}</dd></div>
-            {canonicalDoc.titleBlock.overallScoreConfidenceLabel ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Overall Score Confidence</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.overallScoreConfidenceLabel}</dd></div> : null}
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Market Readiness</dt><dd className="mt-1 font-semibold text-[#8B2E2E]">{canonicalDoc.titleBlock.marketReadiness}</dd></div>
-            {canonicalDoc.titleBlock.marketReadinessConfidenceLabel ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Market Readiness Confidence</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.marketReadinessConfidenceLabel}</dd></div> : null}
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.genre}</dd></div>
-            {canonicalDoc.titleBlock.genreConfidenceLabel ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre Confidence</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.genreConfidenceLabel}</dd></div> : null}
-            <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{canonicalDoc.titleBlock.audienceTentative ? 'Tentative: ' : ''}{canonicalDoc.titleBlock.targetAudience}</dd></div>
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience Confidence</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.audienceConfidenceLabel}</dd></div>
-            {canonicalDoc.titleBlock.shelf ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.shelf}</dd></div> : null}
-            {canonicalDoc.titleBlock.shelfConfidenceLabel ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf Confidence</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.shelfConfidenceLabel}</dd></div> : null}
+            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.genre}{canonicalDoc.titleBlock.genreConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.genreConfidenceLabel})</span> : null}</dd></div>
+            <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{canonicalDoc.titleBlock.audienceTentative ? 'Tentative: ' : ''}{canonicalDoc.titleBlock.targetAudience}{canonicalDoc.titleBlock.audienceConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.audienceConfidenceLabel})</span> : null}</dd></div>
+            {canonicalDoc.titleBlock.shelf ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.shelf}{canonicalDoc.titleBlock.shelfConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.shelfConfidenceLabel})</span> : null}</dd></div> : null}
             {canonicalDoc.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.submittedWordCount}</dd></div> : null}
             {canonicalDoc.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.estimatedPages}</dd></div> : null}
             {canonicalDoc.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.readingGradeLevel}</dd></div> : null}
@@ -768,16 +786,17 @@ export default async function ReportPage({
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             {criteria.map((criterion) => (
-              <div key={criterion.key} className="border border-[#D9D0C3] bg-white p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-serif font-semibold text-[#8B2E2E]">
+              <div key={criterion.key} className="border border-[#D9D0C3] bg-white overflow-hidden">
+                {/* Criterion header band — name left, score + confidence right */}
+                <div className="flex items-center justify-between gap-3 bg-[#1C1814] px-4 py-2.5">
+                  <h3 className="font-serif text-sm font-bold text-[#F5EFE0] leading-snug">
                     {getCriterionDisplayLabel(criterion.key)}
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     {(() => {
                       const badge = getCriterionPrimaryBadge(criterion as Parameters<typeof getCriterionPrimaryBadge>[0]);
                       return (
-                        <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold ${badge.classes}`}>
+                        <span className="font-serif text-base font-bold text-[#C8A96E]">
                           {badge.label}
                         </span>
                       );
@@ -786,13 +805,14 @@ export default async function ReportPage({
                       const confidence = getConfidenceBadge(criterion);
                       if (!confidence) return null;
                       return (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium ${confidence.classes}`}>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[#9A9087] border-l border-[#3A3530] pl-2">
                           {confidence.label}
                         </span>
                       );
                     })()}
                   </div>
                 </div>
+                <div className="p-4">
                 {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0]) && (
                   <p className="mb-2 text-xs font-medium text-[#5C5549]">
                     {getCriterionSupportLabel(criterion as Parameters<typeof getCriterionSupportLabel>[0])}
@@ -843,6 +863,7 @@ export default async function ReportPage({
                     }>}
                   />
                 )}
+                </div>{/* end card body */}
               </div>
             ))}
           </div>
@@ -856,44 +877,43 @@ export default async function ReportPage({
           {/* Quick Wins */}
           {recommendations.quick_wins.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="text-blue-600">{"\u26A1"}</span>
+              <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
                 Quick Wins
               </h3>
               <div className="space-y-3">
                 {recommendations.quick_wins.map((qw, idx) => (
-                  <div key={idx} className="border-l-4 border-blue-500 pl-4 py-2">
+                  <div key={idx} className="border-l-4 border-[#8B2E2E] pl-4 py-2">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900">{qw.action}</p>
-                      <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">
+                      <p className="font-semibold text-[#1C1814]">{qw.action}</p>
+                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#5C5549]">
                         {qw.effort} effort
                       </span>
-                      <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#1C1814] font-medium">
                         {qw.impact} impact
                       </span>
                     </div>
                     {qw.anchor_snippet && (
-                      <p className={`text-sm text-gray-600 mt-1 ${(qw as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-gray-300 pl-2`}>
-                        <span className="font-medium not-italic text-gray-700">
+                      <p className={`text-sm text-[#5C5549] mt-1 ${(qw as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-[#D9D0C3] pl-2`}>
+                        <span className="font-medium not-italic text-[#1C1814]">
                           {(qw as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
                         </span>{" "}
                         {(qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? qw.anchor_snippet : <>&ldquo;{qw.anchor_snippet}&rdquo;</>}
                       </p>
                     )}
                     {qw.candidate_text_a && (
-                      <p className="text-sm text-emerald-700 mt-1 italic border-l-2 border-emerald-300 pl-2">
+                      <p className="text-sm text-[#3A6B2A] mt-1 italic border-l-2 border-[#A8C5A0] pl-2">
                         <span className="font-medium not-italic">Suggested Revision:</span>{" "}
                         &ldquo;{qw.candidate_text_a}&rdquo;
                       </p>
                     )}
                     {qw.reader_effect && (
-                      <p className="text-xs text-purple-700 mt-1">
+                      <p className="text-xs text-[#5C5549] mt-1">
                         <span className="font-medium">Reader Effect:</span> {qw.reader_effect}
                       </p>
                     )}
-                    <p className="text-sm text-gray-700 leading-relaxed">{qw.why}</p>
+                    <p className="text-sm text-[#1C1814] leading-relaxed">{qw.why}</p>
                     {qw.manuscript_coordinates && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-[#9A9087] mt-1">
                         <span className="font-medium">Location:</span> {qw.manuscript_coordinates}
                       </p>
                     )}
@@ -905,44 +925,43 @@ export default async function ReportPage({
           {/* Strategic Revisions */}
           {recommendations.strategic_revisions.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="text-purple-600">{"\uD83D\uDCCA"}</span>
+              <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
                 Strategic Revisions
               </h3>
               <div className="space-y-3">
                 {recommendations.strategic_revisions.map((sr, idx) => (
-                  <div key={idx} className="border-l-4 border-purple-500 pl-4 py-2">
+                  <div key={idx} className="border-l-4 border-[#C8A96E] pl-4 py-2">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-gray-900">{sr.action}</p>
-                      <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">
+                      <p className="font-semibold text-[#1C1814]">{sr.action}</p>
+                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#5C5549]">
                         {sr.effort} effort
                       </span>
-                      <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800">
+                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#1C1814] font-medium">
                         {sr.impact} impact
                       </span>
                     </div>
                     {sr.anchor_snippet && (
-                      <p className={`text-sm text-gray-600 mt-1 ${(sr as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-gray-300 pl-2`}>
-                        <span className="font-medium not-italic text-gray-700">
+                      <p className={`text-sm text-[#5C5549] mt-1 ${(sr as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-[#D9D0C3] pl-2`}>
+                        <span className="font-medium not-italic text-[#1C1814]">
                           {(sr as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
                         </span>{" "}
                         {(sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? sr.anchor_snippet : <>&ldquo;{sr.anchor_snippet}&rdquo;</>}
                       </p>
                     )}
                     {sr.candidate_text_a && (
-                      <p className="text-sm text-emerald-700 mt-1 italic border-l-2 border-emerald-300 pl-2">
+                      <p className="text-sm text-[#3A6B2A] mt-1 italic border-l-2 border-[#A8C5A0] pl-2">
                         <span className="font-medium not-italic">Suggested Revision:</span>{" "}
                         &ldquo;{sr.candidate_text_a}&rdquo;
                       </p>
                     )}
                     {sr.reader_effect && (
-                      <p className="text-xs text-purple-700 mt-1">
+                      <p className="text-xs text-[#5C5549] mt-1">
                         <span className="font-medium">Reader Effect:</span> {sr.reader_effect}
                       </p>
                     )}
-                    <p className="text-sm text-gray-700 leading-relaxed">{sr.why}</p>
+                    <p className="text-sm text-[#1C1814] leading-relaxed">{sr.why}</p>
                     {sr.manuscript_coordinates && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-[#9A9087] mt-1">
                         <span className="font-medium">Location:</span> {sr.manuscript_coordinates}
                       </p>
                     )}

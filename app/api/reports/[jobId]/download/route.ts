@@ -1401,7 +1401,10 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
         ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
             const rows = opportunityRows(r as ExportRecommendation);
             const detailHtml = rows.length > 0
-              ? rows.map(([label, value]) => label === 'Evidence' ? `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> <em>\u201c${escapeHtml(value)}\u201d</em></p>` : label === 'Observation' || label === 'Diagnostic Basis' ? `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>` : `<p class="opp-row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')
+              ? `<table class="opp-table">${rows.map(([label, value]) => {
+                  const valHtml = label === 'Evidence' ? `<em>\u201c${escapeHtml(value)}\u201d</em>` : escapeHtml(value);
+                  return `<tr><td class="opp-key">${escapeHtml(label)}</td><td class="opp-val">${valHtml}</td></tr>`;
+                }).join('')}</table>`
               : `<p class="opp-row">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
             return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
           }).join('')}</div>`
@@ -1446,6 +1449,11 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
     .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
     .opp-row strong{color:#5C5549}
     .opp-row em{color:#6B5E52;font-style:italic}
+    .opp-table{width:100%;border-collapse:collapse;table-layout:fixed;margin:4px 0}
+    .opp-table tr{border-bottom:1px solid #E6DED2}
+    .opp-table tr:last-child{border-bottom:none}
+    .opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5C5549;width:1.1in;vertical-align:top;padding:4px 6px 4px 0}
+    .opp-val{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;vertical-align:top;padding:4px 0;line-height:1.4}
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong,.readiness-strong{color:#3A6B2A}.score-watch,.readiness-watch{color:#8B5E1A}.score-risk,.readiness-risk{color:#8B2020}.score-muted,.readiness-muted{color:#5C5549}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
     .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
