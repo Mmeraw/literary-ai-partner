@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { GET } from "@/app/api/jobs/[jobId]/evaluation-result/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { getAuthorExposureDecision } from "@/lib/evaluation/authorExposureCertification";
 
 const TEST_USER_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 
@@ -13,12 +14,17 @@ jest.mock("@/lib/supabase/server", () => ({
   getAuthenticatedUser: jest.fn(),
 }));
 
+jest.mock("@/lib/evaluation/authorExposureCertification", () => ({
+  getAuthorExposureDecision: jest.fn(async () => ({ exposable: true, certifiedAt: null })),
+}));
+
 jest.mock("@/schemas/evaluation-result-v1", () => ({
   isEvaluationResultV1: jest.fn(() => true),
   validateEvaluationResult: jest.fn(() => ({ valid: true, errors: [] })),
 }));
 
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
+const mockGetAuthorExposureDecision = getAuthorExposureDecision as jest.MockedFunction<typeof getAuthorExposureDecision>;
 
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 
@@ -32,6 +38,7 @@ describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetAuthenticatedUser.mockResolvedValue({ id: TEST_USER_ID } as never);
+    mockGetAuthorExposureDecision.mockResolvedValue({ exposable: true, certifiedAt: null });
   });
 
   test("returns 404 when job is complete but validity_status is invalid", async () => {
@@ -180,5 +187,46 @@ describe("GET /api/jobs/[jobId]/evaluation-result release gate", () => {
     expect(response.status).toBe(200);
     expect(json.status).toBe("complete");
     expect(json.validity_status).toBe("valid");
+  });
+
+  test("returns 404 when author exposure certification is not certified", async () => {
+    mockGetAuthorExposureDecision.mockResolvedValue({
+      exposable: false,
+      reason: "decision_not_certified",
+    });
+
+    const supabase = {
+      from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            single: jest.fn(async () => ({
+              data: {
+                id: "11111111-1111-1111-1111-111111111111",
+                manuscript_id: 42,
+                user_id: TEST_USER_ID,
+                status: "complete",
+                validity_status: "valid",
+                evaluation_result: { governance: { confidence: 0.95 } },
+                evaluation_result_version: "v1",
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const response = await GET(makeRequest(), {
+      params: Promise.resolve({ jobId: "11111111-1111-1111-1111-111111111111" }),
+    });
+
+    const json = (await response.json()) as { error: string; details: string };
+    expect(response.status).toBe(404);
+    expect(json.error).toBe("Evaluation not releasable");
+    expect(json.details).toBe("author_exposure:decision_not_certified");
   });
 });

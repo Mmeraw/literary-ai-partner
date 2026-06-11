@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
+import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
 import { EvaluationResultV1, isEvaluationResultV1, validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { EvaluationResultV2, isEvaluationResultV2, validateEvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 
@@ -61,6 +62,24 @@ export async function GET(
           },
         },
         { status: 404 },
+      );
+    }
+
+    const exposureDecision = await getAuthorExposureDecision(supabase, jobId);
+    if (exposureDecision.exposable === false) {
+      const isSystemError = exposureDecision.reason === 'db_error';
+      return NextResponse.json(
+        {
+          error: isSystemError ? 'System error checking author exposure certification' : 'Evaluation not releasable',
+          details: `author_exposure:${exposureDecision.reason}`,
+          job: {
+            id: job.id,
+            status: job.status,
+            validity_status: job.validity_status,
+            created_at: job.created_at,
+          },
+        },
+        { status: isSystemError ? 500 : 404 },
       );
     }
 

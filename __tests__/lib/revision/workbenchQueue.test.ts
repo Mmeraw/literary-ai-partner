@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { ensureRevisionOpportunityLedgerArtifact } from '@/lib/revision/opportunityLedger';
 import { loadReviseQueueWarmupCorpus } from '@/lib/revision/reviseQueueWarmup';
+import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
 import type { DiagnosticFinding } from '@/lib/revision/types';
 
 jest.mock('@/lib/supabase/admin', () => ({
@@ -21,10 +22,15 @@ jest.mock('@/lib/revision/reviseQueueWarmup', () => ({
   loadReviseQueueWarmupCorpus: jest.fn(),
 }));
 
+jest.mock('@/lib/evaluation/authorExposureCertification', () => ({
+  getAuthorExposureDecision: jest.fn(async () => ({ exposable: true, certifiedAt: null })),
+}));
+
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 const mockEnsureLedger = ensureRevisionOpportunityLedgerArtifact as jest.MockedFunction<typeof ensureRevisionOpportunityLedgerArtifact>;
 const mockLoadReviseQueueWarmupCorpus = loadReviseQueueWarmupCorpus as jest.MockedFunction<typeof loadReviseQueueWarmupCorpus>;
+const mockGetAuthorExposureDecision = getAuthorExposureDecision as jest.MockedFunction<typeof getAuthorExposureDecision>;
 
 function buildSupabaseMock(jobId: string, manuscriptVersionId: string, options: {
   jobStatus?: string;
@@ -125,6 +131,7 @@ describe('getWorkbenchQueue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetAuthenticatedUser.mockResolvedValue({ id: 'user-1' } as never);
+    mockGetAuthorExposureDecision.mockResolvedValue({ exposable: true, certifiedAt: null });
     mockLoadReviseQueueWarmupCorpus.mockResolvedValue({
       loadedAt: new Date().toISOString(),
       files: {} as never,
@@ -199,6 +206,22 @@ describe('getWorkbenchQueue', () => {
     expect(result.error).toBe('This evaluation is not complete yet. Revise can load after the report is finished.');
     expect(result.opportunities).toHaveLength(0);
     expect(result.needsTargeting).toHaveLength(0);
+    expect(mockEnsureLedger).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when author exposure certification is not certified', async () => {
+    mockGetAuthorExposureDecision.mockResolvedValue({
+      exposable: false,
+      reason: 'decision_not_certified',
+    });
+
+    const supabase = buildSupabaseMock('job-author-blocked', 'version-author-blocked');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-author-blocked' });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('author_exposure:decision_not_certified');
     expect(mockEnsureLedger).not.toHaveBeenCalled();
   });
 

@@ -126,6 +126,12 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     const txt = testing.buildCanonicalTemplateTxt(canonicalDoc);
     const html = testing.renderCanonicalTemplateHtml(canonicalDoc);
 
+    const overlongTxtLines = txt
+      .split('\n')
+      .map((line, index) => ({ line, number: index + 1 }))
+      .filter(({ line }) => line.length > 78);
+    expect(overlongTxtLines).toEqual([]);
+
     // TXT must include all 6 diagnostic fields
     expect(txt).toContain('Evidence: \u201cA dark truck, fast, heading toward the river.\u201d');
     expect(txt).toContain('Symptom: Stakes or decision pressure diffuses before reaching the reader.');

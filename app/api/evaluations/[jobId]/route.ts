@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 import { getEvaluationReleaseDecision } from "@/lib/jobs/readReleaseGate";
+import { getAuthorExposureDecision } from "@/lib/evaluation/authorExposureCertification";
 import { enforceApiRateLimit } from "@/lib/security/apiRateLimit";
 import { requireUser } from "@/lib/security/apiGuards";
 
@@ -95,6 +96,17 @@ export async function GET(
         details: releaseDecision.reason,
       };
       return NextResponse.json(payload, { status: 409 });
+    }
+
+    const exposureDecision = await getAuthorExposureDecision(supabase, jobId);
+    if (exposureDecision.exposable === false) {
+      const isSystemError = exposureDecision.reason === 'db_error';
+      const payload: Err = {
+        ok: false,
+        error: isSystemError ? 'System error checking author exposure certification' : 'Evaluation not releasable',
+        details: `author_exposure:${exposureDecision.reason}`,
+      };
+      return NextResponse.json(payload, { status: isSystemError ? 500 : 409 });
     }
 
     // 5) Read from evaluation_artifacts (canonical source)

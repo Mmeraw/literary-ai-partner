@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { canReleaseEvaluationRead } from "@/lib/jobs/readReleaseGate";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthorExposureDecision } from "@/lib/evaluation/authorExposureCertification";
 
 type Params = { params: Promise<{ jobId: string }> };
 type ManuscriptOwner = { user_id: string | null };
@@ -65,6 +66,11 @@ export async function GET(_: Request, { params }: Params) {
     }
 
     if (!canReleaseEvaluationRead(job)) {
+      return NextResponse.json({ ok: false, error: "Job not releasable" }, { status: 404 });
+    }
+
+    const exposureDecision = await getAuthorExposureDecision(admin, jobId);
+    if (exposureDecision.exposable === false) {
       return NextResponse.json({ ok: false, error: "Job not releasable" }, { status: 404 });
     }
 
