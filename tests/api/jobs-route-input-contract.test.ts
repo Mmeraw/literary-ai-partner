@@ -262,7 +262,45 @@ describe("POST /api/jobs input contract", () => {
     expect(updatePayload?.progress?.submitted_project_title).toBe("Let the River Decide");
   });
 
-  test("rejects unsupported letter-style submissions before job creation", async () => {
+  test("classifier is audit-only: letter-style submissions create a job and record flagged type", async () => {
+    const updateMock = jest.fn(() => ({
+      eq: jest.fn(async () => ({ error: null })),
+    }));
+
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return {
+            insert: jest.fn(() => ({
+              select: () => ({
+                single: async () => ({ data: { id: 400 }, error: null }),
+              }),
+            })),
+          };
+        }
+        if (table === "evaluation_jobs") {
+          return {
+            select: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                in: jest.fn(() => ({
+                  limit: jest.fn(async () => ({ data: [], error: null })),
+                })),
+              })),
+            })),
+            update: updateMock,
+          };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+    mockCreateJob.mockResolvedValue({
+      id: "job-letter",
+      manuscript_id: 400,
+      job_type: "evaluate_full",
+      status: "queued",
+    } as never);
+
     const req = new Request("https://localhost:3000/api/jobs", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -275,13 +313,17 @@ describe("POST /api/jobs input contract", () => {
     });
 
     const response = await POST(req);
-    const json = (await response.json()) as { ok: boolean; code: string; error: string };
+    const json = (await response.json()) as { ok: boolean; job_id: string };
 
-    expect(response.status).toBe(422);
-    expect(json.ok).toBe(false);
-    expect(json.code).toBe("NARRATIVE_EVALUATION_PREFLIGHT_REJECTED");
-    expect(json.error).toMatch(/letter|essay|synopsis|non-fiction/i);
-    expect(mockCreateJob).not.toHaveBeenCalled();
+    // Classifier is audit-only — never returns 422 for document type.
+    expect(response.status).toBe(201);
+    expect(json.ok).toBe(true);
+    expect(mockCreateJob).toHaveBeenCalled();
+
+    // Audit flag recorded in progress.
+    const updatePayload = (updateMock.mock.calls as unknown[][])[0]?.[0] as { progress?: Record<string, unknown> } | undefined;
+    expect(updatePayload?.progress?.narrative_preflight_classifier_flagged).toBe(true);
+    expect(updatePayload?.progress?.narrative_preflight_detected_type).toBe("business_letter");
   });
 
   test("kicks off the evaluation worker after successful job creation", async () => {

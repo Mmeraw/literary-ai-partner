@@ -171,6 +171,7 @@ export async function POST(req: Request) {
     let manuscriptId: number | null = null;
     let sourceManuscriptText: string | null = null;
     let sourceManuscriptWordCount: number | undefined;
+    let narrativePreflightAudit: Record<string, unknown> = {};
 
     if (manuscriptIdInput !== undefined && manuscriptIdInput !== null) {
       // Reject ambiguous input: both manuscript_id and new text together is a contract violation.
@@ -217,17 +218,11 @@ export async function POST(req: Request) {
       }
 
       const preflightDecision = routeNarrativeEvaluationPreflight(existingText);
-      if (!preflightDecision.allowed) {
-        return Response.json(
-          {
-            ok: false,
-            error: preflightDecision.userMessage,
-            code: 'NARRATIVE_EVALUATION_PREFLIGHT_REJECTED',
-            manuscript_type: preflightDecision.detectedType,
-          },
-          { status: 422 }
-        );
-      }
+      // Audit-only: record detected type in job progress but never block submission.
+      narrativePreflightAudit = {
+        narrative_preflight_detected_type: preflightDecision.detectedType,
+        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
+      };
 
       sourceManuscriptText = existingText;
       sourceManuscriptWordCount =
@@ -253,17 +248,11 @@ export async function POST(req: Request) {
 
     if (!manuscriptId && trimmedText.length > 0) {
       const preflightDecision = routeNarrativeEvaluationPreflight(trimmedText);
-      if (!preflightDecision.allowed) {
-        return Response.json(
-          {
-            ok: false,
-            error: preflightDecision.userMessage,
-            code: 'NARRATIVE_EVALUATION_PREFLIGHT_REJECTED',
-            manuscript_type: preflightDecision.detectedType,
-          },
-          { status: 422 }
-        );
-      }
+      // Audit-only: record detected type in job progress but never block submission.
+      narrativePreflightAudit = {
+        narrative_preflight_detected_type: preflightDecision.detectedType,
+        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
+      };
     }
 
     // Step 1: Create manuscript
@@ -409,7 +398,9 @@ export async function POST(req: Request) {
         voice_preservation_level: voicePreservationLevelForMode(selectedVoicePreservationMode),
         english_variant: selectedEnglishVariant,
         queued_at: new Date().toISOString(),
-        ...(Object.keys(instantEnrichment).length > 0 ? { progress: instantEnrichment } : {}),
+        ...(Object.keys(instantEnrichment).length > 0 || Object.keys(narrativePreflightAudit).length > 0
+          ? { progress: { ...instantEnrichment, ...narrativePreflightAudit } }
+          : {}),
       })
       .select()
       .single();
