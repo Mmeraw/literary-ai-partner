@@ -39,6 +39,11 @@ Primary runtime surfaces are read from:
 - `lib/evaluation/persistEvaluationResultV2.ts`
 - `app/api/evaluations/[jobId]/route.ts`
 - `app/api/admin/pipeline-health/route.ts`
+- `lib/evaluation/canonGovernanceRunner.ts`
+- `lib/evaluation/waveRevision.ts`
+- `lib/revision/wavePlanner.ts`
+- `lib/evaluation/pipeline/finalExternalAudit.ts`
+- `app/api/workers/process-dream/route.ts`
 
 ### Telemetry
 
@@ -115,16 +120,22 @@ Empty state handling:
 11. No malformed, garbled, or generic recommendation may reach the author. Every LLM-generated text must pass a prose-quality gate before advancing to the next pipeline stage.
 12. Evidence ownership boundary: manuscript quotations (`anchor_snippet`, `evidence_snippets[*].snippet`) are author-owned and must never be sanitized, rewritten, or mutated by any pipeline stage. Only RG-generated editorial text (summaries, rationale, recommendations, quick wins, strategic revisions) may be sanitized.
 13. Every LLM output point must have a deterministic prose-quality gate before its output advances downstream. Gates that check only structure or length are insufficient — sentence completeness and scaffold-residue detection are required.
+14. All renderers (webpage, PDF, DOCX, TXT, DREAM) must consume ONLY `evaluation_result_v2` for scores, genre, criteria, confidence, and entity names. No renderer may recalculate, re-synthesize, or pull from alternate artifact sources. One canonical view model → all surfaces.
+15. Gates that detect defects must enforce consequences. Detection without enforcement is a defect in itself — report shipment after a FAIL verdict is a pipeline integrity violation.
+16. Story ledger canonical entity names are ground truth. Any LLM output (including DREAM synthesis) using non-canonical names or blocked words (BLOCKED_CANONICAL_NAMES set) as character names is a contamination defect.
+17. Post-evaluation stages (WAVE, Canon Governance, DREAM, Final Audit) must execute in strict temporal order. Final audit must run AFTER all upstream artifacts are persisted — audit of incomplete state produces false verdicts.
 
 ## Evaluation Critical Path
 
-### Full Evaluation Pipeline (including seeding)
+### Full Evaluation Pipeline (including seeding + post-evaluation long-form stages)
 
-`Phase 0 Warmup -> Phase 0.5A Story Map Seed -> Phase 0.5B Revise Opportunity Seed -> Seed Completeness Gate -> Intake -> Queue -> Claim -> Routing/Chunking -> Phase 1A (Pass 1 extraction) -> Story Layer Quality Gate -> Review Gate -> Phase 2 (Pass 2 craft diagnosis) -> Phase 3 (Pass 3 synthesis) -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> Renderer -> Revision Opportunity Ledger -> Revise Queue`
+`Phase 0 Warmup -> Phase 0.5A Story Map Seed -> Phase 0.5B Revise Opportunity Seed -> Seed Completeness Gate -> Intake -> Queue -> Claim -> Routing/Chunking -> Phase 1A (Pass 1 extraction) -> Story Layer Quality Gate -> Review Gate -> Phase 2 (Pass 2 craft diagnosis) -> Phase 3 (Pass 3 synthesis) -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> WAVE Revision Planning -> Canon Governance Runner (Gate 15 + Golden Spine + Dialogue Canon) -> DREAM Long-Form Synthesis -> Final External Audit -> Renderer -> Revision Opportunity Ledger -> Revise Queue`
 
-### Runtime Spine (S01–S12)
+### Runtime Spine (S01–S12) + Post-Evaluation Long-Form Stages
 
-`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
+`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> [WAVE -> Canon Governance -> DREAM -> Final External Audit] -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
+
+Post-evaluation stages (in brackets) are long-form only (≥25K words). Short-form manuscripts skip directly from Persistence to Renderer.
 
 **Highest-risk seam (explicit):**
 
@@ -157,6 +168,15 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 | Story Layer Quality Gate | `ADJACENT_SEMANTIC_GATE` | Phase 1A story layer output + benchmarks | Review Gate | Emerging |
 | Review Gate | `ADJACENT_REVIEW_GATE` | Author + quality report + story layers | `S06_PASS2` (Phase 2) | Emerging |
 
+### Post-Evaluation Active Stages (Long-Form Only)
+
+| Stage | Stage ID | Supplier | Customer / Downstream | Certification Status |
+|---|---|---|---|---|
+| WAVE Revision Planning | `ADJACENT_WAVE` | Pass 3 synthesis findings + `evaluation_result_v2` | `ADJACENT_CANON_GOVERNANCE`, `ADJACENT_DREAM` | Active — Partial |
+| Canon Governance Runner | `ADJACENT_CANON_GOVERNANCE` | Manuscript text + `evaluation_result_v2` criteria | `ADJACENT_DREAM` | Active — Partial |
+| DREAM Long-Form Synthesis | `ADJACENT_DREAM` | Manuscript chunks + `evaluation_result_v2` + Pass 2a context | `ADJACENT_FINAL_EXTERNAL_AUDIT` | Active — Partial |
+| Final External Audit | `ADJACENT_FINAL_EXTERNAL_AUDIT` | All persisted artifacts for the job | End user / report release gate | Active — Partial |
+
 ### Runtime Spine Stages (S01–S12)
 
 | Stage | Stage ID | Supplier | Customer / Downstream | Certification Status |
@@ -174,6 +194,10 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 | Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S11a_RENDERER_WEBPAGE` | Partial |
 | Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | API read path + React UI | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Partial |
 | Download Pipeline | `S11b_DOWNLOAD_PIPELINE` | Read-time sanitizer + parity gate + format renderers (PDF/DOCX/TXT) | End user (downloaded files) | Emerging |
+| WAVE Revision Planning | `ADJACENT_WAVE` | Pass 3 synthesis + evaluation_result_v2 | Canon Governance, DREAM, Revise | Active — Partial |
+| Canon Governance Runner | `ADJACENT_CANON_GOVERNANCE` | Manuscript + evaluation_result_v2 criteria | DREAM, Final Audit | Active — Partial |
+| DREAM Long-Form Synthesis | `ADJACENT_DREAM` | Manuscript chunks + evaluation_result_v2 | Final External Audit, End user | Active — Partial |
+| Final External Audit | `ADJACENT_FINAL_EXTERNAL_AUDIT` | All persisted artifacts | Report release gate | Active — Partial |
 
 ### Evaluation → Revise Handoff Stages
 
@@ -215,6 +239,9 @@ The following stage IDs are canonical runtime certification identifiers and are 
 - `ADJACENT_REVISE`
 - `ADJACENT_LLR`
 - `ADJACENT_WAVE`
+- `ADJACENT_CANON_GOVERNANCE`
+- `ADJACENT_DREAM`
+- `ADJACENT_FINAL_EXTERNAL_AUDIT`
 
 Governance requirements for identifier changes:
 
@@ -799,6 +826,17 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 | Releasable read path | only releasable outputs are rendered | S11a |
 | Download evidence preservation | `anchor_snippet` and `evidence_snippets[*].snippet` byte-for-byte identical before/after sanitization | S11b |
 | Download parity | overall score, criteria scores, rec count, executive summary identical across webpage/PDF/DOCX/TXT | S11a–S11b |
+| WAVE derivation non-empty | `derived_wave_ids` is non-empty when Pass 3 findings contain ≥1 criterion with score ≤9 | ADJACENT_WAVE |
+| WAVE score-aware selection | score-10 criteria produce continuity audit waves only; score ≤7 produce full structural bridge | ADJACENT_WAVE |
+| Gate 15 enforcement | Gate 15 FAIL verdict must block or prominently flag report before author release | ADJACENT_CANON_GOVERNANCE |
+| Dialogue detection proportionality | detected dialogue line count proportional to manuscript dialogue ratio (e.g., 16% dialogue in 109K words ≈ 800+ lines, not 1) | ADJACENT_CANON_GOVERNANCE |
+| Golden Spine visibility | weak continuity score must be surfaced in the final report, not silently hidden | ADJACENT_CANON_GOVERNANCE |
+| DREAM canonical parity | DREAM output scores, genre, Report Type, criteria, confidence must match `evaluation_result_v2` exactly | ADJACENT_DREAM |
+| DREAM contamination guard | DREAM output must not contain banned names from BLOCKED_CANONICAL_NAMES set | ADJACENT_DREAM |
+| Score-10 recommendation suppression | criteria with score 10/10 must have 0 recommendations (or at most 1 "Consider" tier) | ADJACENT_DREAM, S11a |
+| Final audit temporal ordering | Final external audit must run AFTER DREAM persistence, not before or concurrently | ADJACENT_FINAL_EXTERNAL_AUDIT |
+| Final audit required artifact list | Only `evaluation_result_v2` + `longform_document_v1` are hard-required; `revision_opportunity_ledger_v1` is Revise-phase only | ADJACENT_FINAL_EXTERNAL_AUDIT |
+| Cross-medium single source of truth | All renderers (webpage, PDF, DOCX, TXT) must consume ONLY `evaluation_result_v2` for scores, genre, criteria, confidence | S11a, S11b, ADJACENT_DREAM |
 | Recommendation prose quality | every author-facing recommendation has: complete sentences, evidence anchor, actionable specificity | S06b, S07 |
 | Handoff prose completeness | Pass 1/2 output contains no scaffold residue, broken modals, or generic language before reaching synthesis | S06b |
 | Gate-failure telemetry coverage | all gate failures emit required diagnostics | S09–S10 |
@@ -828,8 +866,12 @@ This registry indexes active runtime families used along the evaluation certific
 - Handoff gate failures: `HANDOFF_SCAFFOLD_RESIDUE`, `HANDOFF_INCOMPLETE_SENTENCE`, `HANDOFF_BROKEN_MODAL`, `HANDOFF_GENERIC_LANGUAGE`, `HANDOFF_MISSING_EVIDENCE_ANCHOR`
 - Download pipeline failures: `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
 - Recommendation integrity failures: `REC_INTEGRITY_MALFORMED`, `REC_INTEGRITY_GENERIC`, `REC_INTEGRITY_NO_EVIDENCE`
+- WAVE failures: `WAVE_DERIVATION_EMPTY`, `WAVE_EXECUTION_TIMEOUT`, `WAVE_PLAN_FAILED`
+- Canon Governance failures: `GATE15_EXECUTION_FAILED`, `GATE15_TIMEOUT`, `GOLDEN_SPINE_EXECUTION_FAILED`, `GOLDEN_SPINE_TIMEOUT`, `DIALOGUE_CANON_EXECUTION_FAILED`, `DIALOGUE_CANON_TIMEOUT`, `REVISION_CANON_METADATA_FAILED`
+- DREAM synthesis failures: `DREAM_SYNTHESIS_FAILED`, `DREAM_TIMEOUT`, `DREAM_NO_CHUNKS`, `DREAM_NO_EVAL_RESULT`, `DREAM_CANCELLED`
+- Final external audit codes: `FINAL_AUDIT_SAFE_TO_RELEASE`, `FINAL_AUDIT_SKIPPED_SHORT_FORM`, `FINAL_AUDIT_PROVIDER_UNAVAILABLE`, `FINAL_AUDIT_MISSING_DREAM`, `FINAL_AUDIT_MISSING_WAVE`, `FINAL_AUDIT_MISSING_PHASE5`, `FINAL_AUDIT_LOW_COVERAGE`, `FINAL_AUDIT_CONTRADICTION`, `FINAL_AUDIT_SCHEMA_INVALID`
 
-Reference implementation list: `lib/evaluation/pipeline/qualityGate.ts`, `lib/evaluation/persistEvaluationResultV2.ts`, `lib/evaluation/seed/seedCompletenessGuard.ts`, `lib/evaluation/seed/twoPassSeedValidation.ts`, runtime route handlers.
+Reference implementation list: `lib/evaluation/pipeline/qualityGate.ts`, `lib/evaluation/persistEvaluationResultV2.ts`, `lib/evaluation/seed/seedCompletenessGuard.ts`, `lib/evaluation/seed/twoPassSeedValidation.ts`, `lib/evaluation/canonGovernanceRunner.ts`, `lib/evaluation/waveRevision.ts`, `lib/revision/wavePlanner.ts`, `lib/evaluation/pipeline/finalExternalAudit.ts`, `app/api/workers/process-dream/route.ts`, runtime route handlers.
 
 ## Evidence Artifact Requirements
 
@@ -845,6 +887,10 @@ Minimum evidence artifacts required for certification claims:
 7. **Seed enforcement evidence** — `seed_fit_gap_report_v1` on completeness gate, `seed_contradiction_report_v1` on drift detection, per-chunk `seed_validation` arrays from two-pass extraction.
 8. **Revision opportunity ledger evidence** — `revision_opportunity_ledger_v1` with per-opportunity evidence anchors, finding IDs, and source artifact references.
 9. **Revise Queue decision evidence** — `revision_ledger_decisions` with per-opportunity author decisions and timestamps.
+10. **WAVE derivation evidence** — `wave_revision_plan_v1` with derived_wave_ids, ordered_wave_ids, modules_run, modules_with_findings, fallback_reason, score-aware filtering applied.
+11. **Canon Governance evidence** — `gate_15_audit_v1` (mechanical purity metrics + pass/fail), `golden_spine_v1` (continuity score + motif payoff ratio), `dialogue_canon_audit_v1` (dialogue line count + speaker attribution), `revision_canon_metadata_v1` (cross-referenced status).
+12. **DREAM synthesis evidence** — `longform_document_v1` with synthesis provenance, model metadata, and canonical parity validation.
+13. **Final external audit evidence** — `final_external_audit_v1` with verdict, codes, checked_artifacts, coverage_summary, contradictions, missing_required_artifacts.
 
 No stage is certifiable without reproducible evidence artifacts for pass and fail outcomes.
 
@@ -895,6 +941,10 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
 | `ADJACENT_REVIEW_GATE` | Emerging | Author review surface active; short-form bypass implemented |
 | `ADJACENT_REVISION_LEDGER` | Emerging | Ledger assembly defined; evidence anchor requirement specified |
 | `ADJACENT_REVISE` | Emerging | Queue admission contract defined; Ready vs Needs Targeting specified |
+| `ADJACENT_WAVE` | Active — Partial | Criterion bridge fix merged (PR #1108); score-aware selection active; generic fallback eliminated |
+| `ADJACENT_CANON_GOVERNANCE` | Active — Partial | Gate 15 detects but doesn't block; dialogue detector broken (1 line in 109K words); golden spine not surfaced |
+| `ADJACENT_DREAM` | Active — Partial | Synthesis working; contamination guard and cross-medium parity enforcement pending |
+| `ADJACENT_FINAL_EXTERNAL_AUDIT` | Active — Partial | False BLOCK fix merged (PR #1109); enforcement gap pending (BLOCK verdict advisory only) |
 
 ### Evaluation → Revise Handoff Stage Contracts
 
@@ -1008,11 +1058,269 @@ The following patterns violate the Evaluation → Revise Operating Doctrine and 
 10. The UI sends users to the public Revise marketing page instead of the authenticated workbench
 11. Re-evaluation runs on the original manuscript version instead of the revised manuscript version
 
+## Active Post-Evaluation Stages (Long-Form Pipeline)
+
+The following stages execute after the main 11-stage evaluation spine completes for long-form manuscripts (≥25,000 words). They are **active in production** and produce artifacts that are auditable, gate-checked, and author-facing.
+
+### `ADJACENT_WAVE` — WAVE Revision Planning
+
+- **Supplier:** Pass 3 synthesis findings + `evaluation_result_v2` criteria scores
+- **Input:** `evaluation_result_v2` criteria array (13 canonical keys with `final_score_0_10` and `recommendations[]`) + synthesis convergence context
+- **Input acceptance metrics:**
+  - `evaluation_result_v2` present and gate-passed
+  - Criteria array has ≥1 criterion with `final_score_0_10 ≤ 9`
+  - Pass 3 synthesis findings parseable (criteria keys extractable)
+- **Process / runtime code surface:**
+  - `lib/evaluation/waveRevision.ts` (`runWaveRevision`)
+  - `lib/revision/wavePlanner.ts` (`deriveWaveTargetsFromFindings`)
+  - `lib/revision/waveRegistry.ts` (63 registered waves, IDs 1–63)
+  - `lib/evaluation/processor.ts` (invocation after Pass 3 persistence)
+- **Process:** Extract canonical criterion keys from Pass 3 findings → bridge to wave IDs via `CANONICAL_CRITERION_WAVE_BRIDGE` → apply score-aware selection (≤7 = full structural bridge, 8–9 = polish/continuity only, 10 = continuity audit only) → build execution plan with conflict resolution → persist `wave_revision_plan_v1`
+- **Output:** `wave_revision_plan_v1`
+- **Output acceptance metrics:**
+  - `derived_wave_ids` is non-empty (not falling back to generic IDs [1,2,7])
+  - `modules_run > 0` and `modules_with_findings > 0`
+  - `fallback_reason` is absent or null (not `NO_DERIVED_WAVES_FROM_PASS3_FINDINGS`)
+  - Score-aware filtering applied: criteria at 10/10 do NOT generate full structural waves
+  - Conflict resolution complete: no blocked wave IDs in final plan
+  - `schema_valid = true`
+- **Customer / downstream stage:** `ADJACENT_CANON_GOVERNANCE`, `ADJACENT_DREAM`, `ADJACENT_REVISE`
+- **Gates / invariants:**
+  - WAVE is NON-BLOCKING: failure produces a degraded artifact (status: `failed`) but does NOT block job completion
+  - WAVE must NOT produce generic fallback waves when manuscript-specific findings are available — generic fallback is a defect
+  - WAVE must bridge from canonical criterion keys (concept, narrativeDrive, character, etc.) to wave registry IDs — direct token matching against internal criterionIds (STRUCTURE_SPINE, CLIMAX_CAUSALITY) is insufficient (vocabularies are disjoint)
+  - Score-10 criteria must NOT generate full structural waves — only continuity audit waves
+  - 60-second timeout cap; timeout produces failed artifact
+- **Failure codes:** `WAVE_DERIVATION_EMPTY`, `WAVE_EXECUTION_TIMEOUT`, `WAVE_PLAN_FAILED`
+- **Required telemetry:** derived wave count, fallback status, score distribution of input criteria, execution timing
+- **Required evidence artifact:** `wave_revision_plan_v1` with derived_wave_ids, ordered_wave_ids, modules_run, modules_with_findings, fallback_reason
+- **Input metrics (Cartel Babies forensic reference):**
+  - Input criteria count: 13 (all canonical keys present)
+  - Input scores: 3 at 10/10, 7 at 9/10, 3 at 8/10
+  - Input recommendations: 4 total (narrativeDrive: 3, pacing: 1)
+- **Output metrics (Cartel Babies forensic reference — PRE-FIX):**
+  - `derived_wave_ids: []` — EMPTY (defect: criterion key bridge missing)
+  - `modules_with_findings: 0` — ZERO (defect: token matching failed)
+  - `fallback_reason: "NO_DERIVED_WAVES_FROM_PASS3_FINDINGS"` — GENERIC FALLBACK
+  - `ordered_wave_ids: [1, 2, 7]` — generic waves only
+  - **SIPOC verdict: FAIL — completeness FALSE, accuracy LOW**
+- **Output metrics (POST-FIX with PR #1108 criterion bridge):**
+  - `derived_wave_ids` populated via `CANONICAL_CRITERION_WAVE_BRIDGE` mapping
+  - Score-aware selection filters: full bridge for ≤7, polish for 8–9, audit-only for 10
+  - Generic fallback eliminated for all manuscripts with Pass 3 findings
+- **Canon refs:** Volume III pass architecture, WAVE readiness governance
+- **Spec refs:** `docs/governance/DREAM_STATE_LONGFORM_CANON.md`
+- **Runtime refs:** `lib/evaluation/waveRevision.ts`, `lib/revision/wavePlanner.ts`, `lib/revision/waveRegistry.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Active — Partial (criterion bridge fix merged PR #1108; score-aware selection active)
+
+### `ADJACENT_CANON_GOVERNANCE` — Canon Governance Runner
+
+Runs Gate 15 (mechanical purity), Golden Spine (motif/object continuity), Dialogue Canon Audit (speaker differentiation/attribution), and Revision Canon Metadata in parallel after WAVE. All layers are fire-and-forget: they never fail the evaluation job.
+
+- **Supplier:** Manuscript text + `evaluation_result_v2` criteria keys + word count
+- **Input:** Full manuscript text + criteria key array + word count + optional synthesis JSON (for Golden Spine)
+- **Input acceptance metrics:**
+  - Manuscript text present and non-empty
+  - Job ID and manuscript ID available for artifact persistence
+  - Criteria keys extractable from `evaluation_result_v2`
+- **Process / runtime code surface:**
+  - `lib/evaluation/canonGovernanceRunner.ts` (`runCanonGovernance`)
+  - `lib/evaluation/gate15/` (Gate 15 mechanical purity audit)
+  - `lib/evaluation/goldenSpine/goldenSpineAudit.ts` (motif/object continuity)
+  - `lib/evaluation/dialogueCanon/dialogueCanonAudit.ts` (dialogue detection/attribution)
+  - `lib/evaluation/revisionCanonMetadata.ts` (Phase 5 cross-reference metadata)
+- **Process:** Run Gate 15 + Golden Spine + Dialogue Canon in parallel (30s timeout each) → persist all four artifacts → build Revision Canon Metadata from cross-referenced results
+- **Output:** `gate_15_audit_v1` + `golden_spine_v1` + `dialogue_canon_audit_v1` + `revision_canon_metadata_v1`
+- **Output acceptance metrics:**
+  - **Gate 15:** `overallStatus` = pass/warn/fail; mechanical purity checks (attribution density, thought-verb frequency, overcorrection firewall) completed; Gate 15.2 not skipped
+  - **Golden Spine:** `continuityScore` = strong/moderate/weak; motif payoff ratio > 50%; overused motif count < 10
+  - **Dialogue Canon:** `dialogueStatus` = pass/warn/fail; detected dialogue lines proportional to manuscript dialogue ratio (e.g., 16% dialogue → expect hundreds of lines, not 1)
+  - **Revision Canon Metadata:** cross-references Gate 15 + Golden Spine + Dialogue Canon results; `overallStatus` determined
+- **Customer / downstream stage:** `ADJACENT_DREAM`, `ADJACENT_FINAL_EXTERNAL_AUDIT`
+- **Gates / invariants:**
+  - Canon Governance is NON-BLOCKING: failures produce degraded artifacts but do NOT block job completion
+  - Gate 15 FAIL must be surfaced to the final external audit — FAIL detected but report shipped = gate enforcement gap (defect)
+  - Dialogue detection must find dialogue proportional to the manuscript's actual dialogue/narrative ratio — finding 1 line in a 109K-word novel with 16% dialogue is a broken detector (defect)
+  - Golden Spine weak continuity should be surfaced in the report — silent weak spine = visibility gap
+  - 30-second per-layer timeout; individual layer timeout does not block other layers
+- **Failure codes:** `GATE15_EXECUTION_FAILED`, `GATE15_TIMEOUT`, `GOLDEN_SPINE_EXECUTION_FAILED`, `GOLDEN_SPINE_TIMEOUT`, `DIALOGUE_CANON_EXECUTION_FAILED`, `DIALOGUE_CANON_TIMEOUT`, `REVISION_CANON_METADATA_FAILED`
+- **Required telemetry:** per-layer execution timing, per-layer pass/fail status, Gate 15 mechanical purity metrics, dialogue line count vs expected
+- **Required evidence artifact:** `gate_15_audit_v1`, `golden_spine_v1`, `dialogue_canon_audit_v1`, `revision_canon_metadata_v1`
+- **Input metrics (Cartel Babies forensic reference):**
+  - Manuscript text: 109,472 words
+  - Criteria keys: 13 canonical keys
+  - Word count: 109,472
+- **Output metrics (Cartel Babies forensic reference):**
+  - **Gate 15:** `overallStatus: FAIL` — Mechanical Purity FAIL (attribution 7.06/1000, thought-verb 12.7/chapter), Gate 15.2 SKIPPED — **SIPOC: DETECTED but did NOT block report shipment**
+  - **Golden Spine:** `continuityScore: weak` — only 6/30 motifs paid off, 18 overused — **SIPOC: weak continuity NOT surfaced to user**
+  - **Dialogue Canon:** `dialogueStatus: fail` — only 1 dialogue line detected in 109K words (expected hundreds) — **SIPOC: FAIL — detector fundamentally broken**
+  - **Revision Canon Metadata:** metadata present — **SIPOC: OK**
+- **Canon refs:** Volume III governance, Gate 15 mechanical purity contract
+- **Runtime refs:** `lib/evaluation/canonGovernanceRunner.ts`, `lib/evaluation/gate15/`, `lib/evaluation/goldenSpine/`, `lib/evaluation/dialogueCanon/`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Active — Partial (Gate 15 detects but doesn't block; dialogue detector broken; golden spine not surfaced)
+
+### `ADJACENT_DREAM` — DREAM Long-Form Document Synthesis
+
+Async Pass 3b — produces the full narrative synthesis document for long-form manuscripts. Runs as a separate Vercel serverless function (cron every 2 minutes) to avoid 800s timeout on the main evaluation worker.
+
+- **Supplier:** Manuscript chunks + `evaluation_result_v2` + Pass 2a structured context + genre expectation metadata
+- **Input:** Completed evaluation job with `status=complete` AND `word_count >= 25000` AND no `longform_document_v1` artifact yet
+- **Input acceptance metrics:**
+  - Job status = `complete`
+  - Word count ≥ 25,000 (DREAM_WORD_COUNT_THRESHOLD)
+  - `evaluation_result_v2` artifact present and loadable
+  - Manuscript chunks loadable
+  - No existing `longform_document_v1` for this job (idempotency guard)
+- **Process / runtime code surface:**
+  - `app/api/workers/process-dream/route.ts` (cron worker)
+  - `lib/evaluation/pipeline/runPass3bLongform.ts` (synthesis engine)
+  - `lib/evaluation/pipeline/buildPass2aStructuredContext.ts` (context builder)
+  - `lib/evaluation/pipeline/finalExternalAudit.ts` (called after DREAM persistence)
+- **Process:** Cron picks eligible job → load manuscript chunks → build Pass 2a structured context → build chapter index → run GPT synthesis → persist `longform_document_v1` → run final external audit → persist `final_external_audit_v1`
+- **Output:** `longform_document_v1` (DREAM synthesis document)
+- **Output acceptance metrics:**
+  - Document generated and non-empty
+  - Contains all expected sections (executive summary, per-criterion analysis, strengths, risks, recommendations)
+  - No banned-name contamination (story ledger canonical names only)
+  - Scores and criteria consistent with `evaluation_result_v2` (no competing score sources)
+  - Recommendations for score-10 criteria: 0 or at most 1 "Consider" tier (not a shopping list)
+  - Genre, Report Type, and all metadata fields match `evaluation_result_v2` canonical values
+- **Customer / downstream stage:** `ADJACENT_FINAL_EXTERNAL_AUDIT`, End user (report downloads)
+- **Gates / invariants:**
+  - DREAM is ASYNC: runs on a separate cron worker, not inline with the main evaluation
+  - DREAM must consume ONLY `evaluation_result_v2` for scores, criteria, genre, confidence — must NOT recalculate or use alternate synthesis sources
+  - DREAM output must NOT diverge from the canonical artifact (cross-medium parity requirement)
+  - Batch size = 1 job per tick (stays within maxDuration=800s)
+  - OpenAI timeout = 750s (leaves 50s for DB writes + response overhead)
+  - Job cancellation check before synthesis starts
+- **Failure codes:** `DREAM_SYNTHESIS_FAILED`, `DREAM_TIMEOUT`, `DREAM_NO_CHUNKS`, `DREAM_NO_EVAL_RESULT`, `DREAM_CANCELLED`
+- **Required telemetry:** synthesis timing, chunk count processed, model used, token usage, success/failure status
+- **Required evidence artifact:** `longform_document_v1` with synthesis provenance metadata
+- **Input metrics (Cartel Babies forensic reference):**
+  - Word count: 109,472
+  - Chunk count: 40
+  - Evaluation result: present (score 90/100, 13 criteria)
+- **Output metrics (Cartel Babies forensic reference):**
+  - `longform_document_v1` created at 06:32:52 — **SIPOC: PRESENT**
+  - Contains "No/Michael" contamination (3 instances) — **SIPOC: CONTAMINATED — banned-name guard not applied to DREAM output**
+  - Genre, Report Type in DREAM document diverges from webpage — **SIPOC: FAIL — cross-medium parity violated**
+- **Canon refs:** DREAM State Longform Canon, Volume III pass architecture
+- **Spec refs:** `docs/governance/DREAM_STATE_LONGFORM_CANON.md`
+- **Runtime refs:** `app/api/workers/process-dream/route.ts`, `lib/evaluation/pipeline/runPass3bLongform.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Active — Partial (synthesis working; contamination guard and cross-medium parity enforcement pending)
+
+### `ADJACENT_FINAL_EXTERNAL_AUDIT` — Final External Audit
+
+Last-mile releasability check. Runs AFTER DREAM persistence to verify all required artifacts exist and are internally consistent before the report is considered safe to release.
+
+- **Supplier:** All persisted artifacts for the job (evaluation_result_v2, longform_document_v1, wave_revision_plan_v1, gate_15_audit_v1, golden_spine_v1, dialogue_canon_audit_v1, revision_canon_metadata_v1)
+- **Input:** Job ID + all artifacts in `evaluation_artifacts` table for this job
+- **Input acceptance metrics:**
+  - Job has completed main evaluation (status = complete)
+  - DREAM persistence has completed (longform_document_v1 exists)
+  - All artifact queries successful
+- **Process / runtime code surface:**
+  - `lib/evaluation/pipeline/finalExternalAudit.ts` (`persistFinalExternalAudit`)
+  - `lib/evaluation/pipeline/finalExternalAuditPrompt.ts` (audit packet builder)
+  - Called from `app/api/workers/process-dream/route.ts` after DREAM persistence
+- **Process:** Query all artifacts → check hard-required artifacts (evaluation_result_v2, longform_document_v1) → check soft-required artifacts (wave_revision_plan_v1) → check optional artifacts (revision_opportunity_ledger_v1 — Revise-phase only) → build coverage summary → check for contradictions → determine verdict (PASS/WARN/BLOCK/SKIP)
+- **Output:** `final_external_audit_v1`
+- **Output acceptance metrics:**
+  - `verdict` = PASS or WARN (not BLOCK) for a healthy evaluation
+  - `blocking = false` for releasable reports
+  - Hard-required artifacts present: `evaluation_result_v2`, `longform_document_v1`
+  - `missing_required_artifacts` is empty
+  - No contradictions detected between artifacts
+  - Coverage summary shows all expected artifact types checked
+- **Customer / downstream stage:** Report release gate (end user visibility)
+- **Gates / invariants:**
+  - Audit must run AFTER DREAM persistence — audit before DREAM = false BLOCK (temporal race defect)
+  - Hard-required artifacts: `evaluation_result_v2` + `longform_document_v1` ONLY
+  - `revision_opportunity_ledger_v1` is a Revise-phase artifact — must NOT be hard-required at evaluation audit time (PR #1109 fix)
+  - `wave_revision_plan_v1` missing = WARN, not BLOCK (wave is non-blocking upstream)
+  - BLOCK verdict should prevent report release — currently advisory only (enforcement gap)
+  - Short-form jobs (< 25K words) skip final audit entirely (verdict = SKIP)
+- **Failure codes:** `FINAL_AUDIT_SAFE_TO_RELEASE`, `FINAL_AUDIT_SKIPPED_SHORT_FORM`, `FINAL_AUDIT_PROVIDER_UNAVAILABLE`, `FINAL_AUDIT_MISSING_DREAM`, `FINAL_AUDIT_MISSING_WAVE`, `FINAL_AUDIT_MISSING_PHASE5`, `FINAL_AUDIT_LOW_COVERAGE`, `FINAL_AUDIT_CONTRADICTION`, `FINAL_AUDIT_SCHEMA_INVALID`
+- **Required telemetry:** verdict, blocking status, missing artifact list, contradiction count, audit timing
+- **Required evidence artifact:** `final_external_audit_v1` with verdict, codes, checked_artifacts, coverage_summary, contradictions
+- **Input metrics (Cartel Babies forensic reference):**
+  - All 21 artifacts queryable
+  - DREAM persisted at 06:32:52
+- **Output metrics (Cartel Babies forensic reference — PRE-FIX):**
+  - `verdict: BLOCK` — false positive
+  - `code: FINAL_AUDIT_MISSING_DREAM` — race condition (audit ran 2s after DREAM but checked `revision_opportunity_ledger_v1` which is Revise-phase)
+  - `blocking: true` — but report shipped anyway (enforcement gap)
+  - **SIPOC verdict: FAIL — false BLOCK due to wrong required artifact list**
+- **Output metrics (POST-FIX with PR #1109):**
+  - `revision_opportunity_ledger_v1` reclassified from hard-required to soft-checked (Revise-phase artifact)
+  - Only `evaluation_result_v2` + `longform_document_v1` are hard-required
+  - `wave_revision_plan_v1` missing = WARN, not BLOCK
+- **Canon refs:** Volume III fail-closed governance
+- **Runtime refs:** `lib/evaluation/pipeline/finalExternalAudit.ts`, `app/api/workers/process-dream/route.ts`
+- **Authority priority:** Canon > Spec > Runtime > Telemetry
+- **Certification status:** Active — Partial (false BLOCK fix PR #1109; enforcement gap pending)
+
 ## Deferred / Adjacent Runtime Paths
 
-- **Deferred/adjacent only:** WAVE, Gate 15, Revision Execution.
-- They are not part of the active 11-stage evaluation certification spine in this contract.
-- They may only be promoted into active spine scope after explicit proven runtime integration and dedicated in-scope certification updates.
+- **Deferred only:** Revision Execution (TrustedPath apply phase).
+- Revision Execution is not part of the active evaluation certification spine in this contract.
+- It may only be promoted into active spine scope after explicit proven runtime integration and dedicated in-scope certification updates.
+- **Note:** WAVE, Gate 15, Canon Governance, DREAM, and Final External Audit were previously listed as deferred but are now **active in production** with stage contracts documented above. They were promoted to active scope based on forensic evidence from Cartel Babies job 23801747 (June 2026).
+
+## Cartel Babies Forensic Validation (Job 23801747 — 109,472 words)
+
+Reference forensic audit of all 21 artifacts produced by long-form evaluation. This table validates SIPOC completeness and accuracy in practice and tracks remediation status.
+
+### Artifact Forensic Table
+
+| # | Artifact | Stage | Status | SIPOC Triggered? | Completeness | Accuracy | Defects Found | Remediation |
+|---|----------|-------|--------|-----------------|-------------|----------|---------------|-------------|
+| 1 | `story_map_seed_v1` | ADJACENT_PHASE_0_5A | ⚠️ FALLBACK | ✓ | Partial | Low | LLM seed JSON malformed (provider_error) — used fallback seed | Seed generation robustness |
+| 2 | `evaluation_seed_v1` | ADJACENT_PHASE_0_5A | ⚠️ FALLBACK | ✓ | Partial | Low | All 4 claims `proposed_unverified` | Seed verification step |
+| 3 | `full_context_story_ledger_v1` | ADJACENT_PHASE_0_5A | ✓ CLEAN | ✓ | Complete | High | 9 layers, 0 contamination, canonical names correct | OK |
+| 4 | `phase1a_chunk_routing_manifest_v1` | S04_ROUTING_CHUNKING | ✓ OK | ✓ | Complete | High | 40 chunks routed | OK |
+| 5 | `pass1a_chunk_cache_v1` | S05_PASS1 | ✓ CLEAN | ✓ | Complete | High | 40 chunks, 0 contamination | OK |
+| 6 | `pass3_preflight_draft_v1` | S07_PASS3 | ✓ OK | ✓ | Complete | High | reducer_status=ok, 8 character observations, 0 contamination | OK |
+| 7 | `pass1a_character_ledger_v1` | S05_PASS1 | ✓ CLEAN | ✓ | Complete | High | 15 entries, "Michael Salter" correct, 0 "No" anywhere | OK |
+| 8 | `pass1a_story_layer_v1` | S05_PASS1 | ✓ CLEAN | ✓ | Complete | High | 9 layers, 0 contamination | OK |
+| 9 | `ledger_quality_report_v1` | ADJACENT_SEMANTIC_GATE | ⚠️ REPAIR | ✓ | Partial | Medium | `gate_ready_status: repair_required`, 9 abandoned characters | Gate should kick for abandoned characters |
+| 10 | `accepted_story_ledger_v1` | ADJACENT_REVIEW_GATE | ⚠️ DEGRADED | ✓ | Partial | Medium | All 9 layers `auto_accepted` with corruption=0.1, `kick_forward_reason: "Review gate bypassed"` | Enforce backward kick |
+| 11 | `pass1_chunk_cache_v1` | S05_PASS1 | ✓ CLEAN | ✓ | Complete | High | 40 chunks, 0 contamination | OK |
+| 12 | `pass2_chunk_cache_v1` | S06_PASS2 | ✓ CLEAN | ✓ | Complete | High | 40 chunks, 0 contamination | OK |
+| 13 | `pass12_handoff_v1` | S06b_HANDOFF_GATE | ✓ CLEAN | ✓ | Complete | High | P1 scores 6-9, P2 scores 6-9 with 36-40 recs each, 0 contamination | OK |
+| 14 | `evaluation_result_v2` | S08_ER2_NORMALIZATION | ❌ CONTAMINATED | ✓ | Partial | Low | 3x "No/Michael" in rationale, `metrics.genre` undefined, many fields undefined | PR #1107 (banned-name sanitizer) |
+| 15 | `wave_revision_plan_v1` | ADJACENT_WAVE | ❌ EMPTY | ✓ | Empty | Low | `derived_wave_ids: []`, `modules_with_findings: 0`, fell back to generic [1,2,7] | PR #1108 (criterion bridge) ✓ MERGED |
+| 16 | `gate_15_audit_v1` | ADJACENT_CANON_GOVERNANCE | ❌ FAIL | ✓ | Partial | Low | Mechanical Purity FAIL (attribution 7.06/1000, thought-verb 12.7/chapter), Gate 15.2 SKIPPED | Gate blocking policy needed |
+| 17 | `golden_spine_v1` | ADJACENT_CANON_GOVERNANCE | ⚠️ WEAK | ✓ | Partial | Medium | `continuityScore: weak`, only 6/30 motifs paid off, 18 overused | Surface weak spine to user |
+| 18 | `dialogue_canon_audit_v1` | ADJACENT_CANON_GOVERNANCE | ❌ FAIL | ✓ | Partial | Low | Only 1 dialogue line detected out of 109K words (16% dialogue) | Dialogue detector fix needed |
+| 19 | `revision_canon_metadata_v1` | ADJACENT_CANON_GOVERNANCE | ✓ OK | ✓ | Complete | High | Attribution metadata present | OK |
+| 20 | `longform_document_v1` | ADJACENT_DREAM | ⚠️ CONTAMINATED | ✓ | Partial | Medium | Contains "No/Michael" banned-name leak; genre/score diverges from canonical | DREAM contamination guard + parity fix |
+| 21 | `final_external_audit_v1` | ADJACENT_FINAL_EXTERNAL_AUDIT | ❌ BLOCK | ✓ | Partial | Low | False BLOCK: `revision_opportunity_ledger_v1` hard-required but is Revise-phase artifact | PR #1109 (false BLOCK fix) ✓ MERGED |
+
+### Forensic Summary
+
+- **SIPOC triggers fired:** 21/21 (100%) — every stage produced an artifact
+- **Complete + accurate:** 9/21 (43%) — artifacts #3–8, #11–13, #19
+- **Degraded but functional:** 4/21 (19%) — artifacts #1, #2, #9, #10
+- **Defective:** 8/21 (38%) — artifacts #14–18, #20–21
+- **Gates that detected but did NOT block:** Gate 15 (FAIL → report shipped), Final Audit (BLOCK → report shipped)
+- **Detectors that failed:** Dialogue Canon (1 line in 109K words), WAVE (0 findings from 63 waves)
+- **Cross-medium divergence:** Webpage uses different data source than PDF/DOCX/TXT for: Report Type, Overall Score, Genre, Criteria Scores, Confidence, Pitch, Premise, Content Warnings
+
+### Remediation Status
+
+| Priority | Fix | Status | PR |
+|----------|-----|--------|-------|
+| 1 | WAVE criterion bridge (empty findings) | ✓ MERGED | #1108 |
+| 2 | Final audit false BLOCK (wrong required artifact list) | ✓ MERGED | #1109 |
+| 3 | Gate blocking policy (Gate 15 detects but doesn't block) | PENDING | — |
+| 4 | Dialogue detector (1 line in 109K words) | PENDING | — |
+| 5 | Cross-medium fit-gap (Report Type, Genre, canonical view model) | PENDING | — |
+| 6 | Score-10 recommendations (shopping list for perfect scores on webpage) | PENDING | — |
+| — | Banned-name sanitizer (deterministic) | ✓ MERGED | #1107 |
 
 ### Release Certification (Pre-SIPOC change-control layer)
 
