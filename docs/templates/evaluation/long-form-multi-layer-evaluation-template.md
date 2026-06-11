@@ -729,6 +729,8 @@ WAVE must not be presented as the revision workflow. WAVE is part of evaluation/
 
 Do not label author-facing repair work as WAVE execution.
 
+WAVE, Gate 15 / Canon Governance, Dialogue Canon, and Final External Audit defects that affect author-facing correctness must block Phase 5 author exposure until resolved or explicitly downgraded by a canonical nonblocking rule. They must not be shipped as advisory-only failures.
+
 ---
 
 ## DREAM / Governed-Ledger Boundary
@@ -742,6 +744,16 @@ long_form_multi_layer_evaluation
 ```
 
 DREAM and governed-ledger details must be rendered as author-facing editorial diagnosis unless the user-facing product explicitly exposes an appendix or advanced report surface.
+
+---
+
+## Phase 5 Author-Exposure Gate
+
+No long-form multi-layer report may be exposed to the author unless `author_exposure_certification_v1` passes.
+
+Phase 5 certification must verify that the report was assembled from the Long-Form Multi-Layer Evaluation Template contract through `UnifiedEvaluationDocument`, that all required Title Block fields and confidence labels are present, and that web, PDF, DOCX, TXT, and print-friendly views preserve the same author-facing content and order.
+
+Renderer parity violations, missing required fields, noncanonical confidence labels, unresolved author-facing WAVE/Gate 15/Dialogue Canon/Final External Audit failures, or unauthorized standalone sections block author exposure. They must not be treated as advisory warnings.
 
 ---
 
@@ -780,8 +792,10 @@ If the manuscript is strong, the report may say so. It must still avoid outcome 
 - **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
 - **Surface Parity:** PDF, DOCX, TXT, web, and print-friendly views must include the same author-facing content in the same order.
 - **Download Expansion:** PDF, DOCX, TXT, and print-friendly views must expand surfaced criterion opportunities and diagnostic details.
+- **Template Authority:** `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md` is the authoritative product contract for long-form multi-layer reports. `UnifiedEvaluationDocument` is the mandatory renderer adapter, not a competing template.
 - **Canonical Authority:** The canonical report document is the sole content authority. Renderers may format content but may not independently generate, summarize, suppress, rename, reorder, reinterpret, or recalculate report content.
 - **Renderer Authority:** Renderers may not independently add, remove, rename, reorder, summarize, or recalculate author-facing report content.
+- **Release Blocking:** Renderer violations, field omissions, parity failures, or unresolved author-facing governance defects block Phase 5 author exposure.
 - **Layer Labels:** Layer labels must be author-facing and manuscript-relevant. Do not expose protected internal tags.
 - **Governance Language:** Protected WAVE, DREAM, Review Gate, and governed-ledger terms must be surfaced only where product-facing doctrine permits them and must be explained in plain author-facing language.
 
@@ -815,3 +829,5 @@ Long-form multi-layer evaluation prepares diagnosis, evidence, ledgers, and prio
 A/B/C repair proposals, author controls, TrustedPath, accepted/rejected/custom decisions, and manuscript-change application belong to Revise Queue.
 
 The evaluation report may identify repair targets and sequencing. It must not imply that repairs have been applied to the manuscript.
+
+When revision opportunities are produced, the required handoff artifact is `revision_opportunity_ledger_v1`. The report may surface summary counts and selected opportunities, but Revise Queue owns the deeper inventory and any author-controlled repair workflow.
