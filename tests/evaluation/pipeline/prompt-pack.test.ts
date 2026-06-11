@@ -148,7 +148,10 @@ describe("prompt pack governance specs", () => {
     // P3: PRIORITY HIERARCHY section must be present
     expect(PASS3_SYSTEM_PROMPT).toContain("PRIORITY HIERARCHY");
     expect(PASS3_SYSTEM_PROMPT).toContain("Score ≤6");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(27000);
+    // P4: CROSS-CRITERION DEDUPLICATION section must be present
+    expect(PASS3_SYSTEM_PROMPT).toContain("CROSS-CRITERION DEDUPLICATION");
+    expect(PASS3_SYSTEM_PROMPT).toContain("STRATEGIC LEVER COLLAPSE");
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(29000);  // P3 (~700 chars) + P4 (~1100 chars)
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",

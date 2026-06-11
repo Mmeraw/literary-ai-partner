@@ -215,6 +215,7 @@ type ExportRecommendation = {
   specific_fix?: string;
   reader_effect?: string;
   mistake_proofing?: string;
+  collapsed_from_criteria?: string[];
 };
 
 function exportSeverity(priority?: string): string {
@@ -252,10 +253,16 @@ function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
     ['Mistake-proofing', r.mistake_proofing],
   ];
 
-  return candidates.flatMap(([label, value]) => {
+  const rows = candidates.flatMap(([label, value]) => {
     if (typeof value !== 'string' || value.trim().length === 0) return [];
     return [[label, cleanReportText(value)] as [string, string]];
   });
+  // P4: Cross-criterion dedup — show which other criteria this recommendation also addresses
+  if (r.collapsed_from_criteria && r.collapsed_from_criteria.length > 0) {
+    const criteriaNames = r.collapsed_from_criteria.map(k => k.replace(/([A-Z])/g, ' $1').trim()).join(', ');
+    rows.push(['Also affects', criteriaNames]);
+  }
+  return rows;
 }
 
 function formatRevisionQueueItem(raw: string): string {

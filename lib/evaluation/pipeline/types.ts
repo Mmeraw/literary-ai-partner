@@ -269,6 +269,14 @@ export type SynthesizedCriterion = {
      * Format: array of asset names, e.g. ["atmosphere", "voice", "dread accumulation"]
      */
     potential_damage?: string[];
+    /**
+     * P4: Cross-criterion deduplication — when the same strategic_lever+granularity
+     * appears across multiple criteria, duplicates are collapsed into the primary
+     * occurrence (kept on the lowest-scoring criterion). This field lists the other
+     * criterion keys that originally shared this recommendation direction.
+     * Format: ["narrativeDrive", "pacing"] → "Also affects: Narrative Drive, Pacing"
+     */
+    collapsed_from_criteria?: string[];
   }[];
   /** Deterministic confidence score derived from evidence support + explanation quality (0-100). */
   confidence_score_0_100?: number;

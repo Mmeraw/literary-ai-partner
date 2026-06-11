@@ -50,7 +50,7 @@ import { summarizePromptCoverage, getDefaultSynthesisReferenceCharBudget } from 
 import { PLACEHOLDER_RATIONALE_PATTERNS } from "./placeholderRationalePatterns";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
 import { enforcePass3QualityGuards, classifyCompressionGovernance, emitCompressionGovernanceSignal } from "@/lib/evaluation/governance/runtimeQualityGuards";
-import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity } from "./recommendationSemantics";
+import { normalizeIssueFamily, normalizeStrategicLever, normalizeRevisionGranularity, buildRedundancyKey } from "./recommendationSemantics";
 import { DIALOGUE_MECHANISM_MARKERS } from "./mechanismMarkers";
 import {
   EDITORIAL_CONTEXT_MARKERS,
@@ -1475,6 +1475,78 @@ export function parsePass3Response(
     }
   }
 
+  // ── P4: Cross-Criterion Deduplication — collapse same-lever recommendations ────────────
+  // When the same strategic_lever+granularity appears across multiple criteria, keep the
+  // recommendation on the lowest-scoring criterion (most important) and remove duplicates.
+  // The surviving rec gets `collapsed_from_criteria` listing the other criteria affected.
+  // This turns "5 variations of increase-tension" into 1 unified strategic revision.
+  {
+    type RecRef = { criterionIdx: number; recIdx: number; redundancyKey: string; score: number; criterionKey: string };
+    const allRefsForDedup: RecRef[] = [];
+    for (let ci = 0; ci < finalCriteria.length; ci++) {
+      const c = finalCriteria[ci];
+      for (let ri = 0; ri < c.recommendations.length; ri++) {
+        const r = c.recommendations[ri];
+        const family = normalizeIssueFamily(r.issue_family);
+        const lever = normalizeStrategicLever(r.strategic_lever);
+        const gran = normalizeRevisionGranularity(r.revision_granularity);
+        const key = buildRedundancyKey(family, lever, gran);
+        // Only dedup when all components are known (avoid collapsing unknowns together)
+        if (!key.includes("unknown")) {
+          allRefsForDedup.push({ criterionIdx: ci, recIdx: ri, redundancyKey: key, score: c.final_score_0_10, criterionKey: c.key });
+        }
+      }
+    }
+
+    // Group by redundancy key
+    const groups = new Map<string, RecRef[]>();
+    for (const ref of allRefsForDedup) {
+      const existing = groups.get(ref.redundancyKey) ?? [];
+      existing.push(ref);
+      groups.set(ref.redundancyKey, existing);
+    }
+
+    // For groups with >1 member: keep the one on the lowest-scoring criterion, remove others
+    // Density-floor protection: don't remove a rec if it would leave its criterion below minimum
+    const DEDUP_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
+    const removalsPerCriterion = new Map<number, number>(); // ci -> count of recs to remove
+    const removeSet = new Set<string>(); // "ci:ri" keys to remove
+    for (const [, refs] of groups) {
+      if (refs.length <= 1) continue;
+      // Sort by score ascending (lowest score = most important = keep)
+      refs.sort((a, b) => a.score - b.score || a.criterionIdx - b.criterionIdx);
+      const primary = refs[0];
+      const collapsedCriteria: string[] = [];
+      for (let i = 1; i < refs.length; i++) {
+        const ci = refs[i].criterionIdx;
+        const cScore = finalCriteria[ci].final_score_0_10;
+        if (cScore >= 9) { collapsedCriteria.push(refs[i].criterionKey); removeSet.add(`${ci}:${refs[i].recIdx}`); removalsPerCriterion.set(ci, (removalsPerCriterion.get(ci) ?? 0) + 1); continue; }
+        const bucket = cScore <= 5 ? "<=5" : cScore <= 7 ? "6-7" : "8";
+        const minRecs = DEDUP_DENSITY_FLOOR[bucket] ?? 0;
+        const currentCount = finalCriteria[ci].recommendations.length;
+        const alreadyRemoving = removalsPerCriterion.get(ci) ?? 0;
+        if (currentCount - alreadyRemoving - 1 < minRecs) continue; // protect density floor
+        removeSet.add(`${ci}:${refs[i].recIdx}`);
+        removalsPerCriterion.set(ci, alreadyRemoving + 1);
+        collapsedCriteria.push(refs[i].criterionKey);
+      }
+      // Tag the primary with the collapsed criteria
+      if (collapsedCriteria.length > 0) {
+        const rec = finalCriteria[primary.criterionIdx].recommendations[primary.recIdx];
+        rec.collapsed_from_criteria = [...(rec.collapsed_from_criteria ?? []), ...collapsedCriteria];
+      }
+    }
+
+    // Remove collapsed duplicates (iterate in reverse to preserve indices)
+    if (removeSet.size > 0) {
+      for (let ci = finalCriteria.length - 1; ci >= 0; ci--) {
+        finalCriteria[ci].recommendations = finalCriteria[ci].recommendations.filter(
+          (_, ri) => !removeSet.has(`${ci}:${ri}`),
+        );
+      }
+      console.info(`[Pass3-P4-Dedup] Collapsed ${removeSet.size} cross-criterion duplicate(s) across ${groups.size} strategic lever group(s)`);
+    }
+  }
   // ── Post-synthesis total recommendation cap: 100 for long-form (≥25k), 50 for short-form (<25k) ──
   const TOTAL_REC_CAP_LONG_FORM = 100;
   const TOTAL_REC_CAP_SHORT_FORM = 50;

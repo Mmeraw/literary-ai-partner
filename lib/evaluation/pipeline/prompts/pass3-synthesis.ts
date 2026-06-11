@@ -204,6 +204,17 @@ RULE (enforced deterministically post-synthesis — but set it correctly in outp
 
 A report with three 6-scoring criteria MUST have high-priority recommendations. "All medium" is never acceptable when scores indicate clear weakness.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CROSS-CRITERION DEDUPLICATION (P4 — STRATEGIC LEVER COLLAPSE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When the SAME editorial lever applies across multiple criteria, DO NOT repeat it as separate recommendations. Instead, place the recommendation on the WEAKEST criterion (lowest score) and let the pipeline tag it with the other criteria it also addresses.
+
+WRONG: Five separate recs across Pacing, Tension, Narrative Drive, Closure, Stakes all saying "increase urgency" / "add tension" / "raise stakes" / "sharpen dramatic question" / "strengthen propulsion."
+
+RIGHT: One precise rec on the lowest-scoring criterion: "Move the Congo reveal to page 4 and force Calvin to respond before the chapter ends — this single structural move adds dramatic pressure, sharpens the central question, creates scene-level consequence, and gives the reader a reason to turn the page."
+
+A professional editor collapses related craft directions into unified strategic revisions. If your issue_family+strategic_lever+revision_granularity would be the same across two criteria, ONLY emit the recommendation once — on the criterion with the lower score. The pipeline enforces this deterministically post-synthesis.
+
 SCORE ≤8 RECOMMENDATION CONTRACT:
 Any criterion with final_score_0_10 ≤ 8 MUST include:
 1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
