@@ -196,10 +196,15 @@ Return ONLY JSON with keys:
 - manuscript_coordinates: a location string like "chapter:3:paragraph:7" or "scene:2:beat:opening" identifying where in the text this revision targets.
 - agreement_map[]
 - divergence_map[] with arbitration_rationale
-- overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|nearly_ready|not_yet) }
+- overall { overall_score_0_100, verdict(pass|revise|fail), one_paragraph_summary<=500, one_sentence_pitch<=150, one_paragraph_pitch<=400, top_3_strengths[3], top_3_risks[3], submission_readiness(queryable_now|nearly_ready|not_yet) }
   - top_3_strengths and top_3_risks must be non-mirrored aspects.
   - never emit queryable_now when verdict=fail or when 3+ criteria are below 5.
   - one_paragraph_summary MUST name every criterion scoring <=5 by readable key.
+  - IDENTITY SEPARATION (hard requirement — three DIFFERENT jobs):
+    - one_sentence_pitch: MARKET HOOK. 1 sentence, ≤150 chars. Sells the story to an agent/reader. Names the protagonist and core dramatic situation. Written as sales copy. NO evaluation language ("the manuscript demonstrates…"). Example: "A sardonic diamond dealer's retirement trip becomes a reckoning with mortality."
+    - one_paragraph_pitch: STORY SYNOPSIS. 2–4 sentences, ≤400 chars. Tells the reader what happens. Names characters, central conflict, stakes, and tonal register. Written as back-cover copy. Must add information beyond one_sentence_pitch.
+    - one_paragraph_summary: DIAGNOSTIC JUDGMENT. What's working, what needs revision, overall posture. Contains evaluation language, score references, and revision direction. Written as editorial feedback.
+  - These three fields MUST be semantically distinct. If any two share >50% of their content, the quality gate will fail. Do NOT derive one from another.
 - enrichment { premise, trigger_warnings[], diagnosed_genre, target_audience, dominant_craft_engine }
   - dominant_craft_engine: Identify the manuscript's PRIMARY technique for generating reader engagement. Choose exactly one: "suspense_engine" (plot-driven tension, cliffhangers, reveals), "atmosphere_engine" (environmental dread, accumulating silence, sensory immersion, tonal pressure), "voice_engine" (narrator personality, humor, rhetorical style carries the reader), "emotional_engine" (character interiority, relationship dynamics, grief/joy/fear), "thematic_engine" (ideas, philosophical argument, moral complexity drives interest), "structural_engine" (timeline manipulation, POV shifts, formal innovation). Include a 1-sentence rationale. This field calibrates recommendations — an atmosphere_engine manuscript should not receive "increase plot momentum" advice.
   - premise: 1–2 sentence elevator pitch that captures the core dramatic situation — protagonist or central force, primary conflict/tension, and emotional/tonal register. Suitable for query letters, back-cover copy, or marketing. Do not begin with the title or "This is a story about."
@@ -573,7 +578,7 @@ OUTPUT BUDGET BY STATE (STRICT):
 - soft_divergence (score_delta 2-3): emit { key, final_score_0_10, final_rationale (1 sentence) }
 - hard_divergence (score_delta >= 4): emit { key, final_score_0_10, final_rationale (2 sentences), disputed=true }
 - missing_or_invalid: emit concise corrective rationale, no long prose
-- overall: verdict + overall_score_0_100 + one_paragraph_summary (max 3 sentences) + top_3_strengths + top_3_risks + submission_readiness
+- overall: verdict + overall_score_0_100 + one_paragraph_summary (max 3 sentences) + one_sentence_pitch (1 sentence, market hook) + one_paragraph_pitch (2-4 sentences, story synopsis) + top_3_strengths + top_3_risks + submission_readiness
 
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.
 Do NOT open any final_rationale with "Agreement", "Agreement sustained", "Agreement held", "Both passes", "Both evaluations", or any internal arbitration prefix. Rationale is read directly by the author — write it as craft feedback, not as a process log. Start with the craft observation (e.g. "The opening ambush establishes...", "Tonal register stays...", "Scene construction is anchored by...").

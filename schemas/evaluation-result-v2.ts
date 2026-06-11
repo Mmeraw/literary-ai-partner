@@ -176,6 +176,10 @@ export type EvaluationResultV2 = {
     overall_score_0_100: number | null;
     scored_criteria_count: number;
     one_paragraph_summary: string;
+    /** Market-facing hook — 1 sentence, ≤150 chars (P1: distinct from summary). */
+    one_sentence_pitch?: string;
+    /** Story synopsis — 2–4 sentences, ≤400 chars (P1: distinct from summary). */
+    one_paragraph_pitch?: string;
     top_3_strengths: string[];
     top_3_risks: string[];
   };

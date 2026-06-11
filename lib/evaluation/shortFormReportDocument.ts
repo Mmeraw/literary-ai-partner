@@ -326,6 +326,8 @@ export function buildShortFormEvaluationDocument(input: {
     premise: result.enrichment?.premise,
     summary: result.overview?.one_paragraph_summary,
     title: input.displayTitle,
+    one_sentence_pitch: (result.overview as Record<string, unknown> | undefined)?.one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (result.overview as Record<string, unknown> | undefined)?.one_paragraph_pitch as string | undefined,
   });
   const opportunitySummary = summarizeRevisionOpportunities(orderedCriteria);
   const topRecommendations = buildTopRecommendations(result as never, 5);
