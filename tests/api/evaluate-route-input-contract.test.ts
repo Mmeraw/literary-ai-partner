@@ -125,12 +125,10 @@ describe("POST /api/evaluate input contract", () => {
     );
   });
 
-  test("rejects short non-fiction letter submissions with a clean preflight message", async () => {
-    let evalJobsCalls = 0;
+  test("classifier is audit-only: letter-style submissions are not rejected with 422", async () => {
     const supabase = {
       from: jest.fn((table: string) => {
         if (table === "evaluation_jobs") {
-          evalJobsCalls++;
           return makeAbuseLimitStub();
         }
         return {};
@@ -151,14 +149,9 @@ describe("POST /api/evaluate input contract", () => {
     });
 
     const response = await POST(req);
-    const json = (await response.json()) as { ok: boolean; error: string; code: string };
 
-    expect(response.status).toBe(422);
-    expect(json.ok).toBe(false);
-    expect(json.code).toBe("NARRATIVE_EVALUATION_PREFLIGHT_REJECTED");
-    expect(json.error).toMatch(/letter|essay|synopsis|non-fiction/i);
-    expect(evalJobsCalls).toBe(2);
-    expect(supabase.from).toHaveBeenCalledWith("evaluation_jobs");
+    // Classifier is audit-only — must never return 422 for document type.
+    expect(response.status).not.toBe(422);
   });
 
   test("accepts text-only input and creates manuscript + evaluation job", async () => {

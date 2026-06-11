@@ -159,7 +159,7 @@ export default async function EvaluationReportPage({ params }: PageProps) {
           <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 md:grid-cols-3">
             <HeaderField label="Author Name" value={submittedAuthorName ?? "Not provided"} />
             <HeaderField label="Project Name" value={submittedProjectTitle ?? manuscriptTitle ?? "Not provided"} />
-            <HeaderField label="Report Type" value="Short-Form Evaluation" />
+            <HeaderField label="Report Type" value={wordCount && wordCount >= 25000 ? "Full-Length Evaluation" : "Short-Form Evaluation"} />
             <HeaderField label="Genre" value="Not specified" />
             <HeaderField label="Shelf" value="Not available" />
             <HeaderField label="Submitted Word Count" value={wordCount ? wordCount.toLocaleString() : "Calculating"} />

@@ -316,6 +316,7 @@ export async function POST(req: Request) {
     let resolvedManuscriptWordCount: number | null = null;
     let intakeManuscriptText = "";
     let sourceVersionId: string | null = null;
+    let narrativePreflightAudit: Record<string, unknown> = {};
 
     if (!manuscript_id && !manuscript_text) {
       logger.warn("Job creation validation failed", {
@@ -458,19 +459,11 @@ export async function POST(req: Request) {
       }
 
       const preflightDecision = routeNarrativeEvaluationPreflight(trimmedText);
-      if (!preflightDecision.allowed) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: preflightDecision.userMessage,
-            code: "NARRATIVE_EVALUATION_PREFLIGHT_REJECTED",
-            manuscript_type: preflightDecision.detectedType,
-            details: preflightDecision.details,
-            trace_id,
-          },
-          { status: 422 }
-        );
-      }
+      // Audit-only: record detected type in job progress but never block submission.
+      narrativePreflightAudit = {
+        narrative_preflight_detected_type: preflightDecision.detectedType,
+        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
+      };
 
       const encodedText = encodeURIComponent(trimmedText);
       const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
@@ -568,19 +561,11 @@ export async function POST(req: Request) {
       }
 
       const preflightDecision = routeNarrativeEvaluationPreflight(intakeManuscriptText);
-      if (!preflightDecision.allowed) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: preflightDecision.userMessage,
-            code: "NARRATIVE_EVALUATION_PREFLIGHT_REJECTED",
-            manuscript_type: preflightDecision.detectedType,
-            details: preflightDecision.details,
-            trace_id,
-          },
-          { status: 422 }
-        );
-      }
+      // Audit-only: record detected type in job progress but never block submission.
+      narrativePreflightAudit = {
+        narrative_preflight_detected_type: preflightDecision.detectedType,
+        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
+      };
 
       try {
         const sourceVersion = await createInitialVersion({
@@ -734,7 +719,7 @@ export async function POST(req: Request) {
     await seedJobIntakeProgress({
       job,
       manuscriptWordCount: resolvedManuscriptWordCount ?? immediateManuscriptWordCount,
-      instantEnrichment,
+      instantEnrichment: { ...instantEnrichment, ...narrativePreflightAudit },
       submittedAuthorName: typeof author_name === "string" && author_name.trim().length > 0 ? author_name.trim() : null,
       submittedProjectTitle: typeof manuscript_title === "string" && manuscript_title.trim().length > 0 ? manuscript_title.trim() : null,
       fastTrackPhase0: shouldFastTrackPhase0,
