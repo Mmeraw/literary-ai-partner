@@ -2885,15 +2885,22 @@ export async function failStaleRunningJobs(): Promise<{
           : {};
         const currentAttempts = (currentRow?.attempt_count as number | null) ?? 0;
         const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1a';
-        // If job is stuck in phase_1a with chunk cache but no ledger, rescue back
-        // to phase_1a so the runner can rebuild the ledger from cache (zero OpenAI calls).
-        // All other cases rescue to phase_2.
+        // Phase-aware rescue targeting:
+        //   - phase_1a + chunk cache, no ledger → phase_1a (rebuild ledger from cache, zero OpenAI)
+        //   - phase_3 + handoff artifact → phase_3 (don't regress to phase_2)
+        //   - handoff present + phase_2 or later → phase_3 (skip re-running Phase 2)
+        //   - everything else → phase_2
         const hasLedgerForStaleJob  = staleLedgerJobIds.has(id);
         const hasCacheForStaleJob   = staleChunkCacheJobIds.has(id);
+        const hasHandoffForStaleJob = staleHandoffJobIds.has(id);
         const rescueTargetPhase =
           (currentPhaseForRescue === 'phase_1a' && hasCacheForStaleJob && !hasLedgerForStaleJob)
             ? 'phase_1a'
-            : 'phase_2';
+            : (currentPhaseForRescue === 'phase_3' && hasHandoffForStaleJob)
+              ? 'phase_3'
+              : (hasHandoffForStaleJob && currentPhaseForRescue !== 'phase_1a')
+                ? 'phase_3'
+                : 'phase_2';
 
         const { error: rescueErr } = await supabase
           .from('evaluation_jobs')

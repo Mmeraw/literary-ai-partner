@@ -107,6 +107,7 @@ export function useFailedJobRecovery(
   const [resumeLoading, setResumeLoading] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [resumed, setResumed] = useState(false);
+  const [autoResumeAttempted, setAutoResumeAttempted] = useState(false);
 
   useEffect(() => {
     if (jobStatus !== "failed" || checkpoint.checked) return;
@@ -146,6 +147,26 @@ export function useFailedJobRecovery(
       setResumeLoading(false);
     }
   }, [jobId, onResumed]);
+
+  // Auto-resume: when a recoverable checkpoint exists, automatically trigger
+  // resume without requiring user to click "Continue". Only attempt once per
+  // mount to avoid infinite retry loops — if auto-resume fails, the manual
+  // button remains available as fallback.
+  useEffect(() => {
+    if (
+      jobStatus !== "failed" ||
+      !checkpoint.checked ||
+      autoResumeAttempted ||
+      resumed ||
+      resumeLoading
+    ) return;
+    // Only auto-resume when there's a real checkpoint (handoff or chunk cache).
+    // full_restart mode requires operator judgment — don't auto-fire it.
+    if (checkpoint.hasCheckpoint || checkpoint.hasPhase2Handoff) {
+      setAutoResumeAttempted(true);
+      void handleResume();
+    }
+  }, [jobStatus, checkpoint, autoResumeAttempted, resumed, resumeLoading, handleResume]);
 
   return { checkpoint, resumeLoading, resumeError, resumed, handleResume };
 }
@@ -202,12 +223,27 @@ export function FailedJobRecovery({
   }
 
   if (!showOperationalDetails) {
+    // Auto-recovery in progress — show a reassuring spinner instead of
+    // the manual "Continue" button. Falls back to the manual UI if the
+    // auto-resume request fails.
+    if (resumeLoading && !resumeError) {
+      return (
+        <div className="space-y-4 rounded-lg border border-blue-200 bg-blue-50 p-5">
+          <div className="flex items-center gap-3">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-blue-700" />
+            <p className="text-sm font-medium text-blue-800">
+              Automatically recovering from last checkpoint — please wait…
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50 p-5">
         <p className="text-sm text-amber-800">
-          This issue may be recoverable. Continue will ask RevisionGrade to resume from the last
-          known safe checkpoint. You do not need to upload your writing again unless the
-          problem continues.
+          {resumeError
+            ? "Auto-recovery was unsuccessful. You can try continuing manually or start a new evaluation."
+            : "This issue may be recoverable. Continue will ask RevisionGrade to resume from the last known safe checkpoint. You do not need to upload your writing again unless the problem continues."}
         </p>
         <div className="flex flex-wrap gap-2">
           <button
