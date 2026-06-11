@@ -155,7 +155,7 @@ Empty state handling:
 
 `Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> [WAVE -> Canon Governance -> DREAM -> Final External Audit] -> Phase 5 Author Exposure Gate -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
 
-Post-evaluation stages (in brackets) are long-form only (≥25K words). Short-form manuscripts skip directly from Persistence to Renderer.
+Post-evaluation stages (in brackets) are long-form only (≥25K words). Short-form manuscripts proceed Persistence → Phase 5 Author Exposure Gate → Renderer, skipping the bracketed long-form stages.
 
 **Highest-risk seam (explicit):**
 

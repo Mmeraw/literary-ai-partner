@@ -178,7 +178,7 @@ export const AUTHORITY_SOURCE_REGISTRY: AuthoritySourceRegistryEntry[] = [
     runtimeBinding: 'calibration',
     surfacedInSipocUi: true,
     executionUse: 'Gold-standard benchmark family for DREAM / long-form multi-layer report quality and governed-ledger expectations.',
-    notes: 'Native benchmark bodies plus V2 addenda define current DREAM benchmark contract.',
+    notes: 'Merged native benchmark bodies define the current DREAM benchmark contract. Former addenda are fully incorporated into the merged files and are no longer active authority sources.',
   },
   {
     authorityId: 'BENCHMARK_CHARTER_THREE_TRUTH_CASES',
@@ -955,7 +955,7 @@ export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
     reviseHandoff: true,
     certificationStatus: 'missing_critical',
     fitGapStatus: 'critical',
-    notes: 'Planned required gate for PR #1114; registry captures the missing stage explicitly.',
+    notes: 'Planned required gate; registry captures the missing stage explicitly. Long-form-only inputs (final_external_audit_v1, gate_15_audit_v1, dialogue_canon_audit_v1, wave_revision_plan_v1, longform_document_v1) are required only when applicable by evaluation mode.',
   },
   {
     sequence: 230,
@@ -1323,7 +1323,7 @@ export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
   {
     artifact: 'evaluation_result_v2',
     producerStageId: 'S08_ER2_NORMALIZATION',
-    consumerStageIds: ['S09_QUALITYGATEV2', 'S11a_RENDERER_WEBPAGE', 'S11b_DOWNLOAD_PIPELINE', 'ADJACENT_WAVE', 'ADJACENT_DREAM', 'ADJACENT_REVISION_LEDGER', 'S10b_PHASE5_AUTHOR_EXPOSURE_GATE'],
+    consumerStageIds: ['S09_QUALITYGATEV2', 'ADJACENT_WAVE', 'ADJACENT_DREAM', 'ADJACENT_REVISION_LEDGER', 'S10b_PHASE5_AUTHOR_EXPOSURE_GATE'],
     requiredFields: ['schema_version', 'overview', 'criteria', 'metrics', 'enrichment'],
     completenessMetric: '13 canonical criteria and required overview fields populated',
     accuracyMetric: 'single source of truth for score, genre, confidence, criteria, entity names',
