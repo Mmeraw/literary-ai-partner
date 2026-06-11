@@ -145,7 +145,10 @@ describe("prompt pack governance specs", () => {
     // P2: SPECIFICITY DEPTH section must be present
     expect(PASS3_SYSTEM_PROMPT).toContain("SPECIFICITY DEPTH");
     expect(PASS3_SYSTEM_PROMPT).toContain("WHAT MAKES A RECOMMENDATION SPECIFIC");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(26000);
+    // P3: PRIORITY HIERARCHY section must be present
+    expect(PASS3_SYSTEM_PROMPT).toContain("PRIORITY HIERARCHY");
+    expect(PASS3_SYSTEM_PROMPT).toContain("Score ≤6");
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(27000);
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",
