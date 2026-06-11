@@ -31,6 +31,14 @@ const adminCards = [
     priority: "Operations",
   },
   {
+    title: "Revise Workbench Forensics",
+    href: "/admin/revise-forensics",
+    eyebrow: "Internal audit · source proof",
+    description:
+      "Inspect revision_opportunity_ledger_v1 source manifests, field ownership proof, legacy fallback status, withheld reasons, needs-targeting reasons, anchor grounding, and candidate ownership.",
+    priority: "Forensics",
+  },
+  {
     title: "Rejected Revise Analytics",
     href: "/admin/analytics/rejected-revise-candidates",
     eyebrow: "Telemetry aggregates only",
