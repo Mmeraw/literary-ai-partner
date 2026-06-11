@@ -45,6 +45,26 @@ Primary runtime surfaces are read from:
 - `lib/evaluation/pipeline/finalExternalAudit.ts`
 - `app/api/workers/process-dream/route.ts`
 
+### Authority Source Registries
+
+The following governance families are runtime-relevant authority sources and must surface in SIPOC UI, forensic views, registry exports, and execution planning. They are not background references.
+
+- **Evaluation templates:** `docs/templates/evaluation/short-form-evaluation-template.md`, `docs/templates/evaluation/long-form-evaluation-template.md`, `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`
+- **Rendering contract:** `docs/templates/evaluation/evaluation-rendering-contract.md`
+- **Governance specifications:** `docs/governance/DREAM_OUTPUT_SPEC.md`, `docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md`, `docs/governance/DREAM_STATE_LONGFORM_CANON.md`, `docs/governance/seed-phase-template-alignment-contract.md`, `docs/governance/phase-2-calibration-template.md`
+- **Benchmark authorities:** `docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md`, `docs/canon/registered/control/BENCHMARK-CHARTER.md`
+- **Canon authorities:** `docs/GOLDEN_SPINE.md`, `docs/canon/intake/_md/Normalized Gold Standard CANONICAL ACCEPTANCE COMPARATOR v1.md`
+- **DREAM / GOLD format templates:** `docs/benchmarks/templates/dream-longform-layered-template.md`
+- **GOLD standards and exemplars:** `docs/VERIFICATION_GOLD_STANDARD.md`, `docs/gold-standards/recommendation-integrity-dream-standard.md`, `docs/gold-standards/revise-queue-rendering-exemplars.md`, `docs/gold-standards/sister-revise-queue-dream-ledger.md`
+- **Reference matrices and executable registries:** `docs/templates/evaluation/surface-parity-matrix.md`, `lib/evaluation/fipocRegistry.ts`
+
+Executable mirror:
+
+- `lib/evaluation/fipocRegistry.ts` exports `AUTHORITY_SOURCE_REGISTRY`.
+- `docs/registries/authority_source_registry.csv` is the spreadsheet-reviewable mirror.
+
+Each authority source must declare which stage IDs and artifacts it governs so SIPOC UI can show *why* a stage is blocked, degraded, calibrated, or template-bound.
+
 ### Telemetry
 
 Primary required telemetry surfaces:
@@ -120,7 +140,7 @@ Empty state handling:
 11. No malformed, garbled, or generic recommendation may reach the author. Every LLM-generated text must pass a prose-quality gate before advancing to the next pipeline stage.
 12. Evidence ownership boundary: manuscript quotations (`anchor_snippet`, `evidence_snippets[*].snippet`) are author-owned and must never be sanitized, rewritten, or mutated by any pipeline stage. Only RG-generated editorial text (summaries, rationale, recommendations, quick wins, strategic revisions) may be sanitized.
 13. Every LLM output point must have a deterministic prose-quality gate before its output advances downstream. Gates that check only structure or length are insufficient — sentence completeness and scaffold-residue detection are required.
-14. All renderers (webpage, PDF, DOCX, TXT, DREAM) must consume ONLY `evaluation_result_v2` for scores, genre, criteria, confidence, and entity names. No renderer may recalculate, re-synthesize, or pull from alternate artifact sources. One canonical view model → all surfaces.
+14. All renderers (webpage, PDF, DOCX, TXT, DREAM) must consume the active evaluation template through `UnifiedEvaluationDocument`. `evaluation_result_v2` remains the canonical evaluation artifact for scores, genre, criteria, confidence, and entity names; templates remain the product authority for author-facing report shape. No renderer may recalculate, re-synthesize, reorder, suppress, or pull from alternate artifact sources. One canonical template-backed view model → all surfaces.
 15. Gates that detect defects must enforce consequences. Detection without enforcement is a defect in itself — report shipment after a FAIL verdict is a pipeline integrity violation.
 16. Story ledger canonical entity names are ground truth. Any LLM output (including DREAM synthesis) using non-canonical names or blocked words (BLOCKED_CANONICAL_NAMES set) as character names is a contamination defect.
 17. Post-evaluation stages (WAVE, Canon Governance, DREAM, Final Audit) must execute in strict temporal order. Final audit must run AFTER all upstream artifacts are persisted — audit of incomplete state produces false verdicts.
@@ -129,13 +149,13 @@ Empty state handling:
 
 ### Full Evaluation Pipeline (including seeding + post-evaluation long-form stages)
 
-`Phase 0 Warmup -> Phase 0.5A Story Map Seed -> Phase 0.5B Revise Opportunity Seed -> Seed Completeness Gate -> Intake -> Queue -> Claim -> Routing/Chunking -> Phase 1A (Pass 1 extraction) -> Story Layer Quality Gate -> Review Gate -> Phase 2 (Pass 2 craft diagnosis) -> Phase 3 (Pass 3 synthesis) -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> WAVE Revision Planning -> Canon Governance Runner (Gate 15 + Golden Spine + Dialogue Canon) -> DREAM Long-Form Synthesis -> Final External Audit -> Renderer -> Revision Opportunity Ledger -> Revise Queue`
+`Phase 0 Warmup -> Phase 0.5A Story Map Seed -> Phase 0.5B Revise Opportunity Seed -> Seed Completeness Gate -> Intake -> Queue -> Claim -> Routing/Chunking -> Phase 1A (Pass 1 extraction) -> Story Layer Quality Gate -> Review Gate -> Phase 2 (Pass 2 craft diagnosis) -> Phase 3 (Pass 3 synthesis) -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> WAVE Revision Planning -> Canon Governance Runner (Gate 15 + Golden Spine + Dialogue Canon) -> DREAM Long-Form Synthesis -> Final External Audit -> Phase 5 Author Exposure Gate -> Renderer -> Revision Opportunity Ledger -> Revise Queue`
 
 ### Runtime Spine (S01–S12) + Post-Evaluation Long-Form Stages
 
-`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> [WAVE -> Canon Governance -> DREAM -> Final External Audit] -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
+`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> [WAVE -> Canon Governance -> DREAM -> Final External Audit] -> Phase 5 Author Exposure Gate -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
 
-Post-evaluation stages (in brackets) are long-form only (≥25K words). Short-form manuscripts skip directly from Persistence to Renderer.
+Post-evaluation stages (in brackets) are long-form only (≥25K words). Short-form manuscripts proceed Persistence → Phase 5 Author Exposure Gate → Renderer, skipping the bracketed long-form stages.
 
 **Highest-risk seam (explicit):**
 
@@ -191,8 +211,9 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 | Pass 3 | `S07_PASS3` | Pipeline orchestrator + synthesis runner | `S08_ER2_NORMALIZATION` | High-risk |
 | EvaluationResultV2 normalization | `S08_ER2_NORMALIZATION` | Pipeline adapter / observability normalization | `S09_QUALITYGATEV2` | High-risk |
 | QualityGateV2 | `S09_QUALITYGATEV2` | Deterministic gate engine | `S10_PERSISTENCE` | Partial |
-| Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S11a_RENDERER_WEBPAGE` | Partial |
-| Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | API read path + React UI | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Partial |
+| Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Partial |
+| Phase 5 Author Exposure Gate | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Evaluation templates + `UnifiedEvaluationDocument` + renderer manifest + audits | `S11a_RENDERER_WEBPAGE`, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISION_LEDGER` | Missing Critical |
+| Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | Phase 5-certified `UnifiedEvaluationDocument` | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Partial |
 | Download Pipeline | `S11b_DOWNLOAD_PIPELINE` | Read-time sanitizer + parity gate + format renderers (PDF/DOCX/TXT) | End user (downloaded files) | Emerging |
 | WAVE Revision Planning | `ADJACENT_WAVE` | Pass 3 synthesis + evaluation_result_v2 | Canon Governance, DREAM, Revise | Active — Partial |
 | Canon Governance Runner | `ADJACENT_CANON_GOVERNANCE` | Manuscript + evaluation_result_v2 criteria | DREAM, Final Audit | Active — Partial |
@@ -223,6 +244,7 @@ The following stage IDs are canonical runtime certification identifiers and are 
 - `S08_ER2_NORMALIZATION`
 - `S09_QUALITYGATEV2`
 - `S10_PERSISTENCE`
+- `S10b_PHASE5_AUTHOR_EXPOSURE_GATE`
 - `S11a_RENDERER_WEBPAGE`
 - `S11b_DOWNLOAD_PIPELINE`
 
@@ -737,7 +759,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Output acceptance metrics:**
   - artifact ID returned
   - terminal status written canonically
-- **Customer / downstream stage:** `S11a_RENDERER_WEBPAGE`
+- **Customer / downstream stage:** `S10b_PHASE5_AUTHOR_EXPOSURE_GATE`
 - **Gates / invariants:** no artifact persists after failed deterministic gate
 - **Failure codes:** `EVALUATION_ARTIFACT_VALIDATION_FAILED`, `EVALUATION_GATE_REJECTED`
 - **Required telemetry:** persistence gate trace + confidence derivation + reason codes
@@ -748,10 +770,40 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Partial
 
+### `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` — Phase 5 Author Exposure Gate
+
+- **Supplier:** Persisted `evaluation_result_v2`, active evaluation template contract, long-form audits where applicable, and renderer parity diagnostics
+- **Input:** `evaluation_result_v2` + `evaluation_template_contract_v1` + active template path + final audit / Gate 15 / Dialogue Canon / WAVE / DREAM artifacts where applicable
+- **Input acceptance metrics:**
+  - active template mode and path known
+  - one of the three evaluation templates selected explicitly
+  - `UnifiedEvaluationDocument` can be built from canonical artifacts
+  - required Title Block fields and confidence labels present
+  - WAVE / Gate 15 / Dialogue Canon / Final External Audit blocking defects resolved or explicitly certified nonblocking
+- **Process / runtime code surface:**
+  - `lib/evaluation/unifiedEvaluationDocument.ts`
+  - `lib/evaluation/reportHeaderPolicy.ts`
+  - planned: `lib/evaluation/authorExposureCertification.ts`
+- **Output:** `unified_evaluation_document_v1` + `author_exposure_certification_v1` + `report_render_manifest_v1`
+- **Output acceptance metrics:**
+  - active template path persisted in the render manifest
+  - `UnifiedEvaluationDocument` hash captured
+  - author exposure decision is `certified` before web/PDF/DOCX/TXT/print exposure
+  - renderer parity diagnostics pass for every registered field
+  - `revision_opportunity_ledger_v1` handoff requirement recorded for Revise
+- **Customer / downstream stage:** `S11a_RENDERER_WEBPAGE`, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISION_LEDGER`
+- **Gates / invariants:** Templates are the product authority. `UnifiedEvaluationDocument` is the mandatory renderer adapter. Renderer violations block release / author exposure; they are not advisory warnings.
+- **Failure codes:** `PHASE5_TEMPLATE_CONTRACT_FAIL`, `PHASE5_RENDER_PARITY_FAIL`, `PHASE5_BANNED_ENTITY`, `PHASE5_SCORE_DRIFT`, `PHASE5_MISSING_AUDIT`, `PHASE5_UNCERTIFIED_OUTPUT`
+- **Required telemetry:** template selected, certification decision, blocking reason list, renderer parity result, unified document hash
+- **Required evidence artifact:** `author_exposure_certification_v1`, `report_render_manifest_v1`, `unified_evaluation_document_v1`
+- **Authority sources:** three evaluation templates, evaluation rendering contract, DREAM long-form specs, DREAM benchmark index, GOLD standard recommendation/exemplar docs
+- **Authority priority:** Evaluation Templates > SIPOC > Spec > Runtime > Telemetry
+- **Certification status:** Missing Critical
+
 ### `S11a_RENDERER_WEBPAGE` — Renderer (Webpage)
 
-- **Supplier:** persisted artifacts and releasable job state
-- **Input:** completed/releasable job + artifact retrieval
+- **Supplier:** Phase 5-certified `UnifiedEvaluationDocument`
+- **Input:** `author_exposure_certification_v1` + `report_render_manifest_v1` + `unified_evaluation_document_v1`
 - **Input acceptance metrics:**
   - ownership/auth check passes
   - release gate passes
@@ -759,14 +811,14 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
   - `app/api/evaluations/[jobId]/route.ts`
   - `app/evaluate/[jobId]/page.tsx`
   - `app/reports/[jobId]/page.tsx`
-  - `lib/evaluation/buildUnifiedEvaluationDocument.ts`
+  - `lib/evaluation/unifiedEvaluationDocument.ts`
 - **Output:** user/admin visible evaluation webpage
 - **Output acceptance metrics:**
-  - source identified as artifact or inline fallback
+  - source identified as Phase 5-certified `UnifiedEvaluationDocument`
   - no fabricated progress
-  - scores, recommendations, and sections match canonical artifact
+  - scores, recommendations, and sections match the active evaluation template and render manifest
 - **Customer / downstream stage:** End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE`
-- **Gates / invariants:** UI/API reads persisted state only. Webpage must consume the same `UnifiedEvaluationDocument` model as downloads.
+- **Gates / invariants:** UI/API reads persisted state only. Webpage must consume the same `UnifiedEvaluationDocument` model as downloads and may format only.
 - **Failure codes:** `401`, `404`, `409`, `500`
 - **Required telemetry:** read path access and release decision events
 - **Required evidence artifact:** response payload audit + source marker
@@ -786,7 +838,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Process / runtime code surface:**
   - `lib/evaluation/downloadReadTimeSanitizer.ts` (read-time sanitization of RG-generated editorial text)
   - `lib/evaluation/downloadParityGate.ts` (post-sanitization parity validation)
-  - `lib/evaluation/buildUnifiedEvaluationDocument.ts` (canonical render model)
+  - `lib/evaluation/unifiedEvaluationDocument.ts` (canonical renderer adapter)
   - `app/api/evaluations/[jobId]/route.ts` (format-specific renderers: `buildCanonicalTemplateTxt`, `renderCanonicalTemplateHtml` → PDF, `buildCanonicalTemplateDocx`)
 - **Output:** PDF, DOCX, or TXT file delivered to the user
 - **Output acceptance metrics:**
@@ -794,7 +846,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
   - Parity gate passes: post-sanitization output preserves data integrity
   - **Evidence ownership preserved:** `anchor_snippet` and `evidence_snippets[*].snippet` are byte-for-byte identical to source (Runtime Doctrine #12)
   - Format-specific renderer completes without error
-  - Output sections match webpage: same overall score, same criteria scores, same recommendation count, same executive summary
+  - Output sections match webpage: same report type, overall score, confidence labels, market readiness, criteria scores, recommendation counts, executive summary, and active template order
 - **Customer / downstream stage:** End user (downloaded file)
 - **Gates / invariants:**
   - Read-time sanitizer must NOT mutate manuscript evidence or quotations (author-owned content)
@@ -836,7 +888,9 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 | Score-10 recommendation suppression | criteria with score 10/10 must have 0 recommendations (or at most 1 "Consider" tier) | ADJACENT_DREAM, S11a |
 | Final audit temporal ordering | Final external audit must run AFTER DREAM persistence, not before or concurrently | ADJACENT_FINAL_EXTERNAL_AUDIT |
 | Final audit required artifact list | Only `evaluation_result_v2` + `longform_document_v1` are hard-required; `revision_opportunity_ledger_v1` is Revise-phase only | ADJACENT_FINAL_EXTERNAL_AUDIT |
-| Cross-medium single source of truth | All renderers (webpage, PDF, DOCX, TXT) must consume ONLY `evaluation_result_v2` for scores, genre, criteria, confidence | S11a, S11b, ADJACENT_DREAM |
+| Cross-medium template-backed source of truth | All renderers (webpage, PDF, DOCX, TXT) must consume Phase 5-certified `UnifiedEvaluationDocument`; `evaluation_result_v2` remains canonical artifact input, but templates govern author-facing report shape | S10b, S11a, S11b, ADJACENT_DREAM |
+| Authority source surfacing | Canon, governance, reference, benchmark, template, DREAM, GOLD standard, exemplar, SIPOC, and registry authority docs must appear in executable registry and SIPOC UI | ADJACENT_PHASE_0, ADJACENT_DREAM, S10b, S11a, S11b, ADJACENT_REVISION_LEDGER, ADJACENT_REVISE |
+| Phase 5 template contract | Active template path, `UnifiedEvaluationDocument` hash, renderer parity, and author exposure decision must be certified before release | S10b |
 | Recommendation prose quality | every author-facing recommendation has: complete sentences, evidence anchor, actionable specificity | S06b, S07 |
 | Handoff prose completeness | Pass 1/2 output contains no scaffold residue, broken modals, or generic language before reaching synthesis | S06b |
 | Gate-failure telemetry coverage | all gate failures emit required diagnostics | S09–S10 |

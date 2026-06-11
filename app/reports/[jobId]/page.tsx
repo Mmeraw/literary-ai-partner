@@ -18,7 +18,12 @@ import {
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
 import {
-  getDisplayDateTime,
+  buildUnifiedEvaluationDocument,
+  type CanonicalEvaluationMode,
+  type UnifiedEvaluationDocument,
+} from '@/lib/evaluation/unifiedEvaluationDocument';
+import { isGenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
+import {
   getDisplayDreamList,
   getDisplayDreamMarketField,
   getDisplayDreamMarketList,
@@ -35,7 +40,6 @@ import {
   correctScopeLanguage,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
-import { buildReportPitches } from '@/lib/evaluation/reportTemplateContract';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
@@ -68,6 +72,7 @@ type EvaluationReportContext = {
   result: EvaluationResultV1 | EvaluationResultV2;
   manuscriptTitle: string | null;
   manuscriptId: number | null;
+  progress: unknown;
 };
 
 type ReportSearchParams = {
@@ -121,6 +126,7 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
       evaluation_result,
       status,
       validity_status,
+      progress,
       manuscript_id,
       manuscripts!inner(user_id,title)
     `)
@@ -144,6 +150,7 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     result,
     manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
     manuscriptId: typeof rawManuscriptId === 'number' ? rawManuscriptId : null,
+    progress: (job as { progress?: unknown }).progress ?? null,
   };
 }
 
@@ -158,6 +165,7 @@ async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationR
       evaluation_result,
       status,
       validity_status,
+      progress,
       manuscript_id,
       manuscripts(title)
     `)
@@ -180,6 +188,7 @@ async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationR
     result,
     manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
     manuscriptId: typeof rawManuscriptId === 'number' ? rawManuscriptId : null,
+    progress: (job as { progress?: unknown }).progress ?? null,
   };
 }
 
@@ -206,6 +215,101 @@ async function getDreamArtifact(jobId: string): Promise<LongformDreamDocument | 
   if (!content?.longform_document || typeof content.longform_document !== 'object') return null;
 
   return content.longform_document as LongformDreamDocument;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function normalizeCanonicalMode(raw: unknown, wordCount: number | null): CanonicalEvaluationMode {
+  if (raw === 'short_form_evaluation' || raw === 'long_form_evaluation' || raw === 'long_form_multi_layer_evaluation') {
+    return raw;
+  }
+  if (typeof wordCount === 'number' && wordCount >= 25000) return 'long_form_evaluation';
+  return 'short_form_evaluation';
+}
+
+async function loadCanonicalEvaluationMode(
+  jobId: string,
+  rawResult: unknown,
+  progress: unknown,
+  wordCount: number | null,
+): Promise<CanonicalEvaluationMode> {
+  const resultRecord = asRecord(rawResult);
+  const metadataRecord = asRecord(resultRecord?.metadata);
+  const progressRecord = asRecord(progress);
+
+  const direct = normalizeCanonicalMode(resultRecord?.evaluation_mode, null);
+  if (direct !== 'short_form_evaluation' || resultRecord?.evaluation_mode === 'short_form_evaluation') return direct;
+
+  const metadataMode = normalizeCanonicalMode(metadataRecord?.evaluation_mode, null);
+  if (metadataMode !== 'short_form_evaluation' || metadataRecord?.evaluation_mode === 'short_form_evaluation') return metadataMode;
+
+  const progressMode = normalizeCanonicalMode(progressRecord?.evaluation_mode, null);
+  if (progressMode !== 'short_form_evaluation' || progressRecord?.evaluation_mode === 'short_form_evaluation') return progressMode;
+
+  const admin = createAdminClient();
+  const { data: seed } = await admin
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'evaluation_seed_v1')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const seedContent = asRecord((seed as { content?: unknown } | null)?.content);
+  return normalizeCanonicalMode(seedContent?.scope_mode, wordCount);
+}
+
+type WebpageEnrichmentData = EvaluationResultV2['enrichment'] | null;
+
+function buildWebpageUnifiedDocument(input: {
+  mode: CanonicalEvaluationMode;
+  result: EvaluationResultV1 | EvaluationResultV2;
+  displayTitle: string;
+  enrichment: WebpageEnrichmentData;
+  dream: LongformDreamDocument | null;
+}): UnifiedEvaluationDocument {
+  const genreExpectationContext = (input.result as {
+    governance?: { transparency?: { genre_expectation_context?: unknown } };
+  }).governance?.transparency?.genre_expectation_context;
+
+  return buildUnifiedEvaluationDocument({
+    mode: input.mode,
+    result: {
+      generated_at: typeof input.result.generated_at === 'string' ? input.result.generated_at : undefined,
+      overview: {
+        overall_score_0_100: input.result.overview?.overall_score_0_100,
+        verdict: input.result.overview?.verdict,
+        one_paragraph_summary: input.result.overview?.one_paragraph_summary,
+        top_3_strengths: input.result.overview?.top_3_strengths,
+        top_3_risks: input.result.overview?.top_3_risks,
+      },
+      metrics: {
+        manuscript: {
+          title: input.displayTitle,
+          word_count: input.result.metrics?.manuscript?.word_count,
+          genre: input.enrichment?.diagnosed_genre ?? input.result.metrics?.manuscript?.genre,
+          target_audience: input.enrichment?.target_audience ?? input.result.metrics?.manuscript?.target_audience,
+        },
+      },
+      enrichment: {
+        premise: input.enrichment?.premise,
+        trigger_warnings: input.enrichment?.trigger_warnings,
+        reading_grade_level: input.enrichment?.reading_grade_level,
+        dialogue_percentage: input.enrichment?.dialogue_percentage,
+        narrative_percentage: input.enrichment?.narrative_percentage,
+      },
+      governance: isGenreExpectationMetadata(genreExpectationContext)
+        ? { transparency: { genre_expectation_context: genreExpectationContext } }
+        : undefined,
+      criteria: input.result.criteria,
+      recommendations: input.result.recommendations,
+    },
+    displayTitle: input.displayTitle,
+    dream: input.dream,
+  });
 }
 
 async function getCurrentUserId(): Promise<string | null> {
@@ -274,7 +378,7 @@ export default async function ReportPage({
     notFound();
   }
 
-  const { result: resultRaw, manuscriptTitle, manuscriptId } = report;
+  const { result: resultRaw, manuscriptTitle, manuscriptId, progress } = report;
   // Cast to V1 for rendering — V2 is a structural superset; both share
   // governance / engine / metrics / criteria / generated_at top-level shape.
   // The report renderer was written against V1 field names which are present in V2.
@@ -286,6 +390,20 @@ export default async function ReportPage({
   const wordCount = result.metrics?.manuscript?.word_count ?? 0;
   const isLongForm = wordCount >= 25000;
   const dreamDoc = isLongForm ? await getDreamArtifact(params.jobId) : null;
+  const enrichment = isEvaluationResultV2(resultRaw) ? (resultRaw as EvaluationResultV2).enrichment ?? null : null;
+  const evaluationMode = await loadCanonicalEvaluationMode(
+    params.jobId,
+    resultRaw,
+    progress,
+    typeof wordCount === 'number' && wordCount > 0 ? wordCount : null,
+  );
+  const canonicalDoc = buildWebpageUnifiedDocument({
+    mode: evaluationMode,
+    result: resultRaw,
+    displayTitle,
+    enrichment,
+    dream: dreamDoc,
+  });
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");
@@ -405,7 +523,7 @@ export default async function ReportPage({
                 <p className="text-sm text-gray-600">{manuscriptTitle}</p>
               )}
               <p className="mt-1 text-sm text-gray-500">
-                Generated {getDisplayDateTime(result.generated_at, "Unknown")}
+                Generated {canonicalDoc.titleBlock.dateGenerated}
               </p>
               <p className="mt-1 text-sm text-gray-500">
                 <span className="font-medium text-gray-700">Reference ID:</span>{' '}
@@ -432,33 +550,23 @@ export default async function ReportPage({
             </div>
           </div>
           {/* Title Block metadata grid (template-mandated fields) */}
-          {(() => {
-            const overallScore = overview.overall_score_0_100;
-            const marketReadiness = typeof overallScore === 'number' && Number.isFinite(overallScore)
-              ? (overallScore >= 90 ? 'Market Ready' : overallScore >= 80 ? 'Near Market Ready' : 'Not Market Ready')
-              : 'Review';
-            const genre = result.metrics?.manuscript?.genre || 'Not specified';
-            const v2Enrichment = isEvaluationResultV2(resultRaw) ? (resultRaw as EvaluationResultV2).enrichment : null;
-            const targetAudience = v2Enrichment?.target_audience || result.metrics?.manuscript?.target_audience || 'Not available';
-            const submittedWordCount = result.metrics?.manuscript?.word_count;
-            const estimatedPages = submittedWordCount ? Math.floor(submittedWordCount / 250) : null;
-            const rgl = v2Enrichment?.reading_grade_level;
-            const dialoguePct = v2Enrichment?.dialogue_percentage;
-            const narrativePct = v2Enrichment?.narrative_percentage ?? (dialoguePct != null ? 100 - dialoguePct : null);
-            return (
-              <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm border-t border-gray-200 pt-4">
-                <div><dt className="text-gray-500">Report Type</dt><dd className="font-medium text-gray-900">Short-Form Evaluation</dd></div>
-                <div><dt className="text-gray-500">Overall Score</dt><dd className="font-medium text-gray-900">{overallScore}/100</dd></div>
-                <div><dt className="text-gray-500">Market Readiness</dt><dd className="font-medium text-gray-900">{marketReadiness}</dd></div>
-                <div><dt className="text-gray-500">Genre</dt><dd className="font-medium text-gray-900">{genre}</dd></div>
-                <div><dt className="text-gray-500">Target Audience</dt><dd className="font-medium text-gray-900">{targetAudience}</dd></div>
-                {submittedWordCount ? <div><dt className="text-gray-500">Submitted Word Count</dt><dd className="font-medium text-gray-900">{submittedWordCount.toLocaleString()}</dd></div> : null}
-                {estimatedPages ? <div><dt className="text-gray-500">Estimated Pages</dt><dd className="font-medium text-gray-900">{estimatedPages.toLocaleString()} at 250 words/page</dd></div> : null}
-                {rgl != null ? <div><dt className="text-gray-500">Reading Grade Level</dt><dd className="font-medium text-gray-900">{Math.floor(Number(rgl))} (Flesch-Kincaid)</dd></div> : null}
-                {dialoguePct != null ? <div><dt className="text-gray-500">Dialogue/Narrative Ratio</dt><dd className="font-medium text-gray-900">{Math.floor(Number(dialoguePct))}% / {narrativePct != null ? Math.floor(Number(narrativePct)) : '—'}%</dd></div> : null}
-              </dl>
-            );
-          })()}
+          <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm border-t border-gray-200 pt-4">
+            <div><dt className="text-gray-500">Report Type</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.reportType}</dd></div>
+            <div><dt className="text-gray-500">Overall Score</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.overallScoreLabel}</dd></div>
+            {canonicalDoc.titleBlock.overallScoreConfidenceLabel ? <div><dt className="text-gray-500">Overall Score Confidence</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.overallScoreConfidenceLabel}</dd></div> : null}
+            <div><dt className="text-gray-500">Market Readiness</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.marketReadiness}</dd></div>
+            {canonicalDoc.titleBlock.marketReadinessConfidenceLabel ? <div><dt className="text-gray-500">Market Readiness Confidence</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.marketReadinessConfidenceLabel}</dd></div> : null}
+            <div><dt className="text-gray-500">Genre</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.genre}</dd></div>
+            {canonicalDoc.titleBlock.genreConfidenceLabel ? <div><dt className="text-gray-500">Genre Confidence</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.genreConfidenceLabel}</dd></div> : null}
+            <div><dt className="text-gray-500">Target Audience</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.audienceTentative ? 'Tentative: ' : ''}{canonicalDoc.titleBlock.targetAudience}</dd></div>
+            <div><dt className="text-gray-500">Target Audience Confidence</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.audienceConfidenceLabel}</dd></div>
+            {canonicalDoc.titleBlock.shelf ? <div><dt className="text-gray-500">Shelf</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.shelf}</dd></div> : null}
+            {canonicalDoc.titleBlock.shelfConfidenceLabel ? <div><dt className="text-gray-500">Shelf Confidence</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.shelfConfidenceLabel}</dd></div> : null}
+            {canonicalDoc.titleBlock.submittedWordCount !== 'Not available' ? <div><dt className="text-gray-500">Submitted Word Count</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.submittedWordCount}</dd></div> : null}
+            {canonicalDoc.titleBlock.estimatedPages !== 'Not available' ? <div><dt className="text-gray-500">Estimated Pages</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.estimatedPages}</dd></div> : null}
+            {canonicalDoc.titleBlock.readingGradeLevel !== 'Not available' ? <div><dt className="text-gray-500">Reading Grade Level</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.readingGradeLevel}</dd></div> : null}
+            {canonicalDoc.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div><dt className="text-gray-500">Dialogue/Narrative Ratio</dt><dd className="font-medium text-gray-900">{canonicalDoc.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
+          </dl>
         </header>
 
         <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 leading-relaxed print-hidden">
@@ -487,99 +595,60 @@ export default async function ReportPage({
         )}
 
         {/* ── One-Paragraph Pitch (template section 2) + One-Sentence Pitch (template section 3) ── */}
-        {(() => {
-          const enrichment = isEvaluationResultV2(result) ? (result as EvaluationResultV2).enrichment : null;
-          const pitches = buildReportPitches({
-            premise: enrichment?.premise,
-            summary: overview.one_paragraph_summary,
-            title: displayTitle,
-            one_sentence_pitch: (overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
-            one_paragraph_pitch: (overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
-          });
-          return (
-            <>
-              <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-3">One-Paragraph Pitch</h2>
-                <p className="text-gray-700 leading-relaxed">{mistakeProofText(pitches.oneParagraphPitch)}</p>
-              </section>
-              <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-3">One-Sentence Pitch</h2>
-                <p className="text-gray-700 leading-relaxed font-medium">{mistakeProofText(pitches.oneSentencePitch)}</p>
-              </section>
-            </>
-          );
-        })()}
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-3">One-Paragraph Pitch</h2>
+          <p className="text-gray-700 leading-relaxed">{canonicalDoc.oneParagraphPitch}</p>
+        </section>
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-3">One-Sentence Pitch</h2>
+          <p className="text-gray-700 leading-relaxed font-medium">{canonicalDoc.oneSentencePitch}</p>
+        </section>
 
         {/* ── Premise (template section 4) + Content Warnings (template section 5) ── */}
-        {(() => {
-          if (!isEvaluationResultV2(result)) return null;
-          const enrichment = (result as EvaluationResultV2).enrichment;
-          if (!enrichment) return null;
-          return (
-            <>
-              {enrichment.premise && (
-                <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-3">Premise</h2>
-                  <p className="text-gray-700 leading-relaxed">{mistakeProofText(enrichment.premise)}</p>
-                </section>
-              )}
-              {enrichment.trigger_warnings && enrichment.trigger_warnings.length > 0 && (
-                <section className="bg-amber-50 border border-amber-200 rounded-lg shadow-sm p-6 mb-6">
-                  <h2 className="text-2xl font-semibold text-amber-900 mb-3">Content Warnings</h2>
-                  <ul className="space-y-2 text-amber-800">
-                    {enrichment.trigger_warnings.map((w, i) => (
-                      <li key={i} className="flex gap-2 items-start">
-                        <span className="shrink-0 mt-0.5">{"\u26A0\uFE0F"}</span>
-                        <span className="capitalize">{w}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-4 text-sm text-amber-700">
-                    Consider including content warnings in book marketing or front matter.
-                  </p>
-                </section>
-              )}
-            </>
-          );
-        })()}
+        {canonicalDoc.premise && (
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-3">Premise</h2>
+            <p className="text-gray-700 leading-relaxed">{canonicalDoc.premise}</p>
+          </section>
+        )}
+        <section className="bg-amber-50 border border-amber-200 rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-2xl font-semibold text-amber-900 mb-3">Content Warnings</h2>
+          <ul className="space-y-2 text-amber-800">
+            {canonicalDoc.contentWarnings.map((warning, i) => (
+              <li key={i} className="flex gap-2 items-start">
+                <span className="shrink-0 mt-0.5">{"\u26A0\uFE0F"}</span>
+                <span>{warning}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-sm text-amber-700">
+            Consider including content warnings in book marketing or front matter.
+          </p>
+        </section>
 
         {/* ── Revision Opportunity Summary ── */}
-        {(() => {
-          const allRecs = criteria.flatMap((c) =>
-            Array.isArray((c as Record<string, unknown>).recommendations)
-              ? ((c as Record<string, unknown>).recommendations as Array<{ priority?: string }>)
-              : []
-          );
-          const total = allRecs.length;
-          if (total === 0) return null;
-          const recommended = allRecs.filter((r) => r.priority === 'high').length;
-          const optional = allRecs.filter((r) => r.priority === 'medium').length;
-          const consider = allRecs.filter((r) => !r.priority || r.priority === 'low').length;
-          return (
-            <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Revision Opportunity Summary</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="rounded-md border bg-gray-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">{total}</p>
-                </div>
-                <div className="rounded-md border bg-red-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-red-700">Recommended</p>
-                  <p className="mt-1 text-2xl font-bold text-red-900">{recommended}</p>
-                </div>
-                <div className="rounded-md border bg-amber-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Optional</p>
-                  <p className="mt-1 text-2xl font-bold text-amber-900">{optional}</p>
-                </div>
-                <div className="rounded-md border bg-blue-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Consider</p>
-                  <p className="mt-1 text-2xl font-bold text-blue-900">{consider}</p>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-gray-500">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
-            </section>
-          );
-        })()}
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Revision Opportunity Summary</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="rounded-md border bg-gray-50 p-4 text-center">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{canonicalDoc.revisionOpportunitySummary.total}</p>
+            </div>
+            <div className="rounded-md border bg-red-50 p-4 text-center">
+              <p className="text-xs font-medium uppercase tracking-wide text-red-700">Recommended</p>
+              <p className="mt-1 text-2xl font-bold text-red-900">{canonicalDoc.revisionOpportunitySummary.high}</p>
+            </div>
+            <div className="rounded-md border bg-amber-50 p-4 text-center">
+              <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Optional</p>
+              <p className="mt-1 text-2xl font-bold text-amber-900">{canonicalDoc.revisionOpportunitySummary.medium}</p>
+            </div>
+            <div className="rounded-md border bg-blue-50 p-4 text-center">
+              <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Consider</p>
+              <p className="mt-1 text-2xl font-bold text-blue-900">{canonicalDoc.revisionOpportunitySummary.low}</p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-gray-500">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
+        </section>
 
         {/* ── Executive Summary (template section 7) + Top Strengths (8) + Top Risks (9) ── */}
         {(!isLongForm || dreamDoc) && (
@@ -595,12 +664,12 @@ export default async function ReportPage({
                   {overview.verdict.toUpperCase()}
                 </span>
                 <span className="text-3xl font-bold text-gray-900">
-                  {overview.overall_score_0_100}/100
+                  {canonicalDoc.titleBlock.overallScoreLabel}
                 </span>
               </div>
             </div>
             <p className="text-gray-700 mb-6 leading-relaxed">
-              {mistakeProofText(correctScopeLanguage(chapterTitle ? `In ${displayTitle}, ${overview.one_paragraph_summary.replace(/^This\s/, 'this ')}` : overview.one_paragraph_summary, isLongForm))}
+              {correctScopeLanguage(canonicalDoc.executiveSummary, isLongForm)}
             </p>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -609,7 +678,7 @@ export default async function ReportPage({
                   Top Strengths
                 </h3>
                 <ul className="space-y-2">
-                  {overview.top_3_strengths.map((strength, idx) => (
+                  {canonicalDoc.topStrengths.map((strength, idx) => (
                     <li key={idx} className="text-gray-700 pl-4 border-l-2 border-green-500">
                       {strength}
                     </li>
@@ -622,7 +691,7 @@ export default async function ReportPage({
                   Top Risks
                 </h3>
                 <ul className="space-y-2">
-                  {overview.top_3_risks.map((risk, idx) => (
+                  {canonicalDoc.topRisks.map((risk, idx) => (
                     <li key={idx} className="text-gray-700 pl-4 border-l-2 border-amber-500">
                       {risk}
                     </li>
@@ -634,49 +703,19 @@ export default async function ReportPage({
         )}
 
         {/* ── Top Recommendations (template section 10) ── */}
-        {(() => {
-          const topRecs = criteria
-            .flatMap((c) =>
-              Array.isArray((c as Record<string, unknown>).recommendations)
-                ? ((c as Record<string, unknown>).recommendations as Array<{
-                    priority?: string;
-                    action?: string;
-                    specific_fix?: string;
-                    reader_effect?: string;
-                    expected_impact?: string;
-                  }>).map((r) => ({ ...r, criterionKey: c.key }))
-                : []
-            )
-            .filter((r) => r.action || r.specific_fix)
-            .sort((a, b) => {
-              const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
-              return (order[a.priority ?? 'low'] ?? 2) - (order[b.priority ?? 'low'] ?? 2);
-            })
-            .slice(0, 5);
-          if (topRecs.length === 0) return null;
-          const tierLabel = (p?: string) => p === 'high' ? 'Recommended' : p === 'medium' ? 'Optional' : 'Consider';
-          const tierColor = (p?: string) => p === 'high' ? 'bg-red-50 text-red-800 border-red-200' : p === 'medium' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-blue-50 text-blue-800 border-blue-200';
-          return (
-            <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Top Recommendations</h2>
-              <ol className="space-y-3">
-                {topRecs.map((rec, idx) => (
-                  <li key={idx} className="flex items-start gap-3">
-                    <span className={`shrink-0 mt-0.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tierColor(rec.priority)}`}>
-                      {tierLabel(rec.priority)}
-                    </span>
-                    <span className="text-gray-700 leading-relaxed">
-                      {rec.action || rec.specific_fix}
-                      {rec.reader_effect || rec.expected_impact ? (
-                        <span className="text-gray-500">{' — '}{rec.reader_effect || rec.expected_impact}</span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          );
-        })()}
+        {canonicalDoc.topRecommendations.length > 0 && (
+          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Top Recommendations</h2>
+            <ol className="space-y-3 text-gray-700">
+              {canonicalDoc.topRecommendations.map((recommendation, idx) => (
+                <li key={idx} className="flex items-start gap-3 leading-relaxed">
+                  <span className="shrink-0 font-semibold text-gray-500">{idx + 1}.</span>
+                  <span>{recommendation}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         {/* Criteria Scores — hidden for long-form once dreamDoc lands (full synthesis is canonical) */}
         {(!isLongForm || !dreamDoc) && (

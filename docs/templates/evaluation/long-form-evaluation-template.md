@@ -193,29 +193,31 @@ The score grid must be a full-width table with right-aligned Score and Confidenc
 
 | Criterion | Score | Confidence |
 | :--- | ---: | ---: |
-| Concept & Core Premise | XX/10 | High |
-| Narrative Drive & Momentum | XX/10 | High |
-| Character Depth & Psychological Coherence | XX/10 | Moderate |
-| Point of View & Voice Control | XX/10 | High |
-| Scene Construction & Function | XX/10 | High |
-| Dialogue Authenticity & Subtext | XX/10 | Moderate |
-| Thematic Integration | XX/10 | High |
-| World-Building & Environmental Logic | XX/10 | High |
-| Pacing & Structural Balance | XX/10 | Moderate |
-| Prose Control & Line-Level Craft | XX/10 | High |
-| Tonal Authority & Consistency | XX/10 | High |
-| Narrative Closure & Promises Kept | XX/10 | Moderate |
-| Professional Readiness & Market Positioning | XX/10 | High |
+| Concept & Core Premise | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Narrative Drive & Momentum | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Character Depth & Psychological Coherence | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Point of View & Voice Control | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Scene Construction & Function | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Dialogue Authenticity & Subtext | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Thematic Integration | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| World-Building & Environmental Logic | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Pacing & Structural Balance | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Prose Control & Line-Level Craft | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Tonal Authority & Consistency | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Narrative Closure & Promises Kept | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Professional Readiness & Market Positioning | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
 
 Column widths: Criterion (55%), Score (15%), Confidence (30%).
 
 Scores must be rendered as `XX/10`, not as decimals, percentages, letter grades, or badges.
 
-Confidence must use only:
+Confidence must use the five canonical confidence labels:
 
-- High
-- Moderate
-- Low
+1. **Very High Confidence**
+2. **High Confidence**
+3. **Moderate Confidence**
+4. **Low Confidence**
+5. **Insufficient Evidence**
 
 ---
 
@@ -352,6 +354,7 @@ Market Readiness does not guarantee publication, representation, commercial succ
 Market Readiness must appear:
 
 - in the Title Block directly beneath Overall Score;
+- with Market Readiness Confidence;
 - in web views;
 - in PDF;
 - in DOCX;
@@ -366,7 +369,11 @@ The canonical report document is the sole authority.
 
 ## Confidence Explanation Contract
 
-Confidence explanations must use one of three levels:
+Confidence explanations must use the five canonical confidence labels.
+
+### Very High Confidence
+
+The submitted manuscript provides broad, repeated, and stable evidence across the manuscript. Diagnostic judgments are strongly supported and unlikely to change materially with ordinary additional context.
 
 ### High Confidence
 
@@ -378,7 +385,11 @@ Evidence is present but limited by manuscript scope, missing context, ambiguity,
 
 ### Low Confidence
 
-The submission is too fragmented, incomplete, inconsistent, or context-limited to support strong conclusions. Findings should be treated as provisional.
+Evidence is thin, localized, unstable, or materially limited. Findings should be treated as cautious and may change with fuller manuscript coverage or stronger evidence.
+
+### Insufficient Evidence
+
+The submission is too fragmented, incomplete, degraded, contradictory, or context-limited to support a reliable conclusion for the field or criterion being evaluated.
 
 ---
 
@@ -387,6 +398,8 @@ The submission is too fragmented, incomplete, inconsistent, or context-limited t
 Long-form evaluation may be WAVE-informed. It may identify structural weakness, momentum drag, scene-function failure, voice/POV control issues, prose-control issues, revision order, readiness risk, and evidence-confidence issues.
 
 It must not present WAVE as the revision workflow. WAVE is part of evaluation/readiness reasoning; Revise Queue and TrustedPath are the repair workflows.
+
+WAVE, Gate 15 / Canon Governance, Dialogue Canon, and Final External Audit defects that affect author-facing correctness must block Phase 5 author exposure until resolved or explicitly downgraded by a canonical nonblocking rule. They must not be shipped as advisory-only failures.
 
 ---
 
@@ -399,6 +412,16 @@ When manuscript complexity requires separate layer mapping, Story Ledger extract
 ```text
 long_form_multi_layer_evaluation
 ```
+
+---
+
+## Phase 5 Author-Exposure Gate
+
+No long-form report may be exposed to the author unless `author_exposure_certification_v1` passes.
+
+Phase 5 certification must verify that the report was assembled from the Long-Form Evaluation Template contract through `UnifiedEvaluationDocument`, that all required Title Block fields and confidence labels are present, and that web, PDF, DOCX, TXT, and print-friendly views preserve the same author-facing content and order.
+
+Renderer parity violations, missing required fields, noncanonical confidence labels, unresolved author-facing WAVE/Gate 15/Dialogue Canon/Final External Audit failures, or unauthorized standalone sections block author exposure. They must not be treated as advisory warnings.
 
 ---
 
@@ -430,11 +453,15 @@ Long-form evaluation must not promise:
 - **Cross-References:** Replace system-internal references with readable language.
 - **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
 - **Surface Parity:** PDF, DOCX, TXT, web, and print-friendly views must include the same author-facing content in the same order.
+- **Template Authority:** `docs/templates/evaluation/long-form-evaluation-template.md` is the authoritative product contract for standard long-form reports. `UnifiedEvaluationDocument` is the mandatory renderer adapter, not a competing template.
 - **Canonical Authority:** The canonical report document is the sole content authority. Renderers may format content but may not independently generate, summarize, suppress, rename, reorder, reinterpret, or recalculate report content.
 - **Renderer Authority:** Renderers may not independently add, remove, rename, reorder, summarize, or recalculate author-facing report content.
+- **Release Blocking:** Renderer violations, field omissions, parity failures, or unresolved author-facing governance defects block Phase 5 author exposure.
 
 ---
 
 ## Revise Boundary
 
 Long-form evaluation may produce prioritized repair targets. It does not apply repairs. A/B/C repair proposals, author controls, TrustedPath, and manuscript-change application belong to Revise Queue.
+
+When revision opportunities are produced, the required handoff artifact is `revision_opportunity_ledger_v1`. The report may surface summary counts and selected opportunities, but Revise Queue owns the deeper inventory and any author-controlled repair workflow.

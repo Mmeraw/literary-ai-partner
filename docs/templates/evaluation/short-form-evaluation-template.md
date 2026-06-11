@@ -7,7 +7,7 @@
 **Authority:** `docs/governance/evaluation-output-mode-contract.md`  
 **Rendering authority:** `docs/templates/evaluation/evaluation-rendering-contract.md`  
 **Style authority:** The Chicago Manual of Style governs formatting, grammar, spelling, punctuation, capitalization, heading style, number style, table presentation, and author-facing editorial prose.  
-**Related authority:** Short-form reports evaluate only the submitted text against the canonical 13 story criteria. They do not invoke Golden Spine, WAVE-level continuity proof, Story Ledger extraction, governed-ledger completeness, or whole-manuscript promise/payoff validation unless explicitly routed into a longer evaluation mode.  
+**Related authority:** Short-form reports evaluate only the submitted text against the canonical 13 story criteria. Runtime may use lightweight internal seed, scaffold, or ledger-support artifacts to preserve context, but short-form reports do not expose or claim Golden Spine, WAVE-level continuity proof, full Story Ledger authority, governed-ledger completeness, or whole-manuscript promise/payoff validation unless explicitly routed into a longer evaluation mode.
 **Runtime impact:** Authoritative rendering contract for web, PDF, DOCX, TXT, and print-friendly views.
 
 ---
@@ -26,6 +26,8 @@ It does **not** claim:
 - Story Ledger completeness;
 - whole-manuscript promise/payoff validation;
 - DREAM governed-ledger completeness.
+
+The runtime may create lightweight internal seed or ledger-support artifacts for context preservation, quality control, or downstream handoff. Those artifacts are not author-facing Story Ledger certification and must not be rendered as full Story Ledger authority in a short-form report.
 
 When a short-form submission is part of a larger manuscript, findings are local to the submitted text unless the complete manuscript has been supplied.
 
@@ -205,21 +207,29 @@ The score grid must be a full-width table with right-aligned Score and Confidenc
 
 | Criterion | Score | Confidence |
 | :--- | ---: | ---: |
-| Concept & Core Premise | XX/10 | High |
-| Narrative Drive & Momentum | XX/10 | High |
-| Character Depth & Psychological Coherence | XX/10 | Moderate |
-| Point of View & Voice Control | XX/10 | High |
-| Scene Construction & Function | XX/10 | High |
-| Dialogue Authenticity & Subtext | XX/10 | Moderate |
-| Thematic Integration | XX/10 | High |
-| World-Building & Environmental Logic | XX/10 | High |
-| Pacing & Structural Balance | XX/10 | Moderate |
-| Prose Control & Line-Level Craft | XX/10 | High |
-| Tonal Authority & Consistency | XX/10 | High |
-| Narrative Closure & Promises Kept | XX/10 | Moderate |
-| Professional Readiness & Market Positioning | XX/10 | High |
+| Concept & Core Premise | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Narrative Drive & Momentum | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Character Depth & Psychological Coherence | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Point of View & Voice Control | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Scene Construction & Function | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Dialogue Authenticity & Subtext | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Thematic Integration | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| World-Building & Environmental Logic | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Pacing & Structural Balance | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Prose Control & Line-Level Craft | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Tonal Authority & Consistency | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Narrative Closure & Promises Kept | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
+| Professional Readiness & Market Positioning | XX/10 | Very High Confidence / High Confidence / Moderate Confidence / Low Confidence / Insufficient Evidence |
 
 Column widths: Criterion (55%), Score (15%), Confidence (30%).
+
+Confidence must use the five canonical confidence labels:
+
+1. **Very High Confidence**
+2. **High Confidence**
+3. **Moderate Confidence**
+4. **Low Confidence**
+5. **Insufficient Evidence**
 
 ---
 
@@ -309,7 +319,11 @@ Dialogue balance is measured only within the submitted text. Excerpts, chapters,
 
 ## Confidence Explanation Contract
 
-Confidence explanations must use one of three levels:
+Confidence explanations must use the five canonical confidence labels.
+
+### Very High Confidence
+
+The submitted text provides broad, repeated, and stable evidence for the field or criterion being evaluated. Diagnostic judgments are strongly supported and unlikely to change materially with ordinary additional context.
 
 ### High Confidence
 
@@ -321,7 +335,11 @@ Evidence is present but limited by text length, scope, missing context, or incom
 
 ### Low Confidence
 
-The submission is too short, too fragmented, or too context-limited to support strong conclusions. Findings should be treated as provisional.
+Evidence is thin, localized, unstable, or materially limited. Findings should be treated as cautious and may change with fuller manuscript coverage or stronger evidence.
+
+### Insufficient Evidence
+
+The submission is too fragmented, incomplete, degraded, contradictory, or context-limited to support a reliable conclusion for the field or criterion being evaluated.
 
 ---
 
@@ -340,6 +358,7 @@ Market Readiness does not guarantee publication, representation, commercial succ
 Market Readiness must appear:
 
 - in the Title Block directly beneath Overall Score;
+- with Market Readiness Confidence;
 - in web, PDF, DOCX, TXT, and print-friendly views;
 - using the same wording and thresholds across all evaluation modes.
 
@@ -348,6 +367,16 @@ Market Readiness is derived from Overall Score using the canonical thresholds ab
 Renderers must not independently calculate, rename, override, or reinterpret Market Readiness.
 
 The canonical report document is the sole authority.
+
+---
+
+## Phase 5 Author-Exposure Gate
+
+No short-form report may be exposed to the author unless `author_exposure_certification_v1` passes.
+
+Phase 5 certification must verify that the report was assembled from the Short-Form Evaluation Template contract through `UnifiedEvaluationDocument`, that all required Title Block fields and confidence labels are present, and that web, PDF, DOCX, TXT, and print-friendly views preserve the same author-facing content and order.
+
+Renderer parity violations, missing required fields, noncanonical confidence labels, or unauthorized standalone sections block author exposure. They must not be treated as advisory warnings.
 
 ---
 
@@ -378,10 +407,15 @@ If a short-form submission contains a local structural or continuity issue, the 
 - **Tables:** Criteria tables must be full width with Score and Confidence columns right-aligned.
 - **Score Layout:** Render as a single-line block: `Overall Score: 85/100`. Never split scores across lines.
 - **Surface Parity:** PDF, DOCX, TXT, web, and print-friendly views must include the same author-facing content in the same order.
+- **Template Authority:** `docs/templates/evaluation/short-form-evaluation-template.md` is the authoritative product contract for short-form reports. `UnifiedEvaluationDocument` is the mandatory renderer adapter, not a competing template.
+- **Canonical Authority:** The canonical report document is the sole content authority. Renderers may format content but may not independently generate, summarize, suppress, rename, reorder, reinterpret, or recalculate report content.
 - **Renderer Authority:** Renderers may not independently add, remove, rename, reorder, summarize, or recalculate author-facing report content.
+- **Release Blocking:** Renderer violations, field omissions, or parity failures block Phase 5 author exposure.
 
 ---
 
 ## Revise Boundary
 
 Short-form evaluation may identify repair targets. It does not apply repairs. A/B/C repair proposals, author controls, TrustedPath, and manuscript-change application belong to Revise Queue.
+
+When revision opportunities are produced, the required handoff artifact is `revision_opportunity_ledger_v1`. The report may surface summary counts and selected opportunities, but Revise Queue owns the deeper inventory and any author-controlled repair workflow.

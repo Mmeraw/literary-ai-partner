@@ -8,6 +8,28 @@ export type CanonicalEvaluationMode =
   | 'long_form_evaluation'
   | 'long_form_multi_layer_evaluation';
 
+export const EVALUATION_TEMPLATE_CONTRACTS: Record<CanonicalEvaluationMode, {
+  templateName: string;
+  reportType: string;
+  templatePath: string;
+}> = {
+  short_form_evaluation: {
+    templateName: 'Short-Form Evaluation Template',
+    reportType: 'Short-Form Evaluation',
+    templatePath: 'docs/templates/evaluation/short-form-evaluation-template.md',
+  },
+  long_form_evaluation: {
+    templateName: 'Long-Form Evaluation Template',
+    reportType: 'Long-Form Evaluation',
+    templatePath: 'docs/templates/evaluation/long-form-evaluation-template.md',
+  },
+  long_form_multi_layer_evaluation: {
+    templateName: 'Long-Form Multi-Layer Evaluation Template',
+    reportType: 'Long-Form Multi-Layer Evaluation',
+    templatePath: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
+  },
+} as const;
+
 export type UnifiedEvaluationDocument = Omit<ReturnType<typeof buildShortFormEvaluationDocument>, 'templateMode' | 'titleBlock'> & {
   templateMode: CanonicalEvaluationMode;
   titleBlock: ReturnType<typeof buildShortFormEvaluationDocument>['titleBlock'] & {
@@ -87,12 +109,7 @@ export function buildUnifiedEvaluationDocument(input: {
   const base = buildShortFormEvaluationDocument({
     result: input.result,
     displayTitle: input.displayTitle,
-    reportType:
-      input.mode === 'short_form_evaluation'
-        ? 'Short-Form Evaluation'
-        : input.mode === 'long_form_evaluation'
-        ? 'Long-Form Evaluation'
-        : 'Long-Form Multi-Layer Evaluation',
+    reportType: EVALUATION_TEMPLATE_CONTRACTS[input.mode].reportType,
   });
 
   const overallScore = input.result.overview?.overall_score_0_100 ?? null;

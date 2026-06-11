@@ -1,6 +1,6 @@
 import { CRITERIA_KEYS } from '@/schemas/criteria-keys';
 import { getReportHeaderContract } from '@/lib/evaluation/reportHeaderPolicy';
-import { buildUnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { EVALUATION_TEMPLATE_CONTRACTS, buildUnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { buildPass3bUserPrompt } from '@/lib/evaluation/pipeline/prompts/pass3b-longform';
 import type { GenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
 import type { SynthesizedCriterion } from '@/lib/evaluation/pipeline/types';
@@ -34,6 +34,26 @@ function makeCriteria(): SynthesizedCriterion[] {
 }
 
 describe('canonical report header policy', () => {
+  test('names the three authoritative evaluation templates explicitly', () => {
+    expect(EVALUATION_TEMPLATE_CONTRACTS).toEqual({
+      short_form_evaluation: {
+        templateName: 'Short-Form Evaluation Template',
+        reportType: 'Short-Form Evaluation',
+        templatePath: 'docs/templates/evaluation/short-form-evaluation-template.md',
+      },
+      long_form_evaluation: {
+        templateName: 'Long-Form Evaluation Template',
+        reportType: 'Long-Form Evaluation',
+        templatePath: 'docs/templates/evaluation/long-form-evaluation-template.md',
+      },
+      long_form_multi_layer_evaluation: {
+        templateName: 'Long-Form Multi-Layer Evaluation Template',
+        reportType: 'Long-Form Multi-Layer Evaluation',
+        templatePath: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
+      },
+    });
+  });
+
   test('declares different header requirements for short, long, and multi-layer modes', () => {
     const short = getReportHeaderContract('short_form_evaluation');
     const long = getReportHeaderContract('long_form_evaluation');

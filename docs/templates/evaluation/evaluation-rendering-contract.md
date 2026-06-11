@@ -64,12 +64,48 @@ Every completed evaluation report must include aggregate revision-opportunity co
 Revision Opportunity Summary
 
 Total Revision Opportunities: [XX]
-High Priority: [X]
-Medium Priority: [X]
-Low Priority: [X]
+Recommended: [X]
+Optional: [X]
+Consider: [X]
 ```
 
-Priority labels indicate the recommended urgency of each revision opportunity.
+Recommendation tiers indicate the suggested urgency of each revision opportunity:
+
+- **Recommended**: High-priority revisions that will meaningfully improve the manuscript.
+- **Optional**: Medium-priority revisions that strengthen craft but are not essential.
+- **Consider**: Lower-priority refinements the author may choose to adopt or defer.
+
+The canonical handoff artifact for deeper revision inventory is `revision_opportunity_ledger_v1`. Renderers may display counts and surfaced opportunities from the canonical report document, but they must not invent additional revision opportunities or recalculate tier totals.
+
+---
+
+## Canonical Renderer Input
+
+The three evaluation templates are the authoritative product contracts:
+
+- `docs/templates/evaluation/short-form-evaluation-template.md`
+- `docs/templates/evaluation/long-form-evaluation-template.md`
+- `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`
+
+`UnifiedEvaluationDocument` is the mandatory renderer adapter for web, PDF, DOCX, TXT, and print-friendly views. It is not a competing product template. It exists to carry the active template's canonical fields to every renderer without local recalculation.
+
+Renderers may format `UnifiedEvaluationDocument` content. They must not independently generate, summarize, suppress, rename, reorder, reinterpret, or recalculate author-facing report content.
+
+---
+
+## Phase 5 Author-Exposure Gate
+
+No completed report may be exposed to the author unless `author_exposure_certification_v1` passes.
+
+Phase 5 certification must verify, at minimum:
+
+- the active evaluation template mode is known;
+- the report was assembled through `UnifiedEvaluationDocument`;
+- required Title Block fields and confidence labels are present;
+- web, PDF, DOCX, TXT, and print-friendly views preserve the same author-facing content and order;
+- renderer parity violations block release rather than degrade silently.
+
+A renderer violation is a release-blocking defect. It is not an advisory warning.
 
 ---
 
