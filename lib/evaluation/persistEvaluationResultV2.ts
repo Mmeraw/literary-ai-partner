@@ -482,10 +482,17 @@ export async function persistEvaluationResultV2(params: {
   completedUnits: number;
   /** Optional heartbeat callback — prevents watchdog from killing the job during persistence. */
   onHeartbeat?: () => void;
+  /** Execution phase for metadata tracking. Derived from progressSnapshot.phase when omitted. */
+  executionPhase?: "phase_1a" | "phase_2" | "phase_3";
 }): Promise<PersistEvaluationResultV2Result> {
   if (!Number.isFinite(params.manuscriptId) || params.manuscriptId <= 0) {
     throw new Error(`Invalid manuscript_id for persistEvaluationResultV2: ${params.manuscriptId}`);
   }
+  // Derive execution phase: explicit param > progressSnapshot.phase > "phase_3" default
+  const _persistPhase: string = params.executionPhase
+    ?? (typeof params.progressSnapshot?.phase === "string" && params.progressSnapshot.phase
+        ? params.progressSnapshot.phase
+        : "phase_3");
 
   const wordCount = readManuscriptWordCount(params.progressSnapshot);
   const shortFormReadiness = applyShortFormReadinessMetadata(params.evaluationResult, wordCount);
@@ -928,15 +935,15 @@ export async function persistEvaluationResultV2(params: {
   const completionPayloadBase = {
     status: completionStatus,
     validity_status: validValidity,
-    phase: "phase_2",
+    phase: _persistPhase,
     phase_status: "complete",
     total_units: params.totalUnits,
     completed_units: params.completedUnits,
     progress: {
       ...params.progressSnapshot,
-      ...buildPhaseLogPatch(params.progressSnapshot as Record<string, unknown>, 'phase_2', 'passed', completionTime),
+      ...buildPhaseLogPatch(params.progressSnapshot as Record<string, unknown>, _persistPhase, 'passed', completionTime),
       finalized_at: completionTime,
-      phase: "phase_2",
+      phase: _persistPhase,
       phase_status: "complete",
       total_units: params.totalUnits,
       completed_units: params.completedUnits,
