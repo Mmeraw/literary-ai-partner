@@ -1262,6 +1262,26 @@ export function runQualityGate(
     }
   }
 
+  // ── P4 Check: Cross-Criterion Deduplication observability ────────────────────
+  // Reports how many recommendations were collapsed across criteria (P4 dedup runs
+  // in the pipeline; this check verifies the collapsed_from_criteria field was applied
+  // and surfaces remaining uncollapsed duplicates that may indicate a dedup gap).
+  {
+    const collapsedCount = synthesis.criteria.reduce((sum, c) =>
+      sum + c.recommendations.filter(r => r.collapsed_from_criteria && r.collapsed_from_criteria.length > 0).length, 0,
+    );
+    if (collapsedCount > 0) {
+      const collapsedRecs = synthesis.criteria.flatMap(c =>
+        c.recommendations
+          .filter(r => r.collapsed_from_criteria && r.collapsed_from_criteria.length > 0)
+          .map(r => `${c.key}: also affects ${r.collapsed_from_criteria!.join(",")}`)
+      );
+      warnings.push(
+        `[P4_CROSS_CRITERION_DEDUP][INFO] ${collapsedCount} recommendation(s) consolidated from multiple criteria: ${collapsedRecs.slice(0, 5).join("; ")}`,
+      );
+    }
+  }
+
   const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,

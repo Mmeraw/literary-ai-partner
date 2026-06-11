@@ -10,6 +10,7 @@ type Opportunity = {
   specific_fix?: string;
   reader_effect?: string;
   mistake_proofing?: string;
+  collapsed_from_criteria?: string[];
 };
 
 function severityLabel(priority?: string): string {
@@ -37,6 +38,9 @@ function OpportunityCard({ opp, idx }: { opp: Opportunity; idx: number }) {
   if (opp.specific_fix) rows.push(["Fix direction", opp.specific_fix]);
   if (opp.reader_effect) rows.push(["Reader effect", opp.reader_effect]);
   if (opp.mistake_proofing) rows.push(["Mistake-proofing", opp.mistake_proofing]);
+  if (opp.collapsed_from_criteria && opp.collapsed_from_criteria.length > 0) {
+    rows.push(["Also affects", opp.collapsed_from_criteria.map(k => k.replace(/([A-Z])/g, ' $1').trim()).join(", ")]);
+  }
 
   return (
     <div className={`rounded border p-3 ${color}`}>
