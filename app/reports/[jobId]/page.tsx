@@ -442,6 +442,9 @@ export default async function ReportPage({
             const targetAudience = v2Enrichment?.target_audience || result.metrics?.manuscript?.target_audience || 'Not available';
             const submittedWordCount = result.metrics?.manuscript?.word_count;
             const estimatedPages = submittedWordCount ? Math.floor(submittedWordCount / 250) : null;
+            const rgl = v2Enrichment?.reading_grade_level;
+            const dialoguePct = v2Enrichment?.dialogue_percentage;
+            const narrativePct = v2Enrichment?.narrative_percentage ?? (dialoguePct != null ? 100 - dialoguePct : null);
             return (
               <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm border-t border-gray-200 pt-4">
                 <div><dt className="text-gray-500">Report Type</dt><dd className="font-medium text-gray-900">Short-Form Evaluation</dd></div>
@@ -451,6 +454,8 @@ export default async function ReportPage({
                 <div><dt className="text-gray-500">Target Audience</dt><dd className="font-medium text-gray-900">{targetAudience}</dd></div>
                 {submittedWordCount ? <div><dt className="text-gray-500">Submitted Word Count</dt><dd className="font-medium text-gray-900">{submittedWordCount.toLocaleString()}</dd></div> : null}
                 {estimatedPages ? <div><dt className="text-gray-500">Estimated Pages</dt><dd className="font-medium text-gray-900">{estimatedPages.toLocaleString()} at 250 words/page</dd></div> : null}
+                {rgl != null ? <div><dt className="text-gray-500">Reading Grade Level</dt><dd className="font-medium text-gray-900">{Math.floor(Number(rgl))} (Flesch-Kincaid)</dd></div> : null}
+                {dialoguePct != null ? <div><dt className="text-gray-500">Dialogue/Narrative Ratio</dt><dd className="font-medium text-gray-900">{Math.floor(Number(dialoguePct))}% / {narrativePct != null ? Math.floor(Number(narrativePct)) : '—'}%</dd></div> : null}
               </dl>
             );
           })()}
@@ -503,7 +508,78 @@ export default async function ReportPage({
           );
         })()}
 
-        {/* Overview Section — hidden for long-form until Narrative Synthesis (Part 2) lands */}
+        {/* ── Premise (template section 4) + Content Warnings (template section 5) ── */}
+        {(() => {
+          if (!isEvaluationResultV2(result)) return null;
+          const enrichment = (result as EvaluationResultV2).enrichment;
+          if (!enrichment) return null;
+          return (
+            <>
+              {enrichment.premise && (
+                <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-3">Premise</h2>
+                  <p className="text-gray-700 leading-relaxed">{mistakeProofText(enrichment.premise)}</p>
+                </section>
+              )}
+              {enrichment.trigger_warnings && enrichment.trigger_warnings.length > 0 && (
+                <section className="bg-amber-50 border border-amber-200 rounded-lg shadow-sm p-6 mb-6">
+                  <h2 className="text-2xl font-semibold text-amber-900 mb-3">Content Warnings</h2>
+                  <ul className="space-y-2 text-amber-800">
+                    {enrichment.trigger_warnings.map((w, i) => (
+                      <li key={i} className="flex gap-2 items-start">
+                        <span className="shrink-0 mt-0.5">{"\u26A0\uFE0F"}</span>
+                        <span className="capitalize">{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-4 text-sm text-amber-700">
+                    Consider including content warnings in book marketing or front matter.
+                  </p>
+                </section>
+              )}
+            </>
+          );
+        })()}
+
+        {/* ── Revision Opportunity Summary ── */}
+        {(() => {
+          const allRecs = criteria.flatMap((c) =>
+            Array.isArray((c as Record<string, unknown>).recommendations)
+              ? ((c as Record<string, unknown>).recommendations as Array<{ priority?: string }>)
+              : []
+          );
+          const total = allRecs.length;
+          if (total === 0) return null;
+          const recommended = allRecs.filter((r) => r.priority === 'high').length;
+          const optional = allRecs.filter((r) => r.priority === 'medium').length;
+          const consider = allRecs.filter((r) => !r.priority || r.priority === 'low').length;
+          return (
+            <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Revision Opportunity Summary</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="rounded-md border bg-gray-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{total}</p>
+                </div>
+                <div className="rounded-md border bg-red-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-red-700">Recommended</p>
+                  <p className="mt-1 text-2xl font-bold text-red-900">{recommended}</p>
+                </div>
+                <div className="rounded-md border bg-amber-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Optional</p>
+                  <p className="mt-1 text-2xl font-bold text-amber-900">{optional}</p>
+                </div>
+                <div className="rounded-md border bg-blue-50 p-4 text-center">
+                  <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Consider</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-900">{consider}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
+            </section>
+          );
+        })()}
+
+        {/* ── Executive Summary (template section 7) + Top Strengths (8) + Top Risks (9) ── */}
         {(!isLongForm || dreamDoc) && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -554,104 +630,6 @@ export default async function ReportPage({
             </div>
           </section>
         )}
-
-        {/* ── Enrichment Surfaces (Premise, Trigger Warnings, Metrics) ── */}
-        {(() => {
-          if (!isEvaluationResultV2(result)) return null;
-          const enrichment = (result as EvaluationResultV2).enrichment;
-          if (!enrichment) return null;
-          return (
-            <>
-              {enrichment.premise && (
-                <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-3">Premise</h2>
-                  <p className="text-gray-700 leading-relaxed">{mistakeProofText(enrichment.premise)}</p>
-                </section>
-              )}
-              {enrichment.trigger_warnings && enrichment.trigger_warnings.length > 0 && (
-                <section className="bg-amber-50 border border-amber-200 rounded-lg shadow-sm p-6 mb-6">
-                  <h2 className="text-2xl font-semibold text-amber-900 mb-3">Content Warnings</h2>
-                  <ul className="space-y-2 text-amber-800">
-                    {enrichment.trigger_warnings.map((w, i) => (
-                      <li key={i} className="flex gap-2 items-start">
-                        <span className="shrink-0 mt-0.5">{"\u26A0\uFE0F"}</span>
-                        <span className="capitalize">{w}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-4 text-sm text-amber-700">
-                    Consider including content warnings in book marketing or front matter.
-                  </p>
-                </section>
-              )}
-              {(enrichment.reading_grade_level != null || enrichment.dialogue_percentage != null) && (
-                <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900 mb-4">Writing Metrics</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {enrichment.reading_grade_level != null && (
-                      <div className="rounded-md border bg-gray-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Reading Grade Level</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900">{Math.floor(Number(enrichment.reading_grade_level))}</p>
-                        <p className="mt-1 text-xs text-gray-600">Flesch-Kincaid</p>
-                        <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                          Measures prose complexity only—not audience appropriateness. Cross-reference Content Warnings above for suitability guidance.
-                        </p>
-                      </div>
-                    )}
-                    {enrichment.dialogue_percentage != null && (
-                      <div className="rounded-md border bg-gray-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Dialogue vs. Narrative</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900">{Math.floor(Number(enrichment.dialogue_percentage))}%<span className="text-base font-normal text-gray-500"> dialogue</span></p>
-                        <p className="mt-1 text-xs text-gray-600">{Math.floor(Number(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage)))}% narrative</p>
-                        <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                          Most commercially successful novels range 25–35% dialogue.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              )}
-            </>
-          );
-        })()}
-
-        {/* ── Revision Opportunity Summary ── */}
-        {(() => {
-          const allRecs = criteria.flatMap((c) =>
-            Array.isArray((c as Record<string, unknown>).recommendations)
-              ? ((c as Record<string, unknown>).recommendations as Array<{ priority?: string }>)
-              : []
-          );
-          const total = allRecs.length;
-          if (total === 0) return null;
-          const recommended = allRecs.filter((r) => r.priority === 'high').length;
-          const optional = allRecs.filter((r) => r.priority === 'medium').length;
-          const consider = allRecs.filter((r) => !r.priority || r.priority === 'low').length;
-          return (
-            <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Revision Opportunity Summary</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="rounded-md border bg-gray-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">{total}</p>
-                </div>
-                <div className="rounded-md border bg-red-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-red-700">Recommended</p>
-                  <p className="mt-1 text-2xl font-bold text-red-900">{recommended}</p>
-                </div>
-                <div className="rounded-md border bg-amber-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Optional</p>
-                  <p className="mt-1 text-2xl font-bold text-amber-900">{optional}</p>
-                </div>
-                <div className="rounded-md border bg-blue-50 p-4 text-center">
-                  <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Consider</p>
-                  <p className="mt-1 text-2xl font-bold text-blue-900">{consider}</p>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-gray-500">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
-            </section>
-          );
-        })()}
 
         {/* ── Top Recommendations (template section 10) ── */}
         {(() => {
