@@ -101,6 +101,62 @@ describe('final external audit', () => {
     expect(result.blocking).toBe(false);
   });
 
+  test('does NOT block when revision_opportunity_ledger_v1 is missing (Revise-phase artifact)', () => {
+    const result = runFinalExternalAudit({
+      wordCount: 50000,
+      evaluationResult: makeResult(),
+      checkedArtifacts: {
+        evaluation_result_v2: { present: true },
+        longform_document_v1: { present: true },
+        revision_opportunity_ledger_v1: { present: false },
+        wave_revision_plan_v1: { present: true },
+      },
+      mode: 'optional',
+      providerAvailable: true,
+    });
+
+    expect(result.verdict).not.toBe('BLOCK');
+    expect(result.blocking).toBe(false);
+  });
+
+  test('does NOT block when wave_revision_plan_v1 is missing — warns instead', () => {
+    const result = runFinalExternalAudit({
+      wordCount: 50000,
+      evaluationResult: makeResult(),
+      checkedArtifacts: {
+        evaluation_result_v2: { present: true },
+        longform_document_v1: { present: true },
+        revision_opportunity_ledger_v1: { present: false },
+        wave_revision_plan_v1: { present: false },
+      },
+      mode: 'optional',
+      providerAvailable: true,
+    });
+
+    expect(result.verdict).toBe('WARN');
+    expect(result.blocking).toBe(false);
+    expect(result.codes).toContain('FINAL_AUDIT_MISSING_WAVE');
+    expect(result.missing_required_artifacts).toContain('wave_revision_plan_v1');
+  });
+
+  test('Cartel Babies regression: DREAM + eval present, ledger missing → PASS not BLOCK', () => {
+    const result = runFinalExternalAudit({
+      wordCount: 109472,
+      evaluationResult: makeResult(),
+      checkedArtifacts: {
+        evaluation_result_v2: { present: true },
+        longform_document_v1: { present: true },
+        revision_opportunity_ledger_v1: { present: false },
+        wave_revision_plan_v1: { present: true },
+      },
+      mode: 'optional',
+      providerAvailable: false,
+    });
+
+    expect(result.verdict).not.toBe('BLOCK');
+    expect(result.blocking).toBe(false);
+  });
+
   test('persists final_external_audit_v1 artifact', async () => {
     const result = await persistFinalExternalAudit({
       supabase: {} as any,
