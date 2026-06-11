@@ -473,6 +473,38 @@ export function runQualityGate(
         : "All recommendations meet PASS_MINIMUM+ integrity tier for evaluation report",
   });
 
+  // ── P2 Check: Generic Workshop Language Detection ─────────────────────────────
+  // Soft-fail warning when recommendations contain generic prescriptions that lack
+  // manuscript specificity. Distinct from rec_integrity tier (which handles structural
+  // completeness) — this specifically catches workshop clichés.
+  {
+    const genericWorkshopRecs: string[] = [];
+    for (const c of synthesis.criteria) {
+      for (const r of c.recommendations) {
+        const integrityResult = checkRecommendationIntegrity({
+          action: r.action,
+          symptom: r.symptom,
+          cause: r.cause,
+          fix_direction: r.fix_direction,
+          specific_fix: r.specific_fix,
+          reader_effect: r.reader_effect,
+          mechanism: r.mechanism,
+          expected_impact: r.expected_impact,
+          anchor_snippet: r.anchor_snippet,
+          surface: "evaluation_report",
+        });
+        if (integrityResult.violations.some((v) => v.code === "GENERIC_WORKSHOP_LANGUAGE")) {
+          genericWorkshopRecs.push(`${c.key}: "${r.action.substring(0, 60)}"`);
+        }
+      }
+    }
+    if (genericWorkshopRecs.length > 0) {
+      warnings.push(
+        `[P2_GENERIC_PRESCRIPTIONS][WARN] ${genericWorkshopRecs.length} recommendation(s) contain generic workshop language: ${genericWorkshopRecs.slice(0, 5).join("; ")}. Recommendations must be manuscript-specific.`,
+      );
+    }
+  }
+
   // ── Check 4c: Evidence Grounding Gate — validate anchor_snippets against manuscript ──
   // P0 trust gate: if manuscript text is available, classify every anchor_snippet
   // as verbatim_quote, paraphrased_observation, or editorial_diagnosis.
@@ -1205,6 +1237,29 @@ export function runQualityGate(
           ? `${effectiveBlock ? "BLOCK" : "WARN"}: ${genericFeedbackFindings.length} editorial recommendation quality issue(s): ${genericFeedbackFindings.slice(0, 4).join("; ")}${!editorialBlockEligible && blockEditorialQuality ? ` (downgraded from BLOCK — inputScale=${scopeProfile?.inputScale ?? "unknown"})` : ""}`
           : "All recommendations meet editorial quality contract",
     });
+  }
+
+  // ── P2 Check: mistake_proofing required for high-scoring criteria (≥7) ──────
+  // When a criterion scores well, revision recs targeting it MUST explicitly state
+  // what existing strength to preserve. This prevents "fix pacing by flattening voice."
+  {
+    const missingMistakeProofing: string[] = [];
+    for (const c of synthesis.criteria) {
+      if (c.final_score_0_10 >= 7) {
+        for (const r of c.recommendations ?? []) {
+          const mp = (r as Record<string, unknown>).mistake_proofing;
+          if (!mp || (typeof mp === "string" && mp.trim().length < 10)) {
+            missingMistakeProofing.push(c.key);
+            break; // one flag per criterion is enough
+          }
+        }
+      }
+    }
+    if (missingMistakeProofing.length > 0) {
+      warnings.push(
+        `[P2_MISTAKE_PROOFING][WARN] ${missingMistakeProofing.length} high-scoring criteria (≥7) have recommendations without mistake_proofing: ${missingMistakeProofing.slice(0, 5).join(", ")}. Revisions for strong criteria must state what to preserve.`,
+      );
+    }
   }
 
   const failedHardChecks = checks.filter((c) => !c.passed);

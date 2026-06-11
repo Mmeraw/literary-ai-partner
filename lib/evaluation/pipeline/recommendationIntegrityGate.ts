@@ -109,6 +109,19 @@ const GENERIC_WORKSHOP_PHRASES: RegExp[] = [
   /^add (an? )?(external )?action (beat|trigger)\.?$/i,
   /^cut (one |a )?reflective sentence\.?$/i,
   /^improve (the )?scene\.?$/i,
+  // P2: expanded generic prescription detection
+  /^deepen (the )?(thematic )?exploration of .{0,30}\.?$/i,
+  /^incorporate more .{0,30}\.?$/i,
+  /^add more subtext\.?$/i,
+  /^strengthen (the )?emotional stakes\.?$/i,
+  /^add more (sensory|concrete|specific) detail(s)?\.?$/i,
+  /^increase (narrative )?(urgency|momentum|propulsion)\.?$/i,
+  /^develop (the )?(character|theme|conflict) (more|further)\.?$/i,
+  /^make (the )?(scene|dialogue|prose) (stronger|more engaging|more vivid)\.?$/i,
+  /^heighten (the )?(dramatic|emotional|narrative) (tension|stakes|impact)\.?$/i,
+  /^introduce more (conflict|tension|subtext) (in|to) (the )?dialogue\.?$/i,
+  /^add (a )?dramatic question\.?$/i,
+  /^create (a |more )?sense of urgency\.?$/i,
 ];
 
 /** Generic effect phrases that are too vague to be useful standalone. */
@@ -679,6 +692,10 @@ export function checkRecommendationIntegrity(rec: {
  * Governance control:
  *   - Evaluation reports: PASS_MINIMUM+ (tier >= PASS_MINIMUM)
  *   - Revise Queue:      PASS_STRONG+   (tier >= PASS_STRONG)
+ *
+ * Note: Generic workshop language is additionally caught by the GENERIC_WORKSHOP_LANGUAGE
+ * violation code + the P2 specificity check in qualityGate.ts, which operates independently
+ * of tier thresholds.
  */
 export function meetsMinimumTier(
   result: IntegrityResult,

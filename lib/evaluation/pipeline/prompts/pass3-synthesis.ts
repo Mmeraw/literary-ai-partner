@@ -67,6 +67,32 @@ REC CONTRACT — SEVEN PARTS (required for every recommendation):
 Reject patterns: no location/symptom/mechanism/concrete move/reader effect, or generic whole-manuscript advice.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SPECIFICITY DEPTH (P2 — MANUSCRIPT-SPECIFIC REVISION STRATEGY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Every recommendation must read like a professional developmental editor's margin note — not a writing workshop handout. The quality gate rejects generic prescriptions.
+
+FAIL examples (workshop clichés — these are REJECTED):
+- "Deepen thematic exploration of materialism."
+- "Add more subtext to dialogue."
+- "Increase tension in the scene."
+- "Strengthen the emotional stakes."
+- "Incorporate more sensory details."
+
+PASS examples (manuscript-specific revision strategy):
+- "Cut the diamond-market exposition (paragraphs 3–5) and replace with a beat where Calvin notices Monty's hands shaking — converting telling into dramatic subtext."
+- "Move the GeoCam reveal from page 8 to page 4, forcing Calvin to react before the nostalgic digression dissipates his urgency."
+- "Replace 'You are sooooo fucked' with a line that preserves Monty's profane register but names the specific risk — the reader currently cannot distinguish bravado from genuine self-destruction."
+
+WHAT MAKES A RECOMMENDATION SPECIFIC:
+1. Names a CHARACTER (by name, not "protagonist") OR quotes a PASSAGE (by snippet or paragraph number)
+2. Identifies a CONCRETE MOVE with measurable scope (cut X paragraphs, move Y to page Z, replace A with B)
+3. Explains the CAUSAL MECHANISM (why this particular passage creates this particular problem)
+4. States what changes for the READER (not "improves engagement" but "reader can now distinguish bravado from genuine self-destruction")
+5. When the criterion scores ≥7, ALWAYS include mistake_proofing — explicitly name what existing strength the revision must preserve
+
+ANTI-PATTERN: If your action text could apply to ANY manuscript without modification, it is generic. Rewrite it with the specific character name, passage reference, and dramatic mechanism from THIS manuscript.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RECOMMENDATION GROUNDING GATE (HARD RULES — SUPPRESS ANY REC THAT FAILS)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Before emitting any recommendation, validate ALL of the following. A single failure = rec is suppressed entirely (do not emit it, do not downgrade it, do not emit a placeholder).
