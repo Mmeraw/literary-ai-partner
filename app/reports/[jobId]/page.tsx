@@ -1269,6 +1269,20 @@ export default async function ReportPage({
             that must never appear in any user's browser/print view. Access governance
             data via the admin pipeline-health dashboard or direct DB queries only. */}
 
+        {/* ── Confidence Explanation (template section 13) ── */}
+        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-3">Confidence Explanation</h2>
+          <p className="text-gray-900 font-medium mb-2">What Does Confidence Mean?</p>
+          <p className="text-gray-700 mb-4">
+            Confidence reflects how strongly each diagnosis is supported by direct evidence in your writing.
+          </p>
+          <ul className="space-y-2 text-gray-700">
+            <li><span className="font-medium">High:</span> Strong textual evidence supports this diagnosis.</li>
+            <li><span className="font-medium">Moderate:</span> Enough evidence to identify the issue, but some ambiguity remains.</li>
+            <li><span className="font-medium">Low:</span> Limited or conflicting evidence—treat as a prompt for review, not a final judgment.</li>
+          </ul>
+        </section>
+
         {/* ── Author-Facing Disclaimer ── */}
         <section className="border border-gray-200 rounded-lg p-5 mb-6 bg-gray-50">
           <p className="text-xs text-gray-500 leading-relaxed">
