@@ -1262,6 +1262,29 @@ export function runQualityGate(
     }
   }
 
+  // ── P3 Check: Priority Hierarchy — deterministic score-driven enforcement ─────
+  // Validates that recommendation priorities match the criterion score band.
+  // Score ≤6 → high, Score 7 → medium, Score ≥8 → low.
+  // The pipeline enforces this deterministically in runPass3Synthesis.ts, but this
+  // check catches cases where the override was bypassed or priorities were corrupted.
+  {
+    const priorityMismatches: string[] = [];
+    for (const c of synthesis.criteria) {
+      const expectedPriority: "high" | "medium" | "low" =
+        c.final_score_0_10 <= 6 ? "high" : c.final_score_0_10 === 7 ? "medium" : "low";
+      for (const r of c.recommendations ?? []) {
+        if (r.priority !== expectedPriority) {
+          priorityMismatches.push(`${c.key} (score=${c.final_score_0_10}): got "${r.priority}", expected "${expectedPriority}"`);
+        }
+      }
+    }
+    if (priorityMismatches.length > 0) {
+      warnings.push(
+        `[P3_PRIORITY_HIERARCHY][WARN] ${priorityMismatches.length} recommendation(s) have priority mismatched to score band: ${priorityMismatches.slice(0, 5).join("; ")}. Expected: ≤6→high, 7→medium, ≥8→low.`,
+      );
+    }
+  }
+
   const failedHardChecks = checks.filter((c) => !c.passed);
   return {
     pass: failedHardChecks.length === 0,
