@@ -14,6 +14,13 @@ export type FailureDiagnosisV1 = {
   phase: string | null;
   phase_status?: string | null;
   failure_code: string | null;
+  failure_class:
+    | 'recoverable_exhausted'
+    | 'governance_blocked'
+    | 'system_error'
+    | 'artifact_write_error'
+    | 'forensic_write_warning'
+    | 'unknown';
   failure_point: {
     stage: string;
     gate?: string;
@@ -289,6 +296,28 @@ function buildBackwardKickStatus(failureCode: string | null): FailureDiagnosisV1
   };
 }
 
+function buildFailureClass(failureCode: string | null): FailureDiagnosisV1['failure_class'] {
+  switch (failureCode) {
+    case 'HANDOFF_REPAIR_EXHAUSTED':
+      return 'recoverable_exhausted';
+    case 'QG_FAILED':
+    case 'ARTIFACT_CONSISTENCY_GATE_FAILED':
+    case 'TEMPLATE_COMPLETENESS_GATE_FAILED':
+      return 'governance_blocked';
+    case 'ARTIFACT_PERSISTENCE_FAILED':
+    case 'PHASE2_PASS12_FAILED':
+      return 'system_error';
+    default:
+      if (failureCode?.includes('FAILURE_DIAGNOSIS') || failureCode?.includes('FORENSIC')) {
+        return 'forensic_write_warning';
+      }
+      if (failureCode?.includes('WRITE') || failureCode?.includes('PERSIST') || failureCode?.includes('UPLOAD')) {
+        return 'artifact_write_error';
+      }
+      return 'unknown';
+  }
+}
+
 function buildQGScoreCaps(
   diagnosticsArtifact: Record<string, unknown> | null,
 ): FailureDiagnosisV1['score_caps'] | undefined {
@@ -339,6 +368,7 @@ function buildTemplateFailure(
     phase,
     phase_status: null,
     failure_code: failureCode,
+    failure_class: buildFailureClass(failureCode),
     failure_point: {
       stage: phaseLabel(phase),
       gate: 'TemplateCompletenessGate',
@@ -405,6 +435,7 @@ function buildArtifactConsistencyFailure(
     phase,
     phase_status: null,
     failure_code: failureCode,
+    failure_class: buildFailureClass(failureCode),
     failure_point: {
       stage: phaseLabel(phase),
       gate: 'ArtifactConsistencyGateV1',
@@ -487,6 +518,7 @@ function buildQGFailure(
     phase,
     phase_status: null,
     failure_code: failureCode,
+    failure_class: buildFailureClass(failureCode),
     failure_point: {
       stage: phaseLabel(phase),
       gate: 'QualityGateV2',
@@ -551,6 +583,7 @@ function buildPhase2Pass12Failure(
     phase,
     phase_status: null,
     failure_code: failureCode,
+    failure_class: buildFailureClass(failureCode),
     failure_point: {
       stage: phaseLabel(phase ?? 'phase_2'),
       gate: 'Pass1/2Handoff',
@@ -584,6 +617,65 @@ function buildPhase2Pass12Failure(
   };
 }
 
+function buildHandoffRepairExhaustedFailure(
+  phase: string | null,
+  failureCode: string | null,
+  diagnostics: Record<string, unknown> | null,
+  artifactInventory: ArtifactInventory,
+): FailureDiagnosisV1 {
+  const repairCount = asNumber(diagnostics?.repair_count) ?? asNumber(diagnostics?.max_repair_attempts) ?? 3;
+  const repairReason = asString(diagnostics?.repair_reason) ?? 'pass12 handoff repair exhausted';
+  const nextAction =
+    asString(diagnostics?.next_action) ??
+    'Inspect pass12_handoff_repair_reason and latest Phase 2 artifact writes before retrying the job.';
+
+  return {
+    artifact_type: 'failure_diagnosis_v1',
+    version: 1,
+    job_id: '',
+    created_at: '',
+    phase,
+    phase_status: null,
+    failure_code: failureCode,
+    failure_class: 'recoverable_exhausted',
+    failure_point: {
+      stage: phaseLabel(phase ?? 'phase_2'),
+      gate: 'Pass1/2HandoffRepair',
+      artifact_type: 'pass12_handoff_v1',
+      failed_check: 'handoff_repair_exhausted',
+    },
+    user_safe_summary: 'The evaluation could not complete because the Pass 1/2 handoff could not be repaired.',
+    admin_summary: `Phase 2 failed to produce a valid Pass 1/2 handoff after ${repairCount} repair attempts. Check pass12_handoff_repair_reason and latest Phase 2 artifact writes.`,
+    developer_summary: `pass12_handoff_v1 repair exhausted after ${repairCount} attempt(s). Reason: ${repairReason}.`,
+    failed_checks: ['handoff_repair_exhausted'],
+    failed_criteria: [],
+    blocking_reasons: [failureCode ?? 'HANDOFF_REPAIR_EXHAUSTED'],
+    artifact_inventory: artifactInventory,
+    repair_status: {
+      attempted: true,
+      mechanism: 'pass12_handoff_repair',
+      outcome: 'failed',
+    },
+    backward_kick_status: {
+      triggered: false,
+      reason: repairReason,
+      retry_policy: {
+        max_retries: repairCount,
+        retryable: false,
+        classification: 'recoverable_exhausted',
+      },
+    },
+    recommended_next_action: nextAction,
+    evidence_refs: [
+      {
+        log_stage: 'phase_2',
+        field_path: 'pass12_handoff_repair_reason',
+        excerpt: repairReason,
+      },
+    ],
+  };
+}
+
 function buildGenericFailure(
   phase: string | null,
   failureCode: string | null,
@@ -598,6 +690,7 @@ function buildGenericFailure(
     phase,
     phase_status: null,
     failure_code: failureCode,
+    failure_class: buildFailureClass(failureCode),
     failure_point: {
       stage: phaseLabel(phase),
       artifact_type: firstFailureArtifact(failureCode),
@@ -662,6 +755,13 @@ export function buildFailureDiagnosisV1(input: FailureDiagnosisBuildInput): Fail
       diagnostics,
       artifactInventory,
       input.errorMessage,
+    );
+  } else if (input.failureCode === 'HANDOFF_REPAIR_EXHAUSTED') {
+    diagnosis = buildHandoffRepairExhaustedFailure(
+      input.phase,
+      input.failureCode,
+      diagnostics,
+      artifactInventory,
     );
   } else if (input.failureCode === 'PHASE2_PASS12_FAILED') {
     diagnosis = buildPhase2Pass12Failure(

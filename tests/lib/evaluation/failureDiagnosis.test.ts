@@ -153,4 +153,43 @@ describe('failureDiagnosis', () => {
     expect(packet.artifact_inventory.first_missing_or_failed_artifact).toBe('pass12_handoff_v1');
     expect(packet.failed_criteria).toEqual([]);
   });
+
+  it('classifies exhausted handoff repair as recoverable_exhausted and renders operator guidance', () => {
+    const packet = buildFailureDiagnosisV1({
+      jobId: 'job-handoff-repair',
+      createdAt: '2026-06-12T03:00:00.000Z',
+      phase: 'phase_2',
+      phaseStatus: 'failed',
+      failureCode: 'HANDOFF_REPAIR_EXHAUSTED',
+      errorMessage: 'Pass 1/2 handoff repair exhausted after 3 attempts.',
+      failureContext: {
+        pipelineStage: 'phase_2',
+        reasonCodes: ['HANDOFF_REPAIR_EXHAUSTED'],
+        diagnostics: {
+          repair_count: 3,
+          max_repair_attempts: 3,
+          repair_reason: 'pass12 handoff invalid before phase_3 queue',
+        },
+      },
+      artifacts: [
+        {
+          artifact_type: 'pass12_handoff_v1',
+          created_at: '2026-06-12T02:58:00.000Z',
+        },
+      ],
+    });
+
+    expect(packet.failure_class).toBe('recoverable_exhausted');
+    expect(packet.admin_summary).toBe(
+      'Phase 2 failed to produce a valid Pass 1/2 handoff after 3 repair attempts. Check pass12_handoff_repair_reason and latest Phase 2 artifact writes.',
+    );
+    expect(packet.developer_summary).toContain('repair exhausted after 3 attempt(s)');
+    expect(packet.recommended_next_action).toContain('pass12_handoff_repair_reason');
+    expect(packet.backward_kick_status.retry_policy).toEqual(
+      expect.objectContaining({
+        retryable: false,
+        classification: 'recoverable_exhausted',
+      }),
+    );
+  });
 });

@@ -67,6 +67,13 @@ interface ForensicData {
     phase: string | null;
     phase_status?: string | null;
     failure_code: string | null;
+    failure_class:
+      | "recoverable_exhausted"
+      | "governance_blocked"
+      | "system_error"
+      | "artifact_write_error"
+      | "forensic_write_warning"
+      | "unknown";
     failure_point: {
       stage: string;
       gate?: string;
@@ -357,6 +364,11 @@ export default function ForensicViewPage() {
             <div className="text-right text-xs text-rg-cream2/60">
               <p>{fmtDate(failureDiagnosis.created_at)}</p>
               <p className="mt-1 font-mono text-red-300">{failureDiagnosis.failure_code ?? "—"}</p>
+              <p className="mt-1 font-semibold text-amber-200">
+                {failureDiagnosis.failure_class === "recoverable_exhausted"
+                  ? "recoverable_exhausted"
+                  : failureDiagnosis.failure_class}
+              </p>
             </div>
           </div>
 
