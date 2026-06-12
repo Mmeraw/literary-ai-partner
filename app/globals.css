@@ -235,6 +235,46 @@
   overflow: hidden;
 }
 
+/* === Gold button contrast guard ===
+ *
+ * Preserve RevisionGrade's warm gold/orange palette, but make CTA text pop.
+ * Gold backgrounds are visually rich but mid-value; faint mono labels can become
+ * difficult to read for middle-aged authors and mobile users. Keep the color,
+ * increase weight/contrast.
+ */
+a.bg-rg-gold,
+button.bg-rg-gold,
+.bg-rg-gold[role='button'],
+a[class*='bg-rg-gold'],
+button[class*='bg-rg-gold'],
+a[class*='bg-[#C8A96E]'],
+button[class*='bg-[#C8A96E]'],
+a[class*='bg-[#b8862b]'],
+button[class*='bg-[#b8862b]'] {
+  color: #1c1814 !important;
+  font-weight: 800 !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+a.bg-rg-gold *,
+button.bg-rg-gold *,
+.bg-rg-gold[role='button'] *,
+a[class*='bg-rg-gold'] *,
+button[class*='bg-rg-gold'] *,
+a[class*='bg-[#C8A96E]'] *,
+button[class*='bg-[#C8A96E]'] *,
+a[class*='bg-[#b8862b]'] *,
+button[class*='bg-[#b8862b]'] * {
+  color: #1c1814 !important;
+  font-weight: 800 !important;
+  opacity: 1 !important;
+}
+
 @media print {
   .rg-print-report,
   .rg-print-report dd.max-w-4xl.rounded-lg.border.border-stone-200.bg-stone-50 {
