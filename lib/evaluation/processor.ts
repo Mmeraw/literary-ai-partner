@@ -11062,6 +11062,7 @@ export async function processEvaluationJob(
         }
 
         // Default path (phase_2 → queue phase_3 for next invocation).
+        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
