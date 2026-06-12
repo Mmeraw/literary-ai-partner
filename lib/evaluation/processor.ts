@@ -222,6 +222,7 @@ import {
   buildUnifiedDocumentForParityFromEvaluationResult,
   inferCanonicalEvaluationModeFromWordCount,
 } from '@/lib/evaluation/reportRenderParity';
+import { persistFailureDiagnosisArtifact } from '@/lib/evaluation/failureDiagnosis';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -5041,6 +5042,35 @@ export async function processEvaluationJob(
       const nextProgressRecord = nextProgress as Record<string, unknown>;
       if (!nextProgressRecord.pass3_completed_at && nextProgressRecord.pass3_started_at) {
         nextProgressRecord.pass3_completed_at = now;
+      }
+
+      try {
+        const failureDiagnosis = await persistFailureDiagnosisArtifact({
+          supabase,
+          jobId,
+          manuscriptId: job.manuscript_id,
+          createdAt: now,
+          phase: failedPhase,
+          phaseStatus: 'failed',
+          failureCode: errorCode,
+          errorMessage,
+          failureContext,
+        });
+        nextProgressRecord.failure_diagnosis = {
+          artifact_type: failureDiagnosis.artifact_type,
+          created_at: failureDiagnosis.created_at,
+          failure_point: failureDiagnosis.failure_point,
+          recommended_next_action: failureDiagnosis.recommended_next_action,
+        };
+      } catch (failureDiagnosisError) {
+        console.warn('[Processor] failure diagnosis persistence failed (non-fatal)', {
+          job_id: jobId,
+          failure_code: errorCode,
+          error:
+            failureDiagnosisError instanceof Error
+              ? failureDiagnosisError.message
+              : String(failureDiagnosisError),
+        });
       }
 
       Object.assign(progressState, nextProgress);
@@ -10059,6 +10089,7 @@ export async function processEvaluationJob(
       ledger: scoreLedger,
       efg: excellenceFilter,
     }, scopeProfileForV2Gate);
+    let qgSummaryRepairDiagnostics: Record<string, unknown> | null = null;
 
     // ── Deterministic QG summary weakness repair ─────────────────────────────
     // If the ONLY hard failure is v2_summary_weakness_presence, the evaluation
@@ -10080,6 +10111,15 @@ export async function processEvaluationJob(
           evaluationResult.overview.one_paragraph_summary,
           propagation.bottomScoreCriteria,
         );
+        qgSummaryRepairDiagnostics = {
+          attempted: true,
+          mechanism: 'normalizeSummaryWithBottomWeaknesses',
+          used_source: qualityGateV2.downgradedResult?.criteria
+            ? 'qualityGateV2.downgradedResult.criteria'
+            : 'evaluationResult.criteria',
+          expected_source: 'qualityGateV2.downgradedResult.criteria',
+          outcome: 'applied',
+        };
 
         console.log(
           `[Processor] ${jobId}: deterministic QG summary repair — patching overview summary to name bottom-score weaknesses: ${propagation.bottomScoreCriteria.join(', ')}`,
@@ -10097,13 +10137,15 @@ export async function processEvaluationJob(
           console.log(
             `[Processor] ${jobId}: QG summary repair succeeded — evaluation continues`,
           );
+        } else if (qgSummaryRepairDiagnostics) {
+          qgSummaryRepairDiagnostics.outcome = 'failed';
         }
       }
     }
 
     if (!qualityGateV2.pass) {
-      const failedChecks = qualityGateV2.checks
-        .filter((check) => !check.passed)
+      const failedCheckRecords = qualityGateV2.checks.filter((check) => !check.passed);
+      const failedChecks = failedCheckRecords
         .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
       const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
 
@@ -10281,7 +10323,15 @@ export async function processEvaluationJob(
         );
       }
 
-      await markFailed(gateError, 'QG_FAILED');
+      await markFailed(gateError, 'QG_FAILED', {
+        pipelineStage: 'quality_gate_v2',
+        reasonCodes: failedCheckRecords.map((check) => check.check_id),
+        diagnostics: {
+          gate: 'QualityGateV2',
+          failed_checks: failedCheckRecords.map((check) => check.check_id),
+          summary_repair: qgSummaryRepairDiagnostics,
+        },
+      });
 
       return { success: false, error: gateError };
     }

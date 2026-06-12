@@ -59,6 +59,63 @@ interface ForensicData {
     violation_codes: string[];
   };
   qualityGateChecks: Array<Record<string, unknown>>;
+  failureDiagnosis: {
+    artifact_type: "failure_diagnosis_v1";
+    version: 1;
+    job_id: string;
+    created_at: string;
+    phase: string | null;
+    phase_status?: string | null;
+    failure_code: string | null;
+    failure_point: {
+      stage: string;
+      gate?: string;
+      artifact_type?: string;
+      failed_check?: string;
+    };
+    user_safe_summary: string;
+    admin_summary: string;
+    developer_summary: string;
+    failed_checks: string[];
+    failed_criteria: string[];
+    blocking_reasons: string[];
+    score_caps?: Array<{
+      criterion: string;
+      original_score?: number;
+      effective_score?: number;
+      confidence?: number;
+      reason?: string;
+    }>;
+    artifact_inventory: {
+      last_successful_artifact?: string;
+      first_missing_or_failed_artifact?: string;
+      present_artifacts: string[];
+      missing_expected_artifacts: string[];
+    };
+    repair_status: {
+      attempted: boolean;
+      mechanism?: string;
+      used_source?: string;
+      expected_source?: string;
+      outcome?: "not_attempted" | "applied" | "failed" | "not_applicable";
+    };
+    backward_kick_status: {
+      triggered: boolean;
+      reason: string;
+      retry_policy?: {
+        max_retries?: number;
+        retryable?: boolean;
+        classification?: string;
+      };
+    };
+    recommended_next_action: string;
+    evidence_refs: Array<{
+      artifact_type?: string;
+      log_stage?: string;
+      field_path?: string;
+      excerpt?: string;
+    }>;
+  } | null;
   canonCompliance: Array<{
     stage: string;
     authority: string;
@@ -225,7 +282,7 @@ export default function ForensicViewPage() {
     );
   }
 
-  const { job, stages, artifacts, selfCorrection, retryAnalytics, qualityGateChecks, canonCompliance, contaminationTrace } = data;
+  const { job, stages, artifacts, selfCorrection, retryAnalytics, qualityGateChecks, failureDiagnosis, canonCompliance, contaminationTrace } = data;
   const failedStages = stages.filter((s) => s.result === "fail" || s.result === "retry_fail");
   const passedStages = stages.filter((s) => s.result === "pass" || s.result === "inferred_pass" || s.result === "retry_pass");
 
@@ -289,6 +346,92 @@ export default function ForensicViewPage() {
           </div>
         )}
       </div>
+
+      {failureDiagnosis && (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-950/20 p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-rg-cream">Failure Diagnosis</h2>
+              <p className="mt-1 text-sm text-rg-cream2/70">{failureDiagnosis.admin_summary}</p>
+            </div>
+            <div className="text-right text-xs text-rg-cream2/60">
+              <p>{fmtDate(failureDiagnosis.created_at)}</p>
+              <p className="mt-1 font-mono text-red-300">{failureDiagnosis.failure_code ?? "—"}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Failure point</p>
+                <p className="mt-1 text-sm font-semibold text-rg-cream">
+                  {failureDiagnosis.failure_point.stage}
+                  {failureDiagnosis.failure_point.gate ? ` · ${failureDiagnosis.failure_point.gate}` : ""}
+                </p>
+                {failureDiagnosis.failure_point.failed_check && (
+                  <p className="mt-1 font-mono text-xs text-amber-200">{failureDiagnosis.failure_point.failed_check}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Recommended next action</p>
+                <p className="mt-1 text-sm text-rg-cream">{failureDiagnosis.recommended_next_action}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Developer summary</p>
+                <p className="mt-1 text-sm text-rg-cream2/80">{failureDiagnosis.developer_summary}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Checks / criteria</p>
+                <p className="mt-1 text-sm text-rg-cream">
+                  {(failureDiagnosis.failed_checks.length > 0 ? failureDiagnosis.failed_checks : failureDiagnosis.blocking_reasons).join(", ") || "—"}
+                </p>
+                {failureDiagnosis.failed_criteria.length > 0 && (
+                  <p className="mt-1 text-xs text-rg-cream2/70">Criteria: {failureDiagnosis.failed_criteria.join(", ")}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Repair / backward kick</p>
+                <p className="mt-1 text-sm text-rg-cream2/80">
+                  Repair: {failureDiagnosis.repair_status.outcome ?? (failureDiagnosis.repair_status.attempted ? "attempted" : "not_attempted")}
+                  {failureDiagnosis.repair_status.mechanism ? ` via ${failureDiagnosis.repair_status.mechanism}` : ""}
+                </p>
+                <p className="mt-1 text-sm text-rg-cream2/80">
+                  Backward kick: {failureDiagnosis.backward_kick_status.triggered ? "triggered" : "not triggered"} — {failureDiagnosis.backward_kick_status.reason}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Artifact inventory</p>
+                <p className="mt-1 text-xs text-rg-cream2/80">
+                  Last successful: {failureDiagnosis.artifact_inventory.last_successful_artifact ?? "—"} · First missing/failed: {failureDiagnosis.artifact_inventory.first_missing_or_failed_artifact ?? "—"}
+                </p>
+                <p className="mt-1 text-xs text-rg-cream2/70">
+                  Present: {failureDiagnosis.artifact_inventory.present_artifacts.join(", ") || "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {failureDiagnosis.score_caps && failureDiagnosis.score_caps.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Score caps</p>
+              <div className="mt-2 space-y-2">
+                {failureDiagnosis.score_caps.map((cap) => (
+                  <div key={cap.criterion} className="rounded border border-rg-cream2/10 bg-rg-ink2/60 p-3 text-xs text-rg-cream2/80">
+                    <p className="font-semibold text-rg-cream">{cap.criterion}</p>
+                    <p>
+                      original={cap.original_score ?? "—"} effective={cap.effective_score ?? "—"} confidence={cap.confidence ?? "—"}
+                    </p>
+                    {cap.reason && <p className="mt-1">{cap.reason}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stage-by-Stage Progression */}
       <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 shadow-sm overflow-hidden">

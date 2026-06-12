@@ -175,6 +175,8 @@ export type ArtifactType =
   | "report_render_manifest_v1"
   /** Author exposure release certification; must be certified for author-facing surfaces. */
   | "author_exposure_certification_v1"
+  /** Deterministic admin-readable failure packet persisted at job-failure finalization time. */
+  | "failure_diagnosis_v1"
   /** Compact final verification rail for long-form report readiness. */
   | "final_external_audit_v1";
 

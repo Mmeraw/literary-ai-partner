@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
+import type { FailureDiagnosisV1 } from "@/lib/evaluation/failureDiagnosis";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const supabase = createAdminClient();
 
     // Fetch job, artifacts, and pipeline logs in parallel
-    const [jobResult, artifactResult, logResult] = await Promise.all([
+    const [jobResult, artifactResult, logResult, failureDiagnosisResult] = await Promise.all([
       supabase
         .from("evaluation_jobs")
         .select("id,user_id,manuscript_id,job_type,status,phase,phase_status,progress,total_units,completed_units,failed_units,last_error,failure_code,created_at,updated_at,evaluation_result")
@@ -88,6 +89,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
         .select("id,job_id,level,stage,message,metadata,created_at")
         .eq("job_id", jobId)
         .order("created_at", { ascending: true }),
+      supabase
+        .from("evaluation_artifacts")
+        .select("content")
+        .eq("job_id", jobId)
+        .eq("artifact_type", "failure_diagnosis_v1")
+        .maybeSingle(),
     ]);
 
     if (jobResult.error) {
@@ -110,6 +117,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
       metadata: Record<string, unknown> | null;
       created_at: string;
     }>;
+    const failureDiagnosis =
+      failureDiagnosisResult.error || !failureDiagnosisResult.data?.content
+        ? null
+        : (failureDiagnosisResult.data.content as FailureDiagnosisV1);
 
     // Extract progress data
     const progress = (job.progress ?? {}) as Record<string, unknown>;
@@ -428,6 +439,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       selfCorrection: selfCorrectionSummary,
       retryAnalytics,
       qualityGateChecks,
+      failureDiagnosis,
       canonCompliance: SIPOC_STAGES.map((spec) => ({
         stage: spec.id,
         authority: spec.authority,

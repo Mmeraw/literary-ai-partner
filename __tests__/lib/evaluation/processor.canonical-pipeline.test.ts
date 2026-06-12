@@ -988,6 +988,30 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       }),
     );
 
+    const failureDiagnosisCall = upsertEvaluationArtifactMock.mock.calls.find(
+      (call: any[]) => call[0]?.artifactType === "failure_diagnosis_v1",
+    );
+    expect(failureDiagnosisCall).toBeDefined();
+    expect(failureDiagnosisCall?.[0]?.content).toEqual(
+      expect.objectContaining({
+        artifact_type: "failure_diagnosis_v1",
+        failure_code: "ARTIFACT_CONSISTENCY_GATE_FAILED",
+        failure_point: expect.objectContaining({
+          gate: "ArtifactConsistencyGateV1",
+          artifact_type: "artifact_consistency_gate_v1",
+        }),
+        blocking_reasons: expect.arrayContaining(["summary_criteria_bottom_weakness_alignment"]),
+      }),
+    );
+
+    expect(
+      upsertEvaluationArtifactMock.mock.calls.some((call: any[]) =>
+        ["unified_evaluation_document_v1", "report_render_manifest_v1", "author_exposure_certification_v1"].includes(
+          call[0]?.artifactType,
+        ),
+      ),
+    ).toBe(false);
+
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(false);
