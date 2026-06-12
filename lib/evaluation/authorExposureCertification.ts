@@ -155,7 +155,7 @@ export async function getAuthorExposureDecision(
     };
   }
 
-  if (data == null || !data.content) {
+  if (data == null) {
     return {
       exposable: false,
       reason: 'missing_certification',
@@ -163,5 +163,15 @@ export async function getAuthorExposureDecision(
     };
   }
 
-  return evaluateAuthorExposureCertification((data as { content: unknown }).content);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const content = (data as any).content as unknown;
+  if (!content) {
+    return {
+      exposable: false,
+      reason: 'missing_certification',
+      details: 'author_exposure_certification_v1 artifact missing',
+    };
+  }
+
+  return evaluateAuthorExposureCertification(content);
 }
