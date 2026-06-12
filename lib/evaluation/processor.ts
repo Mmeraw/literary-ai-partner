@@ -10072,7 +10072,8 @@ export async function processEvaluationJob(
         hardFailedChecks[0].check_id === 'v2_summary_weakness_presence';
 
       if (isOnlySummaryWeakness) {
-        const propagation = summarizePropagationIntegrity(evaluationResult.criteria);
+        const summaryRepairCriteria = qualityGateV2.downgradedResult?.criteria ?? evaluationResult.criteria;
+        const propagation = summarizePropagationIntegrity(summaryRepairCriteria);
         const repairedSummary = normalizeSummaryWithBottomWeaknesses(
           evaluationResult.overview.one_paragraph_summary,
           propagation.bottomScoreCriteria,
