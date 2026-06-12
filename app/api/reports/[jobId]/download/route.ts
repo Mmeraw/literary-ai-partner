@@ -31,6 +31,7 @@ import {
   type CanonicalEvaluationMode,
   type UnifiedEvaluationDocument,
 } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
@@ -3247,7 +3248,33 @@ export async function GET(
     ? result.metrics.manuscript.word_count
     : null;
   const evaluationMode = await loadCanonicalEvaluationMode(admin, jobId, rawResult, (job as { progress?: unknown }).progress, manuscriptWordCount);
-  const canonicalDoc = buildCanonicalTemplateDocument(result, title, enrichment, evaluationMode, dream);
+  const persistedDocument = await loadCertifiedUnifiedEvaluationDocumentArtifact(admin, jobId);
+  if (persistedDocument.ok === false && persistedDocument.reason !== 'missing_unified_document_artifact') {
+    console.error('[report-download] Certified UED load failed', {
+      jobId,
+      format,
+      reason: persistedDocument.reason,
+      details: persistedDocument.details,
+    });
+    return NextResponse.json(
+      {
+        error: 'This download is temporarily unavailable while we verify content accuracy.',
+        code: 'CERTIFIED_UED_UNAVAILABLE',
+      },
+      { status: persistedDocument.reason === 'db_error' ? 500 : 422 },
+    );
+  }
+
+  if (persistedDocument.ok === false) {
+    console.warn('[report-download] Missing persisted UED artifact; using legacy canonical builder', {
+      jobId,
+      format,
+    });
+  }
+
+  const canonicalDoc = persistedDocument.ok
+    ? persistedDocument.document
+    : buildCanonicalTemplateDocument(result, title, enrichment, evaluationMode, dream);
 
   if (format === 'txt') {
     const body = buildCanonicalTemplateTxt(canonicalDoc, jobId);
@@ -3307,4 +3334,5 @@ export const __testingDownload = {
   buildCanonicalTemplateTxt,
   renderCanonicalTemplateHtml,
   buildCanonicalTemplateDocx,
+  loadCertifiedUnifiedEvaluationDocumentArtifact,
 };
