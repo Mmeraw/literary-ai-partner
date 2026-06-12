@@ -1,13 +1,9 @@
-import { createHash } from 'crypto';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import {
   isUnifiedEvaluationDocument,
   loadCertifiedUnifiedEvaluationDocumentArtifact,
 } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { buildUnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
-
-function stableHash(value: unknown): string {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
-}
 
 function makeUnifiedDocument() {
   return buildUnifiedEvaluationDocument({
@@ -55,6 +51,17 @@ function makeUnifiedDocument() {
   });
 }
 
+function reverseObjectKeyOrderDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(reverseObjectKeyOrderDeep);
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value as Record<string, unknown>)
+    .reverse()
+    .reduce<Record<string, unknown>>((acc, key) => {
+      acc[key] = reverseObjectKeyOrderDeep((value as Record<string, unknown>)[key]);
+      return acc;
+    }, {});
+}
+
 function makeSupabaseMock(rows: Record<string, unknown>, errors: Record<string, { message: string } | null> = {}) {
   return {
     from: jest.fn(() => {
@@ -92,7 +99,7 @@ describe('persisted unified evaluation document loader', () => {
         content: {
           schema_version: 'author_exposure_certification_v1',
           decision: 'certified',
-          unified_document_hash: stableHash(unifiedDocument),
+          unified_document_hash: canonicalJsonSha256(unifiedDocument),
         },
       },
     });
@@ -102,8 +109,29 @@ describe('persisted unified evaluation document loader', () => {
     expect(result).toMatchObject({ ok: true, source: 'persisted_artifact' });
     if (result.ok) {
       expect(result.document.title).toBe('Certified Manuscript');
-      expect(result.unifiedDocumentHash).toBe(stableHash(unifiedDocument));
+      expect(result.unifiedDocumentHash).toBe(canonicalJsonSha256(unifiedDocument));
     }
+  });
+
+  test('accepts persisted UED when jsonb key order changes but content is identical', async () => {
+    const unifiedDocument = makeUnifiedDocument();
+    const reorderedDocument = reverseObjectKeyOrderDeep(unifiedDocument);
+    const supabase = makeSupabaseMock({
+      unified_evaluation_document_v1: { content: reorderedDocument },
+      author_exposure_certification_v1: {
+        content: {
+          schema_version: 'author_exposure_certification_v1',
+          decision: 'certified',
+          unified_document_hash: canonicalJsonSha256(unifiedDocument),
+        },
+      },
+    });
+
+    expect(canonicalJsonSha256(reorderedDocument)).toBe(canonicalJsonSha256(unifiedDocument));
+
+    const result = await loadCertifiedUnifiedEvaluationDocumentArtifact(supabase as never, 'job-1');
+
+    expect(result).toMatchObject({ ok: true, source: 'persisted_artifact' });
   });
 
   test('reports missing UED separately so routes can legacy-fallback old jobs', async () => {
@@ -148,7 +176,7 @@ describe('persisted unified evaluation document loader', () => {
         content: {
           schema_version: 'author_exposure_certification_v1',
           decision: 'blocked',
-          unified_document_hash: stableHash(unifiedDocument),
+          unified_document_hash: canonicalJsonSha256(unifiedDocument),
         },
       },
     });

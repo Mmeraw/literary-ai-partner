@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { extractStoryLayers } from '@/lib/evaluation/phase1a/storyLayerArtifactWriters';
 import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
 
+type StoryLayerExtractionFailure = Extract<ReturnType<typeof extractStoryLayers>, { ok: false }>;
+
 /**
  * Regression tests for extractStoryLayers().
  *
@@ -25,6 +27,12 @@ function buildFlatPayload(): Record<string, Record<string, unknown>> {
 
 function buildWrappedPayload(): { layers: Record<string, Record<string, unknown>> } {
   return { layers: buildFlatPayload() };
+}
+
+function expectExtractionFailure(result: ReturnType<typeof extractStoryLayers>): StoryLayerExtractionFailure {
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error('unreachable');
+  return result as StoryLayerExtractionFailure;
 }
 
 describe('extractStoryLayers', () => {
@@ -91,37 +99,27 @@ describe('extractStoryLayers', () => {
   describe('malformed / empty payloads → failure, not silent {}', () => {
     it('should reject null input', () => {
       const result = extractStoryLayers(null);
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error('unreachable');
-      expect(result.reason).toContain('null/undefined');
+      expect(expectExtractionFailure(result).reason).toContain('null/undefined');
     });
 
     it('should reject undefined input', () => {
       const result = extractStoryLayers(undefined);
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error('unreachable');
-      expect(result.reason).toContain('null/undefined');
+      expect(expectExtractionFailure(result).reason).toContain('null/undefined');
     });
 
     it('should reject empty object', () => {
       const result = extractStoryLayers({});
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error('unreachable');
-      expect(result.reason).toContain('no .layers key and no canonical layer keys');
+      expect(expectExtractionFailure(result).reason).toContain('no .layers key and no canonical layer keys');
     });
 
     it('should reject wrapped shape with empty layers (the PR #890 bug)', () => {
       const result = extractStoryLayers({ layers: {} });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error('unreachable');
-      expect(result.reason).toContain('layers object is empty');
+      expect(expectExtractionFailure(result).reason).toContain('layers object is empty');
     });
 
     it('should reject object with unrecognized keys only', () => {
       const result = extractStoryLayers({ foo: 'bar', baz: 123 });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error('unreachable');
-      expect(result.reason).toContain('no .layers key and no canonical layer keys');
+      expect(expectExtractionFailure(result).reason).toContain('no .layers key and no canonical layer keys');
     });
 
     it('should reject flat payload where canonical keys have non-object values', () => {
@@ -131,9 +129,7 @@ describe('extractStoryLayers', () => {
       }
 
       const result = extractStoryLayers(badPayload);
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error('unreachable');
-      expect(result.reason).toContain('no valid layer objects extracted');
+      expect(expectExtractionFailure(result).reason).toContain('no valid layer objects extracted');
     });
 
     it('should reject array input', () => {

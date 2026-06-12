@@ -1,6 +1,6 @@
 import 'server-only';
-import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
 
 export type PersistedUnifiedEvaluationDocumentLoadResult =
@@ -29,11 +29,6 @@ type CertificationContent = {
   decision?: unknown;
   unified_document_hash?: unknown;
 };
-
-function stableHash(value: unknown): string {
-  const payload = typeof value === 'string' ? value : JSON.stringify(value);
-  return createHash('sha256').update(payload ?? '').digest('hex');
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -139,7 +134,7 @@ export async function loadCertifiedUnifiedEvaluationDocumentArtifact(
     return { ok: false, reason: 'invalid_certification_artifact' };
   }
 
-  const unifiedDocumentHash = stableHash(unifiedContent);
+  const unifiedDocumentHash = canonicalJsonSha256(unifiedContent);
   if (unifiedDocumentHash !== certificationContent.unified_document_hash) {
     return {
       ok: false,
