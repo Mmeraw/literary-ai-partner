@@ -1933,9 +1933,23 @@ export async function assertReviewGatePassedBeforeHandoff(
 
 /**
  * Policy gate: phase_2 may queue phase_3 only if pass12_handoff_v1 exists.
- * This prevents phase_3 from starting in a split state and hard-fails earlier
- * with an explicit policy violation.
+ * Recoverable handoff defects are kicked back to phase_2 by the queue boundary
+ * wrapper so phase_2 can rebuild/overwrite the handoff. Database/system errors
+ * still throw explicitly and must not be masked as retryable content repair.
  */
+class RecoverablePass12HandoffQueueError extends Error {
+  readonly recoverable = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'RecoverablePass12HandoffQueueError';
+  }
+}
+
+function isRecoverablePass12HandoffQueueError(error: unknown): error is RecoverablePass12HandoffQueueError {
+  return error instanceof RecoverablePass12HandoffQueueError;
+}
+
 export async function assertPass12HandoffExistsBeforePhase3Queue(
   supabase: SupabaseClient<any, any, any>,
   jobId: string,
@@ -1953,19 +1967,19 @@ export async function assertPass12HandoffExistsBeforePhase3Queue(
   }
 
   if (!handoffCheck?.id) {
-    throw new Error('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
+    throw new RecoverablePass12HandoffQueueError('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
   }
 
   const row = handoffCheck as UpstreamArtifactRow;
   if (row.job_id && row.job_id !== jobId) {
-    throw new Error(`POLICY_VIOLATION: phase_3 queue pass12_handoff_v1 job_id mismatch (expected=${jobId}, actual=${row.job_id})`);
+    throw new RecoverablePass12HandoffQueueError(`POLICY_VIOLATION: phase_3 queue pass12_handoff_v1 job_id mismatch (expected=${jobId}, actual=${row.job_id})`);
   }
   if (
     typeof manuscriptId === 'number' &&
     typeof row.manuscript_id === 'number' &&
     row.manuscript_id !== manuscriptId
   ) {
-    throw new Error(
+    throw new RecoverablePass12HandoffQueueError(
       `POLICY_VIOLATION: phase_3 queue pass12_handoff_v1 manuscript_id mismatch (expected=${manuscriptId}, actual=${row.manuscript_id})`,
     );
   }
@@ -1976,7 +1990,76 @@ export async function assertPass12HandoffExistsBeforePhase3Queue(
   const hasPass2Output = Boolean(contentRecord && isRecord(contentRecord.pass2Output));
 
   if (schemaVersion !== 'pass12_handoff_v1' || !hasPass1Output || !hasPass2Output) {
-    throw new Error('POLICY_VIOLATION: phase_3 queue requires canonical complete pass12_handoff_v1');
+    throw new RecoverablePass12HandoffQueueError('POLICY_VIOLATION: phase_3 queue requires canonical complete pass12_handoff_v1');
+  }
+}
+
+async function requeuePhase2ForPass12HandoffRepair(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  progressState: Record<string, unknown>;
+  reason: string;
+}): Promise<void> {
+  const requeueNow = new Date().toISOString();
+  const previousRepairCount = typeof params.progressState.pass12_handoff_repair_count === 'number'
+    ? params.progressState.pass12_handoff_repair_count
+    : 0;
+
+  const { error: requeueErr } = await params.supabase
+    .from('evaluation_jobs')
+    .update({
+      status: JOB_STATUS.QUEUED,
+      phase: 'phase_2',
+      phase_status: JOB_STATUS.QUEUED,
+      claimed_by: null,
+      claimed_at: null,
+      lease_token: null,
+      lease_until: null,
+      updated_at: requeueNow,
+      progress: {
+        ...params.progressState,
+        phase: 'phase_2',
+        phase_status: JOB_STATUS.QUEUED,
+        message: 'Pass 1/2 handoff needs repair — queued to rebuild scoring handoff',
+        pass12_handoff_repair_count: previousRepairCount + 1,
+        pass12_handoff_repair_queued_at: requeueNow,
+        pass12_handoff_repair_reason: params.reason,
+      },
+    })
+    .eq('id', params.jobId)
+    .eq('status', JOB_STATUS.RUNNING);
+
+  if (requeueErr) {
+    throw new Error(`PHASE2_HANDOFF_REPAIR_REQUEUE_FAILED: ${requeueErr.message}`);
+  }
+
+  console.warn(
+    `[phase_2] ${params.jobId}: pass12 handoff invalid before phase_3 queue — requeued phase_2 for repair`,
+    params.reason,
+  );
+}
+
+async function assertPass12HandoffOrRequeuePhase2ForRepair(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  manuscriptId: number;
+  progressState: Record<string, unknown>;
+}): Promise<boolean> {
+  try {
+    await assertPass12HandoffExistsBeforePhase3Queue(params.supabase, params.jobId, params.manuscriptId);
+    return true;
+  } catch (error) {
+    if (!isRecoverablePass12HandoffQueueError(error)) {
+      throw error;
+    }
+
+    await requeuePhase2ForPass12HandoffRepair({
+      supabase: params.supabase,
+      jobId: params.jobId,
+      progressState: params.progressState,
+      reason: error.message,
+    });
+    return false;
   }
 }
 
@@ -9492,7 +9575,14 @@ export async function processEvaluationJob(
 
           // Queue phase_3 — same pattern as the handoff-present branch
           const p2HandoffNow = new Date().toISOString();
-          await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id), Number(job.manuscript_id));
+          if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
+            supabase,
+            jobId: String(job.id),
+            manuscriptId: Number(job.manuscript_id),
+            progressState,
+          }))) {
+            return { success: true };
+          }
           const { data: p2Phase3Row, error: p2Phase3Err } = await supabase
             .from('evaluation_jobs')
             .update({
@@ -9608,7 +9698,14 @@ export async function processEvaluationJob(
         });
 
         const p2ShortNow = new Date().toISOString();
-        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id), Number(job.manuscript_id));
+        if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: Number(job.manuscript_id),
+          progressState,
+        }))) {
+          return { success: true };
+        }
         const { error: p2ShortPhase3Err } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -9636,7 +9733,14 @@ export async function processEvaluationJob(
         );
 
         const phase3QueueNow = new Date().toISOString();
-        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id), Number(job.manuscript_id));
+        if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: Number(job.manuscript_id),
+          progressState,
+        }))) {
+          return { success: true };
+        }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -11086,7 +11190,14 @@ export async function processEvaluationJob(
         }
 
         // Default path (phase_2 → queue phase_3 for next invocation).
-        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id), Number(job.manuscript_id));
+        if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: Number(job.manuscript_id),
+          progressState,
+        }))) {
+          return { success: true };
+        }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({

@@ -611,9 +611,12 @@ describe("Review Gate wiring helpers", () => {
     expect(processorCode).toContain("manuscript_under_25000_words_retryable_technical_block");
   });
 
-  test("default phase_2 to phase_3 queue path requires durable pass12 handoff", () => {
+  test("default phase_2 to phase_3 queue path repairs recoverable pass12 handoff defects", () => {
     const processorPath = path.join(__dirname, "../../../lib/evaluation/processor.ts");
     const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    expect(processorCode).toContain("requeuePhase2ForPass12HandoffRepair");
+    expect(processorCode).toContain("pass12_handoff_repair_count");
 
     const defaultQueueStart = processorCode.indexOf("// Default path (phase_2 → queue phase_3 for next invocation).");
     const defaultQueueEnd = processorCode.indexOf("if (phase3QueueErr)", defaultQueueStart);
@@ -622,7 +625,7 @@ describe("Review Gate wiring helpers", () => {
     expect(defaultQueueEnd).toBeGreaterThan(defaultQueueStart);
 
     const defaultQueueSection = processorCode.slice(defaultQueueStart, defaultQueueEnd);
-    const guardIndex = defaultQueueSection.indexOf("assertPass12HandoffExistsBeforePhase3Queue(");
+    const guardIndex = defaultQueueSection.indexOf("assertPass12HandoffOrRequeuePhase2ForRepair(");
     const updateIndex = defaultQueueSection.indexOf("status: JOB_STATUS.QUEUED");
 
     expect(guardIndex).toBeGreaterThan(-1);
