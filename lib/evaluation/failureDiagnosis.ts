@@ -239,7 +239,7 @@ function buildRepairStatus(
   failureCode: string | null,
 ): RepairStatus {
   const summaryRepair = isRecord(diagnostics?.summary_repair)
-    ? diagnostics.summary_repair as Record<string, unknown>
+    ? diagnostics.summary_repair
     : null;
 
   if (summaryRepair) {
@@ -627,18 +627,20 @@ function buildGenericFailure(
 
 export function buildFailureDiagnosisV1(input: FailureDiagnosisBuildInput): FailureDiagnosisV1 {
   const diagnostics = isRecord(input.failureContext?.diagnostics)
-    ? input.failureContext.diagnostics as Record<string, unknown>
+    ? input.failureContext.diagnostics
     : null;
   const artifacts = input.artifacts ?? [];
   const artifactInventory = buildArtifactInventory(artifacts, input.failureCode);
+  const qualityGateArtifactContent = findArtifact(artifacts, 'quality_gate_diagnostics_v1')?.content;
+  const artifactConsistencyContent = findArtifact(artifacts, 'artifact_consistency_gate_v1')?.content;
 
   let diagnosis: FailureDiagnosisV1;
   if (input.failureCode === 'QG_FAILED') {
     diagnosis = buildQGFailure(
       input.phase,
       input.failureCode,
-      isRecord(findArtifact(artifacts, 'quality_gate_diagnostics_v1')?.content)
-        ? findArtifact(artifacts, 'quality_gate_diagnostics_v1')?.content as Record<string, unknown>
+      isRecord(qualityGateArtifactContent)
+        ? qualityGateArtifactContent
         : null,
       diagnostics,
       artifactInventory,
@@ -648,8 +650,8 @@ export function buildFailureDiagnosisV1(input: FailureDiagnosisBuildInput): Fail
     diagnosis = buildArtifactConsistencyFailure(
       input.phase,
       input.failureCode,
-      isRecord(findArtifact(artifacts, 'artifact_consistency_gate_v1')?.content)
-        ? findArtifact(artifacts, 'artifact_consistency_gate_v1')?.content as Record<string, unknown>
+      isRecord(artifactConsistencyContent)
+        ? artifactConsistencyContent
         : diagnostics,
       artifactInventory,
     );
