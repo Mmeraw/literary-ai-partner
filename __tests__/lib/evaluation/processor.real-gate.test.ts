@@ -383,8 +383,18 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     // 1. Job terminates with success.
     expect(result.success).toBe(true);
 
-    // 2 & 3. Artifact persisted via atomic RPC with canonical V2 type/version.
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    // 2 & 3. Artifact persisted via atomic RPC with canonical V2 type/version,
+    // plus renderer parity proof artifacts.
+    const parityArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(parityArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
     ) as { fn: string; args?: Record<string, unknown> } | undefined;
@@ -507,7 +517,16 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const result = await processEvaluationJob("job-real-gate-test");
 
     expect(result.success).toBe(true);
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    const parityArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(parityArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
@@ -685,8 +704,17 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     expect(result.success).toBe(true);
 
     // No fail-soft diagnostic artifacts should be written because this path is no
-    // longer a gate failure.
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    // longer a gate failure. Success now writes only parity proof artifacts.
+    const parityArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(parityArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",

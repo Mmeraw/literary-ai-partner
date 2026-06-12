@@ -54,6 +54,18 @@ jest.mock("@/lib/manuscripts/chunks", () => ({
   ensureChunksFromText: (...args: any[]) => ensureChunksFromTextMock(...args),
 }));
 
+const upsertEvaluationArtifactMock = jest.fn();
+
+jest.mock("../../../lib/evaluation/artifactPersistence", () => ({
+  stableSourceHash: () => "sha256:chunk-routing-test-hash",
+  upsertEvaluationArtifact: (...args: any[]) => upsertEvaluationArtifactMock(...args),
+}));
+
+jest.mock("@/lib/evaluation/artifactPersistence", () => ({
+  stableSourceHash: () => "sha256:chunk-routing-test-hash",
+  upsertEvaluationArtifact: (...args: any[]) => upsertEvaluationArtifactMock(...args),
+}));
+
 const createClientMock = jest.fn();
 
 jest.mock("@supabase/supabase-js", () => ({
@@ -79,8 +91,8 @@ function buildEvaluationResult() {
       overall_score_0_100: 82,
       scored_criteria_count: 13,
       one_paragraph_summary: "Summary",
-      top_3_strengths: [],
-      top_3_risks: [],
+      top_3_strengths: ["Clear narrative throughline"],
+      top_3_risks: ["Secondary character arc needs deepening"],
     },
     criteria: new Array(13).fill(null).map((_, idx) => ({
       key: [
@@ -109,8 +121,18 @@ function buildEvaluationResult() {
       recommendations: [],
     })),
     recommendations: {
-      quick_wins: [],
-      strategic_revisions: [],
+      quick_wins: [
+        {
+          action: "Sharpen scene transitions for momentum.",
+          why: "Smoother transitions preserve narrative drive between beats.",
+        },
+      ],
+      strategic_revisions: [
+        {
+          action: "Strengthen secondary character arc continuity.",
+          why: "Consistent subplot escalation reinforces emotional payoff.",
+        },
+      ],
     },
     metrics: {
       manuscript: {},
