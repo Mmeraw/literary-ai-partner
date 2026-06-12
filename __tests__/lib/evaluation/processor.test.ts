@@ -617,6 +617,9 @@ describe("Review Gate wiring helpers", () => {
 
     expect(processorCode).toContain("requeuePhase2ForPass12HandoffRepair");
     expect(processorCode).toContain("pass12_handoff_repair_count");
+    expect(processorCode).toContain("PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS = 3");
+    expect(processorCode).toContain("HANDOFF_REPAIR_EXHAUSTED");
+    expect(processorCode).toContain("ensurePass12HandoffReadyForPhase3Queue");
 
     const defaultQueueStart = processorCode.indexOf("// Default path (phase_2 → queue phase_3 for next invocation).");
     const defaultQueueEnd = processorCode.indexOf("if (phase3QueueErr)", defaultQueueStart);
@@ -625,7 +628,7 @@ describe("Review Gate wiring helpers", () => {
     expect(defaultQueueEnd).toBeGreaterThan(defaultQueueStart);
 
     const defaultQueueSection = processorCode.slice(defaultQueueStart, defaultQueueEnd);
-    const guardIndex = defaultQueueSection.indexOf("assertPass12HandoffOrRequeuePhase2ForRepair(");
+    const guardIndex = defaultQueueSection.indexOf("ensurePass12HandoffReadyForPhase3Queue(");
     const updateIndex = defaultQueueSection.indexOf("status: JOB_STATUS.QUEUED");
 
     expect(guardIndex).toBeGreaterThan(-1);

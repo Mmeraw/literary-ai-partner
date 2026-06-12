@@ -1950,6 +1950,13 @@ function isRecoverablePass12HandoffQueueError(error: unknown): error is Recovera
   return error instanceof RecoverablePass12HandoffQueueError;
 }
 
+const PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS = 3;
+
+type Pass12HandoffQueueDisposition =
+  | { status: 'ready' }
+  | { status: 'requeued'; repairCount: number; maxRepairAttempts: number; reason: string }
+  | { status: 'exhausted'; repairCount: number; maxRepairAttempts: number; reason: string };
+
 export async function assertPass12HandoffExistsBeforePhase3Queue(
   supabase: SupabaseClient<any, any, any>,
   jobId: string,
@@ -1999,11 +2006,22 @@ async function requeuePhase2ForPass12HandoffRepair(params: {
   jobId: string;
   progressState: Record<string, unknown>;
   reason: string;
-}): Promise<void> {
+}): Promise<Pass12HandoffQueueDisposition> {
   const requeueNow = new Date().toISOString();
   const previousRepairCount = typeof params.progressState.pass12_handoff_repair_count === 'number'
     ? params.progressState.pass12_handoff_repair_count
     : 0;
+
+  if (previousRepairCount >= PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS) {
+    return {
+      status: 'exhausted',
+      repairCount: previousRepairCount,
+      maxRepairAttempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+      reason: params.reason,
+    };
+  }
+
+  const nextRepairCount = previousRepairCount + 1;
 
   const { error: requeueErr } = await params.supabase
     .from('evaluation_jobs')
@@ -2021,7 +2039,8 @@ async function requeuePhase2ForPass12HandoffRepair(params: {
         phase: 'phase_2',
         phase_status: JOB_STATUS.QUEUED,
         message: 'Pass 1/2 handoff needs repair — queued to rebuild scoring handoff',
-        pass12_handoff_repair_count: previousRepairCount + 1,
+        pass12_handoff_repair_count: nextRepairCount,
+        pass12_handoff_repair_max_attempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
         pass12_handoff_repair_queued_at: requeueNow,
         pass12_handoff_repair_reason: params.reason,
       },
@@ -2037,6 +2056,13 @@ async function requeuePhase2ForPass12HandoffRepair(params: {
     `[phase_2] ${params.jobId}: pass12 handoff invalid before phase_3 queue — requeued phase_2 for repair`,
     params.reason,
   );
+
+  return {
+    status: 'requeued',
+    repairCount: nextRepairCount,
+    maxRepairAttempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+    reason: params.reason,
+  };
 }
 
 async function assertPass12HandoffOrRequeuePhase2ForRepair(params: {
@@ -2044,22 +2070,21 @@ async function assertPass12HandoffOrRequeuePhase2ForRepair(params: {
   jobId: string;
   manuscriptId: number;
   progressState: Record<string, unknown>;
-}): Promise<boolean> {
+}): Promise<Pass12HandoffQueueDisposition> {
   try {
     await assertPass12HandoffExistsBeforePhase3Queue(params.supabase, params.jobId, params.manuscriptId);
-    return true;
+    return { status: 'ready' };
   } catch (error) {
     if (!isRecoverablePass12HandoffQueueError(error)) {
       throw error;
     }
 
-    await requeuePhase2ForPass12HandoffRepair({
+    return requeuePhase2ForPass12HandoffRepair({
       supabase: params.supabase,
       jobId: params.jobId,
       progressState: params.progressState,
       reason: error.message,
     });
-    return false;
   }
 }
 
@@ -5352,6 +5377,42 @@ export async function processEvaluationJob(
       }
 
       await sendFailureSupportAlert('processor:fallback_failure_write');
+    };
+
+    const ensurePass12HandoffReadyForPhase3Queue = async (): Promise<'ready' | 'requeued' | 'failed'> => {
+      const disposition = await assertPass12HandoffOrRequeuePhase2ForRepair({
+        supabase,
+        jobId: String(job.id),
+        manuscriptId: Number(job.manuscript_id),
+        progressState,
+      });
+
+      if (disposition.status === 'ready') {
+        return 'ready';
+      }
+
+      if (disposition.status === 'requeued') {
+        return 'requeued';
+      }
+
+      await markFailed(
+        `Pass 1/2 handoff repair exhausted after ${disposition.repairCount}/${disposition.maxRepairAttempts} attempts: ${disposition.reason}`,
+        'HANDOFF_REPAIR_EXHAUSTED',
+        {
+          pipelineStage: 'phase_2',
+          reasonCodes: ['HANDOFF_REPAIR_EXHAUSTED'],
+          diagnostics: {
+            gate: 'pass12_handoff_repair',
+            status: 'exhausted',
+            repair_count: disposition.repairCount,
+            max_repair_attempts: disposition.maxRepairAttempts,
+            repair_reason: disposition.reason,
+            next_action: 'Inspect pass12_handoff_v1 producer output and phase_2 rebuild inputs before manual retry.',
+          },
+        },
+      );
+
+      return 'failed';
     };
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -9575,13 +9636,11 @@ export async function processEvaluationJob(
 
           // Queue phase_3 — same pattern as the handoff-present branch
           const p2HandoffNow = new Date().toISOString();
-          if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
-            supabase,
-            jobId: String(job.id),
-            manuscriptId: Number(job.manuscript_id),
-            progressState,
-          }))) {
-            return { success: true };
+          const p2HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+          if (p2HandoffReadiness !== 'ready') {
+            return p2HandoffReadiness === 'requeued'
+              ? { success: true }
+              : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
           }
           const { data: p2Phase3Row, error: p2Phase3Err } = await supabase
             .from('evaluation_jobs')
@@ -9698,13 +9757,11 @@ export async function processEvaluationJob(
         });
 
         const p2ShortNow = new Date().toISOString();
-        if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
-          supabase,
-          jobId: String(job.id),
-          manuscriptId: Number(job.manuscript_id),
-          progressState,
-        }))) {
-          return { success: true };
+        const p2ShortHandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (p2ShortHandoffReadiness !== 'ready') {
+          return p2ShortHandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
         }
         const { error: p2ShortPhase3Err } = await supabase
           .from('evaluation_jobs')
@@ -9733,13 +9790,11 @@ export async function processEvaluationJob(
         );
 
         const phase3QueueNow = new Date().toISOString();
-        if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
-          supabase,
-          jobId: String(job.id),
-          manuscriptId: Number(job.manuscript_id),
-          progressState,
-        }))) {
-          return { success: true };
+        const phase3HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (phase3HandoffReadiness !== 'ready') {
+          return phase3HandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
         }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
@@ -11190,13 +11245,11 @@ export async function processEvaluationJob(
         }
 
         // Default path (phase_2 → queue phase_3 for next invocation).
-        if (!(await assertPass12HandoffOrRequeuePhase2ForRepair({
-          supabase,
-          jobId: String(job.id),
-          manuscriptId: Number(job.manuscript_id),
-          progressState,
-        }))) {
-          return { success: true };
+        const defaultPhase3HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (defaultPhase3HandoffReadiness !== 'ready') {
+          return defaultPhase3HandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
         }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
