@@ -155,7 +155,7 @@ export async function getAuthorExposureDecision(
     };
   }
 
-  if (!data?.content) {
+  if (data == null || !data.content) {
     return {
       exposable: false,
       reason: 'missing_certification',
@@ -163,5 +163,5 @@ export async function getAuthorExposureDecision(
     };
   }
 
-  return evaluateAuthorExposureCertification(data.content);
+  return evaluateAuthorExposureCertification((data as { content: unknown }).content);
 }

@@ -1556,7 +1556,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
       ],
     });
 
-  const makeCallout = (heading: string, body: string, color = RG.surfaceAlt) =>
+  const makeCallout = (heading: string, body: string, color: string = RG.surfaceAlt) =>
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
