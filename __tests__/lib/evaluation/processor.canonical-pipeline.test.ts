@@ -28,6 +28,11 @@ jest.mock("../../../lib/evaluation/artifactPersistence", () => ({
   upsertEvaluationArtifact: (...args: any[]) => upsertEvaluationArtifactMock(...args),
 }));
 
+jest.mock("@/lib/evaluation/artifactPersistence", () => ({
+  stableSourceHash: () => "sha256:test-hash",
+  upsertEvaluationArtifact: (...args: any[]) => upsertEvaluationArtifactMock(...args),
+}));
+
 const OpenAIMock = jest.fn(() => ({
   chat: {
     completions: {
@@ -327,8 +332,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           overall_score_0_100: 82,
           verdict: "pass",
           one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          top_3_strengths: ["Clear narrative throughline"],
+          top_3_risks: ["Secondary character arc needs deepening"],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -403,8 +408,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         verdict: "pass",
         overall_score_0_100: 82,
         one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
+        top_3_strengths: ["Clear narrative throughline"],
+        top_3_risks: ["Secondary character arc needs deepening"],
       },
       criteria: new Array(13).fill(null).map((_, idx) => ({
         key: [
@@ -433,8 +438,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         recommendations: [],
       })),
       recommendations: {
-        quick_wins: [],
-        strategic_revisions: [],
+        quick_wins: [
+          {
+            action: "Sharpen scene transitions for momentum.",
+            why: "Smoother transitions preserve narrative drive between beats.",
+          },
+        ],
+        strategic_revisions: [
+          {
+            action: "Strengthen secondary character arc continuity.",
+            why: "Consistent subplot escalation reinforces emotional payoff.",
+          },
+        ],
       },
       metrics: {
         manuscript: {},
@@ -480,16 +495,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     );
     expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
     expect(OpenAIMock).not.toHaveBeenCalled();
-    expect(
-      upsertEvaluationArtifactMock.mock.calls.some(
-        (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
-      ),
-    ).toBe(true);
-    expect(
-      upsertEvaluationArtifactMock.mock.calls.some(
-        (call: any[]) => call[0]?.artifactType === "evaluation_result_v2",
-      ),
-    ).toBe(false);
+    const persistedArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(persistedArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "post_qg_effective_snapshot_v1",
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
+    expect(persistedArtifactTypes).not.toContain("evaluation_result_v2");
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(true);
@@ -547,8 +564,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           overall_score_0_100: 82,
           verdict: "pass",
           one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          top_3_strengths: ["Clear narrative throughline"],
+          top_3_risks: ["Secondary character arc needs deepening"],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -582,8 +599,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         verdict: "pass",
         overall_score_0_100: 82,
         one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
+        top_3_strengths: ["Clear narrative throughline"],
+        top_3_risks: ["Secondary character arc needs deepening"],
       },
       criteria: new Array(13).fill(null).map((_, idx) => ({
         key: [
@@ -612,8 +629,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         recommendations: [],
       })),
       recommendations: {
-        quick_wins: [],
-        strategic_revisions: [],
+        quick_wins: [
+          {
+            action: "Sharpen scene transitions for momentum.",
+            why: "Smoother transitions preserve narrative drive between beats.",
+          },
+        ],
+        strategic_revisions: [
+          {
+            action: "Strengthen secondary character arc continuity.",
+            why: "Consistent subplot escalation reinforces emotional payoff.",
+          },
+        ],
       },
       metrics: {
         manuscript: {},
@@ -672,8 +699,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           overall_score_0_100: 82,
           verdict: "pass",
           one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          top_3_strengths: ["Clear narrative throughline"],
+          top_3_risks: ["Secondary character arc needs deepening"],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -707,8 +734,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         verdict: "pass",
         overall_score_0_100: 82,
         one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
+        top_3_strengths: ["Clear narrative throughline"],
+        top_3_risks: ["Secondary character arc needs deepening"],
       },
       criteria: new Array(13).fill(null).map((_, idx) => ({
         key: [
@@ -737,8 +764,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         recommendations: [],
       })),
       recommendations: {
-        quick_wins: [],
-        strategic_revisions: [],
+        quick_wins: [
+          {
+            action: "Sharpen scene transitions for momentum.",
+            why: "Smoother transitions preserve narrative drive between beats.",
+          },
+        ],
+        strategic_revisions: [
+          {
+            action: "Strengthen secondary character arc continuity.",
+            why: "Consistent subplot escalation reinforces emotional payoff.",
+          },
+        ],
       },
       metrics: {
         manuscript: {},
@@ -1244,8 +1281,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           overall_score_0_100: 50,
           verdict: "revise",
           one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          top_3_strengths: ["Strong premise signal"],
+          top_3_risks: ["Pacing inconsistency in middle"],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -1276,11 +1313,24 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall_score_0_100: 50,
         scored_criteria_count: 0,
         one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
+        top_3_strengths: ["Strong premise signal"],
+        top_3_risks: ["Pacing inconsistency in middle"],
       },
       criteria: [],
-      recommendations: { quick_wins: [], strategic_revisions: [] },
+      recommendations: {
+        quick_wins: [
+          {
+            action: "Clarify scene-level stakes in opening beats.",
+            why: "Earlier stakes improve reader orientation and urgency.",
+          },
+        ],
+        strategic_revisions: [
+          {
+            action: "Rebuild midpoint escalation with clearer causality.",
+            why: "Cleaner causal chain supports structural coherence.",
+          },
+        ],
+      },
       metrics: { manuscript: {}, processing: {} },
       artifacts: [],
       governance: {
@@ -1723,8 +1773,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
           overall_score_0_100: 50,
           verdict: "revise",
           one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          top_3_strengths: ["Strong premise signal"],
+          top_3_risks: ["Pacing inconsistency in middle"],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -1755,8 +1805,8 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall_score_0_100: 50,
         scored_criteria_count: 13,
         one_paragraph_summary: "Summary",
-        top_3_strengths: [],
-        top_3_risks: [],
+        top_3_strengths: ["Strong premise signal"],
+        top_3_risks: ["Pacing inconsistency in middle"],
       },
       criteria: new Array(13).fill(null).map((_, idx) => ({
         key: [
@@ -1784,7 +1834,20 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
         recommendations: [],
       })),
-      recommendations: { quick_wins: [], strategic_revisions: [] },
+      recommendations: {
+        quick_wins: [
+          {
+            action: "Clarify scene-level stakes in opening beats.",
+            why: "Earlier stakes improve reader orientation and urgency.",
+          },
+        ],
+        strategic_revisions: [
+          {
+            action: "Rebuild midpoint escalation with clearer causality.",
+            why: "Cleaner causal chain supports structural coherence.",
+          },
+        ],
+      },
       metrics: { manuscript: {}, processing: {} },
       artifacts: [],
       governance: {
@@ -1808,18 +1871,19 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     // In logging mode, processor succeeds and persists the artifact with validation metadata
     expect(result.success).toBe(true);
 
-    // Success path persists the forensic snapshot via artifact upsert, while
-    // canonical evaluation_result_v2 remains atomic-RPC only.
-    expect(
-      upsertEvaluationArtifactMock.mock.calls.some(
-        (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
-      ),
-    ).toBe(true);
-    expect(
-      upsertEvaluationArtifactMock.mock.calls.some(
-        (call: any[]) => call[0]?.artifactType === "evaluation_result_v2",
-      ),
-    ).toBe(false);
+    // Success path persists via atomic RPC and non-canonical proof/observability artifacts.
+    const persistedArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(persistedArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "post_qg_effective_snapshot_v1",
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
+    expect(persistedArtifactTypes).not.toContain("evaluation_result_v2");
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(true);

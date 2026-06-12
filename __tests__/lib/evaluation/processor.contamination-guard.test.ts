@@ -290,9 +290,34 @@ function makeEvaluationResult() {
         { snippet: `Primary textual evidence for ${key}.` },
         { snippet: `Secondary textual evidence for ${key}.` },
       ],
-      recommendations: [],
+      recommendations: [
+        {
+          priority: "medium",
+          action: `Strengthen ${key} with one concrete revision pass.`,
+          expected_impact: `Improves ${key} clarity for readers.`,
+        },
+      ],
     })),
-    recommendations: { quick_wins: [], strategic_revisions: [] },
+    recommendations: {
+      quick_wins: [
+        {
+          criterion_key: "voice",
+          action: "Sharpen the opening image with one concrete sensory detail.",
+          why: "It gives readers a faster anchor for the evaluation's core strength.",
+          effort: "low",
+          impact: "medium",
+        },
+      ],
+      strategic_revisions: [
+        {
+          criterion_key: "theme",
+          action: "Clarify the governing theme across the midpoint and final turn.",
+          why: "It keeps the report's recommendations aligned with scored weaknesses.",
+          effort: "medium",
+          impact: "high",
+        },
+      ],
+    },
     metrics: { manuscript: {}, processing: {} },
     artifacts: [],
     governance: { confidence: 0.8, warnings: [], limitations: [], policy_family: "standard" },
@@ -384,9 +409,14 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       expect.arrayContaining(["maria", "cartel"]),
     );
 
-    // 3. Artifact persistence must NOT have been called; contamination must route
-    // through the guarded atomic finalizer exactly once.
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    // 3. Canonical evaluation persistence must NOT have been called; contamination
+    // may still write non-canonical forensic diagnosis, and must route through
+    // the guarded atomic finalizer exactly once.
+    const artifactTypes = upsertEvaluationArtifactMock.mock.calls.map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(artifactTypes).not.toContain("evaluation_result_v2");
+    expect(artifactTypes).toEqual(expect.arrayContaining(["failure_diagnosis_v1"]));
     expect(supabaseStub.rpcCalls).toHaveLength(1);
     expect(supabaseStub.rpcCalls[0]).toMatchObject({
       name: "finalize_job_failure_atomic",

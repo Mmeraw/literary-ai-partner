@@ -383,9 +383,20 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     // 1. Job terminates with success.
     expect(result.success).toBe(true);
 
-    // 2 & 3. Artifact persisted via atomic RPC with canonical V2 type/version.
-    // Observability artifacts may also be written.
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
+    // 2 & 3. Artifact persisted via atomic RPC with canonical V2 type/version,
+    // plus observability and renderer parity proof artifacts.
+    const parityArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(parityArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "post_qg_effective_snapshot_v1",
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
+    expect(parityArtifactTypes).not.toContain("evaluation_result_v2");
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
     ) as { fn: string; args?: Record<string, unknown> } | undefined;
@@ -508,7 +519,18 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const result = await processEvaluationJob("job-real-gate-test");
 
     expect(result.success).toBe(true);
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
+    const parityArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(parityArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "post_qg_effective_snapshot_v1",
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
+    expect(parityArtifactTypes).not.toContain("evaluation_result_v2");
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
@@ -685,9 +707,19 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     // while the overall job remains successful and persists the downgraded V2 result.
     expect(result.success).toBe(true);
 
-    // Fail-soft diagnostics may still be upserted for observability and do not
-    // imply gate failure.
-    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
+    // Success now writes only non-canonical observability/parity proof artifacts.
+    const parityArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(parityArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "post_qg_effective_snapshot_v1",
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
+    expect(parityArtifactTypes).not.toContain("evaluation_result_v2");
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
