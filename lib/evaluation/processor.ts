@@ -10563,30 +10563,39 @@ export async function processEvaluationJob(
       return { success: false, error: invalidManuscriptIdError };
     }
 
-    const postQgSnapshotCreatedAt = new Date().toISOString();
-    const postQgSnapshotHash = stableSourceHash({
-      manuscriptId: manuscript.id,
-      jobId: job.id,
-      userId: manuscriptWithContent.user_id,
-      manuscriptText,
-      promptVersion: `${promptVersion}:post_qg_effective_snapshot_v1`,
-      model,
-    });
+    try {
+      const postQgSnapshotCreatedAt = new Date().toISOString();
+      const postQgSnapshotHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:post_qg_effective_snapshot_v1`,
+        model,
+      });
 
-    await upsertEvaluationArtifact({
-      supabase,
-      jobId: job.id,
-      manuscriptId: job.manuscript_id,
-      artifactType: 'post_qg_effective_snapshot_v1',
-      artifactVersion: 'post_qg_effective_snapshot_v1',
-      sourceHash: postQgSnapshotHash,
-      content: buildPostQgEffectiveSnapshotV1({
-        sourceResult: evaluationResult,
-        effectiveResult: effectiveEvaluationResult,
-        qualityGate: qualityGateV2,
-        createdAt: postQgSnapshotCreatedAt,
-      }),
-    });
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'post_qg_effective_snapshot_v1',
+        artifactVersion: 'post_qg_effective_snapshot_v1',
+        sourceHash: postQgSnapshotHash,
+        content: buildPostQgEffectiveSnapshotV1({
+          sourceResult: evaluationResult,
+          effectiveResult: effectiveEvaluationResult,
+          qualityGate: qualityGateV2,
+          createdAt: postQgSnapshotCreatedAt,
+        }),
+      });
+    } catch (postQgSnapshotPersistError) {
+      console.warn(
+        `[Processor] ${jobId}: failed to persist post-QG effective snapshot on QG pass (non-fatal)`,
+        postQgSnapshotPersistError instanceof Error
+          ? postQgSnapshotPersistError.message
+          : String(postQgSnapshotPersistError),
+      );
+    }
 
     // ── Template Completeness Gate ──────────────────────────────────────────
     // Validates that the evaluation artifact meets the short-form template's

@@ -460,7 +460,12 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       criteria: [],
     });
 
-    upsertEvaluationArtifactMock.mockResolvedValue("artifact-1");
+    upsertEvaluationArtifactMock.mockImplementation(async (args: { artifactType?: string }) => {
+      if (args.artifactType === "post_qg_effective_snapshot_v1") {
+        throw new Error("snapshot write unavailable");
+      }
+      return "artifact-1";
+    });
 
     const { processEvaluationJob } = require("../../../lib/evaluation/processor");
 
@@ -640,6 +645,11 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     const result = await processEvaluationJob("job-canonical-pipeline");
 
     expect(result.success).toBe(true);
+    expect(
+      upsertEvaluationArtifactMock.mock.calls.some(
+        (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
+      ),
+    ).toBe(true);
     expect(
       supabaseStub.rpcCalls.filter((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toHaveLength(1);
