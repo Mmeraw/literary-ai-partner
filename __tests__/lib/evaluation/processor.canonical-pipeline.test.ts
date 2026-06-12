@@ -49,6 +49,25 @@ jest.mock("@/lib/evaluation/artifactConsistencyGate", () => ({
   evaluateArtifactConsistencyGateV1: (...args: any[]) => evaluateArtifactConsistencyGateV1Mock(...args),
 }));
 
+jest.mock("@/lib/evaluation/reportRenderParity", () => ({
+  inferCanonicalEvaluationModeFromWordCount: () => "short_form_evaluation",
+  buildUnifiedDocumentForParityFromEvaluationResult: () => ({
+    schema_version: "unified_evaluation_document_v1",
+    sections: [],
+  }),
+  buildReportRenderManifestV1: () => ({
+    schema_version: "report_render_manifest_v1",
+    parity_status: "pass",
+    blocking_reasons: [],
+    consumed_field_paths: [],
+  }),
+  buildAuthorExposureCertificationV1FromManifest: () => ({
+    schema_version: "author_exposure_certification_v1",
+    decision: "certified",
+    blocking_reasons: [],
+  }),
+}));
+
 const createClientMock = jest.fn();
 
 jest.mock("@supabase/supabase-js", () => ({
@@ -456,7 +475,16 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     );
     expect(runQualityGateV2Mock).toHaveBeenCalledTimes(1);
     expect(OpenAIMock).not.toHaveBeenCalled();
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(
+      upsertEvaluationArtifactMock.mock.calls.some(
+        (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
+      ),
+    ).toBe(true);
+    expect(
+      upsertEvaluationArtifactMock.mock.calls.some(
+        (call: any[]) => call[0]?.artifactType === "evaluation_result_v2",
+      ),
+    ).toBe(false);
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(true);
@@ -937,6 +965,21 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     const artifactConsistencyCall = upsertEvaluationArtifactMock.mock.calls.find(
       (call: any[]) => call[0]?.artifactType === "artifact_consistency_gate_v1",
     );
+    const postQgSnapshotCall = upsertEvaluationArtifactMock.mock.calls.find(
+      (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
+    );
+    expect(postQgSnapshotCall).toBeDefined();
+    expect(postQgSnapshotCall?.[0]?.content).toEqual(
+      expect.objectContaining({
+        schema_version: "post_qg_effective_snapshot_v1",
+        qg_status: "pass",
+        effective_evaluation_result: expect.objectContaining({
+          overview: expect.objectContaining({
+            one_paragraph_summary: "The manuscript has strong voice and scene momentum.",
+          }),
+        }),
+      }),
+    );
     expect(artifactConsistencyCall).toBeDefined();
     expect(artifactConsistencyCall?.[0]?.content).toEqual(
       expect.objectContaining({
@@ -1085,6 +1128,16 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     const result = await processEvaluationJob("job-canonical-pipeline");
 
     expect(result.success).toBe(true);
+    const postQgSnapshotCall = upsertEvaluationArtifactMock.mock.calls.find(
+      (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
+    );
+    expect(postQgSnapshotCall).toBeDefined();
+    expect(postQgSnapshotCall?.[0]?.content).toEqual(
+      expect.objectContaining({
+        schema_version: "post_qg_effective_snapshot_v1",
+        qg_status: "pass",
+      }),
+    );
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(true);
@@ -1721,8 +1774,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     // In logging mode, processor succeeds and persists the artifact with validation metadata
     expect(result.success).toBe(true);
 
-    // Success path persists via atomic RPC (diagnostic artifact upsert is not expected)
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    // Success path persists the forensic snapshot via artifact upsert, while
+    // canonical evaluation_result_v2 remains atomic-RPC only.
+    expect(
+      upsertEvaluationArtifactMock.mock.calls.some(
+        (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
+      ),
+    ).toBe(true);
+    expect(
+      upsertEvaluationArtifactMock.mock.calls.some(
+        (call: any[]) => call[0]?.artifactType === "evaluation_result_v2",
+      ),
+    ).toBe(false);
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(true);

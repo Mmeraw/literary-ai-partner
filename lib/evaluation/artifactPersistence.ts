@@ -35,6 +35,8 @@ export type ArtifactType =
   | "report_experience_v1"
   /** Post-QG consistency certification boundary before evaluation_result_v2 persistence. */
   | "artifact_consistency_gate_v1"
+  /** Exact post-QG effective result snapshot for forensic reconstruction before canonical persistence/certification. */
+  | "post_qg_effective_snapshot_v1"
   /**
    * Inter-invocation handoff: raw Pass 1 + Pass 2 outputs written at end of phase_1
    * so that a fresh Vercel invocation can resume at Pass 3 without re-running chunk

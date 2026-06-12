@@ -82,6 +82,7 @@ import {
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
 import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
+import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
 import {
   buildScoreLedger,
   computeAuthorityComposite,
@@ -10115,6 +10116,43 @@ export async function processEvaluationJob(
       progressState.v2_gate_failed_at = v2GateFailedAt;
 
       try {
+        const rejectedEffectiveResult = qualityGateV2.downgradedResult ?? evaluationResult;
+        const postQgSnapshotHash = stableSourceHash({
+          manuscriptId: manuscript.id,
+          jobId: job.id,
+          userId: manuscriptWithContent.user_id,
+          manuscriptText: manuscriptWithContent.content || '(No content provided)',
+          promptVersion: `post_qg_effective_snapshot_v1:QG_FAILED:v2_gate:${v2GateFailedAt}`,
+          model: getCanonicalPipelineModel(openAiModel),
+        });
+
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: job.id,
+          manuscriptId: job.manuscript_id,
+          artifactType: 'post_qg_effective_snapshot_v1',
+          artifactVersion: 'post_qg_effective_snapshot_v1',
+          sourceHash: postQgSnapshotHash,
+          content: buildPostQgEffectiveSnapshotV1({
+            sourceResult: evaluationResult,
+            effectiveResult: rejectedEffectiveResult,
+            qualityGate: qualityGateV2,
+            createdAt: v2GateFailedAt,
+          }),
+        });
+
+        console.log(`[Processor] ${jobId}: persisted post_qg_effective_snapshot_v1 for V2 gate failure`);
+      } catch (postQgSnapshotPersistError) {
+        console.warn(
+          `[Processor] ${jobId}: failed to persist post-QG effective snapshot on V2 gate failure (non-fatal)`,
+          postQgSnapshotPersistError instanceof Error
+            ? postQgSnapshotPersistError.message
+            : String(postQgSnapshotPersistError),
+          postQgSnapshotPersistError,
+        );
+      }
+
+      try {
         // Build per-criterion gate view for the diagnostics artifact.
         const v2PerCriterion = evaluationResult.criteria.map((c) => {
           const score = typeof c.score_0_10 === 'number' ? c.score_0_10 : null;
@@ -10474,6 +10512,31 @@ export async function processEvaluationJob(
 
       return { success: false, error: invalidManuscriptIdError };
     }
+
+    const postQgSnapshotCreatedAt = new Date().toISOString();
+    const postQgSnapshotHash = stableSourceHash({
+      manuscriptId: manuscript.id,
+      jobId: job.id,
+      userId: manuscriptWithContent.user_id,
+      manuscriptText,
+      promptVersion: `${promptVersion}:post_qg_effective_snapshot_v1`,
+      model,
+    });
+
+    await upsertEvaluationArtifact({
+      supabase,
+      jobId: job.id,
+      manuscriptId: job.manuscript_id,
+      artifactType: 'post_qg_effective_snapshot_v1',
+      artifactVersion: 'post_qg_effective_snapshot_v1',
+      sourceHash: postQgSnapshotHash,
+      content: buildPostQgEffectiveSnapshotV1({
+        sourceResult: evaluationResult,
+        effectiveResult: effectiveEvaluationResult,
+        qualityGate: qualityGateV2,
+        createdAt: postQgSnapshotCreatedAt,
+      }),
+    });
 
     // ── Template Completeness Gate ──────────────────────────────────────────
     // Validates that the evaluation artifact meets the short-form template's
