@@ -33,6 +33,8 @@ export type ArtifactType =
   | "longform_document_v1"
   /** Post-evaluation author-facing editorial translation audit. Does not mutate scores. */
   | "report_experience_v1"
+  /** Post-QG consistency certification boundary before evaluation_result_v2 persistence. */
+  | "artifact_consistency_gate_v1"
   /**
    * Inter-invocation handoff: raw Pass 1 + Pass 2 outputs written at end of phase_1
    * so that a fresh Vercel invocation can resume at Pass 3 without re-running chunk

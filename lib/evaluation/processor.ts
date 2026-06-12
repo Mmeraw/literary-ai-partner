@@ -81,6 +81,7 @@ import {
   TEMPLATE_COMPLETENESS_USER_MESSAGE,
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
+import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
 import {
   buildScoreLedger,
   computeAuthorityComposite,
@@ -10518,6 +10519,55 @@ export async function processEvaluationJob(
         `[Processor] ${jobId}: Template completeness gate passed with ${templateCompletenessCheck.violations.length} warning(s)`,
         templateCompletenessCheck.violations.map((v) => v.code),
       );
+    }
+
+    // ── Artifact Consistency Gate v1 ───────────────────────────────────────
+    // Runs after QG normalization and template completeness, but before the
+    // evaluation_result_v2 artifact becomes canonical. Complete-but-inconsistent
+    // output must fail closed here instead of being certified downstream.
+    const artifactConsistencyGateV1 = evaluateArtifactConsistencyGateV1({
+      sourceResult: evaluationResult,
+      effectiveQGResult: effectiveEvaluationResult,
+    });
+    const artifactConsistencyGateHash = stableSourceHash({
+      manuscriptId: manuscript.id,
+      jobId: job.id,
+      userId: manuscriptWithContent.user_id,
+      manuscriptText,
+      promptVersion: `${promptVersion}:artifact_consistency_gate_v1`,
+      model,
+    });
+
+    await upsertEvaluationArtifact({
+      supabase,
+      jobId: job.id,
+      manuscriptId: job.manuscript_id,
+      artifactType: 'artifact_consistency_gate_v1',
+      artifactVersion: 'artifact_consistency_gate_v1',
+      sourceHash: artifactConsistencyGateHash,
+      content: artifactConsistencyGateV1,
+    });
+
+    if (artifactConsistencyGateV1.status === 'fail') {
+      console.error(
+        `[Processor] ${jobId}: Artifact consistency gate BLOCKED — ${artifactConsistencyGateV1.blocking_reasons.join(',')}`,
+        artifactConsistencyGateV1.checks,
+      );
+
+      await markFailed(
+        'Evaluation consistency certification failed before report persistence. Support has been alerted.',
+        'ARTIFACT_CONSISTENCY_GATE_FAILED',
+        {
+          pipelineStage: 'artifact_consistency_gate',
+          reasonCodes: artifactConsistencyGateV1.blocking_reasons,
+          diagnostics: artifactConsistencyGateV1,
+        },
+      );
+
+      return {
+        success: false,
+        error: `Artifact consistency gate failed: ${artifactConsistencyGateV1.blocking_reasons.join(',')}`,
+      };
     }
 
     declarePersistenceLock('persistence/after-template-completeness');
