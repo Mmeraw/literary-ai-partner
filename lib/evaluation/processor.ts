@@ -214,6 +214,12 @@ import {
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
+import {
+  buildAuthorExposureCertificationV1FromManifest,
+  buildReportRenderManifestV1,
+  buildUnifiedDocumentForParityFromEvaluationResult,
+  inferCanonicalEvaluationModeFromWordCount,
+} from '@/lib/evaluation/reportRenderParity';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -10574,6 +10580,92 @@ export async function processEvaluationJob(
         });
 
         return { success: false, error: failureReason };
+      }
+
+      // ── Phase 5: Renderer parity proof artifacts (fail-closed) ───────────
+      // Build canonical UED from persisted evaluation_result_v2, derive field-level
+      // renderer manifest, and certify author exposure only when parity passes.
+      // If any step fails, treat as artifact persistence failure.
+      const parityMode = inferCanonicalEvaluationModeFromWordCount(coverageForReporting?.sourceWords ?? null);
+      const parityDisplayTitle =
+        manuscriptWithContent.title?.trim()
+        || effectiveEvaluationResult.metrics?.manuscript?.title?.trim()
+        || 'Untitled Manuscript';
+
+      const unifiedDocumentV1 = buildUnifiedDocumentForParityFromEvaluationResult({
+        evaluationResult: effectiveEvaluationResult,
+        displayTitle: parityDisplayTitle,
+        mode: parityMode,
+      });
+
+      const renderManifestV1 = buildReportRenderManifestV1({
+        jobId: String(job.id),
+        unifiedDocument: unifiedDocumentV1,
+      });
+
+      const authorExposureCertificationV1 = buildAuthorExposureCertificationV1FromManifest(renderManifestV1);
+
+      const unifiedDocumentHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:unified_evaluation_document_v1`,
+        model,
+      });
+
+      const renderManifestHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:report_render_manifest_v1`,
+        model,
+      });
+
+      const certificationHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:author_exposure_certification_v1`,
+        model,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'unified_evaluation_document_v1',
+        artifactVersion: 'unified_evaluation_document_v1',
+        sourceHash: unifiedDocumentHash,
+        content: unifiedDocumentV1,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'report_render_manifest_v1',
+        artifactVersion: 'report_render_manifest_v1',
+        sourceHash: renderManifestHash,
+        content: renderManifestV1,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'author_exposure_certification_v1',
+        artifactVersion: 'author_exposure_certification_v1',
+        sourceHash: certificationHash,
+        content: authorExposureCertificationV1,
+      });
+
+      if (authorExposureCertificationV1.decision !== 'certified') {
+        throw new Error(
+          `AUTHOR_EXPOSURE_CERTIFICATION_BLOCKED: ${authorExposureCertificationV1.blocking_reasons.join(',') || 'unknown_reason'}`,
+        );
       }
 
       // Release persistence lock — resume normal watchdog visibility.

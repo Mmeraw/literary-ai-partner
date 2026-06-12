@@ -165,6 +165,12 @@ export type ArtifactType =
    */
   /** Compact final verification rail for long-form report readiness. */
   | "revision_canon_metadata_v1"
+  /** Canonical renderer adapter built from evaluation_result_v2 before any user-facing rendering. */
+  | "unified_evaluation_document_v1"
+  /** Renderer parity evidence showing field-level consumption per surface. */
+  | "report_render_manifest_v1"
+  /** Author exposure release certification; must be certified for author-facing surfaces. */
+  | "author_exposure_certification_v1"
   /** Compact final verification rail for long-form report readiness. */
   | "final_external_audit_v1";
 
