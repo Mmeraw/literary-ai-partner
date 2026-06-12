@@ -409,9 +409,14 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       expect.arrayContaining(["maria", "cartel"]),
     );
 
-    // 3. Artifact persistence must NOT have been called; contamination must route
-    // through the guarded atomic finalizer exactly once.
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    // 3. Canonical evaluation persistence must NOT have been called; contamination
+    // may still write non-canonical forensic diagnosis, and must route through
+    // the guarded atomic finalizer exactly once.
+    const artifactTypes = upsertEvaluationArtifactMock.mock.calls.map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(artifactTypes).not.toContain("evaluation_result_v2");
+    expect(artifactTypes).toEqual(expect.arrayContaining(["failure_diagnosis_v1"]));
     expect(supabaseStub.rpcCalls).toHaveLength(1);
     expect(supabaseStub.rpcCalls[0]).toMatchObject({
       name: "finalize_job_failure_atomic",

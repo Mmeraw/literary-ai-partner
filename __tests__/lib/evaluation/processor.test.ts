@@ -610,4 +610,28 @@ describe("Review Gate wiring helpers", () => {
     expect(processorCode).toContain("review_gate_skipped_short_form_technical_block");
     expect(processorCode).toContain("manuscript_under_25000_words_retryable_technical_block");
   });
+
+  test("default phase_2 to phase_3 queue path repairs recoverable pass12 handoff defects", () => {
+    const processorPath = path.join(__dirname, "../../../lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    expect(processorCode).toContain("requeuePhase2ForPass12HandoffRepair");
+    expect(processorCode).toContain("pass12_handoff_repair_count");
+    expect(processorCode).toContain("PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS = 3");
+    expect(processorCode).toContain("HANDOFF_REPAIR_EXHAUSTED");
+    expect(processorCode).toContain("ensurePass12HandoffReadyForPhase3Queue");
+
+    const defaultQueueStart = processorCode.indexOf("// Default path (phase_2 → queue phase_3 for next invocation).");
+    const defaultQueueEnd = processorCode.indexOf("if (phase3QueueErr)", defaultQueueStart);
+
+    expect(defaultQueueStart).toBeGreaterThan(-1);
+    expect(defaultQueueEnd).toBeGreaterThan(defaultQueueStart);
+
+    const defaultQueueSection = processorCode.slice(defaultQueueStart, defaultQueueEnd);
+    const guardIndex = defaultQueueSection.indexOf("ensurePass12HandoffReadyForPhase3Queue(");
+    const updateIndex = defaultQueueSection.indexOf("status: JOB_STATUS.QUEUED");
+
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(updateIndex).toBeGreaterThan(guardIndex);
+  });
 });

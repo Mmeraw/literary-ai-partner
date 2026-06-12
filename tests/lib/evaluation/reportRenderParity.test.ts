@@ -127,6 +127,14 @@ describe('report render parity certification', () => {
 });
 
 describe('report render parity manifest builder', () => {
+  test('infers canonical template mode across short, long, and multi-layer word-count bands', () => {
+    expect(inferCanonicalEvaluationModeFromWordCount(24_999)).toBe('short_form_evaluation');
+    expect(inferCanonicalEvaluationModeFromWordCount(25_000)).toBe('long_form_evaluation');
+    expect(inferCanonicalEvaluationModeFromWordCount(74_999)).toBe('long_form_evaluation');
+    expect(inferCanonicalEvaluationModeFromWordCount(75_000)).toBe('long_form_multi_layer_evaluation');
+    expect(inferCanonicalEvaluationModeFromWordCount(120_000)).toBe('long_form_multi_layer_evaluation');
+  });
+
   test('builds manifest from unified document shape', () => {
     const mode = inferCanonicalEvaluationModeFromWordCount(5000);
     const result = {

@@ -81,6 +81,8 @@ import {
   TEMPLATE_COMPLETENESS_USER_MESSAGE,
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
+import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
+import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
 import {
   buildScoreLedger,
   computeAuthorityComposite,
@@ -220,6 +222,7 @@ import {
   buildUnifiedDocumentForParityFromEvaluationResult,
   inferCanonicalEvaluationModeFromWordCount,
 } from '@/lib/evaluation/reportRenderParity';
+import { persistFailureDiagnosisArtifact } from '@/lib/evaluation/failureDiagnosis';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -1930,16 +1933,38 @@ export async function assertReviewGatePassedBeforeHandoff(
 
 /**
  * Policy gate: phase_2 may queue phase_3 only if pass12_handoff_v1 exists.
- * This prevents phase_3 from starting in a split state and hard-fails earlier
- * with an explicit policy violation.
+ * Recoverable handoff defects are kicked back to phase_2 by the queue boundary
+ * wrapper so phase_2 can rebuild/overwrite the handoff. Database/system errors
+ * still throw explicitly and must not be masked as retryable content repair.
  */
+class RecoverablePass12HandoffQueueError extends Error {
+  readonly recoverable = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'RecoverablePass12HandoffQueueError';
+  }
+}
+
+function isRecoverablePass12HandoffQueueError(error: unknown): error is RecoverablePass12HandoffQueueError {
+  return error instanceof RecoverablePass12HandoffQueueError;
+}
+
+const PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS = 3;
+
+type Pass12HandoffQueueDisposition =
+  | { status: 'ready' }
+  | { status: 'requeued'; repairCount: number; maxRepairAttempts: number; reason: string }
+  | { status: 'exhausted'; repairCount: number; maxRepairAttempts: number; reason: string };
+
 export async function assertPass12HandoffExistsBeforePhase3Queue(
   supabase: SupabaseClient<any, any, any>,
   jobId: string,
+  manuscriptId?: number,
 ): Promise<void> {
   const { data: handoffCheck, error: handoffErr } = await supabase
     .from('evaluation_artifacts')
-    .select('id')
+    .select('id, job_id, manuscript_id, content')
     .eq('job_id', jobId)
     .eq('artifact_type', 'pass12_handoff_v1')
     .maybeSingle();
@@ -1949,7 +1974,117 @@ export async function assertPass12HandoffExistsBeforePhase3Queue(
   }
 
   if (!handoffCheck?.id) {
-    throw new Error('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
+    throw new RecoverablePass12HandoffQueueError('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
+  }
+
+  const row = handoffCheck as UpstreamArtifactRow;
+  if (row.job_id && row.job_id !== jobId) {
+    throw new RecoverablePass12HandoffQueueError(`POLICY_VIOLATION: phase_3 queue pass12_handoff_v1 job_id mismatch (expected=${jobId}, actual=${row.job_id})`);
+  }
+  if (
+    typeof manuscriptId === 'number' &&
+    typeof row.manuscript_id === 'number' &&
+    row.manuscript_id !== manuscriptId
+  ) {
+    throw new RecoverablePass12HandoffQueueError(
+      `POLICY_VIOLATION: phase_3 queue pass12_handoff_v1 manuscript_id mismatch (expected=${manuscriptId}, actual=${row.manuscript_id})`,
+    );
+  }
+
+  const contentRecord = isRecord(row.content) ? row.content : null;
+  const schemaVersion = typeof contentRecord?.schema_version === 'string' ? contentRecord.schema_version : null;
+  const hasPass1Output = Boolean(contentRecord && isRecord(contentRecord.pass1Output));
+  const hasPass2Output = Boolean(contentRecord && isRecord(contentRecord.pass2Output));
+
+  if (schemaVersion !== 'pass12_handoff_v1' || !hasPass1Output || !hasPass2Output) {
+    throw new RecoverablePass12HandoffQueueError('POLICY_VIOLATION: phase_3 queue requires canonical complete pass12_handoff_v1');
+  }
+}
+
+async function requeuePhase2ForPass12HandoffRepair(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  progressState: Record<string, unknown>;
+  reason: string;
+}): Promise<Pass12HandoffQueueDisposition> {
+  const requeueNow = new Date().toISOString();
+  const previousRepairCount = typeof params.progressState.pass12_handoff_repair_count === 'number'
+    ? params.progressState.pass12_handoff_repair_count
+    : 0;
+
+  if (previousRepairCount >= PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS) {
+    return {
+      status: 'exhausted',
+      repairCount: previousRepairCount,
+      maxRepairAttempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+      reason: params.reason,
+    };
+  }
+
+  const nextRepairCount = previousRepairCount + 1;
+
+  const { error: requeueErr } = await params.supabase
+    .from('evaluation_jobs')
+    .update({
+      status: JOB_STATUS.QUEUED,
+      phase: 'phase_2',
+      phase_status: JOB_STATUS.QUEUED,
+      claimed_by: null,
+      claimed_at: null,
+      lease_token: null,
+      lease_until: null,
+      updated_at: requeueNow,
+      progress: {
+        ...params.progressState,
+        phase: 'phase_2',
+        phase_status: JOB_STATUS.QUEUED,
+        message: 'Pass 1/2 handoff needs repair — queued to rebuild scoring handoff',
+        pass12_handoff_repair_count: nextRepairCount,
+        pass12_handoff_repair_max_attempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+        pass12_handoff_repair_queued_at: requeueNow,
+        pass12_handoff_repair_reason: params.reason,
+      },
+    })
+    .eq('id', params.jobId)
+    .eq('status', JOB_STATUS.RUNNING);
+
+  if (requeueErr) {
+    throw new Error(`PHASE2_HANDOFF_REPAIR_REQUEUE_FAILED: ${requeueErr.message}`);
+  }
+
+  console.warn(
+    `[phase_2] ${params.jobId}: pass12 handoff invalid before phase_3 queue — requeued phase_2 for repair`,
+    params.reason,
+  );
+
+  return {
+    status: 'requeued',
+    repairCount: nextRepairCount,
+    maxRepairAttempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+    reason: params.reason,
+  };
+}
+
+async function assertPass12HandoffOrRequeuePhase2ForRepair(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  manuscriptId: number;
+  progressState: Record<string, unknown>;
+}): Promise<Pass12HandoffQueueDisposition> {
+  try {
+    await assertPass12HandoffExistsBeforePhase3Queue(params.supabase, params.jobId, params.manuscriptId);
+    return { status: 'ready' };
+  } catch (error) {
+    if (!isRecoverablePass12HandoffQueueError(error)) {
+      throw error;
+    }
+
+    return requeuePhase2ForPass12HandoffRepair({
+      supabase: params.supabase,
+      jobId: params.jobId,
+      progressState: params.progressState,
+      reason: error.message,
+    });
   }
 }
 
@@ -5041,6 +5176,35 @@ export async function processEvaluationJob(
         nextProgressRecord.pass3_completed_at = now;
       }
 
+      try {
+        const failureDiagnosis = await persistFailureDiagnosisArtifact({
+          supabase,
+          jobId,
+          manuscriptId: job.manuscript_id,
+          createdAt: now,
+          phase: failedPhase,
+          phaseStatus: 'failed',
+          failureCode: errorCode,
+          errorMessage,
+          failureContext,
+        });
+        nextProgressRecord.failure_diagnosis = {
+          artifact_type: failureDiagnosis.artifact_type,
+          created_at: failureDiagnosis.created_at,
+          failure_point: failureDiagnosis.failure_point,
+          recommended_next_action: failureDiagnosis.recommended_next_action,
+        };
+      } catch (failureDiagnosisError) {
+        console.warn('[Processor] failure diagnosis persistence failed (non-fatal)', {
+          job_id: jobId,
+          failure_code: errorCode,
+          error:
+            failureDiagnosisError instanceof Error
+              ? failureDiagnosisError.message
+              : String(failureDiagnosisError),
+        });
+      }
+
       Object.assign(progressState, nextProgress);
 
       const sendFailureSupportAlert = async (source: string) => {
@@ -5213,6 +5377,42 @@ export async function processEvaluationJob(
       }
 
       await sendFailureSupportAlert('processor:fallback_failure_write');
+    };
+
+    const ensurePass12HandoffReadyForPhase3Queue = async (): Promise<'ready' | 'requeued' | 'failed'> => {
+      const disposition = await assertPass12HandoffOrRequeuePhase2ForRepair({
+        supabase,
+        jobId: String(job.id),
+        manuscriptId: Number(job.manuscript_id),
+        progressState,
+      });
+
+      if (disposition.status === 'ready') {
+        return 'ready';
+      }
+
+      if (disposition.status === 'requeued') {
+        return 'requeued';
+      }
+
+      await markFailed(
+        `Pass 1/2 handoff repair exhausted after ${disposition.repairCount}/${disposition.maxRepairAttempts} attempts: ${disposition.reason}`,
+        'HANDOFF_REPAIR_EXHAUSTED',
+        {
+          pipelineStage: 'phase_2',
+          reasonCodes: ['HANDOFF_REPAIR_EXHAUSTED'],
+          diagnostics: {
+            gate: 'pass12_handoff_repair',
+            status: 'exhausted',
+            repair_count: disposition.repairCount,
+            max_repair_attempts: disposition.maxRepairAttempts,
+            repair_reason: disposition.reason,
+            next_action: 'Inspect pass12_handoff_v1 producer output and phase_2 rebuild inputs before manual retry.',
+          },
+        },
+      );
+
+      return 'failed';
     };
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -9436,7 +9636,12 @@ export async function processEvaluationJob(
 
           // Queue phase_3 — same pattern as the handoff-present branch
           const p2HandoffNow = new Date().toISOString();
-          await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
+          const p2HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+          if (p2HandoffReadiness !== 'ready') {
+            return p2HandoffReadiness === 'requeued'
+              ? { success: true }
+              : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+          }
           const { data: p2Phase3Row, error: p2Phase3Err } = await supabase
             .from('evaluation_jobs')
             .update({
@@ -9552,7 +9757,12 @@ export async function processEvaluationJob(
         });
 
         const p2ShortNow = new Date().toISOString();
-        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
+        const p2ShortHandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (p2ShortHandoffReadiness !== 'ready') {
+          return p2ShortHandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+        }
         const { error: p2ShortPhase3Err } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -9580,7 +9790,12 @@ export async function processEvaluationJob(
         );
 
         const phase3QueueNow = new Date().toISOString();
-        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
+        const phase3HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (phase3HandoffReadiness !== 'ready') {
+          return phase3HandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+        }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -10057,6 +10272,7 @@ export async function processEvaluationJob(
       ledger: scoreLedger,
       efg: excellenceFilter,
     }, scopeProfileForV2Gate);
+    let qgSummaryRepairDiagnostics: Record<string, unknown> | null = null;
 
     // ── Deterministic QG summary weakness repair ─────────────────────────────
     // If the ONLY hard failure is v2_summary_weakness_presence, the evaluation
@@ -10072,11 +10288,21 @@ export async function processEvaluationJob(
         hardFailedChecks[0].check_id === 'v2_summary_weakness_presence';
 
       if (isOnlySummaryWeakness) {
-        const propagation = summarizePropagationIntegrity(evaluationResult.criteria);
+        const summaryRepairCriteria = qualityGateV2.downgradedResult?.criteria ?? evaluationResult.criteria;
+        const propagation = summarizePropagationIntegrity(summaryRepairCriteria);
         const repairedSummary = normalizeSummaryWithBottomWeaknesses(
           evaluationResult.overview.one_paragraph_summary,
           propagation.bottomScoreCriteria,
         );
+        qgSummaryRepairDiagnostics = {
+          attempted: true,
+          mechanism: 'normalizeSummaryWithBottomWeaknesses',
+          used_source: qualityGateV2.downgradedResult?.criteria
+            ? 'qualityGateV2.downgradedResult.criteria'
+            : 'evaluationResult.criteria',
+          expected_source: 'qualityGateV2.downgradedResult.criteria',
+          outcome: 'applied',
+        };
 
         console.log(
           `[Processor] ${jobId}: deterministic QG summary repair — patching overview summary to name bottom-score weaknesses: ${propagation.bottomScoreCriteria.join(', ')}`,
@@ -10094,13 +10320,15 @@ export async function processEvaluationJob(
           console.log(
             `[Processor] ${jobId}: QG summary repair succeeded — evaluation continues`,
           );
+        } else if (qgSummaryRepairDiagnostics) {
+          qgSummaryRepairDiagnostics.outcome = 'failed';
         }
       }
     }
 
     if (!qualityGateV2.pass) {
-      const failedChecks = qualityGateV2.checks
-        .filter((check) => !check.passed)
+      const failedCheckRecords = qualityGateV2.checks.filter((check) => !check.passed);
+      const failedChecks = failedCheckRecords
         .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
       const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
 
@@ -10111,6 +10339,43 @@ export async function processEvaluationJob(
       const v2GateFailedAt = new Date().toISOString();
       progressState.v2_gate_status = 'failed';
       progressState.v2_gate_failed_at = v2GateFailedAt;
+
+      try {
+        const rejectedEffectiveResult = qualityGateV2.downgradedResult ?? evaluationResult;
+        const postQgSnapshotHash = stableSourceHash({
+          manuscriptId: manuscript.id,
+          jobId: job.id,
+          userId: manuscriptWithContent.user_id,
+          manuscriptText: manuscriptWithContent.content || '(No content provided)',
+          promptVersion: `post_qg_effective_snapshot_v1:QG_FAILED:v2_gate:${v2GateFailedAt}`,
+          model: getCanonicalPipelineModel(openAiModel),
+        });
+
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: job.id,
+          manuscriptId: job.manuscript_id,
+          artifactType: 'post_qg_effective_snapshot_v1',
+          artifactVersion: 'post_qg_effective_snapshot_v1',
+          sourceHash: postQgSnapshotHash,
+          content: buildPostQgEffectiveSnapshotV1({
+            sourceResult: evaluationResult,
+            effectiveResult: rejectedEffectiveResult,
+            qualityGate: qualityGateV2,
+            createdAt: v2GateFailedAt,
+          }),
+        });
+
+        console.log(`[Processor] ${jobId}: persisted post_qg_effective_snapshot_v1 for V2 gate failure`);
+      } catch (postQgSnapshotPersistError) {
+        console.warn(
+          `[Processor] ${jobId}: failed to persist post-QG effective snapshot on V2 gate failure (non-fatal)`,
+          postQgSnapshotPersistError instanceof Error
+            ? postQgSnapshotPersistError.message
+            : String(postQgSnapshotPersistError),
+          postQgSnapshotPersistError,
+        );
+      }
 
       try {
         // Build per-criterion gate view for the diagnostics artifact.
@@ -10241,7 +10506,15 @@ export async function processEvaluationJob(
         );
       }
 
-      await markFailed(gateError, 'QG_FAILED');
+      await markFailed(gateError, 'QG_FAILED', {
+        pipelineStage: 'quality_gate_v2',
+        reasonCodes: failedCheckRecords.map((check) => check.check_id),
+        diagnostics: {
+          gate: 'QualityGateV2',
+          failed_checks: failedCheckRecords.map((check) => check.check_id),
+          summary_repair: qgSummaryRepairDiagnostics,
+        },
+      });
 
       return { success: false, error: gateError };
     }
@@ -10473,6 +10746,40 @@ export async function processEvaluationJob(
       return { success: false, error: invalidManuscriptIdError };
     }
 
+    try {
+      const postQgSnapshotCreatedAt = new Date().toISOString();
+      const postQgSnapshotHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:post_qg_effective_snapshot_v1`,
+        model,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'post_qg_effective_snapshot_v1',
+        artifactVersion: 'post_qg_effective_snapshot_v1',
+        sourceHash: postQgSnapshotHash,
+        content: buildPostQgEffectiveSnapshotV1({
+          sourceResult: evaluationResult,
+          effectiveResult: effectiveEvaluationResult,
+          qualityGate: qualityGateV2,
+          createdAt: postQgSnapshotCreatedAt,
+        }),
+      });
+    } catch (postQgSnapshotPersistError) {
+      console.warn(
+        `[Processor] ${jobId}: failed to persist post-QG effective snapshot on QG pass (non-fatal)`,
+        postQgSnapshotPersistError instanceof Error
+          ? postQgSnapshotPersistError.message
+          : String(postQgSnapshotPersistError),
+      );
+    }
+
     // ── Template Completeness Gate ──────────────────────────────────────────
     // Validates that the evaluation artifact meets the short-form template's
     // structural requirements BEFORE persisting. If critical violations are
@@ -10517,6 +10824,55 @@ export async function processEvaluationJob(
         `[Processor] ${jobId}: Template completeness gate passed with ${templateCompletenessCheck.violations.length} warning(s)`,
         templateCompletenessCheck.violations.map((v) => v.code),
       );
+    }
+
+    // ── Artifact Consistency Gate v1 ───────────────────────────────────────
+    // Runs after QG normalization and template completeness, but before the
+    // evaluation_result_v2 artifact becomes canonical. Complete-but-inconsistent
+    // output must fail closed here instead of being certified downstream.
+    const artifactConsistencyGateV1 = evaluateArtifactConsistencyGateV1({
+      sourceResult: evaluationResult,
+      effectiveQGResult: effectiveEvaluationResult,
+    });
+    const artifactConsistencyGateHash = stableSourceHash({
+      manuscriptId: manuscript.id,
+      jobId: job.id,
+      userId: manuscriptWithContent.user_id,
+      manuscriptText,
+      promptVersion: `${promptVersion}:artifact_consistency_gate_v1`,
+      model,
+    });
+
+    await upsertEvaluationArtifact({
+      supabase,
+      jobId: job.id,
+      manuscriptId: job.manuscript_id,
+      artifactType: 'artifact_consistency_gate_v1',
+      artifactVersion: 'artifact_consistency_gate_v1',
+      sourceHash: artifactConsistencyGateHash,
+      content: artifactConsistencyGateV1,
+    });
+
+    if (artifactConsistencyGateV1.status === 'fail') {
+      console.error(
+        `[Processor] ${jobId}: Artifact consistency gate BLOCKED — ${artifactConsistencyGateV1.blocking_reasons.join(',')}`,
+        artifactConsistencyGateV1.checks,
+      );
+
+      await markFailed(
+        'Evaluation consistency certification failed before report persistence. Support has been alerted.',
+        'ARTIFACT_CONSISTENCY_GATE_FAILED',
+        {
+          pipelineStage: 'artifact_consistency_gate',
+          reasonCodes: artifactConsistencyGateV1.blocking_reasons,
+          diagnostics: artifactConsistencyGateV1,
+        },
+      );
+
+      return {
+        success: false,
+        error: `Artifact consistency gate failed: ${artifactConsistencyGateV1.blocking_reasons.join(',')}`,
+      };
     }
 
     declarePersistenceLock('persistence/after-template-completeness');
@@ -10889,6 +11245,12 @@ export async function processEvaluationJob(
         }
 
         // Default path (phase_2 → queue phase_3 for next invocation).
+        const defaultPhase3HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (defaultPhase3HandoffReadiness !== 'ready') {
+          return defaultPhase3HandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+        }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({

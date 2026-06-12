@@ -23,6 +23,7 @@ import {
   type CanonicalEvaluationMode,
   type UnifiedEvaluationDocument,
 } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { isGenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
 import {
   getDisplayDreamList,
@@ -416,13 +417,32 @@ export default async function ReportPage({
     progress,
     typeof wordCount === 'number' && wordCount > 0 ? wordCount : null,
   );
-  const canonicalDoc = buildWebpageUnifiedDocument({
-    mode: evaluationMode,
-    result: resultRaw,
-    displayTitle,
-    enrichment,
-    dream: dreamDoc,
-  });
+  const adminForPersistedUed = createAdminClient();
+  const persistedDocument = await loadCertifiedUnifiedEvaluationDocumentArtifact(adminForPersistedUed, params.jobId);
+  if (persistedDocument.ok === false && persistedDocument.reason !== 'missing_unified_document_artifact') {
+    console.error('[reports.page] Certified UED load failed — notFound()', {
+      jobId: params.jobId,
+      reason: persistedDocument.reason,
+      details: persistedDocument.details,
+    });
+    notFound();
+  }
+
+  if (persistedDocument.ok === false) {
+    console.warn('[reports.page] Missing persisted UED artifact; using legacy canonical builder', {
+      jobId: params.jobId,
+    });
+  }
+
+  const canonicalDoc = persistedDocument.ok
+    ? persistedDocument.document
+    : buildWebpageUnifiedDocument({
+        mode: evaluationMode,
+        result: resultRaw,
+        displayTitle,
+        enrichment,
+        dream: dreamDoc,
+      });
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");

@@ -1,4 +1,3 @@
-import { createHash } from 'crypto';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import {
   buildUnifiedEvaluationDocument,
@@ -6,6 +5,7 @@ import {
   type CanonicalEvaluationMode,
   type UnifiedEvaluationDocument,
 } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 
 type RendererSurface = 'webpage' | 'pdf' | 'docx' | 'txt';
 
@@ -38,6 +38,9 @@ const OPTIONAL_FIELD_REGISTRY = [
   'titleBlock.shelf',
   'titleBlock.shelfConfidenceLabel',
 ] as const;
+
+const LONG_FORM_MIN_WORDS = 25_000;
+const LONG_FORM_MULTI_LAYER_MIN_WORDS = 75_000;
 
 export type ReportRenderManifestV1 = {
   schema_version: 'report_render_manifest_v1';
@@ -88,11 +91,6 @@ export type AuthorExposureCertificationV1 = {
   };
 };
 
-function stableHash(value: unknown): string {
-  const payload = typeof value === 'string' ? value : JSON.stringify(value);
-  return createHash('sha256').update(payload ?? '').digest('hex');
-}
-
 function readPath(root: unknown, path: string): unknown {
   const parts = path.split('.');
   let current = root as Record<string, unknown> | unknown;
@@ -111,8 +109,9 @@ function isEmptyValue(value: unknown): boolean {
 }
 
 export function inferCanonicalEvaluationModeFromWordCount(wordCount: number | null | undefined): CanonicalEvaluationMode {
-  if (typeof wordCount === 'number' && Number.isFinite(wordCount) && wordCount >= 25_000) {
-    return 'long_form_evaluation';
+  if (typeof wordCount === 'number' && Number.isFinite(wordCount)) {
+    if (wordCount >= LONG_FORM_MULTI_LAYER_MIN_WORDS) return 'long_form_multi_layer_evaluation';
+    if (wordCount >= LONG_FORM_MIN_WORDS) return 'long_form_evaluation';
   }
   return 'short_form_evaluation';
 }
@@ -189,7 +188,7 @@ export function buildReportRenderManifestV1(params: {
 
   const unifiedFieldHashes: Record<string, string> = {};
   for (const field of allFields) {
-    unifiedFieldHashes[field] = stableHash(readPath(params.unifiedDocument, field));
+    unifiedFieldHashes[field] = canonicalJsonSha256(readPath(params.unifiedDocument, field));
   }
 
   const surfaces = SURFACES.reduce((acc, surface) => {
@@ -198,7 +197,7 @@ export function buildReportRenderManifestV1(params: {
 
     const fieldHashes = allFields.reduce<Record<string, string>>((hashes, field) => {
       // Current renderer contract: canonical fields are read from UED only.
-      hashes[field] = stableHash(readPath(params.unifiedDocument, field));
+      hashes[field] = canonicalJsonSha256(readPath(params.unifiedDocument, field));
       return hashes;
     }, {});
 
@@ -223,7 +222,7 @@ export function buildReportRenderManifestV1(params: {
       template_path: template.templatePath,
       report_type: template.reportType,
     },
-    unified_document_hash: stableHash(params.unifiedDocument),
+    unified_document_hash: canonicalJsonSha256(params.unifiedDocument),
     unified_document_field_hashes: unifiedFieldHashes,
     required_field_registry: requiredFields,
     renderer_versions: {
