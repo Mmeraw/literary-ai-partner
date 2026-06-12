@@ -39,6 +39,100 @@ const SIPOC_STAGES = [
   { id: "renderer", label: "Renderer (Webpage/PDF/DOCX/TXT)", authority: "SIPOC S11" },
 ] as const;
 
+type ArtifactHealthStatus = "valid" | "invalid" | "unknown";
+
+type ForensicArtifactHealth = {
+  artifact_type: string;
+  artifact_version: string | null;
+  created_at: string;
+  source_hash: string | null;
+  schema_version: string | null;
+  status: ArtifactHealthStatus;
+  size_bytes: number | null;
+  job_id_match: boolean | null;
+  manuscript_id_match: boolean | null;
+  required_fields_present: boolean;
+  missing_fields: string[];
+  notes: string | null;
+};
+
+type ForensicPacketV1 = {
+  artifact_type: "forensic_packet_v1";
+  version: 1;
+  job_id: string;
+  status: string;
+  phase: string | null;
+  phase_status: string | null;
+  failure_code: string | null;
+  failure_class: string | null;
+  created_at: string;
+  updated_at: string;
+  repair_count: number | null;
+  repair_reason: string | null;
+  blocking_artifact: string | null;
+  root_cause_hint: string;
+  artifact_summary: {
+    total: number;
+    valid: number;
+    invalid: number;
+    unknown: number;
+  };
+  first_artifact_at: string | null;
+  last_artifact_at: string | null;
+  artifact_lineage: Array<{
+    artifact_type: string;
+    created_at: string;
+    artifact_version: string | null;
+    source_hash: string | null;
+    status: ArtifactHealthStatus;
+    size_bytes: number | null;
+    missing_fields: string[];
+  }>;
+};
+type ForensicArtifactQuality = {
+  grade: "clean" | "degraded" | "contaminated" | "failed";
+  contamination_start_stage: string | null;
+  contamination_start_artifact: string | null;
+  contamination_reason: string | null;
+  clean_artifact_count: number;
+  invalid_artifact_count: number;
+  unknown_artifact_count: number;
+  downstream_salvage_artifact_count: number;
+  downstream_salvage_stage_count: number;
+  weak_sipoc_stage: string | null;
+  notes: string[];
+};
+type ForensicPacketV2 = {
+  artifact_type: "forensic_packet_v2";
+  version: 2;
+  job_id: string;
+  failure_code: string | null;
+  failure_class: string | null;
+  failure_type: string;
+  blocking_artifact: string | null;
+  first_contaminated_stage: string | null;
+  first_contaminated_artifact: string | null;
+  weak_sipoc_stage: string | null;
+  repair_attempts: number | null;
+  repair_exhausted: boolean;
+  salvageable_downstream: boolean;
+  downstream_salvage_artifact_count: number;
+  downstream_salvage_stage_count: number;
+  root_cause_confidence: number;
+  structured_diagnostics: {
+    missing_fields: string[];
+    failed_checks: string[];
+    failed_criteria: string[];
+    blocking_reasons: string[];
+    artifact_counts: {
+      total: number;
+      valid: number;
+      invalid: number;
+      unknown: number;
+    };
+  };
+};
+
 type StageResult = "pass" | "inferred_pass" | "fail" | "skip" | "not_reached" | "retry_pass" | "retry_fail";
 
 interface ForensicStage {
@@ -61,6 +155,72 @@ interface ForensicStage {
   }>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sanitizeForensicText(value: string): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) return normalized;
+  if (normalized.includes(' ')) return '[redacted prose]';
+  const isCodeLike = /^[A-Za-z0-9_./:\-()[\]{}=+|]+$/.test(normalized);
+  if (isCodeLike && normalized.length <= 180) return normalized;
+  return '[redacted prose]';
+}
+
+function sanitizeForensicExcerpt(value: string | null | undefined): string | undefined {
+  if (typeof value !== 'string' || value.trim().length === 0) return undefined;
+  return '[redacted excerpt]';
+}
+
+function sanitizeTimelineEvent(event: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(event)) {
+    if (typeof value === 'string' && ['reason', 'detail', 'message', 'error', 'last_error', 'summary'].includes(key)) {
+      sanitized[key] = sanitizeForensicText(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
+function inferFailureType(input: {
+  failureCode: string | null;
+  blockingArtifact: string | null;
+  failedChecks: string[];
+  missingFields: string[];
+}): string {
+  const code = input.failureCode ?? '';
+  if (code === 'HANDOFF_REPAIR_EXHAUSTED') return 'handoff_repair_exhausted';
+  if (code === 'QG_FAILED') return 'quality_gate_blocked';
+  if (code === 'ARTIFACT_CONSISTENCY_GATE_FAILED') return 'artifact_consistency_blocked';
+  if (code === 'TEMPLATE_COMPLETENESS_GATE_FAILED') return 'template_completeness_blocked';
+  if (input.missingFields.length > 0) return 'missing_required_fields';
+  if (input.failedChecks.length > 0) return 'failed_checks_present';
+  if (input.blockingArtifact) return 'blocking_artifact_present';
+  return 'unknown';
+}
+
+function calculateRootCauseConfidence(input: {
+  failureCode: string | null;
+  failureClass: string | null;
+  blockingArtifact: string | null;
+  firstContaminatedStage: string | null;
+  firstContaminatedArtifact: string | null;
+  failedChecks: string[];
+  missingFields: string[];
+}): number {
+  let score = 40;
+  if (input.failureCode) score += 15;
+  if (input.failureClass) score += 10;
+  if (input.blockingArtifact) score += 10;
+  if (input.firstContaminatedStage) score += 10;
+  if (input.firstContaminatedArtifact) score += 10;
+  if (input.failedChecks.length > 0 || input.missingFields.length > 0) score += 5;
+  return Math.min(score, 95);
+}
+
 export async function GET(req: NextRequest, context: RouteContext) {
   const actor = getDevHeaderActor(req);
   if (!actor?.isAdmin) {
@@ -81,7 +241,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         .maybeSingle(),
       supabase
         .from("evaluation_artifacts")
-        .select("id,job_id,artifact_type,created_at")
+        .select("id,job_id,manuscript_id,artifact_type,artifact_version,source_hash,created_at,content")
         .eq("job_id", jobId)
         .order("created_at", { ascending: true }),
       supabase
@@ -108,7 +268,16 @@ export async function GET(req: NextRequest, context: RouteContext) {
     }
 
     const job = jobResult.data as Record<string, unknown>;
-    const artifacts = (artifactResult.data ?? []) as Array<{ id: string; artifact_type: string; created_at: string }>;
+    const artifacts = (artifactResult.data ?? []) as Array<{
+      id: string;
+      job_id: string | null;
+      manuscript_id: number | null;
+      artifact_type: string;
+      artifact_version: string | null;
+      source_hash: string | null;
+      created_at: string;
+      content: unknown | null;
+    }>;
     const logs = (logResult.data ?? []) as Array<{
       id: string;
       level: string;
@@ -131,6 +300,64 @@ export async function GET(req: NextRequest, context: RouteContext) {
     const selfCorrectionRaw = progress.self_correction;
     const selfCorrectionPolicyDeployed = selfCorrectionRaw !== undefined && selfCorrectionRaw !== null;
     const selfCorrection = (selfCorrectionRaw ?? {}) as Record<string, unknown>;
+
+    const artifactHealth = artifacts.map((artifact) => assessArtifactHealth(artifact, job)).sort(
+      (a, b) => a.created_at.localeCompare(b.created_at),
+    );
+
+    const artifactSummary = artifactHealth.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        acc[item.status] += 1;
+        return acc;
+      },
+      { total: 0, valid: 0, invalid: 0, unknown: 0 },
+    );
+
+    const repairCount = typeof progress.pass12_handoff_repair_count === 'number'
+      ? progress.pass12_handoff_repair_count
+      : null;
+    const repairReason = typeof progress.pass12_handoff_repair_reason === 'string'
+      ? progress.pass12_handoff_repair_reason
+      : null;
+
+    const firstArtifactAt = artifactHealth[0]?.created_at ?? null;
+    const lastArtifactAt = artifactHealth[artifactHealth.length - 1]?.created_at ?? null;
+
+    const blockingArtifact = failureDiagnosis?.artifact_inventory.first_missing_or_failed_artifact
+      ?? artifactHealth.find((item) => item.status === 'invalid')?.artifact_type
+      ?? null;
+
+    const forensicPacket: ForensicPacketV1 = {
+      artifact_type: 'forensic_packet_v1',
+      version: 1,
+      job_id: String(job.id),
+      status: String(job.status),
+      phase: (job.phase as string | null) ?? null,
+      phase_status: (job.phase_status as string | null) ?? null,
+      failure_code: (job.failure_code as string | null) ?? null,
+      failure_class: failureDiagnosis?.failure_class ?? null,
+      created_at: String(job.created_at),
+      updated_at: String(job.updated_at),
+      repair_count: repairCount,
+      repair_reason: repairReason,
+      blocking_artifact: blockingArtifact,
+      root_cause_hint: failureDiagnosis?.admin_summary
+        ? sanitizeForensicText(failureDiagnosis.admin_summary)
+        : 'Inspect_artifact_health_and_phase_transitions',
+      artifact_summary: artifactSummary,
+      first_artifact_at: firstArtifactAt,
+      last_artifact_at: lastArtifactAt,
+      artifact_lineage: artifactHealth.map((item) => ({
+        artifact_type: item.artifact_type,
+        created_at: item.created_at,
+        artifact_version: item.artifact_version,
+        source_hash: item.source_hash,
+        status: item.status,
+        size_bytes: item.size_bytes,
+        missing_fields: item.missing_fields,
+      })),
+    };
 
     // Determine which stage failed
     const failedStageRaw = (failureEnvelope.pipeline_stage ?? failureEnvelope.failed_at ?? job.phase_status ?? "") as string;
@@ -210,7 +437,9 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
       // Error details
       const errorCode = isFailedStage ? (failureEnvelope.error_code as string ?? null) : null;
-      const errorDetail = isFailedStage ? (job.last_error as string ?? null) : null;
+      const errorDetail = isFailedStage && typeof job.last_error === 'string'
+        ? sanitizeForensicText(job.last_error)
+        : null;
 
       // Retry info
       const retryAttempted = stageTimeline.some(
@@ -242,12 +471,105 @@ export async function GET(req: NextRequest, context: RouteContext) {
         output_summary: outputSummary,
         logs: stageLogs.map((l) => ({
           level: l.level,
-          message: l.message,
+          message: sanitizeForensicText(l.message),
           metadata: l.metadata,
           created_at: l.created_at,
         })),
       };
     });
+
+    const firstInvalidArtifactIndex = artifactHealth.findIndex((item) => item.status === 'invalid');
+    const firstUnknownArtifactIndex = artifactHealth.findIndex((item) => item.status === 'unknown');
+    const firstFailedStageIndex = stages.findIndex((stage) => stage.result === 'fail' || stage.result === 'retry_fail');
+    const firstFailedStage = firstFailedStageIndex >= 0 ? stages[firstFailedStageIndex] : null;
+    const contaminationStartArtifact = firstInvalidArtifactIndex >= 0 ? artifactHealth[firstInvalidArtifactIndex] : null;
+    const downstreamSalvageArtifactCount = contaminationStartArtifact
+      ? artifactHealth.slice(firstInvalidArtifactIndex + 1).filter((item) => item.status === 'valid').length
+      : 0;
+    const downstreamSalvageStageCount = firstFailedStageIndex >= 0
+      ? stages.slice(firstFailedStageIndex + 1).filter((stage) => stage.result === 'pass' || stage.result === 'inferred_pass' || stage.result === 'retry_pass').length
+      : 0;
+
+    const artifactQuality: ForensicArtifactQuality = {
+      grade:
+        firstFailedStage || firstInvalidArtifactIndex >= 0
+          ? 'contaminated'
+          : firstUnknownArtifactIndex >= 0
+            ? 'degraded'
+            : artifactHealth.length > 0
+              ? 'clean'
+              : 'failed',
+      contamination_start_stage: firstFailedStage?.id ?? null,
+      contamination_start_artifact: contaminationStartArtifact?.artifact_type ?? null,
+      contamination_reason:
+        contaminationStartArtifact?.notes
+        ?? firstFailedStage?.error_detail
+        ?? firstFailedStage?.error_code
+        ?? null,
+      clean_artifact_count: artifactSummary.valid,
+      invalid_artifact_count: artifactSummary.invalid,
+      unknown_artifact_count: artifactSummary.unknown,
+      downstream_salvage_artifact_count: downstreamSalvageArtifactCount,
+      downstream_salvage_stage_count: downstreamSalvageStageCount,
+      weak_sipoc_stage: firstFailedStage?.label ?? contaminationStartArtifact?.artifact_type ?? null,
+      notes: [
+        contaminationStartArtifact
+          ? `First invalid artifact: ${contaminationStartArtifact.artifact_type}`
+          : 'No invalid artifacts detected.',
+        firstFailedStage
+          ? `First failed stage: ${firstFailedStage.label}`
+          : 'No failed stages detected.',
+        downstreamSalvageArtifactCount > 0
+          ? `${downstreamSalvageArtifactCount} later artifact(s) remained valid after the first invalid artifact.`
+          : 'No downstream artifact salvage after the first invalid artifact.',
+        downstreamSalvageStageCount > 0
+          ? `${downstreamSalvageStageCount} later stage(s) still passed after the first failed stage.`
+          : 'No downstream stage salvage after the first failed stage.',
+      ],
+    };
+
+    const structuredMissingFields = contaminationStartArtifact?.missing_fields ?? [];
+    const failedChecks = failureDiagnosis?.failed_checks ?? [];
+    const failedCriteria = failureDiagnosis?.failed_criteria ?? [];
+    const blockingReasons = failureDiagnosis?.blocking_reasons ?? [];
+    const forensicPacketV2: ForensicPacketV2 = {
+      artifact_type: 'forensic_packet_v2',
+      version: 2,
+      job_id: String(job.id),
+      failure_code: (job.failure_code as string | null) ?? null,
+      failure_class: failureDiagnosis?.failure_class ?? null,
+      failure_type: inferFailureType({
+        failureCode: (job.failure_code as string | null) ?? null,
+        blockingArtifact,
+        failedChecks,
+        missingFields: structuredMissingFields,
+      }),
+      blocking_artifact: blockingArtifact,
+      first_contaminated_stage: artifactQuality.contamination_start_stage,
+      first_contaminated_artifact: artifactQuality.contamination_start_artifact,
+      weak_sipoc_stage: artifactQuality.weak_sipoc_stage,
+      repair_attempts: repairCount,
+      repair_exhausted: ((job.failure_code as string | null) ?? null) === 'HANDOFF_REPAIR_EXHAUSTED',
+      salvageable_downstream: downstreamSalvageArtifactCount > 0 || downstreamSalvageStageCount > 0,
+      downstream_salvage_artifact_count: downstreamSalvageArtifactCount,
+      downstream_salvage_stage_count: downstreamSalvageStageCount,
+      root_cause_confidence: calculateRootCauseConfidence({
+        failureCode: (job.failure_code as string | null) ?? null,
+        failureClass: failureDiagnosis?.failure_class ?? null,
+        blockingArtifact,
+        firstContaminatedStage: artifactQuality.contamination_start_stage,
+        firstContaminatedArtifact: artifactQuality.contamination_start_artifact,
+        failedChecks,
+        missingFields: structuredMissingFields,
+      }),
+      structured_diagnostics: {
+        missing_fields: structuredMissingFields,
+        failed_checks: failedChecks,
+        failed_criteria: failedCriteria,
+        blocking_reasons: blockingReasons,
+        artifact_counts: artifactSummary,
+      },
+    };
 
     // Self-correction summary
     const selfCorrectionSummary = {
@@ -287,7 +609,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         event: e.event as string,
         stage: (e.stage ?? null) as string | null,
         result: (e.result ?? null) as string | null,
-        reason: (e.reason ?? null) as string | null,
+        reason: typeof e.reason === 'string' ? sanitizeForensicText(e.reason) : null,
         timestamp: (e.timestamp ?? null) as string | null,
       })),
     };
@@ -364,7 +686,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
           contaminationTrace.push({
             criterion: criterion.key,
             index: i,
-            action_preview: rec.action?.substring(0, 100) ?? "(empty)",
+            action_preview: rec.action ? "[redacted recommendation]" : "(empty)",
             source_pass: sourcePass,
             created_stage: createdStage,
             modified_stage: modifiedStage,
@@ -399,19 +721,35 @@ export async function GET(req: NextRequest, context: RouteContext) {
           contaminationTrace.push({
             criterion: qRec.criterion ?? "unknown",
             index: -1,
-            action_preview: qRec.action?.substring(0, 100) ?? "(quarantined)",
+            action_preview: qRec.action ? "[redacted recommendation]" : "(quarantined)",
             source_pass: null,
             created_stage: "pass2_editorial",
             modified_stage: "pass3_synthesis",
             flagged_by: "Integrity Gate (S08/S09)",
             quarantined: true,
-            quarantine_reason: qRec.reason ?? "FAIL tier",
+            quarantine_reason: qRec.reason ? sanitizeForensicText(qRec.reason) : "FAIL_tier",
             integrity_tier: qRec.tier ?? "FAIL",
             violation_codes: qRec.violation_codes ?? [],
           });
         }
       }
     }
+
+    const sanitizedFailureDiagnosis = failureDiagnosis
+      ? {
+          ...failureDiagnosis,
+          user_safe_summary: sanitizeForensicText(failureDiagnosis.user_safe_summary),
+          admin_summary: sanitizeForensicText(failureDiagnosis.admin_summary),
+          developer_summary: sanitizeForensicText(failureDiagnosis.developer_summary),
+          recommended_next_action: sanitizeForensicText(failureDiagnosis.recommended_next_action),
+          blocking_reasons: failureDiagnosis.blocking_reasons.map((reason) => sanitizeForensicText(reason)),
+          failed_checks: failureDiagnosis.failed_checks.map((check) => sanitizeForensicText(check)),
+          evidence_refs: failureDiagnosis.evidence_refs.map((ref) => ({
+            ...ref,
+            excerpt: sanitizeForensicExcerpt(ref.excerpt),
+          })),
+        }
+      : null;
 
     return NextResponse.json({
       ok: true,
@@ -423,23 +761,27 @@ export async function GET(req: NextRequest, context: RouteContext) {
         phase: job.phase,
         phase_status: job.phase_status,
         failure_code: job.failure_code,
-        last_error: job.last_error,
+        last_error: typeof job.last_error === 'string' ? sanitizeForensicText(job.last_error) : job.last_error,
         created_at: job.created_at,
         updated_at: job.updated_at,
         word_count: chunkRouting.word_count ?? null,
         route: chunkRouting.route ?? null,
         chunks: chunkRouting.chunk_count ?? null,
       },
+      artifactHealth,
+      artifactQuality,
+      forensicPacket,
+      forensicPacketV2,
       stages,
       artifacts: artifacts.map((a) => ({
         type: a.artifact_type,
         created_at: a.created_at,
       })),
-      timeline,
+      timeline: timeline.map(sanitizeTimelineEvent),
       selfCorrection: selfCorrectionSummary,
       retryAnalytics,
       qualityGateChecks,
-      failureDiagnosis,
+      failureDiagnosis: sanitizedFailureDiagnosis,
       canonCompliance: SIPOC_STAGES.map((spec) => ({
         stage: spec.id,
         authority: spec.authority,
@@ -526,7 +868,115 @@ function summarizeMetadata(meta: Record<string, unknown>): string {
   if (meta.violations) parts.push(`${meta.violations} violations`);
   if (parts.length === 0) {
     const keys = Object.keys(meta).slice(0, 3);
-    return keys.map((k) => `${k}: ${JSON.stringify(meta[k]).slice(0, 30)}`).join(", ");
+    return keys
+      .map((k) => `${k}: ${summarizeMetadataValue(meta[k])}`)
+      .join(", ");
   }
   return parts.join(", ");
+}
+
+function summarizeMetadataValue(value: unknown): string {
+  if (typeof value === 'string') return `${value.length} chars`;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return `${value.length} items`;
+  if (isRecord(value)) return `${Object.keys(value).length} keys`;
+  return 'present';
+}
+
+function assessArtifactHealth(
+  artifact: {
+    job_id: string | null;
+    manuscript_id: number | null;
+    artifact_type: string;
+    artifact_version: string | null;
+    source_hash: string | null;
+    created_at: string;
+    content: unknown | null;
+  },
+  job: Record<string, unknown>,
+): ForensicArtifactHealth {
+  const contentRecord = isRecord(artifact.content) ? artifact.content : null;
+  const schemaVersion = typeof contentRecord?.schema_version === 'string' ? contentRecord.schema_version : null;
+  const sizeBytes = artifact.content === null || artifact.content === undefined
+    ? null
+    : new TextEncoder().encode(JSON.stringify(artifact.content)).length;
+
+  const requiredFields = getRequiredFieldsForArtifact(artifact.artifact_type);
+  const missingFields = requiredFields.filter((field) => !hasNestedField(contentRecord, field));
+  const jobIdMatch = artifact.job_id ? artifact.job_id === String(job.id) : null;
+  const manuscriptIdMatch = artifact.manuscript_id && typeof job.manuscript_id === 'number'
+    ? artifact.manuscript_id === (job.manuscript_id as number)
+    : null;
+  const status: ArtifactHealthStatus =
+    contentRecord === null
+      ? 'unknown'
+      : missingFields.length > 0 || jobIdMatch === false || manuscriptIdMatch === false
+        ? 'invalid'
+        : 'valid';
+
+  const notes =
+    status === 'invalid'
+      ? missingFields.length > 0
+        ? `Missing required fields: ${missingFields.join(', ')}`
+        : jobIdMatch === false || manuscriptIdMatch === false
+          ? 'Ownership mismatch'
+          : 'Validation failed'
+      : null;
+
+  return {
+    artifact_type: artifact.artifact_type,
+    artifact_version: artifact.artifact_version,
+    created_at: artifact.created_at,
+    source_hash: artifact.source_hash,
+    schema_version: schemaVersion,
+    status,
+    size_bytes: sizeBytes,
+    job_id_match: jobIdMatch,
+    manuscript_id_match: manuscriptIdMatch,
+    required_fields_present: missingFields.length === 0,
+    missing_fields: missingFields,
+    notes,
+  };
+}
+
+function getRequiredFieldsForArtifact(artifactType: string): string[] {
+  switch (artifactType) {
+    case 'pass12_handoff_v1':
+      return ['schema_version', 'pass1Output', 'pass2Output'];
+    case 'accepted_story_ledger_v1':
+      return ['schema_version', 'governance_rail', 'governance_rail.layer_decisions'];
+    case 'pass1a_story_layer_v1':
+      return ['schema_version'];
+    case 'pass1a_character_ledger_v1':
+      return ['schema_version'];
+    case 'pass3_preflight_draft_v1':
+      return ['schema_version'];
+    case 'quality_gate_diagnostics_v1':
+      return ['failed_checks'];
+    case 'artifact_consistency_gate_v1':
+      return ['status', 'blocking_reasons', 'checked_invariants'];
+    case 'evaluation_result_v2':
+      return ['schema_version', 'overview', 'criteria'];
+    case 'unified_evaluation_document_v1':
+    case 'report_render_manifest_v1':
+    case 'author_exposure_certification_v1':
+      return ['schema_version'];
+    case 'failure_diagnosis_v1':
+      return ['artifact_type', 'failure_code', 'failure_class'];
+    default:
+      return ['schema_version'];
+  }
+}
+
+function hasNestedField(value: Record<string, unknown> | null, path: string): boolean {
+  if (!value) return false;
+  const segments = path.split('.');
+  let current: unknown = value;
+  for (const segment of segments) {
+    if (!isRecord(current) || !(segment in current)) {
+      return false;
+    }
+    current = current[segment];
+  }
+  return current !== undefined && current !== null;
 }

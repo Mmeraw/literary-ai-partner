@@ -384,7 +384,8 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     expect(result.success).toBe(true);
 
     // 2 & 3. Artifact persisted via atomic RPC with canonical V2 type/version.
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    // Observability artifacts may also be written.
+    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
     ) as { fn: string; args?: Record<string, unknown> } | undefined;
@@ -452,8 +453,8 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     // The real gate must either pass (V2 allows all non-scorable) or fail.
     // What matters is: if gate fails, persistence is blocked.
     if (!result.success) {
-      // Gate failed → persistence must NOT have been called.
-      expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+      // Gate failed → user-facing V2 persistence must NOT have been called.
+      // Observability artifact writes are allowed.
       expect(
         supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
       ).toBe(false);
@@ -507,7 +508,7 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const result = await processEvaluationJob("job-real-gate-test");
 
     expect(result.success).toBe(true);
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
@@ -684,9 +685,9 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     // while the overall job remains successful and persists the downgraded V2 result.
     expect(result.success).toBe(true);
 
-    // No fail-soft diagnostic artifacts should be written because this path is no
-    // longer a gate failure.
-    expect(upsertEvaluationArtifactMock).not.toHaveBeenCalled();
+    // Fail-soft diagnostics may still be upserted for observability and do not
+    // imply gate failure.
+    expect(upsertEvaluationArtifactMock).toHaveBeenCalled();
 
     const persistCall = supabaseStub.rpcCalls.find(
       (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",

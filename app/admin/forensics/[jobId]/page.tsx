@@ -59,6 +59,66 @@ interface ForensicData {
     violation_codes: string[];
   };
   qualityGateChecks: Array<Record<string, unknown>>;
+  artifactHealth: Array<{
+    artifact_type: string;
+    artifact_version: string | null;
+    created_at: string;
+    source_hash: string | null;
+    schema_version: string | null;
+    status: "valid" | "invalid" | "unknown";
+    size_bytes: number | null;
+    job_id_match: boolean | null;
+    manuscript_id_match: boolean | null;
+    required_fields_present: boolean;
+    missing_fields: string[];
+    notes: string | null;
+  }>;
+  artifactQuality: {
+    grade: "clean" | "degraded" | "contaminated" | "failed";
+    contamination_start_stage: string | null;
+    contamination_start_artifact: string | null;
+    contamination_reason: string | null;
+    clean_artifact_count: number;
+    invalid_artifact_count: number;
+    unknown_artifact_count: number;
+    downstream_salvage_artifact_count: number;
+    downstream_salvage_stage_count: number;
+    weak_sipoc_stage: string | null;
+    notes: string[];
+  };
+  forensicPacket: {
+    artifact_type: "forensic_packet_v1";
+    version: 1;
+    job_id: string;
+    status: string;
+    phase: string | null;
+    phase_status: string | null;
+    failure_code: string | null;
+    failure_class: string | null;
+    created_at: string;
+    updated_at: string;
+    repair_count: number | null;
+    repair_reason: string | null;
+    blocking_artifact: string | null;
+    root_cause_hint: string;
+    artifact_summary: {
+      total: number;
+      valid: number;
+      invalid: number;
+      unknown: number;
+    };
+    first_artifact_at: string | null;
+    last_artifact_at: string | null;
+    artifact_lineage: Array<{
+      artifact_type: string;
+      created_at: string;
+      artifact_version: string | null;
+      source_hash: string | null;
+      status: "valid" | "invalid" | "unknown";
+      size_bytes: number | null;
+      missing_fields: string[];
+    }>;
+  };
   failureDiagnosis: {
     artifact_type: "failure_diagnosis_v1";
     version: 1;
@@ -289,7 +349,8 @@ export default function ForensicViewPage() {
     );
   }
 
-  const { job, stages, artifacts, selfCorrection, retryAnalytics, qualityGateChecks, failureDiagnosis, canonCompliance, contaminationTrace } = data;
+  const { job, stages, artifacts, artifactHealth, forensicPacket, selfCorrection, retryAnalytics, qualityGateChecks, failureDiagnosis, canonCompliance, contaminationTrace } = data;
+  const { artifactQuality } = data;
   const failedStages = stages.filter((s) => s.result === "fail" || s.result === "retry_fail");
   const passedStages = stages.filter((s) => s.result === "pass" || s.result === "inferred_pass" || s.result === "retry_pass");
 
@@ -305,6 +366,202 @@ export default function ForensicViewPage() {
         <p className="mt-1 text-sm font-medium text-rg-cream2/60">
           Stage-by-stage trace for job <span className="font-mono text-rg-gold">{job.id}</span>
         </p>
+        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-rg-gold/80">
+          Privacy-safe diagnostic view — manuscript content and editorial prose are redacted.
+        </p>
+      </div>
+
+      {/* Artifact Health Summary */}
+      <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-rg-cream">Artifact Health Summary</h2>
+            <p className="mt-1 text-xs font-medium text-rg-cream2/50">
+              Sanitized metadata only — no manuscript prose, only artifact status, timestamps, hashes, and structural validation.
+            </p>
+          </div>
+
+          {/* Artifact Quality */}
+          <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-rg-cream">Artifact Quality & SIPOC Weakness</h2>
+                <p className="mt-1 text-xs font-medium text-rg-cream2/50">
+                  Where contamination starts, what survives downstream, and which stage is the weakest link.
+                </p>
+              </div>
+              <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 px-3 py-2 text-right">
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Quality grade</p>
+                <p className="mt-1 text-lg font-extrabold text-rg-cream">{artifactQuality.grade.toUpperCase()}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+              <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Start stage</p>
+                <p className="mt-1 font-semibold text-rg-cream">{artifactQuality.contamination_start_stage ?? '—'}</p>
+              </div>
+              <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Start artifact</p>
+                <p className="mt-1 font-semibold text-rg-cream">{artifactQuality.contamination_start_artifact ?? '—'}</p>
+              </div>
+              <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Downstream salvage</p>
+                <p className="mt-1 font-semibold text-rg-cream">
+                  {artifactQuality.downstream_salvage_artifact_count} artifacts · {artifactQuality.downstream_salvage_stage_count} stages
+                </p>
+              </div>
+              <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Weak SIPOC point</p>
+                <p className="mt-1 font-semibold text-rg-cream">{artifactQuality.weak_sipoc_stage ?? '—'}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 text-center text-sm">
+              <div className="rounded border border-green-400/30 bg-green-900/20 p-3">
+                <p className="text-2xl font-extrabold text-green-900">{artifactQuality.clean_artifact_count}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-green-700">Clean artifacts</p>
+              </div>
+              <div className="rounded border border-red-400/30 bg-red-900/20 p-3">
+                <p className="text-2xl font-extrabold text-red-300">{artifactQuality.invalid_artifact_count}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-red-700">Invalid artifacts</p>
+              </div>
+              <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+                <p className="text-2xl font-extrabold text-rg-cream">{artifactQuality.unknown_artifact_count}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Unknown artifacts</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded border border-rg-cream2/10 bg-rg-ink2/50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Quality notes</p>
+              <ul className="mt-2 space-y-1 text-sm text-rg-cream2/75">
+                {artifactQuality.notes.map((note) => (
+                  <li key={note}>• {note}</li>
+                ))}
+              </ul>
+              {artifactQuality.contamination_reason && (
+                <p className="mt-3 text-sm text-amber-200">Reason: {artifactQuality.contamination_reason}</p>
+              )}
+            </div>
+          </div>
+          <div className="text-xs text-rg-cream2/60">
+            <p className="font-semibold text-rg-cream">Total: {forensicPacket.artifact_summary.total}</p>
+            <p>Valid: {forensicPacket.artifact_summary.valid} · Invalid: {forensicPacket.artifact_summary.invalid} · Unknown: {forensicPacket.artifact_summary.unknown}</p>
+          </div>
+        </div>
+
+        {artifactHealth.length === 0 ? (
+          <p className="mt-4 text-sm text-rg-cream2/60">No artifact metadata available for this job.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-rg-cream2/10 text-xs">
+              <thead className="bg-rg-ink2">
+                <tr>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Artifact</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Status</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Created</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Size</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Hash</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Fields</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rg-cream2/10 bg-rg-ink2/70">
+                {artifactHealth.map((artifact) => (
+                  <tr key={artifact.artifact_type + artifact.created_at}>
+                    <td className="px-3 py-2 font-mono font-semibold text-rg-cream">{artifact.artifact_type}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-block rounded px-2 py-0.5 font-bold ring-1 ${artifact.status === 'valid' ? 'bg-green-50 text-green-900 ring-green-400/30' : artifact.status === 'invalid' ? 'bg-red-50 text-red-300 ring-red-400/30' : 'bg-rg-ink2 text-rg-cream2/50 ring-slate-200'}`}>
+                        {artifact.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-rg-cream2/70 whitespace-nowrap">{fmtDate(artifact.created_at)}</td>
+                    <td className="px-3 py-2 text-rg-cream2/70 whitespace-nowrap">{artifact.size_bytes !== null ? `${artifact.size_bytes.toLocaleString()} B` : '—'}</td>
+                    <td className="px-3 py-2 font-mono text-rg-cream2/70 whitespace-nowrap">{artifact.source_hash ?? '—'}</td>
+                    <td className="px-3 py-2 text-rg-cream2/70">
+                      <div className="space-y-1">
+                        <p>schema: {artifact.schema_version ?? '—'}</p>
+                        <p>job match: {artifact.job_id_match === null ? '—' : artifact.job_id_match ? 'yes' : 'no'} · manuscript match: {artifact.manuscript_id_match === null ? '—' : artifact.manuscript_id_match ? 'yes' : 'no'}</p>
+                        {!artifact.required_fields_present && artifact.missing_fields.length > 0 && (
+                          <p className="text-amber-200">missing: {artifact.missing_fields.join(', ')}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-rg-cream2/70">{artifact.notes ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Forensic Packet */}
+      <div className="rounded-lg border border-rg-cream2/15 bg-rg-ink2/70 p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-rg-cream">Forensic Packet</h2>
+        <p className="mt-1 text-xs font-medium text-rg-cream2/50">
+          Sanitized RCA bundle for admins and AI assistants: phase history, repair state, and artifact lineage without manuscript text.
+        </p>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2 text-sm">
+          <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Root Cause Hint</p>
+            <p className="mt-1 text-rg-cream">{forensicPacket.root_cause_hint}</p>
+          </div>
+          <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Repair / Blocker</p>
+            <p className="mt-1 text-rg-cream">Blocking artifact: {forensicPacket.blocking_artifact ?? '—'}</p>
+            <p className="mt-1 text-rg-cream">Repair attempts: {forensicPacket.repair_count ?? 0}</p>
+            <p className="mt-1 text-rg-cream2/70">Repair reason: {forensicPacket.repair_reason ?? '—'}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-4 text-center text-sm">
+          <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+            <p className="text-2xl font-extrabold text-rg-cream">{forensicPacket.artifact_summary.total}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Artifacts</p>
+          </div>
+          <div className="rounded border border-green-400/30 bg-green-900/20 p-3">
+            <p className="text-2xl font-extrabold text-green-900">{forensicPacket.artifact_summary.valid}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-green-700">Valid</p>
+          </div>
+          <div className="rounded border border-red-400/30 bg-red-900/20 p-3">
+            <p className="text-2xl font-extrabold text-red-300">{forensicPacket.artifact_summary.invalid}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-red-700">Invalid</p>
+          </div>
+          <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-3">
+            <p className="text-2xl font-extrabold text-rg-cream">{forensicPacket.failure_class ?? '—'}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Failure Class</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded border border-rg-cream2/10 bg-rg-ink2/50 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Artifact Lineage</p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full divide-y divide-rg-cream2/10 text-xs">
+              <thead className="bg-rg-ink2">
+                <tr>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Artifact</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Status</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Created</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Size</th>
+                  <th className="px-3 py-2 text-left font-bold text-rg-cream">Missing Fields</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rg-cream2/10 bg-rg-ink2/70">
+                {forensicPacket.artifact_lineage.map((artifact) => (
+                  <tr key={`${artifact.artifact_type}-${artifact.created_at}`}>
+                    <td className="px-3 py-2 font-mono text-rg-cream">{artifact.artifact_type}</td>
+                    <td className="px-3 py-2 text-rg-cream2/70">{artifact.status}</td>
+                    <td className="px-3 py-2 text-rg-cream2/70 whitespace-nowrap">{fmtDate(artifact.created_at)}</td>
+                    <td className="px-3 py-2 text-rg-cream2/70 whitespace-nowrap">{artifact.size_bytes !== null ? `${artifact.size_bytes.toLocaleString()} B` : '—'}</td>
+                    <td className="px-3 py-2 text-rg-cream2/70">{artifact.missing_fields.join(', ') || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* Job Summary */}
