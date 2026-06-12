@@ -19,6 +19,7 @@ export type ArtifactConsistencyGateCheck = {
 
 export type ArtifactConsistencyGateV1 = {
   schema_version: 'artifact_consistency_gate_v1';
+  created_at: string;
   generated_at: string;
   source_artifact: 'evaluation_result_v2';
   status: 'pass' | 'fail';
@@ -82,6 +83,7 @@ export function evaluateArtifactConsistencyGateV1(
 
   return {
     schema_version: 'artifact_consistency_gate_v1',
+    created_at: generatedAt,
     generated_at: generatedAt,
     source_artifact: 'evaluation_result_v2',
     status: blockingReasons.length === 0 ? 'pass' : 'fail',

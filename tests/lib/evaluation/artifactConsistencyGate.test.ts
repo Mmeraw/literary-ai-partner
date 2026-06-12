@@ -83,6 +83,8 @@ describe('artifactConsistencyGateV1', () => {
     });
 
     expect(gate.schema_version).toBe('artifact_consistency_gate_v1');
+    expect(typeof gate.created_at).toBe('string');
+    expect(Number.isNaN(Date.parse(gate.created_at))).toBe(false);
     expect(gate.status).toBe('fail');
     expect(gate.checked_invariants).toEqual([
       'summary_criteria_bottom_weakness_alignment',
@@ -178,5 +180,106 @@ describe('artifactConsistencyGateV1', () => {
     expect(gate.source_result_hash).toBe(canonicalJsonSha256(source));
     expect(gate.effective_qg_result_hash).toBe(canonicalJsonSha256(effective));
     expect(gate.source_result_hash).not.toBe(gate.effective_qg_result_hash);
+  });
+
+  test('Cartel Babies regression: source theme=10 and effective theme=5 with summary omission fails gate', () => {
+    const source = resultWith({
+      criteria: [
+        criterion('theme', 10, [
+          {
+            priority: 'high',
+            action: 'Clarify the thematic argument in repeated turning points.',
+            expected_impact: 'Readers can track the meaning pressure across the arc.',
+          },
+        ]),
+        criterion('voice', 8),
+      ],
+      overview: {
+        verdict: 'revise',
+        overall_score_0_100: 70,
+        scored_criteria_count: 2,
+        one_paragraph_summary: 'The manuscript has strong voice and momentum.',
+        top_3_strengths: ['Voice is engaging'],
+        top_3_risks: ['Theme is underdeveloped'],
+      },
+    });
+
+    const effective = resultWith({
+      criteria: [
+        criterion('theme', 5, [
+          {
+            priority: 'high',
+            action: 'Clarify the thematic argument in repeated turning points.',
+            expected_impact: 'Readers can track the meaning pressure across the arc.',
+          },
+        ]),
+        criterion('voice', 8),
+      ],
+      overview: {
+        verdict: 'revise',
+        overall_score_0_100: 60,
+        scored_criteria_count: 2,
+        one_paragraph_summary: 'The manuscript has strong voice and momentum.',
+        top_3_strengths: ['Voice is engaging'],
+        top_3_risks: ['Theme is underdeveloped'],
+      },
+    });
+
+    const gate = evaluateArtifactConsistencyGateV1({
+      sourceResult: source,
+      effectiveQGResult: effective,
+    });
+
+    expect(gate.status).toBe('fail');
+    expect(gate.blocking_reasons).toContain('summary_criteria_bottom_weakness_alignment');
+    expect(gate.source_result_hash).toBe(canonicalJsonSha256(source));
+    expect(gate.effective_qg_result_hash).toBe(canonicalJsonSha256(effective));
+    expect(gate.source_result_hash).not.toBe(gate.effective_qg_result_hash);
+  });
+
+  test('Cartel Babies regression: same capped criteria with summary mentioning theme passes gate', () => {
+    const source = resultWith({
+      criteria: [
+        criterion('theme', 10, [
+          {
+            priority: 'high',
+            action: 'Clarify the thematic argument in repeated turning points.',
+            expected_impact: 'Readers can track the meaning pressure across the arc.',
+          },
+        ]),
+        criterion('voice', 8),
+      ],
+    });
+
+    const effective = resultWith({
+      criteria: [
+        criterion('theme', 5, [
+          {
+            priority: 'high',
+            action: 'Clarify the thematic argument in repeated turning points.',
+            expected_impact: 'Readers can track the meaning pressure across the arc.',
+          },
+        ]),
+        criterion('voice', 8),
+      ],
+      overview: {
+        verdict: 'revise',
+        overall_score_0_100: 60,
+        scored_criteria_count: 2,
+        one_paragraph_summary: 'Theme remains the primary weakness and needs revision.',
+        top_3_strengths: ['Voice is engaging'],
+        top_3_risks: ['Theme is underdeveloped'],
+      },
+    });
+
+    const gate = evaluateArtifactConsistencyGateV1({
+      sourceResult: source,
+      effectiveQGResult: effective,
+    });
+
+    expect(gate.status).toBe('pass');
+    expect(gate.blocking_reasons).toEqual([]);
+    expect(gate.source_result_hash).toBe(canonicalJsonSha256(source));
+    expect(gate.effective_qg_result_hash).toBe(canonicalJsonSha256(effective));
   });
 });

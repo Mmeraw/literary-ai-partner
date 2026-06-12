@@ -4,6 +4,7 @@ const runPipelineMock = jest.fn();
 const synthesisToEvaluationResultV2Mock = jest.fn();
 const runQualityGateV2Mock = jest.fn();
 const mapEvaluationResultV2ToGovernanceEnvelopeMock = jest.fn();
+const evaluateArtifactConsistencyGateV1Mock = jest.fn();
 
 jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
   runPipeline: (...args: any[]) => runPipelineMock(...args),
@@ -42,6 +43,10 @@ jest.mock("openai", () => ({
 
 jest.mock("@/lib/evaluation/pipeline/templateCompletenessGate", () => ({
   validateTemplateCompleteness: () => ({ pass: true, violations: [], warnings: [], summary: "ok" }),
+}));
+
+jest.mock("@/lib/evaluation/artifactConsistencyGate", () => ({
+  evaluateArtifactConsistencyGateV1: (...args: any[]) => evaluateArtifactConsistencyGateV1Mock(...args),
 }));
 
 const createClientMock = jest.fn();
@@ -258,6 +263,23 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     jest.resetModules();
     jest.clearAllMocks();
     consoleLogSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+
+    evaluateArtifactConsistencyGateV1Mock.mockReturnValue({
+      schema_version: "artifact_consistency_gate_v1",
+      created_at: new Date().toISOString(),
+      generated_at: new Date().toISOString(),
+      source_artifact: "evaluation_result_v2",
+      status: "pass",
+      blocking_reasons: [],
+      checked_invariants: [
+        "summary_criteria_bottom_weakness_alignment",
+        "recommendation_criterion_traceability",
+      ],
+      checks: [],
+      source_result_hash: "sha256:source",
+      effective_qg_result_hash: "sha256:effective",
+      qg_normalized: true,
+    });
 
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
@@ -724,6 +746,11 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     });
 
     mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-cartel-babies-fail",
+      criteria: [],
+    });
+
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
       evaluation_run_id: "run-1",
       criteria: [],
     });
@@ -759,6 +786,308 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
     expect((baseEvaluationResult.criteria[0] as Record<string, unknown>).status).toBe("SCORABLE");
     expect((baseEvaluationResult.criteria[0] as Record<string, unknown>).score_0_10).toBe(7);
+  });
+
+  test("Cartel Babies fail regression: theme 10→5 + summary omits theme fails consistency gate and blocks evaluation_result_v2 persistence", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    const criterionKeys = [
+      "concept",
+      "narrativeDrive",
+      "character",
+      "voice",
+      "sceneConstruction",
+      "dialogue",
+      "theme",
+      "worldbuilding",
+      "pacing",
+      "proseControl",
+      "tone",
+      "narrativeClosure",
+      "marketability",
+    ];
+
+    const baseEvaluationResult = {
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-cartel-babies-fail",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: {
+        model: "o3",
+        provider: "openai",
+        prompt_version: "test",
+      },
+      overview: {
+        verdict: "revise",
+        overall_score_0_100: 70,
+        one_paragraph_summary: "The manuscript has strong voice and scene momentum.",
+        top_3_strengths: ["voice"],
+        top_3_risks: ["theme"],
+      },
+      criteria: criterionKeys.map((key) => ({
+        key,
+        scorable: true,
+        status: "SCORABLE",
+        signal_present: true,
+        signal_strength: "SUFFICIENT",
+        confidence_band: "MEDIUM",
+        score_0_10: key === "theme" ? 10 : 8,
+        rationale: `Criterion ${key} is supported by manuscript evidence and synthesis.`,
+        evidence: [{ snippet: `Evidence snippet with sufficient detail for ${key}.` }],
+        recommendations: [
+          {
+            priority: "high",
+            action: `Strengthen ${key} with scene-grounded revision.`,
+            expected_impact: `Improves ${key} clarity and cohesion.`,
+          },
+        ],
+      })),
+      recommendations: {
+        quick_wins: [],
+        strategic_revisions: [],
+      },
+      metrics: {
+        manuscript: {},
+        processing: {},
+      },
+      artifacts: [],
+      governance: {
+        confidence: 0.9,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+      },
+    };
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
+
+    const downgradedResult = {
+      ...baseEvaluationResult,
+      overview: {
+        ...baseEvaluationResult.overview,
+        one_paragraph_summary: "The manuscript has strong voice and scene momentum.",
+      },
+      criteria: baseEvaluationResult.criteria.map((criterion: any) =>
+        criterion.key === "theme"
+          ? {
+              ...criterion,
+              score_0_10: 5,
+              confidence_level: "low",
+              confidence_score_0_100: 50,
+            }
+          : criterion,
+      ),
+    };
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+      downgradedResult,
+    });
+
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-cartel-babies-pass",
+      criteria: [],
+    });
+
+    const actualGate = jest.requireActual<typeof import("@/lib/evaluation/artifactConsistencyGate")>(
+      "@/lib/evaluation/artifactConsistencyGate",
+    );
+    evaluateArtifactConsistencyGateV1Mock.mockImplementation((params: any) =>
+      actualGate.evaluateArtifactConsistencyGateV1(params),
+    );
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Artifact consistency gate failed");
+
+    const artifactConsistencyCall = upsertEvaluationArtifactMock.mock.calls.find(
+      (call: any[]) => call[0]?.artifactType === "artifact_consistency_gate_v1",
+    );
+    expect(artifactConsistencyCall).toBeDefined();
+    expect(artifactConsistencyCall?.[0]?.content).toEqual(
+      expect.objectContaining({
+        status: "fail",
+        blocking_reasons: expect.arrayContaining(["summary_criteria_bottom_weakness_alignment"]),
+      }),
+    );
+
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(false);
+  });
+
+  test("Cartel Babies pass regression: theme 10→5 with summary mentioning theme passes consistency gate and persists", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    const criterionKeys = [
+      "concept",
+      "narrativeDrive",
+      "character",
+      "voice",
+      "sceneConstruction",
+      "dialogue",
+      "theme",
+      "worldbuilding",
+      "pacing",
+      "proseControl",
+      "tone",
+      "narrativeClosure",
+      "marketability",
+    ];
+
+    const baseEvaluationResult = {
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-cartel-babies-pass",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: {
+        model: "o3",
+        provider: "openai",
+        prompt_version: "test",
+      },
+      overview: {
+        verdict: "revise",
+        overall_score_0_100: 70,
+        one_paragraph_summary: "Theme remains the primary weakness and needs revision.",
+        top_3_strengths: ["voice"],
+        top_3_risks: ["theme"],
+      },
+      criteria: criterionKeys.map((key) => ({
+        key,
+        scorable: true,
+        status: "SCORABLE",
+        signal_present: true,
+        signal_strength: "SUFFICIENT",
+        confidence_band: "MEDIUM",
+        score_0_10: key === "theme" ? 10 : 8,
+        rationale: `Criterion ${key} is supported by manuscript evidence and synthesis.`,
+        evidence: [{ snippet: `Evidence snippet with sufficient detail for ${key}.` }],
+        recommendations: [
+          {
+            priority: "high",
+            action: `Strengthen ${key} with scene-grounded revision.`,
+            expected_impact: `Improves ${key} clarity and cohesion.`,
+          },
+        ],
+      })),
+      recommendations: {
+        quick_wins: [],
+        strategic_revisions: [],
+      },
+      metrics: {
+        manuscript: {},
+        processing: {},
+      },
+      artifacts: [],
+      governance: {
+        confidence: 0.9,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+      },
+    };
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
+
+    const downgradedResult = {
+      ...baseEvaluationResult,
+      criteria: baseEvaluationResult.criteria.map((criterion: any) =>
+        criterion.key === "theme"
+          ? {
+              ...criterion,
+              score_0_10: 5,
+              confidence_level: "low",
+              confidence_score_0_100: 50,
+            }
+          : criterion,
+      ),
+    };
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+      downgradedResult,
+    });
+
+    const actualGate = jest.requireActual<typeof import("@/lib/evaluation/artifactConsistencyGate")>(
+      "@/lib/evaluation/artifactConsistencyGate",
+    );
+    evaluateArtifactConsistencyGateV1Mock.mockImplementation((params: any) =>
+      actualGate.evaluateArtifactConsistencyGateV1(params),
+    );
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(true);
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(true);
   });
 
   test("uncaught processor fallback persists failure metadata when atomic finalization fails", async () => {
