@@ -2,6 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* === Warm CTA/button contrast guard ===
+ *
+ * Gold, amber, orange, and red call-to-action backgrounds were allowing small
+ * mono-label text to render too faintly on the marketing pages. Force warm-fill
+ * buttons/links to use near-black ink and a heavier weight so CTA labels remain
+ * legible on gold/orange/red fills without changing layout or copy.
+ */
+a[class*="bg-rg-gold"],
+button[class*="bg-rg-gold"],
+a[class*="bg-amber"],
+button[class*="bg-amber"],
+a[class*="bg-orange"],
+button[class*="bg-orange"],
+a[class*="bg-yellow"],
+button[class*="bg-yellow"],
+a[class*="bg-red"],
+button[class*="bg-red"] {
+  color: #0d0a05 !important;
+  font-weight: 800;
+  text-shadow: none;
+}
+
+/* Preserve readable contrast when those CTAs intentionally invert on hover. */
+a[class*="bg-rg-gold"]:hover,
+button[class*="bg-rg-gold"]:hover,
+a[class*="bg-amber"]:hover,
+button[class*="bg-amber"]:hover,
+a[class*="bg-orange"]:hover,
+button[class*="bg-orange"]:hover,
+a[class*="bg-yellow"]:hover,
+button[class*="bg-yellow"]:hover,
+a[class*="bg-red"]:hover,
+button[class*="bg-red"]:hover {
+  font-weight: 800;
+}
+
 /* === Evaluation workspace shell ===
  *
  * Authenticated evaluation/report surfaces are task workspaces, not marketing
