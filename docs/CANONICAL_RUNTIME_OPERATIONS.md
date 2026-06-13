@@ -98,11 +98,7 @@ The following state is **required** when a route queues a job for Phase 2 execut
 
 ### Timeout Configuration Invariant
 
-`EVAL_OPENAI_TIMEOUT_MS` must always be `>=` `EVAL_PASS_TIMEOUT_MS`. The processor enforces this at startup with a hard throw:
-
-```
-[CONFIG_ERROR] EVAL_OPENAI_TIMEOUT_MS (<value>) must be >= EVAL_PASS_TIMEOUT_MS (<value>)
-```
+`EVAL_OPENAI_TIMEOUT_MS` must always resolve to `>=` `EVAL_PASS_TIMEOUT_MS`. The shared timeout resolver enforces this by promoting any lower OpenAI/provider timeout to the resolved pass timeout and emitting a validation warning. This prevents poisoned shell defaults such as `EVAL_OPENAI_TIMEOUT_MS=30000` from blocking every build while preserving the invariant at runtime.
 
 Recommended production values:
 ```

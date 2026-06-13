@@ -131,13 +131,16 @@ describe("resolveEvaluationRuntimeConfig", () => {
     expect(config.timeouts.openAiTimeout.valueMs).toBe(180000);
   });
 
-  it("throws when timeout ordering invariant is violated", () => {
-    expect(() =>
-      resolveEvaluationRuntimeConfig({
-        EVAL_PASS_TIMEOUT_MS: "180000",
-        EVAL_OPENAI_TIMEOUT_MS: "60000",
-      }, {}),
-    ).toThrow(/EVAL_OPENAI_TIMEOUT_MS/);
+  it("promotes OpenAI timeout when timeout ordering would otherwise be violated", () => {
+    const config = resolveEvaluationRuntimeConfig({
+      EVAL_PASS_TIMEOUT_MS: "180000",
+      EVAL_OPENAI_TIMEOUT_MS: "60000",
+    }, {});
+
+    expect(config.timeouts.passTimeout.valueMs).toBe(180000);
+    expect(config.timeouts.openAiTimeout.valueMs).toBe(180000);
+    expect(config.timeouts.openAiTimeout.reason).toBe("promoted_to_pass_timeout");
+    expect(config.timeouts.openAiTimeout.originalValueMs).toBe(60000);
   });
 
   it("keeps optional vars absent without silent behavior shift", () => {

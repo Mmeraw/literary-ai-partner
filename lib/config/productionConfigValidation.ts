@@ -78,6 +78,12 @@ export function validateProductionConfig(
         `${setting.name}=${JSON.stringify(setting.raw)} was ${setting.reason === "clamped_to_min" ? "below" : "above"} the allowed range and resolved to ${setting.valueMs}.`,
       );
     }
+
+    if (setting.reason === "promoted_to_pass_timeout") {
+      warnings.push(
+        `${setting.name} resolved below EVAL_PASS_TIMEOUT_MS and was promoted from ${setting.originalValueMs} to ${setting.valueMs}. ${formatTimeoutResolutionSummary(timeoutConfig)}`,
+      );
+    }
   }
 
   const passTimeoutMs = timeoutConfig.passTimeout.valueMs;

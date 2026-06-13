@@ -53,7 +53,7 @@ if (!process.env.PG_URL) {
 }
 
 // Evaluation timeout invariants (mistake-proof baseline for Jest):
-// EVAL_OPENAI_TIMEOUT_MS must be >= EVAL_PASS_TIMEOUT_MS.
+// The shared resolver promotes EVAL_OPENAI_TIMEOUT_MS to >= EVAL_PASS_TIMEOUT_MS.
 const resolvedTimeouts = resolveEvaluationTimeoutConfig(process.env);
 const evalPassTimeoutMs = resolvedTimeouts.passTimeout.valueMs;
 const evalOpenAiTimeoutMs = Math.max(resolvedTimeouts.openAiTimeout.valueMs, evalPassTimeoutMs);
