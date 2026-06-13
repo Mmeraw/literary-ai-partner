@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import styles from './report-page.module.css';
 
 export default function ReportsJobLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return <div className={styles.reportRoute}>{children}</div>;
 }
