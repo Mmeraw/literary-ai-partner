@@ -229,11 +229,7 @@ button[class*="bg-red"] {
   margin-top: 8px;
 }
 
-/* === Agent Readiness real content readability ===
- * The Agent Readiness page uses inline React styles. These broad but scoped
- * selectors intentionally override those inline styles so the actual content,
- * sidebar, notes, cards, disabled buttons, and status labels are readable.
- */
+/* === Agent Readiness real content readability === */
 div[style*="background-color: rgb(15, 13, 10)"],
 div[style*="background-color:#0F0D0A"],
 div[style*="background-color: #0F0D0A"] {
@@ -279,7 +275,6 @@ div[style*="background-color: #0F0D0A"] h3 {
   color: #fff8ea !important;
 }
 
-/* Restore gold accents after the broad content override. */
 [style*="color: rgb(169, 142, 74)"],
 [style*="color:#A98E4A"],
 [style*="color: #A98E4A"],
@@ -289,7 +284,6 @@ div[style*="background-color: #0F0D0A"] h3 {
   font-weight: 800 !important;
 }
 
-/* Restore dark text on gold-filled buttons. */
 [style*="background-color: rgb(169, 142, 74)"],
 [style*="background-color:#A98E4A"],
 [style*="background-color: #A98E4A"],
@@ -299,12 +293,51 @@ div[style*="background-color: #0F0D0A"] h3 {
   font-weight: 900 !important;
 }
 
-/* Keep disabled/locked controls visible instead of barely-there. */
 button:disabled,
 a[aria-disabled="true"] {
   opacity: 1 !important;
   color: #d8cbb5 !important;
   border-color: rgba(233, 199, 119, 0.45) !important;
+}
+
+/* Sidebar-specific repair: readable, but not huge/wrapping/broken. */
+div[style*="max-width: 1100px"][style*="display: flex"] {
+  max-width: min(1320px, calc(100vw - 3rem)) !important;
+  gap: 3rem !important;
+}
+
+aside[style*="width: 220px"] {
+  width: 300px !important;
+}
+
+aside[style*="width: 220px"] p,
+aside[style*="width: 220px"] a,
+aside[style*="width: 220px"] span,
+aside[style*="width: 220px"] div {
+  font-size: 1rem !important;
+  line-height: 1.45 !important;
+  letter-spacing: 0.03em !important;
+}
+
+aside[style*="width: 220px"] nav a {
+  display: block !important;
+  padding: 0.7rem 0.8rem !important;
+  color: #f8efdf !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+aside[style*="width: 220px"] nav a span:first-child {
+  display: inline !important;
+}
+
+aside[style*="width: 220px"] p[style*="uppercase"],
+aside[style*="width: 220px"] [style*="uppercase"] {
+  font-size: 0.95rem !important;
+  letter-spacing: 0.12em !important;
+  color: #e9c777 !important;
+  font-weight: 800 !important;
 }
 
 .rg-print-report {
