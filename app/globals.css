@@ -352,6 +352,39 @@ button[class*="bg-red"]:hover {
   text-underline-offset: 0.2em;
 }
 
+/* Agent Readiness currently uses many inline style colors/sizes. These targeted
+ * overrides fix the actual page content while leaving the now-bright headings as-is.
+ */
+[style*="color: rgb(123, 112, 96)"],
+[style*="color: #7B7060"],
+[style*="color: #7b7060"] {
+  color: #e9dfcc !important;
+}
+
+[style*="color: rgb(200, 191, 176)"],
+[style*="color: #C8BFB0"],
+[style*="color: #c8bfb0"] {
+  color: #fff8ea !important;
+}
+
+[style*="font-size: 0.5625rem"],
+[style*="font-size: 0.625rem"],
+[style*="font-size: 0.6875rem"],
+[style*="font-size: 0.75rem"],
+[style*="font-size: 0.875rem"],
+[style*="font-size: 0.9375rem"] {
+  font-size: 1.125rem !important;
+  line-height: 1.65 !important;
+}
+
+[style*="opacity: 0.5"],
+[style*="opacity: 0.55"],
+[style*="opacity: 0.6"],
+[style*="opacity: 0.64"],
+[style*="opacity: 0.7"] {
+  opacity: 1 !important;
+}
+
 /* === Evaluation report desktop width + preview clamp ===
  *
  * The report header is the command surface for status, score, and next action.
