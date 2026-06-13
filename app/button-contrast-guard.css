@@ -56,3 +56,109 @@ a[style*="background: #7A1E1E"] {
   font-weight: 800 !important;
   text-shadow: none !important;
 }
+
+/* Evaluate page light-workspace contrast hardening.
+ * Darkens washed-out helper text, pale delete controls, and disabled gray CTA labels.
+ */
+main :is(.bg-white, .bg-blue-50, .bg-amber-50) :is(p, li, span, label, small) {
+  color: #374151;
+}
+
+main :is(.bg-white, .bg-blue-50, .bg-amber-50) :is(h1, h2, h3, h4, h5, h6, strong, b) {
+  color: #1f2937;
+}
+
+main :is(.text-gray-300, .text-gray-400, .text-gray-500,
+.text-stone-300, .text-stone-400, .text-stone-500,
+.text-neutral-300, .text-neutral-400, .text-neutral-500) {
+  color: #374151 !important;
+}
+
+main :is(.text-xs, .text-sm) {
+  color: #374151;
+}
+
+main input::placeholder,
+main textarea::placeholder,
+main select {
+  color: #4b5563 !important;
+  opacity: 1 !important;
+}
+
+main :is(.text-red-200, .text-red-300, .text-red-400,
+.text-rose-200, .text-rose-300, .text-rose-400,
+.text-pink-200, .text-pink-300, .text-pink-400) {
+  color: #9f1239 !important;
+}
+
+main :is(.bg-red-50, .bg-rose-50, .bg-pink-50) {
+  background-color: #f8eaed !important;
+  color: #8f1d35 !important;
+}
+
+main :is(.border-red-100, .border-red-200, .border-red-300,
+.border-rose-100, .border-rose-200, .border-rose-300,
+.border-pink-100, .border-pink-200, .border-pink-300) {
+  border-color: #d4a8b2 !important;
+}
+
+main button:is(.bg-red-50, .bg-rose-50, .bg-pink-50),
+main button:is(.text-red-700, .text-rose-700, .text-pink-700) {
+  color: #8f1d35 !important;
+  font-weight: 800 !important;
+}
+
+main button:is(.bg-red-50, .bg-rose-50, .bg-pink-50):hover {
+  background-color: #f2d8de !important;
+  color: #7a1e1e !important;
+}
+
+main button:disabled,
+main [aria-disabled="true"] {
+  opacity: 1 !important;
+}
+
+main button:disabled:is(.bg-red-50, .bg-rose-50, .bg-pink-50),
+main button:disabled:is(.text-red-300, .text-red-400, .text-rose-300, .text-rose-400, .text-pink-300, .text-pink-400) {
+  background-color: #f7e8eb !important;
+  border-color: #d6b2ba !important;
+  color: #8f1d35 !important;
+}
+
+main button:disabled:is(.bg-gray-100, .bg-gray-200, .bg-stone-100, .bg-stone-200, .bg-neutral-100, .bg-neutral-200),
+main button:disabled[class*="bg-gray"],
+main button:disabled[class*="bg-stone"],
+main button:disabled[class*="bg-neutral"] {
+  background-color: #d8d4ce !important;
+  border-color: #bfb8ad !important;
+  color: #7a5514 !important;
+  text-shadow: none !important;
+}
+
+main button:disabled:is(.bg-gray-100, .bg-gray-200, .bg-stone-100, .bg-stone-200, .bg-neutral-100, .bg-neutral-200) *,
+main button:disabled[class*="bg-gray"] *,
+main button:disabled[class*="bg-stone"] *,
+main button:disabled[class*="bg-neutral"] * {
+  color: #7a5514 !important;
+  text-shadow: none !important;
+}
+
+main button[type="submit"]:disabled,
+main button[type="submit"]:disabled * {
+  color: #7a5514 !important;
+  font-weight: 900 !important;
+  opacity: 1 !important;
+}
+
+main .bg-blue-50 :is(p, span, label) {
+  color: #1f2937 !important;
+}
+
+main .bg-blue-50 a {
+  color: #1d4ed8 !important;
+  font-weight: 800 !important;
+}
+
+main aside :is(p, li, span) {
+  color: #374151 !important;
+}
