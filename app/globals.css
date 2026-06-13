@@ -38,6 +38,42 @@ button[class*="bg-red"]:hover {
   font-weight: 800;
 }
 
+/* === Dark marketing readability guard ===
+ *
+ * The premium dark marketing surfaces were using muted cream/gold microtype that
+ * became hard to read on real displays. Promote dark-page body, labels, links,
+ * and buttons to a minimum 18px and brighten cream/gold text without changing
+ * page structure, route behavior, or product copy.
+ */
+.bg-rg-ink {
+  color: #fff8ea;
+}
+
+.bg-rg-ink p,
+.bg-rg-ink a,
+.bg-rg-ink button,
+.bg-rg-ink span,
+.bg-rg-ink li,
+.bg-rg-ink label {
+  font-size: max(1.125rem, 1em);
+}
+
+.bg-rg-ink .text-rg-cream,
+.bg-rg-ink .text-rg-cream2,
+.bg-rg-ink [class*="text-rg-cream2/"] {
+  color: #fff8ea !important;
+}
+
+.bg-rg-ink .text-rg-gold,
+.bg-rg-ink [class*="text-rg-gold/"] {
+  color: #e1bc6a !important;
+}
+
+.bg-rg-ink .font-rg-mono {
+  font-size: max(1.125rem, 1em);
+  font-weight: 700;
+}
+
 /* === Evaluation workspace shell ===
  *
  * Authenticated evaluation/report surfaces are task workspaces, not marketing
