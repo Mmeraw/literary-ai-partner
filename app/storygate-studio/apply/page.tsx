@@ -132,8 +132,8 @@ export default function StorygateApply() {
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="p-6" style={{ border: `1px solid ${C.border}` }}>
-            <p className="text-lg font-semibold mb-2" style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}>RevisionGrade Score 8.0+</p>
-            <p className="text-base leading-relaxed" style={{ color: C.ash }}>A RevisionGrade score of 8.0 or higher from a full-manuscript evaluation, not a short excerpt.</p>
+            <p className="text-lg font-semibold mb-2" style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}>RevisionGrade Score 9.0+</p>
+            <p className="text-base leading-relaxed" style={{ color: C.ash }}>A RevisionGrade score of 9.0 or higher from a full-manuscript evaluation, not a short excerpt.</p>
           </div>
           <div className="p-6" style={{ border: `1px solid ${C.border}` }}>
             <p className="text-lg font-semibold mb-2" style={{ fontFamily: "Playfair Display, Georgia, serif", color: C.text }}>Equivalent Professional Assessment</p>

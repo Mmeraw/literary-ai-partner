@@ -523,8 +523,11 @@ ${contextSummary}`;
     });
 
   if (saveError) {
-    // Non-fatal — still return the generated content
-    console.warn(`[AgentReadiness] Failed to persist section=${section}:`, saveError.message);
+    console.error(`[AgentReadiness] Failed to persist section=${section}:`, saveError.message);
+    return NextResponse.json({
+      error: 'Failed to persist generated section',
+      section,
+    }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -534,7 +537,7 @@ ${contextSummary}`;
     wordLimit: WORD_LIMITS[section],
     model: MODEL,
     mode,
-    persisted: !saveError,
+    persisted: true,
   });
 }
 

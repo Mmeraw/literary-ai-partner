@@ -175,3 +175,21 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 ### tmp
 - **Status**: KNOWN — transitive dependency / audit key
 - Accepted: legacy transitive package in tooling chain; not exposed in production request paths and tracked via CI allowlist until upstream dependency updates
+
+### esbuild
+- **Status**: KNOWN — dev-only transitive dependency via `tsx`
+- Advisory: GHSA — esbuild's development server permits arbitrary file-system reads when reached directly
+- Accepted: `esbuild` is a dev/build-time tool only. It is invoked by `tsx` for TypeScript transpilation in scripts and CI, never exposed to production request paths or user-controlled network input. No production bundle depends on `esbuild` at runtime.
+- Time-boxed expiry: **2026-09-30**
+
+### tsx
+- **Status**: KNOWN — dev-only script runner (transitive `esbuild` advisory)
+- Advisory: inherits from `esbuild` advisory chain
+- Accepted: `tsx` is used exclusively as a dev/CI script runner (`scripts/`, `npm run config:validate`, `npm run sipoc:*`, etc.). It is never loaded in production request handling and is not bundled into the runtime artifact.
+- Time-boxed expiry: **2026-09-30**
+
+### @workflow/next
+- **Status**: KNOWN — transitive dependency via `workflow` SDK
+- Advisory: inherits through `@workflow/builders`/`@workflow/core`/`esbuild` chain
+- Accepted: same rationale as the existing `workflow`, `@workflow/builders`, and `@workflow/core` entries — the workflow SDK is a feature-flagged additive dependency not yet active in production request paths
+- Time-boxed expiry: **2026-09-30**

@@ -60,7 +60,7 @@ export default function PackageHistoryPage() {
         <div style={{ marginTop: "2rem", border: `1px solid ${T.border}`, padding: "1rem 1.25rem" }}>
           <p style={{ fontSize: "0.6875rem", color: T.dim, lineHeight: 1.65 }}>
             <strong style={{ color: T.cream2 }}>Export policy:</strong> PDF and DOCX export are locked until all six required package sections are approved.
-            A "Submit to Storygate Studio™" option appears for manuscripts with a readiness score of 8.0 or above.
+            A "Submit to Storygate Studio™" option appears for manuscripts that satisfy the canonical 9.0 readiness threshold or qualified professional equivalent.
           </p>
         </div>
 

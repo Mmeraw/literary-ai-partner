@@ -75,9 +75,9 @@ export default function DashboardExamplesPage() {
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Readiness trend</p>
-            <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">Scores should trend toward the 8.0 threshold.</h2>
+            <h2 className="mt-4 font-rg-serif text-4xl leading-tight md:text-5xl">Scores should trend toward the 9.0 threshold.</h2>
             <p className="mt-5 leading-8 text-rg-cream2/75">
-              The dashboard should show whether overall score, market readiness, and readiness confidence are moving upward across evaluations. The 8.0 line is a curation-readiness threshold for possible later Storygate review, not a guarantee of agent interest.
+              The dashboard should show whether overall score, market readiness, and readiness confidence are moving upward across evaluations. The 9.0 line is the canonical Storygate curation-readiness threshold for possible later review, not a guarantee of agent interest.
             </p>
           </div>
 
@@ -87,7 +87,7 @@ export default function DashboardExamplesPage() {
                 <h3 className="font-rg-serif text-3xl">Scores trend to readiness</h3>
                 <p className="mt-2 text-sm text-rg-cream2/65">Illustrative dashboard example</p>
               </div>
-              <span className="rounded-full border border-rg-gold/50 px-3 py-1 font-rg-mono text-[0.65rem] uppercase tracking-[0.16em] text-rg-gold">8.0 ready</span>
+              <span className="rounded-full border border-rg-gold/50 px-3 py-1 font-rg-mono text-[0.65rem] uppercase tracking-[0.16em] text-rg-gold">9.0 ready</span>
             </div>
             <div className="relative h-72 border-l border-b border-rg-cream2/20 px-4 pb-8 pt-2">
               <div className="absolute left-0 right-0 top-[22%] border-t border-dashed border-rg-gold/60" />

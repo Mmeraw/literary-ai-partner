@@ -303,7 +303,7 @@ export default function StorygateStudioLanding() {
             </p>
             <ul className="space-y-2 mb-6">
               {[
-                "A RevisionGrade score of 8.0 or higher from a full manuscript evaluation, or",
+                "A RevisionGrade score of 9.0 or higher from a full manuscript evaluation, or",
                 "An equivalent professional manuscript assessment from a qualified third party—such as a literary agent, acquiring editor, professional editor, or recognized publishing evaluator",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3 text-base" style={{ color: C.ash }}>

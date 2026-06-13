@@ -17,7 +17,7 @@ function firstParam(value: string | string[] | undefined): string | null {
   return value ?? null;
 }
 
-const ALL_SECTIONS = ["query_letter", "synopsis", "pitch", "bio", "comparables", "unique"] as const;
+const ALL_SECTIONS = ["query_letter", "what_makes_unique", "synopsis", "query_pitch", "comparables", "author_bio"] as const;
 
 async function getPackageStatuses(
   userId: string,
