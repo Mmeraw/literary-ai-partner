@@ -291,6 +291,67 @@ button[class*="bg-red"]:hover {
   box-sizing: border-box;
 }
 
+.agent-readiness-route {
+  color: #fff8ea;
+}
+
+.agent-readiness-route p,
+.agent-readiness-route a,
+.agent-readiness-route button,
+.agent-readiness-route span,
+.agent-readiness-route li,
+.agent-readiness-route label,
+.agent-readiness-route input,
+.agent-readiness-route textarea,
+.agent-readiness-route select {
+  font-size: max(1.125rem, 1em) !important;
+  line-height: 1.65;
+}
+
+.agent-readiness-route .text-rg-cream,
+.agent-readiness-route .text-rg-cream2,
+.agent-readiness-route [class*="text-rg-cream2/"],
+.agent-readiness-route .text-rg-dim,
+.agent-readiness-route [class*="text-rg-dim/"] {
+  color: #fff8ea !important;
+}
+
+.agent-readiness-route .text-rg-gold,
+.agent-readiness-route [class*="text-rg-gold/"] {
+  color: #e9c777 !important;
+}
+
+.agent-readiness-route .font-rg-mono,
+.agent-readiness-route [class*="tracking-"] {
+  font-size: max(1.125rem, 1em) !important;
+  font-weight: 700;
+}
+
+.agent-readiness-route h1,
+.agent-readiness-route h2,
+.agent-readiness-route h3 {
+  color: #fff8ea !important;
+}
+
+.agent-readiness-route [class*="border-rg-cream2/"],
+.agent-readiness-route [class*="border-rg-gold/"] {
+  border-color: rgba(233, 199, 119, 0.42) !important;
+}
+
+.agent-readiness-route [class*="bg-rg-ink2"] {
+  background-color: #1f170d !important;
+}
+
+.agent-readiness-route button:disabled,
+.agent-readiness-route a[aria-disabled="true"] {
+  opacity: 0.75;
+}
+
+.agent-readiness-route button,
+.agent-readiness-route a {
+  text-underline-offset: 0.2em;
+}
+
 /* === Evaluation report desktop width + preview clamp ===
  *
  * The report header is the command surface for status, score, and next action.
