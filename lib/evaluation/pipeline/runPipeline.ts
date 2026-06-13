@@ -157,6 +157,7 @@ import type {
 } from "@/lib/governance/lessonsLearned";
 import type { GovernanceDecision } from "@/lib/evaluation/governance/evaluatePass4Governance";
 import { buildEnrichedActionItems } from "@/lib/evaluation/actionItemQualityGate";
+import { canonicalizeRecommendationAction } from "@/lib/text/authorFacingProse";
 
 // Pass 4 governance result type — derived from evaluatePass4Governance return
 type Pass4GovernanceResult = GovernanceDecision;
@@ -727,33 +728,87 @@ function validatePipelineInput(opts: RunPipelineOptions): string | null {
 }
 
 function normalizeRecommendationAction(action: string): string {
-  return action.trim().toLowerCase().replace(/\s+/g, " ");
+  return canonicalizeRecommendationAction(action);
 }
 
-function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
+function mergeRecommendationContext(
+  primary: SynthesisOutput["criteria"][number]["recommendations"][number],
+  duplicate: SynthesisOutput["criteria"][number]["recommendations"][number],
+  duplicateCriterionKey: string,
+): SynthesisOutput["criteria"][number]["recommendations"][number] {
+  const mergedCollapsedFrom = Array.from(
+    new Set([...(primary.collapsed_from_criteria ?? []), duplicateCriterionKey]),
+  );
+
+  const primaryAnchor = (primary.anchor_snippet ?? "").trim();
+  const duplicateAnchor = (duplicate.anchor_snippet ?? "").trim();
+  const mergedAnchor =
+    primaryAnchor.length === 0
+      ? duplicateAnchor
+      : duplicateAnchor.length === 0 || primaryAnchor.toLowerCase() === duplicateAnchor.toLowerCase()
+        ? primaryAnchor
+        : `${primaryAnchor} || ${duplicateAnchor}`;
+
+  return {
+    ...primary,
+    anchor_snippet: mergedAnchor,
+    mechanism: primary.mechanism?.trim() ? primary.mechanism : duplicate.mechanism,
+    specific_fix: primary.specific_fix?.trim() ? primary.specific_fix : duplicate.specific_fix,
+    reader_effect: primary.reader_effect?.trim() ? primary.reader_effect : duplicate.reader_effect,
+    symptom: primary.symptom?.trim() ? primary.symptom : duplicate.symptom,
+    cause: primary.cause?.trim() ? primary.cause : duplicate.cause,
+    rationale: primary.rationale?.trim() ? primary.rationale : duplicate.rationale,
+    fix_direction: primary.fix_direction?.trim() ? primary.fix_direction : duplicate.fix_direction,
+    collapsed_from_criteria: mergedCollapsedFrom,
+  };
+}
+
+export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
   synthesis: SynthesisOutput;
   removedCount: number;
 } {
-  const seenActions = new Set<string>();
+  const seenActions = new Map<string, { criterionIdx: number; recommendationIdx: number }>();
   let removedCount = 0;
 
-  const criteria = synthesis.criteria.map((criterion) => {
-    const recommendations = criterion.recommendations.filter((rec) => {
-      const normalizedAction = normalizeRecommendationAction(rec.action);
-      if (!normalizedAction) return true;
-      if (seenActions.has(normalizedAction)) {
-        removedCount += 1;
-        return false;
-      }
-      seenActions.add(normalizedAction);
-      return true;
-    });
+  const criteria = synthesis.criteria.map((criterion) => ({
+    ...criterion,
+    recommendations: [...criterion.recommendations],
+  }));
 
-    return {
-      ...criterion,
-      recommendations,
-    };
-  });
+  for (let criterionIdx = 0; criterionIdx < criteria.length; criterionIdx++) {
+    const criterion = criteria[criterionIdx];
+    const dedupedRecommendations: typeof criterion.recommendations = [];
+
+    for (const rec of criterion.recommendations) {
+      const normalizedAction = normalizeRecommendationAction(rec.action);
+      if (!normalizedAction) {
+        dedupedRecommendations.push(rec);
+        continue;
+      }
+
+      const firstSeen = seenActions.get(normalizedAction);
+      if (firstSeen) {
+        const primaryCriterion = criteria[firstSeen.criterionIdx];
+        const primaryRecommendation = primaryCriterion.recommendations[firstSeen.recommendationIdx];
+        primaryCriterion.recommendations[firstSeen.recommendationIdx] = mergeRecommendationContext(
+          primaryRecommendation,
+          rec,
+          criterion.key,
+        );
+        removedCount += 1;
+        continue;
+      }
+
+      const recommendationIdx = dedupedRecommendations.length;
+      dedupedRecommendations.push(rec);
+      seenActions.set(normalizedAction, {
+        criterionIdx,
+        recommendationIdx,
+      });
+    }
+
+    criterion.recommendations = dedupedRecommendations;
+  }
 
   return {
     synthesis: {
@@ -2090,6 +2145,19 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscript_id: opts.manuscriptId ?? null,
       title: opts.title,
       repaired_recommendations: specificityResult.repairedCount,
+    });
+  }
+
+  // Final dedupe pass (post-repair): density and specificity repair can add or
+  // mutate recommendation records. Run one more deterministic dedupe sweep so
+  // no_duplicate_recs is a safety net, not a primary control path.
+  const finalDedupeResult = dedupeRecommendationsPreGate(pass3Output);
+  pass3Output = finalDedupeResult.synthesis;
+  if (finalDedupeResult.removedCount > 0) {
+    console.log("[Pipeline][PreGate] final recommendation dedupe applied", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      removed_recommendations: finalDedupeResult.removedCount,
     });
   }
 

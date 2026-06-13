@@ -76,6 +76,29 @@ describe('agent_readiness_package_v1 persistence helpers', () => {
     });
   });
 
+  it('sanitizes consecutive duplicate sentence residue while assembling package sections', () => {
+    const sections = approvedSections();
+    const querySection = sections.find((section) => section.section_type === 'query_letter');
+    if (querySection) {
+      querySection.content = 'She opens with urgency. She opens with urgency. Then she names the cost.';
+    }
+
+    const assembly = buildAgentReadinessPackageV1({
+      manuscriptId: 123,
+      evaluationJobId: '11111111-1111-4111-8111-111111111111',
+      userId: '22222222-2222-4222-8222-222222222222',
+      manuscriptTitle: 'Governed Novel',
+      approvedSections: sections,
+      packageVersion: 3,
+      createdAt: '2026-06-13T00:00:00.000Z',
+    });
+
+    expect(assembly.ok).toBe(true);
+    if (!assembly.ok) return;
+
+    expect(assembly.package.sections.query_letter).toBe('She opens with urgency. Then she names the cost.');
+  });
+
   it('persists creator_approval_v1 semantics required by Storygate', () => {
     const approval = buildPersistedCreatorApprovalV1({
       manuscriptId: 123,

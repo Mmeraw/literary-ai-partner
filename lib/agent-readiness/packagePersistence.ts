@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { buildCreatorApprovalV1, type CreatorApprovalState, type CreatorApprovalV1 } from '@/lib/agent-readiness/creatorApprovalGate';
 import type { ExportFormat, SectionType } from '@/lib/agent-readiness/agentReadinessRegistry';
+import { sanitizeAuthorFacingProse } from '@/lib/text/authorFacingProse';
 
 export const AGENT_READINESS_REQUIRED_SECTION_TYPES = [
   'query_letter',
@@ -107,7 +108,7 @@ export function buildAgentReadinessPackageV1(input: {
   const sections = Object.fromEntries(
     AGENT_READINESS_REQUIRED_SECTION_TYPES.map((sectionType) => {
       const match = input.approvedSections.find((section) => section.section_type === sectionType);
-      return [sectionType, match?.content.trim() ?? ''];
+      return [sectionType, sanitizeAuthorFacingProse(match?.content ?? '')];
     }),
   ) as Record<AgentReadinessRequiredSectionType, string>;
 

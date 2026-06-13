@@ -4,6 +4,11 @@ import OpenAI from 'openai';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { withRetry } from '@/lib/evaluation/pipeline/openaiRetry';
+import {
+  hasRepeatedSentenceOpenings,
+  sanitizeAuthorFacingProse,
+  startsWithRepetitiveLeadIn,
+} from '@/lib/text/authorFacingProse';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -84,6 +89,14 @@ const WORD_MINIMUMS: Partial<Record<SectionType, number>> = {
 function qualityGate(text: string, section: SectionType): { pass: boolean; reason?: string } {
   if (!text || text.trim().length < 20) {
     return { pass: false, reason: 'Output too short — generation failed' };
+  }
+
+  if (startsWithRepetitiveLeadIn(text)) {
+    return { pass: false, reason: 'Contains repetitive lead-in boilerplate at section start' };
+  }
+
+  if (hasRepeatedSentenceOpenings(text, 4, 1)) {
+    return { pass: false, reason: 'Contains repeated sentence openings that indicate duplicated boilerplate' };
   }
 
   for (const pat of EDITORIAL_META_PATTERNS) {
@@ -461,7 +474,7 @@ ${contextSummary}`;
       { maxAttempts: 2, label: `agent_readiness_${section}` },
     );
 
-    generated = completion.choices[0]?.message?.content?.trim() ?? '';
+    generated = sanitizeAuthorFacingProse(completion.choices[0]?.message?.content?.trim() ?? '');
   } catch (err) {
     console.error(`[AgentReadiness] OpenAI call failed for section=${section}:`, err);
     return NextResponse.json({
@@ -484,7 +497,7 @@ ${contextSummary}`;
         temperature: 0.3,
         max_tokens: MAX_TOKENS,
       });
-      const retryText = retryCompletion.choices[0]?.message?.content?.trim() ?? '';
+      const retryText = sanitizeAuthorFacingProse(retryCompletion.choices[0]?.message?.content?.trim() ?? '');
       const retryGate = qualityGate(retryText, section);
       if (retryGate.pass) {
         generated = retryText;
