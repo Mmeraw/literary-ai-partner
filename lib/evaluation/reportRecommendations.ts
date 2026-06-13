@@ -1,3 +1,5 @@
+import { stripRecommendationLeadIn } from "@/lib/text/authorFacingProse";
+
 type ArtifactRecommendation = {
   action?: string;
   why?: string;
@@ -123,26 +125,10 @@ export function normalizeRecommendationActionForDisplay(action: string): string 
   const trimmed = action.trim();
   if (!trimmed) return "";
 
-  let withoutFamilyPrefix = trimmed;
-
-  // Remove leading bullet markers and recommendation family labels repeatedly,
-  // so surface rendering never shows "Quick win:" or "Strategic revision:".
-  const familyPrefixPattern = /^\s*[•*\-]?\s*(quick win|strategic revision)\s*:\s*/i;
-  while (familyPrefixPattern.test(withoutFamilyPrefix)) {
-    withoutFamilyPrefix = withoutFamilyPrefix.replace(familyPrefixPattern, "");
-  }
-
-  // Avoid quintuplet-looking list items in the Top Recommendations surface
-  // by removing repeated anchored-moment preamble.
-  const withoutAnchorLeadIn = withoutFamilyPrefix
-    .replace(/^in the anchored moment\s+"[^"]+",\s*/i, "")
-    .replace(/^at the passage beginning\s+"[^"]+",\s*/i, "")
-    .replace(/^in the closing beat beginning\s+"[^"]+",\s*/i, "")
-    .replace(/^starting from\s+"[^"]+",\s*/i, "")
-    .replace(/^at the line\s+"[^"]+",\s*/i, "");
+  const withoutLeadIn = stripRecommendationLeadIn(trimmed);
 
   // Repair soft seam artifact that can appear after clamp in summary surfaces.
-  return withoutAnchorLeadIn
+  return withoutLeadIn
     .replace(/\band\s+a\s+because\b/gi, "because")
     .replace(/;\s*At the scene level,\s*[^.;!?]{1,220}?\s+would benefit from one because\b/gi, "; This passage needs a concrete scene-level revision because")
     .replace(/;\s*At the scene level,\s*[^.;!?]{1,220}?\s+would because\b/gi, "; This passage needs a concrete scene-level revision because")

@@ -1,3 +1,8 @@
+import {
+  hasRepeatedSentenceOpenings,
+  startsWithRepetitiveLeadIn,
+} from '@/lib/text/authorFacingProse'
+
 export const REVISION_OPERATIONS = [
   'replace_selected_passage',
   'insert_before_selected_passage',
@@ -344,6 +349,8 @@ export function candidateTextIsCopyPasteReady(value: string | null | undefined):
   if (!clean) return false
   if (hasWordProcessorArtifact(clean)) return false
   if (hasForbiddenMetaSuggestion(clean)) return false
+  if (startsWithRepetitiveLeadIn(clean)) return false
+  if (hasRepeatedSentenceOpenings(clean, 4, 1)) return false
   if (hasMetaEditorialPattern(clean)) return false
   if (hasInternalTokenLeak(clean)) return false
 
