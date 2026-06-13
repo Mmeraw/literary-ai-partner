@@ -71,6 +71,17 @@ export async function GET(_: Request, { params }: Params) {
 
     const exposureDecision = await getAuthorExposureDecision(admin, jobId);
     if (exposureDecision.exposable === false) {
+      if (exposureDecision.reason === 'db_error') {
+        console.error("[artifacts.GET] author_exposure DB error", {
+          jobId,
+          details: exposureDecision.details,
+        });
+        return NextResponse.json(
+          { ok: false, error: "System error checking author exposure certification" },
+          { status: 500 },
+        );
+      }
+
       return NextResponse.json({ ok: false, error: "Job not releasable" }, { status: 404 });
     }
 

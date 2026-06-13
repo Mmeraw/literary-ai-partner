@@ -134,7 +134,7 @@ describe('persisted unified evaluation document loader', () => {
     expect(result).toMatchObject({ ok: true, source: 'persisted_artifact' });
   });
 
-  test('reports missing UED separately so routes can legacy-fallback old jobs', async () => {
+  test('reports missing UED separately so author-facing routes can fail closed', async () => {
     const supabase = makeSupabaseMock({
       author_exposure_certification_v1: {
         content: {

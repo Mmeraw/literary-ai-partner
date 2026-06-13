@@ -739,25 +739,38 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                           </section>
                         ) : (
                           <section className="mt-1.5">
-                            <div className="flex items-center gap-1">
-                              {OPTION_KEYS.map((key) => {
-                                const focused = selectedOption === key;
-                                return <button key={key} type="button" onClick={() => setSelectedOption(key)} className={`rounded-t px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition ${focused ? "border border-b-0 border-[#C8A96E] bg-[#12100B] text-[#F3E3C3]" : "border border-transparent text-[#A9987D] hover:text-[#F3E3C3]"}`}>{REVISION_OPTION_LABELS[key]}</button>;
-                              })}
+                            <div className="mb-1 flex items-center gap-2">
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Compare A/B/C Options</p>
                               {invalidCandidates && <span className="ml-auto text-[10px] text-[#E2B2A6]">Awaiting passage</span>}
                             </div>
-                            {(() => { const key = selectedOption || "A"; const text = candidateDisplayText(active, key); const ok = canSelectOption(active, key); return (
-                              <div className="rounded-b-lg rounded-tr-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                                <div className="flex items-start justify-between gap-2">
-                                  <p className={`max-h-32 overflow-y-auto whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>
-                                    {text || "No candidate prose available. Route this item to Needs Targeting."}
-                                  </p>
-                                  <div className="flex shrink-0 gap-1">
-                                    <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
-                                  </div>
-                                </div>
-                              </div>
-                            ); })()}
+                            <div className="grid gap-2 xl:grid-cols-3">
+                              {OPTION_KEYS.map((key) => {
+                                const text = candidateDisplayText(active, key);
+                                const ok = canSelectOption(active, key);
+                                const selected = selectedOption === key;
+                                const role = key === "A" ? "Recommended Repair" : key === "B" ? "Rhythm Variant" : "Bolder Rendering Shift";
+                                return (
+                                  <article key={key} className={`rounded-lg border bg-[#12100B] px-2 py-1.5 ${selected ? "border-[#C8A96E]" : "border-[#2E261A]"}`}>
+                                    <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]}</span>
+                                        <span className="text-[9px] text-[#A9987D]">{role}</span>
+                                      </div>
+                                      <p className={`mt-1 line-clamp-3 min-h-[3rem] whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>
+                                        {text || "No candidate prose available. Route this item to Needs Targeting."}
+                                      </p>
+                                    </button>
+                                    {text && text.length > 190 ? (
+                                      <details className="mt-1">
+                                        <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">Show full fix</summary>
+                                        <p className="mt-1 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-1.5 whitespace-pre-wrap text-xs leading-4 text-[#E5D8BE]">{text}</p>
+                                      </details>
+                                    ) : null}
+                                    <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="mt-1 rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
+                                  </article>
+                                );
+                              })}
+                            </div>
                           </section>
                         )}
                       </>
@@ -791,16 +804,18 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               <button onClick={() => decide("accepted_b", "B", rw.b)} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs">Accept B</button>
                               <button onClick={() => decide("accepted_c", "C", rw.c)} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs">Accept C</button>
                               <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
+                              <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject All</button>
                               <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                              <button onClick={() => { if (!customOpen) setCustomText(rw.a); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Edit Custom</button>
+                              <button onClick={() => { if (!customOpen) setCustomText(rw.a); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Custom Rewrite</button>
                             </>
                           );
                         }
                         return (
                           <>
                             <button onClick={() => decide("accepted_a", "A", compactGoal(active))} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C]">Mark as Manual Revision</button>
+                            <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject All</button>
                             <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                            <button onClick={() => { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Write Custom</button>
+                            <button onClick={() => { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Custom Rewrite</button>
                           </>
                         );
                       }
@@ -810,9 +825,9 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                           <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">{insertLabel} B</button>
                           <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">{insertLabel} C</button>
                           <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
-                          <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject</button>
+                          <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject All</button>
                           <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                          <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Write Custom")}</button>
+                          <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Custom Rewrite")}</button>
                         </>
                       );
                     })()}

@@ -2383,7 +2383,12 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     .limit(1);
 
   if (upsertError) {
-    throw new Error(`Failed to persist revision_opportunity_ledger_v1: ${upsertError.message}`);
+    console.error('Failed to persist revision_opportunity_ledger_v1', upsertError);
+
+    return {
+      artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
+      opportunities,
+    };
   }
 
   const persistedArtifactId =

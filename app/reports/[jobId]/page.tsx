@@ -18,13 +18,7 @@ import {
   getCriterionRationalePresentation,
   getCriterionSupportLabel,
 } from '@/lib/evaluation/reportCriterionDisplay';
-import {
-  buildUnifiedEvaluationDocument,
-  type CanonicalEvaluationMode,
-  type UnifiedEvaluationDocument,
-} from '@/lib/evaluation/unifiedEvaluationDocument';
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
-import { isGenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
 import {
   getDisplayDreamList,
   getDisplayDreamMarketField,
@@ -142,6 +136,10 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
 
   const exposureDecision = await getAuthorExposureDecision(admin, jobId);
   if (exposureDecision.exposable === false) {
+    if (exposureDecision.reason === 'db_error') {
+      throw new Error(`System error checking author exposure certification: ${exposureDecision.details ?? 'unknown database error'}`);
+    }
+
     console.error('[reports.page] author_exposure gate blocked render — notFound()', {
       jobId,
       reason: exposureDecision.reason,
@@ -189,6 +187,10 @@ async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationR
 
   const exposureDecision = await getAuthorExposureDecision(admin, jobId);
   if (exposureDecision.exposable === false) {
+    if (exposureDecision.reason === 'db_error') {
+      throw new Error(`System error checking author exposure certification: ${exposureDecision.details ?? 'unknown database error'}`);
+    }
+
     console.error('[reports.page] author_exposure gate blocked support render — notFound()', {
       jobId,
       reason: exposureDecision.reason,
@@ -235,101 +237,6 @@ async function getDreamArtifact(jobId: string): Promise<LongformDreamDocument | 
   if (!content?.longform_document || typeof content.longform_document !== 'object') return null;
 
   return content.longform_document as LongformDreamDocument;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function normalizeCanonicalMode(raw: unknown, wordCount: number | null): CanonicalEvaluationMode {
-  if (raw === 'short_form_evaluation' || raw === 'long_form_evaluation' || raw === 'long_form_multi_layer_evaluation') {
-    return raw;
-  }
-  if (typeof wordCount === 'number' && wordCount >= 25000) return 'long_form_evaluation';
-  return 'short_form_evaluation';
-}
-
-async function loadCanonicalEvaluationMode(
-  jobId: string,
-  rawResult: unknown,
-  progress: unknown,
-  wordCount: number | null,
-): Promise<CanonicalEvaluationMode> {
-  const resultRecord = asRecord(rawResult);
-  const metadataRecord = asRecord(resultRecord?.metadata);
-  const progressRecord = asRecord(progress);
-
-  const direct = normalizeCanonicalMode(resultRecord?.evaluation_mode, null);
-  if (direct !== 'short_form_evaluation' || resultRecord?.evaluation_mode === 'short_form_evaluation') return direct;
-
-  const metadataMode = normalizeCanonicalMode(metadataRecord?.evaluation_mode, null);
-  if (metadataMode !== 'short_form_evaluation' || metadataRecord?.evaluation_mode === 'short_form_evaluation') return metadataMode;
-
-  const progressMode = normalizeCanonicalMode(progressRecord?.evaluation_mode, null);
-  if (progressMode !== 'short_form_evaluation' || progressRecord?.evaluation_mode === 'short_form_evaluation') return progressMode;
-
-  const admin = createAdminClient();
-  const { data: seed } = await admin
-    .from('evaluation_artifacts')
-    .select('content')
-    .eq('job_id', jobId)
-    .eq('artifact_type', 'evaluation_seed_v1')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const seedContent = asRecord((seed as { content?: unknown } | null)?.content);
-  return normalizeCanonicalMode(seedContent?.scope_mode, wordCount);
-}
-
-type WebpageEnrichmentData = EvaluationResultV2['enrichment'] | null;
-
-function buildWebpageUnifiedDocument(input: {
-  mode: CanonicalEvaluationMode;
-  result: EvaluationResultV1 | EvaluationResultV2;
-  displayTitle: string;
-  enrichment: WebpageEnrichmentData;
-  dream: LongformDreamDocument | null;
-}): UnifiedEvaluationDocument {
-  const genreExpectationContext = (input.result as {
-    governance?: { transparency?: { genre_expectation_context?: unknown } };
-  }).governance?.transparency?.genre_expectation_context;
-
-  return buildUnifiedEvaluationDocument({
-    mode: input.mode,
-    result: {
-      generated_at: typeof input.result.generated_at === 'string' ? input.result.generated_at : undefined,
-      overview: {
-        overall_score_0_100: input.result.overview?.overall_score_0_100,
-        verdict: input.result.overview?.verdict,
-        one_paragraph_summary: input.result.overview?.one_paragraph_summary,
-        top_3_strengths: input.result.overview?.top_3_strengths,
-        top_3_risks: input.result.overview?.top_3_risks,
-      },
-      metrics: {
-        manuscript: {
-          title: input.displayTitle,
-          word_count: input.result.metrics?.manuscript?.word_count,
-          genre: input.enrichment?.diagnosed_genre ?? input.result.metrics?.manuscript?.genre,
-          target_audience: input.enrichment?.target_audience ?? input.result.metrics?.manuscript?.target_audience,
-        },
-      },
-      enrichment: {
-        premise: input.enrichment?.premise,
-        trigger_warnings: input.enrichment?.trigger_warnings,
-        reading_grade_level: input.enrichment?.reading_grade_level,
-        dialogue_percentage: input.enrichment?.dialogue_percentage,
-        narrative_percentage: input.enrichment?.narrative_percentage,
-      },
-      governance: isGenreExpectationMetadata(genreExpectationContext)
-        ? { transparency: { genre_expectation_context: genreExpectationContext } }
-        : undefined,
-      criteria: input.result.criteria,
-      recommendations: input.result.recommendations,
-    },
-    displayTitle: input.displayTitle,
-    dream: input.dream,
-  });
 }
 
 async function getCurrentUserId(): Promise<string | null> {
@@ -410,16 +317,9 @@ export default async function ReportPage({
   const wordCount = result.metrics?.manuscript?.word_count ?? 0;
   const isLongForm = wordCount >= 25000;
   const dreamDoc = isLongForm ? await getDreamArtifact(params.jobId) : null;
-  const enrichment = isEvaluationResultV2(resultRaw) ? (resultRaw as EvaluationResultV2).enrichment ?? null : null;
-  const evaluationMode = await loadCanonicalEvaluationMode(
-    params.jobId,
-    resultRaw,
-    progress,
-    typeof wordCount === 'number' && wordCount > 0 ? wordCount : null,
-  );
   const adminForPersistedUed = createAdminClient();
   const persistedDocument = await loadCertifiedUnifiedEvaluationDocumentArtifact(adminForPersistedUed, params.jobId);
-  if (persistedDocument.ok === false && persistedDocument.reason !== 'missing_unified_document_artifact') {
+  if (persistedDocument.ok === false) {
     console.error('[reports.page] Certified UED load failed — notFound()', {
       jobId: params.jobId,
       reason: persistedDocument.reason,
@@ -428,21 +328,7 @@ export default async function ReportPage({
     notFound();
   }
 
-  if (persistedDocument.ok === false) {
-    console.warn('[reports.page] Missing persisted UED artifact; using legacy canonical builder', {
-      jobId: params.jobId,
-    });
-  }
-
-  const canonicalDoc = persistedDocument.ok
-    ? persistedDocument.document
-    : buildWebpageUnifiedDocument({
-        mode: evaluationMode,
-        result: resultRaw,
-        displayTitle,
-        enrichment,
-        dream: dreamDoc,
-      });
+  const canonicalDoc = persistedDocument.document;
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");

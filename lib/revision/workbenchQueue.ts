@@ -1170,6 +1170,10 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
   const exposureDecision = await getAuthorExposureDecision(supabase, evaluationJobId)
   if (exposureDecision.exposable === false) {
+    if (exposureDecision.reason === 'db_error') {
+      return emptyPayload('System error checking author exposure certification. Please try again shortly.')
+    }
+
     return emptyPayload(`Evaluation is not releasable for author revise surfaces (author_exposure:${exposureDecision.reason}).`)
   }
 
