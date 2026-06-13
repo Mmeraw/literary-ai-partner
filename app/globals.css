@@ -300,7 +300,95 @@ a[aria-disabled="true"] {
   border-color: rgba(233, 199, 119, 0.45) !important;
 }
 
-/* Sidebar-specific repair: readable, but not huge/wrapping/broken. */
+/* Shared persistent Agent Readiness sidebar. */
+.agent-readiness-sidebar {
+  position: sticky;
+  top: 6rem;
+  align-self: start;
+  width: 100%;
+  min-width: 260px;
+  max-height: calc(100vh - 7rem);
+  overflow: auto;
+  border: 1px solid rgba(200, 190, 168, 0.18);
+  background: rgba(26, 18, 8, 0.58);
+  padding: 1.25rem;
+}
+
+.agent-readiness-sidebar-title {
+  display: block;
+  margin-bottom: 1.25rem;
+  font-family: Georgia, Cambria, "Times New Roman", serif;
+  font-size: 1.15rem !important;
+  line-height: 1.25 !important;
+  color: #fff8ea !important;
+  text-decoration: none;
+}
+
+.agent-readiness-sidebar-kicker {
+  margin: 0.85rem 0 0.7rem;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.82rem !important;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #e9c777 !important;
+}
+
+.agent-readiness-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.agent-readiness-sidebar-link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: baseline;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid transparent;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.96rem !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0.02em;
+  color: #f8efdf !important;
+  text-decoration: none;
+}
+
+.agent-readiness-sidebar-link:hover,
+.agent-readiness-sidebar-link.is-active {
+  border-color: rgba(233, 199, 119, 0.55);
+  background: rgba(233, 199, 119, 0.08);
+  color: #fff8ea !important;
+}
+
+.agent-readiness-sidebar-index {
+  color: #e9c777 !important;
+  font-size: 0.82rem !important;
+  font-weight: 800;
+}
+
+.agent-readiness-sidebar-link.is-disabled {
+  display: block;
+  border-left: 2px solid rgba(233, 199, 119, 0.25);
+  color: #d8cbb5 !important;
+  cursor: not-allowed;
+}
+
+.agent-readiness-sidebar-link small {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.82rem !important;
+  color: #bfb29c !important;
+}
+
+.agent-readiness-sidebar-divider {
+  height: 1px;
+  margin: 1rem 0;
+  background: rgba(200, 190, 168, 0.18);
+}
+
+/* Legacy overview sidebar-specific repair: readable, but not huge/wrapping/broken. */
 div[style*="max-width: 1100px"][style*="display: flex"] {
   max-width: min(1320px, calc(100vw - 3rem)) !important;
   gap: 3rem !important;
