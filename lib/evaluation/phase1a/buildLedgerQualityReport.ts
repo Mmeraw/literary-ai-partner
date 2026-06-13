@@ -210,6 +210,49 @@ function runQualityChecks(
     });
   }
 
+  const contaminatedCoverageCoreNames = [
+    ...(ledger.coverage_summary.protagonists ?? []),
+    ...(ledger.coverage_summary.co_protagonists ?? []),
+  ].filter(isEntityTypingContaminated);
+  for (const name of contaminatedCoverageCoreNames) {
+    results.push({
+      key: `contaminated_core_coverage_identity:${name}`,
+      severity: 'hard_fail',
+      message: `HARD_FAIL: contaminated placeholder identity "${name}" was promoted into protagonist/co-protagonist coverage. Repair character ledger before story-layer handoff.`,
+      layer: 'canonical_identity_layer',
+      evidenceReference: 'pass1a_character_ledger_v1.coverage_summary.protagonists',
+    });
+  }
+
+  const contaminatedV1CoreEntries = ledger.entries.filter(
+    (entry) => PRIMARY_ROLE_TIERS.has(entry.role) && isEntityTypingContaminated(entry.canonical_name),
+  );
+  for (const entry of contaminatedV1CoreEntries) {
+    results.push({
+      key: `contaminated_core_v1_entry:${entry.canonical_name}`,
+      severity: 'hard_fail',
+      message: `HARD_FAIL: contaminated placeholder identity "${entry.canonical_name}" was promoted to ${entry.role}. Repair character extraction before story-layer handoff.`,
+      layer: 'canonical_identity_layer',
+      evidenceReference: 'pass1a_character_ledger_v1.entries',
+    });
+  }
+
+  const contaminatedV2CoreEntries = ledgerV2.identityLedger.filter((entry) => {
+    const role = String(entry.narrativeRole ?? '').toLowerCase();
+    const importance = String(entry.importanceLevel ?? '').toLowerCase();
+    const isCore = PRIMARY_ROLE_TIERS.has(role) || importance === 'primary' || importance === 'major';
+    return isCore && isEntityTypingContaminated(entry.canonicalName);
+  });
+  for (const entry of contaminatedV2CoreEntries) {
+    results.push({
+      key: `contaminated_core_v2_identity:${entry.characterId}`,
+      severity: 'hard_fail',
+      message: `HARD_FAIL: contaminated placeholder identity "${entry.canonicalName}" was promoted into CharacterLedgerV2 core identity set. Repair identity reduction before story-layer handoff.`,
+      layer: 'canonical_identity_layer',
+      evidenceReference: 'character_ledger_v2.identityLedger',
+    });
+  }
+
   // Unresolved state conflicts (flagged for human review)
   const unresolvedConflicts = (ledgerV2.stateConflicts ?? []).filter(
     (c) => c.resolution === 'unresolved' && c.flagForHumanReview,

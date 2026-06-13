@@ -9,7 +9,10 @@ import { generateTraceId } from '@/lib/observability/logger';
 import { resolveManuscriptTitle } from '@/lib/manuscripts/title';
 import { createInitialVersion } from '@/lib/manuscripts/versions';
 import { computeEnrichment } from '@/lib/evaluation/enrichment/computeEnrichment';
-import { routeNarrativeEvaluationPreflight } from '@/lib/evaluation/preflight/manuscriptTypeRouting';
+import {
+  buildNarrativePreflightAudit,
+  routeNarrativeEvaluationPreflight,
+} from '@/lib/evaluation/preflight/manuscriptTypeRouting';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
 import { normalizeEnglishVariant, englishVariantLabel } from '@/lib/evaluation/englishVariant';
@@ -219,10 +222,7 @@ export async function POST(req: Request) {
 
       const preflightDecision = routeNarrativeEvaluationPreflight(existingText);
       // Audit-only: record detected type in job progress but never block submission.
-      narrativePreflightAudit = {
-        narrative_preflight_detected_type: preflightDecision.detectedType,
-        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
-      };
+      narrativePreflightAudit = buildNarrativePreflightAudit(preflightDecision);
 
       sourceManuscriptText = existingText;
       sourceManuscriptWordCount =
@@ -249,10 +249,7 @@ export async function POST(req: Request) {
     if (!manuscriptId && trimmedText.length > 0) {
       const preflightDecision = routeNarrativeEvaluationPreflight(trimmedText);
       // Audit-only: record detected type in job progress but never block submission.
-      narrativePreflightAudit = {
-        narrative_preflight_detected_type: preflightDecision.detectedType,
-        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
-      };
+      narrativePreflightAudit = buildNarrativePreflightAudit(preflightDecision);
     }
 
     // Step 1: Create manuscript
