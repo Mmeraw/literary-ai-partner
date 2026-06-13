@@ -48,15 +48,25 @@ describe('executable FIPOC registry', () => {
     }
   });
 
-  test('captures Phase 5 author exposure as planned-required missing-critical gate', () => {
+  test('captures Phase 5 author exposure as an active proven gate', () => {
     const phase5 = getProcess('S10b_PHASE5_AUTHOR_EXPOSURE_GATE');
 
     expect(phase5).toBeDefined();
     expect(phase5).toEqual(expect.objectContaining({
-      activeState: 'planned_required',
-      certificationStatus: 'missing_critical',
-      fitGapStatus: 'critical',
+      activeState: 'active',
+      certificationStatus: 'proven',
+      fitGapStatus: 'ok',
     }));
+    expect(phase5?.codeSurfaces).toEqual(expect.arrayContaining([
+      'lib/evaluation/authorExposureCertification.ts',
+      'app/reports/[jobId]/page.tsx',
+      'app/api/reports/[jobId]/download/route.ts',
+      'app/api/evaluations/[jobId]/route.ts',
+      'app/api/jobs/[jobId]/evaluation-result/route.ts',
+      'app/api/jobs/[jobId]/artifacts/route.ts',
+      'app/api/report-shares/route.ts',
+      'lib/revision/workbenchQueue.ts',
+    ]));
     expect(phase5?.outputArtifacts).toEqual(expect.arrayContaining([
       'unified_evaluation_document_v1',
       'author_exposure_certification_v1',
@@ -156,8 +166,8 @@ describe('executable FIPOC registry', () => {
     expect(webpage).toEqual(expect.objectContaining({
       stageId: 'S11a_RENDERER_WEBPAGE',
       canonicalInput: 'UnifiedEvaluationDocument',
-      currentFitGapStatus: 'critical',
-      remediationPr: 'PR #1113',
+      currentFitGapStatus: 'ok',
+      remediationPr: 'closed by PR-02/S11a strict UED consumption',
       mayFormatOnly: true,
       rendererMayDerive: false,
     }));
@@ -170,6 +180,9 @@ describe('executable FIPOC registry', () => {
     for (const renderer of RENDERER_CONSUMPTION_MATRIX) {
       expect(renderer.rendererMayDerive).toBe(false);
       expect(renderer.parityRequiredFields.length).toBeGreaterThan(0);
+      if (['webpage', 'pdf', 'docx', 'txt'].includes(renderer.surface)) {
+        expect(renderer.currentFitGapStatus).toBe('ok');
+      }
     }
   });
 

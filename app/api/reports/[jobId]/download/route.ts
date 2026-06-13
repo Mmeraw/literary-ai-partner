@@ -26,11 +26,7 @@ import {
   buildReportPitches,
   summarizeRevisionOpportunities,
 } from '@/lib/evaluation/reportTemplateContract';
-import {
-  buildUnifiedEvaluationDocument,
-  type CanonicalEvaluationMode,
-  type UnifiedEvaluationDocument,
-} from '@/lib/evaluation/unifiedEvaluationDocument';
+import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
@@ -42,7 +38,6 @@ import {
   getConfidenceExportPaletteClass as confidencePaletteClass,
   getConfidenceExportPaletteColor as confidencePaletteColor,
 } from '@/lib/evaluation/confidenceFieldPolicy';
-import { isGenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
 import { formatScoreForDisplay, formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
@@ -148,17 +143,16 @@ const FOOTER_LINE = 'RevisionGrade\u2122  |  Manuscript diagnosis, author-contro
 
 type ExportFormat = 'pdf' | 'docx' | 'txt';
 type ExportableResult = EvaluationResultV1 | EvaluationResultV2;
-type EnrichmentData = {
-  premise?: string;
-  trigger_warnings?: string[];
-  reading_grade_level?: number;
-  dialogue_percentage?: number;
-  narrative_percentage?: number;
-  diagnosed_genre?: string;
-  target_audience?: string;
-} | null;
 
-type ArtifactContentRow = { content?: unknown | null };
+type EnrichmentData = {
+  diagnosed_genre?: string | null;
+  target_audience?: string | null;
+  reading_grade_level?: number | null;
+  dialogue_percentage?: number | null;
+  narrative_percentage?: number | null;
+  premise?: string | null;
+  trigger_warnings?: string[] | null;
+} | null;
 
 type ExportableResultShape = {
   generated_at?: unknown;
@@ -365,51 +359,6 @@ function isExportableResultCandidate(value: unknown): value is ExportableResult 
 function safeFilename(title: string | null, jobId: string, ext: string): string {
   const base = title ? title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 40) : jobId.slice(0, 8);
   return `revision-grade-${base}.${ext}`;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function normalizeCanonicalMode(raw: unknown, wordCount: number | null): CanonicalEvaluationMode {
-  if (raw === 'short_form_evaluation' || raw === 'long_form_evaluation' || raw === 'long_form_multi_layer_evaluation') {
-    return raw;
-  }
-  if (typeof wordCount === 'number' && wordCount >= LONG_FORM_WORD_THRESHOLD) return 'long_form_evaluation';
-  return 'short_form_evaluation';
-}
-
-async function loadCanonicalEvaluationMode(
-  admin: ReturnType<typeof createAdminClient>,
-  jobId: string,
-  rawResult: unknown,
-  progress: unknown,
-  wordCount: number | null,
-): Promise<CanonicalEvaluationMode> {
-  const resultRecord = asRecord(rawResult);
-  const metadataRecord = asRecord(resultRecord?.metadata);
-  const progressRecord = asRecord(progress);
-
-  const direct = normalizeCanonicalMode(resultRecord?.evaluation_mode, null);
-  if (direct !== 'short_form_evaluation' || resultRecord?.evaluation_mode === 'short_form_evaluation') return direct;
-
-  const metadataMode = normalizeCanonicalMode(metadataRecord?.evaluation_mode, null);
-  if (metadataMode !== 'short_form_evaluation' || metadataRecord?.evaluation_mode === 'short_form_evaluation') return metadataMode;
-
-  const progressMode = normalizeCanonicalMode(progressRecord?.evaluation_mode, null);
-  if (progressMode !== 'short_form_evaluation' || progressRecord?.evaluation_mode === 'short_form_evaluation') return progressMode;
-
-  const { data: seed } = await admin
-    .from('evaluation_artifacts')
-    .select('content')
-    .eq('job_id', jobId)
-    .eq('artifact_type', 'evaluation_seed_v1')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const seedContent = asRecord((seed as ArtifactContentRow | null)?.content);
-  return normalizeCanonicalMode(seedContent?.scope_mode, wordCount);
 }
 
 function extractManuscriptTitle(manuscripts: unknown): string | null {
@@ -1036,53 +985,6 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   return lines.join('\n');
 }
 
-function buildCanonicalTemplateDocument(
-  result: ExportableResult,
-  title: string | null,
-  enrichment: EnrichmentData,
-  mode: CanonicalEvaluationMode,
-  dream: LongformDreamDocument | null,
-): UnifiedEvaluationDocument {
-  const displayTitle = title?.trim() || result.metrics?.manuscript?.title?.trim() || 'Untitled Manuscript';
-  const genreExpectationContext = (result as ExportableResultShape).governance?.transparency?.genre_expectation_context;
-
-  return buildUnifiedEvaluationDocument({
-    mode,
-    result: {
-      generated_at: typeof result.generated_at === 'string' ? result.generated_at : undefined,
-      overview: {
-        overall_score_0_100: result.overview?.overall_score_0_100,
-        verdict: result.overview?.verdict,
-        one_paragraph_summary: result.overview?.one_paragraph_summary,
-        top_3_strengths: result.overview?.top_3_strengths,
-        top_3_risks: result.overview?.top_3_risks,
-      },
-      metrics: {
-        manuscript: {
-          title: displayTitle,
-          word_count: result.metrics?.manuscript?.word_count,
-          genre: enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre,
-          target_audience: enrichment?.target_audience ?? result.metrics?.manuscript?.target_audience,
-        },
-      },
-      enrichment: {
-        premise: enrichment?.premise,
-        trigger_warnings: enrichment?.trigger_warnings,
-        reading_grade_level: enrichment?.reading_grade_level,
-        dialogue_percentage: enrichment?.dialogue_percentage,
-        narrative_percentage: enrichment?.narrative_percentage,
-      },
-      governance: isGenreExpectationMetadata(genreExpectationContext)
-        ? { transparency: { genre_expectation_context: genreExpectationContext } }
-        : undefined,
-      criteria: result.criteria,
-      recommendations: result.recommendations,
-    },
-    displayTitle,
-    dream,
-  });
-}
-
 function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): string {
   const lines: string[] = [];
   const sep = '='.repeat(TXT_WRAP_WIDTH);
@@ -1474,7 +1376,9 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
         <aside class="score-box">
           <div class="label">Overall Score</div>
           <div class="value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}</div>
+          ${doc.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(doc.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
           <div class="verdict ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}</div>
+          ${doc.titleBlock.marketReadinessConfidenceLabel ? `<div class="label">${escapeHtml(doc.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
         </aside>
       </div>
       <div class="grid">
@@ -3188,6 +3092,17 @@ export async function GET(
 
   const exposureDecision = await getAuthorExposureDecision(admin, jobId);
   if (exposureDecision.exposable === false) {
+    if (exposureDecision.reason === 'db_error') {
+      console.error('[report-download] author_exposure DB error', {
+        jobId,
+        details: exposureDecision.details,
+      });
+      return NextResponse.json(
+        { error: 'System error checking author exposure certification' },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -3242,14 +3157,8 @@ export async function GET(
   // Governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon) is internal
   // pipeline diagnostics — never included in user-facing downloads.
 
-  // Extract enrichment data from V2 results
-  const enrichment = isEvaluationResultV2(result) ? (result as EvaluationResultV2).enrichment ?? null : null;
-  const manuscriptWordCount = typeof result.metrics?.manuscript?.word_count === 'number'
-    ? result.metrics.manuscript.word_count
-    : null;
-  const evaluationMode = await loadCanonicalEvaluationMode(admin, jobId, rawResult, (job as { progress?: unknown }).progress, manuscriptWordCount);
   const persistedDocument = await loadCertifiedUnifiedEvaluationDocumentArtifact(admin, jobId);
-  if (persistedDocument.ok === false && persistedDocument.reason !== 'missing_unified_document_artifact') {
+  if (persistedDocument.ok === false) {
     console.error('[report-download] Certified UED load failed', {
       jobId,
       format,
@@ -3265,16 +3174,7 @@ export async function GET(
     );
   }
 
-  if (persistedDocument.ok === false) {
-    console.warn('[report-download] Missing persisted UED artifact; using legacy canonical builder', {
-      jobId,
-      format,
-    });
-  }
-
-  const canonicalDoc = persistedDocument.ok
-    ? persistedDocument.document
-    : buildCanonicalTemplateDocument(result, title, enrichment, evaluationMode, dream);
+  const canonicalDoc = persistedDocument.document;
 
   if (format === 'txt') {
     const body = buildCanonicalTemplateTxt(canonicalDoc, jobId);
@@ -3330,7 +3230,6 @@ export async function GET(
 }
 
 export const __testingDownload = {
-  buildCanonicalTemplateDocument,
   buildCanonicalTemplateTxt,
   renderCanonicalTemplateHtml,
   buildCanonicalTemplateDocx,

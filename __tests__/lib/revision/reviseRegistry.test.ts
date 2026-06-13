@@ -118,12 +118,12 @@ describe('Revise Registry — process registry', () => {
     }
   });
 
-  test('RS08 completion is planned_required and missing_critical', () => {
+  test('RS08 completion is active with certified runtime artifact persistence', () => {
     const completion = REVISE_PROCESS_REGISTRY.find((s) => s.stageId === 'RS08_COMPLETION');
     expect(completion).toBeDefined();
-    expect(completion!.activeState).toBe('planned_required');
-    expect(completion!.certificationStatus).toBe('missing_critical');
-    expect(completion!.fitGapStatus).toBe('critical');
+    expect(completion!.activeState).toBe('active');
+    expect(completion!.certificationStatus).toBe('certified');
+    expect(completion!.fitGapStatus).toBe('proven');
   });
 
   test('RS09 cross-check is feature-flagged and async (not blocking workbench)', () => {
@@ -199,9 +199,9 @@ describe('Revise Registry — artifact registry', () => {
     expect(ledger?.requiredForAuthorExposure).toBe(true);
   });
 
-  test('revision_completion_record_v1 is critical fitGapStatus', () => {
+  test('revision_completion_record_v1 is a proven persisted artifact', () => {
     const completion = REVISE_ARTIFACT_REGISTRY.find((a) => a.artifact === 'revision_completion_record_v1');
-    expect(completion?.fitGapStatus).toBe('critical');
+    expect(completion?.fitGapStatus).toBe('proven');
   });
 
   test('all producerStageIds reference registered stage IDs', () => {
@@ -406,11 +406,20 @@ describe('Revise Registry — certification gate registry', () => {
     }
   });
 
-  test('completion certification is missing_critical / critical', () => {
+  test('completion certification is certified with explicit runtime certifier and artifact persistence', () => {
+    const stage = REVISE_PROCESS_REGISTRY.find((row) => row.stageId === 'RS08_COMPLETION');
     const gate = REVISE_CERTIFICATION_GATE_REGISTRY.find((row) => row.gateId === 'RCG07_COMPLETION_CERTIFICATION');
+    expect(stage).toBeDefined();
+    expect(stage!.activeState).toBe('active');
+    expect(stage!.certificationStatus).toBe('certified');
+    expect(stage!.fitGapStatus).toBe('proven');
+    expect(stage!.codeSurfaces).toEqual(expect.arrayContaining([
+      'lib/revision/reviseCompletionCertification.ts',
+      'lib/revision/finalReviewRuntime.ts',
+    ]));
     expect(gate).toBeDefined();
-    expect(gate!.certificationStatus).toBe('missing_critical');
-    expect(gate!.fitGapStatus).toBe('critical');
+    expect(gate!.certificationStatus).toBe('certified');
+    expect(gate!.fitGapStatus).toBe('proven');
   });
 
   test('TrustedPath certification requires approve-only behavior', () => {

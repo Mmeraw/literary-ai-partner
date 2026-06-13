@@ -6,6 +6,7 @@ import {
   inferCanonicalEvaluationModeFromWordCount,
 } from '@/lib/evaluation/reportRenderParity';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
+import mammoth from 'mammoth';
 
 function makeBaseManifest(): ReportRenderManifestV1 {
   const fieldHashes: Record<string, string> = {
@@ -187,5 +188,122 @@ describe('report render parity manifest builder', () => {
     expect(manifest.job_id).toBe('job-manifest');
     expect(manifest.template.mode).toBe('short_form_evaluation');
     expect(manifest.renderer_versions.webpage).toContain('webpage');
+  });
+
+  test('measures actual web/PDF/DOCX/TXT renderer outputs against UED fields', async () => {
+    const routeModule = await import('@/app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+    const mode = inferCanonicalEvaluationModeFromWordCount(5200);
+    const result = {
+      generated_at: '2026-06-12T00:00:00.000Z',
+      overview: {
+        overall_score_0_100: 82,
+        verdict: 'revise',
+        one_paragraph_summary: 'Measured parity summary appears in every renderer output.',
+        top_3_strengths: ['Measured voice strength', 'Clean scene intent', 'Useful premise'],
+        top_3_risks: ['Measured pacing risk', 'Thin midpoint pressure', 'Soft closing turn'],
+      },
+      metrics: {
+        manuscript: {
+          title: 'Measured Parity Manuscript',
+          word_count: 5200,
+          genre: 'thriller',
+          target_audience: 'Adult thriller readers',
+        },
+      },
+      enrichment: {
+        premise: 'A forensic editor validates renderer parity.',
+        trigger_warnings: ['violence'],
+        reading_grade_level: 9,
+        dialogue_percentage: 35,
+        narrative_percentage: 65,
+      },
+      governance: { warnings: [], limitations: [] },
+      criteria: [
+        {
+          key: 'narrativeDrive',
+          score_0_10: 8,
+          confidence_level: 'high',
+          rationale: 'The measured rationale must survive all renderer adapters.',
+          recommendations: [
+            {
+              priority: 'high',
+              action: 'Increase pressure around the midpoint reversal.',
+              anchor_snippet: 'The corridor fell silent before the alarm began.',
+              symptom: 'Tension softens before the decision point.',
+              mechanism: 'Delayed consequence signaling.',
+              specific_fix: 'Move the consequence beat one paragraph earlier.',
+              reader_effect: 'Keeps the reader oriented toward danger.',
+              mistake_proofing: 'Check each scene exit for a forward-pull sentence.',
+            },
+          ],
+        },
+      ],
+      recommendations: {
+        quick_wins: [{ action: 'Clarify the opening image.', why: 'Reader orientation improves.', effort: 'low', impact: 'medium' }],
+        strategic_revisions: [{ action: 'Rebalance the midpoint sequence.', why: 'Central tension should peak sooner.', effort: 'medium', impact: 'high' }],
+      },
+    } as unknown as EvaluationResultV2;
+
+    const doc = buildUnifiedDocumentForParityFromEvaluationResult({
+      evaluationResult: result,
+      displayTitle: 'Measured Parity Manuscript',
+      mode,
+    });
+    const txt = testing.buildCanonicalTemplateTxt(doc, 'job-measured');
+    const html = testing.renderCanonicalTemplateHtml(doc, 'job-measured');
+    const docxBuffer = await testing.buildCanonicalTemplateDocx(doc, 'job-measured');
+    const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
+
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-measured',
+      unifiedDocument: doc,
+      rendererOutputs: {
+        webpage: html,
+        pdf: html,
+        docx: docxText,
+        txt,
+      },
+    });
+
+    expect(manifest.parity.status).toBe('pass');
+    expect(Object.values(manifest.surfaces).every((surface) => surface.measurement_mode === 'measured_renderer_output')).toBe(true);
+    expect(manifest.surfaces.txt.measured_output_length).toBeGreaterThan(100);
+    expect(manifest.surfaces.docx.measured_output_hash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  test('measured parity fails when a renderer output omits a required UED field', () => {
+    const mode = inferCanonicalEvaluationModeFromWordCount(5000);
+    const result = {
+      generated_at: '2026-06-12T00:00:00.000Z',
+      overview: {
+        overall_score_0_100: 76,
+        verdict: 'revise',
+        one_paragraph_summary: 'This required summary is intentionally absent from TXT output.',
+        top_3_strengths: ['A'],
+        top_3_risks: ['R'],
+      },
+      metrics: { manuscript: { title: 'Missing Field', word_count: 5000, genre: 'thriller', target_audience: 'Adult thriller readers' } },
+      enrichment: { trigger_warnings: ['none'], reading_grade_level: 9, dialogue_percentage: 30, narrative_percentage: 70 },
+      governance: { warnings: [], limitations: [] },
+      criteria: [],
+      recommendations: { quick_wins: [], strategic_revisions: [] },
+    } as unknown as EvaluationResultV2;
+    const doc = buildUnifiedDocumentForParityFromEvaluationResult({ evaluationResult: result, displayTitle: 'Missing Field', mode });
+
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-missing-field',
+      unifiedDocument: doc,
+      rendererOutputs: {
+        webpage: JSON.stringify(doc),
+        pdf: JSON.stringify(doc),
+        docx: JSON.stringify(doc),
+        txt: 'REVISIONGRADE REPORT WITHOUT THE REQUIRED SUMMARY',
+      },
+    });
+
+    expect(manifest.parity.status).toBe('fail');
+    expect(manifest.parity.missing_required_fields).toContain('txt:oneParagraphPitch');
+    expect(manifest.parity.mismatched_fields).toContain('txt:oneParagraphPitch');
   });
 });

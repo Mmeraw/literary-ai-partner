@@ -14,3 +14,5 @@ qualityGatePass,quality_gate_result_v1,true,false,true; false,AR03_QUALITY_GATE,
 qualityGateReason,quality_gate_result_v1,false,true,,AR03_QUALITY_GATE,AR03_QUALITY_GATE,false,Populated on gate failure. Must not be directly exposed as raw DB/system error in client response.
 user_id,agent_readiness_section_v1,true,false,,AR04_SECTION_PERSISTENCE,AR02_SECTION_GENERATION,false,Authenticated user ID from Supabase session. All write operations require authentication.
 allSectionsApproved,package_completeness_result_v1,true,false,true; false,AR06_COMPLETENESS_CHECK,AR06_COMPLETENESS_CHECK,true,"true iff all 6 canonical section types have status=approved for this (user_id, manuscript_id)."
+approval_state,creator_approval_v1,true,false,pending; approved; rejected,AR08_EXPORT,AR08_EXPORT,true,Creator approval state for Storygate handoff. Storygate accepts only approved.
+approved,creator_approval_v1,true,false,true; false,AR08_EXPORT,AR08_EXPORT,false,Boolean compatibility field. Must be true iff approval_state=approved.

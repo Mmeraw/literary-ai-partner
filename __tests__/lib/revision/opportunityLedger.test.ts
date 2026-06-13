@@ -375,6 +375,109 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
     expect(typeof opportunity.manuscript_coordinates).toBe('string');
     expect(['low', 'medium', 'high']).toContain(opportunity.confidence);
   });
+
+  it('returns rebuilt opportunities when ledger persistence fails so Workbench render is not blocked', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const supabase = {
+      from: (table: string) => {
+        const state: {
+          selectClause: string | null;
+          filters: Record<string, unknown>;
+        } = {
+          selectClause: null,
+          filters: {},
+        };
+
+        const chain = {
+          select: (value: string) => {
+            state.selectClause = value;
+            return chain;
+          },
+          eq: (column: string, value: unknown) => {
+            state.filters[column] = value;
+            return chain;
+          },
+          in: () => chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => {
+            if (table === 'evaluation_artifacts' && state.selectClause === 'id, content') {
+              return {
+                data: {
+                  id: 'ledger-existing',
+                  content: {
+                    opportunities: [],
+                  },
+                },
+                error: null,
+              };
+            }
+
+            if (table === 'evaluation_jobs') {
+              return {
+                data: {
+                  id: state.filters.id,
+                  manuscript_id: 6074,
+                  evaluation_project_id: null,
+                  evaluation_result: null,
+                },
+                error: null,
+              };
+            }
+
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content, source_hash') {
+              return {
+                data: {
+                  source_hash: 'src-hash-1',
+                  content: {
+                    criteria: [
+                      {
+                        key: 'pacing',
+                        recommendations: [
+                          {
+                            diagnosis: 'Abrupt scene transition weakens momentum.',
+                            recommendation: 'Insert a bridging beat before cut.',
+                            anchor_snippet: 'She slammed the door. Next scene starts abruptly.',
+                            location_ref: 'chapter:3',
+                            confidence: 0.84,
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+                error: null,
+              };
+            }
+
+            return { data: null, error: null };
+          },
+          upsert: () => ({
+            select: () => ({
+              limit: async () => ({
+                data: null,
+                error: { message: 'transient write failure' },
+              }),
+            }),
+          }),
+        };
+
+        return chain;
+      },
+    };
+
+    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-123');
+
+    expect(result.artifactId).toBe('ledger-existing');
+    expect(result.opportunities.length).toBeGreaterThan(0);
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Failed to persist revision_opportunity_ledger_v1',
+      { message: 'transient write failure' },
+    );
+
+    errorSpy.mockRestore();
+  });
 });
 
 // ── Hydration status / one-ledger rebuild integration tests ───────────────────

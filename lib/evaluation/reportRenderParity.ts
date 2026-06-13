@@ -6,6 +6,7 @@ import {
   type UnifiedEvaluationDocument,
 } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
+import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
 
 type RendererSurface = 'webpage' | 'pdf' | 'docx' | 'txt';
 
@@ -57,6 +58,9 @@ export type ReportRenderManifestV1 = {
   required_field_registry: string[];
   renderer_versions: Record<RendererSurface, string>;
   surfaces: Record<RendererSurface, {
+    measurement_mode?: 'declared_canonical_consumption' | 'measured_renderer_output';
+    measured_output_hash?: string;
+    measured_output_length?: number;
     consumed_fields: string[];
     field_hashes: Record<string, string>;
     missing_required_fields: string[];
@@ -106,6 +110,95 @@ function isEmptyValue(value: unknown): boolean {
   if (typeof value === 'string') return value.trim().length === 0;
   if (Array.isArray(value)) return value.length === 0;
   return false;
+}
+
+function normalizeMeasuredText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function flattenRenderablePrimitives(value: unknown): string[] {
+  if (value == null) return [];
+  if (typeof value === 'string') return value.trim().length > 0 ? [value] : [];
+  if (typeof value === 'number' || typeof value === 'boolean') return [String(value)];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => flattenRenderablePrimitives(item));
+  }
+
+  if (typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .flatMap((key) => flattenRenderablePrimitives((value as Record<string, unknown>)[key]));
+  }
+
+  return [];
+}
+
+function renderableFragmentsForField(path: string, value: unknown): string[] {
+  if (path === 'criteriaScoreGrid' && Array.isArray(value)) {
+    return value.flatMap((row) => {
+      if (!row || typeof row !== 'object') return [];
+      const record = row as Record<string, unknown>;
+      return [record.label, record.scoreLabel, record.confidenceLabel].flatMap((fragment) => flattenRenderablePrimitives(fragment));
+    });
+  }
+
+  if (path === 'criterionDetails' && Array.isArray(value)) {
+    return value.flatMap((detail) => {
+      if (!detail || typeof detail !== 'object') return [];
+      const record = detail as Record<string, unknown>;
+      const recommendationFragments = Array.isArray(record.recommendations)
+        ? record.recommendations.flatMap((recommendation) => {
+            if (!recommendation || typeof recommendation !== 'object') return [];
+            const rec = recommendation as Record<string, unknown>;
+            return [
+              rec.anchor_snippet,
+              rec.symptom,
+              rec.mechanism,
+              rec.specific_fix || rec.action,
+              rec.reader_effect || rec.expected_impact,
+              rec.mistake_proofing,
+              rec.collapsed_from_criteria,
+            ].flatMap((fragment) => flattenRenderablePrimitives(fragment));
+          })
+        : [];
+
+      return [
+        record.label,
+        record.scoreLabel,
+        record.confidenceLabel,
+        record.supportLabel,
+        record.rationaleLabel,
+        record.rationaleText,
+        ...recommendationFragments,
+      ].flatMap((fragment) => flattenRenderablePrimitives(fragment));
+    });
+  }
+
+  return flattenRenderablePrimitives(value);
+}
+
+function measuredOutputContainsField(output: string, path: string, value: unknown): boolean {
+  const normalizedOutput = normalizeMeasuredText(output);
+  const requiredFragments = renderableFragmentsForField(path, value)
+    .map((fragment) => mistakeProofText(fragment, ''))
+    .map((fragment) => normalizeMeasuredText(fragment))
+    .filter((fragment) => fragment.length > 0 && fragment !== 'not available');
+
+  if (requiredFragments.length === 0) return false;
+  return requiredFragments.every((fragment) => normalizedOutput.includes(fragment));
 }
 
 export function inferCanonicalEvaluationModeFromWordCount(wordCount: number | null | undefined): CanonicalEvaluationMode {
@@ -179,6 +272,13 @@ export function buildReportRenderManifestV1(params: {
   jobId: string;
   unifiedDocument: UnifiedEvaluationDocument;
   rendererVersions?: Partial<Record<RendererSurface, string>>;
+  /**
+   * Optional measured text extracted from the actual renderer output for each
+   * author-facing surface. PDF should pass the HTML source sent to Chromium;
+   * DOCX should pass text extracted from the generated DOCX package; TXT should
+   * pass the exact download body; webpage should pass rendered/server HTML text.
+   */
+  rendererOutputs?: Partial<Record<RendererSurface, string>>;
 }): ReportRenderManifestV1 {
   const mode = params.unifiedDocument.templateMode;
   const template = EVALUATION_TEMPLATE_CONTRACTS[mode];
@@ -192,16 +292,33 @@ export function buildReportRenderManifestV1(params: {
   }
 
   const surfaces = SURFACES.reduce((acc, surface) => {
-    const missingRequiredFields = requiredFields.filter((field) => isEmptyValue(readPath(params.unifiedDocument, field)));
+    const measuredOutput = params.rendererOutputs?.[surface];
+    const missingRequiredFields = requiredFields.filter((field) => {
+      const canonicalValue = readPath(params.unifiedDocument, field);
+      if (isEmptyValue(canonicalValue)) return true;
+      if (typeof measuredOutput === 'string') {
+        return !measuredOutputContainsField(measuredOutput, field, canonicalValue);
+      }
+      return false;
+    });
     const suppressedFields = optionalFields.filter((field) => isEmptyValue(readPath(params.unifiedDocument, field)));
 
     const fieldHashes = allFields.reduce<Record<string, string>>((hashes, field) => {
-      // Current renderer contract: canonical fields are read from UED only.
-      hashes[field] = canonicalJsonSha256(readPath(params.unifiedDocument, field));
+      const canonicalValue = readPath(params.unifiedDocument, field);
+      // Measured mode proves the actual renderer output contains every primitive
+      // fragment of the canonical field before assigning the canonical hash.
+      // Declared mode is retained for the existing runtime pipeline until each
+      // surface can provide measured output during Phase 5 artifact persistence.
+      hashes[field] = typeof measuredOutput === 'string' && !measuredOutputContainsField(measuredOutput, field, canonicalValue)
+        ? ''
+        : canonicalJsonSha256(canonicalValue);
       return hashes;
     }, {});
 
     acc[surface] = {
+      measurement_mode: typeof measuredOutput === 'string' ? 'measured_renderer_output' : 'declared_canonical_consumption',
+      measured_output_hash: typeof measuredOutput === 'string' ? canonicalJsonSha256(measuredOutput) : undefined,
+      measured_output_length: typeof measuredOutput === 'string' ? measuredOutput.length : undefined,
       consumed_fields: allFields,
       field_hashes: fieldHashes,
       missing_required_fields: missingRequiredFields,
