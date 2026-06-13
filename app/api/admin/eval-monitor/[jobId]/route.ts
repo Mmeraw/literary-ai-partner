@@ -4,6 +4,42 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteContext = { params: Promise<{ jobId: string }> };
 
+type EvalMonitorJobRow = {
+  id: string;
+  status: string | null;
+  phase: string | null;
+  phase_status: string | null;
+  manuscript_id: string | null;
+  manuscript_word_count: number | null;
+  work_type: string | null;
+  english_variant: string | null;
+  total_units: number | null;
+  completed_units: number | null;
+  failed_units: number | null;
+  attempt_count: number | null;
+  max_attempts: number | null;
+  retry_count: number | null;
+  next_attempt_at: string | null;
+  last_error: string | null;
+  failure_code: string | null;
+  lease_until: string | null;
+  heartbeat_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  failed_at: string | null;
+  phase0_started_at: string | null;
+  phase0_completed_at: string | null;
+  phase1_started_at: string | null;
+  phase1_completed_at: string | null;
+  phase2_started_at: string | null;
+  phase2_completed_at: string | null;
+  phase3_started_at: string | null;
+  phase3_completed_at: string | null;
+  progress: unknown;
+};
+
 // Artifact types we expose content for (quality-relevant, non-PII)
 const CONTENT_ARTIFACT_TYPES = new Set([
   "story_map_seed_v1",
@@ -61,7 +97,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
-  const job = jobRes.data;
+  const job = jobRes.data as unknown as EvalMonitorJobRow;
   const allArtifacts = artifactRes.data ?? [];
 
   // Build artifact summaries — include key quality fields, never full prose
@@ -225,11 +261,13 @@ export async function GET(req: NextRequest, context: RouteContext) {
   });
 
   // Phase log from progress field
-  const phaseLog: unknown[] = (job.progress as Record<string, unknown>)?.phase_log ?? [];
-  const chunkRouting = (job.progress as Record<string, unknown>)?.chunk_routing ?? null;
+  const progress = (job.progress as Record<string, unknown> | null) ?? null;
+  const phaseLogRaw = progress?.phase_log;
+  const phaseLog: unknown[] = Array.isArray(phaseLogRaw) ? phaseLogRaw : [];
+  const chunkRouting = progress?.chunk_routing ?? null;
   const narrativePreflight = {
-    classifier_flagged: (job.progress as Record<string, unknown>)?.narrative_preflight_classifier_flagged ?? false,
-    detected_type: (job.progress as Record<string, unknown>)?.narrative_preflight_detected_type ?? null,
+    classifier_flagged: progress?.narrative_preflight_classifier_flagged ?? false,
+    detected_type: progress?.narrative_preflight_detected_type ?? null,
   };
 
   // Phase timeline derived from job timestamps
