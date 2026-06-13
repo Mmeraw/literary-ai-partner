@@ -2,13 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* === Warm CTA/button contrast guard ===
- *
- * Gold, amber, orange, and red call-to-action backgrounds were allowing small
- * mono-label text to render too faintly on the marketing pages. Force warm-fill
- * buttons/links to use near-black ink and a heavier weight so CTA labels remain
- * legible on gold/orange/red fills without changing layout or copy.
- */
+/* === Warm CTA/button contrast guard === */
 a[class*="bg-rg-gold"],
 button[class*="bg-rg-gold"],
 a[class*="bg-amber"],
@@ -20,31 +14,11 @@ button[class*="bg-yellow"],
 a[class*="bg-red"],
 button[class*="bg-red"] {
   color: #0d0a05 !important;
-  font-weight: 800;
-  text-shadow: none;
+  font-weight: 800 !important;
+  text-shadow: none !important;
 }
 
-/* Preserve readable contrast when those CTAs intentionally invert on hover. */
-a[class*="bg-rg-gold"]:hover,
-button[class*="bg-rg-gold"]:hover,
-a[class*="bg-amber"]:hover,
-button[class*="bg-amber"]:hover,
-a[class*="bg-orange"]:hover,
-button[class*="bg-orange"]:hover,
-a[class*="bg-yellow"]:hover,
-button[class*="bg-yellow"]:hover,
-a[class*="bg-red"]:hover,
-button[class*="bg-red"]:hover {
-  font-weight: 800;
-}
-
-/* === Dark marketing readability guard ===
- *
- * The premium dark marketing surfaces were using muted cream/gold microtype that
- * became hard to read on real displays. Promote dark-page body, labels, links,
- * and buttons to a minimum 18px and brighten cream/gold text without changing
- * page structure, route behavior, or product copy.
- */
+/* === Dark marketing readability guard === */
 .bg-rg-ink {
   color: #fff8ea;
 }
@@ -74,12 +48,7 @@ button[class*="bg-red"]:hover {
   font-weight: 700;
 }
 
-/* === Evaluation workspace shell ===
- *
- * Authenticated evaluation/report surfaces are task workspaces, not marketing
- * pages. Keep the calm light background, but use app-style typography and
- * card polish so long-running evaluations feel operational and stable.
- */
+/* === Evaluation workspace shell === */
 .min-h-screen.bg-gray-50 {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #111827;
@@ -106,21 +75,10 @@ button[class*="bg-red"]:hover {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-/* Hide the redundant report-header status pill. The EvaluationPoller card owns
- * live status display; duplicating "In progress" next to the page title adds
- * clutter and can drift from the detailed job status card.
- */
 .min-h-screen.bg-gray-50 main > .mb-4.flex.items-start.justify-between > div > .flex.items-center.gap-3.flex-wrap > h1 + span {
   display: none !important;
 }
 
-/* === Evaluation/readability contrast guard ===
- *
- * Evaluation report/status/form surfaces use white cards on a light gray page.
- * Small Tailwind gray-400/500 helper text is too faint in that context, so the
- * evaluation shell promotes muted copy to AA-friendly dark grays without
- * changing layout, pipeline behavior, scoring, or report content.
- */
 .min-h-screen.bg-gray-50 .text-gray-400,
 .min-h-screen.bg-gray-50 .text-gray-500 {
   color: #374151;
@@ -142,13 +100,6 @@ button[class*="bg-red"]:hover {
   opacity: 1;
 }
 
-/* === Evaluation report paragraph rhythm ===
- *
- * Long-form reports contain dense rationale/evidence prose. Preserve the same
- * text, but give adjacent paragraphs, ledger rows, and list items more vertical
- * rhythm so author-facing reports read like editorial analysis instead of a
- * compressed database dump.
- */
 .min-h-screen.bg-gray-50 section p {
   line-height: 1.75;
 }
@@ -174,7 +125,6 @@ button[class*="bg-red"]:hover {
 }
 
 /* === User evaluation dashboard === */
-
 .rg-dash-page {
   --rg-bg: #f7f6f2;
   --rg-surface: #f9f8f5;
@@ -189,7 +139,6 @@ button[class*="bg-red"]:hover {
   --rg-warning: #964219;
   --rg-gold: #b8862b;
   --rg-gold-soft: #f3e6c8;
-
   width: min(1480px, 100%);
   margin: 0 auto;
   padding: 32px 24px 64px;
@@ -280,117 +229,84 @@ button[class*="bg-red"]:hover {
   margin-top: 8px;
 }
 
-/* === Agent Readiness readability + workspace width ===
- *
- * Agent Readiness is an author workbench, not a narrow marketing page.
- * Preserve the existing RevisionGrade fonts and dark premium styling, but make
- * desktop use the screen and make mobile readable without zooming.
+/* === Agent Readiness real content readability ===
+ * The Agent Readiness page uses inline React styles. These broad but scoped
+ * selectors intentionally override those inline styles so the actual content,
+ * sidebar, notes, cards, disabled buttons, and status labels are readable.
  */
-.agent-readiness-route,
-.agent-readiness-route * {
-  box-sizing: border-box;
-}
-
-.agent-readiness-route {
-  color: #fff8ea;
-}
-
-.agent-readiness-route p,
-.agent-readiness-route a,
-.agent-readiness-route button,
-.agent-readiness-route span,
-.agent-readiness-route li,
-.agent-readiness-route label,
-.agent-readiness-route input,
-.agent-readiness-route textarea,
-.agent-readiness-route select {
-  font-size: max(1.125rem, 1em) !important;
-  line-height: 1.65;
-}
-
-.agent-readiness-route .text-rg-cream,
-.agent-readiness-route .text-rg-cream2,
-.agent-readiness-route [class*="text-rg-cream2/"],
-.agent-readiness-route .text-rg-dim,
-.agent-readiness-route [class*="text-rg-dim/"] {
+div[style*="background-color: rgb(15, 13, 10)"],
+div[style*="background-color:#0F0D0A"],
+div[style*="background-color: #0F0D0A"] {
   color: #fff8ea !important;
 }
 
-.agent-readiness-route .text-rg-gold,
-.agent-readiness-route [class*="text-rg-gold/"] {
-  color: #e9c777 !important;
-}
-
-.agent-readiness-route .font-rg-mono,
-.agent-readiness-route [class*="tracking-"] {
-  font-size: max(1.125rem, 1em) !important;
-  font-weight: 700;
-}
-
-.agent-readiness-route h1,
-.agent-readiness-route h2,
-.agent-readiness-route h3 {
-  color: #fff8ea !important;
-}
-
-.agent-readiness-route [class*="border-rg-cream2/"],
-.agent-readiness-route [class*="border-rg-gold/"] {
-  border-color: rgba(233, 199, 119, 0.42) !important;
-}
-
-.agent-readiness-route [class*="bg-rg-ink2"] {
-  background-color: #1f170d !important;
-}
-
-.agent-readiness-route button:disabled,
-.agent-readiness-route a[aria-disabled="true"] {
-  opacity: 0.75;
-}
-
-.agent-readiness-route button,
-.agent-readiness-route a {
-  text-underline-offset: 0.2em;
-}
-
-/* Agent Readiness currently uses many inline style colors/sizes. These targeted
- * overrides fix the actual page content while leaving the now-bright headings as-is.
- */
-[style*="color: rgb(123, 112, 96)"],
-[style*="color: #7B7060"],
-[style*="color: #7b7060"] {
-  color: #e9dfcc !important;
-}
-
-[style*="color: rgb(200, 191, 176)"],
-[style*="color: #C8BFB0"],
-[style*="color: #c8bfb0"] {
-  color: #fff8ea !important;
-}
-
-[style*="font-size: 0.5625rem"],
-[style*="font-size: 0.625rem"],
-[style*="font-size: 0.6875rem"],
-[style*="font-size: 0.75rem"],
-[style*="font-size: 0.875rem"],
-[style*="font-size: 0.9375rem"] {
+div[style*="background-color: rgb(15, 13, 10)"] p,
+div[style*="background-color: rgb(15, 13, 10)"] a,
+div[style*="background-color: rgb(15, 13, 10)"] button,
+div[style*="background-color: rgb(15, 13, 10)"] span,
+div[style*="background-color: rgb(15, 13, 10)"] li,
+div[style*="background-color: rgb(15, 13, 10)"] label,
+div[style*="background-color: rgb(15, 13, 10)"] select,
+div[style*="background-color:#0F0D0A"] p,
+div[style*="background-color:#0F0D0A"] a,
+div[style*="background-color:#0F0D0A"] button,
+div[style*="background-color:#0F0D0A"] span,
+div[style*="background-color:#0F0D0A"] li,
+div[style*="background-color:#0F0D0A"] label,
+div[style*="background-color:#0F0D0A"] select,
+div[style*="background-color: #0F0D0A"] p,
+div[style*="background-color: #0F0D0A"] a,
+div[style*="background-color: #0F0D0A"] button,
+div[style*="background-color: #0F0D0A"] span,
+div[style*="background-color: #0F0D0A"] li,
+div[style*="background-color: #0F0D0A"] label,
+div[style*="background-color: #0F0D0A"] select {
+  color: #f8efdf !important;
   font-size: 1.125rem !important;
   line-height: 1.65 !important;
-}
-
-[style*="opacity: 0.5"],
-[style*="opacity: 0.55"],
-[style*="opacity: 0.6"],
-[style*="opacity: 0.64"],
-[style*="opacity: 0.7"] {
   opacity: 1 !important;
 }
 
-/* === Evaluation report desktop width + preview clamp ===
- *
- * The report header is the command surface for status, score, and next action.
- * On desktop, use the available width and keep the manuscript preview compact so
- * users do not have to scroll before seeing the progress/status area.
- */
+div[style*="background-color: rgb(15, 13, 10)"] h1,
+div[style*="background-color: rgb(15, 13, 10)"] h2,
+div[style*="background-color: rgb(15, 13, 10)"] h3,
+div[style*="background-color:#0F0D0A"] h1,
+div[style*="background-color:#0F0D0A"] h2,
+div[style*="background-color:#0F0D0A"] h3,
+div[style*="background-color: #0F0D0A"] h1,
+div[style*="background-color: #0F0D0A"] h2,
+div[style*="background-color: #0F0D0A"] h3 {
+  color: #fff8ea !important;
+}
+
+/* Restore gold accents after the broad content override. */
+[style*="color: rgb(169, 142, 74)"],
+[style*="color:#A98E4A"],
+[style*="color: #A98E4A"],
+[style*="color:#a98e4a"],
+[style*="color: #a98e4a"] {
+  color: #e9c777 !important;
+  font-weight: 800 !important;
+}
+
+/* Restore dark text on gold-filled buttons. */
+[style*="background-color: rgb(169, 142, 74)"],
+[style*="background-color:#A98E4A"],
+[style*="background-color: #A98E4A"],
+[style*="background-color:#a98e4a"],
+[style*="background-color: #a98e4a"] {
+  color: #0d0a05 !important;
+  font-weight: 900 !important;
+}
+
+/* Keep disabled/locked controls visible instead of barely-there. */
+button:disabled,
+a[aria-disabled="true"] {
+  opacity: 1 !important;
+  color: #d8cbb5 !important;
+  border-color: rgba(233, 199, 119, 0.45) !important;
+}
+
 .rg-print-report {
   max-width: min(1500px, calc(100vw - 3rem)) !important;
 }
