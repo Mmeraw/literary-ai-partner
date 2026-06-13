@@ -1,0 +1,181 @@
+.reportRoute {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  color: #1c1814;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-size-adjust: 100%;
+}
+
+.reportRoute,
+.reportRoute * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.reportRoute p,
+.reportRoute li,
+.reportRoute dd,
+.reportRoute td,
+.reportRoute th,
+.reportRoute span {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: auto;
+}
+
+.reportRoute p,
+.reportRoute li,
+.reportRoute dd {
+  line-height: 1.58;
+}
+
+.reportRoute :global(.font-serif),
+.reportRoute h1,
+.reportRoute h2,
+.reportRoute h3 {
+  font-family: Georgia, Cambria, "Times New Roman", serif;
+}
+
+.reportRoute section,
+.reportRoute header,
+.reportRoute aside,
+.reportRoute dl,
+.reportRoute div,
+.reportRoute article {
+  max-width: 100%;
+}
+
+.reportRoute ol {
+  list-style-position: outside;
+  padding-left: 1.45rem;
+}
+
+.reportRoute ol > li {
+  padding-left: 0.25rem;
+  margin-top: 0.85rem;
+}
+
+.reportRoute ol > li:first-child {
+  margin-top: 0;
+}
+
+.reportRoute :global(.list-inside) {
+  list-style-position: outside !important;
+}
+
+.reportRoute :global(.space-y-0\.5) > :global(* + *),
+.reportRoute :global(.space-y-1) > :global(* + *) {
+  margin-top: 0.75rem !important;
+}
+
+@media (max-width: 640px) {
+  .reportRoute :global(.max-w-6xl),
+  .reportRoute :global(.max-w-5xl) {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 0.875rem !important;
+    padding-right: 0.875rem !important;
+  }
+
+  .reportRoute header,
+  .reportRoute section {
+    margin-bottom: 1rem !important;
+    padding: 1rem !important;
+    border-radius: 0.45rem !important;
+  }
+
+  .reportRoute header > div:first-of-type,
+  .reportRoute header > div:nth-of-type(2),
+  .reportRoute :global(.flex.items-center.justify-between),
+  .reportRoute :global(.flex.items-start.gap-6) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.9rem !important;
+    align-items: start !important;
+  }
+
+  .reportRoute header aside,
+  .reportRoute :global(.w-44) {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .reportRoute :global(dl.grid),
+  .reportRoute :global(.grid),
+  .reportRoute :global(.grid-cols-2),
+  .reportRoute :global(.sm\:grid-cols-3),
+  .reportRoute :global(.sm\:grid-cols-4),
+  .reportRoute :global(.md\:grid-cols-2),
+  .reportRoute :global(.md\:grid-cols-3),
+  .reportRoute :global(.md\:grid-cols-4),
+  .reportRoute :global(.lg\:grid-cols-4) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .reportRoute :global(.sm\:col-span-2) {
+    grid-column: auto !important;
+  }
+
+  .reportRoute h1,
+  .reportRoute :global(.text-3xl),
+  .reportRoute :global(.sm\:text-4xl),
+  .reportRoute :global(.text-4xl) {
+    font-size: clamp(2rem, 10vw, 2.75rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  .reportRoute h2,
+  .reportRoute :global(.text-2xl) {
+    font-size: clamp(1.45rem, 7vw, 2rem) !important;
+    line-height: 1.16 !important;
+  }
+
+  .reportRoute h3,
+  .reportRoute :global(.text-lg) {
+    font-size: clamp(1.08rem, 5.2vw, 1.35rem) !important;
+    line-height: 1.22 !important;
+  }
+
+  .reportRoute p,
+  .reportRoute li,
+  .reportRoute dd {
+    font-size: 1rem !important;
+    line-height: 1.58 !important;
+  }
+
+  .reportRoute :global(.text-sm),
+  .reportRoute :global(.text-xs) {
+    font-size: 0.95rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .reportRoute :global(.tracking-wide) {
+    letter-spacing: 0.06em !important;
+  }
+
+  .reportRoute :global(.flex) {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .reportRoute :global(.shrink-0) {
+    flex-shrink: 1 !important;
+  }
+
+  .reportRoute :global(.font-mono),
+  .reportRoute :global(.inline-flex) {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .reportRoute ol {
+    padding-left: 1.25rem;
+  }
+
+  .reportRoute ol > li {
+    margin-top: 0.95rem;
+    padding-left: 0.15rem;
+  }
+}
