@@ -5193,6 +5193,9 @@ export async function processEvaluationJob(
           created_at: failureDiagnosis.created_at,
           failure_point: failureDiagnosis.failure_point,
           recommended_next_action: failureDiagnosis.recommended_next_action,
+          ...(failureDiagnosis.template_gate_failure
+            ? { template_gate_failure: failureDiagnosis.template_gate_failure }
+            : {}),
         };
       } catch (failureDiagnosisError) {
         console.warn('[Processor] failure diagnosis persistence failed (non-fatal)', {
@@ -10767,6 +10770,8 @@ export async function processEvaluationJob(
             violations: templateCompletenessCheck.violations.map((violation) => ({
               code: violation.code,
               criterion: violation.criterion ?? null,
+              field_path: violation.field_path ?? null,
+              invariant_id: violation.invariant_id ?? null,
               severity: violation.severity,
               message: violation.message,
             })),

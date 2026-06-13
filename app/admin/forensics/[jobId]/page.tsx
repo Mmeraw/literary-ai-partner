@@ -153,6 +153,28 @@ interface ForensicData {
       confidence?: number;
       reason?: string;
     }>;
+    template_gate_failure?: {
+      title: "Template Gate Failure";
+      critical_violation?: {
+        code: string;
+        field_path: string;
+        invariant_id: string;
+        source_stage: string;
+        source_artifact_type: string;
+        repair_attempted: boolean;
+        repair_result: "failed" | "succeeded" | "not_attempted" | "not_applicable";
+        message?: string;
+        criterion?: string | null;
+      };
+      blocking_reasons: Array<{
+        code: string;
+        field_path: string;
+        invariant_id: string;
+        severity: "critical" | "warning";
+        message?: string;
+        criterion?: string | null;
+      }>;
+    };
     artifact_inventory: {
       last_successful_artifact?: string;
       first_missing_or_failed_artifact?: string;
@@ -682,6 +704,53 @@ export default function ForensicViewPage() {
               </div>
             </div>
           </div>
+
+          {failureDiagnosis.template_gate_failure?.critical_violation && (
+            <div className="mt-4 rounded border border-red-400/30 bg-red-950/20 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-red-300">
+                {failureDiagnosis.template_gate_failure.title}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-rg-cream">Critical violation</p>
+              <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-2">
+                  <p className="font-bold uppercase tracking-wide text-rg-cream2/50">field_path</p>
+                  <p className="mt-1 font-mono text-amber-200">{failureDiagnosis.template_gate_failure.critical_violation.field_path}</p>
+                </div>
+                <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-2">
+                  <p className="font-bold uppercase tracking-wide text-rg-cream2/50">invariant</p>
+                  <p className="mt-1 font-mono text-amber-200">{failureDiagnosis.template_gate_failure.critical_violation.invariant_id}</p>
+                </div>
+                <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-2">
+                  <p className="font-bold uppercase tracking-wide text-rg-cream2/50">source_stage</p>
+                  <p className="mt-1 font-mono text-rg-cream">{failureDiagnosis.template_gate_failure.critical_violation.source_stage}</p>
+                </div>
+                <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-2">
+                  <p className="font-bold uppercase tracking-wide text-rg-cream2/50">source_artifact</p>
+                  <p className="mt-1 font-mono text-rg-cream">{failureDiagnosis.template_gate_failure.critical_violation.source_artifact_type}</p>
+                </div>
+                <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-2">
+                  <p className="font-bold uppercase tracking-wide text-rg-cream2/50">repair_attempted</p>
+                  <p className="mt-1 font-mono text-rg-cream">{failureDiagnosis.template_gate_failure.critical_violation.repair_attempted ? "true" : "false"}</p>
+                </div>
+                <div className="rounded border border-rg-cream2/10 bg-rg-ink2/50 p-2">
+                  <p className="font-bold uppercase tracking-wide text-rg-cream2/50">repair_result</p>
+                  <p className="mt-1 font-mono text-red-300">{failureDiagnosis.template_gate_failure.critical_violation.repair_result}</p>
+                </div>
+              </div>
+              {failureDiagnosis.template_gate_failure.blocking_reasons.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-rg-cream2/50">Blocking reasons</p>
+                  <ul className="mt-2 space-y-1 text-xs text-rg-cream2/80">
+                    {failureDiagnosis.template_gate_failure.blocking_reasons.map((reason) => (
+                      <li key={`${reason.code}-${reason.field_path}`} className="font-mono">
+                        {reason.severity}: {reason.code} · {reason.field_path} · {reason.invariant_id}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {failureDiagnosis.score_caps && failureDiagnosis.score_caps.length > 0 && (
             <div className="mt-4">

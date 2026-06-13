@@ -154,6 +154,70 @@ describe('failureDiagnosis', () => {
     expect(packet.failed_criteria).toEqual([]);
   });
 
+  it('persists exact template gate critical field path and repair result', () => {
+    const packet = buildFailureDiagnosisV1({
+      jobId: 'job-template-failure',
+      createdAt: '2026-06-13T12:05:00.000Z',
+      phase: 'phase_3',
+      phaseStatus: 'failed',
+      failureCode: 'TEMPLATE_COMPLETENESS_GATE_FAILED',
+      errorMessage: 'Template completeness gate FAILED: 1 critical violation(s), 0 warning(s).',
+      failureContext: {
+        pipelineStage: 'template_completeness_gate',
+        reasonCodes: ['MISSING_ONE_SENTENCE_PITCH'],
+        diagnostics: {
+          gate: 'template_completeness',
+          summary: 'Template completeness gate FAILED: 1 critical violation(s), 0 warning(s).',
+          critical_count: 1,
+          warning_count: 0,
+          violations: [
+            {
+              code: 'MISSING_ONE_SENTENCE_PITCH',
+              criterion: null,
+              field_path: 'enrichment.premise',
+              invariant_id: 'required_template_field_present',
+              severity: 'critical',
+              message: 'Template requires a substantive one-sentence pitch or premise in enrichment.',
+            },
+          ],
+        },
+      },
+      artifacts: [
+        {
+          artifact_type: 'post_qg_effective_snapshot_v1',
+          created_at: '2026-06-13T12:04:58.000Z',
+        },
+      ],
+    });
+
+    expect(packet.failure_point.gate).toBe('TemplateCompletenessGate');
+    expect(packet.template_gate_failure?.title).toBe('Template Gate Failure');
+    expect(packet.template_gate_failure?.critical_violation).toEqual(
+      expect.objectContaining({
+        code: 'MISSING_ONE_SENTENCE_PITCH',
+        field_path: 'enrichment.premise',
+        invariant_id: 'required_template_field_present',
+        source_stage: 'synthesisToEvaluationResultV2',
+        source_artifact_type: 'post_qg_effective_snapshot_v1',
+        repair_attempted: true,
+        repair_result: 'failed',
+      }),
+    );
+    expect(packet.repair_status).toEqual(
+      expect.objectContaining({
+        attempted: true,
+        mechanism: 'synthesisToEvaluationResultV2.template_completeness_fallback',
+        outcome: 'failed',
+      }),
+    );
+    expect(packet.evidence_refs[0]).toEqual(
+      expect.objectContaining({
+        artifact_type: 'post_qg_effective_snapshot_v1',
+        field_path: 'enrichment.premise',
+      }),
+    );
+  });
+
   it('classifies exhausted handoff repair as recoverable_exhausted and renders operator guidance', () => {
     const packet = buildFailureDiagnosisV1({
       jobId: 'job-handoff-repair',
