@@ -369,11 +369,13 @@ function SectionCard({
   index,
   state,
   selectedManuscript,
+  onApprove,
 }: {
   section: RequiredSection;
   index: number;
   state: SectionState;
   selectedManuscript: AgentReadinessManuscriptOption | null;
+  onApprove: (sectionId: SectionId) => void;
 }) {
   const disabled = !selectedManuscript;
   const label = disabled ? "Choose Manuscript First" : state.status === "empty" ? "Generate" : "Edit";
@@ -460,7 +462,7 @@ function SectionCard({
           </Link>
         )}
         {state.status === "draft" && (
-          <button disabled={disabled} style={{
+          <button disabled={disabled} onClick={() => onApprove(section.id)} style={{
             fontFamily: T.mono, fontSize: "0.5625rem", fontWeight: 700,
             letterSpacing: "0.1em", textTransform: "uppercase",
             backgroundColor: "transparent", color: disabled ? T.dim : "#5A8A5A",
@@ -515,7 +517,7 @@ export default function AgentReadinessClient({
   const allApproved   = approvedCount === REQUIRED_SECTIONS.length;
   const allSectionsStarted = Object.values(sectionStates).every((s) => s.status !== "empty");
   const hasAnyContent = Object.values(sectionStates).some(s => s.content.length > 0);
-  const canGenerateFinalPackage = Boolean(selectedManuscript) && allSectionsStarted;
+  const canGenerateFinalPackage = Boolean(selectedManuscript) && allApproved;
 
   // Map API section names to UI section IDs
   const API_TO_UI: Record<string, SectionId> = {
@@ -525,6 +527,15 @@ export default function AgentReadinessClient({
     query_pitch: "query-pitch",
     comparables: "comparables",
     author_bio: "author-bio",
+  };
+
+  const UI_TO_API: Record<SectionId, string> = {
+    "query-letter": "query_letter",
+    "unique": "what_makes_unique",
+    "synopsis": "synopsis",
+    "query-pitch": "query_pitch",
+    "comparables": "comparables",
+    "author-bio": "author_bio",
   };
 
   const handleGenerateAll = useCallback(async () => {
@@ -576,34 +587,48 @@ export default function AgentReadinessClient({
     }
   }, [selectedManuscript, sectionStates]);
 
+  const handleApproveSection = useCallback(async (sectionId: SectionId) => {
+    if (!selectedManuscript) return;
+    const sectionType = UI_TO_API[sectionId];
+    try {
+      const res = await fetch('/api/agent-readiness/sections/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manuscriptId: Number(selectedManuscript.manuscriptId),
+          evaluationJobId: selectedManuscript.evaluationJobId,
+          sectionType,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setGenerateAllError(data.error || 'Approval failed');
+        return;
+      }
+
+      setSectionStates((current) => ({
+        ...current,
+        [sectionId]: { ...current[sectionId], status: "approved" },
+      }));
+      setGenerateAllError(null);
+    } catch (err) {
+      setGenerateAllError(err instanceof Error ? err.message : 'Approval failed');
+    }
+  }, [selectedManuscript]);
+
   const handleDownload = useCallback(async (format: 'txt' | 'docx') => {
     if (!selectedManuscript) return;
-
-    const sections: Record<string, string> = {};
-    const UI_TO_API: Record<SectionId, string> = {
-      "query-letter": "query_letter",
-      "unique": "what_makes_unique",
-      "synopsis": "synopsis",
-      "query-pitch": "query_pitch",
-      "comparables": "comparables",
-      "author-bio": "author_bio",
-    };
-
-    for (const [uiKey, state] of Object.entries(sectionStates)) {
-      if (state.content) {
-        const apiKey = UI_TO_API[uiKey as SectionId];
-        if (apiKey) sections[apiKey] = state.content;
-      }
-    }
 
     try {
       const res = await fetch('/api/agent-readiness/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          manuscriptId: Number(selectedManuscript.manuscriptId),
+          evaluationJobId: selectedManuscript.evaluationJobId,
           manuscriptTitle: selectedManuscript.title,
           format,
-          sections,
         }),
       });
 
@@ -625,7 +650,7 @@ export default function AgentReadinessClient({
     } catch (err) {
       setGenerateAllError(err instanceof Error ? err.message : 'Download failed');
     }
-  }, [selectedManuscript, sectionStates]);
+  }, [selectedManuscript]);
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: T.bg, color: T.cream, fontFamily: T.mono }}>
@@ -725,7 +750,7 @@ export default function AgentReadinessClient({
             <span style={{ color: T.gold, fontSize: "0.75rem", flexShrink: 0 }}>ⓘ</span>
             <div>
               <p style={{ fontSize: "0.75rem", color: T.cream2, lineHeight: 1.6 }}>
-                <strong style={{ color: T.cream }}>Eligibility:</strong> Agent Readiness is for completed manuscript evaluations. Storygate Studio™ submission requires a readiness score of 8 or above and an approved manuscript package.
+                <strong style={{ color: T.cream }}>Eligibility:</strong> Agent Readiness is for completed manuscript evaluations. Storygate Studio™ submission requires the canonical 9.0 readiness threshold or a qualified professional equivalent, plus an approved manuscript package.
               </p>
             </div>
           </div>
@@ -754,7 +779,7 @@ export default function AgentReadinessClient({
 
           <div id="sections" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "2.5rem" }}>
             {REQUIRED_SECTIONS.map((section, i) => (
-              <SectionCard key={section.id} section={section} index={i} state={sectionStates[section.id]} selectedManuscript={selectedManuscript} />
+              <SectionCard key={section.id} section={section} index={i} state={sectionStates[section.id]} selectedManuscript={selectedManuscript} onApprove={handleApproveSection} />
             ))}
           </div>
 
@@ -814,39 +839,41 @@ export default function AgentReadinessClient({
               Export your submission package
             </h2>
             <p style={{ fontSize: "0.75rem", color: T.dim, lineHeight: 1.6, marginBottom: "1rem" }}>
-              {hasAnyContent
-                ? "Download all generated sections as a formatted submission-ready document."
-                : "Generate sections above first, then download the complete package."}
+              {canGenerateFinalPackage
+                ? "Download all approved persisted sections as a formatted submission-ready document."
+                : allSectionsStarted
+                  ? "Approve every section before exporting the governed package."
+                  : "Generate sections above first, approve them, then download the complete package."}
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               <button
-                disabled={!hasAnyContent}
+                disabled={!canGenerateFinalPackage}
                 onClick={() => handleDownload('txt')}
                 style={{
                   fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
                   letterSpacing: "0.1em", textTransform: "uppercase",
-                  backgroundColor: hasAnyContent ? T.gold : "transparent",
-                  color: hasAnyContent ? T.ink : T.dim,
-                  border: hasAnyContent ? "none" : `1px solid ${T.border}`,
+                  backgroundColor: canGenerateFinalPackage ? T.gold : "transparent",
+                  color: canGenerateFinalPackage ? T.ink : T.dim,
+                  border: canGenerateFinalPackage ? "none" : `1px solid ${T.border}`,
                   padding: "0.75rem 1.5rem",
-                  cursor: hasAnyContent ? "pointer" : "not-allowed",
-                  opacity: hasAnyContent ? 1 : 0.55,
+                  cursor: canGenerateFinalPackage ? "pointer" : "not-allowed",
+                  opacity: canGenerateFinalPackage ? 1 : 0.55,
                 }}
               >
                 Download .TXT
               </button>
               <button
-                disabled={!hasAnyContent}
+                disabled={!canGenerateFinalPackage}
                 onClick={() => handleDownload('docx')}
                 style={{
                   fontFamily: T.mono, fontSize: "0.6875rem", fontWeight: 700,
                   letterSpacing: "0.1em", textTransform: "uppercase",
                   backgroundColor: "transparent",
-                  color: hasAnyContent ? T.gold : T.dim,
-                  border: `1px solid ${hasAnyContent ? T.gold : T.border}`,
+                  color: canGenerateFinalPackage ? T.gold : T.dim,
+                  border: `1px solid ${canGenerateFinalPackage ? T.gold : T.border}`,
                   padding: "0.75rem 1.5rem",
-                  cursor: hasAnyContent ? "pointer" : "not-allowed",
-                  opacity: hasAnyContent ? 1 : 0.55,
+                  cursor: canGenerateFinalPackage ? "pointer" : "not-allowed",
+                  opacity: canGenerateFinalPackage ? 1 : 0.55,
                 }}
               >
                 Download .DOC
@@ -911,7 +938,7 @@ export default function AgentReadinessClient({
               ))}
             </div>
             <p style={{ fontSize: "0.5625rem", color: T.dim, marginTop: "1rem", lineHeight: 1.6 }}>
-              Note: "Submit to Storygate Studio™" appears as an export option once the manuscript holds a readiness score of 8 or above and all package sections are approved.
+              Note: "Submit to Storygate Studio™" appears as an export option once the manuscript satisfies the canonical 9.0 readiness threshold or qualified professional equivalent and all package sections are approved.
             </p>
           </div>
 

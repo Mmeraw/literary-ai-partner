@@ -319,7 +319,7 @@ export default function Home() {
               {[
                 ["Verified Access Only", "Publishing users are approved before viewing any project materials."],
                 ["Creator-Controlled Visibility", "Creators decide what is visible and to whom. Access requires their approval."],
-                ["8.0+ Readiness Gate", "Projects must clear a minimum readiness threshold before eligibility."],
+                ["9.0+ Readiness Gate", "Projects must clear the canonical Storygate readiness threshold before eligibility."],
                 ["Logged Activity", "All access events are recorded and append-only. No anonymous actions."],
                 ["Not a Marketplace", "No public search. No cold contact. No fee to submit your project."],
               ].map(([title, desc]) => (
