@@ -1,0 +1,58 @@
+/* Global button contrast guard.
+ * Gold/amber/orange CTA fills should keep dark ink.
+ * Red/destructive fills must use white ink so Cancel/Delete actions remain legible.
+ */
+
+/* Warm non-destructive buttons: dark ink. */
+a[class*="bg-rg-gold"],
+button[class*="bg-rg-gold"],
+a[class*="bg-amber"],
+button[class*="bg-amber"],
+a[class*="bg-orange"],
+button[class*="bg-orange"],
+a[class*="bg-yellow"],
+button[class*="bg-yellow"] {
+  color: #0d0a05 !important;
+  font-weight: 800 !important;
+  text-shadow: none !important;
+}
+
+/* Red/destructive buttons: white ink. Loaded after globals.css to override older warm-button guards. */
+a[class*="bg-red"],
+button[class*="bg-red"],
+a[class*="bg-rg-danger"],
+button[class*="bg-rg-danger"],
+a[class*="bg-rg-oxblood"],
+button[class*="bg-rg-oxblood"],
+a[class*="bg-rose"],
+button[class*="bg-rose"],
+a[class*="bg-red-600"],
+button[class*="bg-red-600"],
+a[class*="bg-red-700"],
+button[class*="bg-red-700"],
+a[class*="bg-red-800"],
+button[class*="bg-red-800"],
+button[data-variant="destructive"],
+[role="button"][data-variant="destructive"],
+.destructive,
+.danger {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  text-shadow: none !important;
+}
+
+/* Inline-style destructive buttons, including Cancel Evaluation. */
+button[style*="background-color: rgb(122, 30, 30)"],
+a[style*="background-color: rgb(122, 30, 30)"],
+button[style*="background-color:#7A1E1E"],
+a[style*="background-color:#7A1E1E"],
+button[style*="background-color: #7A1E1E"],
+a[style*="background-color: #7A1E1E"],
+button[style*="background:#7A1E1E"],
+a[style*="background:#7A1E1E"],
+button[style*="background: #7A1E1E"],
+a[style*="background: #7A1E1E"] {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  text-shadow: none !important;
+}
