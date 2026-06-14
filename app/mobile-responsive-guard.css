@@ -46,6 +46,104 @@ pre {
   overflow-x: auto;
 }
 
+/* === Admin pipeline health readability guard ===
+ * The dashboard is an operator console, not a data dump. Keep it readable at
+ * 100% zoom: wrap diagnostic text, keep key columns visible, and make the SIPOC
+ * strip explain itself without horizontal fighting.
+ */
+main:has(h1) section:has(h2) .overflow-x-auto {
+  scrollbar-color: rgba(225, 188, 106, 0.55) rgba(248, 239, 223, 0.08);
+}
+
+main:has(h1) table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+main:has(h1) th,
+main:has(h1) td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+main:has(h1) td[title],
+main:has(h1) td span[title] {
+  white-space: normal;
+}
+
+main:has(h1) section:has(h2) table th,
+main:has(h1) section:has(h2) table td {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+/* Recent failed jobs: prioritize the forensic link, stage, code, and readable failure detail. */
+main:has(h1) section:has(h2) table th:nth-child(1),
+main:has(h1) section:has(h2) table td:nth-child(1) {
+  width: 9rem;
+}
+
+main:has(h1) section:has(h2) table th:nth-child(7),
+main:has(h1) section:has(h2) table td:nth-child(7) {
+  width: 13rem;
+}
+
+main:has(h1) section:has(h2) table th:nth-child(8),
+main:has(h1) section:has(h2) table td:nth-child(8) {
+  min-width: 22rem;
+  max-width: 34rem;
+  white-space: normal;
+  line-height: 1.55;
+}
+
+@media (max-width: 1280px) {
+  main:has(h1) section:has(h2) table th:nth-child(2),
+  main:has(h1) section:has(h2) table td:nth-child(2),
+  main:has(h1) section:has(h2) table th:nth-child(3),
+  main:has(h1) section:has(h2) table td:nth-child(3),
+  main:has(h1) section:has(h2) table th:nth-child(4),
+  main:has(h1) section:has(h2) table td:nth-child(4),
+  main:has(h1) section:has(h2) table th:nth-child(5),
+  main:has(h1) section:has(h2) table td:nth-child(5),
+  main:has(h1) section:has(h2) table th:nth-child(9),
+  main:has(h1) section:has(h2) table td:nth-child(9),
+  main:has(h1) section:has(h2) table th:nth-child(10),
+  main:has(h1) section:has(h2) table td:nth-child(10),
+  main:has(h1) section:has(h2) table th:nth-child(11),
+  main:has(h1) section:has(h2) table td:nth-child(11),
+  main:has(h1) section:has(h2) table th:nth-child(12),
+  main:has(h1) section:has(h2) table td:nth-child(12),
+  main:has(h1) section:has(h2) table th:nth-child(13),
+  main:has(h1) section:has(h2) table td:nth-child(13),
+  main:has(h1) section:has(h2) table th:nth-child(14),
+  main:has(h1) section:has(h2) table td:nth-child(14),
+  main:has(h1) section:has(h2) table th:nth-child(16),
+  main:has(h1) section:has(h2) table td:nth-child(16),
+  main:has(h1) section:has(h2) table th:nth-child(17),
+  main:has(h1) section:has(h2) table td:nth-child(17),
+  main:has(h1) section:has(h2) table th:nth-child(18),
+  main:has(h1) section:has(h2) table td:nth-child(18) {
+    display: none;
+  }
+}
+
+/* SIPOC cards currently use light backgrounds with cream text; force readable ink. */
+main:has(h2) .bg-red-50,
+main:has(h2) .bg-green-50,
+main:has(h2) .bg-gray-50 {
+  color: #24170e !important;
+}
+
+main:has(h2) .bg-red-50 span,
+main:has(h2) .bg-green-50 span,
+main:has(h2) .bg-gray-50 span,
+main:has(h2) .bg-red-50 p,
+main:has(h2) .bg-green-50 p,
+main:has(h2) .bg-gray-50 p {
+  color: #24170e !important;
+}
+
 @supports not (overflow-x: clip) {
   html,
   body {
