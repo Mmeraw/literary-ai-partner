@@ -1,0 +1,82 @@
+/* Premium RevisionGrade report overrides.
+   Purpose: remove dark-on-dark report surfaces and restore the public brand palette. */
+
+main > .min-h-screen.bg-\[\#F6F1EA\] {
+  background:
+    radial-gradient(circle at top left, rgba(184, 146, 42, 0.08), transparent 28rem),
+    #f6f1ea;
+}
+
+main > .min-h-screen.bg-\[\#F6F1EA\] header {
+  box-shadow: 0 14px 34px rgba(60, 42, 26, 0.06) !important;
+}
+
+/* Report hero score/readiness card: replace the old black card with paper, burgundy, and gold. */
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"],
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #b8922a !important;
+  background: linear-gradient(180deg, #fffaf0 0%, #f7ead2 100%) !important;
+  color: #1c1814 !important;
+  box-shadow: 0 12px 28px rgba(80, 44, 28, 0.12) !important;
+}
+
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"]::before,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0.35rem;
+  background: linear-gradient(90deg, #6f1d1b, #b8922a);
+}
+
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"] p,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"] span,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] p,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] span {
+  color: #1c1814 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"] p:first-child,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] p:first-child,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"] div p:first-child,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] div p:first-child {
+  color: #6f1d1b !important;
+  letter-spacing: 0.18em !important;
+}
+
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"] > p:nth-child(2),
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] > p:nth-child(2) {
+  color: #6f1d1b !important;
+}
+
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"] div,
+main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] div {
+  border-top-color: rgba(184, 146, 42, 0.65) !important;
+}
+
+/* Keep report action buttons readable and on-brand. */
+main > .min-h-screen.bg-\[\#F6F1EA\] a[href*="/workbench"] {
+  background: #6f1d1b !important;
+  color: #fffaf0 !important;
+  border: 1px solid #8b2e2e !important;
+}
+
+main > .min-h-screen.bg-\[\#F6F1EA\] a[href*="/workbench"]:hover {
+  background: #8b2e2e !important;
+}
+
+@media (max-width: 760px) {
+  main > .min-h-screen.bg-\[\#F6F1EA\] header > div:nth-of-type(2) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-[#1C1814]"],
+  main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] {
+    width: 100% !important;
+  }
+}
