@@ -1294,6 +1294,13 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
       ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(cleanReportText(item))}</span></li>`).join('')}</ul>`
       : '<p>None supplied.</p>';
 
+  const renderOpportunityFields = (rows: Array<[string, string]>) => rows
+    .map(([label, value]) => {
+      const valHtml = label === 'Evidence' ? `\u201c${escapeHtml(value)}\u201d` : escapeHtml(value);
+      return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="opp-val">${valHtml}</div></div>`;
+    })
+    .join('');
+
   const criteriaRows = doc.criteriaScoreGrid
     .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td class="score-cell ${scorePaletteClassFromLabel(row.scoreLabel)}">${escapeHtml(row.scoreLabel)}</td><td><span class="confidence-pill ${confidencePaletteClass(row.confidenceLabel)}">${escapeHtml(row.confidenceLabel)}</span></td></tr>`)
     .join('');
@@ -1304,10 +1311,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
         ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
             const rows = opportunityRows(r as ExportRecommendation);
             const detailHtml = rows.length > 0
-              ? `<table class="opp-table">${rows.map(([label, value]) => {
-                  const valHtml = label === 'Evidence' ? `<em>\u201c${escapeHtml(value)}\u201d</em>` : escapeHtml(value);
-                  return `<tr><td class="opp-key">${escapeHtml(label)}</td><td class="opp-val">${valHtml}</td></tr>`;
-                }).join('')}</table>`
+              ? renderOpportunityFields(rows)
               : `<p class="opp-row">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
             return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
           }).join('')}</div>`
@@ -1325,18 +1329,18 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
 
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(doc.title)} - RevisionGrade Report</title><style>
     @page{size:Letter;margin:0.66in 0.68in 0.78in;@bottom-center{content:'RevisionGrade™ | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
-    *{box-sizing:border-box}
+    *{box-sizing:border-box;min-width:0}
     body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.5;font-size:10.3pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
     .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page}
     .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
     .brand{font-family:Georgia,'Times New Roman',serif;font-size:24pt;font-weight:700;color:#8B2E2E;letter-spacing:.01em}
     .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#5C5549;margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
     .hero{display:grid;grid-template-columns:minmax(0,1fr) 2.35in;gap:0.28in;margin-top:0.38in;align-items:start}
     .title{font-size:31pt;line-height:1.08;color:#1C1814;margin:0 0 10px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:12pt;margin:0;text-transform:uppercase;letter-spacing:.05em}
-    .score-box{background:#1C1814;border:2px solid #B8922A;border-radius:10px;padding:0.22in 0.18in;color:#F5EFE0;text-align:center;box-shadow:0 8px 18px rgba(28,24,20,.08)}
-    .score-box .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#C8A96E;letter-spacing:.06em}
-    .score-box .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px}
-    .score-box .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#F5E9C8;letter-spacing:.04em}
+    .readiness-card{border:2px solid #D9D0C3;border-radius:10px;padding:0.22in 0.18in;color:#1A1A1A;text-align:center;box-shadow:0 8px 18px rgba(111,29,27,.06);break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
+    .readiness-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D;color:#1A1A1A}.readiness-card.readiness-watch{background:#FFF6E8;border-color:#D9A441;color:#1A1A1A}.readiness-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A;color:#1A1A1A}.readiness-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3;color:#1A1A1A}
+    .readiness-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}.readiness-card .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px;color:#1A1A1A}.readiness-card .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#1A1A1A;letter-spacing:.04em}
     .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
     .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
     .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
@@ -1347,16 +1351,15 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
     .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
     .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:7px;color:#1C1814}
     .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
-    .opp-block{margin-top:10px;padding:11px 14px;background:#F7F1EA;border-left:4px solid #8B2E2E;border-radius:0 6px 6px 0;break-inside:avoid}
+    .opp-block{margin-top:10px;background:#FFFDF9;border:1px solid #E6DED2;border-left:3px solid #C8A96E;padding:12px 14px;border-radius:8px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
     .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8B2E2E;margin-bottom:6px}
     .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
     .opp-row strong{color:#5C5549}
-    .opp-row em{color:#6B5E52;font-style:italic}
-    .opp-table{width:100%;border-collapse:collapse;table-layout:auto;margin:4px 0}.opp-table tr{border-bottom:1px solid #E6DED2}.opp-table tr:last-child{border-bottom:none}.opp-table td{text-align:left!important;vertical-align:top;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5C5549;width:1.25in!important;min-width:1.25in;max-width:1.25in;vertical-align:top;padding:4px 8px 4px 0}.opp-val{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;vertical-align:top;padding:4px 0;line-height:1.4;width:auto!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}
-    .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong,.readiness-strong{color:#3A6B2A}.score-watch,.readiness-watch{color:#8B5E1A}.score-risk,.readiness-risk{color:#8B2020}.score-muted,.readiness-muted{color:#5C5549}
+    .opp-row em{color:#6B5E52;font-style:normal}.opp-field{margin-top:8px;padding-top:6px;border-top:1px solid #EDE7DE;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;margin-bottom:2px}.opp-val{display:block;width:100%;font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#1C1814;line-height:1.45;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
     .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
-    .action-card{margin-bottom:8px;padding:10px 14px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:5px}
+    .action-card{margin-bottom:8px;padding:10px 14px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:5px;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}
     .action-card .action-text{font-weight:600;color:#1C1814;font-size:10pt}
     .action-card .action-meta{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549;margin-top:3px}
   </style></head><body>
@@ -1369,7 +1372,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
           <p class="subtitle">${escapeHtml(doc.titleBlock.reportType)}</p>
           ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
         </div>
-        <aside class="score-box">
+        <aside class="readiness-card ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">
           <div class="label">Overall Score</div>
           <div class="value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}</div>
           ${doc.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(doc.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
@@ -1411,7 +1414,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
-    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> <em>"${escapeHtml(cleanReportText(item.anchor_snippet))}"</em></p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> <em>"${escapeHtml(cleanReportText(item.candidate_text_a))}"</em></p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> <em>"${escapeHtml(cleanReportText(item.anchor_snippet))}"</em></p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> <em>"${escapeHtml(cleanReportText(item.candidate_text_a))}"</em></p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
+    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
     <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     <section><h2>Author-Facing Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
@@ -1991,6 +1994,7 @@ function renderPremiumReportHtml(
   });
   const readinessScore = readinessCriterion?.score_0_10;
   const readinessConfidence = readinessCriterion?.confidence_level ? formatConfidenceLabel(readinessCriterion.confidence_level) : null;
+  const legacyReadinessClass = readinessPaletteClass(metadata.verdict);
   const dialogueRatio = enrichment?.dialogue_percentage != null
     ? `${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`
     : null;
@@ -2064,11 +2068,16 @@ function renderPremiumReportHtml(
     .metric { padding: 0.12in 0.14in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 6px; }
     dt { margin: 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
     dd { margin: 0.04in 0 0; color: #1c1814; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; font-weight: 600; }
-    .score-card { padding: 0.22in; color: #f5efe0; background: #1c1814; border: 2px solid #b8922a; border-radius: 8px; }
-    .score-card span { display: block; color: #c8a96e; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
-    .score-card strong { display: block; margin-top: 0.08in; font-family: Georgia, "Times New Roman", serif; font-size: 38pt; line-height: 1; color: #fff; }
-    .score-card small { color: #c8a96e; font-size: 16pt; }
-    .badge { display: inline-block; margin-top: 0.12in; padding: 0.04in 0.12in; border: 1px solid #c8a96e; border-radius: 999px; color: #f5e9c8; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; font-weight: 700; text-transform: uppercase; }
+    body, p, li, td, div, span { overflow-wrap: anywhere; word-break: normal; hyphens: auto; }
+    .score-card { padding: 0.22in; color: #1a1a1a; background: #faf7f2; border: 2px solid #d9d0c3; border-radius: 8px; max-width: 100%; overflow: visible; white-space: normal; }
+    .score-card.readiness-strong { background: #eef7ef; border-color: #9dc79d; color: #1a1a1a; }
+    .score-card.readiness-watch { background: #fff6e8; border-color: #d9a441; color: #1a1a1a; }
+    .score-card.readiness-risk { background: #fdeeee; border-color: #c97a7a; color: #1a1a1a; }
+    .score-card.readiness-muted { background: #faf7f2; border-color: #d9d0c3; color: #1a1a1a; }
+    .score-card span { display: block; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .score-card strong { display: block; margin-top: 0.08in; font-family: Georgia, "Times New Roman", serif; font-size: 38pt; line-height: 1; color: #1a1a1a; }
+    .score-card small { color: #5c5549; font-size: 16pt; }
+    .badge { display: inline-block; margin-top: 0.12in; padding: 0.04in 0.12in; border: 1px solid #d9d0c3; border-radius: 999px; color: #1a1a1a; background: rgba(255,255,255,.55); font-family: Helvetica, Arial, sans-serif; font-size: 10pt; font-weight: 700; text-transform: uppercase; max-width: 100%; white-space: normal; }
     .readiness { margin-top: 0.16in; padding: 0.16in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; }
     .readiness h2 { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #5c5549; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; }
     .readiness strong { display: block; margin-top: 0.08in; color: #1c1814; font-size: 18pt; }
@@ -2125,7 +2134,7 @@ function renderPremiumReportHtml(
         ${renderMetric('Confidentiality', 'Prepared for author/editorial use')}
       </dl>
       <aside>
-        <div class="score-card"><span>Overall Score</span><strong>${escapeHtml(formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
+        <div class="score-card ${legacyReadinessClass}"><span>Overall Score</span><strong>${escapeHtml(formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
         ${readinessCriterion ? `<div class="readiness"><h2>Market Readiness</h2><strong>${escapeHtml(scoreLabel(readinessScore, 10))}</strong>${readinessConfidence ? `<p>${escapeHtml(readinessConfidence)}</p>` : ''}${readinessCriterion.rationale ? `<p>${escapeHtml(cleanReportText(readinessCriterion.rationale, '', { blockTruncation: true }))}</p>` : ''}</div>` : ''}
       </aside>
     </div>
