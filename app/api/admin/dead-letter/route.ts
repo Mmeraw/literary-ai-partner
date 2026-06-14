@@ -53,10 +53,14 @@ export async function GET(req: NextRequest) {
   const failed_before = searchParams.get("failed_before");
   const cursorParam = searchParams.get("cursor");
   const limitParam = searchParams.get("limit");
-  // Test manuscripts (id >= 9000) are hidden by default. Opt in with
-  // `?show_test=1` (or "true"). See OPERATIONS.md "Test manuscript range".
+  // Test manuscripts (id >= 9000) are shown by default for admin visibility.
+  // Opt out with `?show_test=0` (or "false").
   const showTestParam = (searchParams.get("show_test") ?? "").toLowerCase();
-  const showTestManuscripts = showTestParam === "1" || showTestParam === "true";
+  const showTestManuscripts = !(
+    showTestParam === "0" ||
+    showTestParam === "false" ||
+    showTestParam === "no"
+  );
 
   // Parse pagination
   const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;

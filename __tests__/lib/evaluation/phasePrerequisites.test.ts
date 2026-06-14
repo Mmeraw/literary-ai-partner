@@ -173,6 +173,51 @@ describe('phase prerequisite contract', () => {
     expect(decision.blockingCodes).toContain('PHASE_1A_STORY_LAYER_MISSING');
   });
 
+  test('blocks Phase 2 when ledger quality report requires repair', () => {
+    const decision = evaluatePhase2Prerequisites({
+      artifacts: [
+        { artifact_type: 'pass1a_story_layer_v1', content: { schema_valid: true, semantic_status: 'valid' } },
+        {
+          artifact_type: 'ledger_quality_report_v1',
+          content: {
+            schema_valid: true,
+            semantic_status: 'valid',
+            quality_report: {
+              gate_ready_status: 'repair_required',
+              hard_fail_present: false,
+            },
+          },
+        },
+      ],
+      route: 'long_form',
+    });
+
+    expect(decision.ok).toBe(false);
+    expect(decision.blockingCodes).toContain('PHASE_1A_LEDGER_QUALITY_NOT_REVIEWABLE');
+  });
+
+  test('allows Phase 2 only when ledger quality report is reviewable', () => {
+    const decision = evaluatePhase2Prerequisites({
+      artifacts: [
+        { artifact_type: 'pass1a_story_layer_v1', content: { schema_valid: true, semantic_status: 'valid' } },
+        {
+          artifact_type: 'ledger_quality_report_v1',
+          content: {
+            schema_valid: true,
+            semantic_status: 'valid',
+            quality_report: {
+              gate_ready_status: 'reviewable',
+              hard_fail_present: false,
+            },
+          },
+        },
+      ],
+      route: 'long_form',
+    });
+
+    expect(decision.ok).toBe(true);
+  });
+
   test('blocks Phase 3 when Phase 2 handoff is missing', () => {
     const decision = evaluatePhase3Prerequisites({ artifacts: [] });
     expect(decision.ok).toBe(false);

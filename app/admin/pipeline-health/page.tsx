@@ -184,7 +184,7 @@ export default function PipelineHealthPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [windowParam, setWindowParam] = useState("24h");
-  const [showTestManuscripts, setShowTestManuscripts] = useState(false);
+  const [showTestManuscripts, setShowTestManuscripts] = useState(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
 
@@ -194,7 +194,7 @@ export default function PipelineHealthPage() {
         setLoading(true);
       }
       if (!isAutoRefresh) setError(null);
-      const showTestQs = showTest ? "&show_test=1" : "";
+      const showTestQs = `&show_test=${showTest ? "1" : "0"}`;
       fetch(`/api/admin/pipeline-health?window=${win}&limit=100${showTestQs}`)
         .then((res) => {
           if (res.status === 401 || res.status === 403) {

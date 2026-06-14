@@ -288,6 +288,21 @@ describe("Forensic Stage Inference", () => {
 
       expect(autoExpandIds).toEqual(["quality_gate"]);
     });
+
+    it("terminal phase_3 failed jobs render Phase 3 as failed, not Phase 2 running/P3 pending", () => {
+      const terminalPhase3Opts = {
+        ...baseOpts,
+        failedStageRaw: "phase_3",
+        phaseHighwater: getPhaseHighwaterIndex("phase_3"),
+      };
+
+      const pass2Result = inferStageResult(SIPOC_STAGES[7], 7, terminalPhase3Opts);
+      const pass3Result = inferStageResult(SIPOC_STAGES[8], 8, terminalPhase3Opts);
+
+      expect(pass2Result).toBe("inferred_pass");
+      expect(pass3Result).toBe("fail");
+      expect(pass3Result).not.toBe("not_reached");
+    });
   });
 
   describe("Completed job renders all stages as pass (not inferred)", () => {

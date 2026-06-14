@@ -2672,6 +2672,29 @@ export function synthesisToEvaluationResultV2(
 
   const detectedMode = detectModeFromManuscript(opts.manuscriptText || "");
 
+  const expectationContext = synthesis.metadata.genre_expectation_context;
+  const fallbackPremiseFromPitch =
+    typeof synthesis.overall.one_sentence_pitch === "string" && synthesis.overall.one_sentence_pitch.trim().length > 0
+      ? synthesis.overall.one_sentence_pitch.trim()
+      : undefined;
+
+  // Template completeness hard requirements (phase_3 pre-persistence gate):
+  // - one sentence pitch OR enrichment.premise
+  // - diagnosed genre
+  // - target audience
+  //
+  // Pass 3 can emit genre/target context in metadata even when enrichment fields
+  // are omitted. Preserve fail-closed semantics while preventing false-fail drops
+  // by deterministically backfilling from authoritative metadata context.
+  const resolvedLlmEnrichment: NonNullable<SynthesisToEvaluationResultOptions["llmEnrichment"]> = {
+    premise: opts.llmEnrichment?.premise?.trim() || fallbackPremiseFromPitch,
+    trigger_warnings: opts.llmEnrichment?.trigger_warnings,
+    diagnosed_genre:
+      opts.llmEnrichment?.diagnosed_genre?.trim() || expectationContext?.diagnosed_genre?.trim(),
+    target_audience:
+      opts.llmEnrichment?.target_audience?.trim() || expectationContext?.shelf_target_audience?.trim(),
+  };
+
   const criteria = synthesis.criteria
     .map((c) =>
       normalizeCriterion(
@@ -2871,13 +2894,15 @@ export function synthesisToEvaluationResultV2(
         title: opts.title?.trim() || undefined,
         word_count: opts.manuscriptText ? countWords(opts.manuscriptText) : undefined,
         char_count: opts.manuscriptText?.length,
+        genre: resolvedLlmEnrichment.diagnosed_genre,
+        target_audience: resolvedLlmEnrichment.target_audience,
         requested_english_variant: opts.englishVariant ?? "us",
         resolved_english_variant: resolvedEnglishVariantLabel(opts.englishVariant),
       },
       processing: {},
     },
     enrichment: opts.manuscriptText
-      ? computeEnrichment(opts.manuscriptText, opts.llmEnrichment)
+      ? computeEnrichment(opts.manuscriptText, resolvedLlmEnrichment)
       : undefined,
     artifacts: [],
     governance: {

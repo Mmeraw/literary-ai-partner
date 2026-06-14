@@ -507,6 +507,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       ]),
     );
     expect(persistedArtifactTypes).not.toContain("evaluation_result_v2");
+    expect(persistedArtifactTypes).not.toContain("failure_diagnosis_v1");
     expect(
       supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(true);

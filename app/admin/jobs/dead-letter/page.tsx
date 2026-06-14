@@ -28,17 +28,20 @@ export default function DeadLetterQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryingJobs, setRetryingJobs] = useState<Set<string>>(new Set());
+  const [showTestManuscripts, setShowTestManuscripts] = useState(true);
+  const [testManuscriptIdMin, setTestManuscriptIdMin] = useState<number>(9000);
 
   useEffect(() => {
     fetchFailedJobs();
-  }, []);
+  }, [showTestManuscripts]);
 
   async function fetchFailedJobs() {
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/admin/dead-letter");
+      const showTestQs = showTestManuscripts ? "1" : "0";
+      const res = await fetch(`/api/admin/dead-letter?show_test=${showTestQs}`);
 
       if (!res.ok) {
         const errData = await res.json();
@@ -47,6 +50,7 @@ export default function DeadLetterQueuePage() {
 
       const data = await res.json();
       setJobs(data.jobs || []);
+      setTestManuscriptIdMin(data?.filters?.testManuscriptIdMin ?? 9000);
     } catch (err) {
       console.error("[Dead-Letter UI] Error fetching jobs:", err);
       setError(err instanceof Error ? err.message : String(err));
@@ -116,6 +120,18 @@ export default function DeadLetterQueuePage() {
             Jobs in the canonical failed state. Retrying resets status to queued and
             clears failed_at.
           </p>
+          <div className="mt-4">
+            <label className="inline-flex items-center gap-2 rounded border border-rg-cream2/20 bg-rg-ink2/70 px-3 py-1.5 text-sm font-semibold text-rg-cream2/70 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showTestManuscripts}
+                onChange={(e) => setShowTestManuscripts(e.target.checked)}
+                className="rounded border-slate-400"
+              />
+              Show test manuscripts
+              <span className="text-xs font-medium text-rg-cream2/50">(id ≥ {testManuscriptIdMin})</span>
+            </label>
+          </div>
         </header>
 
         {loading && (

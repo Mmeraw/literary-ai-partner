@@ -22,12 +22,15 @@ export default function AdminJobsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showTestManuscripts, setShowTestManuscripts] = useState(true);
+  const [testManuscriptIdMin, setTestManuscriptIdMin] = useState<number>(9000);
   const router = useRouter();
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
     params.set("limit", "50");
+    params.set("show_test", showTestManuscripts ? "1" : "0");
 
     fetch(`/api/admin/jobs?${params}`)
       .then((res) => {
@@ -41,6 +44,7 @@ export default function AdminJobsPage() {
         if (!data) return;
         if (data.ok && Array.isArray(data.jobs)) {
           setJobs(data.jobs);
+          setTestManuscriptIdMin(data?.filters?.testManuscriptIdMin ?? 9000);
         } else if (data.success && data.data) {
           setJobs(Array.isArray(data.data) ? data.data : data.data.jobs ?? []);
         } else if (data.error) {
@@ -51,7 +55,7 @@ export default function AdminJobsPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [statusFilter, router]);
+  }, [statusFilter, showTestManuscripts, router]);
 
   if (loading) {
     return (
@@ -116,6 +120,19 @@ export default function AdminJobsPage() {
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
+          <label className="ml-2 flex items-center gap-2 rounded border border-rg-cream2/20 bg-rg-ink2/70 px-3 py-1.5 text-sm font-semibold text-rg-cream2/70 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showTestManuscripts}
+              onChange={(e) => {
+                setLoading(true);
+                setShowTestManuscripts(e.target.checked);
+              }}
+              className="rounded border-slate-400"
+            />
+            Show test manuscripts
+            <span className="text-xs font-medium text-rg-cream2/50">(id ≥ {testManuscriptIdMin})</span>
+          </label>
         </div>
 
         <p className="text-sm text-rg-cream2/70">

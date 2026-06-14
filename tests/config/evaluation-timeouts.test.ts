@@ -28,6 +28,19 @@ describe("resolveEvaluationTimeoutConfig", () => {
     expect(config.openAiTimeout.reason).toBe("explicit_env");
   });
 
+  it("promotes OpenAI timeout when an exported shell value is below the pass timeout", () => {
+    const config = resolveEvaluationTimeoutConfig({
+      EVAL_PASS_TIMEOUT_MS: "720000",
+      EVAL_OPENAI_TIMEOUT_MS: "30000",
+    }, {});
+
+    expect(config.passTimeout.valueMs).toBe(720000);
+    expect(config.openAiTimeout.valueMs).toBe(720000);
+    expect(config.openAiTimeout.reason).toBe("promoted_to_pass_timeout");
+    expect(config.openAiTimeout.originalValueMs).toBe(30000);
+    expect(config.openAiTimeout.originalReason).toBe("explicit_env");
+  });
+
   it("falls back for malformed env values", () => {
     const config = resolveEvaluationTimeoutConfig({
       EVAL_PASS_TIMEOUT_MS: "abc",
@@ -57,8 +70,10 @@ describe("resolveEvaluationTimeoutConfig", () => {
 
     expect(config.passTimeout.reason).toBe("clamped_to_min");
     expect(config.passTimeout.valueMs).toBe(10000);
-    expect(config.openAiTimeout.reason).toBe("clamped_to_min");
-    expect(config.openAiTimeout.valueMs).toBe(1000);
+    expect(config.openAiTimeout.reason).toBe("promoted_to_pass_timeout");
+    expect(config.openAiTimeout.valueMs).toBe(10000);
+    expect(config.openAiTimeout.originalReason).toBe("clamped_to_min");
+    expect(config.openAiTimeout.originalValueMs).toBe(1000);
   });
 
   it("clamps numeric values above the maximum", () => {
@@ -83,8 +98,10 @@ describe("resolveEvaluationTimeoutConfig", () => {
       baseline,
     );
 
-    expect(config.openAiTimeout.reason).toBe("conflicting_env_override");
-    expect(config.openAiTimeout.valueMs).toBe(180000);
+    expect(config.openAiTimeout.reason).toBe("promoted_to_pass_timeout");
+    expect(config.openAiTimeout.valueMs).toBe(720000);
+    expect(config.openAiTimeout.originalReason).toBe("conflicting_env_override");
+    expect(config.openAiTimeout.originalValueMs).toBe(180000);
     expect(config.openAiTimeout.conflict).toEqual({ raw: "180000", source: ".env.local" });
   });
 
@@ -115,7 +132,7 @@ describe("resolveEvaluationTimeoutConfig", () => {
     );
 
     expect(formatTimeoutResolutionSummary(config)).toContain(
-      'EVAL_OPENAI_TIMEOUT_MS=conflicting_env_override(180000) ignored_shell="30000" using=.env.local("180000")',
+      "EVAL_OPENAI_TIMEOUT_MS=promoted_to_pass_timeout(720000) original=180000 original_reason=conflicting_env_override",
     );
     expect(formatTimeoutResolutionSummary(config)).toContain(
       'EVAL_PASS_TIMEOUT_MS=malformed_env_fallback(720000) raw="abc"',
@@ -134,7 +151,7 @@ describe("resolveEvaluationTimeoutConfig", () => {
     );
   });
 
-  it("still throws on invalid raw inequality when no local baseline is provided", () => {
+  it("does not throw on raw inequality because OpenAI timeout is promoted to the pass timeout", () => {
     expect(() => {
       assertEvalTimeoutConfig(
         {
@@ -143,6 +160,17 @@ describe("resolveEvaluationTimeoutConfig", () => {
         },
         {},
       );
-    }).toThrow(/\[CONFIG_ERROR\].*EVAL_OPENAI_TIMEOUT_MS.*must be.*>=.*EVAL_PASS_TIMEOUT_MS/);
+    }).not.toThrow();
+
+    const config = resolveEvaluationTimeoutConfig(
+      {
+        EVAL_PASS_TIMEOUT_MS: "180000",
+        EVAL_OPENAI_TIMEOUT_MS: "60000",
+      },
+      {},
+    );
+    expect(formatTimeoutResolutionSummary(config)).toContain(
+      "EVAL_OPENAI_TIMEOUT_MS=promoted_to_pass_timeout(180000) original=60000 original_reason=explicit_env",
+    );
   });
 });

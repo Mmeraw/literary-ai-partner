@@ -16,7 +16,10 @@ import { backpressureGuard } from "@/lib/jobs/backpressure";
 import { isTriggerWorkerFailure, triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
 import { computeEnrichment, type EnrichmentResult } from "@/lib/evaluation/enrichment";
-import { routeNarrativeEvaluationPreflight } from "@/lib/evaluation/preflight/manuscriptTypeRouting";
+import {
+  buildNarrativePreflightAudit,
+  routeNarrativeEvaluationPreflight,
+} from "@/lib/evaluation/preflight/manuscriptTypeRouting";
 import { createInitialVersion } from "@/lib/manuscripts/versions";
 import { attachFreeDiagnosticJob, claimFreeDiagnostic } from "@/lib/freeDiagnostic/claims";
 import { normalizeEnglishVariant } from "@/lib/evaluation/englishVariant";
@@ -460,10 +463,7 @@ export async function POST(req: Request) {
 
       const preflightDecision = routeNarrativeEvaluationPreflight(trimmedText);
       // Audit-only: record detected type in job progress but never block submission.
-      narrativePreflightAudit = {
-        narrative_preflight_detected_type: preflightDecision.detectedType,
-        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
-      };
+      narrativePreflightAudit = buildNarrativePreflightAudit(preflightDecision);
 
       const encodedText = encodeURIComponent(trimmedText);
       const fileUrl = `data:text/plain;charset=utf-8,${encodedText}`;
@@ -562,10 +562,7 @@ export async function POST(req: Request) {
 
       const preflightDecision = routeNarrativeEvaluationPreflight(intakeManuscriptText);
       // Audit-only: record detected type in job progress but never block submission.
-      narrativePreflightAudit = {
-        narrative_preflight_detected_type: preflightDecision.detectedType,
-        ...(preflightDecision.allowed ? {} : { narrative_preflight_classifier_flagged: true }),
-      };
+      narrativePreflightAudit = buildNarrativePreflightAudit(preflightDecision);
 
       try {
         const sourceVersion = await createInitialVersion({

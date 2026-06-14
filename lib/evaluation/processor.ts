@@ -643,7 +643,9 @@ export function classifyFailureBucket(code: string | null | undefined): FailureB
       code === 'CONTEXT_CONTAMINATION_DETECTED') return 'supabase_contract';
   // OpenAI / provider transient
   if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
+      code === 'PASS1_TIMEOUT' || code === 'PASS2_TIMEOUT' || code === 'PASS3_TIMEOUT' ||
       code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
+      code === 'PHASE2_PASS12_FAILED' ||
       code === 'PASS2_INDEPENDENCE_REWRITE_FAILED') return 'openai_provider';
   // Vercel / platform
   if (code.startsWith('VERCEL_') || code === 'WORKER_TIMEOUT' ||
@@ -1837,6 +1839,7 @@ const TERMINAL_FAILURE_PREFIXES = [
   'PIPELINE_INPUT_INVALID', // Bad input — won't improve on retry
   'SCHEMA_INVALID',         // DB schema error — not transient
   'SCHEMA_VIOLATION',       // DB schema error — not transient
+  'SCHEMA_VALIDATION_FAILED', // Canonical schema validation failure — non-transient
   'MANUSCRIPT_NOT_FOUND',   // Data missing — won't appear on retry
   'AUTH_FAILED',            // Credential error — not transient
   'AUTHORIZATION_ERROR',    // Same
@@ -1892,12 +1895,19 @@ export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | unde
   if (
     code.startsWith('OPENAI_') ||
     code.startsWith('PERPLEXITY_') ||
+    code === 'PASS1_TIMEOUT' ||
+    code === 'PASS2_TIMEOUT' ||
+    code === 'PASS3_TIMEOUT' ||
     code === 'PASS4_EXTERNAL_ADJUDICATION_FAILED'
   ) {
     return 3;
   }
 
   return 2;
+}
+
+export function isSelfRecoverableFailureCode(code: string | null | undefined): boolean {
+  return !isTerminalFailureCode(code) && maxSelfRecoveryAttemptsForFailureCode(code) > 0;
 }
 
 /**
@@ -5142,6 +5152,7 @@ export async function processEvaluationJob(
         errorMessage,
         context: failureContext,
       });
+      const retryEligibleFailureCode = isSelfRecoverableFailureCode(errorCode);
       const pipelineFailureDiagnostics = normalizeFailureDiagnostics(failureContext?.diagnostics);
       const failedPhase =
         progressState.phase === 'phase_3' || executionPhase === 'phase_3' ? 'phase_3' :
@@ -5193,6 +5204,9 @@ export async function processEvaluationJob(
           created_at: failureDiagnosis.created_at,
           failure_point: failureDiagnosis.failure_point,
           recommended_next_action: failureDiagnosis.recommended_next_action,
+          ...(failureDiagnosis.template_gate_failure
+            ? { template_gate_failure: failureDiagnosis.template_gate_failure }
+            : {}),
         };
       } catch (failureDiagnosisError) {
         console.warn('[Processor] failure diagnosis persistence failed (non-fatal)', {
@@ -5220,7 +5234,7 @@ export async function processEvaluationJob(
           failure_message: errorMessage,
           source,
           pipeline_stage: failureContext?.pipelineStage ?? null,
-          retry_eligible: false,
+          retry_eligible: retryEligibleFailureCode,
           diagnostics: pipelineFailureDiagnostics ?? failureContext?.diagnostics ?? null,
           created_at: typeof (job as Record<string, unknown>).created_at === 'string'
             ? ((job as Record<string, unknown>).created_at as string)
@@ -5265,7 +5279,7 @@ export async function processEvaluationJob(
         failure_envelope: {
           code: errorCode,
           message: errorMessage,
-          retryable: false,
+          retryable: retryEligibleFailureCode,
           bucket: pipelineFailureEnvelope.bucket,
           phase: failedPhase,
           pipeline_stage: pipelineFailureEnvelope.pipeline_stage,
@@ -5298,7 +5312,7 @@ export async function processEvaluationJob(
           errorEnvelope: {
             code: errorCode,
             message: errorMessage,
-            retryable: false, // Processor failures are typically deterministic
+            retryable: retryEligibleFailureCode,
           },
         });
 
@@ -5326,6 +5340,7 @@ export async function processEvaluationJob(
 
       if (finalizeSucceeded) {
         // Preserve centralized failure ownership: patch envelope diagnostics into progress only.
+        // GUARD: only update rows that are still running (not already transitioned by watchdog/concurrent worker).
         const { error: progressPatchError } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -5351,7 +5366,10 @@ export async function processEvaluationJob(
             next_attempt_at: null,
             updated_at: now,
           })
-          .eq('id', jobId);
+          .eq('id', jobId)
+          .eq('status', JOB_STATUS.RUNNING)
+          .eq('claimed_by', expectedClaimedBy)
+          .eq('lease_token', expectedLeaseToken);
 
         if (progressPatchError) {
           console.warn(
@@ -5365,10 +5383,15 @@ export async function processEvaluationJob(
       }
 
       // Fail-closed fallback: centralized finalization failed, so we must persist terminal state here.
+      // CRITICAL GUARD: only update rows that are still RUNNING with our lease token.
+      // This prevents the fallback from clobbering rows that have already transitioned (by watchdog, etc.).
       const { error: fallbackError } = await supabase
         .from('evaluation_jobs')
         .update(fallbackPayload)
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING)
+        .eq('claimed_by', expectedClaimedBy)
+        .eq('lease_token', expectedLeaseToken);
 
       if (fallbackError) {
         throw new Error(
@@ -6494,33 +6517,9 @@ export async function processEvaluationJob(
               missingArtifactErr instanceof Error ? missingArtifactErr.message : String(missingArtifactErr));
           }
 
-          // Mark job complete — WAVE is optional, evaluation already persisted
-          nextLifecycleStatus(JOB_STATUS.COMPLETE);
-          const missingNow = new Date().toISOString();
-          await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: JOB_STATUS.COMPLETE,
-              phase: 'phase_3',
-              phase_status: 'complete',
-              completed_at: missingNow,
-              updated_at: missingNow,
-              phase3_completed_at: missingNow,
-              progress: {
-                ...progressState,
-                ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', missingNow),
-                completed_units: 100,
-                phase: 'phase_3',
-                phase_status: 'complete',
-                message: 'WAVE skipped (synthesis artifact missing) — evaluation complete',
-                phase3_wave_status: 'failed',
-                phase3_wave_reason: 'PHASE3_SYNTHESIS_MISSING',
-                phase3_completed_at: missingNow,
-              },
-            })
-            .eq('id', job.id)
-            .eq('status', JOB_STATUS.RUNNING);
-
+          // WAVE skipped (synthesis artifact missing) — evaluation already complete via atomic RPC in phase_2.
+          // Do NOT attempt re-completion here; would violate DB lifecycle trigger.
+          console.log(`[Processor] ${jobId}: phase_3 WAVE skipped (synthesis artifact missing) — evaluation already complete`);
           return { success: true };
         }
 
@@ -6769,64 +6768,37 @@ export async function processEvaluationJob(
           return { success: false, error: `FINALIZATION_GUARD: ${violationCodes}` };
         }
 
-        // All quality checks passed — mark complete.
-        console.log(`[Processor] ${jobId}: phase_3 WAVE complete — marking job complete`);
-        nextLifecycleStatus(JOB_STATUS.COMPLETE);
-        const { error: phase3CompleteErr } = await supabase
-          .from('evaluation_jobs')
-          .update({
-            status: JOB_STATUS.COMPLETE,
-            phase: 'phase_3',
-            phase_status: 'complete',
-            completed_at: phase3Now,
-            updated_at: phase3Now,
-            phase3_completed_at: phase3Now,
-            progress: {
-              ...progressState,
-              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', phase3Now),
-              completed_units: 100,
-              phase: 'phase_3',
-              phase_status: 'complete',
-              message: 'WAVE readiness layer complete',
-              phase3_completed_at: phase3Now,
-            },
-          })
-          .eq('id', job.id)
-          .eq('status', JOB_STATUS.RUNNING);
-
-        if (phase3CompleteErr) {
-          console.error(`[Processor] ${jobId}: phase_3 completion update failed`, phase3CompleteErr.message);
-        }
-
+        // Quality checks passed — evaluation already complete via atomic RPC in phase_2.
+        // WAVE layer completion is reflected in artifacts only; job completion was already finalized.
+        console.log(`[Processor] ${jobId}: phase_3 WAVE complete — evaluation already finalized via atomic RPC`);
         return { success: true };
       } catch (phase3Err) {
         clearInterval(leaseRenewalLoopP3);
         const errMsg = phase3Err instanceof Error ? phase3Err.message : String(phase3Err);
-        console.error(`[Processor] ${jobId}: phase_3 fatal error — evaluation already complete, marking job complete anyway`, errMsg);
-        // Phase_3 fatal error: evaluation already persisted from phase_2. Complete anyway.
-        nextLifecycleStatus(JOB_STATUS.COMPLETE);
+        console.error(`[Processor] ${jobId}: phase_3 fatal error — evaluation already finalized by atomic RPC`, errMsg);
+        // Phase_3 fatal error after evaluation already persisted from phase_2. Do NOT attempt re-completion.
+        // The evaluation is already complete; WAVE errors are logged but do not change job status.
         const errNow = new Date().toISOString();
-        await supabase
+        const { error: diagnosticsPatchErr } = await supabase
           .from('evaluation_jobs')
           .update({
-            status: JOB_STATUS.COMPLETE,
-            phase: 'phase_3',
-            phase_status: 'complete',
-            completed_at: errNow,
-            phase3_completed_at: errNow,
-            updated_at: errNow,
             progress: {
               ...progressState,
-              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', errNow),
               completed_units: 100,
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE phase error (non-fatal) — evaluation complete',
               phase3_error: errMsg,
+              phase3_error_at: errNow,
             },
+            updated_at: errNow,
           })
           .eq('id', job.id)
-          .eq('status', JOB_STATUS.RUNNING);
+          .neq('status', 'failed');
+
+        if (diagnosticsPatchErr) {
+          console.warn(`[Processor] ${jobId}: WAVE error diagnostics patch failed (non-fatal)`, diagnosticsPatchErr.message);
+        }
         return { success: true };
       }
       } // end WAVE-only else
@@ -9077,7 +9049,7 @@ export async function processEvaluationJob(
           .eq('id', job.id)
           .eq('status', JOB_STATUS.RUNNING)
           .select('id, status, phase, phase_status')
-          .single();
+          .maybeSingle();
 
         if (phase1aHandoffErr) {
           console.error(
@@ -10809,6 +10781,8 @@ export async function processEvaluationJob(
             violations: templateCompletenessCheck.violations.map((violation) => ({
               code: violation.code,
               criterion: violation.criterion ?? null,
+              field_path: violation.field_path ?? null,
+              invariant_id: violation.invariant_id ?? null,
               severity: violation.severity,
               message: violation.message,
             })),
@@ -11216,31 +11190,9 @@ export async function processEvaluationJob(
               canonErr instanceof Error ? canonErr.message : String(canonErr));
           }
 
-          // Complete the job — synthesis persisted, WAVE attempted.
-          nextLifecycleStatus(JOB_STATUS.COMPLETE);
-          const phase3InlineNow = new Date().toISOString();
-          const { error: phase3CompleteErr } = await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: JOB_STATUS.COMPLETE,
-              phase: 'phase_3',
-              phase_status: 'complete',
-              completed_at: phase3InlineNow,
-              updated_at: phase3InlineNow,
-              progress: {
-                ...progressState,
-                completed_units: 100,
-                phase: 'phase_3',
-                phase_status: 'complete',
-                message: 'Pass 3B synthesis + WAVE complete',
-                phase3_completed_at: phase3InlineNow,
-              },
-            })
-            .eq('id', job.id)
-            .eq('status', JOB_STATUS.RUNNING);
-          if (phase3CompleteErr) {
-            console.error(`[Processor] ${jobId}: phase_3 inline completion update failed`, phase3CompleteErr.message);
-          }
+          // Synthesis already persisted, WAVE attempted — evaluation is complete via atomic RPC.
+          // Do NOT attempt direct completion write here; violates lifecycle trigger contract.
+          console.log(`[Processor] ${jobId}: phase_3 inline synthesis + WAVE complete — evaluation already finalized via atomic RPC`);
           return { success: true };
         }
 
@@ -11318,7 +11270,7 @@ export async function processEvaluationJob(
       stage: 'processor_complete',
       message: 'Job completed',
       metadata: {
-        status: 'complete',
+        status: JOB_STATUS.COMPLETE,
         score: pipelineResult.synthesis?.overall?.overall_score_0_100 ?? null,
         totalMs: Date.now() - processorStartMs,
         failureCode: null,

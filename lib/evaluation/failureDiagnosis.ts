@@ -40,6 +40,28 @@ export type FailureDiagnosisV1 = {
     confidence?: number;
     reason?: string;
   }>;
+  template_gate_failure?: {
+    title: 'Template Gate Failure';
+    critical_violation?: {
+      code: string;
+      field_path: string;
+      invariant_id: string;
+      source_stage: string;
+      source_artifact_type: string;
+      repair_attempted: boolean;
+      repair_result: 'failed' | 'succeeded' | 'not_attempted' | 'not_applicable';
+      message?: string;
+      criterion?: string | null;
+    };
+    blocking_reasons: Array<{
+      code: string;
+      field_path: string;
+      invariant_id: string;
+      severity: 'critical' | 'warning';
+      message?: string;
+      criterion?: string | null;
+    }>;
+  };
   artifact_inventory: {
     last_successful_artifact?: string;
     first_missing_or_failed_artifact?: string;
@@ -96,6 +118,7 @@ type FailureDiagnosisBuildInput = {
 
 type ArtifactInventory = FailureDiagnosisV1['artifact_inventory'];
 type RepairStatus = FailureDiagnosisV1['repair_status'];
+type TemplateGateFailure = NonNullable<FailureDiagnosisV1['template_gate_failure']>;
 
 const RELEVANT_ARTIFACT_TYPES: readonly ArtifactType[] = [
   'accepted_story_ledger_v1',
@@ -103,6 +126,7 @@ const RELEVANT_ARTIFACT_TYPES: readonly ArtifactType[] = [
   'pass3_preflight_draft_v1',
   'pass_outputs_diagnostic_v1',
   'quality_gate_diagnostics_v1',
+  'post_qg_effective_snapshot_v1',
   'artifact_consistency_gate_v1',
   'evaluation_result_v2',
   'unified_evaluation_document_v1',
@@ -116,6 +140,7 @@ const EXPECTED_ARTIFACT_CHAIN = [
   'pass3_preflight_draft_v1',
   'pass_outputs_diagnostic_v1',
   'quality_gate_diagnostics_v1',
+  'post_qg_effective_snapshot_v1',
   'artifact_consistency_gate_v1',
   'evaluation_result_v2',
   'unified_evaluation_document_v1',
@@ -274,6 +299,112 @@ function buildRepairStatus(
   };
 }
 
+function templateViolationFieldPath(code: string, criterion?: string | null): string {
+  switch (code) {
+    case 'MISSING_DIAGNOSED_GENRE':
+      return 'enrichment.diagnosed_genre';
+    case 'MISSING_TARGET_AUDIENCE':
+      return 'enrichment.target_audience';
+    case 'MISSING_ONE_SENTENCE_PITCH':
+      return 'enrichment.premise';
+    case 'MISSING_ONE_PARAGRAPH_SUMMARY':
+      return 'overview.one_paragraph_summary';
+    case 'INCOMPLETE_TOP_STRENGTHS':
+      return 'overview.top_3_strengths';
+    case 'INCOMPLETE_TOP_RISKS':
+      return 'overview.top_3_risks';
+    case 'CRITERIA_CANON_MISMATCH':
+      return 'criteria';
+    case 'INVALID_CRITERION_SCORE':
+      return criterion ? `criteria.${criterion}.score_0_10` : 'criteria.score_0_10';
+    case 'MISSING_RATIONALE':
+      return criterion ? `criteria.${criterion}.rationale` : 'criteria.rationale';
+    case 'MISSING_EVIDENCE':
+      return criterion ? `criteria.${criterion}.evidence` : 'criteria.evidence';
+    case 'INVALID_CONFIDENCE_LEVEL':
+      return criterion ? `criteria.${criterion}.confidence_level` : 'criteria.confidence_level';
+    case 'DENSITY_FLOOR_VIOLATION':
+    case 'INVALID_HIGH_SCORE_RECOMMENDATIONS':
+      return criterion ? `criteria.${criterion}.recommendations` : 'criteria.recommendations';
+    case 'MISSING_TOP_RECOMMENDATIONS':
+      return 'recommendations';
+    default:
+      return 'template';
+  }
+}
+
+function templateViolationInvariantId(code: string): string {
+  switch (code) {
+    case 'MISSING_DIAGNOSED_GENRE':
+    case 'MISSING_TARGET_AUDIENCE':
+    case 'MISSING_ONE_SENTENCE_PITCH':
+    case 'MISSING_ONE_PARAGRAPH_SUMMARY':
+      return 'required_template_field_present';
+    case 'INCOMPLETE_TOP_STRENGTHS':
+    case 'INCOMPLETE_TOP_RISKS':
+      return 'required_template_array_min_items';
+    case 'CRITERIA_CANON_MISMATCH':
+      return 'canonical_criteria_set_complete';
+    case 'INVALID_CRITERION_SCORE':
+      return 'criterion_score_valid';
+    case 'MISSING_RATIONALE':
+      return 'criterion_rationale_present';
+    case 'MISSING_EVIDENCE':
+      return 'criterion_evidence_present';
+    case 'INVALID_CONFIDENCE_LEVEL':
+      return 'criterion_confidence_level_valid';
+    case 'DENSITY_FLOOR_VIOLATION':
+      return 'criterion_recommendation_density_floor';
+    case 'INVALID_HIGH_SCORE_RECOMMENDATIONS':
+      return 'criterion_recommendation_content_valid';
+    case 'MISSING_TOP_RECOMMENDATIONS':
+      return 'top_recommendations_present_for_low_scores';
+    default:
+      return 'template_completeness_invariant';
+  }
+}
+
+function buildTemplateGateFailure(diagnostics: Record<string, unknown> | null): TemplateGateFailure {
+  const rawViolations = Array.isArray(diagnostics?.violations) ? diagnostics.violations : [];
+  const blockingReasons = rawViolations
+    .filter((violation): violation is Record<string, unknown> => isRecord(violation))
+    .map((violation) => {
+      const code = asString(violation.code) ?? 'TEMPLATE_COMPLETENESS_GATE_FAILED';
+      const criterion = asString(violation.criterion);
+      const severity = asString(violation.severity) === 'warning' ? 'warning' as const : 'critical' as const;
+      return {
+        code,
+        field_path: asString(violation.field_path) ?? templateViolationFieldPath(code, criterion),
+        invariant_id: asString(violation.invariant_id) ?? templateViolationInvariantId(code),
+        severity,
+        message: asString(violation.message) ?? undefined,
+        criterion: criterion ?? null,
+      };
+    });
+
+  const firstCritical = blockingReasons.find((violation) => violation.severity === 'critical');
+
+  return {
+    title: 'Template Gate Failure',
+    ...(firstCritical
+      ? {
+          critical_violation: {
+            code: firstCritical.code,
+            field_path: firstCritical.field_path,
+            invariant_id: firstCritical.invariant_id,
+            source_stage: 'synthesisToEvaluationResultV2',
+            source_artifact_type: 'post_qg_effective_snapshot_v1',
+            repair_attempted: true,
+            repair_result: 'failed' as const,
+            message: firstCritical.message,
+            criterion: firstCritical.criterion,
+          },
+        }
+      : {}),
+    blocking_reasons: blockingReasons,
+  };
+}
+
 function buildBackwardKickStatus(failureCode: string | null): FailureDiagnosisV1['backward_kick_status'] {
   if (
     failureCode === 'QG_FAILED' ||
@@ -359,6 +490,9 @@ function buildTemplateFailure(
       .map((violation) => asString(violation.criterion)),
   );
   const summary = asString(diagnostics?.summary) ?? errorMessage;
+  const templateGateFailure = buildTemplateGateFailure(diagnostics);
+  const criticalFieldPath = templateGateFailure.critical_violation?.field_path;
+  const criticalInvariant = templateGateFailure.critical_violation?.invariant_id;
 
   return {
     artifact_type: 'failure_diagnosis_v1',
@@ -377,23 +511,28 @@ function buildTemplateFailure(
     },
     user_safe_summary: 'The evaluation stopped before report release because required report content was incomplete.',
     admin_summary: `Template completeness gate blocked canonical persistence: ${summary}`,
-    developer_summary: `Template completeness gate reported ${failedChecks.length || 0} blocking violation(s). ${summary}`,
+    developer_summary:
+      `Template completeness gate reported ${failedChecks.length || 0} blocking violation(s). ${summary}` +
+      (criticalFieldPath ? ` First critical field_path=${criticalFieldPath}` : '') +
+      (criticalInvariant ? ` invariant_id=${criticalInvariant}.` : ''),
     failed_checks: failedChecks,
     failed_criteria: failedCriteria,
     blocking_reasons: failedChecks.length > 0 ? failedChecks : [failureCode ?? 'TEMPLATE_COMPLETENESS_GATE_FAILED'],
+    template_gate_failure: templateGateFailure,
     artifact_inventory: artifactInventory,
     repair_status: {
-      attempted: false,
-      mechanism: 'template_completeness_gate',
-      outcome: 'not_applicable',
+      attempted: Boolean(templateGateFailure.critical_violation),
+      mechanism: 'synthesisToEvaluationResultV2.template_completeness_fallback',
+      outcome: templateGateFailure.critical_violation ? 'failed' : 'not_applicable',
     },
     backward_kick_status: buildBackwardKickStatus(failureCode),
     recommended_next_action:
       'Repair the blocking template completeness violations before re-attempting canonical persistence.',
     evidence_refs: [
       {
+        artifact_type: 'post_qg_effective_snapshot_v1',
         log_stage: 'template_completeness_gate',
-        field_path: 'summary',
+        field_path: criticalFieldPath ?? 'summary',
         excerpt: summary,
       },
     ],
