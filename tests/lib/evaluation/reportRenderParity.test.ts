@@ -250,9 +250,9 @@ describe('report render parity manifest builder', () => {
       displayTitle: 'Measured Parity Manuscript',
       mode,
     });
-    const txt = testing.buildCanonicalTemplateTxt(doc, 'job-measured');
-    const html = testing.renderCanonicalTemplateHtml(doc, 'job-measured');
-    const docxBuffer = await testing.buildCanonicalTemplateDocx(doc, 'job-measured');
+    const txt = testing.buildCanonicalTemplateTxt(doc, null, 'job-measured');
+    const html = testing.renderCanonicalTemplateHtml(doc, null, 'job-measured');
+    const docxBuffer = await testing.buildCanonicalTemplateDocx(doc, null, 'job-measured');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
     const manifest = buildReportRenderManifestV1({

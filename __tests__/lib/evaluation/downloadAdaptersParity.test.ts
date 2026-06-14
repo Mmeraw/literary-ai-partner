@@ -190,4 +190,146 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(docxText).toContain('Tighten the opening hook.');
     expect(docxText).toContain('Restructure middle act.');
   });
+
+  test('renders DREAM template sections and suppresses UED multi-layer fallback sections when dream is present', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+
+    const canonicalDoc = buildShortFormEvaluationDocument({
+      displayTitle: 'Template Truth Manuscript',
+      result: {
+        generated_at: '2026-06-13T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 84,
+          verdict: 'revise',
+          one_paragraph_summary: 'Canonical summary for template-truth rendering.',
+          top_3_strengths: ['Core premise clarity'],
+          top_3_risks: ['Middle-act drift'],
+        },
+        enrichment: {
+          premise: 'A manuscript tested against canonical template output.',
+          trigger_warnings: ['violence'],
+          reading_grade_level: 9,
+          dialogue_percentage: 40,
+          narrative_percentage: 60,
+        },
+        metrics: {
+          manuscript: {
+            title: 'Template Truth Manuscript',
+            word_count: 80000,
+            genre: 'thriller',
+            target_audience: 'Adult thriller readers',
+          },
+        },
+        criteria: [
+          {
+            key: 'narrativeDrive',
+            score_0_10: 8,
+            confidence_level: 'high',
+            rationale: 'Strong scene momentum with occasional slack.',
+            recommendations: [{ action: 'Tighten midpoint transition.', priority: 'high' }],
+          },
+        ],
+        recommendations: {
+          quick_wins: [],
+          strategic_revisions: [],
+        },
+      },
+    });
+
+    canonicalDoc.templateMode = 'long_form_multi_layer_evaluation';
+    (canonicalDoc as any).modeSpecific = {
+      manuscriptScaleContinuityFindings: ['UED continuity findings marker'],
+      revisionPriorityPlan: [
+        {
+          priority: 'P1',
+          title: 'UED fallback plan marker',
+          location: 'Midpoint',
+          operation: 'tighten',
+          recommendation: 'UED fallback recommendation marker',
+          rationale: 'UED fallback rationale marker',
+        },
+      ],
+      storyLedgerArchitectureMap: ['UED fallback marker'],
+      reviewGateReadinessSurface: ['UED review gate marker'],
+      governedLedgerAddenda: ['UED governed ledger marker'],
+      crossLayerSynthesis: ['UED cross-layer marker'],
+      layerAwareRevisionSequencing: ['UED sequencing marker'],
+      continuityCoverageProof: ['UED continuity marker'],
+      readinessReleasabilityPosture: 'UED readiness posture marker',
+    };
+
+    const dream = {
+      dream_scores: { quality: 91, readiness: 86, commercial: 82, literary: 88 },
+      executive_verdict: 'Dream-driven executive verdict appears in all adapters.',
+      market_shelf: {
+        best_shelf: 'Upmarket suspense',
+        marketable_hook: 'A witness discovers a staged memory.',
+        shelf_neighbors: ['The Push', 'The It Girl'],
+        comparison_space: ['Psychological suspense'],
+        market_danger: 'Could blur into generic thriller positioning.',
+      },
+      structural_stack: [
+        {
+          layer_name: 'Causal Spine',
+          status: 'stable',
+          function: 'Maintain escalating consequence.',
+          revision_note: 'Increase causal linkage at chapter breaks.',
+        },
+      ],
+      arc_map: [
+        {
+          act_name: 'Act I',
+          chapter_range: '1-8',
+          primary_function: 'Establish danger and obligation.',
+          revision_priority: 'Sharpen inciting event sequencing.',
+        },
+      ],
+      criterion_analyses: [
+        {
+          key: 'narrativeDrive',
+          score: 8,
+          confidence: 'high',
+          fit_evidence: ['Escalation is visible scene to scene.'],
+          gap_evidence: ['Midpoint stakes briefly diffuse.'],
+          revision_queue: ['[LOCATION: Midpoint] [OPERATION: tighten] Add consequence beat.'],
+        },
+      ],
+      revision_plan: [
+        {
+          priority: 'P1',
+          title: 'Restore midpoint pressure',
+          goal: 'Sustain momentum through the middle third.',
+          actions: ['Move reversal one page earlier.'],
+          acceptance_check: 'Midpoint retains explicit forward pressure.',
+        },
+      ],
+      releasability: [
+        { dimension: 'Narrative Cohesion', current_status: 'Strong with revision notes', verdict: 'Revise' },
+      ],
+    } as any;
+
+    const txt = testing.buildCanonicalTemplateTxt(canonicalDoc, dream, 'job-template-truth');
+    const html = testing.renderCanonicalTemplateHtml(canonicalDoc, dream, 'job-template-truth');
+    const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc, dream, 'job-template-truth');
+    const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
+
+    expect(txt).toContain('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
+    expect(txt).toContain('MARKET SHELF');
+    expect(txt).not.toContain('STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP');
+    expect(txt).not.toContain('UED fallback marker');
+
+    expect(html).toContain('Narrative Synthesis');
+    expect(html).toContain('Market Shelf');
+    expect(html).toContain('Dream-driven executive verdict appears in all adapters.');
+    expect(html).not.toContain('Story Ledger or Layer-Aware Architecture Map');
+    expect(html).not.toContain('UED fallback marker');
+    expect(html).not.toContain('<p>None supplied.</p>');
+
+    expect(docxText).toContain('Narrative Synthesis');
+    expect(docxText).toContain('Market Shelf');
+    expect(docxText).toContain('Dream-driven executive verdict appears in all adapters.');
+    expect(docxText).not.toContain('Story Ledger or Layer-Aware Architecture Map');
+    expect(docxText).not.toContain('UED fallback marker');
+  });
 });
