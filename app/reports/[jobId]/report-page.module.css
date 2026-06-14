@@ -69,6 +69,27 @@
   margin-top: 0.75rem !important;
 }
 
+.reportRoute header aside {
+  background: #fff6e8 !important;
+  border-color: #d9a441 !important;
+  color: #1a1a1a !important;
+  box-shadow: 0 2px 10px rgba(28, 24, 20, 0.06) !important;
+}
+
+.reportRoute header aside p,
+.reportRoute header aside span,
+.reportRoute header aside div {
+  color: #1a1a1a !important;
+}
+
+.reportRoute header aside :global(.border-t) {
+  border-color: #d9a441 !important;
+}
+
+.reportRoute em {
+  font-style: normal;
+}
+
 @media (max-width: 640px) {
   .reportRoute :global(.max-w-6xl),
   .reportRoute :global(.max-w-5xl) {
@@ -177,5 +198,76 @@
   .reportRoute ol > li {
     margin-top: 0.95rem;
     padding-left: 0.15rem;
+  }
+}
+
+@media print {
+  .reportRoute {
+    max-width: none;
+    overflow: visible;
+    background: #faf7f2 !important;
+  }
+
+  .reportRoute :global(.print-hidden),
+  .reportRoute button,
+  .reportRoute a[href*="/workbench"] {
+    display: none !important;
+  }
+
+  .reportRoute :global(.max-w-6xl),
+  .reportRoute :global(.max-w-5xl) {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .reportRoute header,
+  .reportRoute section,
+  .reportRoute article,
+  .reportRoute :global(.border) {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    overflow: visible !important;
+  }
+
+  .reportRoute header {
+    min-height: auto !important;
+  }
+
+  .reportRoute header > div:first-of-type {
+    display: block !important;
+  }
+
+  .reportRoute header > div:nth-of-type(2) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 2.35in !important;
+    gap: 0.25in !important;
+  }
+
+  .reportRoute header aside {
+    width: 2.35in !important;
+    background: #fff6e8 !important;
+    border: 1.5pt solid #d9a441 !important;
+    color: #1a1a1a !important;
+  }
+
+  .reportRoute p,
+  .reportRoute li,
+  .reportRoute dd {
+    font-size: 10.3pt !important;
+    line-height: 1.45 !important;
+  }
+
+  .reportRoute h1 {
+    font-size: 30pt !important;
+    line-height: 1.08 !important;
+  }
+
+  .reportRoute h2 {
+    font-size: 16pt !important;
+  }
+
+  .reportRoute h3 {
+    font-size: 11pt !important;
   }
 }
