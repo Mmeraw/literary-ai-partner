@@ -643,7 +643,9 @@ export function classifyFailureBucket(code: string | null | undefined): FailureB
       code === 'CONTEXT_CONTAMINATION_DETECTED') return 'supabase_contract';
   // OpenAI / provider transient
   if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
+      code === 'PASS1_TIMEOUT' || code === 'PASS2_TIMEOUT' || code === 'PASS3_TIMEOUT' ||
       code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
+      code === 'PHASE2_PASS12_FAILED' ||
       code === 'PASS2_INDEPENDENCE_REWRITE_FAILED') return 'openai_provider';
   // Vercel / platform
   if (code.startsWith('VERCEL_') || code === 'WORKER_TIMEOUT' ||
@@ -1837,6 +1839,7 @@ const TERMINAL_FAILURE_PREFIXES = [
   'PIPELINE_INPUT_INVALID', // Bad input — won't improve on retry
   'SCHEMA_INVALID',         // DB schema error — not transient
   'SCHEMA_VIOLATION',       // DB schema error — not transient
+  'SCHEMA_VALIDATION_FAILED', // Canonical schema validation failure — non-transient
   'MANUSCRIPT_NOT_FOUND',   // Data missing — won't appear on retry
   'AUTH_FAILED',            // Credential error — not transient
   'AUTHORIZATION_ERROR',    // Same
@@ -1892,12 +1895,19 @@ export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | unde
   if (
     code.startsWith('OPENAI_') ||
     code.startsWith('PERPLEXITY_') ||
+    code === 'PASS1_TIMEOUT' ||
+    code === 'PASS2_TIMEOUT' ||
+    code === 'PASS3_TIMEOUT' ||
     code === 'PASS4_EXTERNAL_ADJUDICATION_FAILED'
   ) {
     return 3;
   }
 
   return 2;
+}
+
+export function isSelfRecoverableFailureCode(code: string | null | undefined): boolean {
+  return !isTerminalFailureCode(code) && maxSelfRecoveryAttemptsForFailureCode(code) > 0;
 }
 
 /**
@@ -5142,6 +5152,7 @@ export async function processEvaluationJob(
         errorMessage,
         context: failureContext,
       });
+      const retryEligibleFailureCode = isSelfRecoverableFailureCode(errorCode);
       const pipelineFailureDiagnostics = normalizeFailureDiagnostics(failureContext?.diagnostics);
       const failedPhase =
         progressState.phase === 'phase_3' || executionPhase === 'phase_3' ? 'phase_3' :
@@ -5223,7 +5234,7 @@ export async function processEvaluationJob(
           failure_message: errorMessage,
           source,
           pipeline_stage: failureContext?.pipelineStage ?? null,
-          retry_eligible: false,
+          retry_eligible: retryEligibleFailureCode,
           diagnostics: pipelineFailureDiagnostics ?? failureContext?.diagnostics ?? null,
           created_at: typeof (job as Record<string, unknown>).created_at === 'string'
             ? ((job as Record<string, unknown>).created_at as string)
@@ -5268,7 +5279,7 @@ export async function processEvaluationJob(
         failure_envelope: {
           code: errorCode,
           message: errorMessage,
-          retryable: false,
+          retryable: retryEligibleFailureCode,
           bucket: pipelineFailureEnvelope.bucket,
           phase: failedPhase,
           pipeline_stage: pipelineFailureEnvelope.pipeline_stage,
@@ -5301,7 +5312,7 @@ export async function processEvaluationJob(
           errorEnvelope: {
             code: errorCode,
             message: errorMessage,
-            retryable: false, // Processor failures are typically deterministic
+            retryable: retryEligibleFailureCode,
           },
         });
 
@@ -9038,7 +9049,7 @@ export async function processEvaluationJob(
           .eq('id', job.id)
           .eq('status', JOB_STATUS.RUNNING)
           .select('id, status, phase, phase_status')
-          .single();
+          .maybeSingle();
 
         if (phase1aHandoffErr) {
           console.error(
@@ -11259,7 +11270,7 @@ export async function processEvaluationJob(
       stage: 'processor_complete',
       message: 'Job completed',
       metadata: {
-        status: 'complete',
+        status: JOB_STATUS.COMPLETE,
         score: pipelineResult.synthesis?.overall?.overall_score_0_100 ?? null,
         totalMs: Date.now() - processorStartMs,
         failureCode: null,
