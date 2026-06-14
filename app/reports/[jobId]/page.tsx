@@ -435,21 +435,21 @@ export default async function ReportPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F1EA]">
+    <div className="min-h-screen overflow-x-hidden bg-[#F6F1EA] [overflow-wrap:anywhere]">
       {printMode && <AutoPrintOnLoad enabled />}
-      <div className="max-w-6xl mx-auto px-4 py-8 sm:px-8">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 sm:py-8">
         {/* Header + Title Block (template section 1) */}
         <header className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] px-6 py-7 shadow-sm sm:px-8">
 
           {/* ── Top row: branding + action buttons ── */}
-          <div className="flex items-center justify-between gap-4 mb-5">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B2E2E]">RevisionGrade™ — Editorial Readiness Assessment</p>
-            <div className="shrink-0 flex items-center gap-3 print-hidden">
+            <div className="flex w-full flex-wrap items-center gap-3 print-hidden sm:w-auto sm:shrink-0">
               {manuscriptId && (
                 <div className="flex flex-col items-center gap-0.5">
                   <Link
                     href={`/workbench?manuscriptId=${manuscriptId}&evaluationJobId=${params.jobId}`}
-                    className="inline-flex items-center gap-1.5 rounded-sm bg-[#8B2E2E] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#6F1D1B]"
+                    className="inline-flex items-center gap-1.5 rounded-sm bg-[#006DFF] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0057CC] focus:outline-none focus:ring-2 focus:ring-[#006DFF] focus:ring-offset-2"
                   >
                     Revise now
                   </Link>
@@ -461,7 +461,7 @@ export default async function ReportPage({
           </div>
 
           {/* ── Hero: title + score card side by side ── */}
-          <div className="flex items-start gap-6">
+          <div className="flex flex-col items-stretch gap-5 sm:flex-row sm:items-start sm:gap-6">
             {/* Title column */}
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-3xl font-bold leading-tight text-[#1C1814] sm:text-4xl">{displayTitle}</h1>
@@ -469,10 +469,10 @@ export default async function ReportPage({
               {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
                 <p className="mt-1 text-sm text-[#5C5549]">{manuscriptTitle}</p>
               )}
-              <p className="mt-3 text-xs text-[#9A9087]">
+              <p className="mt-3 text-xs leading-relaxed text-[#9A9087]">
                 Generated {canonicalDoc.titleBlock.dateGenerated}
                 {' · '}
-                <span className="font-mono">{params.jobId.slice(0, 8)}</span>
+                <span className="font-mono break-all">{params.jobId.slice(0, 8)}</span>
                 <CopyReferenceIdButton
                   value={params.jobId}
                   className="ml-1.5 inline-flex items-center rounded-sm border border-[#D9D0C3] px-2 py-0.5 text-xs font-medium text-[#5C5549] transition hover:bg-[#FAF7F2]"
@@ -481,21 +481,26 @@ export default async function ReportPage({
             </div>
 
             {/* Score card — always visible without scrolling */}
-            <aside className="shrink-0 w-44 rounded-sm border-2 border-[#B8922A] bg-[#1C1814] px-4 py-4 text-center text-[#F5EFE0]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">Overall Score</p>
-              <p className="mt-1 font-serif text-4xl font-bold leading-none text-white">
+            <aside className={`w-full rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
+              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('market ready') ? 'border-[#9DC79D] bg-[#EEF7EF]' :
+              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('near market ready') ? 'border-[#D9A441] bg-[#FFF6E8]' :
+              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('not market ready') ? 'border-[#C97A7A] bg-[#FDEEEE]' :
+              'border-[#D9D0C3] bg-[#FAF7F2]'
+            }`}>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Overall Score</p>
+              <p className="mt-1 font-serif text-4xl font-bold leading-none text-[#1A1A1A]">
                 {canonicalDoc.titleBlock.overallScoreLabel}
               </p>
               {canonicalDoc.titleBlock.overallScoreConfidenceLabel && (
-                <p className="mt-1 text-[10px] text-[#C8A96E]">{canonicalDoc.titleBlock.overallScoreConfidenceLabel}</p>
+                <p className="mt-1 text-[10px] text-[#5C5549]">{canonicalDoc.titleBlock.overallScoreConfidenceLabel}</p>
               )}
-              <div className="mt-3 border-t border-[#B8922A] pt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">Market Readiness</p>
-                <p className="mt-1 text-sm font-bold uppercase text-[#F5E9C8]">
+              <div className="mt-3 border-t border-[#D9D0C3] pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Market Readiness</p>
+                <p className="mt-1 text-sm font-bold uppercase text-[#1A1A1A]">
                   {canonicalDoc.titleBlock.marketReadiness}
                 </p>
                 {canonicalDoc.titleBlock.marketReadinessConfidenceLabel && (
-                  <p className="mt-0.5 text-[10px] text-[#C8A96E]">{canonicalDoc.titleBlock.marketReadinessConfidenceLabel}</p>
+                  <p className="mt-0.5 text-[10px] text-[#5C5549]">{canonicalDoc.titleBlock.marketReadinessConfidenceLabel}</p>
                 )}
               </div>
             </aside>

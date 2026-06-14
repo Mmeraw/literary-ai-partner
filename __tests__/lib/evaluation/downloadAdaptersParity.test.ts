@@ -74,6 +74,8 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
   test('opportunity detail rows (Evidence/Symptom/Cause/Fix/Reader effect) appear in all 3 formats', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
+    const longEvidence = 'A dark truck, fast, heading toward the river, with a reference identifier 123e4567-e89b-12d3-a456-426614174000 and a long unbroken pressure phrase that must remain fully present instead of clipping off the right side of the generated report page.';
+    const longFix = 'Insert a ticking-clock reminder every 800 words and keep the sentence fully visible even when it contains long-market-positioning-language-without-friendly-breakpoints.';
 
     const canonicalDoc = buildShortFormEvaluationDocument({
       displayTitle: 'River Remembers Blood',
@@ -106,10 +108,10 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
               {
                 priority: 'medium',
                 action: 'Increase the stakes surrounding the missing man.',
-                anchor_snippet: 'A dark truck, fast, heading toward the river.',
+                anchor_snippet: longEvidence,
                 symptom: 'Stakes or decision pressure diffuses before reaching the reader.',
                 mechanism: 'Mid-chapter tension release without replacement hook.',
-                specific_fix: 'Insert a ticking-clock reminder every 800 words.',
+                specific_fix: longFix,
                 reader_effect: 'Sustains reader engagement and enhances narrative urgency.',
                 mistake_proofing: 'Check each scene break for forward-pull sentence.',
               },
@@ -133,10 +135,12 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(overlongTxtLines).toEqual([]);
 
     // TXT must include all 6 diagnostic fields
-    expect(txt).toContain('Evidence: \u201cA dark truck, fast, heading toward the river.\u201d');
+    expect(txt).toContain('Evidence: \u201cA dark truck, fast, heading toward the river, with a referenc');
+    expect(txt).toContain('identifier 123e4567-e89b-12d3-a456-426614174000');
     expect(txt).toContain('Symptom: Stakes or decision pressure diffuses before reaching the reader.');
     expect(txt).toContain('Cause: Mid-chapter tension release without replacement hook.');
-    expect(txt).toContain('Fix direction: Insert a ticking-clock reminder every 800 words.');
+    expect(txt).toContain('Fix direction: Insert a ticking-clock reminder every 800 words and keep');
+    expect(txt).toContain('long-market-positioning-language-without-friendly-breakpoints.');
     expect(txt).toContain('Reader effect: Sustains reader engagement and enhances narrative urgency.');
     expect(txt).toContain('Mistake-proofing: Check each scene break for forward-pull sentence.');
 
@@ -148,10 +152,19 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(txt).toContain('Restructure middle act.');
 
     // HTML/PDF must include all 6 diagnostic fields
-    expect(html).toContain('A dark truck, fast, heading toward the river.');
+    expect(html).not.toContain('class="score-box"');
+    expect(html).not.toContain('background:#1C1814');
+    expect(html).not.toContain('background: #1c1814');
+    expect(html).not.toContain('<table class="opp-table">');
+    expect(html).not.toContain('<em>\u201c');
+    expect(html).not.toContain('<em>"');
+    expect(html).toContain('class="readiness-card readiness-risk"');
+    expect(html).toContain('class="opp-field"');
+    expect(html).toContain('class="opp-val"');
+    expect(html).toContain(longEvidence);
     expect(html).toContain('Stakes or decision pressure diffuses before reaching the reader.');
     expect(html).toContain('Mid-chapter tension release without replacement hook.');
-    expect(html).toContain('Insert a ticking-clock reminder every 800 words.');
+    expect(html).toContain(longFix);
     expect(html).toContain('Sustains reader engagement and enhances narrative urgency.');
     expect(html).toContain('Check each scene break for forward-pull sentence.');
 
@@ -165,10 +178,10 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     // DOCX must include all 6 diagnostic fields
     const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
-    expect(docxText).toContain('A dark truck, fast, heading toward the river.');
+    expect(docxText).toContain('A dark truck, fast, heading toward the river, with a reference identifier');
     expect(docxText).toContain('Stakes or decision pressure diffuses before reaching the reader.');
     expect(docxText).toContain('Mid-chapter tension release without replacement hook.');
-    expect(docxText).toContain('Insert a ticking-clock reminder every 800 words.');
+    expect(docxText).toContain('Insert a ticking-clock reminder every 800 words and keep the sentence fully visible');
     expect(docxText).toContain('Sustains reader engagement and enhances narrative urgency.');
     expect(docxText).toContain('Check each scene break for forward-pull sentence.');
 
