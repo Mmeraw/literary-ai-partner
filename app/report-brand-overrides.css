@@ -58,15 +58,17 @@ main > .min-h-screen.bg-\[\#F6F1EA\] aside[class*="bg-\[\#1C1814\]"] div {
   border-top-color: rgba(184, 146, 42, 0.65) !important;
 }
 
-/* Keep report action buttons readable and on-brand. */
+/* All report Revise actions are bright blue with white text. */
 main > .min-h-screen.bg-\[\#F6F1EA\] a[href*="/workbench"] {
-  background: #6f1d1b !important;
-  color: #fffaf0 !important;
-  border: 1px solid #8b2e2e !important;
+  background: #006DFF !important;
+  color: #ffffff !important;
+  border: 1px solid #0057CC !important;
+  box-shadow: 0 6px 14px rgba(0, 109, 255, 0.20) !important;
 }
 
 main > .min-h-screen.bg-\[\#F6F1EA\] a[href*="/workbench"]:hover {
-  background: #8b2e2e !important;
+  background: #0057CC !important;
+  color: #ffffff !important;
 }
 
 @media (max-width: 760px) {
