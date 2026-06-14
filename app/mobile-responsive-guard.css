@@ -1,0 +1,124 @@
+/* === Global mobile responsive guard ===
+ *
+ * Prevents the public landing shell from creating page-level horizontal scroll
+ * on narrow mobile viewports. This is intentionally global because all public
+ * landing pages share the same root layout and header.
+ */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+body {
+  position: relative;
+}
+
+main,
+header,
+footer,
+section,
+article,
+aside,
+div {
+  min-width: 0;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+/* Preserve intentional table/code horizontal scrolling inside their own boxes
+ * instead of letting them widen the entire mobile page.
+ */
+pre,
+code,
+table {
+  max-width: 100%;
+}
+
+pre {
+  overflow-x: auto;
+}
+
+/* === Header navigation responsive guard ===
+ * Keep the signed-in RevisionGrade nav legible at 100% browser zoom.
+ * The global dark readability guard intentionally enlarges dark-page text;
+ * this scoped rule restores compact nav sizing and collapses before overlap.
+ */
+header.sticky.top-0 {
+  background: rgba(28, 24, 20, 0.96) !important;
+  border-bottom-color: rgba(225, 188, 106, 0.18) !important;
+}
+
+header.sticky.top-0 > div {
+  max-width: min(1640px, calc(100vw - 1rem)) !important;
+  gap: 0.75rem !important;
+}
+
+header.sticky.top-0 nav {
+  min-width: 0 !important;
+  gap: 0.65rem !important;
+  flex-wrap: nowrap !important;
+}
+
+header.sticky.top-0 nav > * {
+  flex-shrink: 0 !important;
+}
+
+header.sticky.top-0 nav a,
+header.sticky.top-0 nav button,
+header.sticky.top-0 > div > div.hidden button,
+header.sticky.top-0 > div > div.hidden a {
+  font-size: clamp(0.68rem, 0.72vw, 0.86rem) !important;
+  letter-spacing: 0.08em !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+  text-shadow: none !important;
+}
+
+header.sticky.top-0 nav button[style*="#FF0000"],
+header.sticky.top-0 nav button[style*="255,0,0"] {
+  color: #8f2a23 !important;
+  text-shadow: none !important;
+}
+
+header.sticky.top-0 nav a:hover,
+header.sticky.top-0 nav button:hover,
+header.sticky.top-0 > div > div.hidden a:hover,
+header.sticky.top-0 > div > div.hidden button:hover {
+  color: #e1bc6a !important;
+}
+
+@media (max-width: 1320px) {
+  header.sticky.top-0 nav,
+  header.sticky.top-0 > div > div.hidden {
+    display: none !important;
+  }
+
+  header.sticky.top-0 button[aria-controls="mobile-nav"] {
+    display: inline-flex !important;
+  }
+
+  #mobile-nav {
+    display: block !important;
+  }
+}
+
+@media (min-width: 1321px) {
+  #mobile-nav {
+    display: none !important;
+  }
+}
+
+@supports not (overflow-x: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
