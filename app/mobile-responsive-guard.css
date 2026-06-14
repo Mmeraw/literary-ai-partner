@@ -82,12 +82,6 @@ header.sticky.top-0 > div > div.hidden a {
   text-shadow: none !important;
 }
 
-header.sticky.top-0 nav button[style*="#FF0000"],
-header.sticky.top-0 nav button[style*="255,0,0"] {
-  color: #8f2a23 !important;
-  text-shadow: none !important;
-}
-
 header.sticky.top-0 nav a:hover,
 header.sticky.top-0 nav button:hover,
 header.sticky.top-0 > div > div.hidden a:hover,
