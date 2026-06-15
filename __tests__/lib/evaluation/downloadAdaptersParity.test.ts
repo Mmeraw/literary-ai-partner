@@ -146,10 +146,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     // TXT must include Action Items
     expect(txt).toContain('ACTION ITEMS');
-    expect(txt).toContain('Quick Wins:');
-    expect(txt).toContain('Tighten the opening hook.');
     expect(txt).toContain('Strategic Revisions:');
-    expect(txt).toContain('Restructure middle act.');
+    expect(txt).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(txt).toContain('Location: narrativeDrive:recommendation');
 
     // HTML/PDF must include all 6 diagnostic fields
     expect(html).not.toContain('class="score-box"');
@@ -170,10 +169,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     // HTML/PDF must include Action Items
     expect(html).toContain('Action Items');
-    expect(html).toContain('Quick Wins');
-    expect(html).toContain('Tighten the opening hook.');
     expect(html).toContain('Strategic Revisions');
-    expect(html).toContain('Restructure middle act.');
+    expect(html).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(html).toContain('narrativeDrive:recommendation');
 
     // DOCX must include all 6 diagnostic fields
     const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
@@ -187,8 +185,8 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     // DOCX must include Action Items
     expect(docxText).toContain('Action Items');
-    expect(docxText).toContain('Tighten the opening hook.');
-    expect(docxText).toContain('Restructure middle act.');
+    expect(docxText).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(docxText).toContain('narrativeDrive:recommendation');
   });
 
   test('renders DREAM template sections and suppresses UED multi-layer fallback sections when dream is present', async () => {
