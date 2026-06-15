@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import { withRetry } from '@/lib/evaluation/pipeline/openaiRetry';
 import {
   hasRepeatedSentenceOpenings,
@@ -36,6 +37,16 @@ interface GenerateRequest {
   authorBioInput?: string;
   synopsisLength?: SynopsisLength;
 }
+
+type CanonicalOpportunityContext = {
+  id: string;
+  primaryCriterion: string;
+  severity: string;
+  action: string;
+  evidence: string;
+  location: string;
+  readerEffect: string;
+};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -286,6 +297,56 @@ AUTHOR BIO REQUIREMENTS:
 
 // ── Fetch manuscript & evaluation data from Supabase ─────────────────────────
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function firstString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return '';
+}
+
+function extractCertifiedCanonicalOpportunityContext(
+  unifiedDocument: unknown,
+  certificationContent: unknown,
+): CanonicalOpportunityContext[] {
+  if (!isRecord(unifiedDocument) || !isRecord(certificationContent)) return [];
+  if (
+    certificationContent.schema_version !== 'author_exposure_certification_v1' ||
+    certificationContent.decision !== 'certified' ||
+    typeof certificationContent.unified_document_hash !== 'string'
+  ) {
+    return [];
+  }
+
+  if (canonicalJsonSha256(unifiedDocument) !== certificationContent.unified_document_hash) {
+    return [];
+  }
+
+  const ledger = isRecord(unifiedDocument.canonicalOpportunityLedger)
+    ? unifiedDocument.canonicalOpportunityLedger
+    : null;
+  const rendered = Array.isArray(ledger?.rendered_opportunities)
+    ? ledger.rendered_opportunities
+    : [];
+
+  return rendered
+    .filter((item): item is Record<string, unknown> => isRecord(item))
+    .map((item) => ({
+      id: firstString(item.id, item.opportunity_id),
+      primaryCriterion: firstString(item.primary_criterion, item.criterion),
+      severity: firstString(item.severity),
+      action: firstString(item.fix_direction, item.action, item.symptom),
+      evidence: firstString(item.evidence, item.anchor_snippet, item.evidence_anchor),
+      location: firstString(item.location, item.manuscript_coordinates),
+      readerEffect: firstString(item.reader_effect, item.expected_impact),
+    }))
+    .filter((item) => item.id && item.action && item.evidence)
+    .slice(0, 10);
+}
+
 async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: string, userId: string) {
   const admin = createAdminClient();
 
@@ -331,6 +392,25 @@ async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: str
     .limit(1)
     .maybeSingle();
 
+  const [{ data: unifiedDocumentRow }, { data: certificationRow }] = await Promise.all([
+    admin
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', evaluationJobId)
+      .eq('artifact_type', 'unified_evaluation_document_v1')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', evaluationJobId)
+      .eq('artifact_type', 'author_exposure_certification_v1')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
   const { data: agentSections } = await admin
     .from('agent_readiness_sections')
     .select('section_type, content, status')
@@ -344,6 +424,10 @@ async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: str
     job,
     chunks: chunks?.map(c => c.content).filter(Boolean) ?? [],
     storyLedger: ledger?.content,
+    canonicalOpportunities: extractCertifiedCanonicalOpportunityContext(
+      unifiedDocumentRow?.content,
+      certificationRow?.content,
+    ),
     agentSections: (agentSections ?? []) as Array<{ section_type: SectionType; content: string | null; status: string | null }>,
   };
 }
@@ -440,6 +524,21 @@ function buildContextSummary(ctx: Awaited<ReturnType<typeof fetchManuscriptConte
     if (ledger.central_conflict) parts.push(`CENTRAL CONFLICT: ${JSON.stringify(ledger.central_conflict)}`);
     if (ledger.themes) parts.push(`THEMES: ${JSON.stringify(ledger.themes)}`);
     if (ledger.ending) parts.push(`ENDING: ${JSON.stringify(ledger.ending)}`);
+  }
+
+  if (ctx.canonicalOpportunities.length > 0) {
+    parts.push(`\nCANONICAL OPPORTUNITY LEDGER — SINGLE RECOMMENDATION SOURCE:\n${ctx.canonicalOpportunities.map((opp, index) => {
+      const details = [
+        `ID: ${opp.id}`,
+        opp.primaryCriterion ? `Criterion: ${opp.primaryCriterion}` : '',
+        opp.severity ? `Severity: ${opp.severity}` : '',
+        `Action: ${opp.action}`,
+        `Evidence: ${opp.evidence}`,
+        opp.location ? `Location: ${opp.location}` : '',
+        opp.readerEffect ? `Reader effect: ${opp.readerEffect}` : '',
+      ].filter(Boolean).join(' | ');
+      return `${index + 1}. ${details}`;
+    }).join('\n')}`);
   }
 
   // Include manuscript opening for voice/tone reference

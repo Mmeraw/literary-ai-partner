@@ -50,6 +50,16 @@ describe('Agent Readiness generation contract', () => {
     expect(generateRoute).toContain('NEVER invent credentials, awards, education, locations, publications, or lived experience');
   });
 
+  test('generation context consumes certified canonical opportunity ledger summaries', () => {
+    expect(generateRoute).toContain("artifact_type', 'unified_evaluation_document_v1'");
+    expect(generateRoute).toContain("artifact_type', 'author_exposure_certification_v1'");
+    expect(generateRoute).toContain('canonicalJsonSha256(unifiedDocument)');
+    expect(generateRoute).toContain('canonicalOpportunityLedger');
+    expect(generateRoute).toContain('rendered_opportunities');
+    expect(generateRoute).toContain('CANONICAL OPPORTUNITY LEDGER — SINGLE RECOMMENDATION SOURCE');
+    expect(generateRoute).toContain('canonicalOpportunities: extractCertifiedCanonicalOpportunityContext');
+  });
+
   test('author bio page still requires author-supplied upload or pasted source material', () => {
     expect(bioPage).toContain('RevisionGrade does not invent author credentials');
     expect(bioPage).toContain('Upload Source');
