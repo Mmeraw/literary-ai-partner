@@ -202,17 +202,23 @@ interface DreamSynthesisData {
 }
 
 async function loadDreamSynthesisData(
-  supabase: ReturnType<typeof createAdminClient>
+  supabase: ReturnType<typeof createAdminClient>,
+  showTestManuscripts: boolean,
 ): Promise<DreamSynthesisData> {
   // All complete long-form jobs (word_count >= threshold)
-  const { data: longFormJobs, error: lfError } = await supabase
+  let longFormQuery = supabase
     .from("evaluation_jobs")
     .select("id, manuscript_id, updated_at, manuscripts!inner(title, word_count)")
     .eq("status", "complete")
     .gte("manuscripts.word_count", DREAM_WORD_COUNT_THRESHOLD)
-    .lt("manuscript_id", TEST_MANUSCRIPT_ID_MIN)
     .order("updated_at", { ascending: false })
     .limit(50);
+
+  if (!showTestManuscripts) {
+    longFormQuery = longFormQuery.lt("manuscript_id", TEST_MANUSCRIPT_ID_MIN);
+  }
+
+  const { data: longFormJobs, error: lfError } = await longFormQuery;
 
   if (lfError || !longFormJobs) {
     console.warn("[pipeline-health] DREAM long-form jobs query failed:", lfError?.message);
@@ -469,7 +475,11 @@ export async function GET(req: NextRequest) {
   const windowParam = searchParams.get("window") ?? "24h";
   const limitParam = searchParams.get("limit");
   const showTestParam = (searchParams.get("show_test") ?? "").toLowerCase();
-  const showTestManuscripts = showTestParam === "1" || showTestParam === "true";
+  const showTestManuscripts = !(
+    showTestParam === "0" ||
+    showTestParam === "false" ||
+    showTestParam === "no"
+  );
 
   const interval = WINDOW_INTERVALS[windowParam] ?? WINDOW_INTERVALS["24h"];
   const limit = limitParam
@@ -525,7 +535,7 @@ export async function GET(req: NextRequest) {
     const artifactKindsByJob = await loadAllArtifactKinds(supabase, allJobIds);
 
     // Section B — DREAM synthesis data (separate query, global scope not window-limited)
-    const dreamSynthesis = await loadDreamSynthesisData(supabase);
+    const dreamSynthesis = await loadDreamSynthesisData(supabase, showTestManuscripts);
 
     const payload = buildPipelineHealth(
       allJobs,

@@ -121,8 +121,8 @@ describe('AGENT_READINESS_PROCESS_REGISTRY', () => {
 // ─── Artifact Registry ────────────────────────────────────────────────────────
 
 describe('AGENT_READINESS_ARTIFACT_REGISTRY', () => {
-  test('has 12 artifacts', () => {
-    expect(AGENT_READINESS_ARTIFACT_REGISTRY).toHaveLength(12);
+  test('has 13 artifacts', () => {
+    expect(AGENT_READINESS_ARTIFACT_REGISTRY).toHaveLength(13);
   });
 
   test('all artifact IDs are unique', () => {
@@ -182,8 +182,8 @@ describe('AGENT_READINESS_ARTIFACT_REGISTRY', () => {
 // ─── Field Registry ───────────────────────────────────────────────────────────
 
 describe('AGENT_READINESS_FIELD_REGISTRY', () => {
-  test('has 15 fields', () => {
-    expect(AGENT_READINESS_FIELD_REGISTRY).toHaveLength(15);
+  test('has 17 fields', () => {
+    expect(AGENT_READINESS_FIELD_REGISTRY).toHaveLength(17);
   });
 
   test('all field names are unique', () => {
@@ -240,8 +240,8 @@ describe('AGENT_READINESS_FIELD_REGISTRY', () => {
 // ─── Kick Matrix ──────────────────────────────────────────────────────────────
 
 describe('AGENT_READINESS_KICK_MATRIX', () => {
-  test('has 11 kick codes', () => {
-    expect(AGENT_READINESS_KICK_MATRIX).toHaveLength(11);
+  test('has 12 kick codes', () => {
+    expect(AGENT_READINESS_KICK_MATRIX).toHaveLength(12);
   });
 
   test('all kick codes are unique', () => {
@@ -375,8 +375,8 @@ describe('AGENT_READINESS_RENDERER_MATRIX', () => {
 // ─── Certification Gate Registry ──────────────────────────────────────────────
 
 describe('AGENT_READINESS_CERTIFICATION_GATE_REGISTRY', () => {
-  test('has 8 certification gates', () => {
-    expect(AGENT_READINESS_CERTIFICATION_GATE_REGISTRY).toHaveLength(8);
+  test('has 9 certification gates', () => {
+    expect(AGENT_READINESS_CERTIFICATION_GATE_REGISTRY).toHaveLength(9);
   });
 
   test('all gateIds are unique', () => {
@@ -407,6 +407,14 @@ describe('AGENT_READINESS_CERTIFICATION_GATE_REGISTRY', () => {
     const gate = AGENT_READINESS_CERTIFICATION_GATE_REGISTRY.find((g) => g.gateId === 'ARCG06_AUTHOR_BIO_NO_INVENTED_FACTS');
     expect(gate).toBeDefined();
     expect(gate!.enforced).toBe(false);
+  });
+
+  test('ARCG09 creator approval gate is enforced for Storygate handoff', () => {
+    const gate = AGENT_READINESS_CERTIFICATION_GATE_REGISTRY.find((g) => g.gateId === 'ARCG09_CREATOR_APPROVAL_GATE');
+    expect(gate).toBeDefined();
+    expect(gate!.enforced).toBe(true);
+    expect(gate!.appliesToStageId).toBe('AR08_EXPORT');
+    expect(gate!.notes).toMatch(/blocks Storygate submission/i);
   });
 });
 

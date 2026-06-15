@@ -41,6 +41,7 @@ type MockQueryInput = {
   single?: unknown;
   list?: unknown[];
   insertSpy?: jest.Mock;
+  upsertSpy?: jest.Mock;
 };
 
 function makeQuery(input: MockQueryInput = {}) {
@@ -49,7 +50,9 @@ function makeQuery(input: MockQueryInput = {}) {
     eq: jest.fn(() => query),
     order: jest.fn(async () => ({ data: input.list ?? [], error: null })),
     maybeSingle: jest.fn(async () => ({ data: input.single ?? null, error: null })),
+    single: jest.fn(async () => ({ data: input.single ?? null, error: null })),
     insert: input.insertSpy ?? jest.fn(async () => ({ data: null, error: null })),
+    upsert: input.upsertSpy ?? jest.fn(() => query),
   };
   return query;
 }
@@ -76,6 +79,7 @@ function buildSupabaseMock(
   options?: { manuscriptOwnerId?: string },
 ) {
   const insertSpy = jest.fn(async () => ({ data: null, error: null }));
+  const artifactUpsertSpy = jest.fn(() => makeQuery({ single: { id: 'completion-artifact-1' } }));
   const manuscriptOwnerId = options?.manuscriptOwnerId ?? 'user-1';
 
   const tables: Record<string, ReturnType<typeof makeQuery>> = {
@@ -84,10 +88,12 @@ function buildSupabaseMock(
     manuscript_versions: makeQuery({ single: { id: 'version-1', raw_text: SOURCE_TEXT } }),
     revision_ledger_decisions: makeQuery({ list: decisions }),
     final_review_apply_runs: makeQuery({ insertSpy }),
+    evaluation_artifacts: makeQuery({ upsertSpy: artifactUpsertSpy }),
   };
 
   return {
     insertSpy,
+    artifactUpsertSpy,
     client: {
       from: jest.fn((table: string) => {
         const query = tables[table];
@@ -125,7 +131,7 @@ describe('final review runtime governance', () => {
   });
 
   it('exports a semi-revised manuscript by applying only queue-visible copy-paste repairs', async () => {
-    const { client, insertSpy } = buildSupabaseMock([
+    const { client, insertSpy, artifactUpsertSpy } = buildSupabaseMock([
       decision({ id: 'decision-copy' }),
       decision({
         id: 'decision-strategy',
@@ -173,8 +179,32 @@ describe('final review runtime governance', () => {
         copy_paste_repair_count: 1,
         strategy_card_count: 1,
         withheld_blocked_count: 1,
+        revision_completion_artifact_id: 'completion-artifact-1',
+        revision_completion_certification: expect.objectContaining({
+          artifact_type: 'revision_completion_record_v1',
+          status: 'certified',
+          decision_count: 1,
+          completed_at: expect.any(String),
+          trusted_path_status: 'not_requested',
+        }),
       }),
     }));
+    expect(artifactUpsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifact_type: 'revision_completion_record_v1',
+        artifact_version: 'revision_completion_record_v1',
+        source_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        content: expect.objectContaining({
+          artifact_type: 'revision_completion_record_v1',
+          status: 'certified',
+          revision_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+          decision_count: 1,
+          completed_at: expect.any(String),
+          trusted_path_status: 'not_requested',
+        }),
+      }),
+      expect.objectContaining({ onConflict: 'job_id,artifact_type' }),
+    );
   });
 
   it('reports copy-paste, strategy, and withheld counts in the changelog', async () => {
@@ -191,6 +221,40 @@ describe('final review runtime governance', () => {
     expect(exported.content).toContain('1 Strategy Card require author decision and were not applied.');
     expect(exported.content).toContain('1 withheld/blocked card stayed invisible to the semi-revised manuscript.');
     expect(exported.content).toContain('TrustedPath applies only safe, local copy-paste repairs.');
+  });
+
+  it('blocks Final Review export until every ready-for-revise opportunity has a persisted decision', async () => {
+    mockGetWorkbenchQueue.mockResolvedValue({
+      ok: true,
+      opportunities: [{ id: 'copy-1' }, { id: 'copy-2' }],
+      needsTargeting: [],
+      withheldUnsupported: [],
+    } as never);
+
+    const { client, insertSpy } = buildSupabaseMock([
+      decision({ id: 'decision-copy', opportunity_id: 'copy-1' }),
+    ]);
+    mockCreateAdminClient.mockReturnValue(client as never);
+
+    const exported = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'clean' });
+
+    expect(exported.filename).toBe('revisiongrade-sister-final-review-blocked.txt');
+    expect(exported.content).toContain('Final Review unlocks after every ready revision card has a saved decision.');
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'blocked',
+      mode: 'export_clean',
+      blocked_reason: 'Final Review unlocks after every ready revision card has a saved decision.',
+      metadata: expect.objectContaining({
+        revision_completion_failure: expect.objectContaining({
+          artifact_type: 'failure_diagnosis_v1',
+          failed_gate: 'RCG07_COMPLETION_CERTIFICATION',
+          diagnostic_code: 'COMPLETION_PREMATURE',
+          details: expect.objectContaining({
+            unresolved_ready_opportunity_ids: ['copy-2'],
+          }),
+        }),
+      }),
+    }));
   });
 
   it('creates a derived manuscript version from safe copy-paste decisions only', async () => {

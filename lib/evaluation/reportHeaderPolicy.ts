@@ -184,8 +184,8 @@ export function buildGenreExpectationHeader(
   if (!metadata) return null;
 
   const label = metadata.genre_expectation_labels.length > 0
-    ? metadata.genre_expectation_labels.join(' + ')
-    : metadata.diagnosed_genre;
+    ? metadata.genre_expectation_labels.map(titleCaseHeaderLabel).join(' + ')
+    : titleCaseHeaderLabel(metadata.diagnosed_genre);
   const dominantCraftEngineLabel = humanizeExpectationLabel(metadata.dominant_craft_engine);
   const expectationProfileLabels = metadata.expectation_profiles.map(humanizeExpectationLabel);
 
@@ -197,8 +197,25 @@ export function buildGenreExpectationHeader(
     expectationProfileLabels,
     genreExpectationIds: metadata.genre_expectation_ids,
     genreExpectationLabels: metadata.genre_expectation_labels,
-    contractSummary: `${label} · ${dominantCraftEngineLabel} focus`,
+    contractSummary: `${label} — ${dominantCraftEngineLabel} focus`,
   };
+}
+
+function titleCaseHeaderLabel(value: string): string {
+  return value
+    .split(/(\s+|\/|\+)/)
+    .map((part) => {
+      if (/^\s+$|^\/|^\+$/.test(part)) return part;
+      const trimmed = part.trim();
+      if (!trimmed) return part;
+      if (/^[A-Z]{2,}$/.test(trimmed)) return trimmed;
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    })
+    .join('')
+    .replace(/\bAnd\b/g, 'and')
+    .replace(/\bOr\b/g, 'or')
+    .replace(/\bThe\b/g, 'the')
+    .replace(/\bOf\b/g, 'of');
 }
 
 function humanizeExpectationLabel(value: string): string {

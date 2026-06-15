@@ -76,6 +76,14 @@ export async function POST(req: Request) {
 
     const exposureDecision = await getAuthorExposureDecision(admin, jobId);
     if (exposureDecision.exposable === false) {
+      if (exposureDecision.reason === 'db_error') {
+        console.error('[report-shares.POST:evidence] author_exposure DB error', {
+          jobId,
+          details: exposureDecision.details,
+        });
+        return NextResponse.json({ ok: false, error: 'System error checking author exposure certification' }, { status: 500 });
+      }
+
       return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
     }
 
@@ -136,6 +144,14 @@ export async function POST(req: Request) {
 
   const exposureDecision = await getAuthorExposureDecision(admin, jobId);
   if (exposureDecision.exposable === false) {
+    if (exposureDecision.reason === 'db_error') {
+      console.error('[report-shares.POST] author_exposure DB error', {
+        jobId,
+        details: exposureDecision.details,
+      });
+      return NextResponse.json({ ok: false, error: 'System error checking author exposure certification' }, { status: 500 });
+    }
+
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 

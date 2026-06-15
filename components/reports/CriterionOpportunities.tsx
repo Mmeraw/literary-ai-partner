@@ -2,6 +2,7 @@
 import { useState } from "react";
 
 type Opportunity = {
+  opportunity_id?: string;
   priority?: string;
   anchor_snippet?: string;
   anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
@@ -14,9 +15,9 @@ type Opportunity = {
 };
 
 function severityLabel(priority?: string): string {
-  if (priority === "high") return "RECOMMENDED";
-  if (priority === "medium") return "OPTIONAL";
-  return "CONSIDER";
+  if (priority === "high") return "LEDGER PRIORITY";
+  if (priority === "medium") return "LEDGER OPTION";
+  return "LEDGER NOTE";
 }
 
 function severityAccent(priority?: string): string {
@@ -53,7 +54,9 @@ function OpportunityCard({ opp, idx }: { opp: Opportunity; idx: number }) {
   return (
     <div className={`border border-[#D9D0C3] border-l-4 ${accent} bg-white`}>
       <div className={`px-3 py-1.5 border-b border-[#E6DED2] ${labelColor}`}>
-        <span className="text-[10px] font-bold uppercase tracking-wider">{label} #{idx + 1}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider">
+          {label} {opp.opportunity_id ? `· ${opp.opportunity_id}` : `#${idx + 1}`}
+        </span>
       </div>
       <div className="divide-y divide-[#EDE7DE]">
         {rows.map(([k, v, isQuote]) => (
@@ -79,7 +82,7 @@ export default function CriterionOpportunities({ recommendations }: Props) {
       const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
       return (order[a.priority ?? "low"] ?? 2) - (order[b.priority ?? "low"] ?? 2);
     })
-    .slice(0, 3);
+    .slice(0, 1);
 
   const [expanded, setExpanded] = useState(false);
 
@@ -91,7 +94,7 @@ export default function CriterionOpportunities({ recommendations }: Props) {
     <div className="mt-3 space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-[#8B2E2E]">
-          Opportunities ({sorted.length})
+          Ledger Opportunity
         </p>
         {sorted.length > 1 && (
           <button
@@ -103,7 +106,7 @@ export default function CriterionOpportunities({ recommendations }: Props) {
         )}
       </div>
       {visible.map((opp, i) => (
-        <OpportunityCard key={i} opp={opp} idx={i} />
+        <OpportunityCard key={opp.opportunity_id ?? i} opp={opp} idx={i} />
       ))}
     </div>
   );

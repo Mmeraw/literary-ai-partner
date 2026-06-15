@@ -16,11 +16,11 @@ import { getLatestVersionForManuscript } from "@/lib/db/manuscriptVersions";
 import { normalizeEnglishVariant } from "@/lib/evaluation/englishVariant";
 
 const JOB_SELECT_FIELDS =
-  "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id, title)";
+  "id, manuscript_id, user_id, job_type, status, validity_status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, english_variant, manuscripts(user_id, title)";
 // TODO(U1.1-shim-retirement): Remove legacy select fallback after all Supabase/CI environments have the
 // evaluation_jobs.validity_status column. See docs/governance/U1_1_CONFIDENCE_WIRING_PLAN.md.
 const JOB_SELECT_FIELDS_LEGACY =
-  "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, manuscripts(user_id, title)";
+  "id, manuscript_id, user_id, job_type, status, progress, created_at, updated_at, last_heartbeat, last_error, failure_envelope, english_variant, manuscripts(user_id, title)";
 
 // Lazy-initialized Supabase client - null-safe for CI/build environments
 let _supabase: ReturnType<typeof createAdminClient> | undefined;
@@ -806,6 +806,7 @@ function mapDbRowToJob(row: any): Job {
     last_error: row.last_error ?? null,
     failure_code: failureCode,
     manuscript_title: manuscriptTitle,
+    english_variant: normalizeEnglishVariant(row.english_variant),
   };
 }
 

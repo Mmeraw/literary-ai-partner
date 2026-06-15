@@ -12,6 +12,10 @@
 
 import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  EVALUATE_ARTIFACT_QUALITY_THRESHOLD,
+  evaluateArtifactPayloadQuality,
+} from "./artifactQualityCertification";
 
 export type ArtifactType =
   | "evaluation_result_v1"
@@ -33,6 +37,10 @@ export type ArtifactType =
   | "longform_document_v1"
   /** Post-evaluation author-facing editorial translation audit. Does not mutate scores. */
   | "report_experience_v1"
+  /** Post-QG consistency certification boundary before evaluation_result_v2 persistence. */
+  | "artifact_consistency_gate_v1"
+  /** Exact post-QG effective result snapshot for forensic reconstruction before canonical persistence/certification. */
+  | "post_qg_effective_snapshot_v1"
   /**
    * Inter-invocation handoff: raw Pass 1 + Pass 2 outputs written at end of phase_1
    * so that a fresh Vercel invocation can resume at Pass 3 without re-running chunk
@@ -165,6 +173,16 @@ export type ArtifactType =
    */
   /** Compact final verification rail for long-form report readiness. */
   | "revision_canon_metadata_v1"
+  /** Canonical renderer adapter built from evaluation_result_v2 before any user-facing rendering. */
+  | "unified_evaluation_document_v1"
+  /** Renderer parity evidence showing field-level consumption per surface. */
+  | "report_render_manifest_v1"
+  /** Author exposure release certification; must be certified for author-facing surfaces. */
+  | "author_exposure_certification_v1"
+  /** Revise completion certification; proves all ready-for-revise cards have persisted author decisions before Final Review. */
+  | "revision_completion_record_v1"
+  /** Deterministic admin-readable failure packet persisted at job-failure finalization time. */
+  | "failure_diagnosis_v1"
   /** Compact final verification rail for long-form report readiness. */
   | "final_external_audit_v1";
 
@@ -255,6 +273,19 @@ export async function upsertEvaluationArtifact(params: {
   if (!Number.isFinite(params.manuscriptId) || params.manuscriptId <= 0) {
     throw new Error(
       `[ArtifactPersistence] Upsert aborted for job_id=${params.jobId}: invalid manuscriptId=${params.manuscriptId}`,
+    );
+  }
+
+  const qualityCertification = evaluateArtifactPayloadQuality({
+    artifact: params.artifactType,
+    content: params.content,
+  });
+  if (!qualityCertification.certified) {
+    console.warn(
+      `[ArtifactPersistence] ${params.jobId}: ${params.artifactType} quality score ` +
+      `${qualityCertification.score_0_100}/${EVALUATE_ARTIFACT_QUALITY_THRESHOLD}; ` +
+      `issues=${qualityCertification.issues.map((issue) => `${issue.code}:${issue.path}`).join(',')}; ` +
+      `persisting for admin artifact-health triage`,
     );
   }
 

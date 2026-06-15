@@ -225,6 +225,24 @@ describe('getWorkbenchQueue', () => {
     expect(mockEnsureLedger).not.toHaveBeenCalled();
   });
 
+  it('surfaces author exposure DB errors as system errors without rendering queue data', async () => {
+    mockGetAuthorExposureDecision.mockResolvedValue({
+      exposable: false,
+      reason: 'db_error',
+      details: 'connection refused',
+    });
+
+    const supabase = buildSupabaseMock('job-author-db-error', 'version-author-db-error');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-author-db-error' });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('System error checking author exposure certification. Please try again shortly.');
+    expect(result.opportunities).toHaveLength(0);
+    expect(mockEnsureLedger).not.toHaveBeenCalled();
+  });
+
   it('routes missing candidate prose to needs targeting instead of falling back to rationale', async () => {
     const supabase = buildSupabaseMock('job-3', 'version-3');
     mockCreateAdminClient.mockReturnValue(supabase as never);

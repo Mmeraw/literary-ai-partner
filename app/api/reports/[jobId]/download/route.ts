@@ -26,11 +26,8 @@ import {
   buildReportPitches,
   summarizeRevisionOpportunities,
 } from '@/lib/evaluation/reportTemplateContract';
-import {
-  buildUnifiedEvaluationDocument,
-  type CanonicalEvaluationMode,
-  type UnifiedEvaluationDocument,
-} from '@/lib/evaluation/unifiedEvaluationDocument';
+import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
@@ -41,7 +38,6 @@ import {
   getConfidenceExportPaletteClass as confidencePaletteClass,
   getConfidenceExportPaletteColor as confidencePaletteColor,
 } from '@/lib/evaluation/confidenceFieldPolicy';
-import { isGenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
 import { formatScoreForDisplay, formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
@@ -147,17 +143,16 @@ const FOOTER_LINE = 'RevisionGrade\u2122  |  Manuscript diagnosis, author-contro
 
 type ExportFormat = 'pdf' | 'docx' | 'txt';
 type ExportableResult = EvaluationResultV1 | EvaluationResultV2;
-type EnrichmentData = {
-  premise?: string;
-  trigger_warnings?: string[];
-  reading_grade_level?: number;
-  dialogue_percentage?: number;
-  narrative_percentage?: number;
-  diagnosed_genre?: string;
-  target_audience?: string;
-} | null;
 
-type ArtifactContentRow = { content?: unknown | null };
+type EnrichmentData = {
+  diagnosed_genre?: string | null;
+  target_audience?: string | null;
+  reading_grade_level?: number | null;
+  dialogue_percentage?: number | null;
+  narrative_percentage?: number | null;
+  premise?: string | null;
+  trigger_warnings?: string[] | null;
+} | null;
 
 type ExportableResultShape = {
   generated_at?: unknown;
@@ -366,51 +361,6 @@ function safeFilename(title: string | null, jobId: string, ext: string): string 
   return `revision-grade-${base}.${ext}`;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function normalizeCanonicalMode(raw: unknown, wordCount: number | null): CanonicalEvaluationMode {
-  if (raw === 'short_form_evaluation' || raw === 'long_form_evaluation' || raw === 'long_form_multi_layer_evaluation') {
-    return raw;
-  }
-  if (typeof wordCount === 'number' && wordCount >= LONG_FORM_WORD_THRESHOLD) return 'long_form_evaluation';
-  return 'short_form_evaluation';
-}
-
-async function loadCanonicalEvaluationMode(
-  admin: ReturnType<typeof createAdminClient>,
-  jobId: string,
-  rawResult: unknown,
-  progress: unknown,
-  wordCount: number | null,
-): Promise<CanonicalEvaluationMode> {
-  const resultRecord = asRecord(rawResult);
-  const metadataRecord = asRecord(resultRecord?.metadata);
-  const progressRecord = asRecord(progress);
-
-  const direct = normalizeCanonicalMode(resultRecord?.evaluation_mode, null);
-  if (direct !== 'short_form_evaluation' || resultRecord?.evaluation_mode === 'short_form_evaluation') return direct;
-
-  const metadataMode = normalizeCanonicalMode(metadataRecord?.evaluation_mode, null);
-  if (metadataMode !== 'short_form_evaluation' || metadataRecord?.evaluation_mode === 'short_form_evaluation') return metadataMode;
-
-  const progressMode = normalizeCanonicalMode(progressRecord?.evaluation_mode, null);
-  if (progressMode !== 'short_form_evaluation' || progressRecord?.evaluation_mode === 'short_form_evaluation') return progressMode;
-
-  const { data: seed } = await admin
-    .from('evaluation_artifacts')
-    .select('content')
-    .eq('job_id', jobId)
-    .eq('artifact_type', 'evaluation_seed_v1')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const seedContent = asRecord((seed as ArtifactContentRow | null)?.content);
-  return normalizeCanonicalMode(seedContent?.scope_mode, wordCount);
-}
-
 function extractManuscriptTitle(manuscripts: unknown): string | null {
   const relation = Array.isArray(manuscripts) ? manuscripts[0] : manuscripts;
   const title =
@@ -567,6 +517,12 @@ function cleanReportText(text: unknown, fallback = '—', _options: { blockTrunc
   return mistakeProofText(text, fallback);
 }
 
+function hasMeaningfulText(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'number') return Number.isFinite(value);
+  return false;
+}
+
 /** Word-wrap a string to `width` columns, preserving existing line breaks. */
 function wrapText(text: string, width = TXT_WRAP_WIDTH): string {
   return wrapIndentedLines(text, { width }).join('\n');
@@ -678,23 +634,33 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
   push('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
   push(sep);
   push('');
-  push(`Quality: ${scoreLabel(dream.dream_scores?.quality, 100)}`);
-  push(`Readiness: ${scoreLabel(dream.dream_scores?.readiness, 100)}`);
-  push(`Commercial: ${scoreLabel(dream.dream_scores?.commercial, 100)}`);
-  push(`Literary: ${scoreLabel(dream.dream_scores?.literary, 100)}`);
-  push('');
-  push('Executive Verdict:');
-  push('');
-  push(cleanReportText(dream.executive_verdict));
+  if (dream.dream_scores?.quality != null) push(`Quality: ${scoreLabel(dream.dream_scores.quality, 100)}`);
+  if (dream.dream_scores?.readiness != null) push(`Readiness: ${scoreLabel(dream.dream_scores.readiness, 100)}`);
+  if (dream.dream_scores?.commercial != null) push(`Commercial: ${scoreLabel(dream.dream_scores.commercial, 100)}`);
+  if (dream.dream_scores?.literary != null) push(`Literary: ${scoreLabel(dream.dream_scores.literary, 100)}`);
+  if (hasMeaningfulText(dream.executive_verdict)) {
+    push('');
+    push('Executive Verdict:');
+    push('');
+    push(cleanReportText(dream.executive_verdict));
+  }
 
-  if (dream.market_shelf) {
+  if (
+    dream.market_shelf && (
+      hasMeaningfulText(dream.market_shelf.best_shelf) ||
+      hasMeaningfulText(dream.market_shelf.marketable_hook) ||
+      hasMeaningfulText(dream.market_shelf.market_danger) ||
+      (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) ||
+      (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0)
+    )
+  ) {
     push('');
     push(sub);
     push('MARKET SHELF');
     push(sub);
     push('');
-    push(`Best Shelf: ${cleanReportText(dream.market_shelf.best_shelf)}`);
-    push(`Marketable Hook: ${cleanReportText(dream.market_shelf.marketable_hook)}`);
+    if (hasMeaningfulText(dream.market_shelf.best_shelf)) push(`Best Shelf: ${cleanReportText(dream.market_shelf.best_shelf)}`);
+    if (hasMeaningfulText(dream.market_shelf.marketable_hook)) push(`Marketable Hook: ${cleanReportText(dream.market_shelf.marketable_hook)}`);
     if (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) {
       push('');
       push('Shelf Neighbors:');
@@ -705,8 +671,15 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
       push('Comparison Space:');
       dream.market_shelf.comparison_space.forEach((item) => push(`• ${cleanReportText(item)}`));
     }
-    push('');
-    push(`Market Danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
+    if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+      push('');
+      push('What Not to Become:');
+      dream.what_not_to_become.forEach((item) => push(`• ${cleanReportText(item)}`));
+    }
+    if (hasMeaningfulText(dream.market_shelf.market_danger)) {
+      push('');
+      push(`Market Danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
+    }
   }
 
   if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
@@ -717,8 +690,8 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     dream.structural_stack.forEach((layer) => {
       push('');
       push(`${cleanReportText(layer.layer_name)} — ${layer.status}`);
-      push(`Function: ${cleanReportText(layer.function)}`);
-      push(`Revision note: ${cleanReportText(layer.revision_note)}`);
+      if (hasMeaningfulText(layer.function)) push(`Function: ${cleanReportText(layer.function)}`);
+      if (hasMeaningfulText(layer.revision_note)) push(`Revision note: ${cleanReportText(layer.revision_note)}`);
     });
   }
 
@@ -730,8 +703,33 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     dream.arc_map.forEach((act) => {
       push('');
       push(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`);
-      push(`Function: ${cleanReportText(act.primary_function)}`);
-      push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
+      if (hasMeaningfulText(act.primary_function)) push(`Function: ${cleanReportText(act.primary_function)}`);
+      if (hasMeaningfulText(act.revision_priority)) push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
+    });
+  }
+
+  if (Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0) {
+    push('');
+    push(sub);
+    push('LAYER ANALYSIS');
+    push(sub);
+    dream.layer_analyses.forEach((layer) => {
+      push('');
+      push(`${cleanReportText(layer.layer_name)} — ${cleanReportText(layer.status)}`);
+      if (hasMeaningfulText(layer.needed_revision)) push(`Needed revision: ${cleanReportText(layer.needed_revision)}`);
+    });
+  }
+
+  if (Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0) {
+    push('');
+    push(sub);
+    push('CROSS-LAYER INTEGRATION');
+    push(sub);
+    dream.cross_layer_integration.forEach((item) => {
+      push('');
+      push(`${cleanReportText(item.motif)} — ${cleanReportText(item.integration_quality)}`);
+      if (hasMeaningfulText(item.description)) push(`Description: ${cleanReportText(item.description)}`);
+      if (hasMeaningfulText(item.revision_note)) push(`Revision note: ${cleanReportText(item.revision_note)}`);
     });
   }
 
@@ -804,25 +802,25 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     if (re.first_act) {
       push('');
       push('First Act:');
-      push(`  Reader question: ${cleanReportText(re.first_act.reader_question)}`);
-      push(`  Emotional state: ${cleanReportText(re.first_act.emotional_state)}`);
-      push(`  Risk: ${cleanReportText(re.first_act.risk)}`);
+      if (hasMeaningfulText(re.first_act.reader_question)) push(`  Reader question: ${cleanReportText(re.first_act.reader_question)}`);
+      if (hasMeaningfulText(re.first_act.emotional_state)) push(`  Emotional state: ${cleanReportText(re.first_act.emotional_state)}`);
+      if (hasMeaningfulText(re.first_act.risk)) push(`  Risk: ${cleanReportText(re.first_act.risk)}`);
     }
     if (re.middle) {
       push('');
       push('Middle:');
-      push(`  Reader question: ${cleanReportText(re.middle.reader_question)}`);
-      push(`  Emotional state: ${cleanReportText(re.middle.emotional_state)}`);
-      push(`  Risk: ${cleanReportText(re.middle.risk)}`);
+      if (hasMeaningfulText(re.middle.reader_question)) push(`  Reader question: ${cleanReportText(re.middle.reader_question)}`);
+      if (hasMeaningfulText(re.middle.emotional_state)) push(`  Emotional state: ${cleanReportText(re.middle.emotional_state)}`);
+      if (hasMeaningfulText(re.middle.risk)) push(`  Risk: ${cleanReportText(re.middle.risk)}`);
     }
     if (re.final_act) {
       push('');
       push('Final Act:');
-      push(`  Reader question: ${cleanReportText(re.final_act.reader_question)}`);
-      push(`  Emotional state: ${cleanReportText(re.final_act.emotional_state)}`);
-      push(`  Risk: ${cleanReportText(re.final_act.risk)}`);
+      if (hasMeaningfulText(re.final_act.reader_question)) push(`  Reader question: ${cleanReportText(re.final_act.reader_question)}`);
+      if (hasMeaningfulText(re.final_act.emotional_state)) push(`  Emotional state: ${cleanReportText(re.final_act.emotional_state)}`);
+      if (hasMeaningfulText(re.final_act.risk)) push(`  Risk: ${cleanReportText(re.final_act.risk)}`);
     }
-    if (re.aftertaste) {
+    if (hasMeaningfulText(re.aftertaste)) {
       push('');
       push(`Aftertaste: ${cleanReportText(re.aftertaste)}`);
     }
@@ -838,6 +836,27 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     dream.releasability.forEach((dim) => {
       push(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`);
     });
+  }
+
+  if (dream.acceptance_checks) {
+    const required = filterAuthorFacingTextList(dream.acceptance_checks.required_detection);
+    const failures = filterAuthorFacingTextList(dream.acceptance_checks.failure_conditions);
+    if (required.length > 0 || failures.length > 0) {
+      push('');
+      push(sub);
+      push('REVIEW GATE');
+      push(sub);
+      if (required.length > 0) {
+        push('');
+        push('Required Detection:');
+        required.forEach((item) => push(`• ${cleanReportText(item)}`));
+      }
+      if (failures.length > 0) {
+        push('');
+        push('Failure Conditions:');
+        failures.forEach((item) => push(`• ${cleanReportText(item)}`));
+      }
+    }
   }
 }
 
@@ -1035,54 +1054,7 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
   return lines.join('\n');
 }
 
-function buildCanonicalTemplateDocument(
-  result: ExportableResult,
-  title: string | null,
-  enrichment: EnrichmentData,
-  mode: CanonicalEvaluationMode,
-  dream: LongformDreamDocument | null,
-): UnifiedEvaluationDocument {
-  const displayTitle = title?.trim() || result.metrics?.manuscript?.title?.trim() || 'Untitled Manuscript';
-  const genreExpectationContext = (result as ExportableResultShape).governance?.transparency?.genre_expectation_context;
-
-  return buildUnifiedEvaluationDocument({
-    mode,
-    result: {
-      generated_at: typeof result.generated_at === 'string' ? result.generated_at : undefined,
-      overview: {
-        overall_score_0_100: result.overview?.overall_score_0_100,
-        verdict: result.overview?.verdict,
-        one_paragraph_summary: result.overview?.one_paragraph_summary,
-        top_3_strengths: result.overview?.top_3_strengths,
-        top_3_risks: result.overview?.top_3_risks,
-      },
-      metrics: {
-        manuscript: {
-          title: displayTitle,
-          word_count: result.metrics?.manuscript?.word_count,
-          genre: enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre,
-          target_audience: enrichment?.target_audience ?? result.metrics?.manuscript?.target_audience,
-        },
-      },
-      enrichment: {
-        premise: enrichment?.premise,
-        trigger_warnings: enrichment?.trigger_warnings,
-        reading_grade_level: enrichment?.reading_grade_level,
-        dialogue_percentage: enrichment?.dialogue_percentage,
-        narrative_percentage: enrichment?.narrative_percentage,
-      },
-      governance: isGenreExpectationMetadata(genreExpectationContext)
-        ? { transparency: { genre_expectation_context: genreExpectationContext } }
-        : undefined,
-      criteria: result.criteria,
-      recommendations: result.recommendations,
-    },
-    displayTitle,
-    dream,
-  });
-}
-
-function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): string {
+function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, dream: LongformDreamDocument | null = null, jobId = ''): string {
   const lines: string[] = [];
   const sep = '='.repeat(TXT_WRAP_WIDTH);
   const sub = '-'.repeat(TXT_WRAP_WIDTH);
@@ -1318,9 +1290,7 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
     }
   }
 
-  if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
-    lines.push(sub);
-    lines.push('MANUSCRIPT-SCALE CONTINUITY FINDINGS');
+  if (!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation')) {
     lines.push(sub);
     lines.push('');
     doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => {
@@ -1342,8 +1312,9 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
     });
   }
 
-  if (doc.templateMode === 'long_form_multi_layer_evaluation') {
+  if (!dream && doc.templateMode === 'long_form_multi_layer_evaluation') {
     const pushList = (heading: string, items: string[]) => {
+      if (items.length === 0) return;
       lines.push(sub);
       lines.push(heading);
       lines.push(sub);
@@ -1361,13 +1332,19 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
     pushList('LAYER-AWARE REVISION SEQUENCING', doc.modeSpecific.layerAwareRevisionSequencing);
     pushList('LONG-FORM CONTINUITY AND COVERAGE PROOF', doc.modeSpecific.continuityCoverageProof);
 
-    lines.push(sub);
-    lines.push('READINESS / RELEASABILITY POSTURE');
-    lines.push(sub);
-    lines.push('');
-    pushWrapped(lines, cleanReportText(doc.modeSpecific.readinessReleasabilityPosture));
-    lines.push('');
+    if (doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
+      lines.push(sub);
+      lines.push('READINESS / RELEASABILITY POSTURE');
+      lines.push(sub);
+      lines.push('');
+      pushWrapped(lines, cleanReportText(doc.modeSpecific.readinessReleasabilityPosture));
+      lines.push('');
+    }
   }
+
+  // When the DREAM artifact is available, render all template sections directly.
+  // Rule: THE TEMPLATE IS THE TRUTH — render from the source, not the compressed UED arrays.
+  if (dream) appendDreamTxtSections(lines, dream);
 
   lines.push(sub);
   lines.push('CONFIDENCE EXPLANATION');
@@ -1385,11 +1362,18 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, jobId = ''): 
   return lines.join('\n');
 }
 
-function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = ''): string {
+function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: LongformDreamDocument | null = null, jobId = ''): string {
   const list = (items: string[], options: { ordered?: boolean } = {}) =>
     items.length > 0
       ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(cleanReportText(item))}</span></li>`).join('')}</ul>`
       : '<p>None supplied.</p>';
+
+  const renderOpportunityFields = (rows: Array<[string, string]>) => rows
+    .map(([label, value]) => {
+      const valHtml = label === 'Evidence' ? `\u201c${escapeHtml(value)}\u201d` : escapeHtml(value);
+      return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="opp-val">${valHtml}</div></div>`;
+    })
+    .join('');
 
   const criteriaRows = doc.criteriaScoreGrid
     .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td class="score-cell ${scorePaletteClassFromLabel(row.scoreLabel)}">${escapeHtml(row.scoreLabel)}</td><td><span class="confidence-pill ${confidencePaletteClass(row.confidenceLabel)}">${escapeHtml(row.confidenceLabel)}</span></td></tr>`)
@@ -1401,10 +1385,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
         ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
             const rows = opportunityRows(r as ExportRecommendation);
             const detailHtml = rows.length > 0
-              ? `<table class="opp-table">${rows.map(([label, value]) => {
-                  const valHtml = label === 'Evidence' ? `<em>\u201c${escapeHtml(value)}\u201d</em>` : escapeHtml(value);
-                  return `<tr><td class="opp-key">${escapeHtml(label)}</td><td class="opp-val">${valHtml}</td></tr>`;
-                }).join('')}</table>`
+              ? renderOpportunityFields(rows)
               : `<p class="opp-row">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
             return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
           }).join('')}</div>`
@@ -1420,44 +1401,203 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
     })
     .join('');
 
+  // ── Dream Template Sections ────────────────────────────────────────────────
+  // When the raw DREAM artifact is available, render all DREAM template sections
+  // directly from the source artifact. These replace the compressed UED modeSpecific
+  // string arrays (Story Ledger, Review Gate, Governed Ledgers, Cross-Layer Synthesis,
+  // Layer-Aware Revision Sequencing, Long-Form Continuity, Readiness Posture).
+  // Rule: THE TEMPLATE IS THE TRUTH — all renderers must follow the DREAM template.
+  const dreamSectionsHtml = dream ? (() => {
+    const parts: string[] = [];
+
+    // §1 Narrative Synthesis (dream_scores + executive_verdict)
+    const ds = dream.dream_scores;
+    const scoreMetrics = ds ? [
+      ds.quality != null ? `<div class="metric"><strong>Quality</strong><div>${escapeHtml(scoreLabel(ds.quality, 100))}</div></div>` : '',
+      ds.readiness != null ? `<div class="metric"><strong>Readiness</strong><div>${escapeHtml(scoreLabel(ds.readiness, 100))}</div></div>` : '',
+      ds.commercial != null ? `<div class="metric"><strong>Commercial</strong><div>${escapeHtml(scoreLabel(ds.commercial, 100))}</div></div>` : '',
+      ds.literary != null ? `<div class="metric"><strong>Literary</strong><div>${escapeHtml(scoreLabel(ds.literary, 100))}</div></div>` : '',
+    ].filter(Boolean).join('') : '';
+    if (hasMeaningfulText(dream.executive_verdict) || scoreMetrics) {
+      parts.push(`<section><h2>Narrative Synthesis</h2>${scoreMetrics ? `<div class="grid" style="margin-bottom:14px">${scoreMetrics}</div>` : ''}${hasMeaningfulText(dream.executive_verdict) ? `<p style="font-size:10pt;line-height:1.6">${escapeHtml(cleanReportText(dream.executive_verdict))}</p>` : ''}</section>`);
+    }
+
+    // §2 Market Shelf + What Not to Become
+    if (dream.market_shelf) {
+      const ms = dream.market_shelf;
+      const bestShelfHtml = hasMeaningfulText(ms.best_shelf) ? `<p><strong>Best Shelf:</strong> ${escapeHtml(cleanReportText(ms.best_shelf))}</p>` : '';
+      const hookHtml = hasMeaningfulText(ms.marketable_hook) ? `<p><strong>Marketable Hook:</strong> ${escapeHtml(cleanReportText(ms.marketable_hook))}</p>` : '';
+      const dangerHtml = hasMeaningfulText(ms.market_danger) ? `<p><strong>Market Danger:</strong> ${escapeHtml(cleanReportText(ms.market_danger))}</p>` : '';
+      const neighborsHtml = Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0
+        ? `<p style="margin-top:10px"><strong>Shelf Neighbors:</strong></p>${list(ms.shelf_neighbors)}`
+        : '';
+      const compHtml = Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0
+        ? `<p style="margin-top:10px"><strong>Comparison Space:</strong></p>${list(ms.comparison_space)}`
+        : '';
+      const wntbHtml = Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0
+        ? `<p style="margin-top:10px"><strong>What Not to Become:</strong></p>${list(dream.what_not_to_become)}`
+        : '';
+      if (bestShelfHtml || hookHtml || dangerHtml || neighborsHtml || compHtml || wntbHtml) {
+        parts.push(`<section><h2>Market Shelf</h2><div class="card">${bestShelfHtml}${hookHtml}${dangerHtml}${neighborsHtml}${compHtml}${wntbHtml}</div></section>`);
+      }
+    }
+
+    // §4 Structural Architecture (structural_stack) + §5 Arc Map
+    const stackCards = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0
+      ? dream.structural_stack.map(layer => `<article class="card"><h3>${escapeHtml(cleanReportText(layer.layer_name))}</h3><p><strong>Function:</strong> ${escapeHtml(cleanReportText(layer.function))}</p><p><strong>Status:</strong> ${escapeHtml(layer.status)}</p>${layer.revision_note ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision note:</strong> ${escapeHtml(cleanReportText(layer.revision_note))}</p>` : ''}</article>`).join('')
+      : '';
+    const arcCards = Array.isArray(dream.arc_map) && dream.arc_map.length > 0
+      ? dream.arc_map.map(act => `<article class="card"><h3>${escapeHtml(cleanReportText(act.act_name))} <small>${escapeHtml(cleanReportText(act.chapter_range))}</small></h3><p>${escapeHtml(cleanReportText(act.primary_function))}</p>${act.revision_priority ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision priority:</strong> ${escapeHtml(cleanReportText(act.revision_priority))}</p>` : ''}</article>`).join('')
+      : '';
+    if (stackCards || arcCards) {
+      parts.push(`<section><h2>Structural Architecture</h2>${stackCards}${arcCards ? `<h3 style="margin-top:16px">Arc Map</h3>${arcCards}` : ''}</section>`);
+    }
+
+    // §8 Layer Analysis
+    const layerCards = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0
+      ? dream.layer_analyses.map(l => `<article class="card"><h3>${escapeHtml(cleanReportText(l.layer_name))} <small>${escapeHtml(l.status)}</small></h3><p>${escapeHtml(cleanReportText(l.needed_revision))}</p></article>`).join('')
+      : '';
+    if (layerCards) {
+      parts.push(`<section><h2>Layer Analysis</h2>${layerCards}</section>`);
+    }
+
+    // §9 Cross-Layer Integration
+    const crossCards = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0
+      ? dream.cross_layer_integration.map(c => `<article class="card"><h3>${escapeHtml(cleanReportText(c.motif))}</h3><p>${escapeHtml(cleanReportText(c.description))}</p>${c.revision_note ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(cleanReportText(c.revision_note))}</p>` : ''}</article>`).join('')
+      : '';
+    if (crossCards) {
+      parts.push(`<section><h2>Cross-Layer Integration</h2>${crossCards}</section>`);
+    }
+
+    // §7 Deep Criterion Analysis (expands the score grid with fit evidence, gap evidence, revision queue)
+    const deepCriterionCards = Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0
+      ? dream.criterion_analyses.map(a => {
+          const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
+          const confLabel = formatConfidenceLabel(a.confidence);
+          const fitHtml = Array.isArray(a.fit_evidence) && a.fit_evidence.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>What Is Working:</strong></p>${list(a.fit_evidence)}`
+            : '';
+          const gapHtml = Array.isArray(a.gap_evidence) && a.gap_evidence.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>What Weakens Impact:</strong></p>${list(a.gap_evidence)}`
+            : '';
+          const queueHtml = Array.isArray(a.revision_queue) && a.revision_queue.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>Revision Queue:</strong></p>${list(a.revision_queue.map(formatRevisionQueueItem), { ordered: true })}`
+            : '';
+          return `<article class="card"><h3>${escapeHtml(getCriterionDisplayLabel(a.key))} <small><span class="criterion-score ${scorePaletteClassFromLabel(score)}">${escapeHtml(score)}</span> · <span class="confidence-text ${confidencePaletteClass(confLabel)}">${escapeHtml(confLabel)}</span></small></h3>${fitHtml}${gapHtml}${queueHtml}</article>`;
+        }).join('')
+      : '';
+    if (deepCriterionCards) {
+      parts.push(`<section><h2>Deep Criterion Analysis</h2>${deepCriterionCards}</section>`);
+    }
+
+    // §10 Symbolic & Doctrine Audit
+    if (dream.symbolic_audit) {
+      const sa = dream.symbolic_audit;
+      const symbolsHtml = Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0
+        ? `<h3 style="margin-bottom:8px">Preserved Symbols</h3>${sa.preserved_symbols.map(sym => `<div class="card"><p><strong>${escapeHtml(cleanReportText(sym.symbol))}</strong> — ${escapeHtml(cleanReportText(sym.current_function))}</p>${sym.revision_instruction ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(cleanReportText(sym.revision_instruction))}</p>` : ''}</div>`).join('')}`
+        : '';
+      const strengthsHtml = Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0
+        ? `<p style="margin-top:10px"><strong>Doctrine Strengths:</strong></p>${list(sa.doctrine_strengths)}`
+        : '';
+      const risksHtml = Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0
+        ? `<p style="margin-top:10px"><strong>Doctrine Risks:</strong></p>${list(sa.doctrine_risks)}`
+        : '';
+      const conclusionHtml = hasMeaningfulText(sa.audit_conclusion) ? `<p style="margin-top:10px">${escapeHtml(cleanReportText(sa.audit_conclusion))}</p>` : '';
+      if (symbolsHtml || strengthsHtml || risksHtml || conclusionHtml) {
+        parts.push(`<section><h2>Symbolic &amp; Doctrine Audit</h2>${symbolsHtml}${strengthsHtml}${risksHtml}${conclusionHtml}</section>`);
+      }
+    }
+
+    // §11 Reader Experience
+    if (dream.reader_experience) {
+      const re = dream.reader_experience;
+      const actCard = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+        if (!act) return '';
+        const questionHtml = hasMeaningfulText(act.reader_question) ? `<p><strong>Reader Question:</strong> ${escapeHtml(cleanReportText(act.reader_question))}</p>` : '';
+        const emotionHtml = hasMeaningfulText(act.emotional_state) ? `<p><strong>Emotional State:</strong> ${escapeHtml(cleanReportText(act.emotional_state))}</p>` : '';
+        const riskHtml = hasMeaningfulText(act.risk) ? `<p><strong>Risk:</strong> ${escapeHtml(cleanReportText(act.risk))}</p>` : '';
+        if (!questionHtml && !emotionHtml && !riskHtml) return '';
+        return `<article class="card"><h3>${escapeHtml(title)}</h3>${questionHtml}${emotionHtml}${riskHtml}</article>`;
+      };
+      const aftertasteHtml = hasMeaningfulText(re.aftertaste) ? `<p style="margin-top:14px;font-size:10pt">${escapeHtml(cleanReportText(re.aftertaste))}</p>` : '';
+      const actHtml = `${actCard('First Act', re.first_act)}${actCard('Middle', re.middle)}${actCard('Final Act', re.final_act)}`;
+      if (actHtml || aftertasteHtml) {
+        parts.push(`<section><h2>Reader Experience</h2>${actHtml}${aftertasteHtml}</section>`);
+      }
+    }
+
+    // §12 Revision Priority Plan (from DREAM — canonical, replaces the UED compressed version)
+    const dreamRevisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (dreamRevisionPlan.length > 0) {
+      const planCards = dreamRevisionPlan.map(item => {
+        const actionsHtml = Array.isArray(item.actions) && item.actions.length > 0
+          ? `<p style="margin-top:8px"><strong>Actions:</strong></p>${list(item.actions, { ordered: true })}`
+          : '';
+        const acceptanceHtml = item.acceptance_check ? `<p style="margin-top:8px;font-size:9.5pt;color:#5C5549"><strong>Acceptance Check:</strong> ${escapeHtml(cleanReportText(item.acceptance_check))}</p>` : '';
+        return `<article class="card"><h3>Priority ${item.displayPriority}: ${escapeHtml(cleanReportText(item.title))}</h3><p>${escapeHtml(cleanReportText(item.goal))}</p>${actionsHtml}${acceptanceHtml}</article>`;
+      }).join('');
+      parts.push(`<section><h2>Revision Priority Plan</h2>${planCards}</section>`);
+    }
+
+    // §13 Releasability
+    if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
+      const verdictClass = (v: string) => v === 'Ready' ? 'score-strong' : (v === 'Revise' || v === 'Must fix') ? 'score-risk' : 'score-watch';
+      const releasabilityRows = dream.releasability.map(dim =>
+        `<tr><td>${escapeHtml(cleanReportText(dim.dimension))}</td><td>${escapeHtml(cleanReportText(dim.current_status))}</td><td class="${verdictClass(dim.verdict)}" style="font-weight:700;text-align:right">${escapeHtml(dim.verdict)}</td></tr>`
+      ).join('');
+      parts.push(`<section><h2>Releasability Assessment</h2><table class="score-grid-table"><thead><tr><th>Dimension</th><th>Status</th><th style="text-align:right">Verdict</th></tr></thead><tbody>${releasabilityRows}</tbody></table></section>`);
+    }
+
+    // §14 Review Gate (acceptance_checks)
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const requiredHtml = Array.isArray(ac.required_detection) && ac.required_detection.length > 0
+        ? `<p><strong>Required Detection:</strong></p>${list(ac.required_detection)}`
+        : '';
+      const failureHtml = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0
+        ? `<p style="margin-top:10px"><strong>Failure Conditions:</strong></p>${list(ac.failure_conditions)}`
+        : '';
+      if (requiredHtml || failureHtml) {
+        parts.push(`<section><h2>Review Gate</h2>${requiredHtml}${failureHtml}</section>`);
+      }
+    }
+
+    return parts.join('\n    ');
+  })() : '';
+
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(doc.title)} - RevisionGrade Report</title><style>
     @page{size:Letter;margin:0.66in 0.68in 0.78in;@bottom-center{content:'RevisionGrade™ | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
-    *{box-sizing:border-box}
+    *{box-sizing:border-box;min-width:0}
     body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.5;font-size:10.3pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
     .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page}
     .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
     .brand{font-family:Georgia,'Times New Roman',serif;font-size:24pt;font-weight:700;color:#8B2E2E;letter-spacing:.01em}
     .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#5C5549;margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
     .hero{display:grid;grid-template-columns:minmax(0,1fr) 2.35in;gap:0.28in;margin-top:0.38in;align-items:start}
     .title{font-size:31pt;line-height:1.08;color:#1C1814;margin:0 0 10px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:12pt;margin:0;text-transform:uppercase;letter-spacing:.05em}
-    .score-box{background:#1C1814;border:2px solid #B8922A;border-radius:10px;padding:0.22in 0.18in;color:#F5EFE0;text-align:center;box-shadow:0 8px 18px rgba(28,24,20,.08)}
-    .score-box .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#C8A96E;letter-spacing:.06em}
-    .score-box .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px}
-    .score-box .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#F5E9C8;letter-spacing:.04em}
+    .readiness-card{border:2px solid #D9D0C3;border-radius:10px;padding:0.22in 0.18in;color:#1A1A1A;text-align:center;box-shadow:0 8px 18px rgba(111,29,27,.06);break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
+    .readiness-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D;color:#1A1A1A}.readiness-card.readiness-watch{background:#FFF6E8;border-color:#D9A441;color:#1A1A1A}.readiness-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A;color:#1A1A1A}.readiness-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3;color:#1A1A1A}
+    .readiness-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}.readiness-card .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px;color:#1A1A1A}.readiness-card .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#1A1A1A;letter-spacing:.04em}
     .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
     .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
     .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
     section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:18px 21px;margin:0 0 14px;break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
     h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:16pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11pt} small{font-weight:normal;color:#5C5549}
     ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
-    table{width:100%;border-collapse:collapse;table-layout:fixed} th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em} th,td{border-bottom:1px solid #E6DED2;padding:7px 8px;text-align:left;vertical-align:top} th:nth-child(2),th:nth-child(3),td:nth-child(2),td:nth-child(3){text-align:right} td:nth-child(1){width:55%} td:nth-child(2){width:15%;white-space:nowrap} td:nth-child(3){width:30%}
+    table{width:100%;border-collapse:collapse}.score-grid-table{table-layout:fixed}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:7px 8px;text-align:left;vertical-align:top}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%}
     .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
     .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:7px;color:#1C1814}
     .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
-    .opp-block{margin-top:10px;padding:11px 14px;background:#F7F1EA;border-left:4px solid #8B2E2E;border-radius:0 6px 6px 0;break-inside:avoid}
+    .opp-block{margin-top:10px;background:#FFFDF9;border:1px solid #E6DED2;border-left:3px solid #C8A96E;padding:12px 14px;border-radius:8px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
     .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8B2E2E;margin-bottom:6px}
     .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
     .opp-row strong{color:#5C5549}
-    .opp-row em{color:#6B5E52;font-style:italic}
-    .opp-table{width:100%;border-collapse:collapse;table-layout:fixed;margin:4px 0}
-    .opp-table tr{border-bottom:1px solid #E6DED2}
-    .opp-table tr:last-child{border-bottom:none}
-    .opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5C5549;width:1.1in;vertical-align:top;padding:4px 6px 4px 0}
-    .opp-val{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;vertical-align:top;padding:4px 0;line-height:1.4}
-    .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong,.readiness-strong{color:#3A6B2A}.score-watch,.readiness-watch{color:#8B5E1A}.score-risk,.readiness-risk{color:#8B2020}.score-muted,.readiness-muted{color:#5C5549}
+    .opp-row em{color:#6B5E52;font-style:normal}.opp-field{margin-top:8px;padding-top:6px;border-top:1px solid #EDE7DE;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;margin-bottom:2px}.opp-val{display:block;width:100%;font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#1C1814;line-height:1.45;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
     .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
-    .action-card{margin-bottom:8px;padding:10px 14px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:5px}
+    .action-card{margin-bottom:8px;padding:10px 14px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:5px;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}
     .action-card .action-text{font-weight:600;color:#1C1814;font-size:10pt}
     .action-card .action-meta{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549;margin-top:3px}
   </style></head><body>
@@ -1470,10 +1610,12 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
           <p class="subtitle">${escapeHtml(doc.titleBlock.reportType)}</p>
           ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
         </div>
-        <aside class="score-box">
+        <aside class="readiness-card ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">
           <div class="label">Overall Score</div>
           <div class="value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}</div>
+          ${doc.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(doc.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
           <div class="verdict ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}</div>
+          ${doc.titleBlock.marketReadinessConfidenceLabel ? `<div class="label">${escapeHtml(doc.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
         </aside>
       </div>
       <div class="grid">
@@ -1499,24 +1641,25 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, jobId = '')
     <section><h2>Top Strengths</h2>${list(doc.topStrengths, { ordered: true })}</section>
     <section><h2>Top Risks</h2>${list(doc.topRisks, { ordered: true })}</section>
     <section><h2>Top Recommendations</h2>${doc.topRecommendations.length > 0 ? list(doc.topRecommendations, { ordered: true }) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
-    <section><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+    <section><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
     <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
-    ${(doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
-    ${(doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `<section><h2>Revision Priority Plan</h2>${doc.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(cleanReportText(item.title))}</h3><p><strong>Location:</strong> ${escapeHtml(cleanReportText(item.location))}</p><p><strong>Operation:</strong> ${escapeHtml(cleanReportText(item.operation))}</p><p><strong>Recommendation:</strong> ${escapeHtml(cleanReportText(item.recommendation))}</p><p><strong>Rationale:</strong> ${escapeHtml(cleanReportText(item.rationale))}</p></article>`).join('')}</section>` : ''}
-    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Story Ledger or Layer-Aware Architecture Map</h2>${list(doc.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
-    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Review Gate Readiness Surface</h2>${list(doc.modeSpecific.reviewGateReadinessSurface)}</section>` : ''}
-    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Governed Ledgers or Compact Addenda</h2>${list(doc.modeSpecific.governedLedgerAddenda)}</section>` : ''}
-    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Cross-Layer Synthesis</h2>${list(doc.modeSpecific.crossLayerSynthesis)}</section>` : ''}
-    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
-    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
-    ${doc.templateMode === 'long_form_multi_layer_evaluation' ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
-    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> <em>"${escapeHtml(cleanReportText(item.anchor_snippet))}"</em></p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> <em>"${escapeHtml(cleanReportText(item.candidate_text_a))}"</em></p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> <em>"${escapeHtml(cleanReportText(item.anchor_snippet))}"</em></p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> <em>"${escapeHtml(cleanReportText(item.candidate_text_a))}"</em></p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
+    ${(!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') && doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
+    ${(!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') && doc.modeSpecific.revisionPriorityPlan.length > 0) ? `<section><h2>Revision Priority Plan</h2>${doc.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(cleanReportText(item.title))}</h3><p><strong>Location:</strong> ${escapeHtml(cleanReportText(item.location))}</p><p><strong>Operation:</strong> ${escapeHtml(cleanReportText(item.operation))}</p><p><strong>Recommendation:</strong> ${escapeHtml(cleanReportText(item.recommendation))}</p><p><strong>Rationale:</strong> ${escapeHtml(cleanReportText(item.rationale))}</p></article>`).join('')}</section>` : ''}
+    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.storyLedgerArchitectureMap.length > 0) ? `<section><h2>Story Ledger or Layer-Aware Architecture Map</h2>${list(doc.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
+    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.reviewGateReadinessSurface.length > 0) ? `<section><h2>Review Gate Readiness Surface</h2>${list(doc.modeSpecific.reviewGateReadinessSurface)}</section>` : ''}
+    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.governedLedgerAddenda.length > 0) ? `<section><h2>Governed Ledgers or Compact Addenda</h2>${list(doc.modeSpecific.governedLedgerAddenda)}</section>` : ''}
+    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.crossLayerSynthesis.length > 0) ? `<section><h2>Cross-Layer Synthesis</h2>${list(doc.modeSpecific.crossLayerSynthesis)}</section>` : ''}
+    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.layerAwareRevisionSequencing.length > 0) ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
+    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.continuityCoverageProof.length > 0) ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
+    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
+    ${dreamSectionsHtml}
+    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
     <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     <section><h2>Author-Facing Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
 }
 
-async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId = ''): Promise<Buffer> {
+async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream: LongformDreamDocument | null = null, jobId = ''): Promise<Buffer> {
   const makeHeading = (text: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
@@ -1556,7 +1699,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
       ],
     });
 
-  const makeCallout = (heading: string, body: string, color = RG.surfaceAlt) =>
+  const makeCallout = (heading: string, body: string, color: string = RG.surfaceAlt) =>
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
@@ -1947,10 +2090,12 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
     }
   }
 
-  if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
-    children.push(makeHeading('Manuscript-Scale Continuity Findings'));
-    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(docxListPara(item)));
-
+  if (!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation')) {
+    if (doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
+      children.push(makeHeading('Manuscript-Scale Continuity Findings'));
+      doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(docxListPara(item)));
+    }
+    if (doc.modeSpecific.revisionPriorityPlan.length > 0) {
     children.push(makeHeading('Revision Priority Plan'));
     doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
       children.push(para(`Priority ${item.priority}: ${item.title}`));
@@ -1959,10 +2104,12 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
       children.push(para(`Recommendation: ${item.recommendation}`));
       children.push(para(`Rationale: ${item.rationale}`));
     });
+    }
   }
 
-  if (doc.templateMode === 'long_form_multi_layer_evaluation') {
+  if (!dream && doc.templateMode === 'long_form_multi_layer_evaluation') {
     const appendHeadingList = (heading: string, items: string[]) => {
+      if (items.length === 0) return;
       children.push(makeHeading(heading));
       items.forEach((item) => children.push(docxListPara(item)));
     };
@@ -1973,8 +2120,194 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, jobId 
     appendHeadingList('Cross-Layer Synthesis', doc.modeSpecific.crossLayerSynthesis);
     appendHeadingList('Layer-Aware Revision Sequencing', doc.modeSpecific.layerAwareRevisionSequencing);
     appendHeadingList('Long-Form Continuity and Coverage Proof', doc.modeSpecific.continuityCoverageProof);
-    children.push(makeHeading('Readiness / Releasability Posture'));
-    children.push(para(doc.modeSpecific.readinessReleasabilityPosture));
+    if (doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
+      children.push(makeHeading('Readiness / Releasability Posture'));
+      children.push(para(doc.modeSpecific.readinessReleasabilityPosture));
+    }
+  }
+
+  // When the DREAM artifact is available, render all template sections directly.
+  // Rule: THE TEMPLATE IS THE TRUTH — render from the source, not the compressed UED arrays.
+  if (dream) {
+    // §1 Narrative Synthesis (dream_scores + executive_verdict)
+    const ds = dream.dream_scores;
+    if (dream.executive_verdict || ds) {
+      children.push(makeHeading('Narrative Synthesis'));
+      if (ds) {
+        const scoreEntries: Array<[string, number | null | undefined]> = [
+          ['Quality', ds.quality], ['Readiness', ds.readiness],
+          ['Commercial', ds.commercial], ['Literary', ds.literary],
+        ];
+        scoreEntries.forEach(([label, val]) => {
+          if (val != null) children.push(para(`${label}: ${scoreLabel(val, 100)}`));
+        });
+      }
+      if (dream.executive_verdict) children.push(para(cleanReportText(dream.executive_verdict)));
+    }
+
+    // §2 Market Shelf + What Not to Become
+    if (dream.market_shelf) {
+      const ms = dream.market_shelf;
+      const hasShelfContent = hasMeaningfulText(ms.best_shelf) || hasMeaningfulText(ms.marketable_hook) || hasMeaningfulText(ms.market_danger) || (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) || (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) || (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0);
+      if (hasShelfContent) children.push(makeHeading('Market Shelf'));
+      if (hasMeaningfulText(ms.best_shelf)) children.push(para(`Best Shelf: ${cleanReportText(ms.best_shelf)}`));
+      if (hasMeaningfulText(ms.marketable_hook)) children.push(para(`Marketable Hook: ${cleanReportText(ms.marketable_hook)}`));
+      if (hasMeaningfulText(ms.market_danger)) children.push(para(`Market Danger: ${cleanReportText(ms.market_danger)}`));
+      if (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) {
+        children.push(para('Shelf Neighbors:', { bold: true }));
+        ms.shelf_neighbors.forEach(item => children.push(docxListPara(item)));
+      }
+      if (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) {
+        children.push(para('Comparison Space:', { bold: true }));
+        ms.comparison_space.forEach(item => children.push(docxListPara(item)));
+      }
+      if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+        children.push(para('What Not to Become:', { bold: true }));
+        dream.what_not_to_become.forEach(item => children.push(docxListPara(item)));
+      }
+    }
+
+    // §4 Structural Architecture (structural_stack)
+    if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
+      children.push(makeHeading('Structural Architecture'));
+      dream.structural_stack.forEach(layer => {
+        children.push(para(`${cleanReportText(layer.layer_name)} — ${layer.status}`, { bold: true }));
+        children.push(para(`Function: ${cleanReportText(layer.function)}`));
+        if (layer.revision_note) children.push(para(`Revision note: ${cleanReportText(layer.revision_note)}`, { color: RG.textMuted }));
+      });
+    }
+
+    // §5 Arc Map
+    if (Array.isArray(dream.arc_map) && dream.arc_map.length > 0) {
+      children.push(makeHeading('Arc Map'));
+      dream.arc_map.forEach(act => {
+        children.push(para(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`, { bold: true }));
+        children.push(para(`Function: ${cleanReportText(act.primary_function)}`));
+        if (act.revision_priority) children.push(para(`Revision priority: ${cleanReportText(act.revision_priority)}`, { color: RG.textMuted }));
+      });
+    }
+
+    // §8 Layer Analysis
+    if (Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0) {
+      children.push(makeHeading('Layer Analysis'));
+      dream.layer_analyses.forEach(l => {
+        children.push(para(`${cleanReportText(l.layer_name)} — ${l.status}`, { bold: true }));
+        children.push(para(cleanReportText(l.needed_revision)));
+      });
+    }
+
+    // §9 Cross-Layer Integration
+    if (Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0) {
+      children.push(makeHeading('Cross-Layer Integration'));
+      dream.cross_layer_integration.forEach(c => {
+        children.push(para(cleanReportText(c.motif), { bold: true }));
+        children.push(para(cleanReportText(c.description)));
+        if (c.revision_note) children.push(para(`Revision note: ${cleanReportText(c.revision_note)}`, { color: RG.textMuted }));
+      });
+    }
+
+    // §7 Deep Criterion Analysis
+    if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
+      children.push(makeHeading('Deep Criterion Analysis'));
+      dream.criterion_analyses.forEach(a => {
+        const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
+        children.push(para(`${getCriterionDisplayLabel(a.key)} — ${score} (${formatConfidenceLabel(a.confidence)})`, { bold: true }));
+        if (Array.isArray(a.fit_evidence) && a.fit_evidence.length > 0) {
+          children.push(para('What Is Working:', { bold: true }));
+          a.fit_evidence.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(a.gap_evidence) && a.gap_evidence.length > 0) {
+          children.push(para('What Weakens Impact:', { bold: true }));
+          a.gap_evidence.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(a.revision_queue) && a.revision_queue.length > 0) {
+          children.push(para('Revision Queue:', { bold: true }));
+          a.revision_queue.forEach((item, i) => children.push(docxListPara(formatRevisionQueueItem(item), `${i + 1}.`)));
+        }
+      });
+    }
+
+    // §10 Symbolic & Doctrine Audit
+    if (dream.symbolic_audit) {
+      const sa = dream.symbolic_audit;
+      const hasAuditContent = (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) || (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) || (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) || hasMeaningfulText(sa.audit_conclusion);
+      if (hasAuditContent) children.push(makeHeading('Symbolic & Doctrine Audit'));
+      if (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) {
+        children.push(para('Preserved Symbols:', { bold: true }));
+        sa.preserved_symbols.forEach(sym => {
+          children.push(para(`${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`, { bold: true }));
+          if (sym.revision_instruction) children.push(para(cleanReportText(sym.revision_instruction), { color: RG.textMuted }));
+        });
+      }
+      if (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) {
+        children.push(para('Doctrine Strengths:', { bold: true }));
+        sa.doctrine_strengths.forEach(item => children.push(docxListPara(item)));
+      }
+      if (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) {
+        children.push(para('Doctrine Risks:', { bold: true }));
+        sa.doctrine_risks.forEach(item => children.push(docxListPara(item)));
+      }
+      if (hasMeaningfulText(sa.audit_conclusion)) children.push(para(cleanReportText(sa.audit_conclusion)));
+    }
+
+    // §11 Reader Experience
+    if (dream.reader_experience) {
+      const re = dream.reader_experience;
+      const addAct = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+        if (!act) return;
+        if (!hasMeaningfulText(act.reader_question) && !hasMeaningfulText(act.emotional_state) && !hasMeaningfulText(act.risk)) return;
+        children.push(para(title, { bold: true }));
+        if (hasMeaningfulText(act.reader_question)) children.push(para(`Reader Question: ${cleanReportText(act.reader_question)}`));
+        if (hasMeaningfulText(act.emotional_state)) children.push(para(`Emotional State: ${cleanReportText(act.emotional_state)}`));
+        if (hasMeaningfulText(act.risk)) children.push(para(`Risk: ${cleanReportText(act.risk)}`));
+      };
+      if (re.first_act || re.middle || re.final_act || hasMeaningfulText(re.aftertaste)) children.push(makeHeading('Reader Experience'));
+      addAct('First Act', re.first_act);
+      addAct('Middle', re.middle);
+      addAct('Final Act', re.final_act);
+      if (hasMeaningfulText(re.aftertaste)) children.push(para(cleanReportText(re.aftertaste)));
+    }
+
+    // §12 Revision Priority Plan (from DREAM — canonical, replaces the UED compressed version)
+    const dreamRevisionPlanDocx = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (dreamRevisionPlanDocx.length > 0) {
+      children.push(makeHeading('Revision Priority Plan'));
+      dreamRevisionPlanDocx.forEach(item => {
+        children.push(para(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`, { bold: true }));
+        children.push(para(cleanReportText(item.goal)));
+        if (Array.isArray(item.actions) && item.actions.length > 0) {
+          children.push(para('Actions:', { bold: true }));
+          item.actions.forEach((action, i) => children.push(docxListPara(action, `${i + 1}.`)));
+        }
+        if (item.acceptance_check) children.push(para(`Acceptance Check: ${cleanReportText(item.acceptance_check)}`, { color: RG.textMuted }));
+      });
+    }
+
+    // §13 Releasability
+    if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
+      children.push(makeHeading('Releasability Assessment'));
+      dream.releasability.forEach(dim => {
+        children.push(para(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`));
+      });
+    }
+
+    // §14 Review Gate (acceptance_checks)
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const hasRequired = Array.isArray(ac.required_detection) && ac.required_detection.length > 0;
+      const hasFailure = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0;
+      if (hasRequired || hasFailure) {
+        children.push(makeHeading('Review Gate'));
+        if (hasRequired) {
+          children.push(para('Required Detection:', { bold: true }));
+          ac.required_detection.forEach(item => children.push(docxListPara(item)));
+        }
+        if (hasFailure) {
+          children.push(para('Failure Conditions:', { bold: true }));
+          ac.failure_conditions.forEach(item => children.push(docxListPara(item)));
+        }
+      }
+    }
   }
   children.push(makeHeading('Confidence Explanation'));
   children.push(para(doc.confidenceExplanation));
@@ -2090,6 +2423,7 @@ function renderPremiumReportHtml(
   });
   const readinessScore = readinessCriterion?.score_0_10;
   const readinessConfidence = readinessCriterion?.confidence_level ? formatConfidenceLabel(readinessCriterion.confidence_level) : null;
+  const legacyReadinessClass = readinessPaletteClass(metadata.verdict);
   const dialogueRatio = enrichment?.dialogue_percentage != null
     ? `${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`
     : null;
@@ -2163,11 +2497,16 @@ function renderPremiumReportHtml(
     .metric { padding: 0.12in 0.14in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 6px; }
     dt { margin: 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
     dd { margin: 0.04in 0 0; color: #1c1814; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; font-weight: 600; }
-    .score-card { padding: 0.22in; color: #f5efe0; background: #1c1814; border: 2px solid #b8922a; border-radius: 8px; }
-    .score-card span { display: block; color: #c8a96e; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
-    .score-card strong { display: block; margin-top: 0.08in; font-family: Georgia, "Times New Roman", serif; font-size: 38pt; line-height: 1; color: #fff; }
-    .score-card small { color: #c8a96e; font-size: 16pt; }
-    .badge { display: inline-block; margin-top: 0.12in; padding: 0.04in 0.12in; border: 1px solid #c8a96e; border-radius: 999px; color: #f5e9c8; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; font-weight: 700; text-transform: uppercase; }
+    body, p, li, td, div, span { overflow-wrap: anywhere; word-break: normal; hyphens: auto; }
+    .score-card { padding: 0.22in; color: #1a1a1a; background: #faf7f2; border: 2px solid #d9d0c3; border-radius: 8px; max-width: 100%; overflow: visible; white-space: normal; }
+    .score-card.readiness-strong { background: #eef7ef; border-color: #9dc79d; color: #1a1a1a; }
+    .score-card.readiness-watch { background: #fff6e8; border-color: #d9a441; color: #1a1a1a; }
+    .score-card.readiness-risk { background: #fdeeee; border-color: #c97a7a; color: #1a1a1a; }
+    .score-card.readiness-muted { background: #faf7f2; border-color: #d9d0c3; color: #1a1a1a; }
+    .score-card span { display: block; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .score-card strong { display: block; margin-top: 0.08in; font-family: Georgia, "Times New Roman", serif; font-size: 38pt; line-height: 1; color: #1a1a1a; }
+    .score-card small { color: #5c5549; font-size: 16pt; }
+    .badge { display: inline-block; margin-top: 0.12in; padding: 0.04in 0.12in; border: 1px solid #d9d0c3; border-radius: 999px; color: #1a1a1a; background: rgba(255,255,255,.55); font-family: Helvetica, Arial, sans-serif; font-size: 10pt; font-weight: 700; text-transform: uppercase; max-width: 100%; white-space: normal; }
     .readiness { margin-top: 0.16in; padding: 0.16in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; }
     .readiness h2 { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #5c5549; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; }
     .readiness strong { display: block; margin-top: 0.08in; color: #1c1814; font-size: 18pt; }
@@ -2224,7 +2563,7 @@ function renderPremiumReportHtml(
         ${renderMetric('Confidentiality', 'Prepared for author/editorial use')}
       </dl>
       <aside>
-        <div class="score-card"><span>Overall Score</span><strong>${escapeHtml(formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
+        <div class="score-card ${legacyReadinessClass}"><span>Overall Score</span><strong>${escapeHtml(formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
         ${readinessCriterion ? `<div class="readiness"><h2>Market Readiness</h2><strong>${escapeHtml(scoreLabel(readinessScore, 10))}</strong>${readinessConfidence ? `<p>${escapeHtml(readinessConfidence)}</p>` : ''}${readinessCriterion.rationale ? `<p>${escapeHtml(cleanReportText(readinessCriterion.rationale, '', { blockTruncation: true }))}</p>` : ''}</div>` : ''}
       </aside>
     </div>
@@ -3187,6 +3526,17 @@ export async function GET(
 
   const exposureDecision = await getAuthorExposureDecision(admin, jobId);
   if (exposureDecision.exposable === false) {
+    if (exposureDecision.reason === 'db_error') {
+      console.error('[report-download] author_exposure DB error', {
+        jobId,
+        details: exposureDecision.details,
+      });
+      return NextResponse.json(
+        { error: 'System error checking author exposure certification' },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -3241,16 +3591,27 @@ export async function GET(
   // Governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon) is internal
   // pipeline diagnostics — never included in user-facing downloads.
 
-  // Extract enrichment data from V2 results
-  const enrichment = isEvaluationResultV2(result) ? (result as EvaluationResultV2).enrichment ?? null : null;
-  const manuscriptWordCount = typeof result.metrics?.manuscript?.word_count === 'number'
-    ? result.metrics.manuscript.word_count
-    : null;
-  const evaluationMode = await loadCanonicalEvaluationMode(admin, jobId, rawResult, (job as { progress?: unknown }).progress, manuscriptWordCount);
-  const canonicalDoc = buildCanonicalTemplateDocument(result, title, enrichment, evaluationMode, dream);
+  const persistedDocument = await loadCertifiedUnifiedEvaluationDocumentArtifact(admin, jobId);
+  if (persistedDocument.ok === false) {
+    console.error('[report-download] Certified UED load failed', {
+      jobId,
+      format,
+      reason: persistedDocument.reason,
+      details: persistedDocument.details,
+    });
+    return NextResponse.json(
+      {
+        error: 'This download is temporarily unavailable while we verify content accuracy.',
+        code: 'CERTIFIED_UED_UNAVAILABLE',
+      },
+      { status: persistedDocument.reason === 'db_error' ? 500 : 422 },
+    );
+  }
+
+  const canonicalDoc = persistedDocument.document;
 
   if (format === 'txt') {
-    const body = buildCanonicalTemplateTxt(canonicalDoc, jobId);
+    const body = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -3262,7 +3623,7 @@ export async function GET(
 
   if (format === 'pdf') {
     try {
-      const html = renderCanonicalTemplateHtml(canonicalDoc, jobId);
+      const html = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
       const buffer = await buildChromiumPdf(html);
       if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
         throw new Error('Generated artifact does not contain valid PDF header bytes');
@@ -3292,7 +3653,7 @@ export async function GET(
     }
   }
 
-  const buffer = await buildCanonicalTemplateDocx(canonicalDoc, jobId);
+  const buffer = await buildCanonicalTemplateDocx(canonicalDoc, dream, jobId);
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -3303,8 +3664,8 @@ export async function GET(
 }
 
 export const __testingDownload = {
-  buildCanonicalTemplateDocument,
   buildCanonicalTemplateTxt,
   renderCanonicalTemplateHtml,
   buildCanonicalTemplateDocx,
+  loadCertifiedUnifiedEvaluationDocumentArtifact,
 };

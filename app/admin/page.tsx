@@ -7,6 +7,14 @@ export const dynamic = "force-dynamic";
 
 const adminCards = [
   {
+    title: "Eval Monitor",
+    href: "/admin/eval-monitor",
+    eyebrow: "Live · artifacts · phases · quality",
+    description:
+      "Live evaluation job dashboard. Track phase progress, artifact creation, quality signals, chunk routing, ledger health, preflight scores, and failure diagnostics in real-time with 5-second auto-refresh.",
+    priority: "Operations",
+  },
+  {
     title: "Site Experience",
     href: "/admin/experience",
     eyebrow: "Visitors · clicks · funnels",

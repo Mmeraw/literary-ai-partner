@@ -1,8 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createDerivedVersion } from "@/lib/manuscripts/versions";
+import { upsertEvaluationArtifact } from "@/lib/evaluation/artifactPersistence";
 import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
+import {
+  buildReviseCompletionCertification,
+  type ReviseCompletionCertificationResult,
+} from "@/lib/revision/reviseCompletionCertification";
 
 export type FinalReviewExportFormat = "clean" | "marked" | "changelog";
 export type FinalReviewExportFile = "txt" | "pdf" | "docx";
@@ -157,17 +162,18 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     manuscriptId: String(manuscriptId),
     evaluationJobId: String(input.evaluationJobId),
   });
-  if (queuePayload.ok) {
-    const copyPasteOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
-    const strategyCount = queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType === "revision_strategy").length;
-    const withheldBlockedCount = queuePayload.withheldUnsupported.length + queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType !== "revision_strategy").length;
-    queueSummary = {
-      copyPasteOpportunityIds,
-      copyPasteCount: copyPasteOpportunityIds.size,
-      strategyCount,
-      withheldBlockedCount,
-    };
+  if (!queuePayload.ok) {
+    throw new Error(queuePayload.error ?? "Revise Queue unavailable for completion certification.");
   }
+  const copyPasteOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
+  const strategyCount = queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType === "revision_strategy").length;
+  const withheldBlockedCount = queuePayload.withheldUnsupported.length + queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType !== "revision_strategy").length;
+  queueSummary = {
+    copyPasteOpportunityIds,
+    copyPasteCount: copyPasteOpportunityIds.size,
+    strategyCount,
+    withheldBlockedCount,
+  };
 
   return {
     supabase,
@@ -189,6 +195,37 @@ function isCopyPasteExecutableDecision(ctx: RuntimeContext, decision: RuntimeDec
 
 function applicableDecisions(ctx: RuntimeContext): RuntimeDecision[] {
   return ctx.decisions.filter((decision) => isCopyPasteExecutableDecision(ctx, decision));
+}
+
+function certifyCompletion(ctx: RuntimeContext): ReviseCompletionCertificationResult {
+  return buildReviseCompletionCertification({
+    manuscriptId: ctx.manuscriptId,
+    evaluationJobId: ctx.evaluationJobId,
+    readyOpportunityIds: [...ctx.queueSummary.copyPasteOpportunityIds],
+    decisions: ctx.decisions,
+    needsTargetingCount: ctx.queueSummary.strategyCount,
+    withheldUnsupportedCount: ctx.queueSummary.withheldBlockedCount,
+    pendingSyncCount: 0,
+  });
+}
+
+function completionMetadata(result: ReviseCompletionCertificationResult): Record<string, unknown> {
+  return result.ok === true
+    ? { revision_completion_certification: result.record }
+    : { revision_completion_failure: result.failure };
+}
+
+async function persistCompletionArtifact(ctx: RuntimeContext, completion: ReviseCompletionCertificationResult): Promise<string | null> {
+  if (completion.ok === false) return null;
+  return upsertEvaluationArtifact({
+    supabase: ctx.supabase,
+    jobId: ctx.evaluationJobId,
+    manuscriptId: ctx.manuscriptId,
+    artifactType: "revision_completion_record_v1",
+    artifactVersion: "revision_completion_record_v1",
+    content: completion.record,
+    sourceHash: completion.record.certification_hash,
+  });
 }
 
 function decisionLabel(decision: RuntimeDecision): string {
@@ -322,6 +359,19 @@ async function recordRun(
 
 export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) {
   const ctx = await loadRuntimeContext(input);
+  const completion = certifyCompletion(ctx);
+  if (completion.ok === false) {
+    await recordRun(ctx, {
+      status: "blocked",
+      mode: "apply",
+      skippedDecisionIds: ctx.decisions.map((d) => d.id),
+      blockedReason: completion.failure.user_safe_summary,
+      metadata: completionMetadata(completion),
+    });
+    return { ok: false, error: completion.failure.user_safe_summary };
+  }
+  const completionArtifactId = await persistCompletionArtifact(ctx, completion);
+
   const result = applyTextSnapshots(ctx);
 
   if (result.applied.length === 0 || result.blocked.length > 0) {
@@ -330,7 +380,7 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
       mode: "apply",
       skippedDecisionIds: ctx.decisions.filter((decision) => APPLICABLE.has(decision.decision)).map((d) => d.id),
       blockedReason: result.blocked.join(" | ") || "No applicable accepted/custom decisions with persisted text snapshots.",
-      metadata: { blocked: result.blocked },
+      metadata: { blocked: result.blocked, revision_completion_artifact_id: completionArtifactId, ...completionMetadata(completion) },
     });
     return { ok: false, error: result.blocked.join("\n") || "No applicable accepted/custom decisions with persisted text snapshots." };
   }
@@ -353,6 +403,8 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
       copy_paste_repair_count: ctx.queueSummary.copyPasteCount,
       strategy_card_count: ctx.queueSummary.strategyCount,
       withheld_blocked_count: ctx.queueSummary.withheldBlockedCount,
+      revision_completion_artifact_id: completionArtifactId,
+      ...completionMetadata(completion),
     },
   });
 
@@ -361,6 +413,27 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
 
 export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { format: FinalReviewExportFormat; file?: FinalReviewExportFile }) {
   const ctx = await loadRuntimeContext(input);
+  const completion = certifyCompletion(ctx);
+  if (completion.ok === false) {
+    const format = input.format;
+    const file = input.file ?? "txt";
+    await recordRun(ctx, {
+      status: "blocked",
+      mode: format === "clean" ? "export_clean" : format === "marked" ? "export_marked" : "export_changelog",
+      skippedDecisionIds: ctx.decisions.map((d) => d.id),
+      blockedReason: completion.failure.user_safe_summary,
+      exportFormat: file,
+      metadata: completionMetadata(completion),
+    });
+
+    return {
+      content: completion.failure.user_safe_summary,
+      filename: safeFilename(ctx.manuscriptTitle, "final-review-blocked", "txt"),
+      contentType: "text/plain; charset=utf-8",
+    };
+  }
+  const completionArtifactId = await persistCompletionArtifact(ctx, completion);
+
   const applied = applyTextSnapshots(ctx);
   const format = input.format;
   const file = input.file ?? "txt";
@@ -397,6 +470,8 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
       copy_paste_repair_count: ctx.queueSummary.copyPasteCount,
       strategy_card_count: ctx.queueSummary.strategyCount,
       withheld_blocked_count: ctx.queueSummary.withheldBlockedCount,
+      revision_completion_artifact_id: completionArtifactId,
+      ...completionMetadata(completion),
     },
   });
 

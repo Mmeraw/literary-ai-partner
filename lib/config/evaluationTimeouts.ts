@@ -10,7 +10,8 @@ export type TimeoutResolutionReason =
   | "malformed_env_fallback"
   | "clamped_to_min"
   | "clamped_to_max"
-  | "conflicting_env_override";
+  | "conflicting_env_override"
+  | "promoted_to_pass_timeout";
 
 export interface TimeoutBaselineEntry {
   raw: string;
@@ -25,6 +26,8 @@ export interface ResolvedTimeoutSetting {
   valueMs: number;
   reason: TimeoutResolutionReason;
   conflict?: TimeoutBaselineEntry;
+  originalValueMs?: number;
+  originalReason?: TimeoutResolutionReason;
 }
 
 export interface EvaluationTimeoutConfig {
@@ -212,17 +215,33 @@ export function resolveEvaluationTimeoutConfig(
   env: EnvLike = process.env,
   baseline: TimeoutBaseline = readLocalTimeoutBaseline(),
 ): EvaluationTimeoutConfig {
+  const passTimeout = resolveTimeoutSetting(
+    "EVAL_PASS_TIMEOUT_MS",
+    env,
+    baseline.EVAL_PASS_TIMEOUT_MS,
+  );
+  const openAiTimeout = resolveTimeoutSetting(
+    "EVAL_OPENAI_TIMEOUT_MS",
+    env,
+    baseline.EVAL_OPENAI_TIMEOUT_MS,
+  );
+
+  if (openAiTimeout.valueMs < passTimeout.valueMs) {
+    return {
+      openAiTimeout: {
+        ...openAiTimeout,
+        valueMs: passTimeout.valueMs,
+        reason: "promoted_to_pass_timeout",
+        originalValueMs: openAiTimeout.valueMs,
+        originalReason: openAiTimeout.reason,
+      },
+      passTimeout,
+    };
+  }
+
   return {
-    openAiTimeout: resolveTimeoutSetting(
-      "EVAL_OPENAI_TIMEOUT_MS",
-      env,
-      baseline.EVAL_OPENAI_TIMEOUT_MS,
-    ),
-    passTimeout: resolveTimeoutSetting(
-      "EVAL_PASS_TIMEOUT_MS",
-      env,
-      baseline.EVAL_PASS_TIMEOUT_MS,
-    ),
+    openAiTimeout,
+    passTimeout,
   };
 }
 
@@ -245,6 +264,11 @@ function formatSingleTimeoutResolution(setting: ResolvedTimeoutSetting): string 
   if (setting.reason === "conflicting_env_override" && setting.conflict) {
     parts.push(`ignored_shell=${JSON.stringify(setting.raw)}`);
     parts.push(`using=${setting.conflict.source}(${JSON.stringify(setting.conflict.raw)})`);
+  }
+
+  if (setting.reason === "promoted_to_pass_timeout") {
+    parts.push(`original=${setting.originalValueMs}`);
+    parts.push(`original_reason=${setting.originalReason ?? "unknown"}`);
   }
 
   return parts.join(" ");

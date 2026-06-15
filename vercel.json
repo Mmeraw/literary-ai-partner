@@ -1,11 +1,9 @@
 {
   "functions": {
     "app/api/reports/[jobId]/download/route.ts": {
-      "memory": 1536,
       "maxDuration": 60
     },
     "app/api/reports/[jobId]/download-pdf/route.ts": {
-      "memory": 1536,
       "maxDuration": 60
     }
   },

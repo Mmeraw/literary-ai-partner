@@ -68,6 +68,10 @@ function artifactContent(artifact: PhasePrerequisiteArtifact | null | undefined)
   return isRecord(artifact?.content) ? artifact.content : null;
 }
 
+function nestedRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null;
+}
+
 function statusFromArtifact(
   artifact: PhasePrerequisiteArtifact | null | undefined,
   args: { name: PhasePrerequisiteName; required: boolean; label: string; allowDegraded: boolean },
@@ -276,6 +280,49 @@ function findArtifact(artifacts: PhasePrerequisiteArtifact[], artifactType: stri
   return artifacts.find((artifact) => artifact.artifact_type === artifactType) ?? null;
 }
 
+function statusFromLedgerQualityArtifact(
+  artifact: PhasePrerequisiteArtifact | null | undefined,
+  args: { allowDegraded: boolean },
+): PhasePrerequisiteCheck {
+  const base = statusFromArtifact(artifact, {
+    name: 'phase_1a_ledger_quality',
+    required: true,
+    label: 'Phase 1A Ledger Quality Report',
+    allowDegraded: args.allowDegraded,
+  });
+
+  if (base.status === 'missing' || base.status === 'blocked' || base.status === 'failed') {
+    return base;
+  }
+
+  const content = artifactContent(artifact);
+  const qualityReport = nestedRecord(content?.quality_report) ?? content;
+  const gateReadyStatus =
+    typeof qualityReport?.gate_ready_status === 'string' ? qualityReport.gate_ready_status : null;
+
+  if (!gateReadyStatus) {
+    return {
+      name: 'phase_1a_ledger_quality',
+      status: 'blocked',
+      required: true,
+      code: 'PHASE_1A_LEDGER_QUALITY_GATE_MISSING',
+      reason: 'Phase 1A Ledger Quality Report is missing gate_ready_status.',
+    };
+  }
+
+  if (gateReadyStatus !== 'reviewable') {
+    return {
+      name: 'phase_1a_ledger_quality',
+      status: 'blocked',
+      required: true,
+      code: 'PHASE_1A_LEDGER_QUALITY_NOT_REVIEWABLE',
+      reason: `Phase 1A Ledger Quality Report is not reviewable (gate_ready_status=${gateReadyStatus}). Repair or retry Phase 1A before Phase 2 consumes story evidence.`,
+    };
+  }
+
+  return base;
+}
+
 export function evaluatePhase1aPrerequisites(args: {
   progress?: PhasePrerequisiteProgress | null;
   artifacts?: PhasePrerequisiteArtifact[] | null;
@@ -339,10 +386,7 @@ export function evaluatePhase2Prerequisites(args: {
       label: 'Phase 1A Story Layer',
       allowDegraded,
     }),
-    statusFromArtifact(findArtifact(artifacts, 'ledger_quality_report_v1'), {
-      name: 'phase_1a_ledger_quality',
-      required: true,
-      label: 'Phase 1A Ledger Quality Report',
+    statusFromLedgerQualityArtifact(findArtifact(artifacts, 'ledger_quality_report_v1'), {
       allowDegraded,
     }),
   ];

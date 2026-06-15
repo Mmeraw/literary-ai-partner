@@ -12,6 +12,58 @@ describe("jobStore.getJob progress validation", () => {
     jest.clearAllMocks();
   });
 
+  test("preserves selected English variant through Supabase getJob read path", async () => {
+    const selectedFields: string[] = [];
+    const row = {
+      id: "job-ca",
+      manuscript_id: 42,
+      user_id: "user-1",
+      job_type: "full_evaluation",
+      status: "queued",
+      validity_status: "pending",
+      progress: {
+        phase: "phase_0",
+        phase_status: "queued",
+        total_units: 1,
+        completed_units: 0,
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_heartbeat: null,
+      last_error: null,
+      failure_envelope: null,
+      english_variant: "ca",
+      manuscripts: { user_id: "user-1", title: "Canadian Variant Test" },
+    };
+
+    const supabase = {
+      from: jest.fn().mockImplementation((_table: string) => ({
+        select: jest.fn().mockImplementation((fields: string) => {
+          selectedFields.push(fields);
+          if (fields === "id, validity_status") {
+            return {
+              limit: jest.fn().mockResolvedValue({ data: [{ id: "job-ca", validity_status: "pending" }], error: null }),
+            };
+          }
+
+          return {
+            eq: jest.fn().mockReturnValue({
+              maybeSingle: jest.fn().mockResolvedValue({ data: row, error: null }),
+            }),
+          };
+        }),
+      })),
+    };
+
+    createAdminClientMock.mockReturnValue(supabase as any);
+
+    const { getJob } = await import("../../../lib/jobs/jobStore.supabase");
+    const job = await getJob("job-ca");
+
+    expect(selectedFields.some((field) => field.includes("english_variant"))).toBe(true);
+    expect(job?.english_variant).toBe("ca");
+  });
+
   test("logs warning for invalid progress but does not mutate terminal state", async () => {
     const updateSpy = jest.fn();
 

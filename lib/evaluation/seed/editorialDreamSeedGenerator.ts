@@ -16,7 +16,11 @@
 
 import OpenAI from 'openai';
 import { trackCompletionCost } from '@/lib/jobs/cost';
-import { getCanonicalSeedModel } from '@/lib/evaluation/policy';
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+  getCanonicalSeedModel,
+} from '@/lib/evaluation/policy';
 import { buildCompactTemplateBlock, resolveTemplateKey } from '@/lib/evaluation/dreamTemplateLoader';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -199,12 +203,12 @@ Produce your editorial diagnostic now. Remember: evidence must be distributed ac
 
   const response = await openai.chat.completions.create({
     model,
+    ...buildOpenAITemperatureParam(model, 0.3),
+    ...buildOpenAIOutputTokenParam(model, 8000),
     messages: [
       { role: 'system', content: DREAM_SEED_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.3,
-    max_completion_tokens: 8000,
     response_format: { type: 'json_object' },
   });
 

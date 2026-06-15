@@ -94,6 +94,10 @@ Use **Insufficient Evidence** when the sample, coverage, or evidence base does n
 
 `<1 short paragraph naming the manuscript's governing ambition, primary emotional anchor, most significant architectural strength, most consequential drag, current Market Readiness, and readiness posture.>`
 
+### Narrative Synthesis Score Cards
+
+For native DREAM / long-form layered reports, keep the four score cards — **Quality**, **Readiness**, **Commercial**, and **Literary** — as a compact **Narrative Synthesis** surface near the top of the report. These cards support scanning and parity across webpage/PDF/DOCX/TXT exports, but they do **not** replace the prose Executive Summary. The Executive Summary must remain a short author-facing paragraph.
+
 ---
 
 ## Revision Opportunity Summary

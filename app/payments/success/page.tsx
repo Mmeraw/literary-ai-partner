@@ -64,7 +64,7 @@ function PaymentFallback({ message }: { message: string }) {
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4 font-rg-mono text-xs uppercase tracking-[0.16em]">
           <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Open Evaluate</Link>
-          <Link href="/workbench-v2" className="border border-rg-cream2/25 px-5 py-3 text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">Open Revise Queue</Link>
+          <Link href="/workbench-v2" className="rg-revise-cta">Open Revise Queue</Link>
         </div>
       </section>
     </main>

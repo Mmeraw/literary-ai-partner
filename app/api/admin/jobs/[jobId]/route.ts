@@ -78,6 +78,19 @@ export async function GET(req: NextRequest, context: RouteContext) {
       );
     }
 
+    const { data: failureDiagnosisArtifact, error: failureDiagnosisError } = await supabase
+      .from("evaluation_artifacts")
+      .select("content,created_at")
+      .eq("job_id", jobId)
+      .eq("artifact_type", "failure_diagnosis_v1")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (failureDiagnosisError) {
+      console.warn(`[Admin Job Detail] failure diagnosis query warning for ${jobId}:`, failureDiagnosisError);
+    }
+
     return NextResponse.json({
       ok: true,
       job: {
@@ -99,6 +112,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
         ...(includeInlineResult ? { evaluation_result: job.evaluation_result } : {}),
       },
       artifacts: artifacts ?? [],
+      failureDiagnosis: failureDiagnosisError ? null : failureDiagnosisArtifact?.content ?? null,
       observability: {
         include_artifact_content: includeArtifactContent,
         include_inline_result: includeInlineResult,

@@ -1,0 +1,64 @@
+/* Route-local readability guard for /admin/pipeline-health.
+   The page uses light semantic SIPOC cards inside a dark admin shell. Global
+   dark-shell text guards can make inherited text nearly white on these cards,
+   so force WCAG-safe dark text inside the light cards only. */
+
+.bg-rg-ink .bg-red-50,
+.bg-rg-ink .bg-green-50,
+.bg-rg-ink .bg-gray-50,
+.bg-rg-ink .bg-orange-50,
+.bg-rg-ink .bg-amber-50,
+.bg-rg-ink .bg-blue-50 {
+  color: #1c1814 !important;
+}
+
+.bg-rg-ink .bg-red-50 .text-rg-cream,
+.bg-rg-ink .bg-red-50 [class*="text-rg-cream2/"],
+.bg-rg-ink .bg-green-50 .text-rg-cream,
+.bg-rg-ink .bg-green-50 [class*="text-rg-cream2/"],
+.bg-rg-ink .bg-gray-50 .text-rg-cream,
+.bg-rg-ink .bg-gray-50 [class*="text-rg-cream2/"],
+.bg-rg-ink .bg-orange-50 .text-rg-cream,
+.bg-rg-ink .bg-orange-50 [class*="text-rg-cream2/"],
+.bg-rg-ink .bg-amber-50 .text-rg-cream,
+.bg-rg-ink .bg-amber-50 [class*="text-rg-cream2/"],
+.bg-rg-ink .bg-blue-50 .text-rg-cream,
+.bg-rg-ink .bg-blue-50 [class*="text-rg-cream2/"] {
+  color: #1c1814 !important;
+}
+
+.bg-rg-ink .bg-red-50 .text-red-600,
+.bg-rg-ink .bg-red-50 .text-red-700 {
+  color: #7f1d1d !important;
+}
+
+.bg-rg-ink .bg-orange-50 .text-orange-600,
+.bg-rg-ink .bg-orange-50 .text-orange-700,
+.bg-rg-ink .bg-orange-50 .text-orange-800,
+.bg-rg-ink .bg-amber-50 .text-orange-600,
+.bg-rg-ink .bg-amber-50 .text-orange-700,
+.bg-rg-ink .bg-amber-50 .text-orange-800 {
+  color: #7c2d12 !important;
+}
+
+.bg-rg-ink .bg-green-50 .text-green-600,
+.bg-rg-ink .bg-green-50 .text-green-700,
+.bg-rg-ink .bg-green-50 .text-green-800 {
+  color: #14532d !important;
+}
+
+.bg-rg-ink .bg-red-50 .font-mono,
+.bg-rg-ink .bg-green-50 .font-mono,
+.bg-rg-ink .bg-gray-50 .font-mono,
+.bg-rg-ink .bg-orange-50 .font-mono,
+.bg-rg-ink .bg-amber-50 .font-mono,
+.bg-rg-ink .bg-blue-50 .font-mono {
+  color: inherit !important;
+  font-weight: 800;
+}
+
+.bg-rg-ink .bg-red-50,
+.bg-rg-ink .bg-green-50,
+.bg-rg-ink .bg-gray-50 {
+  min-height: 7rem;
+}

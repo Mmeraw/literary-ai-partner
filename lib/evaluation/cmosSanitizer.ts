@@ -12,6 +12,17 @@
  */
 
 /**
+ * Fix period immediately followed by em dash: ".—" → ". "
+ * CMOS violation: a sentence-ending period cannot precede an em dash.
+ * The correct form is either two separate sentences (period + space)
+ * or an em dash without a preceding period.
+ * Example: "action.—Rationale" → "action. Rationale"
+ */
+function fixPeriodEmDash(text: string): string {
+  return text.replace(/\.—/g, '. ');
+}
+
+/**
  * Fix spaced em dashes: " — " or " —" or "— " → "—"
  * CMOS 6.85: The em dash is set closed (no spaces on either side).
  */
@@ -62,6 +73,7 @@ function expandLatinAbbreviations(text: string): string {
 export function sanitizeCMOS(text: string): string {
   if (!text || typeof text !== "string") return text;
   let result = text;
+  result = fixPeriodEmDash(result);
   result = fixEmDashes(result);
   result = fixDoubleHyphens(result);
   result = fixQuotePunctuation(result);

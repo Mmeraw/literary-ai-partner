@@ -47,8 +47,10 @@ function Eyebrow({ children }: { children: ReactNode }) {
 }
 
 function ActionLink({ cta, variant }: { cta: Cta; variant: "primary" | "secondary" }) {
-  const className =
-    variant === "primary"
+  const isReviseCta = /revise|workbench/i.test(`${cta.label} ${cta.href}`);
+  const className = isReviseCta
+    ? "rg-revise-cta font-rg-mono text-xs uppercase tracking-[0.18em]"
+    : variant === "primary"
       ? "border border-rg-gold bg-rg-gold px-5 py-3 text-rg-ink transition hover:bg-transparent hover:text-rg-gold"
       : "border border-rg-cream2/30 px-5 py-3 text-rg-cream transition hover:border-rg-gold hover:text-rg-gold";
 

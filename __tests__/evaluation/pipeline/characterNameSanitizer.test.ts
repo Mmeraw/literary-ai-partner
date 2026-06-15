@@ -69,6 +69,7 @@ describe("isBlockedCharacterName", () => {
 
 describe("sanitizeBlockedCharacterNames", () => {
   const canonical = ["Michael Salter", "Benjamin Lopez Castro", "Raúl"];
+  const narratorCanonical = ["Unnamed male narrator/protagonist", "Kim"];
 
   it("replaces possessive form: No's → Michael Salter's", () => {
     const input = "No's survival instincts drive the narrative forward.";
@@ -115,6 +116,20 @@ describe("sanitizeBlockedCharacterNames", () => {
   it("returns empty/undefined inputs unchanged", () => {
     expect(sanitizeBlockedCharacterNames("", canonical)).toBe("");
     expect(sanitizeBlockedCharacterNames("test", [])).toBe("test");
+  });
+
+  it("replaces Cost possessive with narrator label (curly apostrophe)", () => {
+    const input = "Cost’s disastrous hair-color day reveals vanity and consequence.";
+    const result = sanitizeBlockedCharacterNames(input, narratorCanonical);
+    expect(result).toBe("The narrator's disastrous hair-color day reveals vanity and consequence.");
+    expect(result).not.toContain("Cost’s");
+  });
+
+  it("replaces Cost in subject position with narrator label", () => {
+    const input = "Cost delivers a propulsive and humorous account of vanity.";
+    const result = sanitizeBlockedCharacterNames(input, narratorCanonical);
+    expect(result).toBe("The narrator delivers a propulsive and humorous account of vanity.");
+    expect(result).not.toMatch(/\bCost delivers\b/);
   });
 });
 
@@ -270,6 +285,22 @@ describe("sanitizeSynthesisCharacterNames — full synthesis output", () => {
     const count = sanitizeSynthesisCharacterNames(synthesis, []);
     expect(count).toBe(0);
   });
+
+  it("sanitizes Cost in one-sentence pitch to narrator label", () => {
+    const synthesis = {
+      overall: {
+        one_sentence_pitch:
+          "This chapter delivers a propulsive, humorous account of Cost’s disastrous hair-color day while contrasting vanity with hard-won values.",
+      },
+      criteria: [],
+    };
+
+    const count = sanitizeSynthesisCharacterNames(synthesis, ["Unnamed male narrator/protagonist", "Kim"]);
+
+    expect(count).toBeGreaterThan(0);
+    expect(synthesis.overall.one_sentence_pitch).toContain("the narrator's disastrous hair-color day");
+    expect(synthesis.overall.one_sentence_pitch).not.toContain("Cost’s");
+  });
 });
 
 describe("financial/thematic token blocklist — Price of Vanity regression", () => {
@@ -303,14 +334,14 @@ describe("financial/thematic token blocklist — Price of Vanity regression", ()
     const input = "Cost's disastrous hair-color day contrasts his vanity with Kim's values.";
     const result = sanitizeBlockedCharacterNames(input, ["the narrator"]);
     expect(result).not.toContain("Cost's");
-    expect(result).toContain("the narrator");
+    expect(result).toContain("narrator");
   });
 
   it("sanitizes 'Cost notices' subject-position pattern", () => {
     const input = "Cost realizes the true value of human connection.";
     const result = sanitizeBlockedCharacterNames(input, ["the narrator"]);
     expect(result).not.toMatch(/\bCost realizes\b/);
-    expect(result).toContain("the narrator");
+    expect(result).toContain("narrator");
   });
 
   it("does not touch lowercase 'cost' in normal financial context", () => {

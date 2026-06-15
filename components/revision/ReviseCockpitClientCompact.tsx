@@ -85,7 +85,7 @@ function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
     candidateText: option.candidateText ?? option.text,
     issueStatement: item.issueStatement,
   });
-  return renderable || normalize(option.candidateText ?? option.text);
+  return renderable;
 }
 
 function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: string): boolean {
@@ -227,7 +227,7 @@ function selectedDecisionFor(key: OptionKey): DecisionState {
 }
 
 export default function ReviseCockpitClientCompact({ payload }: { payload: WorkbenchQueuePayload }) {
-  const allInputItems = useMemo(() => [...payload.opportunities, ...(payload.needsTargeting ?? [])], [payload.opportunities, payload.needsTargeting]);
+  const allInputItems = useMemo(() => payload.opportunities, [payload.opportunities]);
   const [activeId, setActiveId] = useState(allInputItems[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<OptionKey>("A");
   const [filters, setFilters] = useState<Filters>({ search: "", priority: "all", criterion: "all", status: "all" });

@@ -138,13 +138,9 @@ function renderableCandidate(item: WorkbenchOpportunity, key: OptionKey): string
 }
 
 function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
-  const specific = specificFallbackCandidate(item, key);
-  if (specific) return specific;
   const renderable = renderableCandidate(item, key);
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
-  const raw = rawCandidate(item, key);
-  if (raw && candidateTextIsCopyPasteReady(raw) && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
-  return genericFallbackCandidate(item, key);
+  return "";
 }
 
 function canAccept(item: WorkbenchOpportunity, key: OptionKey): boolean {
@@ -270,7 +266,7 @@ function selectedDecisionFor(key: OptionKey): DecisionState {
 }
 
 export default function ReviseCockpitClientChoiceLedger({ payload }: { payload: WorkbenchQueuePayload }) {
-  const allInputItems = useMemo(() => [...payload.opportunities, ...(payload.needsTargeting ?? [])], [payload.opportunities, payload.needsTargeting]);
+  const allInputItems = useMemo(() => payload.opportunities, [payload.opportunities]);
   const [activeId, setActiveId] = useState(allInputItems[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<OptionKey>("A");
   const [filters, setFilters] = useState<Filters>({ search: "", priority: "all", criterion: "all", status: "all" });

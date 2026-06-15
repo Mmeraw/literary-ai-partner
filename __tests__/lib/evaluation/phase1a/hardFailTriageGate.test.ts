@@ -397,4 +397,17 @@ describe('hard-fail triage gate — pipeline unblock regression tests', () => {
     const allMessages = Object.values(report.grouped_warning_summary).flat();
     expect(allMessages.some((m) => /AUTHOR_QUERY.*Edna Pontellier/i.test(m))).toBe(true);
   });
+
+  it('contaminated placeholder identities cannot be promoted into protagonist/core ledgers', () => {
+    const ledger = makeLedger({
+      entries: [makeLedgerEntry('unknown', 'protagonist')],
+      protagonists: ['unknown'],
+    });
+    const v2 = makeV2(['unknown']);
+    const report = buildLedgerQualityReport(ledger, v2, makeCleanLayers(['unknown']));
+
+    expect(report.hard_fail_present).toBe(true);
+    expect(report.gate_ready_status).toBe('blocked_content_hard_fail');
+    expect(report.blocking_reasons.join(' ')).toContain('contaminated placeholder identity "unknown"');
+  });
 });

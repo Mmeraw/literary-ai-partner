@@ -53,6 +53,7 @@ import {
   buildGroundingIndex,
   filterUngroundedCharacters,
 } from "./seedGroundingGate";
+import { isAllowedCharacterName } from "./pass1aQuarantine";
 import type { FullContextStoryLedger } from '@/lib/evaluation/seed/fullContextStoryLedger';
 
 // Hard caps
@@ -107,6 +108,10 @@ const ALIAS_GROUPS: string[][] = [
   ["Benjamin", "Ben"],
 ];
 
+function stripLeadingArticle(name: string): string {
+  return name.trim().replace(/^the\s+/i, '').trim();
+}
+
 // Narrator variants that should always merge into one canonical identity.
 // LLMs produce many forms for unnamed first-person narrators.
 const NARRATOR_VARIANTS = new Set([
@@ -125,6 +130,15 @@ const NARRATOR_VARIANTS = new Set([
 // Non-character patterns: names that indicate craft concepts, abstract themes,
 // inanimate objects, or metadata that LLMs sometimes emit as character entries.
 const NON_CHARACTER_PATTERNS = [
+  /^cost$/i,
+  /\btotal\s+cost\b/i,
+  /\bcost\s+(?:tall(?:y|ies)|figure|accounting|ledger|saving|savings)\b/i,
+  /\b(?:money|financial)\s+(?:cost|costs|accounting|tall(?:y|ies))\b/i,
+  /\bprice\s+of\s+vanity\b/i,
+  /\b(?:theme|motif|symbolic)\s+of\s+cost\b/i,
+  /\b(?:revlon|frost\s*&\s*glow|frosted\s+tint)\b/i,
+  /\b(?:product|kit|box|bottle|dye|bleach|parking\s+meter)\b/i,
+  /\b(?:salon|drug\s+mart|store|shop|boutique|clinic|warehouse)\b/i,
   /\bticking\s*clock\b/i,
   /\btime\s*pressure\b/i,
   /\breciprocity\b/i,
@@ -137,8 +151,89 @@ const NON_CHARACTER_PATTERNS = [
   /\/(lack|absence)\b/i,  // "X / lack of Y" patterns
 ];
 
+const NON_CHARACTER_CONTEXT_PATTERNS = [
+  /\b(?:plant|flower|tree|fern|vine|grass|garden|botanical)\b/i,
+  /\b(?:town|city|village|street|avenue|road|neighborhood|location|place|setting|store|shop|salon|clinic|warehouse|drug\s+mart)\b/i,
+  /\b(?:product|object|thing|item|kit|box|bottle|tint|dye|bleach|meter|receipt|tally|total|cost|money|price)\b/i,
+  /\b(?:theme|motif|symbol|metaphor|concept|idea|abstraction)\b/i,
+];
+
+const CHARACTER_CONTEXT_PATTERNS = [
+  /\b(?:person|human|man|woman|boy|girl|child|mother|father|son|daughter|friend|customer|stylist|narrator|protagonist|antagonist)\b/i,
+  /\b(?:wants|feels|thinks|knows|decides|speaks|says|asks|answers|works|remembers|learns|chooses|helps|hurts|loves|fears)\b/i,
+];
+
+const HUMAN_PRONOUN_PATTERN = /\b(?:he|him|his|himself|she|her|hers|herself|they|them|their|theirs|themself|themselves)\b/i;
+const INANIMATE_PRONOUN_PATTERN = /\b(?:it|its|itself)\b/i;
+
+const SYMBOLIC_FORCE_ALLOWLIST_PATTERNS = [
+  /^the\s+(?:sea|gulf|river|water|weather|storm|forest|woods|desert|mountain|road)\b/i,
+  /\b(?:social\s+code|patriarchal\s+pressure|legal\s+system|predator\s+system)\b/i,
+];
+
 function isNonCharacterName(name: string): boolean {
+  if (!isAllowedCharacterName(name)) return true;
   return NON_CHARACTER_PATTERNS.some(p => p.test(name));
+}
+
+function textForCharacterDisambiguation(
+  canonical: string,
+  appearances: Array<{ entry: Pass1aCharacterChunkEntry; chunk_index: number }>,
+): string {
+  const values: string[] = [canonical];
+  for (const { entry } of appearances) {
+    values.push(
+      entry.canonical_name,
+      entry.who_is_this ?? '',
+      entry.what_do_they_want ?? '',
+      entry.where_are_they ?? '',
+      entry.why_signal ?? '',
+      entry.how_signal ?? '',
+      entry.arc_state_in_chunk ?? '',
+      entry.arc_pressure ?? '',
+      entry.arc_shift ?? '',
+      ...(entry.descriptors ?? []),
+      ...(entry.forms_of_address ?? []),
+      ...(entry.pronouns ?? []),
+      ...(entry.evidence_anchors ?? []).map((anchor) => anchor.excerpt),
+    );
+  }
+  return values.filter(Boolean).join(' ');
+}
+
+function isAllowedSymbolicForceIdentity(canonical: string, contextText: string): boolean {
+  return SYMBOLIC_FORCE_ALLOWLIST_PATTERNS.some((pattern) => pattern.test(canonical) || pattern.test(contextText));
+}
+
+function isNonCharacterEntry(
+  canonical: string,
+  appearances: Array<{ entry: Pass1aCharacterChunkEntry; chunk_index: number }>,
+): boolean {
+  if (isNonCharacterName(canonical)) return true;
+
+  const contextText = textForCharacterDisambiguation(canonical, appearances);
+  const hasExplicitHumanPronouns = appearances.some(({ entry }) =>
+    (entry.pronouns ?? []).some((pronoun) => HUMAN_PRONOUN_PATTERN.test(pronoun)),
+  );
+  const hasExplicitInanimatePronouns = appearances.some(({ entry }) =>
+    (entry.pronouns ?? []).some((pronoun) => INANIMATE_PRONOUN_PATTERN.test(pronoun)),
+  );
+  const hasCharacterContext = hasExplicitHumanPronouns || CHARACTER_CONTEXT_PATTERNS.some((pattern) => pattern.test(contextText));
+  const hasNonCharacterContext = NON_CHARACTER_CONTEXT_PATTERNS.some((pattern) => pattern.test(contextText));
+  const roles = appearances.map(({ entry }) => entry.role_signal);
+  const nonPersonRoleOnly = roles.length > 0 && roles.every((role) => role === 'symbolic_force' || role === 'collective_force' || role === 'unknown');
+  const animalOrPersonRole = roles.some((role) => role !== 'symbolic_force' && role !== 'collective_force' && role !== 'unknown');
+
+  if (isAllowedSymbolicForceIdentity(canonical, contextText)) return false;
+  if (hasExplicitInanimatePronouns && !hasExplicitHumanPronouns && !animalOrPersonRole) return true;
+  if (hasNonCharacterContext && nonPersonRoleOnly && !hasExplicitHumanPronouns) return true;
+  if (hasCharacterContext) return false;
+  if (hasNonCharacterContext && nonPersonRoleOnly) return true;
+  return false;
+}
+
+function isAllowedIdentityGroupName(name: string): boolean {
+  return !isNonCharacterName(name);
 }
 
 function buildAliasMap(allNames: string[]): Map<string, string> {
@@ -151,6 +246,30 @@ function buildAliasMap(allNames: string[]): Map<string, string> {
       }
     }
   }
+
+  // Deterministic article-only alias repair. LLM chunk sweeps often split
+  // fairy-tale / title-style names across chunks ("Scarecrow" vs
+  // "The Scarecrow", "Cowardly Lion" vs "The Cowardly Lion"). Those are not
+  // same-name collisions; they are article variants of one identity. Merge
+  // only exact leading-article variants when both forms are present so true
+  // same-name disambiguation (e.g. two different Joes) remains intact.
+  const normalizedToOriginal = new Map<string, string>();
+  for (const rawName of allNames) {
+    const token = sanitizeIdentityNameToken(rawName);
+    if (!token) continue;
+    const normalized = normalize(token);
+    if (!normalizedToOriginal.has(normalized)) normalizedToOriginal.set(normalized, token);
+  }
+
+  for (const [normalized, original] of normalizedToOriginal.entries()) {
+    if (!normalized.startsWith('the ')) continue;
+    const bare = normalize(stripLeadingArticle(original));
+    const bareOriginal = normalizedToOriginal.get(bare);
+    if (!bareOriginal) continue;
+    if (!isAllowedIdentityGroupName(original) || !isAllowedIdentityGroupName(bareOriginal)) continue;
+    map.set(normalized, bareOriginal);
+  }
+
   return map;
 }
 
@@ -188,6 +307,7 @@ function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<str
       const record = character as Pass1aCharacterChunkEntry & { canonical_identity_group?: unknown };
       const group = sanitizeIdentityNameToken(normalizeSignalText(record.canonical_identity_group));
       if (!group) continue;
+      if (!isAllowedIdentityGroupName(group)) continue;
 
       const visibleNames = sanitizeIdentityNameList([
         group,
@@ -196,6 +316,7 @@ function buildRawIdentityGroupMap(rawChunkOutputs: Pass1aChunkOutput[]): Map<str
       ]);
 
       for (const visibleName of visibleNames) {
+        if (!isAllowedIdentityGroupName(visibleName)) continue;
         const key = normalize(visibleName);
         if (!map.has(key)) map.set(key, new Set<string>());
         map.get(key)!.add(group.trim());
@@ -422,6 +543,64 @@ function buildSymbolPayoffEntries(rawSymbols: RawSymbol[], totalChunks: number):
     .slice(0, MAX_SYMBOL_ROWS);
 }
 
+type TerminalEventInference = {
+  terminalCondition: TerminalLedgerEntry['terminalCondition'];
+  finalStatus: CharacterIdentityLedgerEntry['finalStatus'];
+  narrativeClosureStatus: TerminalLedgerEntry['narrativeClosureStatus'];
+};
+
+function inferTerminalEventFromText(text: string): TerminalEventInference | null {
+  const normalized = text.toLowerCase();
+  if (!normalized.trim()) return null;
+
+  if (/\b(?:melted|melt(?:s|ing)?\s+away|come\s+to\s+an\s+end|destroyed|dead|died|killed|death)\b/.test(normalized)) {
+    return {
+      terminalCondition: 'death',
+      finalStatus: 'dead',
+      narrativeClosureStatus: 'fully_resolved',
+    };
+  }
+
+  if (/\b(?:left|leaves|gone|departed|departure|flew\s+away|rose\s+into\s+the\s+air|balloon\s+rose|last\s+any\s+of\s+them\s+ever\s+saw)\b/.test(normalized)) {
+    return {
+      terminalCondition: 'departure',
+      finalStatus: 'missing',
+      narrativeClosureStatus: 'fully_resolved',
+    };
+  }
+
+  if (/\b(?:transformed|became|becomes|ruler|rules|king|queen|returned|returns|home\s+again|back\s+to\s+kansas)\b/.test(normalized)) {
+    return {
+      terminalCondition: 'transformation',
+      finalStatus: 'transformed',
+      narrativeClosureStatus: 'fully_resolved',
+    };
+  }
+
+  return null;
+}
+
+function inferTerminalEventForEntries(entries: Pass1aCharacterChunkEntry[]): TerminalEventInference | null {
+  const evidence = entries
+    .flatMap((entry) => [
+      entry.arc_shift,
+      entry.arc_state_in_chunk,
+      entry.how_signal,
+      entry.why_signal,
+      entry.what_do_they_want,
+      ...(entry.evidence_anchors ?? []).map((anchor) => anchor.excerpt),
+    ])
+    .map((value) => normalizeSignalText(value))
+    .filter((value): value is string => !!value);
+
+  for (const item of [...evidence].reverse()) {
+    const inferred = inferTerminalEventFromText(item);
+    if (inferred) return inferred;
+  }
+
+  return null;
+}
+
 // ── Hard-fail gate ────────────────────────────────────────────────────────
 
 function computeHardFailTriggers(
@@ -570,7 +749,7 @@ export function reduceCharacterEvidence(params: {
   for (const [canonical, appearances] of grouped) {
     if (!canonical || canonical.length < 2) continue;
     if (appearances.length === 0) continue; // skip alias stubs with no actual chunk entries
-    if (isNonCharacterName(canonical)) continue; // reject craft concepts, objects, themes
+    if (isNonCharacterEntry(canonical, appearances)) continue; // reject objects/places/themes misfiled as character identities
 
     const sorted = [...appearances].sort((a, b) => a.chunk_index - b.chunk_index);
     const entries = sorted.map((s) => s.entry);
@@ -607,9 +786,17 @@ export function reduceCharacterEvidence(params: {
     // Narrative weight — highest wins
     const narrativeWeightBand = pickHighestWeight(entries.map((e) => e.narrative_weight_signal));
 
-    // Ending status — from last chunk that has an ending signal
+    // Ending status — from explicit terminal/resolution evidence anywhere in
+    // the arc first, then from final chunk markers. This prevents mid/late-book
+    // resolutions (death, departure, role transfer) from being misclassified as
+    // abandoned merely because the LLM did not set is_ending_chunk=true.
+    const inferredTerminalEvent = inferTerminalEventForEntries(entries);
     const endingEntry = [...entries].reverse().find((e) => e.is_ending_chunk);
-    const endingStatus: CharacterArcEndingStatus = endingEntry?.arc_shift
+    const endingStatus: CharacterArcEndingStatus = inferredTerminalEvent
+      ? inferredTerminalEvent.terminalCondition === 'death'
+        ? 'tragically_confirmed'
+        : 'resolved'
+      : endingEntry?.arc_shift
       ? "transformed"
       : entries.some((e) => e.is_ending_chunk)
         ? "resolved"
@@ -1372,26 +1559,51 @@ export function buildCharacterLedgerV2(params: {
       e.ending_status === "tragically_confirmed" ||
       e.ending_status === "accidentally_abandoned"
     )
-    .map((e) => ({
-      characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
-      terminalCondition: "open" as const,
-      terminalChunk: e.last_chunk_index,
-      terminalChapter: `chunk ${e.last_chunk_index}`,
-      lastLucidChunk: e.last_chunk_index,
-      whoIsPresent: [],
-      finalBeliefState: e.arc_end_state || null,
-      promisesKept: [],
-      promisesUnkept: [],
-      objectsPresentAtExit: [],
-      legacyTransferredTo: null,
-      finalRelationshipStates: [],
-      narrativeClosureStatus:
-        e.ending_status === "resolved" ? "fully_resolved" :
-        e.ending_status === "tragically_confirmed" ? "fully_resolved" :
-        "underpaid",
-      evidenceQuote: e.evidence_anchors[0]?.excerpt ?? "",
-      confidence: "strong_inference" as EvidenceConfidence,
-    }));
+    .map((e) => {
+      const sourceEntry = ledger.entries.find((entry) => entry.canonical_name === e.canonical_name);
+      const inferred = sourceEntry
+        ? inferTerminalEventFromText([
+            sourceEntry.arc_end_state,
+            ...(sourceEntry.arc_turning_points ?? []),
+            ...(sourceEntry.evidence_anchors ?? []).map((anchor) => anchor.excerpt),
+          ].filter(Boolean).join(' '))
+        : null;
+
+      const narrativeClosureStatus: TerminalLedgerEntry['narrativeClosureStatus'] =
+        inferred?.narrativeClosureStatus ??
+        (e.ending_status === "resolved" || e.ending_status === "tragically_confirmed"
+          ? "fully_resolved"
+          : "underpaid");
+
+      return {
+        characterId: e.canonical_name.toLowerCase().replace(/\s+/g, "_"),
+        terminalCondition: inferred?.terminalCondition ?? "open" as const,
+        terminalChunk: e.last_chunk_index,
+        terminalChapter: `chunk ${e.last_chunk_index}`,
+        lastLucidChunk: e.last_chunk_index,
+        whoIsPresent: [],
+        finalBeliefState: e.arc_end_state || null,
+        promisesKept: [],
+        promisesUnkept: [],
+        objectsPresentAtExit: [],
+        legacyTransferredTo: null,
+        finalRelationshipStates: [],
+        narrativeClosureStatus,
+        evidenceQuote: e.evidence_anchors[0]?.excerpt ?? "",
+        confidence: "strong_inference" as EvidenceConfidence,
+      };
+    });
+
+  for (const identity of identityLedger) {
+    const terminal = terminalLedger.find((entry) => entry.characterId === identity.characterId);
+    if (terminal?.terminalCondition === 'death') {
+      identity.finalStatus = 'dead';
+    } else if (terminal?.terminalCondition === 'departure' || terminal?.terminalCondition === 'disappearance') {
+      identity.finalStatus = 'missing';
+    } else if (terminal?.terminalCondition === 'transformation') {
+      identity.finalStatus = 'transformed';
+    }
+  }
 
   // ── Validation Query Index ────────────────────────────────────────────────
   const characterPresenceIndex: Record<string, number[]> = {};

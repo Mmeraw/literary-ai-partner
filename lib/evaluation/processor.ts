@@ -81,6 +81,8 @@ import {
   TEMPLATE_COMPLETENESS_USER_MESSAGE,
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
+import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
+import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
 import {
   buildScoreLedger,
   computeAuthorityComposite,
@@ -161,6 +163,10 @@ import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluatio
 import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
 import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
+import {
+  PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD,
+  PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD,
+} from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { buildSeedConsistencyReport } from '@/lib/evaluation/seed/seedConsistencyReport';
 import {
   buildTwoPassSeedBlock,
@@ -214,6 +220,13 @@ import {
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
+import {
+  buildAuthorExposureCertificationV1FromManifest,
+  buildReportRenderManifestV1,
+  buildUnifiedDocumentForParityFromEvaluationResult,
+  inferCanonicalEvaluationModeFromWordCount,
+} from '@/lib/evaluation/reportRenderParity';
+import { persistFailureDiagnosisArtifact } from '@/lib/evaluation/failureDiagnosis';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -274,6 +287,51 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // Hard manuscript ceiling. Above this, we fail-closed before any AI call.
 // The website upload page displays this as the supported max.
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+const MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2 = 4;
+
+function isDegradedPass1aChunkOutput(output: Pass1aChunkOutput | undefined | null): boolean {
+  return Boolean(output && (output as { _degraded?: boolean })._degraded);
+}
+
+function getCompletedNonDegradedChunkIndexes(cacheMap: Map<number, Pass1aChunkOutput>): number[] {
+  return [...cacheMap.entries()]
+    .filter(([, output]) => !isDegradedPass1aChunkOutput(output))
+    .map(([chunkIndex]) => chunkIndex)
+    .sort((a, b) => a - b);
+}
+
+function getStoryLayerSubstantiveCoverage(payload: Record<string, unknown>): {
+  populatedLayerKeys: string[];
+  populatedLayerCount: number;
+} {
+  const asRecord = (value: unknown): Record<string, unknown> | null =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+
+  const layerChecks: Array<[string, (layer: Record<string, unknown>) => number]> = [
+    ['pov_structure_layer', (layer) => toFiniteNumber(layer.pov_character_count) ?? 0],
+    ['canonical_identity_layer', (layer) => toFiniteNumber(layer.identity_group_count) ?? 0],
+    ['cast_role_tier_layer', (layer) => toFiniteNumber(layer.total_cast) ?? 0],
+    ['identity_pronoun_layer', (layer) => toFiniteNumber(layer.total_characters) ?? 0],
+    ['relationship_network_layer', (layer) => toFiniteNumber(layer.pair_count) ?? 0],
+    ['object_symbol_layer', (layer) => toFiniteNumber(layer.object_count) ?? 0],
+    ['location_timeline_worldstate_layer', (layer) => Math.max(toFiniteNumber(layer.location_count) ?? 0, toFiniteNumber(layer.state_snapshot_count) ?? 0)],
+    ['threat_antagonist_ending_layer', (layer) => Math.max(toFiniteNumber(layer.pressure_system_count) ?? 0, toFiniteNumber(layer.antagonist_count) ?? 0, toFiniteNumber(layer.terminal_entry_count) ?? 0)],
+  ];
+
+  const populatedLayerKeys = layerChecks
+    .filter(([key, getCount]) => {
+      const layer = asRecord(payload[key]);
+      return layer ? getCount(layer) > 0 : false;
+    })
+    .map(([key]) => key);
+
+  return {
+    populatedLayerKeys,
+    populatedLayerCount: populatedLayerKeys.length,
+  };
+}
 
 // Vercel hard-kill wall-clock limit. Vercel terminates the process at 800s
 // regardless of what the function is doing. We must self-chain before this.
@@ -633,10 +691,12 @@ export function classifyFailureBucket(code: string | null | undefined): FailureB
       code === 'SUPABASE_CONTRACT_VIOLATED' || code === 'ARTIFACT_PERSISTENCE_FAILED' ||
       code === 'CONTEXT_CONTAMINATION_DETECTED') return 'supabase_contract';
   // OpenAI / provider transient
-  if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
-      code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
-      code === 'PASS2_INDEPENDENCE_REWRITE_FAILED' ||
-      code === 'RETRYING_CHECKPOINT') return 'openai_provider';
+    if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
+    code === 'PASS1_TIMEOUT' || code === 'PASS2_TIMEOUT' || code === 'PASS3_TIMEOUT' ||
+    code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
+    code === 'PHASE2_PASS12_FAILED' ||
+    code === 'PASS2_INDEPENDENCE_REWRITE_FAILED' ||
+    code === 'RETRYING_CHECKPOINT') return 'openai_provider';
   // Vercel / platform
   if (code.startsWith('VERCEL_') || code === 'WORKER_TIMEOUT' ||
       code === 'LEASE_EXPIRED' || code === 'PROCESSOR_UNCAUGHT_ERROR') return 'vercel_platform';
@@ -1829,6 +1889,7 @@ const TERMINAL_FAILURE_PREFIXES = [
   'PIPELINE_INPUT_INVALID', // Bad input — won't improve on retry
   'SCHEMA_INVALID',         // DB schema error — not transient
   'SCHEMA_VIOLATION',       // DB schema error — not transient
+  'SCHEMA_VALIDATION_FAILED', // Canonical schema validation failure — non-transient
   'MANUSCRIPT_NOT_FOUND',   // Data missing — won't appear on retry
   'AUTH_FAILED',            // Credential error — not transient
   'AUTHORIZATION_ERROR',    // Same
@@ -1841,6 +1902,7 @@ const TERMINAL_FAILURE_PREFIXES = [
 ];
 
 const TERMINAL_FAILURE_EXACT = new Set<string>([
+  'CONTEXT_CONTAMINATION_DETECTED',
   'USER_CANCELLED',
   'REVIEW_GATE_REJECTED_BY_AUTHOR',
   'TECHNICAL_FAILURE_REQUIRES_REVIEW',
@@ -1884,12 +1946,19 @@ export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | unde
   if (
     code.startsWith('OPENAI_') ||
     code.startsWith('PERPLEXITY_') ||
+    code === 'PASS1_TIMEOUT' ||
+    code === 'PASS2_TIMEOUT' ||
+    code === 'PASS3_TIMEOUT' ||
     code === 'PASS4_EXTERNAL_ADJUDICATION_FAILED'
   ) {
     return 3;
   }
 
   return 2;
+}
+
+export function isSelfRecoverableFailureCode(code: string | null | undefined): boolean {
+  return !isTerminalFailureCode(code) && maxSelfRecoveryAttemptsForFailureCode(code) > 0;
 }
 
 /**
@@ -1925,16 +1994,38 @@ export async function assertReviewGatePassedBeforeHandoff(
 
 /**
  * Policy gate: phase_2 may queue phase_3 only if pass12_handoff_v1 exists.
- * This prevents phase_3 from starting in a split state and hard-fails earlier
- * with an explicit policy violation.
+ * Recoverable handoff defects are kicked back to phase_2 by the queue boundary
+ * wrapper so phase_2 can rebuild/overwrite the handoff. Database/system errors
+ * still throw explicitly and must not be masked as retryable content repair.
  */
+class RecoverablePass12HandoffQueueError extends Error {
+  readonly recoverable = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'RecoverablePass12HandoffQueueError';
+  }
+}
+
+function isRecoverablePass12HandoffQueueError(error: unknown): error is RecoverablePass12HandoffQueueError {
+  return error instanceof RecoverablePass12HandoffQueueError;
+}
+
+const PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS = 3;
+
+type Pass12HandoffQueueDisposition =
+  | { status: 'ready' }
+  | { status: 'requeued'; repairCount: number; maxRepairAttempts: number; reason: string }
+  | { status: 'exhausted'; repairCount: number; maxRepairAttempts: number; reason: string };
+
 export async function assertPass12HandoffExistsBeforePhase3Queue(
   supabase: SupabaseClient<any, any, any>,
   jobId: string,
+  manuscriptId?: number,
 ): Promise<void> {
   const { data: handoffCheck, error: handoffErr } = await supabase
     .from('evaluation_artifacts')
-    .select('id')
+    .select('id, job_id, manuscript_id, content')
     .eq('job_id', jobId)
     .eq('artifact_type', 'pass12_handoff_v1')
     .maybeSingle();
@@ -1944,7 +2035,117 @@ export async function assertPass12HandoffExistsBeforePhase3Queue(
   }
 
   if (!handoffCheck?.id) {
-    throw new Error('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
+    throw new RecoverablePass12HandoffQueueError('POLICY_VIOLATION: phase_3 queue requires pass12_handoff_v1');
+  }
+
+  const row = handoffCheck as UpstreamArtifactRow;
+  if (row.job_id && row.job_id !== jobId) {
+    throw new RecoverablePass12HandoffQueueError(`POLICY_VIOLATION: phase_3 queue pass12_handoff_v1 job_id mismatch (expected=${jobId}, actual=${row.job_id})`);
+  }
+  if (
+    typeof manuscriptId === 'number' &&
+    typeof row.manuscript_id === 'number' &&
+    row.manuscript_id !== manuscriptId
+  ) {
+    throw new RecoverablePass12HandoffQueueError(
+      `POLICY_VIOLATION: phase_3 queue pass12_handoff_v1 manuscript_id mismatch (expected=${manuscriptId}, actual=${row.manuscript_id})`,
+    );
+  }
+
+  const contentRecord = isRecord(row.content) ? row.content : null;
+  const schemaVersion = typeof contentRecord?.schema_version === 'string' ? contentRecord.schema_version : null;
+  const hasPass1Output = Boolean(contentRecord && isRecord(contentRecord.pass1Output));
+  const hasPass2Output = Boolean(contentRecord && isRecord(contentRecord.pass2Output));
+
+  if (schemaVersion !== 'pass12_handoff_v1' || !hasPass1Output || !hasPass2Output) {
+    throw new RecoverablePass12HandoffQueueError('POLICY_VIOLATION: phase_3 queue requires canonical complete pass12_handoff_v1');
+  }
+}
+
+async function requeuePhase2ForPass12HandoffRepair(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  progressState: Record<string, unknown>;
+  reason: string;
+}): Promise<Pass12HandoffQueueDisposition> {
+  const requeueNow = new Date().toISOString();
+  const previousRepairCount = typeof params.progressState.pass12_handoff_repair_count === 'number'
+    ? params.progressState.pass12_handoff_repair_count
+    : 0;
+
+  if (previousRepairCount >= PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS) {
+    return {
+      status: 'exhausted',
+      repairCount: previousRepairCount,
+      maxRepairAttempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+      reason: params.reason,
+    };
+  }
+
+  const nextRepairCount = previousRepairCount + 1;
+
+  const { error: requeueErr } = await params.supabase
+    .from('evaluation_jobs')
+    .update({
+      status: JOB_STATUS.QUEUED,
+      phase: 'phase_2',
+      phase_status: JOB_STATUS.QUEUED,
+      claimed_by: null,
+      claimed_at: null,
+      lease_token: null,
+      lease_until: null,
+      updated_at: requeueNow,
+      progress: {
+        ...params.progressState,
+        phase: 'phase_2',
+        phase_status: JOB_STATUS.QUEUED,
+        message: 'Pass 1/2 handoff needs repair — queued to rebuild scoring handoff',
+        pass12_handoff_repair_count: nextRepairCount,
+        pass12_handoff_repair_max_attempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+        pass12_handoff_repair_queued_at: requeueNow,
+        pass12_handoff_repair_reason: params.reason,
+      },
+    })
+    .eq('id', params.jobId)
+    .eq('status', JOB_STATUS.RUNNING);
+
+  if (requeueErr) {
+    throw new Error(`PHASE2_HANDOFF_REPAIR_REQUEUE_FAILED: ${requeueErr.message}`);
+  }
+
+  console.warn(
+    `[phase_2] ${params.jobId}: pass12 handoff invalid before phase_3 queue — requeued phase_2 for repair`,
+    params.reason,
+  );
+
+  return {
+    status: 'requeued',
+    repairCount: nextRepairCount,
+    maxRepairAttempts: PASS12_HANDOFF_REPAIR_MAX_ATTEMPTS,
+    reason: params.reason,
+  };
+}
+
+async function assertPass12HandoffOrRequeuePhase2ForRepair(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  manuscriptId: number;
+  progressState: Record<string, unknown>;
+}): Promise<Pass12HandoffQueueDisposition> {
+  try {
+    await assertPass12HandoffExistsBeforePhase3Queue(params.supabase, params.jobId, params.manuscriptId);
+    return { status: 'ready' };
+  } catch (error) {
+    if (!isRecoverablePass12HandoffQueueError(error)) {
+      throw error;
+    }
+
+    return requeuePhase2ForPass12HandoffRepair({
+      supabase: params.supabase,
+      jobId: params.jobId,
+      progressState: params.progressState,
+      reason: error.message,
+    });
   }
 }
 
@@ -4281,6 +4482,8 @@ type SeedArtifact = {
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
+  model: string;
+  prompt_version: string;
   claims: SeedClaim[];
 };
 
@@ -4329,6 +4532,8 @@ function buildStorySeedArtifact(args: { manuscriptText: string; generatedAt: str
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
+    model: 'seed_deterministic',
+    prompt_version: 'story_map_seed_v1:deterministic',
     claims,
   };
 }
@@ -4348,6 +4553,8 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
+    model: 'seed_deterministic',
+    prompt_version: 'evaluation_seed_v1:deterministic',
     claims,
   };
 }
@@ -5002,6 +5209,7 @@ export async function processEvaluationJob(
         errorMessage,
         context: failureContext,
       });
+      const retryEligibleFailureCode = isSelfRecoverableFailureCode(errorCode);
       const pipelineFailureDiagnostics = normalizeFailureDiagnostics(failureContext?.diagnostics);
       const failedPhase =
         progressState.phase === 'phase_3' || executionPhase === 'phase_3' ? 'phase_3' :
@@ -5036,6 +5244,38 @@ export async function processEvaluationJob(
         nextProgressRecord.pass3_completed_at = now;
       }
 
+      try {
+        const failureDiagnosis = await persistFailureDiagnosisArtifact({
+          supabase,
+          jobId,
+          manuscriptId: job.manuscript_id,
+          createdAt: now,
+          phase: failedPhase,
+          phaseStatus: 'failed',
+          failureCode: errorCode,
+          errorMessage,
+          failureContext,
+        });
+        nextProgressRecord.failure_diagnosis = {
+          artifact_type: failureDiagnosis.artifact_type,
+          created_at: failureDiagnosis.created_at,
+          failure_point: failureDiagnosis.failure_point,
+          recommended_next_action: failureDiagnosis.recommended_next_action,
+          ...(failureDiagnosis.template_gate_failure
+            ? { template_gate_failure: failureDiagnosis.template_gate_failure }
+            : {}),
+        };
+      } catch (failureDiagnosisError) {
+        console.warn('[Processor] failure diagnosis persistence failed (non-fatal)', {
+          job_id: jobId,
+          failure_code: errorCode,
+          error:
+            failureDiagnosisError instanceof Error
+              ? failureDiagnosisError.message
+              : String(failureDiagnosisError),
+        });
+      }
+
       Object.assign(progressState, nextProgress);
 
       const sendFailureSupportAlert = async (source: string) => {
@@ -5051,7 +5291,7 @@ export async function processEvaluationJob(
           failure_message: errorMessage,
           source,
           pipeline_stage: failureContext?.pipelineStage ?? null,
-          retry_eligible: false,
+          retry_eligible: retryEligibleFailureCode,
           diagnostics: pipelineFailureDiagnostics ?? failureContext?.diagnostics ?? null,
           created_at: typeof (job as Record<string, unknown>).created_at === 'string'
             ? ((job as Record<string, unknown>).created_at as string)
@@ -5097,7 +5337,7 @@ export async function processEvaluationJob(
         failure_envelope: {
           code: errorCode,
           message: errorMessage,
-          retryable: isCheckpointRetry,
+          retryable: retryEligibleFailureCode,
           bucket: pipelineFailureEnvelope.bucket,
           phase: failedPhase,
           pipeline_stage: pipelineFailureEnvelope.pipeline_stage,
@@ -5130,7 +5370,7 @@ export async function processEvaluationJob(
           errorEnvelope: {
             code: errorCode,
             message: errorMessage,
-            retryable: errorCode === 'RETRYING_CHECKPOINT',
+            retryable: retryEligibleFailureCode,
           },
         });
 
@@ -5158,6 +5398,7 @@ export async function processEvaluationJob(
 
       if (finalizeSucceeded) {
         // Preserve centralized failure ownership: patch envelope diagnostics into progress only.
+        // GUARD: only update rows that are still running (not already transitioned by watchdog/concurrent worker).
         const { error: progressPatchError } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -5183,7 +5424,10 @@ export async function processEvaluationJob(
             next_attempt_at: null,
             updated_at: now,
           })
-          .eq('id', jobId);
+          .eq('id', jobId)
+          .eq('status', JOB_STATUS.RUNNING)
+          .eq('claimed_by', expectedClaimedBy)
+          .eq('lease_token', expectedLeaseToken);
 
         if (progressPatchError) {
           console.warn(
@@ -5197,10 +5441,15 @@ export async function processEvaluationJob(
       }
 
       // Fail-closed fallback: centralized finalization failed, so we must persist terminal state here.
+      // CRITICAL GUARD: only update rows that are still RUNNING with our lease token.
+      // This prevents the fallback from clobbering rows that have already transitioned (by watchdog, etc.).
       const { error: fallbackError } = await supabase
         .from('evaluation_jobs')
         .update(fallbackPayload)
-        .eq('id', jobId);
+        .eq('id', jobId)
+        .eq('status', JOB_STATUS.RUNNING)
+        .eq('claimed_by', expectedClaimedBy)
+        .eq('lease_token', expectedLeaseToken);
 
       if (fallbackError) {
         throw new Error(
@@ -5209,6 +5458,42 @@ export async function processEvaluationJob(
       }
 
       await sendFailureSupportAlert('processor:fallback_failure_write');
+    };
+
+    const ensurePass12HandoffReadyForPhase3Queue = async (): Promise<'ready' | 'requeued' | 'failed'> => {
+      const disposition = await assertPass12HandoffOrRequeuePhase2ForRepair({
+        supabase,
+        jobId: String(job.id),
+        manuscriptId: Number(job.manuscript_id),
+        progressState,
+      });
+
+      if (disposition.status === 'ready') {
+        return 'ready';
+      }
+
+      if (disposition.status === 'requeued') {
+        return 'requeued';
+      }
+
+      await markFailed(
+        `Pass 1/2 handoff repair exhausted after ${disposition.repairCount}/${disposition.maxRepairAttempts} attempts: ${disposition.reason}`,
+        'HANDOFF_REPAIR_EXHAUSTED',
+        {
+          pipelineStage: 'phase_2',
+          reasonCodes: ['HANDOFF_REPAIR_EXHAUSTED'],
+          diagnostics: {
+            gate: 'pass12_handoff_repair',
+            status: 'exhausted',
+            repair_count: disposition.repairCount,
+            max_repair_attempts: disposition.maxRepairAttempts,
+            repair_reason: disposition.reason,
+            next_action: 'Inspect pass12_handoff_v1 producer output and phase_2 rebuild inputs before manual retry.',
+          },
+        },
+      );
+
+      return 'failed';
     };
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -6290,33 +6575,9 @@ export async function processEvaluationJob(
               missingArtifactErr instanceof Error ? missingArtifactErr.message : String(missingArtifactErr));
           }
 
-          // Mark job complete — WAVE is optional, evaluation already persisted
-          nextLifecycleStatus(JOB_STATUS.COMPLETE);
-          const missingNow = new Date().toISOString();
-          await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: JOB_STATUS.COMPLETE,
-              phase: 'phase_3',
-              phase_status: 'complete',
-              completed_at: missingNow,
-              updated_at: missingNow,
-              phase3_completed_at: missingNow,
-              progress: {
-                ...progressState,
-                ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', missingNow),
-                completed_units: 100,
-                phase: 'phase_3',
-                phase_status: 'complete',
-                message: 'WAVE skipped (synthesis artifact missing) — evaluation complete',
-                phase3_wave_status: 'failed',
-                phase3_wave_reason: 'PHASE3_SYNTHESIS_MISSING',
-                phase3_completed_at: missingNow,
-              },
-            })
-            .eq('id', job.id)
-            .eq('status', JOB_STATUS.RUNNING);
-
+          // WAVE skipped (synthesis artifact missing) — evaluation already complete via atomic RPC in phase_2.
+          // Do NOT attempt re-completion here; would violate DB lifecycle trigger.
+          console.log(`[Processor] ${jobId}: phase_3 WAVE skipped (synthesis artifact missing) — evaluation already complete`);
           return { success: true };
         }
 
@@ -6565,64 +6826,37 @@ export async function processEvaluationJob(
           return { success: false, error: `FINALIZATION_GUARD: ${violationCodes}` };
         }
 
-        // All quality checks passed — mark complete.
-        console.log(`[Processor] ${jobId}: phase_3 WAVE complete — marking job complete`);
-        nextLifecycleStatus(JOB_STATUS.COMPLETE);
-        const { error: phase3CompleteErr } = await supabase
-          .from('evaluation_jobs')
-          .update({
-            status: JOB_STATUS.COMPLETE,
-            phase: 'phase_3',
-            phase_status: 'complete',
-            completed_at: phase3Now,
-            updated_at: phase3Now,
-            phase3_completed_at: phase3Now,
-            progress: {
-              ...progressState,
-              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', phase3Now),
-              completed_units: 100,
-              phase: 'phase_3',
-              phase_status: 'complete',
-              message: 'WAVE readiness layer complete',
-              phase3_completed_at: phase3Now,
-            },
-          })
-          .eq('id', job.id)
-          .eq('status', JOB_STATUS.RUNNING);
-
-        if (phase3CompleteErr) {
-          console.error(`[Processor] ${jobId}: phase_3 completion update failed`, phase3CompleteErr.message);
-        }
-
+        // Quality checks passed — evaluation already complete via atomic RPC in phase_2.
+        // WAVE layer completion is reflected in artifacts only; job completion was already finalized.
+        console.log(`[Processor] ${jobId}: phase_3 WAVE complete — evaluation already finalized via atomic RPC`);
         return { success: true };
       } catch (phase3Err) {
         clearInterval(leaseRenewalLoopP3);
         const errMsg = phase3Err instanceof Error ? phase3Err.message : String(phase3Err);
-        console.error(`[Processor] ${jobId}: phase_3 fatal error — evaluation already complete, marking job complete anyway`, errMsg);
-        // Phase_3 fatal error: evaluation already persisted from phase_2. Complete anyway.
-        nextLifecycleStatus(JOB_STATUS.COMPLETE);
+        console.error(`[Processor] ${jobId}: phase_3 fatal error — evaluation already finalized by atomic RPC`, errMsg);
+        // Phase_3 fatal error after evaluation already persisted from phase_2. Do NOT attempt re-completion.
+        // The evaluation is already complete; WAVE errors are logged but do not change job status.
         const errNow = new Date().toISOString();
-        await supabase
+        const { error: diagnosticsPatchErr } = await supabase
           .from('evaluation_jobs')
           .update({
-            status: JOB_STATUS.COMPLETE,
-            phase: 'phase_3',
-            phase_status: 'complete',
-            completed_at: errNow,
-            phase3_completed_at: errNow,
-            updated_at: errNow,
             progress: {
               ...progressState,
-              ...buildPhaseLogPatch(progressState, 'phase_3', 'passed', errNow),
               completed_units: 100,
               phase: 'phase_3',
               phase_status: 'complete',
               message: 'WAVE phase error (non-fatal) — evaluation complete',
               phase3_error: errMsg,
+              phase3_error_at: errNow,
             },
+            updated_at: errNow,
           })
           .eq('id', job.id)
-          .eq('status', JOB_STATUS.RUNNING);
+          .neq('status', 'failed');
+
+        if (diagnosticsPatchErr) {
+          console.warn(`[Processor] ${jobId}: WAVE error diagnostics patch failed (non-fatal)`, diagnosticsPatchErr.message);
+        }
         return { success: true };
       }
       } // end WAVE-only else
@@ -7198,7 +7432,7 @@ export async function processEvaluationJob(
 
         // Cursor = next chunk index to process. Derived from cache (source of
         // truth) rather than stored cursor to handle cache-ahead-of-cursor edge cases.
-        const completedIndexes = new Set<number>(pass1aCacheMap.keys());
+        const completedIndexes = new Set<number>(getCompletedNonDegradedChunkIndexes(pass1aCacheMap));
         const allChunkIndexes = Array.isArray(allChunks)
           ? allChunks.map(c => c.chunk_index ?? 0)
           : [0];
@@ -7466,7 +7700,7 @@ export async function processEvaluationJob(
           }
 
           // Recompute pending after batch.
-          const completedAfterBatch = new Set<number>(pass1aCacheMap.keys());
+          const completedAfterBatch = new Set<number>(getCompletedNonDegradedChunkIndexes(pass1aCacheMap));
           const pendingAfterBatch = allChunkIndexes.filter(i => !completedAfterBatch.has(i));
           const batchCompletedAt = new Date().toISOString();
 
@@ -8078,8 +8312,9 @@ export async function processEvaluationJob(
         // Reconcile persisted batch-state with cache truth before continuing.
         // This prevents stale progress snapshots (e.g. 10/13) from surviving
         // into failed terminal states when cache is already complete.
-        const canonicalCompletedChunkIndexes = [...pass1aCacheMap.keys()].sort((a, b) => a - b);
-        const canonicalPendingChunkIndexes = expectedChunkIndexes.filter((index) => !pass1aCacheMap.has(index));
+        const canonicalCompletedChunkIndexes = getCompletedNonDegradedChunkIndexes(pass1aCacheMap);
+        const canonicalCompletedChunkIndexSet = new Set(canonicalCompletedChunkIndexes);
+        const canonicalPendingChunkIndexes = expectedChunkIndexes.filter((index) => !canonicalCompletedChunkIndexSet.has(index));
         const priorBatchState =
           progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
             ? (progressState.phase1a_batch_state as Record<string, unknown>)
@@ -8153,6 +8388,9 @@ export async function processEvaluationJob(
         if (totalContaminatedEntities > 0) {
           console.log(`[Processor] ${jobId}: entity contamination filter removed ${totalContaminatedEntities} pseudo-entities across all chunks`);
         }
+
+        const degradedChunkCount = sortedChunkOutputs.filter((chunkOutput) => isDegradedPass1aChunkOutput(chunkOutput)).length;
+        const degradedChunkRatio = totalChunks > 0 ? degradedChunkCount / totalChunks : 0;
 
         const ledgerAssemblyStartedAt = new Date().toISOString();
         await supabase
@@ -8272,7 +8510,8 @@ export async function processEvaluationJob(
             generated_at: new Date().toISOString(),
             pipeline_stats: {
               total_chunks: totalChunks,
-              successful_chunks: sortedChunkOutputs.length,
+              successful_chunks: canonicalCompletedChunkIndexes.length,
+              degraded_chunks: degradedChunkCount,
               failed_chunks: 0,
               protagonists: characterLedger.coverage_summary.protagonists,
               co_protagonists: characterLedger.coverage_summary.co_protagonists,
@@ -8295,6 +8534,7 @@ export async function processEvaluationJob(
           characterLedgerV2Phase1a,
           sortedChunkOutputs,
         );
+        const storyLayerCoverage = getStoryLayerSubstantiveCoverage(storyLayerPayload);
 
         const currentBatchStateForQuality =
           progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
@@ -8313,7 +8553,14 @@ export async function processEvaluationJob(
           {
             chunkCoverage: {
               chunks_expected: totalChunks,
-              chunks_completed: sortedChunkOutputs.length,
+              chunks_completed: canonicalCompletedChunkIndexes.length,
+              degraded_chunks: degradedChunkCount,
+              degraded_ratio: degradedChunkRatio,
+            },
+            storyLayerCoverage: {
+              populated_substantive_layers: storyLayerCoverage.populatedLayerCount,
+              minimum_required_substantive_layers: MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2,
+              populated_layer_keys: storyLayerCoverage.populatedLayerKeys,
             },
             preflightReducer: {
               reducer_status: reducerFailedFromProgress ? 'failed' : 'ok',
@@ -8380,6 +8627,29 @@ export async function processEvaluationJob(
           ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
         });
 
+        const manuscriptWordCountForGate =
+          typeof chunkRouting.manuscript_words === 'number' && Number.isFinite(chunkRouting.manuscript_words)
+            ? chunkRouting.manuscript_words
+            : countWords(manuscriptWithContent.content || '');
+        const requireUserFacingReviewGate = shouldRequireStoryLedgerReviewGate(manuscriptWordCountForGate);
+
+        const technicalInputStandardsFailed = requireUserFacingReviewGate && (
+          storyLayerCoverage.populatedLayerCount < MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2 ||
+          degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
+          degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+        );
+
+        if (technicalInputStandardsFailed) {
+          const msg =
+            `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: Phase 1A output does not meet next-step input standards. ` +
+            `populated_substantive_layers=${storyLayerCoverage.populatedLayerCount}/${MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2}; ` +
+            `degraded_chunks=${degradedChunkCount}/${totalChunks} (ratio=${degradedChunkRatio.toFixed(3)}). ` +
+            `Populated layers: ${storyLayerCoverage.populatedLayerKeys.join(', ') || 'none'}.`;
+          console.error(`[phase_1a] ${jobId}: ${msg}`);
+          await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_INCOMPLETE', { pipelineStage: 'phase_1a' });
+          return { success: false, error: msg };
+        }
+
         // Progress bump: story layer assembled → move bar past the 40% plateau.
         progressState.completed_units = 47;
         progressState.message = 'Assembling story layer';
@@ -8419,11 +8689,6 @@ export async function processEvaluationJob(
 
         // ── 7. Review Gate handoff (Phase Architecture v2 helper) ─────────
         const phase1aNow = new Date().toISOString();
-        const manuscriptWordCountForGate =
-          typeof chunkRouting.manuscript_words === 'number' && Number.isFinite(chunkRouting.manuscript_words)
-            ? chunkRouting.manuscript_words
-            : countWords(manuscriptWithContent.content || '');
-        const requireUserFacingReviewGate = shouldRequireStoryLedgerReviewGate(manuscriptWordCountForGate);
         const reviewGateArtifactTypes = [
           'pass1a_story_layer_v1',
           'ledger_quality_report_v1',
@@ -8873,7 +9138,7 @@ export async function processEvaluationJob(
           .eq('id', job.id)
           .eq('status', JOB_STATUS.RUNNING)
           .select('id, status, phase, phase_status')
-          .single();
+          .maybeSingle();
 
         if (phase1aHandoffErr) {
           console.error(
@@ -9437,7 +9702,12 @@ export async function processEvaluationJob(
 
           // Queue phase_3 — same pattern as the handoff-present branch
           const p2HandoffNow = new Date().toISOString();
-          await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
+          const p2HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+          if (p2HandoffReadiness !== 'ready') {
+            return p2HandoffReadiness === 'requeued'
+              ? { success: true }
+              : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+          }
           const { data: p2Phase3Row, error: p2Phase3Err } = await supabase
             .from('evaluation_jobs')
             .update({
@@ -9553,7 +9823,12 @@ export async function processEvaluationJob(
         });
 
         const p2ShortNow = new Date().toISOString();
-        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
+        const p2ShortHandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (p2ShortHandoffReadiness !== 'ready') {
+          return p2ShortHandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+        }
         const { error: p2ShortPhase3Err } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -9581,7 +9856,12 @@ export async function processEvaluationJob(
         );
 
         const phase3QueueNow = new Date().toISOString();
-        await assertPass12HandoffExistsBeforePhase3Queue(supabase, String(job.id));
+        const phase3HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (phase3HandoffReadiness !== 'ready') {
+          return phase3HandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+        }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -10058,6 +10338,7 @@ export async function processEvaluationJob(
       ledger: scoreLedger,
       efg: excellenceFilter,
     }, scopeProfileForV2Gate);
+    let qgSummaryRepairDiagnostics: Record<string, unknown> | null = null;
 
     // ── Deterministic QG summary weakness repair ─────────────────────────────
     // If the ONLY hard failure is v2_summary_weakness_presence, the evaluation
@@ -10073,11 +10354,21 @@ export async function processEvaluationJob(
         hardFailedChecks[0].check_id === 'v2_summary_weakness_presence';
 
       if (isOnlySummaryWeakness) {
-        const propagation = summarizePropagationIntegrity(evaluationResult.criteria);
+        const summaryRepairCriteria = qualityGateV2.downgradedResult?.criteria ?? evaluationResult.criteria;
+        const propagation = summarizePropagationIntegrity(summaryRepairCriteria);
         const repairedSummary = normalizeSummaryWithBottomWeaknesses(
           evaluationResult.overview.one_paragraph_summary,
           propagation.bottomScoreCriteria,
         );
+        qgSummaryRepairDiagnostics = {
+          attempted: true,
+          mechanism: 'normalizeSummaryWithBottomWeaknesses',
+          used_source: qualityGateV2.downgradedResult?.criteria
+            ? 'qualityGateV2.downgradedResult.criteria'
+            : 'evaluationResult.criteria',
+          expected_source: 'qualityGateV2.downgradedResult.criteria',
+          outcome: 'applied',
+        };
 
         console.log(
           `[Processor] ${jobId}: deterministic QG summary repair — patching overview summary to name bottom-score weaknesses: ${propagation.bottomScoreCriteria.join(', ')}`,
@@ -10095,13 +10386,15 @@ export async function processEvaluationJob(
           console.log(
             `[Processor] ${jobId}: QG summary repair succeeded — evaluation continues`,
           );
+        } else if (qgSummaryRepairDiagnostics) {
+          qgSummaryRepairDiagnostics.outcome = 'failed';
         }
       }
     }
 
     if (!qualityGateV2.pass) {
-      const failedChecks = qualityGateV2.checks
-        .filter((check) => !check.passed)
+      const failedCheckRecords = qualityGateV2.checks.filter((check) => !check.passed);
+      const failedChecks = failedCheckRecords
         .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
       const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
 
@@ -10112,6 +10405,43 @@ export async function processEvaluationJob(
       const v2GateFailedAt = new Date().toISOString();
       progressState.v2_gate_status = 'failed';
       progressState.v2_gate_failed_at = v2GateFailedAt;
+
+      try {
+        const rejectedEffectiveResult = qualityGateV2.downgradedResult ?? evaluationResult;
+        const postQgSnapshotHash = stableSourceHash({
+          manuscriptId: manuscript.id,
+          jobId: job.id,
+          userId: manuscriptWithContent.user_id,
+          manuscriptText: manuscriptWithContent.content || '(No content provided)',
+          promptVersion: `post_qg_effective_snapshot_v1:QG_FAILED:v2_gate:${v2GateFailedAt}`,
+          model: getCanonicalPipelineModel(openAiModel),
+        });
+
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: job.id,
+          manuscriptId: job.manuscript_id,
+          artifactType: 'post_qg_effective_snapshot_v1',
+          artifactVersion: 'post_qg_effective_snapshot_v1',
+          sourceHash: postQgSnapshotHash,
+          content: buildPostQgEffectiveSnapshotV1({
+            sourceResult: evaluationResult,
+            effectiveResult: rejectedEffectiveResult,
+            qualityGate: qualityGateV2,
+            createdAt: v2GateFailedAt,
+          }),
+        });
+
+        console.log(`[Processor] ${jobId}: persisted post_qg_effective_snapshot_v1 for V2 gate failure`);
+      } catch (postQgSnapshotPersistError) {
+        console.warn(
+          `[Processor] ${jobId}: failed to persist post-QG effective snapshot on V2 gate failure (non-fatal)`,
+          postQgSnapshotPersistError instanceof Error
+            ? postQgSnapshotPersistError.message
+            : String(postQgSnapshotPersistError),
+          postQgSnapshotPersistError,
+        );
+      }
 
       try {
         // Build per-criterion gate view for the diagnostics artifact.
@@ -10242,7 +10572,15 @@ export async function processEvaluationJob(
         );
       }
 
-      await markFailed(gateError, 'QG_FAILED');
+      await markFailed(gateError, 'QG_FAILED', {
+        pipelineStage: 'quality_gate_v2',
+        reasonCodes: failedCheckRecords.map((check) => check.check_id),
+        diagnostics: {
+          gate: 'QualityGateV2',
+          failed_checks: failedCheckRecords.map((check) => check.check_id),
+          summary_repair: qgSummaryRepairDiagnostics,
+        },
+      });
 
       return { success: false, error: gateError };
     }
@@ -10474,6 +10812,40 @@ export async function processEvaluationJob(
       return { success: false, error: invalidManuscriptIdError };
     }
 
+    try {
+      const postQgSnapshotCreatedAt = new Date().toISOString();
+      const postQgSnapshotHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:post_qg_effective_snapshot_v1`,
+        model,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'post_qg_effective_snapshot_v1',
+        artifactVersion: 'post_qg_effective_snapshot_v1',
+        sourceHash: postQgSnapshotHash,
+        content: buildPostQgEffectiveSnapshotV1({
+          sourceResult: evaluationResult,
+          effectiveResult: effectiveEvaluationResult,
+          qualityGate: qualityGateV2,
+          createdAt: postQgSnapshotCreatedAt,
+        }),
+      });
+    } catch (postQgSnapshotPersistError) {
+      console.warn(
+        `[Processor] ${jobId}: failed to persist post-QG effective snapshot on QG pass (non-fatal)`,
+        postQgSnapshotPersistError instanceof Error
+          ? postQgSnapshotPersistError.message
+          : String(postQgSnapshotPersistError),
+      );
+    }
+
     // ── Template Completeness Gate ──────────────────────────────────────────
     // Validates that the evaluation artifact meets the short-form template's
     // structural requirements BEFORE persisting. If critical violations are
@@ -10503,6 +10875,8 @@ export async function processEvaluationJob(
             violations: templateCompletenessCheck.violations.map((violation) => ({
               code: violation.code,
               criterion: violation.criterion ?? null,
+              field_path: violation.field_path ?? null,
+              invariant_id: violation.invariant_id ?? null,
               severity: violation.severity,
               message: violation.message,
             })),
@@ -10518,6 +10892,55 @@ export async function processEvaluationJob(
         `[Processor] ${jobId}: Template completeness gate passed with ${templateCompletenessCheck.violations.length} warning(s)`,
         templateCompletenessCheck.violations.map((v) => v.code),
       );
+    }
+
+    // ── Artifact Consistency Gate v1 ───────────────────────────────────────
+    // Runs after QG normalization and template completeness, but before the
+    // evaluation_result_v2 artifact becomes canonical. Complete-but-inconsistent
+    // output must fail closed here instead of being certified downstream.
+    const artifactConsistencyGateV1 = evaluateArtifactConsistencyGateV1({
+      sourceResult: evaluationResult,
+      effectiveQGResult: effectiveEvaluationResult,
+    });
+    const artifactConsistencyGateHash = stableSourceHash({
+      manuscriptId: manuscript.id,
+      jobId: job.id,
+      userId: manuscriptWithContent.user_id,
+      manuscriptText,
+      promptVersion: `${promptVersion}:artifact_consistency_gate_v1`,
+      model,
+    });
+
+    await upsertEvaluationArtifact({
+      supabase,
+      jobId: job.id,
+      manuscriptId: job.manuscript_id,
+      artifactType: 'artifact_consistency_gate_v1',
+      artifactVersion: 'artifact_consistency_gate_v1',
+      sourceHash: artifactConsistencyGateHash,
+      content: artifactConsistencyGateV1,
+    });
+
+    if (artifactConsistencyGateV1.status === 'fail') {
+      console.error(
+        `[Processor] ${jobId}: Artifact consistency gate BLOCKED — ${artifactConsistencyGateV1.blocking_reasons.join(',')}`,
+        artifactConsistencyGateV1.checks,
+      );
+
+      await markFailed(
+        'Evaluation consistency certification failed before report persistence. Support has been alerted.',
+        'ARTIFACT_CONSISTENCY_GATE_FAILED',
+        {
+          pipelineStage: 'artifact_consistency_gate',
+          reasonCodes: artifactConsistencyGateV1.blocking_reasons,
+          diagnostics: artifactConsistencyGateV1,
+        },
+      );
+
+      return {
+        success: false,
+        error: `Artifact consistency gate failed: ${artifactConsistencyGateV1.blocking_reasons.join(',')}`,
+      };
     }
 
     declarePersistenceLock('persistence/after-template-completeness');
@@ -10581,6 +11004,92 @@ export async function processEvaluationJob(
         });
 
         return { success: false, error: failureReason };
+      }
+
+      // ── Phase 5: Renderer parity proof artifacts (fail-closed) ───────────
+      // Build canonical UED from persisted evaluation_result_v2, derive field-level
+      // renderer manifest, and certify author exposure only when parity passes.
+      // If any step fails, treat as artifact persistence failure.
+      const parityMode = inferCanonicalEvaluationModeFromWordCount(coverageForReporting?.sourceWords ?? null);
+      const parityDisplayTitle =
+        manuscriptWithContent.title?.trim()
+        || effectiveEvaluationResult.metrics?.manuscript?.title?.trim()
+        || 'Untitled Manuscript';
+
+      const unifiedDocumentV1 = buildUnifiedDocumentForParityFromEvaluationResult({
+        evaluationResult: effectiveEvaluationResult,
+        displayTitle: parityDisplayTitle,
+        mode: parityMode,
+      });
+
+      const renderManifestV1 = buildReportRenderManifestV1({
+        jobId: String(job.id),
+        unifiedDocument: unifiedDocumentV1,
+      });
+
+      const authorExposureCertificationV1 = buildAuthorExposureCertificationV1FromManifest(renderManifestV1);
+
+      const unifiedDocumentHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:unified_evaluation_document_v1`,
+        model,
+      });
+
+      const renderManifestHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:report_render_manifest_v1`,
+        model,
+      });
+
+      const certificationHash = stableSourceHash({
+        manuscriptId: manuscript.id,
+        jobId: job.id,
+        userId: manuscriptWithContent.user_id,
+        manuscriptText,
+        promptVersion: `${promptVersion}:author_exposure_certification_v1`,
+        model,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'unified_evaluation_document_v1',
+        artifactVersion: 'unified_evaluation_document_v1',
+        sourceHash: unifiedDocumentHash,
+        content: unifiedDocumentV1,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'report_render_manifest_v1',
+        artifactVersion: 'report_render_manifest_v1',
+        sourceHash: renderManifestHash,
+        content: renderManifestV1,
+      });
+
+      await upsertEvaluationArtifact({
+        supabase,
+        jobId: job.id,
+        manuscriptId: job.manuscript_id,
+        artifactType: 'author_exposure_certification_v1',
+        artifactVersion: 'author_exposure_certification_v1',
+        sourceHash: certificationHash,
+        content: authorExposureCertificationV1,
+      });
+
+      if (authorExposureCertificationV1.decision !== 'certified') {
+        throw new Error(
+          `AUTHOR_EXPOSURE_CERTIFICATION_BLOCKED: ${authorExposureCertificationV1.blocking_reasons.join(',') || 'unknown_reason'}`,
+        );
       }
 
       // Release persistence lock — resume normal watchdog visibility.
@@ -10775,35 +11284,19 @@ export async function processEvaluationJob(
               canonErr instanceof Error ? canonErr.message : String(canonErr));
           }
 
-          // Complete the job — synthesis persisted, WAVE attempted.
-          nextLifecycleStatus(JOB_STATUS.COMPLETE);
-          const phase3InlineNow = new Date().toISOString();
-          const { error: phase3CompleteErr } = await supabase
-            .from('evaluation_jobs')
-            .update({
-              status: JOB_STATUS.COMPLETE,
-              phase: 'phase_3',
-              phase_status: 'complete',
-              completed_at: phase3InlineNow,
-              updated_at: phase3InlineNow,
-              progress: {
-                ...progressState,
-                completed_units: 100,
-                phase: 'phase_3',
-                phase_status: 'complete',
-                message: 'Pass 3B synthesis + WAVE complete',
-                phase3_completed_at: phase3InlineNow,
-              },
-            })
-            .eq('id', job.id)
-            .eq('status', JOB_STATUS.RUNNING);
-          if (phase3CompleteErr) {
-            console.error(`[Processor] ${jobId}: phase_3 inline completion update failed`, phase3CompleteErr.message);
-          }
+          // Synthesis already persisted, WAVE attempted — evaluation is complete via atomic RPC.
+          // Do NOT attempt direct completion write here; violates lifecycle trigger contract.
+          console.log(`[Processor] ${jobId}: phase_3 inline synthesis + WAVE complete — evaluation already finalized via atomic RPC`);
           return { success: true };
         }
 
         // Default path (phase_2 → queue phase_3 for next invocation).
+        const defaultPhase3HandoffReadiness = await ensurePass12HandoffReadyForPhase3Queue();
+        if (defaultPhase3HandoffReadiness !== 'ready') {
+          return defaultPhase3HandoffReadiness === 'requeued'
+            ? { success: true }
+            : { success: false, error: 'HANDOFF_REPAIR_EXHAUSTED' };
+        }
         const { data: phase3QueueRow, error: phase3QueueErr } = await supabase
           .from('evaluation_jobs')
           .update({
@@ -10871,7 +11364,7 @@ export async function processEvaluationJob(
       stage: 'processor_complete',
       message: 'Job completed',
       metadata: {
-        status: 'complete',
+        status: JOB_STATUS.COMPLETE,
         score: pipelineResult.synthesis?.overall?.overall_score_0_100 ?? null,
         totalMs: Date.now() - processorStartMs,
         failureCode: null,

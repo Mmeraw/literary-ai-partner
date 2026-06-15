@@ -44,13 +44,13 @@ function buildBlockedNamePatterns(blockedWords: string[]): RegExp[] {
     const capitalized = escaped.charAt(0).toUpperCase() + escaped.slice(1);
 
     // Pattern 1: "No's" — possessive form (strong signal: dialogue word used as name)
-    patterns.push(new RegExp(`\\b${capitalized}'s\\b`, "g"));
+    patterns.push(new RegExp(`\\b${capitalized}['’]s\\b`, "g"));
 
     // Pattern 2: "No/Name" — slash-alias form
     patterns.push(new RegExp(`\\b${capitalized}/[A-Z]\\w+`, "g"));
 
     // Pattern 3: "No notices", "No is", "No was" — subject position
-    // Only for very common blocked words that the LLM frequently promotes
+    // Only for very common blocked words that the LLM frequently promotes.
     if ([
       "no", "yes", "oh", "hey", "well", "so",
       // Financial / thematic tokens that appear as sentence subjects when hallucinated as names
@@ -59,7 +59,7 @@ function buildBlockedNamePatterns(blockedWords: string[]): RegExp[] {
     ].includes(word.toLowerCase())) {
       patterns.push(
         new RegExp(
-          `\\b${capitalized}(?= (?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows))\\b`,
+          `\\b${capitalized}(?= (?:[a-z]+ly )?(?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows|delivers|drives|anchors|contrasts|counts|tallies|calculates|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|earns))\\b`,
           "g",
         ),
       );
@@ -68,9 +68,57 @@ function buildBlockedNamePatterns(blockedWords: string[]): RegExp[] {
   return patterns;
 }
 
+function isLikelyNonCharacterCanonicalName(name: string): boolean {
+  return [
+    /^cost$/i,
+    /\btotal\s+cost\b/i,
+    /\bcost\s+(?:tall(?:y|ies)|figure|ledger|accounting)\b/i,
+    /\b(?:product|kit|box|bottle|dye|bleach)\b/i,
+    /\b(?:store|shop|salon|drug\s+mart|clinic|warehouse)\b/i,
+  ].some((pattern) => pattern.test(name));
+}
+
+function resolvePrimaryName(canonicalNames: string[]): string {
+  const cleaned = canonicalNames
+    .map((name) => (typeof name === "string" ? name.trim() : ""))
+    .filter((name) => name.length > 0);
+
+  if (cleaned.length === 0) return "the narrator";
+
+  const narratorCandidate = cleaned.find((name) => /\b(narrator|protagonist)\b/i.test(name));
+  if (narratorCandidate) return "the narrator";
+
+  const preferred = cleaned.find(
+    (name) => !isBlockedCharacterName(name) && !isLikelyNonCharacterCanonicalName(name),
+  );
+  return preferred ?? cleaned[0];
+}
+
+function matchIsSentenceInitial(text: string, offset: number): boolean {
+  const before = text.slice(0, offset).trimEnd();
+  return before.length === 0 || /[.!?]\s*$/.test(before);
+}
+
+function preserveInitialCapitalization(replacement: string, text: string, offset: number): string {
+  if (!matchIsSentenceInitial(text, offset)) return replacement;
+  return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+}
+
+function replaceCostSubjectFalseName(text: string, replacementName: string): string {
+  const costSubjectPattern = /\bCost(?= (?:[a-z]+ly )?(?:is|was|has|had|needs|wants|tries|learns|counts|tallies|calculates|contrasts|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|remains|becomes|represents|embodies|anchors|drives|earns)\b)/g;
+  costSubjectPattern.lastIndex = 0;
+  return text.replace(costSubjectPattern, (_match, offset) =>
+    preserveInitialCapitalization(replacementName, text, offset),
+  );
+}
+
+function containsCostFalseCharacterReference(text: string): boolean {
+  return /\bCost(?:['’]s\b|(?= (?:[a-z]+ly )?(?:is|was|has|had|needs|wants|tries|learns|counts|tallies|calculates|contrasts|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|remains|becomes|represents|embodies|anchors|drives|delivers|earns)\b))/g.test(text);
+}
+
 // Pre-build patterns for the most dangerous blocked words
 const TOP_BLOCKED_WORDS = [
-  "no", "yes", "oh", "hey", "well", "so", "ok", "okay",
+  "no", "yes", "oh", "hey", "well", "so", "cost", "ok", "okay",
   "ah", "huh", "um", "uh", "sure", "right", "fine",
   "good", "bad", "please", "thanks", "sorry",
   "stop", "wait", "look", "listen", "come", "go", "run", "help",
@@ -95,30 +143,37 @@ export function sanitizeBlockedCharacterNames(
   text: string,
   canonicalNames: string[],
 ): string {
-  if (!text || canonicalNames.length === 0) return text;
+  if (!text) return text;
+
+  const hasCanonicalNames = canonicalNames.some((name) => typeof name === "string" && name.trim().length > 0);
+  if (!hasCanonicalNames && !containsCostFalseCharacterReference(text)) return text;
 
   // The primary canonical name is the best replacement for any blocked word
   // used as a character reference (typically the protagonist).
   // We use the first canonical name as default fallback.
-  const primaryName = canonicalNames[0];
+  const primaryName = resolvePrimaryName(canonicalNames);
+  if (!primaryName) return text;
 
   let result = text;
   for (const pattern of BLOCKED_NAME_PATTERNS) {
     // Reset lastIndex for global patterns
     pattern.lastIndex = 0;
-    result = result.replace(pattern, (match) => {
+    result = result.replace(pattern, (match, offset) => {
+      const replacement = preserveInitialCapitalization(primaryName, result, offset);
       // For possessive: "No's" → "Michael Salter's"
-      if (match.endsWith("'s")) {
-        return `${primaryName}'s`;
+      if (/[’']s$/i.test(match)) {
+        return `${replacement}'s`;
       }
       // For slash-alias: "No/Michael" → "Michael Salter"
       if (match.includes("/")) {
-        return primaryName;
+        return replacement;
       }
       // For subject position: "No notices" → "Michael Salter notices"
-      return primaryName;
+      return replacement;
     });
   }
+
+  result = replaceCostSubjectFalseName(result, primaryName);
 
   return result;
 }
@@ -160,7 +215,7 @@ export function sanitizeSynthesisCharacterNames(
   synthesis: any,
   canonicalNames: string[],
 ): number {
-  if (!synthesis || canonicalNames.length === 0) return 0;
+  if (!synthesis) return 0;
 
   let modified = 0;
   const clean = (text: string | undefined): string | undefined => {

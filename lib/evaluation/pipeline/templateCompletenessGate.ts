@@ -25,6 +25,8 @@ import { CRITERIA_KEYS } from '@/schemas/criteria-keys';
 export type TemplateViolation = {
   code: string;
   criterion?: string;
+  field_path?: string;
+  invariant_id?: string;
   message: string;
   severity: 'critical' | 'warning';
 };
@@ -205,6 +207,8 @@ export function validateTemplateCompleteness(
   if (!genre) {
     pushViolation(violations, {
       code: 'MISSING_DIAGNOSED_GENRE',
+      field_path: 'enrichment.diagnosed_genre',
+      invariant_id: 'required_template_field_present',
       message: 'Template requires a publishing/category genre diagnosis; format words such as "novel" are not sufficient.',
       severity: 'critical',
     });
@@ -216,6 +220,8 @@ export function validateTemplateCompleteness(
   if (!targetAudience) {
     pushViolation(violations, {
       code: 'MISSING_TARGET_AUDIENCE',
+      field_path: 'enrichment.target_audience',
+      invariant_id: 'required_template_field_present',
       message: 'Template requires a pipeline-diagnosed target audience statement.',
       severity: 'critical',
     });
@@ -224,6 +230,8 @@ export function validateTemplateCompleteness(
   if (!meaningfulText(result.one_paragraph_summary, 40) && !meaningfulText(result.overview?.one_paragraph_summary, 40)) {
     pushViolation(violations, {
       code: 'MISSING_ONE_PARAGRAPH_SUMMARY',
+      field_path: 'overview.one_paragraph_summary',
+      invariant_id: 'required_template_field_present',
       message: 'Template requires a substantive one_paragraph_summary / One-Paragraph Pitch.',
       severity: 'critical',
     });
@@ -236,6 +244,8 @@ export function validateTemplateCompleteness(
   if (!oneSentenceOrPremise) {
     pushViolation(violations, {
       code: 'MISSING_ONE_SENTENCE_PITCH',
+      field_path: 'enrichment.premise',
+      invariant_id: 'required_template_field_present',
       message: 'Template requires a substantive one-sentence pitch or premise in enrichment.',
       severity: 'critical',
     });
@@ -245,6 +255,8 @@ export function validateTemplateCompleteness(
   if (strengths.length < 3) {
     pushViolation(violations, {
       code: 'INCOMPLETE_TOP_STRENGTHS',
+      field_path: 'overview.top_3_strengths',
+      invariant_id: 'required_template_array_min_items',
       message: `Template requires 3 meaningful top strengths, got ${strengths.length}.`,
       severity: 'critical',
     });
@@ -254,6 +266,8 @@ export function validateTemplateCompleteness(
   if (risks.length < 3) {
     pushViolation(violations, {
       code: 'INCOMPLETE_TOP_RISKS',
+      field_path: 'overview.top_3_risks',
+      invariant_id: 'required_template_array_min_items',
       message: `Template requires 3 meaningful top risks, got ${risks.length}.`,
       severity: 'critical',
     });
@@ -269,6 +283,8 @@ export function validateTemplateCompleteness(
   if (result.criteria.length !== CRITERIA_KEYS.length || missingKeys.length > 0 || invalidKeys.length > 0 || duplicateKeys.length > 0) {
     pushViolation(violations, {
       code: 'CRITERIA_CANON_MISMATCH',
+      field_path: 'criteria',
+      invariant_id: 'canonical_criteria_set_complete',
       message:
         `Template requires exactly ${CRITERIA_KEYS.length} canonical criteria. ` +
         `got=${result.criteria.length}; missing=${missingKeys.join(', ') || 'none'}; ` +
@@ -288,6 +304,8 @@ export function validateTemplateCompleteness(
       pushViolation(violations, {
         code: 'INVALID_CRITERION_SCORE',
         criterion: c.key,
+        field_path: `criteria.${c.key}.score_0_10`,
+        invariant_id: 'criterion_score_valid',
         message: `Criterion "${c.key}" must have a numeric score from 0 to 10 or null for governed non-scorable criteria.`,
         severity: 'critical',
       });
@@ -296,6 +314,8 @@ export function validateTemplateCompleteness(
       pushViolation(violations, {
         code: 'INVALID_CRITERION_SCORE',
         criterion: c.key,
+        field_path: `criteria.${c.key}.score_0_10`,
+        invariant_id: 'criterion_score_valid',
         message: `Criterion "${c.key}" must have a numeric score from 0 to 10.`,
         severity: 'critical',
       });
@@ -305,6 +325,8 @@ export function validateTemplateCompleteness(
       pushViolation(violations, {
         code: 'MISSING_RATIONALE',
         criterion: c.key,
+        field_path: `criteria.${c.key}.rationale`,
+        invariant_id: 'criterion_rationale_present',
         message: `Criterion "${c.key}" is missing a substantive rationale.`,
         severity: 'critical',
       });
@@ -315,6 +337,8 @@ export function validateTemplateCompleteness(
       pushViolation(violations, {
         code: 'MISSING_EVIDENCE',
         criterion: c.key,
+        field_path: `criteria.${c.key}.evidence`,
+        invariant_id: 'criterion_evidence_present',
         message: `Criterion "${c.key}" has no usable manuscript evidence anchor.`,
         severity: hasNumericScore && score <= 8 ? 'critical' : 'warning',
       });
@@ -325,6 +349,8 @@ export function validateTemplateCompleteness(
       pushViolation(violations, {
         code: 'INVALID_CONFIDENCE_LEVEL',
         criterion: c.key,
+        field_path: `criteria.${c.key}.confidence_level`,
+        invariant_id: 'criterion_confidence_level_valid',
         message: `Criterion "${c.key}" must have confidence_level High, Moderate, Medium, or Low.`,
         severity: 'critical',
       });
@@ -349,6 +375,8 @@ export function validateTemplateCompleteness(
           pushViolation(violations, {
             code: 'DENSITY_FLOOR_VIOLATION',
             criterion: c.key,
+            field_path: `criteria.${c.key}.recommendations`,
+            invariant_id: 'criterion_recommendation_density_floor',
             message: `Criterion "${c.key}" scored ${score}/10 — requires ${minRecs} meaningful recommendations, has ${recCount}.`,
             severity: 'critical',
           });
@@ -361,6 +389,8 @@ export function validateTemplateCompleteness(
           pushViolation(violations, {
             code: 'INVALID_HIGH_SCORE_RECOMMENDATIONS',
             criterion: c.key,
+            field_path: `criteria.${c.key}.recommendations`,
+            invariant_id: 'criterion_recommendation_content_valid',
             message: `Criterion "${c.key}" has recommendations, but none contain usable diagnostic content.`,
             severity: 'warning',
           });
@@ -378,6 +408,8 @@ export function validateTemplateCompleteness(
     if (quickWins === 0 && strategic === 0) {
       pushViolation(violations, {
         code: 'MISSING_TOP_RECOMMENDATIONS',
+        field_path: 'recommendations',
+        invariant_id: 'top_recommendations_present_for_low_scores',
         message:
           'Criteria scoring ≤8 exist but no meaningful quick_wins or strategic_revisions were generated.',
         severity: hasAnyDensityViolation ? 'critical' : 'warning',

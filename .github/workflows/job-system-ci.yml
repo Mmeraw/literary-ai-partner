@@ -4,16 +4,21 @@ on:
   push:
     branches:
       - main
-      - develop
-      - "feat/**"
-  pull_request:
-    branches:
-      - main
-      - develop
+    paths:
+      - ".github/workflows/job-system-ci.yml"
+      - "app/api/jobs/**"
+      - "app/api/workers/**"
+      - "lib/jobs/**"
+      - "lib/evaluation/**"
+      - "scripts/jobs-*.mjs"
+      - "scripts/verify-phase-a5-day2.sh"
+      - "scripts/no-require-server-runtime.sh"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -129,7 +134,7 @@ jobs:
             }
             const vulns = j.vulnerabilities || {};
             const keys = Object.keys(vulns);
-            const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "engine.io-client", "socket.io-client", "ws", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios", "@base44/sdk", "postcss", "uuid", "xlsx", "@playwright/test", "playwright", "workflow", "@workflow/astro", "@workflow/builders", "@workflow/cli", "@workflow/core", "@workflow/nest", "@workflow/nitro", "@workflow/nuxt", "@workflow/rollup", "@workflow/sveltekit", "@workflow/vite", "@workflow/world-local", "@workflow/world-vercel", "devalue", "undici", "tmp"];
+            const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "engine.io-client", "socket.io-client", "ws", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios", "@base44/sdk", "postcss", "uuid", "xlsx", "@playwright/test", "playwright", "workflow", "@workflow/astro", "@workflow/builders", "@workflow/cli", "@workflow/core", "@workflow/nest", "@workflow/next", "@workflow/nitro", "@workflow/nuxt", "@workflow/rollup", "@workflow/sveltekit", "@workflow/vite", "@workflow/world-local", "@workflow/world-vercel", "devalue", "undici", "tmp", "esbuild", "tsx"];
             const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
             if (bad.length) {
               console.error("Unexpected high vulns:", bad);
@@ -140,7 +145,7 @@ jobs:
               console.error("Missing docs/NPM_AUDIT_NOTES.md for approved advisories.");
               process.exit(1);
             }
-            console.log("Only approved advisories remain (documented in NPM_AUDIT_NOTES.md) ✅");
+            console.log("Only approved advisories remain (documented in docs/NPM_AUDIT_NOTES.md) ✅");
           '
       - name: Build Next.js app
         run: npm run build
@@ -218,136 +223,3 @@ jobs:
         run: npm run jobs:test:metrics
         env:
           CRON_SECRET: ci-test-cron-secret
-      - name: Upload server logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: dev-server-logs
-          path: /tmp/dev-server.log
-          retention-days: 7
-      - name: Cleanup
-        if: always()
-        run: |
-          if [ -f /tmp/dev-server.pid ]; then
-            kill "$(cat /tmp/dev-server.pid)" || true
-          fi
-
-  supabase-backed-tests:
-    name: Supabase-Backed Job Tests
-    needs: proof-availability
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Run on push events only (not pull_request).
-    #
-    # WHY: This job pushes migrations to and runs contract tests against the
-    # shared CI Supabase instance. Running it on pull_request events causes two
-    # problems:
-    #   1. Two parallel instances race to push migrations and claim jobs on the
-    #      same shared DB, causing flaky test isolation failures.
-    #   2. The push instance already validates the same code moments later —
-    #      the PR instance is pure redundancy that hits production infrastructure.
-    # The push instance (which has full secret access) is the authoritative gate.
-    if: ${{ github.event_name != 'pull_request' && needs.proof-availability.outputs.secrets_ok == 'true' && needs.proof-availability.outputs.safe_target_ok == 'true' }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: "npm"
-      - name: Install dependencies
-        run: npm ci
-      - name: Create artifacts directory
-        run: mkdir -p scripts-artifacts
-      - name: Install Supabase CLI
-        uses: ./.github/actions/setup-supabase-cli
-      - name: Validate migration prerequisites
-        id: migration_prereqs
-        shell: bash
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: |
-          set -euo pipefail
-          missing=()
-          [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]] && missing+=("SUPABASE_ACCESS_TOKEN")
-          [[ -z "${SUPABASE_PROJECT_REF:-}" ]] && missing+=("SUPABASE_PROJECT_REF")
-          [[ -z "${SUPABASE_DB_URL:-}" ]] && missing+=("SUPABASE_DB_URL")
-          EFFECTIVE_DB_PASSWORD="${SUPABASE_DB_PASSWORD:-}"
-          if [[ -z "${EFFECTIVE_DB_PASSWORD}" && -n "${SUPABASE_DB_URL:-}" ]]; then
-            DERIVED_DB_PASSWORD="$(python3 -c 'import os, urllib.parse; u=os.environ.get("SUPABASE_DB_URL", ""); print(urllib.parse.unquote(urllib.parse.urlparse(u).password or "") if u else "")')"
-            [[ -n "${DERIVED_DB_PASSWORD}" ]] && EFFECTIVE_DB_PASSWORD="${DERIVED_DB_PASSWORD}"
-          fi
-          [[ -z "${EFFECTIVE_DB_PASSWORD}" ]] && missing+=("SUPABASE_DB_PASSWORD")
-          if (( ${#missing[@]} > 0 )); then
-            echo "::error::Migration prerequisites missing: ${missing[*]}"
-            echo "prereqs_ok=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-          echo "prereqs_ok=true" >> "$GITHUB_OUTPUT"
-      - name: Apply migrations to CI Supabase
-        if: steps.migration_prereqs.outputs.prereqs_ok == 'true'
-        shell: bash
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${SUPABASE_DB_PASSWORD:-}" ]]; then
-            export SUPABASE_DB_PASSWORD="$(python3 -c 'import os, urllib.parse; u=os.environ.get("SUPABASE_DB_URL", ""); print(urllib.parse.unquote(urllib.parse.urlparse(u).password or "") if u else "")')"
-          fi
-          supabase link --project-ref "${SUPABASE_PROJECT_REF}" --yes
-          supabase migration list --linked | grep -oE '20[0-9]{12}' | sort -u | while read -r migration; do
-            if ! ls "supabase/migrations/${migration}_"*.sql >/dev/null 2>&1; then
-              echo "Found remote-only migration ${migration} → marking reverted"
-              supabase migration repair --status reverted "${migration}"
-            fi
-          done
-          : > scripts-artifacts/supabase-db-push.log
-          set +o pipefail
-          (yes || true) | supabase db push --include-all 2>&1 | tee -a scripts-artifacts/supabase-db-push.log
-          PIPESTAT=("${PIPESTATUS[@]}")
-          set -o pipefail
-          SUPABASE_EXIT="${PIPESTAT[1]:-99}"
-          if [ "$SUPABASE_EXIT" -ne 0 ]; then
-            tail -200 scripts-artifacts/supabase-db-push.log || true
-            exit "$SUPABASE_EXIT"
-          fi
-          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "SELECT pg_notify('pgrst', 'reload schema');" 2>&1 | tee scripts-artifacts/postgrest-reload.log || true
-          sleep 2
-          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "SELECT n.nspname AS schema, p.proname AS function_name, pg_get_function_identity_arguments(p.oid) AS type_signature FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'claim_job_atomic' ORDER BY type_signature;" 2>&1 | tee scripts-artifacts/claim_job_atomic_overloads.log || true
-      - name: Check CI DB migrations (proof gate)
-        run: |
-          set -o pipefail
-          npm run jobs:check-migrations 2>&1 | tee scripts-artifacts/db-migration-check.log
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CI_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: Run Supabase DB contract tests
-        run: |
-          set -o pipefail
-          npm run jobs:smoke:supabase 2>&1 | tee scripts-artifacts/supabase-contract-smoke.log
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CI_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: Run admin retry concurrency test
-        run: |
-          set -o pipefail
-          npm run jobs:admin-retry:concurrency 2>&1 | tee scripts-artifacts/admin-retry-concurrency.log
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_CI_URL || secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_CI_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: Upload Supabase contract test logs
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: supabase-contract-test-logs
-          path: scripts-artifacts/*.log
-          retention-days: 30

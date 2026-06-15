@@ -92,4 +92,49 @@ describe("runPipeline coverage fail-closed", () => {
     expect(result.failure_details?.manuscript_chunk_coverage?.chunk_coverage?.chunks_expected).toBe(3);
     expect(result.failure_details?.manuscript_chunk_coverage?.chunk_coverage?.chunks_processed_effective).toBe(2);
   });
+
+  test("fails closed when Pass 1A degraded chunk ratio exceeds threshold", async () => {
+    const result = await runPipeline({
+      manuscriptText: "word ".repeat(6000),
+      manuscriptChunks: [
+        { chunk_index: 0, content: "x".repeat(2000) },
+        { chunk_index: 1, content: "y".repeat(2000) },
+        { chunk_index: 2, content: "z".repeat(2000) },
+      ],
+      workType: "novel",
+      title: "pass1a-degraded-guard",
+      _runners: {
+        runPass1: async () => makePassOutput(1, 3),
+        runPass2: async () => makePassOutput(2, 3),
+        runPass1a: async () => ({
+          chunkOutputs: [
+            { pass: '1a', axis: 'character_evidence_sweep', chunk_index: 0, characters: [], prompt_version: 'test', generated_at: new Date().toISOString(), _degraded: true },
+            { pass: '1a', axis: 'character_evidence_sweep', chunk_index: 1, characters: [], prompt_version: 'test', generated_at: new Date().toISOString(), _degraded: true },
+            { pass: '1a', axis: 'character_evidence_sweep', chunk_index: 2, characters: [], prompt_version: 'test', generated_at: new Date().toISOString() },
+          ],
+          failedChunkIndices: [],
+          failedChunkErrors: [],
+          degradedChunkIndices: [0, 1],
+          degradedChunkCount: 2,
+          model: 'gpt-5.1',
+          prompt_version: 'test',
+          total_chunks: 3,
+          successful_chunks: 1,
+        }),
+        runPass3Synthesis: NEVER_RUN,
+        runQualityGate: () => {
+          throw new Error("quality gate should not run");
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected failure");
+    }
+
+    expect(result.error_code).toBe("PASS1A_DEGRADED_CHUNK_RATIO_EXCEEDED");
+    expect(result.failed_at).toBe("pass1");
+    expect(result.error).toContain("does not meet next-step input standards");
+  });
 });

@@ -83,6 +83,17 @@ describe('STORYGATE_PROCESS_REGISTRY', () => {
       }
     }
   });
+
+  test('SG02 intake validation has active current-canon validator but remains a persistence gap', () => {
+    const intake = STORYGATE_PROCESS_REGISTRY.find((stage) => stage.stageId === 'SG02_INTAKE_VALIDATION');
+    expect(intake).toBeDefined();
+    expect(intake).toEqual(expect.objectContaining({
+      activeState: 'active',
+      certificationStatus: 'partial',
+      fitGapStatus: 'gap',
+    }));
+    expect(intake?.codeSurfaces).toContain('lib/storygate/storygateSubmissionValidator.ts');
+  });
 });
 
 describe('Storygate current package canon', () => {
@@ -141,6 +152,11 @@ describe('STORYGATE_ARTIFACT_REGISTRY', () => {
     const byId = new Map(STORYGATE_ARTIFACT_REGISTRY.map((artifact) => [artifact.artifact, artifact]));
     for (const id of criticalArtifacts) expect(byId.get(id)?.fitGapStatus).toBe('critical');
   });
+
+  test('intake_validation_result_v1 is validator-backed with persistence gap', () => {
+    const intake = STORYGATE_ARTIFACT_REGISTRY.find((artifact) => artifact.artifact === 'intake_validation_result_v1');
+    expect(intake?.fitGapStatus).toBe('gap');
+  });
 });
 
 describe('STORYGATE_FIELD_REGISTRY', () => {
@@ -187,6 +203,16 @@ describe('STORYGATE_KICK_MATRIX', () => {
     expect(kick).toBeDefined();
     expect(kick?.blocking).toBe(true);
     expect(kick?.blocksControlledAccess).toBe(true);
+  });
+});
+
+describe('STORYGATE_CERTIFICATION_GATE_REGISTRY', () => {
+  test('required package gate is enforced by the current-canon validator', () => {
+    const gate = STORYGATE_CERTIFICATION_GATE_REGISTRY.find((entry) => entry.gateId === 'SGCG02_REQUIRED_PACKAGE');
+    expect(gate).toEqual(expect.objectContaining({
+      enforced: true,
+      testEvidence: '__tests__/lib/storygate/storygateSubmissionValidator.test.ts',
+    }));
   });
 });
 

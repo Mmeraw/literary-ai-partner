@@ -5,141 +5,164 @@ import { isTestManuscript, TEST_MANUSCRIPT_ID_MIN } from "@/lib/manuscripts/test
 
 /**
  * GET /api/admin/jobs
- * 
- * Lists jobs with filtering and keyset pagination.
- * 
- * **Auth:** Requires admin session (Phase A.5)
- * 
+ *
+ * Admin source of truth for job dashboards. This route intentionally reads the
+ * canonical evaluation_jobs table directly instead of relying on the legacy
+ * admin_list_jobs RPC, because older RPC status filtering only matched the
+ * top-level status field and could hide active jobs whose running state lives
+ * in progress.phase_status / lifecycle-era fields.
+ *
  * Query parameters:
- * - status: Filter by job status (queued|running|complete|failed)
- * - job_type: Filter by job type
- * - phase: Filter by phase
- * - policy_family: Filter by policy family
- * - created_after: Filter created_at >= ISO timestamp
- * - created_before: Filter created_at <= ISO timestamp
- * - failed_after: Filter failed_at >= ISO timestamp
- * - failed_before: Filter failed_at <= ISO timestamp
- * - cursor: Pagination cursor (base64 JSON of last item keys)
- * - limit: Page size (max 100, default 50)
- * 
- * Governance:
- * - Uses admin_list_jobs RPC for stable pagination
- * - Keyset cursor prevents duplicates/skipping under concurrent writes
- * - Read-only operation (does not modify state)
+ * - status: all|queued|running|complete|failed
+ * - job_type, phase, policy_family
+ * - created_after, created_before, failed_after, failed_before
+ * - limit: max 500, default 500
+ * - show_test: defaults to true; pass 0/false/no to hide manuscript_id >= 9000
  */
 
-type PaginationCursor = {
-  failed_at: string | null;
-  created_at: string;
-  id: string;
-};
+type JobRow = Record<string, unknown>;
+
+function lower(value: unknown): string {
+  return typeof value === "string" ? value.toLowerCase() : "";
+}
+
+function progressOf(job: JobRow): Record<string, unknown> {
+  const progress = job.progress;
+  return progress && typeof progress === "object" && !Array.isArray(progress)
+    ? (progress as Record<string, unknown>)
+    : {};
+}
+
+function errorCodeOf(job: JobRow): string | null {
+  const direct = job.error_code ?? job.failure_code;
+  if (typeof direct === "string" && direct.trim()) return direct;
+
+  const lastError = job.last_error;
+  if (lastError && typeof lastError === "object" && !Array.isArray(lastError)) {
+    const e = lastError as Record<string, unknown>;
+    const code = e.error_code ?? e.failure_code ?? e.code;
+    if (typeof code === "string" && code.trim()) return code;
+  }
+
+  return null;
+}
+
+function semanticStatus(job: JobRow): string {
+  const progress = progressOf(job);
+  const status = lower(job.status);
+  const lifecycle = lower(job.lifecycle);
+  const phaseStatus = lower(job.phase_status ?? progress.phase_status);
+  const validity = lower(job.validity);
+
+  if ([status, lifecycle, phaseStatus, validity].some((v) => ["failed", "error", "errored"].includes(v))) {
+    return "failed";
+  }
+  if ([status, lifecycle, phaseStatus].some((v) => ["complete", "completed", "done", "succeeded", "success"].includes(v))) {
+    return "complete";
+  }
+  if ([status, lifecycle, phaseStatus].some((v) => ["running", "processing", "in_progress", "active", "executing"].includes(v))) {
+    return "running";
+  }
+  if ([status, lifecycle, phaseStatus].some((v) => ["queued", "pending", "scheduled", "retrying"].includes(v))) {
+    return "queued";
+  }
+
+  return status || lifecycle || phaseStatus || "unknown";
+}
+
+function matchesStatus(job: JobRow, requested: string | null): boolean {
+  if (!requested || requested === "all") return true;
+  return semanticStatus(job) === requested.toLowerCase();
+}
+
+function normalizeJob(job: JobRow): JobRow {
+  const progress = progressOf(job);
+  const computedStatus = semanticStatus(job);
+  const failureCode = errorCodeOf(job);
+
+  return {
+    ...job,
+    status: computedStatus,
+    raw_status: job.status ?? null,
+    phase_status: job.phase_status ?? progress.phase_status ?? null,
+    failure_code: failureCode,
+    error_code: failureCode,
+    progress,
+  };
+}
 
 export async function GET(req: NextRequest) {
-  // PHASE A.5: Admin authentication
   const denied = await requireAdmin(req);
   if (denied) return denied;
 
   const supabase = createAdminClient();
   const { searchParams } = req.nextUrl;
 
-  // Parse filters
   const status = searchParams.get("status");
-  const job_type = searchParams.get("job_type");
+  const jobType = searchParams.get("job_type");
   const phase = searchParams.get("phase");
-  const policy_family = searchParams.get("policy_family");
-  const created_after = searchParams.get("created_after");
-  const created_before = searchParams.get("created_before");
-  const failed_after = searchParams.get("failed_after");
-  const failed_before = searchParams.get("failed_before");
-  const cursorParam = searchParams.get("cursor");
+  const policyFamily = searchParams.get("policy_family");
+  const createdAfter = searchParams.get("created_after");
+  const createdBefore = searchParams.get("created_before");
+  const failedAfter = searchParams.get("failed_after");
+  const failedBefore = searchParams.get("failed_before");
   const limitParam = searchParams.get("limit");
-  // Test manuscripts (id >= 9000) are hidden by default. Opt in with
-  // `?show_test=1` (or "true"). See OPERATIONS.md "Test manuscript range".
-  const showTestParam = (searchParams.get("show_test") ?? "").toLowerCase();
-  const showTestManuscripts = showTestParam === "1" || showTestParam === "true";
 
-  // Parse pagination
-  const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
-  
-  let cursor: PaginationCursor | null = null;
-  if (cursorParam) {
-    try {
-      cursor = JSON.parse(Buffer.from(cursorParam, "base64").toString("utf-8"));
-    } catch (err) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid cursor format" },
-        { status: 400 }
-      );
-    }
-  }
+  const requestedLimit = limitParam ? Number.parseInt(limitParam, 10) : 500;
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(requestedLimit, 1), 500)
+    : 500;
+
+  const showTestParam = (searchParams.get("show_test") ?? "").toLowerCase();
+  const showTestManuscripts = !(showTestParam === "0" || showTestParam === "false" || showTestParam === "no");
 
   try {
-    // Call admin_list_jobs RPC
-    const { data: jobs, error } = await supabase.rpc("admin_list_jobs", {
-      p_status: status,
-      p_job_type: job_type,
-      p_phase: phase,
-      p_policy_family: policy_family,
-      p_created_after: created_after,
-      p_created_before: created_before,
-      p_failed_after: failed_after,
-      p_failed_before: failed_before,
-      p_cursor_failed_at: cursor?.failed_at || null,
-      p_cursor_created_at: cursor?.created_at || null,
-      p_cursor_id: cursor?.id || null,
-      p_limit: limit,
-    });
+    let query = supabase
+      .from("evaluation_jobs")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(500);
+
+    if (jobType) query = query.eq("job_type", jobType);
+    if (phase) query = query.eq("phase", phase);
+    if (policyFamily) query = query.eq("policy_family", policyFamily);
+    if (createdAfter) query = query.gte("created_at", createdAfter);
+    if (createdBefore) query = query.lte("created_at", createdBefore);
+    if (failedAfter) query = query.gte("failed_at", failedAfter);
+    if (failedBefore) query = query.lte("failed_at", failedBefore);
+
+    const { data, error } = await query;
 
     if (error) {
-      console.error("[Admin Jobs] RPC error:", error);
+      console.error("[Admin Jobs] table query error:", error);
       return NextResponse.json(
         { ok: false, error: "Failed to fetch jobs", details: error.message },
         { status: 500 }
       );
     }
 
-    // Extract has_more flag and actual jobs
-    const has_more = jobs && jobs.length > 0 ? jobs[0].has_more : false;
-    const rawJobs: Array<Record<string, unknown>> = jobs || [];
-
-    // Test-manuscript filter — post-RPC (admin_list_jobs has no manuscript_id
-    // filter parameter). See OPERATIONS.md.
-    const resultJobs = showTestManuscripts
-      ? rawJobs
-      : rawJobs.filter((j) => {
-          const id = j.manuscript_id;
-          if (id === null || id === undefined) return true;
-          return !isTestManuscript(id as number | string);
-        });
-
-    // Generate next cursor from last job
-    let nextCursor: string | null = null;
-    if (has_more && resultJobs.length > 0) {
-      const lastJob = resultJobs[resultJobs.length - 1] as {
-        failed_at: string | null;
-        created_at: string;
-        id: string;
-      };
-      const cursorObj: PaginationCursor = {
-        failed_at: lastJob.failed_at,
-        created_at: lastJob.created_at,
-        id: lastJob.id,
-      };
-      nextCursor = Buffer.from(JSON.stringify(cursorObj)).toString("base64");
-    }
+    const rawJobs = (Array.isArray(data) ? data : []) as JobRow[];
+    const jobs = rawJobs
+      .filter((job) => showTestManuscripts || !isTestManuscript(job.manuscript_id as number | string))
+      .map(normalizeJob)
+      .filter((job) => matchesStatus(job, status))
+      .slice(0, limit);
 
     return NextResponse.json({
       ok: true,
-      jobs: resultJobs,
+      jobs,
       pagination: {
-        count: resultJobs.length,
+        count: jobs.length,
         limit,
-        has_more,
-        next_cursor: nextCursor,
+        has_more: rawJobs.length >= 500,
+        next_cursor: null,
       },
       filters: {
+        requestedStatus: status ?? "all",
         showTestManuscripts,
         testManuscriptIdMin: TEST_MANUSCRIPT_ID_MIN,
+        source: "evaluation_jobs",
+        statusMode: "semantic_status_includes_progress_phase_status",
       },
     });
   } catch (err) {

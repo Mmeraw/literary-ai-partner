@@ -1139,11 +1139,12 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   // Belt-and-suspenders: after prompt enforcement, deterministically replace
   // any blocked character names (No, Yes, Oh, Hey, etc.) that leaked through
   // the LLM's free-text output with canonical names from the story ledger.
-  if (opts.canonicalEntityNames && opts.canonicalEntityNames.length > 0) {
-    const sanitizedCount = sanitizeSynthesisCharacterNames(synthesis, opts.canonicalEntityNames);
+  {
+    const canonicalNames = opts.canonicalEntityNames ?? [];
+    const sanitizedCount = sanitizeSynthesisCharacterNames(synthesis, canonicalNames);
     if (sanitizedCount > 0) {
       console.info(
-        `[Pass3-NameAuthority] Deterministic sanitizer replaced blocked character names in ${sanitizedCount} field(s). Canonical names: [${opts.canonicalEntityNames.slice(0, 3).join(", ")}]`,
+        `[Pass3-NameAuthority] Deterministic sanitizer replaced blocked character names in ${sanitizedCount} field(s). Canonical names: [${canonicalNames.slice(0, 3).join(", ") || "fallback:narrator"}]`,
       );
     }
   }

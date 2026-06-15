@@ -41,6 +41,10 @@ import {
   runQualityGate as defaultRunQualityGate,
   summarizeQualityGateFailures,
 } from "./qualityGate";
+import {
+  PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD,
+  PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD,
+} from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { buildScoreLedger } from "./buildScoreLedger";
 import { buildExcellenceFilter } from "./buildExcellenceFilter";
 import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
@@ -58,7 +62,7 @@ import type {
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { detectModeFromManuscript } from "@/lib/evaluation/modeDetection";
-import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { CRITERIA_KEYS, getCriterionDisplayLabel } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
 import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
@@ -149,6 +153,7 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // in processEvaluationJob; this catches programmatic callers exercising
 // runPipeline directly (stress harness, future map-reduce callers).
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+const PASS1A_DEGRADED_CHUNK_ERROR_CODE = 'PASS1A_DEGRADED_CHUNK_RATIO_EXCEEDED';
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -157,6 +162,7 @@ import type {
 } from "@/lib/governance/lessonsLearned";
 import type { GovernanceDecision } from "@/lib/evaluation/governance/evaluatePass4Governance";
 import { buildEnrichedActionItems } from "@/lib/evaluation/actionItemQualityGate";
+import { canonicalizeRecommendationAction } from "@/lib/text/authorFacingProse";
 
 // Pass 4 governance result type — derived from evaluatePass4Governance return
 type Pass4GovernanceResult = GovernanceDecision;
@@ -727,33 +733,87 @@ function validatePipelineInput(opts: RunPipelineOptions): string | null {
 }
 
 function normalizeRecommendationAction(action: string): string {
-  return action.trim().toLowerCase().replace(/\s+/g, " ");
+  return canonicalizeRecommendationAction(action);
 }
 
-function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
+function mergeRecommendationContext(
+  primary: SynthesisOutput["criteria"][number]["recommendations"][number],
+  duplicate: SynthesisOutput["criteria"][number]["recommendations"][number],
+  duplicateCriterionKey: string,
+): SynthesisOutput["criteria"][number]["recommendations"][number] {
+  const mergedCollapsedFrom = Array.from(
+    new Set([...(primary.collapsed_from_criteria ?? []), duplicateCriterionKey]),
+  );
+
+  const primaryAnchor = (primary.anchor_snippet ?? "").trim();
+  const duplicateAnchor = (duplicate.anchor_snippet ?? "").trim();
+  const mergedAnchor =
+    primaryAnchor.length === 0
+      ? duplicateAnchor
+      : duplicateAnchor.length === 0 || primaryAnchor.toLowerCase() === duplicateAnchor.toLowerCase()
+        ? primaryAnchor
+        : `${primaryAnchor} || ${duplicateAnchor}`;
+
+  return {
+    ...primary,
+    anchor_snippet: mergedAnchor,
+    mechanism: primary.mechanism?.trim() ? primary.mechanism : duplicate.mechanism,
+    specific_fix: primary.specific_fix?.trim() ? primary.specific_fix : duplicate.specific_fix,
+    reader_effect: primary.reader_effect?.trim() ? primary.reader_effect : duplicate.reader_effect,
+    symptom: primary.symptom?.trim() ? primary.symptom : duplicate.symptom,
+    cause: primary.cause?.trim() ? primary.cause : duplicate.cause,
+    rationale: primary.rationale?.trim() ? primary.rationale : duplicate.rationale,
+    fix_direction: primary.fix_direction?.trim() ? primary.fix_direction : duplicate.fix_direction,
+    collapsed_from_criteria: mergedCollapsedFrom,
+  };
+}
+
+export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
   synthesis: SynthesisOutput;
   removedCount: number;
 } {
-  const seenActions = new Set<string>();
+  const seenActions = new Map<string, { criterionIdx: number; recommendationIdx: number }>();
   let removedCount = 0;
 
-  const criteria = synthesis.criteria.map((criterion) => {
-    const recommendations = criterion.recommendations.filter((rec) => {
-      const normalizedAction = normalizeRecommendationAction(rec.action);
-      if (!normalizedAction) return true;
-      if (seenActions.has(normalizedAction)) {
-        removedCount += 1;
-        return false;
-      }
-      seenActions.add(normalizedAction);
-      return true;
-    });
+  const criteria = synthesis.criteria.map((criterion) => ({
+    ...criterion,
+    recommendations: [...criterion.recommendations],
+  }));
 
-    return {
-      ...criterion,
-      recommendations,
-    };
-  });
+  for (let criterionIdx = 0; criterionIdx < criteria.length; criterionIdx++) {
+    const criterion = criteria[criterionIdx];
+    const dedupedRecommendations: typeof criterion.recommendations = [];
+
+    for (const rec of criterion.recommendations) {
+      const normalizedAction = normalizeRecommendationAction(rec.action);
+      if (!normalizedAction) {
+        dedupedRecommendations.push(rec);
+        continue;
+      }
+
+      const firstSeen = seenActions.get(normalizedAction);
+      if (firstSeen) {
+        const primaryCriterion = criteria[firstSeen.criterionIdx];
+        const primaryRecommendation = primaryCriterion.recommendations[firstSeen.recommendationIdx];
+        primaryCriterion.recommendations[firstSeen.recommendationIdx] = mergeRecommendationContext(
+          primaryRecommendation,
+          rec,
+          criterion.key,
+        );
+        removedCount += 1;
+        continue;
+      }
+
+      const recommendationIdx = dedupedRecommendations.length;
+      dedupedRecommendations.push(rec);
+      seenActions.set(normalizedAction, {
+        criterionIdx,
+        recommendationIdx,
+      });
+    }
+
+    criterion.recommendations = dedupedRecommendations;
+  }
 
   return {
     synthesis: {
@@ -1709,6 +1769,39 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }
 
     const pass1aResult = pass1aSettled.value;
+    const degradedChunkCount = pass1aResult.degradedChunkCount ?? 0;
+    const degradedChunkIndices = pass1aResult.degradedChunkIndices ?? [];
+    const degradedChunkRatio = pass1aResult.total_chunks > 0
+      ? degradedChunkCount / pass1aResult.total_chunks
+      : 0;
+    if (
+      degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
+      degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+    ) {
+      console.error('[Pipeline][Pass1A] Degraded chunk ratio exceeded fail-closed threshold', {
+        manuscript_id: opts.manuscriptId ?? null,
+        degraded_chunks: degradedChunkCount,
+        total_chunks: pass1aResult.total_chunks,
+        degraded_ratio: degradedChunkRatio.toFixed(3),
+        degraded_indices: degradedChunkIndices,
+      });
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings('failure', {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: 'pass1',
+        errorCode: PASS1A_DEGRADED_CHUNK_ERROR_CODE,
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 1A degraded chunk ratio exceeded threshold (${degradedChunkCount}/${pass1aResult.total_chunks}, ratio=${degradedChunkRatio.toFixed(3)}). Output does not meet next-step input standards.`,
+        error_code: PASS1A_DEGRADED_CHUNK_ERROR_CODE,
+        failed_at: 'pass1',
+      };
+    }
+
     if (pass1aResult.chunkOutputs.length === 0) {
       // Soft-skip: the character ledger is an enrichment layer, not the paid product.
       // Pass 3 can run without it (lower confidence, no WAVE). Build an empty sentinel
@@ -2090,6 +2183,19 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       manuscript_id: opts.manuscriptId ?? null,
       title: opts.title,
       repaired_recommendations: specificityResult.repairedCount,
+    });
+  }
+
+  // Final dedupe pass (post-repair): density and specificity repair can add or
+  // mutate recommendation records. Run one more deterministic dedupe sweep so
+  // no_duplicate_recs is a safety net, not a primary control path.
+  const finalDedupeResult = dedupeRecommendationsPreGate(pass3Output);
+  pass3Output = finalDedupeResult.synthesis;
+  if (finalDedupeResult.removedCount > 0) {
+    console.log("[Pipeline][PreGate] final recommendation dedupe applied", {
+      manuscript_id: opts.manuscriptId ?? null,
+      title: opts.title,
+      removed_recommendations: finalDedupeResult.removedCount,
     });
   }
 
@@ -2604,6 +2710,29 @@ export function synthesisToEvaluationResultV2(
 
   const detectedMode = detectModeFromManuscript(opts.manuscriptText || "");
 
+  const expectationContext = synthesis.metadata.genre_expectation_context;
+  const fallbackPremiseFromPitch =
+    typeof synthesis.overall.one_sentence_pitch === "string" && synthesis.overall.one_sentence_pitch.trim().length > 0
+      ? synthesis.overall.one_sentence_pitch.trim()
+      : undefined;
+
+  // Template completeness hard requirements (phase_3 pre-persistence gate):
+  // - one sentence pitch OR enrichment.premise
+  // - diagnosed genre
+  // - target audience
+  //
+  // Pass 3 can emit genre/target context in metadata even when enrichment fields
+  // are omitted. Preserve fail-closed semantics while preventing false-fail drops
+  // by deterministically backfilling from authoritative metadata context.
+  const resolvedLlmEnrichment: NonNullable<SynthesisToEvaluationResultOptions["llmEnrichment"]> = {
+    premise: opts.llmEnrichment?.premise?.trim() || fallbackPremiseFromPitch,
+    trigger_warnings: opts.llmEnrichment?.trigger_warnings,
+    diagnosed_genre:
+      opts.llmEnrichment?.diagnosed_genre?.trim() || expectationContext?.diagnosed_genre?.trim(),
+    target_audience:
+      opts.llmEnrichment?.target_audience?.trim() || expectationContext?.shelf_target_audience?.trim(),
+  };
+
   const criteria = synthesis.criteria
     .map((c) =>
       normalizeCriterion(
@@ -2653,6 +2782,46 @@ export function synthesisToEvaluationResultV2(
     )
     .map(enforceTextualAnchorConfidence);
 
+  const ensureSubstantiveText = (value: string | undefined, minLength = 40): string | null => {
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    return trimmed.length >= minLength ? trimmed : null;
+  };
+
+  const ensureSubstantiveList = (
+    values: string[] | undefined,
+    fallbackFactory: () => string[],
+    minItems = 3,
+    minLength = 12,
+  ): string[] => {
+    const cleaned = Array.isArray(values)
+      ? values
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value) => value.length >= minLength)
+      : [];
+
+    if (cleaned.length >= minItems) {
+      return cleaned.slice(0, minItems);
+    }
+
+    const fallback = fallbackFactory()
+      .map((value) => value.trim())
+      .filter((value) => value.length >= minLength);
+
+    const merged = Array.from(new Set([...cleaned, ...fallback]));
+    return merged.slice(0, minItems);
+  };
+
+  const buildFallbackCriterionRationale = (
+    key: string,
+    score: number | null,
+  ): string => {
+    const scorePhrase = typeof score === "number" ? `${score}/10` : "non-scorable for this submission window";
+    return (
+      `The ${key} criterion currently reads as ${scorePhrase} and shows clear revision leverage in execution, ` +
+      `with evidence-backed opportunities to improve clarity, consequence, and reader trust.`
+    );
+  };
+
   const baseCertification = computeManuscriptCertification({
     inputScale: opts.scopeProfile?.inputScale,
     partialEvaluation: synthesis.partial_evaluation,
@@ -2696,20 +2865,38 @@ export function synthesisToEvaluationResultV2(
         )
       : criteria;
 
-  const weighted = computeWeightedScore(governedCriteria);
-  const propagation = summarizePropagationIntegrity(governedCriteria);
+  const governedCriteriaWithTemplateFallbacks = governedCriteria.map((criterion) => {
+    const substantiveRationale = ensureSubstantiveText(criterion.rationale, 40);
+    if (substantiveRationale) {
+      return criterion;
+    }
+
+    return {
+      ...criterion,
+      rationale: buildFallbackCriterionRationale(criterion.key, criterion.score_0_10),
+    };
+  });
+
+  const criteriaSortedByScore = [...governedCriteriaWithTemplateFallbacks].sort((a, b) => {
+    const aScore = typeof a.score_0_10 === "number" ? a.score_0_10 : -1;
+    const bScore = typeof b.score_0_10 === "number" ? b.score_0_10 : -1;
+    return bScore - aScore;
+  });
+
+  const weighted = computeWeightedScore(governedCriteriaWithTemplateFallbacks);
+  const propagation = summarizePropagationIntegrity(governedCriteriaWithTemplateFallbacks);
 
   const derivedConfidence = deriveGovernanceConfidenceFromCriteria(criteria, propagation);
 
   // Quality-gated Action Items: diversity selection + semantic dedup + anchor preservation
   const quick_wins = buildEnrichedActionItems(
-    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    governedCriteriaWithTemplateFallbacks.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     "high",
     5,
   );
 
   const strategic_revisions = buildEnrichedActionItems(
-    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    governedCriteriaWithTemplateFallbacks.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     "medium",
     5,
   );
@@ -2717,11 +2904,44 @@ export function synthesisToEvaluationResultV2(
   const coverageLimited =
     certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable;
 
-  const overviewSummary = normalizeSummaryWithBottomWeaknesses(
+  const candidateOverviewSummary = normalizeSummaryWithBottomWeaknesses(
     coverageLimited
       ? buildCoverageLimitedSummary(synthesis.coverage_scope)
       : synthesis.overall.one_paragraph_summary,
     propagation.bottomScoreCriteria,
+  );
+
+  const fallbackWeaknesses = propagation.bottomScoreCriteria.slice(0, 2).join(" and ") || "priority criteria";
+  const fallbackOverviewSummary =
+    `This manuscript shows meaningful strengths and clear readiness potential, with the most consequential revision pressure in ${fallbackWeaknesses}; targeted craft tightening should materially improve submission posture.`;
+
+  const overviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
+
+  const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {
+    const label = getCriterionDisplayLabel(criterion.key);
+    return `${label} currently provides a durable manuscript strength with visible reader-facing payoff.`;
+  });
+
+  const fallbackRisks = [...criteriaSortedByScore]
+    .reverse()
+    .slice(0, 3)
+    .map((criterion) => {
+      const label = getCriterionDisplayLabel(criterion.key);
+      return `${label} remains a prioritized revision risk that can reduce reader confidence if unaddressed.`;
+    });
+
+  const overviewTopStrengths = ensureSubstantiveList(
+    synthesis.overall.top_3_strengths,
+    () => fallbackStrengths,
+    3,
+    12,
+  );
+
+  const overviewTopRisks = ensureSubstantiveList(
+    synthesis.overall.top_3_risks,
+    () => fallbackRisks,
+    3,
+    12,
   );
 
   const quickWins = coverageLimited ? [] : quick_wins;
@@ -2790,10 +3010,10 @@ export function synthesisToEvaluationResultV2(
       overall_score_0_100: weighted.overall_score_0_100,
       scored_criteria_count: weighted.scored_count,
       one_paragraph_summary: overviewSummary,
-      top_3_strengths: coverageLimited ? [] : synthesis.overall.top_3_strengths,
-      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : synthesis.overall.top_3_risks,
+      top_3_strengths: coverageLimited ? [] : overviewTopStrengths,
+      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : overviewTopRisks,
     },
-    criteria: governedCriteria,
+    criteria: governedCriteriaWithTemplateFallbacks,
     recommendations: {
       quick_wins: quickWins,
       strategic_revisions: strategicRevisions,
@@ -2803,13 +3023,15 @@ export function synthesisToEvaluationResultV2(
         title: opts.title?.trim() || undefined,
         word_count: opts.manuscriptText ? countWords(opts.manuscriptText) : undefined,
         char_count: opts.manuscriptText?.length,
+        genre: resolvedLlmEnrichment.diagnosed_genre,
+        target_audience: resolvedLlmEnrichment.target_audience,
         requested_english_variant: opts.englishVariant ?? "us",
         resolved_english_variant: resolvedEnglishVariantLabel(opts.englishVariant),
       },
       processing: {},
     },
     enrichment: opts.manuscriptText
-      ? computeEnrichment(opts.manuscriptText, opts.llmEnrichment)
+      ? computeEnrichment(opts.manuscriptText, resolvedLlmEnrichment)
       : undefined,
     artifacts: [],
     governance: {

@@ -50,21 +50,6 @@ function pageSpecificEvent(pathname) {
   return null;
 }
 
-function clickEventFromElement(element) {
-  const clickable = element?.closest?.("a,button");
-  if (!clickable) return null;
-  const href = clickable.getAttribute("href") || "";
-  const label = clickable.getAttribute("data-analytics") || clickable.getAttribute("data-testid") || clickable.getAttribute("aria-label") || clickable.textContent?.trim()?.slice(0, 80) || clickable.tagName;
-  let eventName = "link_click";
-  const signal = `${href} ${label}`.toLowerCase();
-  if (signal.includes("download") || signal.includes("pdf") || signal.includes("word") || signal.includes("docx")) eventName = "download_click";
-  if (signal.includes("pricing")) eventName = "pricing_view";
-  if (signal.includes("login") || signal.includes("sign in")) eventName = "login_click";
-  if (signal.includes("evaluate") || signal.includes("get revisiongraded") || signal.includes("start")) eventName = "cta_click";
-  if (signal.includes("workbench") || signal.includes("revise example") || signal.includes("repair queue")) eventName = "revise_example_started";
-  return { eventName, target: label, metadata: { href, tag: clickable.tagName.toLowerCase() } };
-}
-
 export default function SiteAnalyticsTracker() {
   const pathname = usePathname() || "/";
   const searchParams = useSearchParams();
@@ -88,21 +73,6 @@ export default function SiteAnalyticsTracker() {
     const specific = pageSpecificEvent(pathname);
     if (specific) track(specific, { path: fullPath });
   }, [pathname, searchParams]);
-
-  useEffect(() => {
-    const handler = (event) => {
-      // Capture target synchronously (the element may be gone after the timeout),
-      // then yield to the browser before doing any analytics work so the click
-      // interaction can paint without being blocked by DOM traversal + fetch.
-      const target = event.target;
-      window.setTimeout(() => {
-        const inferred = clickEventFromElement(target);
-        if (inferred) track(inferred.eventName, inferred);
-      }, 0);
-    };
-    document.addEventListener("click", handler, true);
-    return () => document.removeEventListener("click", handler, true);
-  }, []);
 
   useEffect(() => {
     const interval = window.setInterval(() => track("session_heartbeat", { durationMs: Date.now() - pageStartedAt.current }), 30000);

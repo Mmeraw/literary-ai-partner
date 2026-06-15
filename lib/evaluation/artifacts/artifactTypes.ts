@@ -30,6 +30,7 @@ export type CanonicalEvaluationArtifactType = typeof CANONICAL_EVALUATION_ARTIFA
 export const STORY_LAYER_KEYS = [
   'source_integrity_layer',
   'pov_structure_layer',
+  'narrator_attribution_layer',
   'canonical_identity_layer',
   'cast_role_tier_layer',
   'identity_pronoun_layer',

@@ -20,6 +20,7 @@ import { regenerateCandidatesForQualityFailed } from './candidateRegeneration';
 import { enrichDiagnosticFields, needsDiagnosticEnrichment, type EnrichmentOpportunity } from './diagnosticEnrichment';
 import { logRevisionEvent } from './logRevisionEvent';
 import type { CandidateRejectionTelemetry } from './telemetry';
+import { getArtifact } from '@/lib/evaluation/fipocRegistry';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -39,6 +40,7 @@ const REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION = 'Regenerate candidate prose' as 
 
 type RevisionOpportunity = {
   opportunity_id: string;
+  finding_id?: string;
   criterion: string;
   severity: LedgerSeverity;
   rationale: string;
@@ -1120,6 +1122,10 @@ function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpport
 }
 
 function ensureOpportunityCandidates(opportunity: RevisionOpportunity): RevisionOpportunity {
+  const findingId = firstNonEmptyString(
+    opportunity.finding_id,
+    `${opportunity.provenance}:${opportunity.criterion}:${opportunity.manuscript_coordinates}`,
+  );
   const operation = opportunity.revision_operation ?? inferLedgerRevisionOperation({
     criterion: opportunity.criterion,
     anchor: opportunity.evidence_anchor,
@@ -1146,6 +1152,7 @@ function ensureOpportunityCandidates(opportunity: RevisionOpportunity): Revision
 
   return {
     ...opportunity,
+    finding_id: findingId,
     revision_operation: operation,
     candidate_text_a: candidateA,
     candidate_text_b: candidateB,
@@ -1154,6 +1161,73 @@ function ensureOpportunityCandidates(opportunity: RevisionOpportunity): Revision
     grounding_note: blocked
       ? 'Explicit candidate prose missing or malformed; backend fallback prose blocked by SLAE.'
       : (opportunity.grounding_note ?? null),
+  };
+}
+
+function buildRevisionLedgerQualityManifest(input: {
+  opportunities: RevisionOpportunity[];
+  wordCount: number | null | undefined;
+  contextQualityDecision: ReviseContextQualityDecision;
+  candidateGenerationStatus: string;
+}): Record<string, unknown> {
+  const registry = getArtifact('revision_opportunity_ledger_v1');
+  const total = input.opportunities.length;
+  const ready = input.opportunities.filter((o) => o.preflight_status === 'passed' && o.grounding_status === 'supported').length;
+  const needsTargeting = input.opportunities.filter((o) => o.preflight_status === 'blocked' || o.grounding_status !== 'supported').length;
+  const limitedContext = input.opportunities.filter((o) => o.preflight_status === 'limited_context').length;
+  const withEvidence = input.opportunities.filter((o) => Boolean(o.evidence_anchor?.trim())).length;
+  const withFinding = input.opportunities.filter((o) => Boolean(o.finding_id?.trim())).length;
+  const withLocation = input.opportunities.filter((o) => Boolean(o.manuscript_coordinates?.trim())).length;
+  const withOperation = input.opportunities.filter((o) => Boolean(o.revision_operation?.trim())).length;
+  const withCandidateSet = input.opportunities.filter((o) =>
+    Boolean(o.candidate_text_a?.trim()) && Boolean(o.candidate_text_b?.trim()) && Boolean(o.candidate_text_c?.trim()),
+  ).length;
+  const missingFieldsByOpportunity = input.opportunities
+    .map((o) => {
+      const missing: string[] = [];
+      if (!o.opportunity_id?.trim()) missing.push('opportunity_id');
+      if (!o.finding_id?.trim()) missing.push('finding_id');
+      if (!o.criterion?.trim()) missing.push('criterion');
+      if (!o.severity?.trim()) missing.push('severity');
+      if (!o.evidence_anchor?.trim()) missing.push('evidence_anchor');
+      if (!o.manuscript_coordinates?.trim()) missing.push('manuscript_coordinates');
+      if (!o.revision_operation?.trim()) missing.push('revision_operation');
+      if (!o.preflight_status?.trim()) missing.push('preflight_status');
+      return { opportunity_id: o.opportunity_id, missing };
+    })
+    .filter((row) => row.missing.length > 0);
+
+  return {
+    artifact_type: 'revision_opportunity_ledger_v1',
+    producer_stage_id: registry?.producerStageId ?? 'ADJACENT_REVISION_LEDGER',
+    completeness_metric: registry?.completenessMetric ?? null,
+    accuracy_metric: registry?.accuracyMetric ?? null,
+    dirty_data_rule: registry?.dirtyDataRule ?? null,
+    regeneration_owner_stage_id: registry?.regenerationOwnerStageId ?? 'ADJACENT_REVISION_LEDGER',
+    contract_status: missingFieldsByOpportunity.length > 0 || total === 0 || needsTargeting > 0 || input.contextQualityDecision.status === 'blocked'
+      ? 'degraded'
+      : 'clean',
+    opportunity_limits: {
+      cap: getReviseQueueMaxOpportunities(input.wordCount),
+      word_count: input.wordCount ?? null,
+      long_form_threshold: REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD,
+    },
+    metrics: {
+      total_opportunities: total,
+      ready_for_revise: ready,
+      needs_targeting: needsTargeting,
+      limited_context: limitedContext,
+      ready_rate: total === 0 ? 0 : ready / total,
+      finding_id_coverage: total === 0 ? 0 : withFinding / total,
+      evidence_anchor_coverage: total === 0 ? 0 : withEvidence / total,
+      manuscript_location_coverage: total === 0 ? 0 : withLocation / total,
+      revision_operation_coverage: total === 0 ? 0 : withOperation / total,
+      candidate_option_coverage: total === 0 ? 0 : withCandidateSet / total,
+    },
+    context_quality: input.contextQualityDecision.status,
+    gate_ready_status: input.contextQualityDecision.gate_ready_status,
+    candidate_generation_status: input.candidateGenerationStatus,
+    missing_fields_by_opportunity: missingFieldsByOpportunity,
   };
 }
 
@@ -2300,6 +2374,13 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       ? 'backend_filled_abc_v1_chunk_enriched'
       : 'backend_filled_abc_v1') + hydrationStatusSuffix;
 
+  const qualityManifest = buildRevisionLedgerQualityManifest({
+    opportunities,
+    wordCount,
+    contextQualityDecision,
+    candidateGenerationStatus,
+  });
+
   for (const opportunity of opportunities) {
     if (!(opportunity.grounding_status !== 'supported' || opportunity.preflight_status === 'blocked')) continue;
 
@@ -2335,6 +2416,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
     },
+    quality_manifest: qualityManifest,
     opportunities,
   });
 
@@ -2349,6 +2431,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     source_hash: sourceHash,
     generated_at: now,
     candidate_generation_status: candidateGenerationStatus,
+    quality_manifest: qualityManifest,
     mode_contract: modeContractForMetadata(modeContract),
     genre_expectation_context: genreExpectationContext,
     resolved_english_variant: resolvedEnglishVariantLabel(selectedEnglishVariant),
@@ -2383,7 +2466,12 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     .limit(1);
 
   if (upsertError) {
-    throw new Error(`Failed to persist revision_opportunity_ledger_v1: ${upsertError.message}`);
+    console.error('Failed to persist revision_opportunity_ledger_v1', upsertError);
+
+    return {
+      artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
+      opportunities,
+    };
   }
 
   const persistedArtifactId =

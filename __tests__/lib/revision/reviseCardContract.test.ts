@@ -87,6 +87,8 @@ describe('revise card contract', () => {
     expect(candidateTextIsCopyPasteReady('Making Newton’s decision and its fallout concrete will sharpen stakes and give readers a clear causal engine.')).toBe(false)
     expect(candidateTextIsCopyPasteReady('This revision improves Narrative Drive & Momentum by adding a clearer causal engine.')).toBe(false)
     expect(candidateTextIsCopyPasteReady('In the paragraph containing “hithery-thithery dock,” replace one rhyme-heavy clause.')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('In the section where the bell first tolls, he hides the letter behind the breadboard.')).toBe(false)
+    expect(candidateTextIsCopyPasteReady('He steadied the bowl before he spoke. He steadied the bowl before he listened. He steadied the bowl before he answered.')).toBe(false)
     expect(candidateTextIsCopyPasteReady('PROSECONTROL:recommendation')).toBe(false)
     expect(candidateTextIsCopyPasteReady('The door stood in the row like a warning no one had chosen to read.')).toBe(true)
   })

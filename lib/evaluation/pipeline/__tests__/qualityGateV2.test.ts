@@ -3,6 +3,10 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { validateEvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { runQualityGateV2 } from "@/lib/evaluation/pipeline/qualityGate";
+import {
+  normalizeSummaryWithBottomWeaknesses,
+  summarizePropagationIntegrity,
+} from "@/lib/evaluation/pipeline/propagationIntegrity";
 import type { EvaluationArtifact } from "@/lib/evaluation/pipeline/types";
 import { buildScoreLedger } from "@/lib/evaluation/pipeline/buildScoreLedger";
 import { buildExcellenceFilter } from "@/lib/evaluation/pipeline/buildExcellenceFilter";
@@ -730,6 +734,55 @@ describe("runQualityGateV2 integration", () => {
         (c) => c.check_id === "v2_scored_anchor_threshold",
       );
       expect(anchorCheck?.passed).toBe(false);
+    });
+
+    it("Cartel Babies regression: summary repair uses QG-capped criteria, not original scores", () => {
+      const fixture = makeBaseV2Fixture();
+      const artifact = makeArtifactFixtureFromV2(fixture);
+      const themeIndex = CRITERIA_KEYS.indexOf("theme");
+
+      fixture.overview.one_paragraph_summary =
+        "The novel has strong characterization, voice, and cartel-world tension with clear commercial strengths.";
+      fixture.criteria = fixture.criteria.map((criterion) => ({
+        ...criterion,
+        score_0_10: 7,
+      })) as EvaluationResultV2["criteria"];
+      fixture.criteria[themeIndex] = {
+        ...fixture.criteria[themeIndex],
+        score_0_10: 10,
+        confidence_level: "low",
+        confidence_score_0_100: 59,
+        scorability_status: "scorable",
+        evidence: [
+          {
+            snippet:
+              "Once you were inside their vehicle or their compound, getting away was almost impossible.",
+          },
+        ],
+      } as EvaluationResultV2["criteria"][number];
+
+      const firstGate = runQualityGateV2(fixture, artifact);
+      expect(firstGate.pass).toBe(false);
+      expect(firstGate.downgradedResult).toBeDefined();
+      expect(
+        firstGate.checks.find((check) => check.check_id === "v2_summary_weakness_presence")?.details,
+      ).toContain("theme");
+
+      const originalPropagation = summarizePropagationIntegrity(fixture.criteria);
+      expect(originalPropagation.bottomScoreCriteria).not.toContain("theme");
+
+      const cappedPropagation = summarizePropagationIntegrity(firstGate.downgradedResult!.criteria);
+      expect(cappedPropagation.bottomScoreCriteria).toContain("theme");
+
+      fixture.overview.one_paragraph_summary = normalizeSummaryWithBottomWeaknesses(
+        fixture.overview.one_paragraph_summary,
+        cappedPropagation.bottomScoreCriteria,
+      );
+
+      const repairedGate = runQualityGateV2(fixture, artifact);
+      expect(
+        repairedGate.checks.find((check) => check.check_id === "v2_summary_weakness_presence")?.passed,
+      ).toBe(true);
     });
   });
 });

@@ -2,12 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* === Evaluation workspace shell ===
- *
- * Authenticated evaluation/report surfaces are task workspaces, not marketing
- * pages. Keep the calm light background, but use app-style typography and
- * card polish so long-running evaluations feel operational and stable.
- */
+/* === Warm CTA/button contrast guard === */
+a[class*="bg-rg-gold"],
+button[class*="bg-rg-gold"],
+a[class*="bg-amber"],
+button[class*="bg-amber"],
+a[class*="bg-orange"],
+button[class*="bg-orange"],
+a[class*="bg-yellow"],
+button[class*="bg-yellow"],
+a[class*="bg-red"],
+button[class*="bg-red"] {
+  color: #0d0a05 !important;
+  font-weight: 800 !important;
+  text-shadow: none !important;
+}
+
+/* === Dark marketing readability guard === */
+.bg-rg-ink {
+  color: #fff8ea;
+}
+
+.bg-rg-ink p,
+.bg-rg-ink a,
+.bg-rg-ink button,
+.bg-rg-ink span,
+.bg-rg-ink li,
+.bg-rg-ink label {
+  font-size: max(1.125rem, 1em);
+}
+
+.bg-rg-ink .text-rg-cream,
+.bg-rg-ink .text-rg-cream2,
+.bg-rg-ink [class*="text-rg-cream2/"] {
+  color: #fff8ea !important;
+}
+
+.bg-rg-ink .text-rg-gold,
+.bg-rg-ink [class*="text-rg-gold/"] {
+  color: #e1bc6a !important;
+}
+
+.bg-rg-ink .font-rg-mono {
+  font-size: max(1.125rem, 1em);
+  font-weight: 700;
+}
+
+/* === Evaluation workspace shell === */
 .min-h-screen.bg-gray-50 {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #111827;
@@ -34,21 +75,10 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-/* Hide the redundant report-header status pill. The EvaluationPoller card owns
- * live status display; duplicating "In progress" next to the page title adds
- * clutter and can drift from the detailed job status card.
- */
 .min-h-screen.bg-gray-50 main > .mb-4.flex.items-start.justify-between > div > .flex.items-center.gap-3.flex-wrap > h1 + span {
   display: none !important;
 }
 
-/* === Evaluation/readability contrast guard ===
- *
- * Evaluation report/status/form surfaces use white cards on a light gray page.
- * Small Tailwind gray-400/500 helper text is too faint in that context, so the
- * evaluation shell promotes muted copy to AA-friendly dark grays without
- * changing layout, pipeline behavior, scoring, or report content.
- */
 .min-h-screen.bg-gray-50 .text-gray-400,
 .min-h-screen.bg-gray-50 .text-gray-500 {
   color: #374151;
@@ -70,13 +100,6 @@
   opacity: 1;
 }
 
-/* === Evaluation report paragraph rhythm ===
- *
- * Long-form reports contain dense rationale/evidence prose. Preserve the same
- * text, but give adjacent paragraphs, ledger rows, and list items more vertical
- * rhythm so author-facing reports read like editorial analysis instead of a
- * compressed database dump.
- */
 .min-h-screen.bg-gray-50 section p {
   line-height: 1.75;
 }
@@ -102,7 +125,6 @@
 }
 
 /* === User evaluation dashboard === */
-
 .rg-dash-page {
   --rg-bg: #f7f6f2;
   --rg-surface: #f9f8f5;
@@ -117,7 +139,6 @@
   --rg-warning: #964219;
   --rg-gold: #b8862b;
   --rg-gold-soft: #f3e6c8;
-
   width: min(1480px, 100%);
   margin: 0 auto;
   padding: 32px 24px 64px;
@@ -208,23 +229,205 @@
   margin-top: 8px;
 }
 
-/* === Agent Readiness readability + workspace width ===
- *
- * Agent Readiness is an author workbench, not a narrow marketing page.
- * Preserve the existing RevisionGrade fonts and dark premium styling, but make
- * desktop use the screen and make mobile readable without zooming.
- */
-.agent-readiness-route,
-.agent-readiness-route * {
-  box-sizing: border-box;
+/* === Agent Readiness real content readability === */
+div[style*="background-color: rgb(15, 13, 10)"],
+div[style*="background-color:#0F0D0A"],
+div[style*="background-color: #0F0D0A"] {
+  color: #fff8ea !important;
 }
 
-/* === Evaluation report desktop width + preview clamp ===
- *
- * The report header is the command surface for status, score, and next action.
- * On desktop, use the available width and keep the manuscript preview compact so
- * users do not have to scroll before seeing the progress/status area.
- */
+div[style*="background-color: rgb(15, 13, 10)"] p,
+div[style*="background-color: rgb(15, 13, 10)"] a,
+div[style*="background-color: rgb(15, 13, 10)"] button,
+div[style*="background-color: rgb(15, 13, 10)"] span,
+div[style*="background-color: rgb(15, 13, 10)"] li,
+div[style*="background-color: rgb(15, 13, 10)"] label,
+div[style*="background-color: rgb(15, 13, 10)"] select,
+div[style*="background-color:#0F0D0A"] p,
+div[style*="background-color:#0F0D0A"] a,
+div[style*="background-color:#0F0D0A"] button,
+div[style*="background-color:#0F0D0A"] span,
+div[style*="background-color:#0F0D0A"] li,
+div[style*="background-color:#0F0D0A"] label,
+div[style*="background-color:#0F0D0A"] select,
+div[style*="background-color: #0F0D0A"] p,
+div[style*="background-color: #0F0D0A"] a,
+div[style*="background-color: #0F0D0A"] button,
+div[style*="background-color: #0F0D0A"] span,
+div[style*="background-color: #0F0D0A"] li,
+div[style*="background-color: #0F0D0A"] label,
+div[style*="background-color: #0F0D0A"] select {
+  color: #f8efdf !important;
+  font-size: 1.125rem !important;
+  line-height: 1.65 !important;
+  opacity: 1 !important;
+}
+
+div[style*="background-color: rgb(15, 13, 10)"] h1,
+div[style*="background-color: rgb(15, 13, 10)"] h2,
+div[style*="background-color: rgb(15, 13, 10)"] h3,
+div[style*="background-color:#0F0D0A"] h1,
+div[style*="background-color:#0F0D0A"] h2,
+div[style*="background-color:#0F0D0A"] h3,
+div[style*="background-color: #0F0D0A"] h1,
+div[style*="background-color: #0F0D0A"] h2,
+div[style*="background-color: #0F0D0A"] h3 {
+  color: #fff8ea !important;
+}
+
+[style*="color: rgb(169, 142, 74)"],
+[style*="color:#A98E4A"],
+[style*="color: #A98E4A"],
+[style*="color:#a98e4a"],
+[style*="color: #a98e4a"] {
+  color: #e9c777 !important;
+  font-weight: 800 !important;
+}
+
+[style*="background-color: rgb(169, 142, 74)"],
+[style*="background-color:#A98E4A"],
+[style*="background-color: #A98E4A"],
+[style*="background-color:#a98e4a"],
+[style*="background-color: #a98e4a"] {
+  color: #0d0a05 !important;
+  font-weight: 900 !important;
+}
+
+button:disabled,
+a[aria-disabled="true"] {
+  opacity: 1 !important;
+  color: #d8cbb5 !important;
+  border-color: rgba(233, 199, 119, 0.45) !important;
+}
+
+/* Shared persistent Agent Readiness sidebar. */
+.agent-readiness-sidebar {
+  position: sticky;
+  top: 6rem;
+  align-self: start;
+  width: 100%;
+  min-width: 260px;
+  max-height: calc(100vh - 7rem);
+  overflow: auto;
+  border: 1px solid rgba(200, 190, 168, 0.18);
+  background: rgba(26, 18, 8, 0.58);
+  padding: 1.25rem;
+}
+
+.agent-readiness-sidebar-title {
+  display: block;
+  margin-bottom: 1.25rem;
+  font-family: Georgia, Cambria, "Times New Roman", serif;
+  font-size: 1.15rem !important;
+  line-height: 1.25 !important;
+  color: #fff8ea !important;
+  text-decoration: none;
+}
+
+.agent-readiness-sidebar-kicker {
+  margin: 0.85rem 0 0.7rem;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.82rem !important;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #e9c777 !important;
+}
+
+.agent-readiness-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.agent-readiness-sidebar-link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: baseline;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid transparent;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.96rem !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0.02em;
+  color: #f8efdf !important;
+  text-decoration: none;
+}
+
+.agent-readiness-sidebar-link:hover,
+.agent-readiness-sidebar-link.is-active {
+  border-color: rgba(233, 199, 119, 0.55);
+  background: rgba(233, 199, 119, 0.08);
+  color: #fff8ea !important;
+}
+
+.agent-readiness-sidebar-index {
+  color: #e9c777 !important;
+  font-size: 0.82rem !important;
+  font-weight: 800;
+}
+
+.agent-readiness-sidebar-link.is-disabled {
+  display: block;
+  border-left: 2px solid rgba(233, 199, 119, 0.25);
+  color: #d8cbb5 !important;
+  cursor: not-allowed;
+}
+
+.agent-readiness-sidebar-link small {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.82rem !important;
+  color: #bfb29c !important;
+}
+
+.agent-readiness-sidebar-divider {
+  height: 1px;
+  margin: 1rem 0;
+  background: rgba(200, 190, 168, 0.18);
+}
+
+/* Legacy overview sidebar-specific repair: readable, but not huge/wrapping/broken. */
+div[style*="max-width: 1100px"][style*="display: flex"] {
+  max-width: min(1320px, calc(100vw - 3rem)) !important;
+  gap: 3rem !important;
+}
+
+aside[style*="width: 220px"] {
+  width: 300px !important;
+}
+
+aside[style*="width: 220px"] p,
+aside[style*="width: 220px"] a,
+aside[style*="width: 220px"] span,
+aside[style*="width: 220px"] div {
+  font-size: 1rem !important;
+  line-height: 1.45 !important;
+  letter-spacing: 0.03em !important;
+}
+
+aside[style*="width: 220px"] nav a {
+  display: block !important;
+  padding: 0.7rem 0.8rem !important;
+  color: #f8efdf !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+aside[style*="width: 220px"] nav a span:first-child {
+  display: inline !important;
+}
+
+aside[style*="width: 220px"] p[style*="uppercase"],
+aside[style*="width: 220px"] [style*="uppercase"] {
+  font-size: 0.95rem !important;
+  letter-spacing: 0.12em !important;
+  color: #e9c777 !important;
+  font-weight: 800 !important;
+}
+
 .rg-print-report {
   max-width: min(1500px, calc(100vw - 3rem)) !important;
 }

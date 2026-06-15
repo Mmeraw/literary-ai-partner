@@ -4,12 +4,15 @@ import OpenAI from 'openai';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { withRetry } from '@/lib/evaluation/pipeline/openaiRetry';
+import {
+  hasRepeatedSentenceOpenings,
+  sanitizeAuthorFacingProse,
+  startsWithRepetitiveLeadIn,
+} from '@/lib/text/authorFacingProse';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 type SectionType =
   | 'query_letter'
@@ -20,6 +23,7 @@ type SectionType =
   | 'author_bio';
 
 type GenerateMode = 'generate' | 'regenerate' | 'improve';
+type SynopsisVariant = 'short' | 'medium' | 'long';
 
 interface GenerateRequest {
   manuscriptId: number;
@@ -28,13 +32,27 @@ interface GenerateRequest {
   mode: GenerateMode;
   existingContent?: string;
   authorBioInput?: string;
+  synopsisVariant?: SynopsisVariant;
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const MODEL = process.env.AGENT_READINESS_MODEL ?? 'gpt-4o';
-const MAX_TOKENS = 2000;
+const MAX_TOKENS = 2400;
 const TIMEOUT_MS = 45_000;
+
+const VALID_SECTIONS: SectionType[] = [
+  'query_letter',
+  'what_makes_unique',
+  'synopsis',
+  'query_pitch',
+  'comparables',
+  'author_bio',
+];
+
+const SYNOPSIS_LIMITS: Record<SynopsisVariant, { min: number; max: number; ideal: string; label: string }> = {
+  short: { min: 100, max: 150, ideal: '100-150 words', label: 'short query synopsis' },
+  medium: { min: 250, max: 500, ideal: '350-450 words', label: 'standard synopsis' },
+  long: { min: 700, max: 1000, ideal: '700-1,000 words', label: 'extended synopsis' },
+};
 
 const WORD_LIMITS: Record<SectionType, number> = {
   query_letter: 450,
@@ -45,7 +63,12 @@ const WORD_LIMITS: Record<SectionType, number> = {
   author_bio: 150,
 };
 
-// ── Quality Gate: reject editorial meta-language ─────────────────────────────
+const WORD_MINIMUMS: Partial<Record<SectionType, number>> = {
+  query_letter: 200,
+  synopsis: 150,
+  author_bio: 50,
+  what_makes_unique: 60,
+};
 
 const EDITORIAL_META_PATTERNS = [
   /\bthe reader would benefit from\b/i,
@@ -74,300 +97,215 @@ const PLACEHOLDER_PATTERNS = [
   /\[PLACEHOLDER\b/i,
 ];
 
-const WORD_MINIMUMS: Partial<Record<SectionType, number>> = {
-  query_letter: 200,
-  synopsis: 150,
-  author_bio: 50,
-  what_makes_unique: 60,
-};
+function wordBounds(section: SectionType, synopsisVariant: SynopsisVariant): { min?: number; max: number } {
+  if (section === 'synopsis') return SYNOPSIS_LIMITS[synopsisVariant];
+  return { min: WORD_MINIMUMS[section], max: WORD_LIMITS[section] };
+}
 
-function qualityGate(text: string, section: SectionType): { pass: boolean; reason?: string } {
-  if (!text || text.trim().length < 20) {
-    return { pass: false, reason: 'Output too short — generation failed' };
-  }
+function qualityGate(text: string, section: SectionType, synopsisVariant: SynopsisVariant): { pass: boolean; reason?: string } {
+  if (!text || text.trim().length < 20) return { pass: false, reason: 'Output too short — generation failed' };
+  if (startsWithRepetitiveLeadIn(text)) return { pass: false, reason: 'Contains repetitive lead-in boilerplate at section start' };
+  if (hasRepeatedSentenceOpenings(text, 4, 1)) return { pass: false, reason: 'Contains repeated sentence openings that indicate duplicated boilerplate' };
 
   for (const pat of EDITORIAL_META_PATTERNS) {
-    if (pat.test(text)) {
-      return { pass: false, reason: `Contains editorial meta-language: "${text.match(pat)?.[0]}"` };
-    }
+    if (pat.test(text)) return { pass: false, reason: `Contains editorial meta-language: "${text.match(pat)?.[0]}"` };
   }
-
   for (const pat of PLACEHOLDER_PATTERNS) {
-    if (pat.test(text)) {
-      return { pass: false, reason: `Contains unresolved placeholder: "${text.match(pat)?.[0]}"` };
-    }
+    if (pat.test(text)) return { pass: false, reason: `Contains unresolved placeholder: "${text.match(pat)?.[0]}"` };
   }
 
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-  const limit = WORD_LIMITS[section];
-  if (wordCount > limit * 1.1) {
-    return { pass: false, reason: `Exceeds word limit: ${wordCount}/${limit} words` };
-  }
-
-  // Minimum word count — reject thin output that won't serve agents
-  const minWords = WORD_MINIMUMS[section];
-  if (minWords && wordCount < minWords) {
-    return { pass: false, reason: `Output too thin (${wordCount} words) — minimum ${minWords} words required for agent-ready ${section}` };
-  }
-
+  const { min, max } = wordBounds(section, synopsisVariant);
+  if (wordCount > max * 1.1) return { pass: false, reason: `Exceeds word limit: ${wordCount}/${max} words` };
+  if (min && wordCount < min) return { pass: false, reason: `Output too thin (${wordCount} words) — minimum ${min} words required` };
   return { pass: true };
 }
 
-// ── System prompts per section ───────────────────────────────────────────────
-
-function getSystemPrompt(section: SectionType): string {
-  const baseRules = `You are a professional literary agent submission consultant. You produce polished, agent-ready materials that authors can submit directly to literary agents without editing.
+function baseRules(): string {
+  return `You are a professional literary agent submission consultant. You produce polished, agent-ready materials that authors can submit directly to literary agents without editing.
 
 ABSOLUTE RULES:
-- Write in the author's voice, NOT as an advisor
-- NEVER include editorial commentary, suggestions, or meta-language about the manuscript
-- NEVER use phrases like "the reader would benefit from", "consider adding", "this could be strengthened"
-- NEVER include placeholder brackets like [Agent Name] or [Title] — use the actual manuscript details provided
-- Output ONLY the finished, submission-ready text — no preambles, explanations, or notes
-- Write as if the author themselves crafted this for a real agent submission`;
+- Write in the author's voice, NOT as an advisor.
+- Use only the provided manuscript, accepted evaluation/story facts, and author-supplied materials.
+- NEVER invent plot facts, credentials, awards, education, publication history, personal facts, comps, or market claims.
+- NEVER include editorial commentary, suggestions, or meta-language about the manuscript.
+- NEVER use placeholder brackets like [Agent Name] or [Title].
+- Output ONLY the finished, submission-ready text — no preambles, explanations, or notes.`;
+}
 
+function getSystemPrompt(section: SectionType, synopsisVariant: SynopsisVariant, hasBioMaterial: boolean): string {
+  const rules = baseRules();
   switch (section) {
     case 'query_letter':
-      return `${baseRules}
+      return `${rules}
 
 QUERY LETTER REQUIREMENTS:
-- HARD CAP: 450 words maximum (350-400 is ideal)
-- STRUCTURE (follow this exact order):
-  1. HOOK (1 paragraph, 2-4 sentences): Drop the reader into the story's world. Name the protagonist, their situation, and what disrupts it. No rhetorical questions. No "What if..." openings. Start with story, not setup.
-  2. STAKES (1 paragraph): The central conflict — what the protagonist must do, what stands against them, and what they'll lose if they fail. Reveal at least one major turn. This is NOT a teaser — agents want to see narrative architecture.
-  3. METADATA (1 line): "[TITLE] is a [genre] complete at [word count] words, with series potential" (or standalone). Include target audience if relevant.
-  4. COMPARABLES (1 sentence): "It will appeal to readers of [Comp 1] and [Comp 2]" — woven naturally, not as a bullet list.
-  5. BIO (2-3 sentences): Why YOU wrote THIS book. Professional identity + relevant credential. No life story.
-  6. CLOSE: "Thank you for your time and consideration. I look forward to the opportunity to share the full manuscript."
-- VOICE: Confident, precise, literary. Match the manuscript's tone — if the novel is dark, the query is dark. If lyrical, the query is lyrical. Never sound desperate, self-deprecating, or salesy.
-- Every sentence must advance the agent's understanding of the story or the author's credibility. Cut anything generic.
-- Do NOT summarize themes in abstract language ("explores the nature of..."). Show, don't tell — even in a query.`;
+- HARD CAP: 450 words maximum; 350-400 is ideal.
+- Structure: story hook, stakes/conflict, metadata, comparables if available, optional bio sentence if author-supplied bio exists, professional close.
+- BIO RULE: ${hasBioMaterial ? 'Use only the author-supplied or approved bio facts provided below.' : 'Do NOT include biographical claims. Do NOT invent credentials. Omit the bio paragraph and close professionally.'}
+- Start with story, not setup. No rhetorical questions. No teaser language.
+- Reveal enough narrative architecture that an agent can see the book, not just a mood.
+- Match the manuscript tone and genre. Every sentence must advance story, market fit, or author credibility.`;
 
     case 'what_makes_unique':
-      return `${baseRules}
+      return `${rules}
 
 UNIQUE DIFFERENTIATOR REQUIREMENTS:
-- One focused paragraph: 100-150 words (aim for 120)
-- Answer ONE question: "What does THIS manuscript offer that nothing else on the market does right now?"
-- STRUCTURE: Lead with the differentiator itself (not "What makes this novel unique is..."). State it as fact, then support with 2-3 specific details from the manuscript.
-- Categories of differentiation (pick the strongest ONE, not all):
-  • Structural innovation (non-linear timeline, dual POV, epistolary, unreliable narrator architecture)
-  • Voice/Tone (a specific fusion nobody else is doing — e.g. "literary prose with thriller pacing")
-  • Subject/Setting access (insider knowledge, lived experience, underrepresented world)
-  • Thematic intersection (two themes rarely combined — e.g. "addiction through the lens of bureaucratic harm reduction")
-- NEVER use: "This novel is unique because..." or "Unlike anything else..." or "A fresh take on..."
-- Write as if pitching to a jaded agent who has read 200 queries today — be specific enough that they can't confuse this book with another.
-- This must work both standalone AND embedded inside the query letter.`;
+- One focused paragraph, 100-150 words.
+- Answer: what does THIS manuscript offer that the market does not already have?
+- Lead with the differentiator itself, then support it with 2-3 specific manuscript details.
+- Avoid vague claims like "fresh take," "unlike anything else," or "this novel is unique because."`;
 
-    case 'synopsis':
-      return `${baseRules}
+    case 'synopsis': {
+      const spec = SYNOPSIS_LIMITS[synopsisVariant];
+      return `${rules}
 
-SYNOPSIS REQUIREMENTS:
-- 250-500 words (350-450 is the sweet spot)
-- MUST REVEAL THE ENDING — agents REQUIRE this. A synopsis that withholds the resolution is an automatic rejection.
-- Write in present tense, third person, active voice throughout.
-- STRUCTURE (follow this arc):
-  1. SETUP (2-3 sentences): Protagonist, their world, their flaw or desire.
-  2. INCITING INCIDENT: The event that forces them out of stasis.
-  3. RISING ACTION: 3-4 key turning points (not every plot beat — only decisions that change the trajectory).
-  4. CLIMAX: The protagonist's defining choice under maximum pressure.
-  5. RESOLUTION: What happens as a result. How the world and character are changed.
-- FOCUS on the protagonist's emotional arc and key DECISIONS. Agents want to see character agency, not a sequence of things happening TO someone.
-- NAME only essential characters (protagonist + 2-3 others maximum). Unnamed characters = "his sister" or "a stranger."
-- NO chapter-by-chapter breakdown. No "In chapter 3..." framing.
-- NO teaser language ("What happens next will change everything"). This is not a blurb — it's a professional narrative summary.
-- MAINTAIN the manuscript's tone — if the novel is literary and quiet, the synopsis is literary and quiet. If it's tense and propulsive, so is the synopsis.
-- Every sentence must move the story forward. Cut transitions, setting descriptions, and subplot details unless they directly affect the main arc.`;
+SYNOPSIS REQUIREMENTS (${spec.label.toUpperCase()}):
+- Length: ${spec.ideal}; hard cap ${spec.max} words.
+- MUST reveal the ending/resolution if the ending is available in the provided story facts.
+- Present tense, third person, active voice.
+- Include setup, inciting incident, major turning points, climax, and resolution.
+- Focus on protagonist agency and emotional arc, not a chapter-by-chapter breakdown.
+- Name only essential characters.
+- No teaser language; this is a professional synopsis, not back-cover copy.`;
+    }
 
     case 'query_pitch':
-      return `${baseRules}
+      return `${rules}
 
 QUERY PITCH REQUIREMENTS:
-- ONE sentence. 25-50 words maximum. No exceptions.
-- This is the "elevator pitch" — the single sentence an agent uses to pitch YOUR book at an editorial meeting.
-- STRUCTURE: [TITLE] is a [genre] [comp positioning] in which [protagonist with one defining trait] must [specific action with stakes] before/or else [concrete consequence].
-- EXAMPLES of strong pitches (for calibration only — do NOT copy these):
-  • "THE HOUSE IN THE CERULEAN SEA is a cozy fantasy in the vein of Howl's Moving Castle in which a government caseworker must decide whether to condemn six magical children or defy the bureaucracy that raised him."
-  • "GONE GIRL is a literary thriller about a husband whose wife's disappearance exposes the toxic architecture of their marriage."
-- NEVER use: vague stakes ("must confront their past"), abstract language ("navigates a world of..."), or multiple clauses connected by "and."
-- The pitch must contain: the protagonist's identity, the specific conflict, and what's at stake — all in one sentence.
-- If the word count exceeds 50, CUT. Tighter is always better.`;
+- ONE sentence, 25-50 words.
+- Include protagonist identity, specific conflict/action, genre/positioning, and concrete stakes.
+- No vague stakes such as "must confront the past" unless the provided facts make that specific.`;
 
     case 'comparables':
-      return `${baseRules}
+      return `${rules}
 
 COMPARABLES REQUIREMENTS:
-- 2-4 comparable titles. No more, no fewer than 2.
-- FORMAT for each: "[TITLE] by [Author] ([Year]) — [one precise sentence explaining the specific connection]"
-- RULES for selecting comps:
-  • Published within the last 5 years (ideally 2-3 years). Agents use comps to assess market viability — old titles signal you don't know the current market.
-  • NEVER use mega-bestsellers alone (Gone Girl, The Hunger Games, Harry Potter). Agents interpret this as "I don't read in my genre." You may reference one as a "meets" pairing (e.g., "X meets Gone Girl") only if paired with a mid-list title.
-  • Mix: one comp for VOICE/CRAFT similarity, one for MARKET/AUDIENCE positioning. If 3-4 comps, include at least one that shows thematic intersection.
-  • Be SPECIFIC about the connection: not "similar themes" but "the same claustrophobic single-setting tension" or "lyrical prose style with short chapters."
-  • Comps must be in the same genre or adjacent. Do not comp literary fiction to a thriller unless the manuscript genuinely crosses genres.
-- STRUCTURE: Present as a brief paragraph with natural transitions, OR as a formatted list. Agent preference varies — a paragraph reads more professionally.
-- After the comp list, include ONE sentence positioning the manuscript: "[TITLE] sits at the intersection of [Genre A] and [Genre B], for readers who want [specific reading experience]."
-- Draw from real published titles. Be accurate about authors and publication years.`;
+- Suggest 2-4 comparable titles with specific rationale.
+- Prefer recent titles in the same or adjacent genre.
+- Do not claim facts about a comp unless you are confident from general literary knowledge and the manuscript context.
+- If uncertain, frame as provisional author-review positioning, not as final market fact.`;
 
     case 'author_bio':
-      return `${baseRules}
+      return `${rules}
 
 AUTHOR BIO REQUIREMENTS:
-- Third person, professional tone — punchy and authoritative, not passive or generic
-- 75-150 words (aim for 100-120 for maximum impact)
-- ONLY include facts from the author-supplied materials — NEVER invent credentials
-- STRUCTURE (follow this order):
-  1. LEAD with professional identity + "turned novelist/author" (use active phrasing, e.g. "former X turned novelist" — never "transitioned into a career as")
-  2. IMMEDIATELY connect the author to THIS manuscript — why they are uniquely positioned to write it (lived experience in the setting, professional expertise relevant to the theme, etc.)
-  3. BRIEFLY mention 1-2 other completed works to signal range (titles only, no plot summaries)
-  4. ONE standout credential that signals authority or memorability (e.g. pitched on Dragons' Den, Stanford certification, military rank, UN peacekeeping, 3,300 flying hours)
-  5. CLOSE with current location
-- VOICE: Use "turned" not "transitioned into." Use active constructions. Every sentence must earn its place.
-- PRIORITIZE facts that explain WHY this author writes THIS book over generic résumé padding
-- If author has no publishing credits, focus on life experience relevant to the manuscript — this IS the "why you" factor agents look for
-- Do NOT include: age, marital status, pet names, generic adjectives, or any fact that doesn't serve the agent's question "why should I trust this person to write this book?"
-- Do NOT enumerate degrees or jobs as a list — weave the most relevant ones into a narrative`;
-
-    default:
-      return baseRules;
+- Third person, professional tone, 75-150 words.
+- ONLY include facts from the author-supplied materials.
+- NEVER invent credentials, awards, education, publication history, residence, personal details, or lived experience.
+- Connect the author's real background to why they are positioned to write this manuscript.`;
   }
 }
 
-// ── Fetch manuscript & evaluation data from Supabase ─────────────────────────
-
-async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: string) {
+async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: string, userId: string) {
   const admin = createAdminClient();
 
-  // Fetch manuscript metadata
   const { data: manuscript } = await admin
     .from('manuscripts')
     .select('id, title, word_count, created_at')
     .eq('id', manuscriptId)
     .single();
 
-  // Fetch evaluation artifact (the full evaluation result)
   const { data: artifact } = await admin
     .from('evaluation_artifacts')
     .select('content, artifact_type')
     .eq('job_id', evaluationJobId)
-    .in('artifact_type', ['evaluation_result_v2', 'evaluation_result_v1'])
+    .in('artifact_type', ['unified_evaluation_document_v1', 'evaluation_result_v2', 'evaluation_result_v1'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  // Fetch evaluation job metadata for mode, policy
-  const { data: job } = await admin
-    .from('evaluation_jobs')
-    .select('id, status, evaluation_mode, progress')
-    .eq('id', evaluationJobId)
-    .single();
-
-  // Fetch first few manuscript chunks for prose context
   const { data: chunks } = await admin
     .from('manuscript_chunks')
     .select('content, chunk_index')
     .eq('manuscript_id', manuscriptId)
     .order('chunk_index', { ascending: true })
-    .limit(5);
+    .limit(8);
 
-  // Fetch story ledger if available
   const { data: ledger } = await admin
     .from('evaluation_artifacts')
     .select('content')
     .eq('job_id', evaluationJobId)
-    .eq('artifact_type', 'story_ledger_v1')
+    .in('artifact_type', ['accepted_story_ledger_v1', 'story_ledger_v1'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
+  const { data: approvedSections } = await admin
+    .from('agent_readiness_sections')
+    .select('section_type, content, status, updated_at')
+    .eq('user_id', userId)
+    .eq('manuscript_id', manuscriptId)
+    .eq('evaluation_job_id', evaluationJobId)
+    .eq('status', 'approved');
+
   return {
     manuscript,
     artifact: artifact?.content,
-    job,
-    chunks: chunks?.map(c => c.content).filter(Boolean) ?? [],
+    chunks: chunks?.map((c) => c.content).filter(Boolean) ?? [],
     storyLedger: ledger?.content,
+    approvedSections: approvedSections ?? [],
   };
+}
+
+function stringifyIfUseful(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
 }
 
 function buildContextSummary(ctx: Awaited<ReturnType<typeof fetchManuscriptContext>>): string {
   const parts: string[] = [];
-
   if (ctx.manuscript) {
     parts.push(`MANUSCRIPT: "${ctx.manuscript.title}"`);
     if (ctx.manuscript.word_count) parts.push(`Word Count: ${ctx.manuscript.word_count.toLocaleString()}`);
   }
 
-  // Extract genre from evaluation artifact if available
   if (ctx.artifact && typeof ctx.artifact === 'object') {
     const result = ctx.artifact as Record<string, unknown>;
-    if (result.overview && typeof result.overview === 'object') {
-      const overview = result.overview as Record<string, unknown>;
-      if (overview.genre) parts.push(`Genre: ${overview.genre}`);
-    }
+    const overview = result.overview && typeof result.overview === 'object' ? result.overview as Record<string, unknown> : null;
+    const metadata = result.metadata && typeof result.metadata === 'object' ? result.metadata as Record<string, unknown> : null;
+    if (overview?.genre) parts.push(`Genre: ${overview.genre}`);
+    if (overview?.one_paragraph_summary) parts.push(`\nEVALUATION SUMMARY:\n${overview.one_paragraph_summary}`);
+    if (Array.isArray(overview?.top_3_strengths)) parts.push(`\nTOP STRENGTHS:\n${overview.top_3_strengths.join('\n')}`);
+    if (metadata?.genre_diagnosis) parts.push(`\nGENRE DIAGNOSIS: ${metadata.genre_diagnosis}`);
+    if (metadata?.target_audience) parts.push(`TARGET AUDIENCE: ${metadata.target_audience}`);
+    if (metadata?.market_readiness_verdict) parts.push(`MARKET READINESS: ${metadata.market_readiness_verdict}`);
   }
 
-  // Extract key findings from evaluation result
-  if (ctx.artifact && typeof ctx.artifact === 'object') {
-    const result = ctx.artifact as Record<string, unknown>;
-    
-    // Overview/summary
-    if (result.overview && typeof result.overview === 'object') {
-      const overview = result.overview as Record<string, unknown>;
-      if (overview.one_paragraph_summary) parts.push(`\nEVALUATION SUMMARY:\n${overview.one_paragraph_summary}`);
-      if (Array.isArray(overview.top_3_strengths)) {
-        parts.push(`\nTOP STRENGTHS:\n${overview.top_3_strengths.map((s, i) => `${i + 1}. ${s}`).join('\n')}`);
-      }
-    }
-
-    // Criteria scores and insights
-    if (Array.isArray(result.criteria)) {
-      const topCriteria = (result.criteria as Array<Record<string, unknown>>)
-        .filter(c => typeof c.score_0_10 === 'number' && (c.score_0_10 as number) >= 7)
-        .slice(0, 5)
-        .map(c => `- ${c.key}: ${c.score_0_10}/10`);
-      if (topCriteria.length > 0) {
-        parts.push(`\nSTRONGEST AREAS:\n${topCriteria.join('\n')}`);
-      }
-    }
-
-    // Genre/audience/market signals
-    if (result.metadata && typeof result.metadata === 'object') {
-      const meta = result.metadata as Record<string, unknown>;
-      if (meta.genre_diagnosis) parts.push(`\nGENRE DIAGNOSIS: ${meta.genre_diagnosis}`);
-      if (meta.target_audience) parts.push(`TARGET AUDIENCE: ${meta.target_audience}`);
-      if (meta.market_readiness_verdict) parts.push(`MARKET READINESS: ${meta.market_readiness_verdict}`);
-    }
-  }
-
-  // Story ledger facts
   if (ctx.storyLedger && typeof ctx.storyLedger === 'object') {
     const ledger = ctx.storyLedger as Record<string, unknown>;
-    if (ledger.protagonist) parts.push(`\nPROTAGONIST: ${JSON.stringify(ledger.protagonist)}`);
-    if (ledger.setting) parts.push(`SETTING: ${JSON.stringify(ledger.setting)}`);
-    if (ledger.central_conflict) parts.push(`CENTRAL CONFLICT: ${JSON.stringify(ledger.central_conflict)}`);
-    if (ledger.themes) parts.push(`THEMES: ${JSON.stringify(ledger.themes)}`);
-    if (ledger.ending) parts.push(`ENDING: ${JSON.stringify(ledger.ending)}`);
+    for (const key of ['protagonist', 'setting', 'central_conflict', 'themes', 'ending', 'resolution', 'major_turning_points']) {
+      const value = stringifyIfUseful(ledger[key]);
+      if (value) parts.push(`${key.toUpperCase()}: ${value}`);
+    }
   }
 
-  // Include manuscript opening for voice/tone reference
+  for (const section of ctx.approvedSections as Array<{ section_type: string; content: string }>) {
+    if (section.section_type !== 'author_bio') {
+      parts.push(`\nAPPROVED ${section.section_type.toUpperCase()} SECTION:\n${section.content}`);
+    }
+  }
+
   if (ctx.chunks.length > 0) {
-    const openingText = ctx.chunks.slice(0, 2).join('\n\n').substring(0, 2000);
-    parts.push(`\nMANUSCRIPT OPENING (for voice/tone reference):\n${openingText}`);
+    const openingText = ctx.chunks.slice(0, 3).join('\n\n').substring(0, 3500);
+    parts.push(`\nMANUSCRIPT OPENING / VOICE SAMPLE:\n${openingText}`);
   }
 
   return parts.join('\n');
 }
 
-// ── Main handler ─────────────────────────────────────────────────────────────
+function approvedAuthorBio(ctx: Awaited<ReturnType<typeof fetchManuscriptContext>>): string {
+  const match = (ctx.approvedSections as Array<{ section_type: string; content: string }>).find((s) => s.section_type === 'author_bio');
+  return match?.content?.trim() ?? '';
+}
 
 export async function POST(req: NextRequest) {
-  // Auth check
   const user = await getAuthenticatedUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Parse request
   let body: GenerateRequest;
   try {
     body = await req.json();
@@ -376,77 +314,58 @@ export async function POST(req: NextRequest) {
   }
 
   const { manuscriptId, evaluationJobId, section, mode, existingContent, authorBioInput } = body;
+  const synopsisVariant: SynopsisVariant = body.synopsisVariant && ['short', 'medium', 'long'].includes(body.synopsisVariant)
+    ? body.synopsisVariant
+    : 'medium';
 
   if (!manuscriptId || !evaluationJobId || !section) {
     return NextResponse.json({ error: 'Missing required fields: manuscriptId, evaluationJobId, section' }, { status: 400 });
   }
+  if (!VALID_SECTIONS.includes(section)) return NextResponse.json({ error: `Invalid section: ${section}` }, { status: 400 });
 
-  const validSections: SectionType[] = ['query_letter', 'what_makes_unique', 'synopsis', 'query_pitch', 'comparables', 'author_bio'];
-  if (!validSections.includes(section)) {
-    return NextResponse.json({ error: `Invalid section: ${section}` }, { status: 400 });
-  }
-
-  // Check for OpenAI API key
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+  if (!apiKey) return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+
+  const ctx = await fetchManuscriptContext(manuscriptId, evaluationJobId, user.id);
+  if (!ctx.manuscript) return NextResponse.json({ error: 'Manuscript not found' }, { status: 404 });
+
+  const suppliedBio = authorBioInput?.trim() ?? '';
+  const existingApprovedBio = approvedAuthorBio(ctx);
+
+  if (section === 'author_bio' && suppliedBio.length < 50) {
+    return NextResponse.json({
+      error: suppliedBio.length === 0
+        ? 'Author Bio requires author-supplied materials (resume, CV, bio notes). No credentials can be invented.'
+        : `Author Bio input too brief (${suppliedBio.length} characters). Please provide at least 50 characters of background information.`,
+      section: 'author_bio',
+      needsInput: true,
+    }, { status: 422 });
   }
 
-  // Fetch context
-  const ctx = await fetchManuscriptContext(manuscriptId, evaluationJobId);
-  if (!ctx.manuscript) {
-    return NextResponse.json({ error: 'Manuscript not found' }, { status: 404 });
-  }
-
-  // Build the prompt
+  const bioMaterial = suppliedBio || existingApprovedBio;
+  const systemPrompt = getSystemPrompt(section, synopsisVariant, bioMaterial.length >= 50);
   const contextSummary = buildContextSummary(ctx);
-  const systemPrompt = getSystemPrompt(section);
 
-  let userMessage = `Using the manuscript data below, generate a professional, agent-submission-ready ${sectionLabel(section)} for "${ctx.manuscript.title}".
+  let userMessage = `Using the grounded manuscript data below, generate a professional, agent-submission-ready ${sectionLabel(section, synopsisVariant)} for "${ctx.manuscript.title}".\n\n${contextSummary}`;
 
-${contextSummary}`;
-
-  // Mode-specific adjustments
   if (mode === 'improve' && existingContent) {
-    userMessage = `The author has written a draft ${sectionLabel(section)}. Improve it to be more polished and agent-ready while preserving their voice and intent. Do NOT add editorial commentary — just output the improved version.
-
-CURRENT DRAFT:
-${existingContent}
-
-MANUSCRIPT CONTEXT:
-${contextSummary}`;
+    userMessage = `Improve the author's draft ${sectionLabel(section, synopsisVariant)} while preserving their voice and intent. Do NOT add facts not grounded in the manuscript context or author-supplied materials.\n\nCURRENT DRAFT:\n${existingContent}\n\nMANUSCRIPT CONTEXT:\n${contextSummary}`;
   } else if (mode === 'regenerate') {
-    userMessage += '\n\nGenerate a fresh version — different approach, structure, or angle from any previous attempt.';
+    userMessage += '\n\nGenerate a fresh version with a different structure or angle, still grounded only in the provided facts.';
   }
 
-  // Special handling for author bio
   if (section === 'author_bio') {
-    const trimmedBio = authorBioInput?.trim() ?? '';
-    
-    if (trimmedBio.length < 50) {
-      return NextResponse.json({
-        error: trimmedBio.length === 0
-          ? 'Author Bio requires author-supplied materials (resume, CV, bio notes). No credentials can be invented.'
-          : `Author Bio input too brief (${trimmedBio.length} characters). Please provide at least 50 characters of background information — a sentence or two about your professional background, education, or life experience relevant to your writing.`,
-        section: 'author_bio',
-        needsInput: true,
-      }, { status: 422 });
-    }
-
-    // Cap input at 5000 chars to prevent context overflow while preserving most CVs
-    const BIO_INPUT_MAX = 5000;
-    const cappedBio = trimmedBio.length > BIO_INPUT_MAX
-      ? trimmedBio.substring(0, BIO_INPUT_MAX) + '\n\n[Input truncated — only first 5,000 characters used]'
-      : trimmedBio;
-
+    const cappedBio = suppliedBio.length > 5000 ? suppliedBio.substring(0, 5000) + '\n\n[Input truncated — only first 5,000 characters used]' : suppliedBio;
     userMessage += `\n\nAUTHOR-SUPPLIED BIO MATERIALS:\n${cappedBio}`;
-    userMessage += `\n\nIMPORTANT: The manuscript being queried is "${ctx.manuscript.title}". The bio MUST connect the author's background to why they are uniquely positioned to write this specific book. Lead with their professional identity, then immediately tie their lived experience or expertise to this manuscript's subject matter.`;
+  } else if (bioMaterial.length >= 50) {
+    userMessage += `\n\nAPPROVED/AUTHOR-SUPPLIED BIO MATERIALS FOR OPTIONAL USE:\n${bioMaterial}`;
+  } else if (section === 'query_letter') {
+    userMessage += '\n\nAUTHOR BIO STATUS: No author-supplied biography is available. Do not invent an author bio or credentials. Omit biographical claims.';
   }
 
-  // Call OpenAI
   const openai = new OpenAI({ apiKey, timeout: TIMEOUT_MS, maxRetries: 1 });
-
   let generated: string;
+
   try {
     const completion = await withRetry(
       () => openai.chat.completions.create({
@@ -458,53 +377,35 @@ ${contextSummary}`;
         temperature: 0.7,
         max_tokens: MAX_TOKENS,
       }),
-      { maxAttempts: 2, label: `agent_readiness_${section}` },
+      { maxAttempts: 2, label: `agent_readiness_${section}_${synopsisVariant}` },
     );
-
-    generated = completion.choices[0]?.message?.content?.trim() ?? '';
+    generated = sanitizeAuthorFacingProse(completion.choices[0]?.message?.content?.trim() ?? '');
   } catch (err) {
     console.error(`[AgentReadiness] OpenAI call failed for section=${section}:`, err);
-    return NextResponse.json({
-      error: 'Generation failed — please try again',
-      details: err instanceof Error ? err.message : String(err),
-    }, { status: 502 });
+    return NextResponse.json({ error: 'Generation failed — please try again', details: err instanceof Error ? err.message : String(err) }, { status: 502 });
   }
 
-  // Quality gate
-  const gate = qualityGate(generated, section);
+  const gate = qualityGate(generated, section, synopsisVariant);
   if (!gate.pass) {
-    // Try once more with stricter temperature
     try {
       const retryCompletion = await openai.chat.completions.create({
         model: MODEL,
         messages: [
-          { role: 'system', content: systemPrompt + '\n\nCRITICAL: Your previous output was rejected. ' + gate.reason + '. Fix this issue.' },
+          { role: 'system', content: `${systemPrompt}\n\nCRITICAL: Your previous output was rejected: ${gate.reason}. Fix this issue.` },
           { role: 'user', content: userMessage },
         ],
         temperature: 0.3,
         max_tokens: MAX_TOKENS,
       });
-      const retryText = retryCompletion.choices[0]?.message?.content?.trim() ?? '';
-      const retryGate = qualityGate(retryText, section);
-      if (retryGate.pass) {
-        generated = retryText;
-      } else {
-        return NextResponse.json({
-          error: `Quality gate failed: ${retryGate.reason}`,
-          generated: retryText,
-          gateFailure: true,
-        }, { status: 422 });
-      }
+      const retryText = sanitizeAuthorFacingProse(retryCompletion.choices[0]?.message?.content?.trim() ?? '');
+      const retryGate = qualityGate(retryText, section, synopsisVariant);
+      if (!retryGate.pass) return NextResponse.json({ error: `Quality gate failed: ${retryGate.reason}`, generated: retryText, gateFailure: true }, { status: 422 });
+      generated = retryText;
     } catch {
-      return NextResponse.json({
-        error: `Quality gate failed: ${gate.reason}`,
-        generated,
-        gateFailure: true,
-      }, { status: 422 });
+      return NextResponse.json({ error: `Quality gate failed: ${gate.reason}`, generated, gateFailure: true }, { status: 422 });
     }
   }
 
-  // Persist to Supabase
   const admin = createAdminClient();
   const { error: saveError } = await admin
     .from('agent_readiness_sections')
@@ -518,33 +419,33 @@ ${contextSummary}`;
       generated_at: new Date().toISOString(),
       model_used: MODEL,
       mode,
-    }, {
-      onConflict: 'user_id,manuscript_id,section_type',
-    });
+    }, { onConflict: 'user_id,manuscript_id,section_type' });
 
   if (saveError) {
-    // Non-fatal — still return the generated content
-    console.warn(`[AgentReadiness] Failed to persist section=${section}:`, saveError.message);
+    console.error(`[AgentReadiness] Failed to persist section=${section}:`, saveError.message);
+    return NextResponse.json({ error: 'Failed to persist generated section', section }, { status: 500 });
   }
 
   return NextResponse.json({
     content: generated,
     section,
+    synopsisVariant: section === 'synopsis' ? synopsisVariant : undefined,
     wordCount: generated.trim().split(/\s+/).filter(Boolean).length,
-    wordLimit: WORD_LIMITS[section],
+    wordLimit: wordBounds(section, synopsisVariant).max,
     model: MODEL,
     mode,
-    persisted: !saveError,
+    persisted: true,
+    sourcePolicy: section === 'author_bio' ? 'author_supplied_only' : 'manuscript_evaluation_story_ledger_grounded',
   });
 }
 
-function sectionLabel(section: SectionType): string {
+function sectionLabel(section: SectionType, synopsisVariant: SynopsisVariant): string {
   switch (section) {
     case 'query_letter': return 'Query Letter';
     case 'what_makes_unique': return 'What Makes This Novel Unique statement';
-    case 'synopsis': return 'Synopsis';
-    case 'query_pitch': return 'Query Pitch (one sentence)';
-    case 'comparables': return 'Comparables section';
+    case 'synopsis': return `${SYNOPSIS_LIMITS[synopsisVariant].label}`;
+    case 'query_pitch': return 'Query Pitch';
+    case 'comparables': return 'Comparable Titles section';
     case 'author_bio': return 'Author Bio';
   }
 }

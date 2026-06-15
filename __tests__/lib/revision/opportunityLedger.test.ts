@@ -176,6 +176,32 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
     expect(opportunities).toHaveLength(100);
   });
 
+  it('does not backfill opportunities from evidence anchors alone, even for long-form manuscripts', () => {
+    const criteria = Array.from({ length: 13 }, (_, criterionIndex) => ({
+      key: `criterion_${criterionIndex + 1}`,
+      score_0_10: criterionIndex % 3 === 0 ? 4 : 6,
+      rationale: `Criterion ${criterionIndex + 1} has repeated evidence-backed revision pressure across the manuscript.`,
+      evidence: Array.from({ length: 8 }, (_, evidenceIndex) => ({
+        snippet: `Chapter ${criterionIndex + 1}, evidence ${evidenceIndex + 1}: The river sound changes the family decision before the scene resolves.`,
+        location_ref: `chapter:${criterionIndex + 1}:evidence:${evidenceIndex + 1}`,
+      })),
+      recommendations: criterionIndex === 0
+        ? [makeRecommendation(1, 'high')]
+        : [],
+    }));
+
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(
+      { criteria },
+      undefined,
+      undefined,
+      { wordCount: 86_000 },
+    );
+
+    expect(opportunities).toHaveLength(1);
+    expect(opportunities[0].provenance).toBe('evaluation_result.criteria.recommendations');
+    expect(JSON.stringify(opportunities)).not.toContain('evidence_density_backfill');
+  });
+
   it('regression: blocks contamination terms for The Silence Begins when explicit candidates are absent', () => {
     const payload = {
       criteria: [
@@ -361,6 +387,21 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
     expect(typeof persisted.content.source_hash).toBe('string');
     expect(typeof persisted.content.manuscript_version_hash).toBe('string');
     expect(typeof persisted.content.generated_at).toBe('string');
+    expect(persisted.content.quality_manifest).toMatchObject({
+      artifact_type: 'revision_opportunity_ledger_v1',
+      producer_stage_id: 'ADJACENT_REVISION_LEDGER',
+      contract_status: 'degraded',
+      completeness_metric: expect.stringContaining('finding_id'),
+      accuracy_metric: expect.stringContaining('evaluation evidence'),
+      dirty_data_rule: expect.stringContaining('Needs Targeting'),
+      metrics: expect.objectContaining({
+        total_opportunities: expect.any(Number),
+        finding_id_coverage: 1,
+        evidence_anchor_coverage: 1,
+        manuscript_location_coverage: 1,
+        revision_operation_coverage: 1,
+      }),
+    });
 
     const [opportunity] = persisted.content.opportunities as Array<Record<string, unknown>>;
     expect(opportunity).toMatchObject({
@@ -370,10 +411,114 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
       provenance: 'evaluation_result.criteria.recommendations',
     });
     expect(typeof opportunity.opportunity_id).toBe('string');
+    expect(typeof opportunity.finding_id).toBe('string');
     expect(typeof opportunity.rationale).toBe('string');
     expect(typeof opportunity.evidence_anchor).toBe('string');
     expect(typeof opportunity.manuscript_coordinates).toBe('string');
     expect(['low', 'medium', 'high']).toContain(opportunity.confidence);
+  });
+
+  it('returns rebuilt opportunities when ledger persistence fails so Workbench render is not blocked', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const supabase = {
+      from: (table: string) => {
+        const state: {
+          selectClause: string | null;
+          filters: Record<string, unknown>;
+        } = {
+          selectClause: null,
+          filters: {},
+        };
+
+        const chain = {
+          select: (value: string) => {
+            state.selectClause = value;
+            return chain;
+          },
+          eq: (column: string, value: unknown) => {
+            state.filters[column] = value;
+            return chain;
+          },
+          in: () => chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => {
+            if (table === 'evaluation_artifacts' && state.selectClause === 'id, content') {
+              return {
+                data: {
+                  id: 'ledger-existing',
+                  content: {
+                    opportunities: [],
+                  },
+                },
+                error: null,
+              };
+            }
+
+            if (table === 'evaluation_jobs') {
+              return {
+                data: {
+                  id: state.filters.id,
+                  manuscript_id: 6074,
+                  evaluation_project_id: null,
+                  evaluation_result: null,
+                },
+                error: null,
+              };
+            }
+
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content, source_hash') {
+              return {
+                data: {
+                  source_hash: 'src-hash-1',
+                  content: {
+                    criteria: [
+                      {
+                        key: 'pacing',
+                        recommendations: [
+                          {
+                            diagnosis: 'Abrupt scene transition weakens momentum.',
+                            recommendation: 'Insert a bridging beat before cut.',
+                            anchor_snippet: 'She slammed the door. Next scene starts abruptly.',
+                            location_ref: 'chapter:3',
+                            confidence: 0.84,
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+                error: null,
+              };
+            }
+
+            return { data: null, error: null };
+          },
+          upsert: () => ({
+            select: () => ({
+              limit: async () => ({
+                data: null,
+                error: { message: 'transient write failure' },
+              }),
+            }),
+          }),
+        };
+
+        return chain;
+      },
+    };
+
+    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-123');
+
+    expect(result.artifactId).toBe('ledger-existing');
+    expect(result.opportunities.length).toBeGreaterThan(0);
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Failed to persist revision_opportunity_ledger_v1',
+      { message: 'transient write failure' },
+    );
+
+    errorSpy.mockRestore();
   });
 });
 
