@@ -694,7 +694,7 @@ export async function setJobFailed(
   if (shouldRetry) {
     // Schedule for retry with backoff
       const { calculateNextAttemptAt } = await import('./retryBackoff');
-    const nextAttemptAt = calculateNextAttemptAt(nextAttempt);
+    const nextAttemptAt = calculateNextAttemptAt(nextAttempt, 30, 30 * 60, errorEnvelope.code);
     
     updatePayload = {
       ...updatePayload,

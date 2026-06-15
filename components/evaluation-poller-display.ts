@@ -271,9 +271,9 @@ function getProgressDisplayRaw(
 
   if (job.phase === "phase_2" && job.status === "queued") {
     return {
-      label: "Building your report...",
+      label: "Validating your evaluation...",
       valueLabel: "67%",
-      helperText: "RevisionGrade is analyzing your writing, validating findings, and preparing the final report.",
+      helperText: "RevisionGrade is reconciling evaluation results and validating findings before building your report.",
       indeterminate: false,
       percentage: 67,
       color: "blue",
@@ -349,9 +349,9 @@ function getProgressDisplayRaw(
   if (job.phase === "phase_2") {
     const pct = elapsedDrift(job.phase2_started_at, 67, 82, _now);
     return {
-      label: "Building your report...",
+      label: "Validating your evaluation...",
       valueLabel: `${pct}%`,
-      helperText: "RevisionGrade is analyzing your writing, validating findings, and preparing the final report.",
+      helperText: "RevisionGrade is reconciling evaluation results and validating findings before building your report.",
       indeterminate: false,
       percentage: pct,
       color: "blue",

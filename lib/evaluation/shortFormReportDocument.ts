@@ -20,6 +20,20 @@ import {
 } from '@/lib/evaluation/reportHeaderPolicy';
 import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 
+/** Format words that are not valid genre names — mirrors templateCompletenessGate.FORMAT_WORDS. */
+const FORMAT_WORDS = new Set([
+  'book', 'chapter', 'excerpt', 'fiction', 'manuscript', 'novel', 'novella',
+  'nonfiction', 'poem', 'screenplay', 'short fiction', 'short story', 'story',
+]);
+
+/** Return the genre string only if it is not a bare format word. */
+function sanitizeGenre(value: string | undefined | null, fallback: string): string {
+  if (!value || !value.trim()) return fallback;
+  const normalized = value.trim().toLowerCase().replace(/[\s\-_/]+/g, ' ').trim();
+  if (FORMAT_WORDS.has(normalized)) return fallback;
+  return value.trim();
+}
+
 export type ShortFormCriterionRecommendation = {
   priority?: 'high' | 'medium' | 'low';
   action?: string;
@@ -72,6 +86,8 @@ export type ShortFormResultLike = {
     reading_grade_level?: number;
     dialogue_percentage?: number;
     narrative_percentage?: number;
+    diagnosed_genre?: string;
+    target_audience?: string;
   };
   governance?: {
     transparency?: {
@@ -390,7 +406,10 @@ export function buildShortFormEvaluationDocument(input: {
       reportType: input.reportType ?? 'Short-Form Evaluation',
       overallScoreLabel: formatScoreFractionForDisplay(overallScore, 100),
       marketReadiness: deriveVerdict(overallScore, result.overview?.verdict),
-      genre: clean(result.metrics?.manuscript?.genre, 'Not specified'),
+      genre: sanitizeGenre(
+        result.enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre,
+        'Not specified',
+      ),
       targetAudience: clean(result.metrics?.manuscript?.target_audience, 'Adult Readers'),
       submittedWordCount:
         typeof result.metrics?.manuscript?.word_count === 'number'
@@ -404,7 +423,10 @@ export function buildShortFormEvaluationDocument(input: {
           : 'Not available',
       dateGenerated: formatDate(result.generated_at),
       // Suppress confidence badge when genre is a fallback ("Not specified") — absence is not uncertainty.
-      genreConfidenceLabel: isFallbackGenre(clean(result.metrics?.manuscript?.genre, 'Not specified')) ? null : genreConf,
+      genreConfidenceLabel: isFallbackGenre(sanitizeGenre(
+        result.enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre,
+        'Not specified',
+      )) ? null : genreConf,
       marketReadinessConfidenceLabel: marketConf,
       overallScoreConfidenceLabel: overallConf,
       audienceConfidenceLabel: audienceConf.label,

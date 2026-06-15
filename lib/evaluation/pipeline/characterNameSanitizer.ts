@@ -51,7 +51,12 @@ function buildBlockedNamePatterns(blockedWords: string[]): RegExp[] {
 
     // Pattern 3: "No notices", "No is", "No was" — subject position
     // Only for very common blocked words that the LLM frequently promotes
-    if (["no", "yes", "oh", "hey", "well", "so"].includes(word.toLowerCase())) {
+    if ([
+      "no", "yes", "oh", "hey", "well", "so",
+      // Financial / thematic tokens that appear as sentence subjects when hallucinated as names
+      "cost", "price", "value", "money", "profit", "loss", "expense",
+      "total", "vanity", "beauty", "truth", "fate", "hope", "grace",
+    ].includes(word.toLowerCase())) {
       patterns.push(
         new RegExp(
           `\\b${capitalized}(?= (?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows))\\b`,
@@ -69,6 +74,9 @@ const TOP_BLOCKED_WORDS = [
   "ah", "huh", "um", "uh", "sure", "right", "fine",
   "good", "bad", "please", "thanks", "sorry",
   "stop", "wait", "look", "listen", "come", "go", "run", "help",
+  // Financial / thematic tokens (observed: "Cost" from ledger-style price labels)
+  "cost", "price", "value", "money", "profit", "loss", "expense",
+  "total", "vanity", "beauty", "truth", "fate", "hope", "grace",
 ];
 
 const BLOCKED_NAME_PATTERNS = buildBlockedNamePatterns(TOP_BLOCKED_WORDS);

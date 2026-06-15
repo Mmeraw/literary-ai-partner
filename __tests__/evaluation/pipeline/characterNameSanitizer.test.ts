@@ -271,3 +271,51 @@ describe("sanitizeSynthesisCharacterNames — full synthesis output", () => {
     expect(count).toBe(0);
   });
 });
+
+describe("financial/thematic token blocklist — Price of Vanity regression", () => {
+  /**
+   * REGRESSION TEST: The Price of Vanity evaluation named the unnamed
+   * protagonist "Cost" because the word appeared as a ledger-style price
+   * label ("Cost: $65.00"). The LLM promoted the financial token to a
+   * character name. Financial and thematic words must be blocked.
+   */
+  it("blocks 'cost' as a character name", () => {
+    expect(isAllowedCharacterName("Cost")).toBe(false);
+    expect(isAllowedCharacterName("cost")).toBe(false);
+    expect(isBlockedCharacterName("cost")).toBe(true);
+    expect(isBlockedCharacterName("Cost")).toBe(true);
+  });
+
+  it("blocks other financial tokens as character names", () => {
+    for (const token of ["price", "value", "money", "profit", "loss", "expense", "total"]) {
+      expect(isAllowedCharacterName(token)).toBe(false);
+      expect(isAllowedCharacterName(token.charAt(0).toUpperCase() + token.slice(1))).toBe(false);
+    }
+  });
+
+  it("blocks thematic abstract nouns as character names", () => {
+    for (const token of ["vanity", "beauty", "truth", "fate", "hope", "grace", "faith"]) {
+      expect(isAllowedCharacterName(token)).toBe(false);
+    }
+  });
+
+  it("sanitizes 'Cost's' possessive in synthesis output", () => {
+    const input = "Cost's disastrous hair-color day contrasts his vanity with Kim's values.";
+    const result = sanitizeBlockedCharacterNames(input, ["the narrator"]);
+    expect(result).not.toContain("Cost's");
+    expect(result).toContain("the narrator");
+  });
+
+  it("sanitizes 'Cost notices' subject-position pattern", () => {
+    const input = "Cost realizes the true value of human connection.";
+    const result = sanitizeBlockedCharacterNames(input, ["the narrator"]);
+    expect(result).not.toMatch(/\bCost realizes\b/);
+    expect(result).toContain("the narrator");
+  });
+
+  it("does not touch lowercase 'cost' in normal financial context", () => {
+    const input = "The total cost was $341.00 for the day's adventure.";
+    const result = sanitizeBlockedCharacterNames(input, ["the narrator"]);
+    expect(result).toBe(input);
+  });
+});
