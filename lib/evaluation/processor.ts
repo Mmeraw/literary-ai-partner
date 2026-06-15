@@ -9320,6 +9320,7 @@ export async function processEvaluationJob(
         | { ok: true; pass1Output: SinglePassOutput; pass2Output: SinglePassOutput }
         | { ok: false; error: string; errorCode: string }
       > => {
+        let hadPass12CheckpointProgress = false;
         try {
           const [{ runPass1 }, { runPass2 }, { enforcePass2LexicalIndependence }, { loadCanonicalRegistry }, { buildLedgerBlockForPrompt }] = await Promise.all([
             import('@/lib/evaluation/pipeline/runPass1'),
@@ -9374,6 +9375,7 @@ export async function processEvaluationJob(
                 pass1CacheMap.set(Number(idx), entry.result);
                 pass1ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
+              hadPass12CheckpointProgress = hadPass12CheckpointProgress || pass1CacheMap.size > 0;
               console.log(`[phase_2] ${jobId}: loaded pass1_chunk_cache_v1 with ${pass1CacheMap.size} cached chunks (hash match)`);
             } else if (pass1Content?.chunks) {
               console.warn(`[phase_2] ${jobId}: pass1_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
@@ -9386,6 +9388,7 @@ export async function processEvaluationJob(
                 pass2CacheMap.set(Number(idx), entry.result);
                 pass2ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
+              hadPass12CheckpointProgress = hadPass12CheckpointProgress || pass2CacheMap.size > 0;
               console.log(`[phase_2] ${jobId}: loaded pass2_chunk_cache_v1 with ${pass2CacheMap.size} cached chunks (hash match)`);
             } else if (pass2Content?.chunks) {
               console.warn(`[phase_2] ${jobId}: pass2_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
@@ -9426,6 +9429,7 @@ export async function processEvaluationJob(
           };
 
           const onPass1ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            hadPass12CheckpointProgress = true;
             pass1ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
             pass1UpsertPending++;
             if (pass1UpsertPending >= CHECKPOINT_INTERVAL) {
@@ -9435,6 +9439,7 @@ export async function processEvaluationJob(
           };
 
           const onPass2ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            hadPass12CheckpointProgress = true;
             pass2ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
             pass2UpsertPending++;
             if (pass2UpsertPending >= CHECKPOINT_INTERVAL) {
@@ -9521,10 +9526,9 @@ export async function processEvaluationJob(
           };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          const hadCachedChunks = (pass1CacheMap?.size ?? 0) > 0 || (pass2CacheMap?.size ?? 0) > 0;
           const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED')
             ? 'CHUNK_ROUTING_NOT_ENGAGED'
-            : hadCachedChunks
+            : hadPass12CheckpointProgress
               ? 'RETRYING_CHECKPOINT'
               : 'PHASE2_PASS12_FAILED';
           return { ok: false, error: msg, errorCode: code };

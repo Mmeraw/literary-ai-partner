@@ -22,6 +22,13 @@ export const STORY_LAYER_METADATA = {
       "Whose eyes does the reader see through, and when? Maps the narrative cameras, voice ownership, and any perspective shifts across your story.",
     iconToken: "👁",
   },
+  narrator_attribution_layer: {
+    title: "Narrator Attribution",
+    shortLabel: "Narrator signals",
+    description:
+      "How narration is attributed and whether unnamed or ambiguous narrator references need author confirmation before downstream use.",
+    iconToken: "🧭",
+  },
   canonical_identity_layer: {
     title: "Canonical Identity",
     shortLabel: "Names & aliases",

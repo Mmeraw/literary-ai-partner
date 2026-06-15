@@ -931,6 +931,13 @@ export function buildStoryLayerFromLedger(
   const rawLayers: StoryLayerPayload = {
     source_integrity_layer: buildSourceIntegrityLayer(ledger, ledgerV2ForLayers),
     pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2ForLayers, chunkOutputs),
+    narrator_attribution_layer: {
+      layer_key: 'narrator_attribution_layer',
+      status: hasZeroVerifiedCharacters ? 'INSUFFICIENT_SIGNAL' : 'SCORABLE',
+      narrator_attribution_required: hasIdentityProjectionWithoutVerifiedCharacters,
+      verified_character_count: ledger.entries.length,
+      note: 'Narrator attribution is preserved as an explicit story layer contract surface; no inferred narrator identity is fabricated.',
+    },
     canonical_identity_layer: buildCanonicalIdentityLayer(ledger, ledgerV2ForLayers),
     cast_role_tier_layer: buildCastRoleTierLayer(ledger, ledgerV2ForLayers),
     identity_pronoun_layer: buildIdentityPronounLayer(ledger, ledgerV2ForLayers),

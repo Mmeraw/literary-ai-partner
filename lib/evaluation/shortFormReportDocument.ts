@@ -327,6 +327,24 @@ function isFormatOnlyGenre(value: string): boolean {
   return FORMAT_ONLY_GENRE_VALUES.has(value.trim().toLowerCase());
 }
 
+function normalizeRecommendationPriority(value: unknown): ShortFormCriterionRecommendation['priority'] {
+  return value === 'high' || value === 'medium' || value === 'low' ? value : undefined;
+}
+
+function normalizeRecommendationAnchorType(value: unknown): ShortFormCriterionRecommendation['anchor_type'] {
+  return value === 'verbatim_quote' || value === 'paraphrased_observation' || value === 'editorial_diagnosis'
+    ? value
+    : undefined;
+}
+
+function normalizeCriterionRecommendation(rec: ShortFormCriterionRecommendation): ShortFormCriterionRecommendation {
+  return {
+    ...rec,
+    priority: normalizeRecommendationPriority(rec.priority),
+    anchor_type: normalizeRecommendationAnchorType(rec.anchor_type),
+  };
+}
+
 function titleCaseGenre(value: string): string {
   return value
     .split(/(\s+|\/|\+)/)
@@ -446,7 +464,7 @@ export function buildShortFormEvaluationDocument(input: {
     const canonicalRecommendations = renderedOpportunities
       .filter((item) => item.primary_criterion === criterion.key || item.related_criteria.includes(criterion.key))
       .slice(0, 3)
-      .map(opportunityToCriterionRecommendation);
+      .map((item) => normalizeCriterionRecommendation(opportunityToCriterionRecommendation(item) as ShortFormCriterionRecommendation));
 
     return {
       key: criterion.key,
@@ -459,7 +477,7 @@ export function buildShortFormEvaluationDocument(input: {
       recommendations: canonicalRecommendations.length > 0
         ? canonicalRecommendations
         : Array.isArray(criterion.recommendations)
-          ? criterion.recommendations.slice(0, 1)
+          ? criterion.recommendations.slice(0, 1).map(normalizeCriterionRecommendation)
           : [],
     };
   });
