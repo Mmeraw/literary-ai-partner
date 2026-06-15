@@ -1924,6 +1924,23 @@ const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
   'QG_ARTIFACT_GATE_FAIL',
   'QG_PITCH_IDENTITY_DUPLICATE',
   'QG_EVIDENCE_FABRICATION',
+  // v2 gate-specific error codes (synthesis-repairable):
+  'QG_SUMMARY_OMITS_WEAKNESS',
+  'QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH',
+  'QG_MISSING_REQUIRED_EVIDENCE',
+  'QG_CONSEQUENCE_CONTRACT',
+]);
+
+/**
+ * v2 check_ids that are synthesis-repairable and should be treated as
+ * kick-eligible when unwrapping QG_FAILED. Used to bridge the gap between
+ * the generic QG_FAILED wrapper and the specific underlying check failures.
+ */
+const KICK_ELIGIBLE_V2_CHECK_IDS = new Set<string>([
+  'v2_summary_weakness_presence',
+  'v2_fidelity_score_confidence_alignment',
+  'v2_scored_anchor_threshold',
+  'v2_completeness_bridge',
 ]);
 
 /**
@@ -1933,6 +1950,16 @@ const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
 export function isKickEligibleFailureCode(code: string | null | undefined): boolean {
   if (!code) return false;
   return KICK_ELIGIBLE_FAILURE_CODES.has(code);
+}
+
+/**
+ * Returns true if a v2 quality gate check_id is synthesis-repairable.
+ * Used to unwrap QG_FAILED and determine kick eligibility from the
+ * underlying check failures rather than the generic wrapper code.
+ */
+export function isKickEligibleV2CheckId(checkId: string | null | undefined): boolean {
+  if (!checkId) return false;
+  return KICK_ELIGIBLE_V2_CHECK_IDS.has(checkId);
 }
 
 /**
@@ -10465,7 +10492,12 @@ export async function processEvaluationJob(
     // re-run QG. This avoids killing an otherwise complete evaluation over a
     // presentation/template defect.
     if (!qualityGateV2.pass) {
-      const hardFailedChecks = qualityGateV2.checks.filter((check) => !check.passed);
+      // Exclude v2_fidelity_score_confidence_alignment from hard-fail count,
+      // matching the gate's own logic (qualityGate.ts line 1882-1883) which
+      // considers fidelity mismatch a soft-downgrade, not a hard block.
+      const hardFailedChecks = qualityGateV2.checks.filter(
+        (check) => !check.passed && check.check_id !== 'v2_fidelity_score_confidence_alignment',
+      );
       const isOnlySummaryWeakness =
         hardFailedChecks.length === 1 &&
         hardFailedChecks[0].check_id === 'v2_summary_weakness_presence';
@@ -10689,11 +10721,17 @@ export async function processEvaluationJob(
         );
       }
 
-      // ── FIPOC backward kick: check if any failed QG check is kick-eligible ──
+      // ── FIPOC backward kick: unwrap QG_FAILED and check if any underlying
+      // failed check is synthesis-repairable (kick-eligible). Check both
+      // error_code and check_id to cover v1 and v2 gate check formats. ──
       const failedErrorCodes = failedCheckRecords
         .map((check) => (check as Record<string, unknown>).error_code as string | undefined)
         .filter((code): code is string => typeof code === 'string');
-      const kickableCode = failedErrorCodes.find((code) => isKickEligibleFailureCode(code));
+      const failedCheckIds = failedCheckRecords
+        .map((check) => (check as Record<string, unknown>).check_id as string | undefined)
+        .filter((id): id is string => typeof id === 'string');
+      const kickableCode = failedErrorCodes.find((code) => isKickEligibleFailureCode(code))
+        ?? failedCheckIds.find((id) => KICK_ELIGIBLE_V2_CHECK_IDS.has(id));
       if (kickableCode) {
         const kickResult = await attemptBackwardKickToSynthesis({
           supabase,
