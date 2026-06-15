@@ -33,6 +33,7 @@ export type CompleteStorySeedV1 = {
     candidate_object_shortlist: unknown[];
     candidate_location_map: unknown[];
     candidate_timeline_hypotheses: unknown[];
+    candidate_narrator_registry: unknown[];
     uncertainty_flags: string[];
   };
   governance_rail: {
@@ -106,6 +107,17 @@ const storyLayerDefinitions: Record<StoryLayerCoreLayerKey, Omit<StorySeedLayerS
     phase1a_must_fill: ['POV owners', 'narrative camera', 'shift pattern'],
     phase1a_must_verify: ['POV evidence anchors', 'omniscient or limited mode', 'rotating focalization'],
     mistake_proofing: commonDisplayMistakeProofing,
+  },
+  narrator_attribution_layer: {
+    required_sections: ['narrator_registry', 'narrator_name_state', 'narrator_evidence_anchors', 'narrator_uncertainty_flags', 'report_reference_guardrails'],
+    phase1a_must_fill: ['narrator type', 'narrator name state', 'explicit evidence for any narrator name', 'fallback reference when unnamed'],
+    phase1a_must_verify: ['named narrator evidence', 'unnamed narrator state', 'multi-narrator or rotating narrator map', 'theme/object/cost terms are not promoted to narrator identity'],
+    mistake_proofing: [
+      ...commonDisplayMistakeProofing,
+      'Never infer a narrator name from a theme, motif, object, expense/cost term, greeting, yes/no token, or section title.',
+      'If no explicit narrator-name evidence exists, downstream reports must say “the narrator” or “the unnamed narrator.”',
+      'Narrator names must come only from accepted narrator_attribution_layer evidence; later passes must not re-infer narrator identity.',
+    ],
   },
   canonical_identity_layer: {
     required_sections: ['candidate_entities', 'candidate_aliases', 'name_state_warnings', 'merge_split_risks'],
@@ -191,6 +203,7 @@ export function buildCompleteStorySeedV1(args: { generatedAt?: string }): Comple
       candidate_object_shortlist: [],
       candidate_location_map: [],
       candidate_timeline_hypotheses: [],
+      candidate_narrator_registry: [],
       uncertainty_flags: [],
     },
     governance_rail: {
