@@ -9112,10 +9112,18 @@ export async function processEvaluationJob(
             .eq('id', job.id)
             .eq('status', JOB_STATUS.RUNNING)
             .select('id, status, phase, phase_status')
-            .single();
+            .maybeSingle();
 
           if (shortFormQueueErr) {
             throw new Error(`Phase 1A short-form bypass transition failed: ${shortFormQueueErr.message}`);
+          }
+
+          if (!shortFormQueueRow) {
+            console.warn(
+              `[Processor] ${jobId}: short-form bypass 0 rows — job already transitioned`,
+              { returned: shortFormQueueRow ?? null },
+            );
+            return { success: true };
           }
 
           console.log(
