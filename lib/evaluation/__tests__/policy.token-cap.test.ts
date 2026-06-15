@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach, afterEach, jest } from "@jest/globa
 import {
   MODEL_COMPLETION_TOKEN_CAPS,
   buildOpenAIOutputTokenParam,
+  getCanonicalSeedModel,
   getModelCompletionTokenCap,
 } from "@/lib/evaluation/policy";
 
@@ -78,5 +79,35 @@ describe("policy: MODEL_COMPLETION_TOKEN_CAPS + buildOpenAIOutputTokenParam clam
     const out = buildOpenAIOutputTokenParam("gpt-4-turbo", 20000);
     expect(out).toEqual({ max_tokens: 4096 });
     expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("policy: Phase 0.5 seed model routing", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.EVAL_SEED_MODEL;
+    delete process.env.EVAL_SYNTHESIS_MODEL;
+    delete process.env.EVAL_CHEAP_MODEL;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  test("seed artifacts use explicit seed model before any other model", () => {
+    process.env.EVAL_SEED_MODEL = "gpt-5.1";
+    process.env.EVAL_SYNTHESIS_MODEL = "gpt-5.1-chat-latest";
+    process.env.EVAL_CHEAP_MODEL = "gpt-4o-mini";
+
+    expect(getCanonicalSeedModel()).toBe("gpt-5.1");
+  });
+
+  test("seed artifacts use synthesis model and do not silently downgrade to cheap model", () => {
+    process.env.EVAL_SYNTHESIS_MODEL = "gpt-5.1";
+    process.env.EVAL_CHEAP_MODEL = "gpt-4o-mini";
+
+    expect(getCanonicalSeedModel()).toBe("gpt-5.1");
   });
 });

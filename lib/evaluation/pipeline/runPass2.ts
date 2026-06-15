@@ -191,6 +191,11 @@ function isTimeoutError(reason: unknown): boolean {
   );
 }
 
+function isTruncatedJsonParseError(reason: unknown): boolean {
+  const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
+  return text.includes("json_parse_failed_truncated") || text.includes("truncated");
+}
+
 function parseRetryAfterMs(reason: unknown): number | null {
   if (typeof reason === "object" && reason !== null) {
     const maybeHeaders = (reason as { headers?: unknown; response?: { headers?: unknown } }).headers
@@ -943,6 +948,47 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   try {
     parsedOutput = parsePass2Response(responseText, selectedModel);
   } catch (error) {
+    if (!retriedForLength && (finishReason === "length" || isTruncatedJsonParseError(error))) {
+      retriedForLength = true;
+      const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens);
+      console.warn("[Pass2] Truncated or incomplete JSON response; retrying with higher output token budget", {
+        model: selectedModel,
+        initialMaxTokens: activeMaxTokens,
+        retryMaxTokens,
+        finish_reason: finishReason,
+        error_message: error instanceof Error ? error.message : String(error),
+        usage: completion.usage,
+      });
+
+      activeMaxTokens = retryMaxTokens;
+      const retryStartMs = nowMs();
+      ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
+      modelCallMs += nowMs() - retryStartMs;
+      trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2_retry", model: selectedModel, usage: completion.usage });
+
+      firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+      rawContent = firstChoice?.message?.content;
+      responseText = extractResponseText(rawContent);
+      const retryCompletionWithIds = completion as { request_id?: unknown; id?: unknown };
+      const retryRequestId =
+        typeof retryCompletionWithIds.request_id === "string"
+          ? retryCompletionWithIds.request_id
+          : typeof retryCompletionWithIds.id === "string"
+          ? retryCompletionWithIds.id
+          : undefined;
+
+      opts._onCompletion?.({
+        pass: 2,
+        raw_text: responseText,
+        model: selectedModel,
+        usage: completion.usage,
+        finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
+        request_id: retryRequestId,
+        generated_at: new Date().toISOString(),
+      });
+
+      parsedOutput = parsePass2Response(responseText, selectedModel);
+    } else {
     console.error("[Pass2] Parse boundary diagnostic", {
       job_id: opts.jobId ?? null,
       manuscript_id: opts.manuscriptId ?? null,
@@ -959,6 +1005,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       error_message: error instanceof Error ? error.message : String(error),
     });
     throw error;
+    }
   }
   const parseValidationMs = nowMs() - parseValidationStartMs;
   const totalMs = nowMs() - passStartMs;

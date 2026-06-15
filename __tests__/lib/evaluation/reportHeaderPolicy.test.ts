@@ -108,12 +108,62 @@ describe('canonical report header policy', () => {
     expect(doc.titleBlock.shelfConfidenceLabel).toBe('Very High Confidence');
     expect(doc.titleBlock.genreExpectationContract).toMatchObject({
       diagnosedGenre: 'epic fantasy',
-      contractSummary: 'Epic fantasy · World concept focus',
+      contractSummary: 'Epic Fantasy — World concept focus',
       genreExpectationIds: ['epic_fantasy'],
       expectationProfileLabels: ['World concept', 'Slow burn'],
     });
     expect(doc.titleBlock.genreExpectationContract?.contractSummary).not.toContain('world_concept');
     expect(doc.titleBlock.genreExpectationContract?.expectationProfileLabels.join(', ')).not.toContain('world_concept_forward');
+  });
+
+  test('long-form title block promotes genre expectations when intake genre is only a format word', () => {
+    const ozLikeGenreContext: GenreExpectationMetadata = {
+      diagnosed_genre: 'fantasy',
+      shelf_target_audience: 'middle-grade and family readers',
+      dominant_craft_engine: 'world_concept',
+      expectation_profiles: ['world_concept_forward', 'voice_forward', 'propulsion_forward', 'mood_forward'],
+      genre_expectation_ids: ['fantasy', 'comic_fiction', 'literary_upmarket_fiction'],
+      genre_expectation_labels: ['Fantasy', 'Comedy / comic fiction', 'Literary / upmarket fiction'],
+      resolution_notes: ['genre_expectation:fantasy'],
+    };
+
+    const doc = buildUnifiedEvaluationDocument({
+      mode: 'long_form_evaluation',
+      displayTitle: 'The Wonderful World of Oz',
+      dream: null,
+      result: {
+        generated_at: '2026-06-14T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 91,
+          verdict: 'Market Ready',
+          one_paragraph_summary: 'Summary.',
+          top_3_strengths: [],
+          top_3_risks: [],
+        },
+        metrics: {
+          manuscript: {
+            title: 'The Wonderful World of Oz',
+            word_count: 39281,
+            genre: 'novel',
+            target_audience: 'Middle-grade and family readers',
+          },
+        },
+        governance: {
+          transparency: {
+            genre_expectation_context: ozLikeGenreContext,
+          },
+        },
+        criteria: [],
+      },
+    });
+
+    expect(doc.titleBlock.genre).toBe('Fantasy + Comedy / Comic Fiction + Literary / Upmarket Fiction');
+    expect(doc.titleBlock.genre).not.toBe('novel');
+    expect(doc.titleBlock.genre).not.toBe('Novel');
+    expect(doc.titleBlock.shelf).toBe('Fantasy + Comedy / Comic Fiction + Literary / Upmarket Fiction');
+    expect(doc.titleBlock.shelfConfidenceLabel).toBe('High Confidence');
+    expect(doc.titleBlock.genreExpectationContract?.contractSummary).toBe('Fantasy + Comedy / Comic Fiction + Literary / Upmarket Fiction — World concept focus');
+    expect(doc.titleBlock.genreExpectationContract?.contractSummary).not.toContain('·');
   });
 
   test('Pass 3B prompt includes genre expectation contract', () => {

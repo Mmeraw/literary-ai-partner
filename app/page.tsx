@@ -110,7 +110,7 @@ export default function Home() {
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link href="/evaluate" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Begin Evaluation</Link>
-            <Link href="/revise" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">See Revise</Link>
+            <Link href="/revise" className="rg-revise-cta font-rg-mono text-xs uppercase tracking-[0.18em]">See Revise</Link>
           </div>
         </div>
         <div className="border border-rg-cream2/20 bg-rg-ink2/80 p-5 shadow-2xl shadow-black/30">
@@ -230,7 +230,7 @@ export default function Home() {
             <p className="mt-4 text-base leading-7 text-rg-cream2/90">
               WAVE readiness findings can become RevisionOpportunity cards with evidence, severity, repair options, rationale, and explicit author decisions.
             </p>
-            <Link href="/workbench" className="mt-5 inline-block font-rg-mono text-sm uppercase tracking-[0.16em] text-rg-gold hover:text-rg-cream md:text-xs">Open Revise Queue →</Link>
+            <Link href="/workbench" className="rg-revise-cta mt-5 font-rg-mono text-sm uppercase tracking-[0.16em] md:text-xs">Open Revise Queue →</Link>
           </div>
           <div className="border border-rg-cream2/15 bg-rg-ink2/70 p-6">
             <SectionLabel>TrustedPath™</SectionLabel>
@@ -238,7 +238,7 @@ export default function Home() {
             <p className="mt-4 text-base leading-7 text-rg-cream2/90">
               TrustedPath™ applies eligible recommended repairs to a duplicate manuscript draft, preserves the original, and generates a change log so convenience does not become blind rewriting.
             </p>
-            <Link href="/revise" className="mt-5 inline-block font-rg-mono text-sm uppercase tracking-[0.16em] text-rg-gold hover:text-rg-cream md:text-xs">See Revise →</Link>
+            <Link href="/revise" className="rg-revise-cta mt-5 font-rg-mono text-sm uppercase tracking-[0.16em] md:text-xs">See Revise →</Link>
           </div>
         </div>
       </section>

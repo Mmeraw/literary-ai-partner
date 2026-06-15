@@ -109,4 +109,72 @@ describe("synthesisToEvaluationResultV2 template completeness fallbacks", () => 
       synthesis.metadata.genre_expectation_context?.shelf_target_audience,
     );
   });
+
+  test("repairs short summary and thin theme rationale before template completeness gate", () => {
+    const synthesis = makeTemplateReadySynthesis();
+    synthesis.overall.one_paragraph_summary = "Too short.";
+    synthesis.criteria = synthesis.criteria.map((criterion) =>
+      criterion.key === "theme"
+        ? {
+            ...criterion,
+            final_rationale: "Weak rationale.",
+          }
+        : criterion,
+    );
+
+    const result = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-template-repair",
+        job_id: "job-template-repair",
+        manuscript_id: 99,
+        user_id: "00000000-0000-0000-0000-000000000099",
+      },
+      manuscriptText: "word ".repeat(2500),
+      sourceText: "word ".repeat(2500),
+      title: "Template Repair Regression",
+      llmEnrichment: {
+        trigger_warnings: ["violence"],
+      },
+    });
+
+    const gate = validateTemplateCompleteness(result);
+    const theme = result.criteria.find((criterion) => criterion.key === "theme");
+
+    expect(gate.pass).toBe(true);
+    expect(gate.violations.filter((v) => v.code === "MISSING_ONE_PARAGRAPH_SUMMARY")).toHaveLength(0);
+    expect(gate.violations.filter((v) => v.code === "MISSING_RATIONALE" && v.criterion === "theme")).toHaveLength(0);
+    expect(result.overview.one_paragraph_summary.length).toBeGreaterThanOrEqual(40);
+    expect(theme?.rationale.length ?? 0).toBeGreaterThanOrEqual(40);
+  });
+
+  test("backfills missing strengths and risks to satisfy template completeness", () => {
+    const synthesis = makeTemplateReadySynthesis();
+    synthesis.overall.top_3_strengths = [];
+    synthesis.overall.top_3_risks = [];
+
+    const result = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-template-strength-risk-repair",
+        job_id: "job-template-strength-risk-repair",
+        manuscript_id: 77,
+        user_id: "00000000-0000-0000-0000-000000000077",
+      },
+      manuscriptText: "word ".repeat(3500),
+      sourceText: "word ".repeat(3500),
+      title: "Strength Risk Repair",
+      llmEnrichment: {
+        trigger_warnings: ["violence"],
+      },
+    });
+
+    const gate = validateTemplateCompleteness(result);
+
+    expect(gate.pass).toBe(true);
+    expect(result.overview.top_3_strengths.length).toBeGreaterThanOrEqual(3);
+    expect(result.overview.top_3_risks.length).toBeGreaterThanOrEqual(3);
+    expect(gate.violations.filter((v) => v.code === "INCOMPLETE_TOP_STRENGTHS")).toHaveLength(0);
+    expect(gate.violations.filter((v) => v.code === "INCOMPLETE_TOP_RISKS")).toHaveLength(0);
+  });
 });

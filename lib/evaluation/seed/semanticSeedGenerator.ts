@@ -33,6 +33,8 @@ export type SeedArtifact = {
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
+  model: string;
+  prompt_version: string;
   claims: SeedClaim[];
 };
 
@@ -336,6 +338,8 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: generatedAt,
+    model,
+    prompt_version: SEMANTIC_SEED_PROMPT_VERSION,
     claims: storyClaims,
   };
 
@@ -344,6 +348,8 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: generatedAt,
+    model,
+    prompt_version: SEMANTIC_SEED_PROMPT_VERSION,
     claims: evaluationClaims,
   };
 

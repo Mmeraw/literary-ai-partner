@@ -127,11 +127,7 @@ function renderableCandidate(item: WorkbenchOpportunity, key: OptionKey): string
 function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   const renderable = renderableCandidate(item, key);
   if (renderable && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
-
-  const fallback = fallbackCandidate(item, key);
-  if (fallback) return fallback;
-
-  return renderable || rawCandidate(item, key);
+  return "";
 }
 
 function canAccept(item: WorkbenchOpportunity, key: OptionKey): boolean {
@@ -259,7 +255,7 @@ function selectedDecisionFor(key: OptionKey): DecisionState {
 }
 
 export default function ReviseCockpitClientCompactV2({ payload }: { payload: WorkbenchQueuePayload }) {
-  const allInputItems = useMemo(() => [...payload.opportunities, ...(payload.needsTargeting ?? [])], [payload.opportunities, payload.needsTargeting]);
+  const allInputItems = useMemo(() => payload.opportunities, [payload.opportunities]);
   const [activeId, setActiveId] = useState(allInputItems[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<OptionKey>("A");
   const [filters, setFilters] = useState<Filters>({ search: "", priority: "all", criterion: "all", status: "all" });

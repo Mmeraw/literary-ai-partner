@@ -671,6 +671,11 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
       push('Comparison Space:');
       dream.market_shelf.comparison_space.forEach((item) => push(`• ${cleanReportText(item)}`));
     }
+    if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+      push('');
+      push('What Not to Become:');
+      dream.what_not_to_become.forEach((item) => push(`• ${cleanReportText(item)}`));
+    }
     if (hasMeaningfulText(dream.market_shelf.market_danger)) {
       push('');
       push(`Market Danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
@@ -700,6 +705,31 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
       push(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`);
       if (hasMeaningfulText(act.primary_function)) push(`Function: ${cleanReportText(act.primary_function)}`);
       if (hasMeaningfulText(act.revision_priority)) push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
+    });
+  }
+
+  if (Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0) {
+    push('');
+    push(sub);
+    push('LAYER ANALYSIS');
+    push(sub);
+    dream.layer_analyses.forEach((layer) => {
+      push('');
+      push(`${cleanReportText(layer.layer_name)} — ${cleanReportText(layer.status)}`);
+      if (hasMeaningfulText(layer.needed_revision)) push(`Needed revision: ${cleanReportText(layer.needed_revision)}`);
+    });
+  }
+
+  if (Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0) {
+    push('');
+    push(sub);
+    push('CROSS-LAYER INTEGRATION');
+    push(sub);
+    dream.cross_layer_integration.forEach((item) => {
+      push('');
+      push(`${cleanReportText(item.motif)} — ${cleanReportText(item.integration_quality)}`);
+      if (hasMeaningfulText(item.description)) push(`Description: ${cleanReportText(item.description)}`);
+      if (hasMeaningfulText(item.revision_note)) push(`Revision note: ${cleanReportText(item.revision_note)}`);
     });
   }
 
@@ -806,6 +836,27 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     dream.releasability.forEach((dim) => {
       push(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`);
     });
+  }
+
+  if (dream.acceptance_checks) {
+    const required = filterAuthorFacingTextList(dream.acceptance_checks.required_detection);
+    const failures = filterAuthorFacingTextList(dream.acceptance_checks.failure_conditions);
+    if (required.length > 0 || failures.length > 0) {
+      push('');
+      push(sub);
+      push('REVIEW GATE');
+      push(sub);
+      if (required.length > 0) {
+        push('');
+        push('Required Detection:');
+        required.forEach((item) => push(`• ${cleanReportText(item)}`));
+      }
+      if (failures.length > 0) {
+        push('');
+        push('Failure Conditions:');
+        failures.forEach((item) => push(`• ${cleanReportText(item)}`));
+      }
+    }
   }
 }
 
@@ -1430,7 +1481,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
             ? `<p style="margin:10px 0 4px"><strong>What Weakens Impact:</strong></p>${list(a.gap_evidence)}`
             : '';
           const queueHtml = Array.isArray(a.revision_queue) && a.revision_queue.length > 0
-            ? `<p style="margin:10px 0 4px"><strong>Revision Queue:</strong></p>${list(a.revision_queue, { ordered: true })}`
+            ? `<p style="margin:10px 0 4px"><strong>Revision Queue:</strong></p>${list(a.revision_queue.map(formatRevisionQueueItem), { ordered: true })}`
             : '';
           return `<article class="card"><h3>${escapeHtml(getCriterionDisplayLabel(a.key))} <small><span class="criterion-score ${scorePaletteClassFromLabel(score)}">${escapeHtml(score)}</span> · <span class="confidence-text ${confidencePaletteClass(confLabel)}">${escapeHtml(confLabel)}</span></small></h3>${fitHtml}${gapHtml}${queueHtml}</article>`;
         }).join('')
@@ -2171,7 +2222,7 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream:
         }
         if (Array.isArray(a.revision_queue) && a.revision_queue.length > 0) {
           children.push(para('Revision Queue:', { bold: true }));
-          a.revision_queue.forEach((item, i) => children.push(docxListPara(item, `${i + 1}.`)));
+          a.revision_queue.forEach((item, i) => children.push(docxListPara(formatRevisionQueueItem(item), `${i + 1}.`)));
         }
       });
     }

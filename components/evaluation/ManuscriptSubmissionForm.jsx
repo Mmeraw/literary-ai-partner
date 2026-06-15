@@ -979,12 +979,12 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
               />
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-stone-300 p-4">
-                  <label className="mb-2 block text-[0.95rem] font-semibold text-stone-900">English Variant</label>
+                <div className="rounded-xl border border-stone-300 p-4 md:p-5">
+                  <label className="mb-2.5 block text-[0.98rem] font-semibold leading-6 text-stone-900">English Variant</label>
                   <select
                     value={englishVariant}
                     onChange={(e) => setEnglishVariant(e.target.value)}
-                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-2 text-base text-stone-950 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-6 text-stone-950 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
                     <option value="us">American English (Default)</option>
                     <option value="uk">British English</option>
@@ -993,7 +993,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                     <option value="za">South African English</option>
                     <option value="nz">New Zealand English</option>
                   </select>
-                  <p className="mt-2 text-xs text-stone-500">Controls RevisionGrade-generated analysis, recommendations, revision guidance, and report text. Manuscript text, quotations, and evidence excerpts are preserved exactly as submitted.</p>
+                  <p className="mt-3 text-[0.95rem] leading-7 text-stone-700">Controls RevisionGrade-generated analysis, recommendations, revision guidance, and report text. Manuscript text, quotations, and evidence excerpts are preserved exactly as submitted.</p>
                 </div>
 
                 <div className="rounded-xl border border-stone-300 p-4">
@@ -1036,38 +1036,38 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-stone-700">Evaluation Mode</label>
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div className="rounded-xl border border-stone-300 p-4 md:p-5">
+                  <label className="mb-2.5 block text-[0.98rem] font-semibold leading-6 text-stone-900">Evaluation Mode</label>
                   <select
                     value={sensitivityMode}
                     onChange={(e) => setSensitivityMode(e.target.value)}
                     disabled={isSubmitting || isUploading}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-900"
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-6 text-stone-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
                     <option value="STANDARD">Standard</option>
                     <option value="TRANSGRESSIVE">Transgressive</option>
                     <option value="TESTIMONY">Testimony</option>
                   </select>
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-3 text-[0.95rem] leading-7 text-stone-700">
                     {sensitivityMode === "STANDARD" && "Default mode for most manuscripts."}
                     {sensitivityMode === "TRANSGRESSIVE" && "For work with intentional register breaks, non-standard structure, or boundary-pushing craft."}
                     {sensitivityMode === "TESTIMONY" && "For testimony-like, memoir, or sensitive lived-experience material."}
                   </p>
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-stone-700">Voice Preservation</label>
+                <div className="rounded-xl border border-stone-300 p-4 md:p-5">
+                  <label className="mb-2.5 block text-[0.98rem] font-semibold leading-6 text-stone-900">Voice Preservation</label>
                   <select
                     value={voicePreservation}
                     onChange={(e) => setVoicePreservation(e.target.value)}
                     disabled={isSubmitting || isUploading}
-                    className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base text-stone-900"
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-6 text-stone-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
                     <option value="MAXIMUM">Maximum — preserve my voice</option>
                     <option value="BALANCED">Balanced</option>
                     <option value="POLISHED">Polished — prioritize readability</option>
                   </select>
-                  <p className="mt-1 text-xs text-stone-500">
+                  <p className="mt-3 text-[0.95rem] leading-7 text-stone-700">
                     Controls how aggressively revision recommendations rewrite your prose.
                   </p>
                 </div>

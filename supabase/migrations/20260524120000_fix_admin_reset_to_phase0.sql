@@ -8,7 +8,7 @@
 --
 -- Notes:
 --   - phase=phase_0, phase_status=queued, status=queued
---   - clears claim/lease ownership: claimed_by, lease_token, lease_until,
+--   - clears claim/lease ownership: claimed_by, claimed_at, lease_token, lease_until,
 --     worker_pulse_at, last_heartbeat_at, last_heartbeat
 --   - clears started_at, completed_at (top-level job timing)
 --   - clears phase0_started_at, phase0_completed_at (phase-level)
@@ -80,6 +80,7 @@ BEGIN
     phase                = 'phase_0',
     phase_status         = 'queued',
     claimed_by           = NULL,
+    claimed_at           = NULL,
     lease_token          = NULL,
     lease_until          = NULL,
     worker_pulse_at      = NULL,
@@ -107,4 +108,4 @@ REVOKE ALL ON FUNCTION public.admin_reset_evaluation_job(UUID, TEXT) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.admin_reset_evaluation_job(UUID, TEXT) TO service_role;
 
 COMMENT ON FUNCTION public.admin_reset_evaluation_job(UUID, TEXT) IS
-  'Full job reset to phase_0/queued from any status. Clears claim/lease ownership, started_at, completed_at, phase0_*_at, attempt_count, and progress (preserving claim_events + appending reset audit). Always rewinds to phase_0 regardless of prior phase.';
+  'Full job reset to phase_0/queued from any status. Clears claim/lease ownership (claimed_by, claimed_at, lease_token, lease_until), started_at, completed_at, phase0_*_at, attempt_count, and progress (preserving claim_events + appending reset audit). Always rewinds to phase_0 regardless of prior phase.';

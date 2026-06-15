@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import AdminDiagnosticsModule from "./AdminDiagnosticsModule";
 
 export const metadata = {
   title: "RevisionGrade Resources | The Literary AI Partner",
@@ -264,6 +265,8 @@ export default function ResourcesPage() {
   return (
     <div className="bg-rg-ink text-rg-cream">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      <AdminDiagnosticsModule />
 
       <section className="mx-auto max-w-7xl px-6 py-20">
         <Eyebrow>Resources</Eyebrow>

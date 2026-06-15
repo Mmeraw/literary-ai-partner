@@ -77,7 +77,7 @@ export default function RevisePage() {
             Revise is the author-controlled repair workflow after evaluation: findings become evidence-backed repair decisions. Work through the queue one opportunity at a time, or use TrustedPath™ to apply eligible recommended repairs to a protected manuscript copy.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <a href="#revise-demo" className="border border-rg-gold bg-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-ink transition hover:bg-transparent hover:text-rg-gold">
+            <a href="#revise-demo" className="rg-revise-cta font-rg-mono text-xs uppercase tracking-[0.18em]">
               View Revise Demo
             </a>
             <Link href="/evaluate" className="border border-rg-cream2/30 px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">
@@ -124,7 +124,7 @@ export default function RevisePage() {
                   </div>
                 ))}
               </div>
-              <Link href="/workbench-v2" className="mt-8 inline-block border border-rg-gold px-5 py-3 font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold transition hover:bg-rg-gold hover:text-rg-ink">
+              <Link href="/workbench-v2" className="rg-revise-cta mt-8 font-rg-mono text-xs uppercase tracking-[0.18em]">
                 Open Workbench
               </Link>
             </article>
@@ -218,7 +218,7 @@ export default function RevisePage() {
             Both paths keep the same principle: the manuscript is diagnosed first, repairs are evidence-backed, and the author remains the final authority.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link href="/workbench-v2" className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Open Revise Queue →</Link>
+            <Link href="/workbench-v2" className="rg-revise-cta font-rg-mono text-xs uppercase tracking-[0.18em]">Open Revise Queue →</Link>
             <Link href="/pricing" className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">See pricing →</Link>
             <Link href="/reliability" className="font-rg-mono text-xs uppercase tracking-[0.18em] text-rg-gold hover:text-rg-cream">Reliability →</Link>
           </div>

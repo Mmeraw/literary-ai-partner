@@ -1,4 +1,4 @@
-import { reduceCharacterEvidence } from '@/lib/evaluation/pipeline/characterReducer';
+import { buildCharacterLedgerV2, reduceCharacterEvidence } from '@/lib/evaluation/pipeline/characterReducer';
 import type { Pass1aChunkOutput, Pass1aCharacterChunkEntry } from '@/lib/evaluation/pipeline/types';
 
 function character(overrides: Partial<Pass1aCharacterChunkEntry> & { canonical_name: string; canonical_identity_group?: string }): Pass1aCharacterChunkEntry & { canonical_identity_group?: string } {
@@ -154,5 +154,87 @@ describe('reduceCharacterEvidence canonical identity groups', () => {
     expect(pip?.nameStates.map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'the stranger', 'sir', 'madam', 'dear boy']));
     expect((pip?.legal_name_states ?? []).map((s) => s.name)).toEqual(expect.arrayContaining(['Philip Pirrip', 'Pip']));
     expect((pip?.legal_name_states ?? []).map((s) => s.name)).not.toEqual(expect.arrayContaining(['he', 'the boy', 'the stranger', 'sir', 'madam', 'dear boy']));
+  });
+
+  it('merges leading-article identity variants instead of degrading Scarecrow-style aliases', () => {
+    const ledger = reduceCharacterEvidence({
+      jobId: 'oz-article-alias-test',
+      totalChunksInManuscript: 15,
+      chunkOutputs: [
+        chunk(1, [
+          character({
+            canonical_name: 'Scarecrow',
+            aliases: ['The Scarecrow'],
+            role_signal: 'protagonist',
+            narrative_weight_signal: 'primary',
+            arc_state_in_chunk: 'Dorothy frees Scarecrow from the pole.',
+          }),
+        ]),
+        chunk(14, [
+          character({
+            canonical_name: 'The Scarecrow',
+            aliases: ['Scarecrow'],
+            role_signal: 'protagonist',
+            narrative_weight_signal: 'primary',
+            arc_shift: 'The Scarecrow becomes ruler of the Emerald City.',
+            evidence_anchors: [
+              { excerpt: 'The Scarecrow was now the ruler of the Emerald City.', evidence_type: 'arc_shift', confidence: 'explicit' },
+            ],
+          }),
+        ]),
+      ],
+    });
+
+    expect(ledger.entries.map((entry) => entry.canonical_name)).toEqual(['Scarecrow']);
+    expect(ledger.entries[0].aliases).toEqual(expect.arrayContaining(['The Scarecrow']));
+    expect(ledger.coverage_summary.hard_fail_triggers).toEqual([]);
+  });
+
+  it('uses explicit terminal evidence outside the final chunk to prevent false abandoned-arc hard fails', () => {
+    const chunkOutputs = [
+      chunk(4, [
+        character({
+          canonical_name: 'Wicked Witch of the West',
+          role_signal: 'antagonist',
+          narrative_weight_signal: 'major',
+          arc_state_in_chunk: 'The Wicked Witch threatens Dorothy and enslaves the Winkies.',
+        }),
+      ]),
+      chunk(9, [
+        character({
+          canonical_name: 'Wicked Witch of the West',
+          role_signal: 'antagonist',
+          narrative_weight_signal: 'major',
+          arc_shift: 'Dorothy melts the Wicked Witch with water; the Witch has come to an end.',
+          evidence_anchors: [
+            { excerpt: 'the Wicked Witch of the West had come to an end', evidence_type: 'arc_shift', confidence: 'explicit' },
+          ],
+        }),
+      ]),
+    ];
+
+    const ledger = reduceCharacterEvidence({
+      jobId: 'oz-terminal-evidence-test',
+      totalChunksInManuscript: 15,
+      chunkOutputs,
+    });
+    const witch = ledger.entries.find((entry) => entry.canonical_name === 'Wicked Witch of the West');
+    expect(witch?.ending_status).toBe('tragically_confirmed');
+    expect(ledger.coverage_summary.hard_fail_triggers).not.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Wicked Witch of the West'),
+      ]),
+    );
+
+    const ledgerV2 = buildCharacterLedgerV2({
+      ledger,
+      chunkOutputs,
+      jobId: 'oz-terminal-evidence-test',
+      totalChunksInManuscript: 15,
+    });
+    const terminal = ledgerV2.terminalLedger.find((entry) => entry.characterId === 'wicked_witch_of_the_west');
+    expect(terminal?.terminalCondition).toBe('death');
+    expect(terminal?.narrativeClosureStatus).toBe('fully_resolved');
+    expect(ledgerV2.identityLedger.find((entry) => entry.characterId === 'wicked_witch_of_the_west')?.finalStatus).toBe('dead');
   });
 });

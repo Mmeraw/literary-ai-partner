@@ -26,6 +26,16 @@ describe('candidateQuality admission API', () => {
     expect(result.reasons).toContain('GENERIC_PROSE');
   });
 
+  it.each([
+    'After hesitated, and the small delay told Billy more than he meant to reveal.',
+    'After [c] the choice land before he made it, a pressure no one else had to name.',
+    'After looked away first, and that was enough for the moment to claim its price.',
+  ])('blocks malformed generic A/B/C candidate prose: %s', (text) => {
+    const result = evaluateCandidateQuality({ key: 'A', text });
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toEqual(expect.arrayContaining(['GENERIC_PROSE']));
+  });
+
   it('blocks commentary instead of manuscript prose', () => {
     const result = evaluateCandidateQuality({ key: 'A', text: 'This revision should improve the scene by adding tension.' });
     expect(result.passed).toBe(false);
