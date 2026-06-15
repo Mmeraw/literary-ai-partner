@@ -298,7 +298,7 @@ describe("sanitizeSynthesisCharacterNames — full synthesis output", () => {
     const count = sanitizeSynthesisCharacterNames(synthesis, ["Unnamed male narrator/protagonist", "Kim"]);
 
     expect(count).toBeGreaterThan(0);
-    expect(synthesis.overall.one_sentence_pitch).toContain("The narrator's disastrous hair-color day");
+    expect(synthesis.overall.one_sentence_pitch).toContain("the narrator's disastrous hair-color day");
     expect(synthesis.overall.one_sentence_pitch).not.toContain("Cost’s");
   });
 });

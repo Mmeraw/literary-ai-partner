@@ -41,6 +41,9 @@ const REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION = 'Regenerate candidate prose' as 
 
 type RevisionOpportunity = {
   opportunity_id: string;
+  source_opportunity_id?: string;
+  source_criterion?: string;
+  source_ued_hash?: string;
   finding_id?: string;
   criterion: string;
   severity: LedgerSeverity;
