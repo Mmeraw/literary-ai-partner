@@ -54,7 +54,7 @@ function buildBlockedNamePatterns(blockedWords: string[]): RegExp[] {
     if (["no", "yes", "oh", "hey", "well", "so", "cost"].includes(word.toLowerCase())) {
       patterns.push(
         new RegExp(
-            `\\b${capitalized}(?= (?:[a-z]+ly )?(?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows|delivers|drives|anchors|contrasts|counts|tallies|calculates|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|earns))\\b`,
+          `\b${capitalized}(?= (?:[a-z]+ly )?(?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows|delivers|drives|anchors|contrasts|counts|tallies|calculates|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|earns))\b`,
           "g",
         ),
       );
@@ -78,10 +78,10 @@ function resolvePrimaryName(canonicalNames: string[]): string {
     .map((name) => (typeof name === "string" ? name.trim() : ""))
     .filter((name) => name.length > 0);
 
-  if (cleaned.length === 0) return "";
+  if (cleaned.length === 0) return "the narrator";
 
   const narratorCandidate = cleaned.find((name) => /\b(narrator|protagonist)\b/i.test(name));
-  if (narratorCandidate) return "The narrator";
+  if (narratorCandidate) return "the narrator";
 
   const preferred = cleaned.find(
     (name) => !isBlockedCharacterName(name) && !isLikelyNonCharacterCanonicalName(name),
@@ -99,26 +99,11 @@ function preserveInitialCapitalization(replacement: string, text: string, offset
   return replacement.charAt(0).toUpperCase() + replacement.slice(1);
 }
 
-function replaceCostPossessiveFalseName(text: string, replacementName: string): string {
-  const costPossessivePattern = /\bCost[’']s\b/g;
-  costPossessivePattern.lastIndex = 0;
-  return text.replace(costPossessivePattern, (_match, offset) =>
-    `${preserveInitialCapitalization(replacementName, text, offset)}'s`,
-  );
-}
-
 function replaceCostSubjectFalseName(text: string, replacementName: string): string {
   const costSubjectPattern = /\bCost(?= (?:[a-z]+ly )?(?:is|was|has|had|needs|wants|tries|learns|counts|tallies|calculates|contrasts|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|remains|becomes|represents|embodies|anchors|drives|earns)\b)/g;
   costSubjectPattern.lastIndex = 0;
   return text.replace(costSubjectPattern, (_match, offset) =>
     preserveInitialCapitalization(replacementName, text, offset),
-  );
-}
-
-function replaceCostFalseNameReferences(text: string, replacementName: string): string {
-  return replaceCostSubjectFalseName(
-    replaceCostPossessiveFalseName(text, replacementName),
-    replacementName,
   );
 }
 
@@ -147,9 +132,6 @@ export function sanitizeBlockedCharacterNames(
   canonicalNames: string[],
 ): string {
   if (!text) return text;
-  if (!Array.isArray(canonicalNames) || canonicalNames.length === 0) {
-    return replaceCostFalseNameReferences(text, "the narrator");
-  }
 
   // The primary canonical name is the best replacement for any blocked word
   // used as a character reference (typically the protagonist).
@@ -176,7 +158,7 @@ export function sanitizeBlockedCharacterNames(
     });
   }
 
-  result = replaceCostFalseNameReferences(result, primaryName);
+  result = replaceCostSubjectFalseName(result, primaryName);
 
   return result;
 }
@@ -219,8 +201,6 @@ export function sanitizeSynthesisCharacterNames(
   canonicalNames: string[],
 ): number {
   if (!synthesis) return 0;
-  const canUseNarratorFallback = Array.isArray(canonicalNames);
-  if (!canUseNarratorFallback) return 0;
 
   let modified = 0;
   const clean = (text: string | undefined): string | undefined => {

@@ -14,13 +14,13 @@ export type CanonicalOpportunityLedgerItem = {
   cause: string;
   fix_direction: string;
   reader_effect: string;
-  mistake_proofing: string;
   deduped_from: string[];
   is_action_item_candidate: boolean;
   issue_type: string;
   action: string;
   expected_impact: string;
   candidate_text_a?: string;
+  mistake_proofing?: string;
   source_priority?: string;
 };
 
@@ -61,23 +61,6 @@ type RawCriterionRecommendation = {
   strategic_lever?: string;
 };
 
-type CanonicalCriterionRecommendation = {
-  opportunity_id: string;
-  priority?: CanonicalOpportunitySeverity;
-  action?: string;
-  expected_impact?: string;
-  anchor_snippet?: string;
-  anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
-  symptom?: string;
-  mechanism?: string;
-  specific_fix?: string;
-  reader_effect?: string;
-  mistake_proofing?: string;
-  candidate_text_a?: string;
-  manuscript_coordinates?: string;
-  collapsed_from_criteria: string[];
-};
-
 type CriterionWithRecommendations = {
   key?: string;
   recommendations?: RawCriterionRecommendation[];
@@ -98,10 +81,10 @@ type RawOpportunity = {
   cause: string;
   fix_direction: string;
   reader_effect: string;
-  mistake_proofing: string;
   action: string;
   expected_impact: string;
   candidate_text_a?: string;
+  mistake_proofing?: string;
   issue_type: string;
   source_priority?: string;
 };
@@ -289,7 +272,6 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
       const cause = cleanOptional(rec.mechanism);
       const fix = cleanOptional(rec.specific_fix) || action;
       const readerEffect = cleanOptional(rec.reader_effect) || cleanOptional(rec.expected_impact);
-      const mistakeProofing = cleanOptional(rec.mistake_proofing);
       const issueType = classifyIssueType({
         action,
         symptom,
@@ -310,10 +292,10 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
         cause,
         fix_direction: fix,
         reader_effect: readerEffect,
-        mistake_proofing: mistakeProofing,
         action,
         expected_impact: cleanOptional(rec.expected_impact),
         candidate_text_a: cleanOptional(rec.candidate_text_a) || undefined,
+        mistake_proofing: cleanOptional(rec.mistake_proofing) || undefined,
         issue_type: issueType,
         source_priority: typeof rec.priority === 'string' ? rec.priority : undefined,
       });
@@ -340,7 +322,6 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
   const action = chooseMostSpecific(cluster.map((item) => item.action));
   const fix = chooseMostSpecific(cluster.map((item) => item.fix_direction || item.action));
   const readerEffect = chooseMostSpecific(cluster.map((item) => item.reader_effect || item.expected_impact));
-  const mistakeProofing = chooseMostSpecific(cluster.map((item) => item.mistake_proofing));
 
   return {
     id: `OPP-${String(index + 1).padStart(3, '0')}`,
@@ -353,13 +334,13 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
     cause: chooseMostSpecific(cluster.map((item) => item.cause)),
     fix_direction: fix || action,
     reader_effect: readerEffect,
-    mistake_proofing: mistakeProofing,
     deduped_from: unique(cluster.map((item) => item.sourceId)),
     is_action_item_candidate: issueType !== 'mechanics_typo',
     issue_type: issueType,
     action: action || fix,
     expected_impact: chooseMostSpecific(cluster.map((item) => item.expected_impact || item.reader_effect)),
     candidate_text_a: chooseMostSpecific(cluster.map((item) => item.candidate_text_a ?? '')) || undefined,
+    mistake_proofing: chooseMostSpecific(cluster.map((item) => item.mistake_proofing ?? '')) || undefined,
     source_priority: primary?.source_priority,
   };
 }
@@ -469,7 +450,10 @@ export function formatOpportunityForTopRecommendation(item: CanonicalOpportunity
   );
 }
 
-export function opportunityToCriterionRecommendation(item: CanonicalOpportunityLedgerItem): CanonicalCriterionRecommendation {
+export function opportunityToCriterionRecommendation(item: CanonicalOpportunityLedgerItem): RawCriterionRecommendation & {
+  opportunity_id: string;
+  collapsed_from_criteria: string[];
+} {
   return {
     opportunity_id: item.id,
     priority: item.severity,
@@ -497,6 +481,7 @@ export function opportunityToActionItem(item: CanonicalOpportunityLedgerItem): {
   manuscript_coordinates?: string;
   mechanism?: string;
   reader_effect?: string;
+  mistake_proofing?: string;
   candidate_text_a?: string;
   criterion_key?: string;
   opportunity_id: string;
@@ -511,6 +496,7 @@ export function opportunityToActionItem(item: CanonicalOpportunityLedgerItem): {
     manuscript_coordinates: item.location,
     mechanism: item.cause,
     reader_effect: item.reader_effect,
+    mistake_proofing: item.mistake_proofing,
     candidate_text_a: item.candidate_text_a,
     criterion_key: item.primary_criterion,
   };

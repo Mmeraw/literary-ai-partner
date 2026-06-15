@@ -364,22 +364,6 @@ function ensureNonEmptyList(values: string[], fallback: string[]): string[] {
   return fallback.map((value) => value.trim()).filter((value) => value.length > 0);
 }
 
-function topLevelActionItems(
-  values: Array<{ action?: string; why?: string; effort?: string; impact?: string }> | undefined,
-): Array<{ action: string; why?: string; effort?: string; impact?: string }> {
-  if (!Array.isArray(values)) return [];
-  return values.flatMap((item) => {
-    const action = clean(item.action, '').trim();
-    if (!action) return [];
-    return [{
-      action: mistakeProofText(action),
-      ...(item.why ? { why: mistakeProofText(item.why) } : {}),
-      ...(item.effort ? { effort: mistakeProofText(item.effort) } : {}),
-      ...(item.impact ? { impact: mistakeProofText(item.impact) } : {}),
-    }];
-  });
-}
-
 export function buildShortFormEvaluationDocument(input: {
   result: ShortFormResultLike;
   displayTitle: string;
@@ -570,20 +554,14 @@ export function buildShortFormEvaluationDocument(input: {
     criteriaScoreGrid,
     criterionDetails,
     actionItems: {
-      quickWins: [
-        ...renderedOpportunities
-          .filter((item) => item.is_action_item_candidate && item.severity === 'high')
-          .slice(0, 3)
-          .map(opportunityToActionItem),
-        ...topLevelActionItems(result.recommendations?.quick_wins),
-      ],
-      strategicRevisions: [
-        ...renderedOpportunities
-          .filter((item) => item.is_action_item_candidate && item.severity !== 'high')
-          .slice(0, 4)
-          .map(opportunityToActionItem),
-        ...topLevelActionItems(result.recommendations?.strategic_revisions),
-      ],
+      quickWins: renderedOpportunities
+        .filter((item) => item.is_action_item_candidate && item.severity === 'high')
+        .slice(0, 3)
+        .map(opportunityToActionItem),
+      strategicRevisions: renderedOpportunities
+        .filter((item) => item.is_action_item_candidate && item.severity !== 'high')
+        .slice(0, 4)
+        .map(opportunityToActionItem),
     },
     confidenceExplanation:
       input.confidenceExplanation ??

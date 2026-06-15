@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from 'crypto';
-import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import {
   REVISION_OPERATIONS,
   candidateTextIsCopyPasteReady,
@@ -10,6 +9,7 @@ import { type SlaeGroundingStatus } from './slae';
 import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
 import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import {
   hydrateLedgerCandidates,
   HYDRATION_MODEL,
@@ -41,9 +41,6 @@ const REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION = 'Regenerate candidate prose' as 
 
 type RevisionOpportunity = {
   opportunity_id: string;
-  source_opportunity_id?: string;
-  source_criterion?: string;
-  source_ued_hash?: string;
   finding_id?: string;
   criterion: string;
   severity: LedgerSeverity;
@@ -1121,10 +1118,7 @@ function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpport
     (revisionOperation === undefined || normalizeRevisionOperation(revisionOperation) !== undefined) &&
     (candidateTextA === undefined || typeof candidateTextA === 'string') &&
     (candidateTextB === undefined || typeof candidateTextB === 'string') &&
-    (candidateTextC === undefined || typeof candidateTextC === 'string') &&
-    (value.source_opportunity_id === undefined || typeof value.source_opportunity_id === 'string') &&
-    (value.source_criterion === undefined || typeof value.source_criterion === 'string') &&
-    (value.source_ued_hash === undefined || typeof value.source_ued_hash === 'string')
+    (candidateTextC === undefined || typeof candidateTextC === 'string')
   );
 }
 
@@ -1516,6 +1510,12 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
   return opportunities;
 }
 
+const MAX_OPPORTUNITIES_SHORT_FORM = REVISE_QUEUE_MAX_SHORT_FORM;
+const MAX_OPPORTUNITIES_LONG_FORM = REVISE_QUEUE_MAX_LONG_FORM;
+const LONG_FORM_WORD_THRESHOLD = REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD;
+
+const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
+
 type CertifiedUedOpportunityProjection = {
   opportunities: RevisionOpportunity[];
   sourceUedHash: string;
@@ -1641,12 +1641,6 @@ async function loadCertifiedUedOpportunityProjection(
     renderedOpportunityCount: rendered.length,
   };
 }
-
-const MAX_OPPORTUNITIES_SHORT_FORM = REVISE_QUEUE_MAX_SHORT_FORM;
-const MAX_OPPORTUNITIES_LONG_FORM = REVISE_QUEUE_MAX_LONG_FORM;
-const LONG_FORM_WORD_THRESHOLD = REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD;
-
-const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
 
 function extractChunkCacheRecommendations(chunkCachePayload: unknown): RevisionOpportunity[] {
   if (!isRecord(chunkCachePayload)) return [];

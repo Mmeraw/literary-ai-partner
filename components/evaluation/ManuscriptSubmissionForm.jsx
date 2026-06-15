@@ -567,7 +567,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
   };
 
   return (
-    <div className="mx-auto max-w-7xl font-sans text-[17px] leading-normal text-stone-950">
+    <div className="mx-auto max-w-7xl text-[17px] text-stone-950">
       <div className="rounded-3xl border border-stone-300 bg-white p-5 shadow-sm md:p-6 lg:p-7">
         <div className="mb-6 text-center">
           <p className="font-rg-mono text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[#8A5A00]">Submission workbench</p>
@@ -594,13 +594,13 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                   aria-pressed={isActive}
                 >
                   {isActive && (
-                    <span className="absolute right-4 top-4 rounded-full bg-blue-700 px-2.5 py-1 font-sans text-[0.72rem] font-bold uppercase tracking-[0.08em] text-white">
+                    <span className="absolute right-4 top-4 rounded-full bg-blue-700 px-2.5 py-1 font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.08em] text-white">
                       Selected
                     </span>
                   )}
                   <span className="font-rg-mono text-[0.75rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Step 1</span>
-                  <span className="mt-2 block font-sans text-2xl font-bold leading-[1.25] text-stone-950">{method.label}</span>
-                  <span className="mt-2 block text-base leading-[1.45] text-stone-800">{method.description}</span>
+                  <span className="mt-2 block font-rg-serif text-2xl leading-tight text-stone-950">{method.label}</span>
+                  <span className="mt-1.5 block text-base leading-6 text-stone-800">{method.description}</span>
                 </button>
               );
             })}
@@ -609,7 +609,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
             <section className="space-y-4">
               <div>
-                <label htmlFor="author-name" className="mb-2 block text-[0.95rem] font-semibold leading-[1.25] text-stone-900">
+                <label htmlFor="author-name" className="mb-2 block text-[0.95rem] font-semibold text-stone-900">
                   Author Name <span className="font-normal text-stone-700">(optional)</span>
                 </label>
                 <input
@@ -618,13 +618,13 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                   value={authorName}
                   onChange={(e) => setAuthorName(e.target.value)}
                   placeholder="e.g., Michael J. Meraw or pen name"
-                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 font-sans text-base leading-[1.45] text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   disabled={isSubmitting}
                 />
               </div>
 
               <div>
-                <label htmlFor="project-title" className="mb-2 block text-[0.95rem] font-semibold leading-[1.25] text-stone-900">
+                <label htmlFor="project-title" className="mb-2 block text-[0.95rem] font-semibold text-stone-900">
                   Project Title <span className="font-normal text-stone-700">(optional)</span>
                 </label>
                 <input
@@ -633,7 +633,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
                   placeholder="Helps organize submissions and reports"
-                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 font-sans text-base leading-[1.45] text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                  className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base text-stone-950 placeholder:text-stone-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   disabled={isSubmitting}
                 />
               </div>
@@ -912,7 +912,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                         type="button"
                         onClick={triggerDashboardUpload}
                         disabled={isUploading || isSubmitting}
-                        className="min-h-[50px] rounded-xl bg-blue-700 px-6 py-3 font-sans text-sm font-bold uppercase leading-[1.35] tracking-[0.12em] text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
+                        className="min-h-[50px] rounded-xl bg-blue-700 px-6 py-3 font-rg-mono text-sm font-bold uppercase tracking-[0.14em] text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
                       >
                         {isUploading ? "Uploading..." : "Choose File"}
                       </button>
@@ -937,7 +937,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                     onChange={handlePastedTextChange}
                     placeholder="Formatting is preserved where supported..."
                     rows={12}
-                    className={`w-full rounded-lg border bg-white px-4 py-3 font-sans text-base leading-[1.45] text-stone-950 placeholder:text-stone-500 focus:outline-none focus:ring-2 ${isOverPasteLimit ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-stone-400 focus:border-blue-600 focus:ring-blue-600/20"}`}
+                    className={`w-full rounded-lg border bg-white px-4 py-3 text-base leading-7 text-stone-950 placeholder:text-stone-500 focus:outline-none focus:ring-2 ${isOverPasteLimit ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "border-stone-400 focus:border-blue-600 focus:ring-blue-600/20"}`}
                     disabled={isSubmitting}
                   />
                   <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
@@ -980,11 +980,11 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-stone-300 p-4 md:p-5">
-                  <label className="mb-3 block text-[0.98rem] font-semibold leading-[1.25] text-stone-900">English Variant</label>
+                  <label className="mb-2.5 block text-[0.98rem] font-semibold leading-6 text-stone-900">English Variant</label>
                   <select
                     value={englishVariant}
                     onChange={(e) => setEnglishVariant(e.target.value)}
-                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 font-sans text-base leading-[1.45] text-stone-950 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-6 text-stone-950 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
                     <option value="us">American English (Default)</option>
                     <option value="uk">British English</option>
@@ -993,15 +993,15 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                     <option value="za">South African English</option>
                     <option value="nz">New Zealand English</option>
                   </select>
-                  <p className="mt-4 text-[0.95rem] leading-[1.45] text-stone-700">Controls RevisionGrade-generated analysis, recommendations, revision guidance, and report text. Manuscript text, quotations, and evidence excerpts are preserved exactly as submitted.</p>
+                  <p className="mt-3 text-[0.95rem] leading-7 text-stone-700">Controls RevisionGrade-generated analysis, recommendations, revision guidance, and report text. Manuscript text, quotations, and evidence excerpts are preserved exactly as submitted.</p>
                 </div>
 
                 <div className="rounded-xl border border-stone-300 p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <label className="block text-[0.95rem] font-semibold leading-[1.25] text-stone-900">Manuscript Structure</label>
+                    <label className="block text-[0.95rem] font-semibold text-stone-900">Manuscript Structure</label>
                     <span className="group relative cursor-help">
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-stone-400 text-xs font-bold text-stone-700">i</span>
-                      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-80 -translate-x-1/2 rounded-lg border border-stone-300 bg-white p-3 font-sans text-sm leading-[1.45] text-stone-800 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-80 -translate-x-1/2 rounded-lg border border-stone-300 bg-white p-3 text-sm leading-relaxed text-stone-800 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                         <strong className="block text-stone-950">Standalone story</strong>
                         A self-contained narrative with its own beginning, middle, and ending — such as a short story, novelette, novella, or complete novel.
                         <strong className="mt-2 block text-stone-950">Chapter(s) from a larger work</strong>
@@ -1010,27 +1010,27 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                     </span>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="flex min-h-[40px] items-start gap-3 rounded-md px-2 py-2 font-sans text-base leading-[1.35] text-stone-900 hover:bg-stone-50">
+                    <label className="flex min-h-[38px] items-center gap-3 rounded-md px-2 py-1.5 text-base text-stone-900 hover:bg-stone-50">
                       <input
                         type="radio"
                         name="manuscriptStructure"
                         value="chapters"
                         checked={manuscriptStructure === "chapters"}
                         onChange={() => setManuscriptStructure("chapters")}
-                        className="mt-0.5 h-5 w-5 accent-blue-700"
+                        className="h-5 w-5 accent-blue-700"
                       />
-                      <span className="leading-[1.35]">Chapter(s) from a larger work</span>
+                      <span>Chapter(s) from a larger work</span>
                     </label>
-                    <label className="flex min-h-[40px] items-start gap-3 rounded-md px-2 py-2 font-sans text-base leading-[1.35] text-stone-900 hover:bg-stone-50">
+                    <label className="flex min-h-[38px] items-center gap-3 rounded-md px-2 py-1.5 text-base text-stone-900 hover:bg-stone-50">
                       <input
                         type="radio"
                         name="manuscriptStructure"
                         value="standalone"
                         checked={manuscriptStructure === "standalone"}
                         onChange={() => setManuscriptStructure("standalone")}
-                        className="mt-0.5 h-5 w-5 accent-blue-700"
+                        className="h-5 w-5 accent-blue-700"
                       />
-                      <span className="leading-[1.35]">Standalone story</span>
+                      <span>Standalone story</span>
                     </label>
                   </div>
                 </div>
@@ -1038,36 +1038,36 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
               <div className="grid gap-5 lg:grid-cols-2">
                 <div className="rounded-xl border border-stone-300 p-4 md:p-5">
-                  <label className="mb-3 block text-[0.98rem] font-semibold leading-[1.25] text-stone-900">Evaluation Mode</label>
+                  <label className="mb-2.5 block text-[0.98rem] font-semibold leading-6 text-stone-900">Evaluation Mode</label>
                   <select
                     value={sensitivityMode}
                     onChange={(e) => setSensitivityMode(e.target.value)}
                     disabled={isSubmitting || isUploading}
-                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 font-sans text-base leading-[1.45] text-stone-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-6 text-stone-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
                     <option value="STANDARD">Standard</option>
                     <option value="TRANSGRESSIVE">Transgressive</option>
                     <option value="TESTIMONY">Testimony</option>
                   </select>
-                  <p className="mt-4 text-[0.95rem] leading-[1.45] text-stone-700">
+                  <p className="mt-3 text-[0.95rem] leading-7 text-stone-700">
                     {sensitivityMode === "STANDARD" && "Default mode for most manuscripts."}
                     {sensitivityMode === "TRANSGRESSIVE" && "For work with intentional register breaks, non-standard structure, or boundary-pushing craft."}
                     {sensitivityMode === "TESTIMONY" && "For testimony-like, memoir, or sensitive lived-experience material."}
                   </p>
                 </div>
                 <div className="rounded-xl border border-stone-300 p-4 md:p-5">
-                  <label className="mb-3 block text-[0.98rem] font-semibold leading-[1.25] text-stone-900">Voice Preservation</label>
+                  <label className="mb-2.5 block text-[0.98rem] font-semibold leading-6 text-stone-900">Voice Preservation</label>
                   <select
                     value={voicePreservation}
                     onChange={(e) => setVoicePreservation(e.target.value)}
                     disabled={isSubmitting || isUploading}
-                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 font-sans text-base leading-[1.45] text-stone-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                    className="min-h-[48px] w-full rounded-lg border border-stone-400 bg-white px-4 py-3 text-base leading-6 text-stone-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20"
                   >
                     <option value="MAXIMUM">Maximum — preserve my voice</option>
                     <option value="BALANCED">Balanced</option>
                     <option value="POLISHED">Polished — prioritize readability</option>
                   </select>
-                  <p className="mt-4 text-[0.95rem] leading-[1.45] text-stone-700">
+                  <p className="mt-3 text-[0.95rem] leading-7 text-stone-700">
                     Controls how aggressively revision recommendations rewrite your prose.
                   </p>
                 </div>
@@ -1101,7 +1101,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
               <button
                 type="submit"
                 disabled={isSubmitting || isUploading || !processingTermsAccepted || isOverPasteLimit}
-                className="min-h-[56px] w-full rounded-xl bg-blue-700 px-6 py-4 font-sans text-base font-bold uppercase leading-[1.35] tracking-[0.12em] text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-700 disabled:opacity-100"
+                className="min-h-[56px] w-full rounded-xl bg-blue-700 px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-700 disabled:opacity-100"
               >
                 {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}
               </button>

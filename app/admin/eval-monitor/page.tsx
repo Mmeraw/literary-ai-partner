@@ -1,205 +1,213 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type JobStatus = "queued" | "running" | "complete" | "failed";
-
-type EvaluationJob = {
+interface RecentJob {
   id: string;
-  status: JobStatus;
+  status: string;
+  phase: string | null;
+  phase_status?: string | null;
+  raw_status?: string | null;
+  manuscript_id: number | null;
+  manuscript_word_count: number | null;
+  attempt_count: number;
   created_at: string;
   updated_at: string;
-  phase: string | null;
-  phase_status: string | null;
-  manuscript_id: number | null;
-  attempt_count: number;
-  max_attempts: number;
-  last_error: string | null;
-};
+  last_error: string | Record<string, unknown> | null;
+  failure_code: string | null;
+  error_code?: string | null;
+  progress: { submitted_project_title?: string; submitted_author_name?: string; phase_status?: string } | null;
+}
 
-type StatusFilter = "all" | JobStatus;
+const JOB_LIST_LIMIT = 30;
 
-const FILTERS: StatusFilter[] = ["all", "queued", "running", "complete", "failed"];
+function statusDot(status: string) {
+  if (status === "complete") return "🟢";
+  if (status === "failed")   return "🔴";
+  if (status === "running")  return "🟡";
+  if (status === "queued")   return "⚪";
+  return "⚫";
+}
 
-export default function AdminEvalMonitorPage() {
-  const router = useRouter();
-  const [jobs, setJobs] = useState<EvaluationJob[]>([]);
+function ago(iso: string) {
+  const ms = Date.now() - new Date(iso).getTime();
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  return `${Math.round(m / 60)}h ago`;
+}
+
+function errorText(lastError: RecentJob["last_error"]): string | null {
+  if (!lastError) return null;
+  if (typeof lastError === "string") return lastError;
+  const message = lastError.message ?? lastError.error ?? lastError.details;
+  return typeof message === "string" ? message : JSON.stringify(lastError);
+}
+
+export default function EvalMonitorListPage() {
+  const [jobs, setJobs] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("running");
   const [jobIdInput, setJobIdInput] = useState("");
-  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("failed");
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const router = useRouter();
 
-  async function loadJobs(nextStatusFilter = statusFilter) {
-    setError(null);
+  function load(isRefresh = false) {
+    const params = new URLSearchParams({ limit: String(JOB_LIST_LIMIT), show_test: "1" });
+    if (statusFilter !== "all") params.set("status", statusFilter);
 
-    const params = new URLSearchParams();
-    if (nextStatusFilter !== "all") params.set("status", nextStatusFilter);
-    params.set("show_test", "1");
-    params.set("limit", "500");
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
 
-    try {
-      const res = await fetch(`/api/admin/jobs?${params.toString()}`, {
-        cache: "no-store",
-        credentials: "include",
+    fetch(`/api/admin/jobs?${params}`, { cache: "no-store" })
+      .then((r) => {
+        if (r.status === 401 || r.status === 403) { router.replace("/evaluate"); return null; }
+        return r.json();
+      })
+      .then((data) => {
+        if (!data) return;
+        const list = data.jobs ?? data.data?.jobs ?? data.data ?? [];
+        setJobs(Array.isArray(list) ? list : []);
+        setLastRefresh(new Date());
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
       });
-
-      if (res.status === 401 || res.status === 403) {
-        router.replace("/evaluate");
-        return;
-      }
-
-      const data = await res.json();
-
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "Failed to load jobs");
-      }
-
-      setJobs(Array.isArray(data.jobs) ? data.jobs : []);
-      setLastRefreshAt(new Date().toISOString());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load jobs");
-      setJobs([]);
-    } finally {
-      setLoading(false);
-    }
   }
 
   useEffect(() => {
-    setLoading(true);
-    void loadJobs(statusFilter);
+    load(false);
+    // Deliberately no automatic polling: admin data refreshes only by button click.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      void loadJobs(statusFilter);
-    }, 10000);
-
-    return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
-
-  const filteredJobs = useMemo(() => {
-    const q = jobIdInput.trim().toLowerCase();
-    if (!q) return jobs;
-    return jobs.filter((job) => job.id.toLowerCase().includes(q));
-  }, [jobs, jobIdInput]);
-
-  const monitorExactJob = () => {
-    const normalized = jobIdInput.trim();
-    if (!normalized) return;
-    router.push(`/admin/forensics/${encodeURIComponent(normalized)}`);
+  const handleGoTo = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = jobIdInput.trim();
+    if (trimmed.length >= 10) router.push(`/admin/eval-monitor/${trimmed}`);
   };
 
   return (
     <main className="min-h-screen bg-rg-ink px-4 py-8 text-rg-cream sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header>
-          <p className="font-rg-mono text-xs uppercase tracking-[0.24em] text-rg-gold">Admin · Eval Monitor</p>
-          <h1 className="mt-2 font-rg-serif text-5xl">Evaluation Monitor</h1>
-          <p className="mt-3 max-w-4xl text-3xl leading-relaxed text-rg-cream2/80">
-            Live job tracking — artifacts, phases, quality signals, failure diagnostics.
+      <div className="mx-auto max-w-6xl space-y-6">
+
+        <header className="space-y-1">
+          <p className="font-rg-mono text-[10px] uppercase tracking-[0.24em] text-rg-gold/70">Admin · Eval Monitor</p>
+          <h1 className="font-rg-serif text-3xl">Evaluation Monitor</h1>
+          <p className="text-sm text-rg-cream2/60">
+            Manual job tracking — defaults to latest failures and is capped at {JOB_LIST_LIMIT} records.
+            {lastRefresh && <span> Last refresh: {lastRefresh.toLocaleTimeString()}.</span>}
           </p>
         </header>
 
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+        <form onSubmit={handleGoTo} className="flex gap-2">
           <input
+            type="text"
             value={jobIdInput}
-            onChange={(event) => setJobIdInput(event.target.value)}
+            onChange={(e) => setJobIdInput(e.target.value)}
             placeholder="Paste job ID…"
-            className="h-14 border border-rg-cream2/20 bg-rg-ink2 px-4 font-rg-mono text-lg text-rg-cream outline-none placeholder:text-rg-cream2/45 focus:border-rg-gold"
+            className="flex-1 rounded border border-rg-cream2/20 bg-rg-ink2 px-3 py-2 font-rg-mono text-sm text-rg-cream placeholder-rg-cream2/30 focus:border-rg-gold/50 focus:outline-none"
           />
           <button
-            type="button"
-            onClick={monitorExactJob}
-            className="h-14 border border-rg-gold/50 px-6 font-rg-mono text-xl text-rg-gold hover:bg-rg-gold/10"
+            type="submit"
+            className="rounded border border-rg-gold/40 px-4 py-2 font-rg-mono text-sm text-rg-gold transition hover:border-rg-gold/70 hover:text-rg-cream"
           >
             Monitor →
           </button>
-        </div>
+        </form>
 
-        <div className="flex flex-wrap gap-3">
-          {FILTERS.map((filter) => {
-            const active = statusFilter === filter;
-            return (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setStatusFilter(filter)}
-                className={`rounded border px-4 py-2 font-rg-mono text-2xl ${
-                  active
-                    ? "border-rg-gold/60 bg-rg-gold/10 text-rg-gold"
-                    : "border-rg-cream2/20 text-rg-cream hover:border-rg-gold/40"
-                }`}
-              >
-                {filter}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-2 font-rg-mono text-xs">
+          {[
+            ["failed", "Failed"],
+            ["queued", "Queued"],
+            ["running", "Running"],
+            ["complete", "Complete"],
+            ["all", "All"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setStatusFilter(value)}
+              className={`rounded border px-3 py-1 transition ${
+                statusFilter === value
+                  ? "border-rg-gold/60 text-rg-gold"
+                  : "border-rg-cream2/15 text-rg-cream2/50 hover:border-rg-cream2/40"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
           <button
             type="button"
-            onClick={() => void loadJobs(statusFilter)}
-            className="rounded border border-rg-cream2/30 px-4 py-2 font-rg-mono text-sm text-rg-cream2 hover:border-rg-gold/60 hover:text-rg-cream"
+            onClick={() => load(true)}
+            disabled={loading || refreshing}
+            className="rounded border border-rg-gold/40 px-3 py-1 text-rg-gold transition hover:border-rg-gold/70 hover:text-rg-cream disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Refresh now
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
+          <span className="ml-auto text-rg-cream2/45">{jobs.length} job(s)</span>
         </div>
 
-        {lastRefreshAt && (
-          <p className="text-sm text-rg-cream2/60">
-            Last refresh: {new Date(lastRefreshAt).toLocaleTimeString()}
-          </p>
+        {loading && <p className="animate-pulse font-rg-mono text-xs text-rg-cream2/50">Loading…</p>}
+        {error && <p className="text-sm text-red-300">Error: {error}</p>}
+
+        {!loading && jobs.length === 0 && (
+          <p className="font-rg-mono text-sm text-rg-cream2/50">No jobs found.</p>
         )}
 
-        {loading ? (
-          <p className="text-rg-cream2/70">Loading jobs…</p>
-        ) : error ? (
-          <div className="rounded border border-red-500/40 bg-red-900/20 p-4 text-red-200">{error}</div>
-        ) : filteredJobs.length === 0 ? (
-          <p className="text-4xl text-rg-cream2/75">No jobs found.</p>
-        ) : (
-          <div className="overflow-x-auto rounded border border-rg-cream2/15 bg-rg-ink2/60">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-rg-cream2/10 text-rg-gold">
-                <tr>
-                  <th className="px-4 py-3 font-rg-mono text-xs uppercase tracking-wider">Job</th>
-                  <th className="px-4 py-3 font-rg-mono text-xs uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 font-rg-mono text-xs uppercase tracking-wider">Phase</th>
-                  <th className="px-4 py-3 font-rg-mono text-xs uppercase tracking-wider">Updated</th>
-                  <th className="px-4 py-3 font-rg-mono text-xs uppercase tracking-wider">Attempts</th>
-                  <th className="px-4 py-3 font-rg-mono text-xs uppercase tracking-wider">Last error</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredJobs.map((job) => (
-                  <tr key={job.id} className="border-b border-rg-cream2/10 align-top">
-                    <td className="px-4 py-3 font-mono text-xs">
-                      <Link href={`/admin/forensics/${job.id}`} className="text-rg-gold underline hover:text-rg-cream">
-                        {job.id}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded border border-rg-cream2/20 px-2 py-1 font-rg-mono text-xs">{job.status}</span>
-                    </td>
-                    <td className="px-4 py-3 text-rg-cream2/90">
-                      {job.phase ?? "—"} / {job.phase_status ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-rg-cream2/70">{new Date(job.updated_at).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-rg-cream2/80">{job.attempt_count}/{job.max_attempts}</td>
-                    <td className="px-4 py-3 text-rg-cream2/70">{job.last_error ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div className="space-y-2">
+          {jobs.map((job) => {
+            const title = job.progress?.submitted_project_title ?? `Manuscript #${job.manuscript_id}`;
+            const author = job.progress?.submitted_author_name ?? "";
+            const failureCode = job.failure_code ?? job.error_code;
+            const detail = errorText(job.last_error);
+            return (
+              <Link
+                key={job.id}
+                href={`/admin/eval-monitor/${job.id}`}
+                className="group flex items-start justify-between gap-4 rounded-lg border border-rg-cream2/10 bg-rg-ink2/50 px-4 py-3 transition hover:border-rg-gold/40 hover:bg-rg-ink2"
+              >
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{statusDot(job.status)}</span>
+                    <span className="font-medium text-rg-cream group-hover:text-rg-gold">{title}</span>
+                    {author && <span className="text-xs text-rg-cream2/50">{author}</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-3 font-rg-mono text-[10px] text-rg-cream2/50">
+                    <span>status: {job.status}</span>
+                    {job.raw_status && job.raw_status !== job.status && <span>raw: {job.raw_status}</span>}
+                    {job.phase && <span>phase: {job.phase}</span>}
+                    {job.phase_status && <span>phase status: {job.phase_status}</span>}
+                    {job.manuscript_word_count && <span>{job.manuscript_word_count.toLocaleString()} words</span>}
+                    <span>attempt {job.attempt_count}</span>
+                    <span>created {ago(job.created_at)}</span>
+                  </div>
+                  {failureCode && (
+                    <p className="font-rg-mono text-[10px] text-red-300">{failureCode}</p>
+                  )}
+                  {detail && (
+                    <p className="line-clamp-2 text-xs text-rg-cream2/55">{detail}</p>
+                  )}
+                </div>
+                <div className="shrink-0 text-right font-rg-mono text-[10px] text-rg-cream2/40">
+                  <p>{ago(job.updated_at)}</p>
+                  <p className="text-[9px]">{job.id.slice(0, 8)}…</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
 
-        <Link href="/admin" className="inline-block font-rg-mono text-xl text-rg-gold hover:text-rg-cream">
-          ← Admin
-        </Link>
+        <Link href="/admin" className="inline-block font-rg-mono text-xs text-rg-gold hover:underline">← Admin</Link>
       </div>
     </main>
   );

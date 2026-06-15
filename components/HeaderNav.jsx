@@ -3,14 +3,8 @@
 /**
  * HeaderNav — RevisionGrade canonical navigation shell
  *
- * Signed-in nav order (per product doctrine):
- *   Dashboard · Manuscripts · Evaluate · Revise · Agent Readiness Package™ · Storygate Studio™ · Resources · Pricing
- *   Admin-only access is nested under Resources (Admin Console)
- *
- * Auth states:
- *   "loading" — session check in-flight; render skeleton (no flash)
- *   "authed"  — valid session
- *   "anon"    — no session
+ * Public nav keeps scarce header space for user-facing product routes.
+ * Admin routes are private and live inside Resources for allow-listed admins.
  */
 
 import Link from "next/link";
@@ -37,6 +31,15 @@ const resourceLinks = [
   ["Genre & Classification FAQ",    "/genre-classification-faq"],
   ["Storygate Studio FAQ",          "/storygate-studio/faq"],
   ["Agent Readiness FAQ",           "/agent-readiness/faq"],
+];
+
+const adminResourceLinks = [
+  ["Admin Control Center", "/admin"],
+  ["Eval Monitor", "/admin/eval-monitor"],
+  ["Pipeline Health", "/admin/pipeline-health"],
+  ["Evaluation Jobs", "/admin/jobs"],
+  ["Diagnostics", "/admin/diagnostics"],
+  ["CostOps", "/admin/costs"],
 ];
 
 const resourceActiveHrefs = [
@@ -146,10 +149,10 @@ export default function HeaderNav() {
     setSigningOut(false);
   }
 
-  const linkCls       = "normal-case whitespace-nowrap px-2 py-2 font-rg-serif text-[13px] tracking-normal text-rg-cream/90 hover:text-white transition-colors duration-150";
-  const activeLinkCls = "normal-case whitespace-nowrap px-2 py-2 font-rg-serif text-[13px] tracking-normal text-rg-gold";
-  const mobileLinkCls = "normal-case block rounded-sm border border-rg-cream2/10 px-3 py-3 font-rg-serif text-[15px] tracking-normal text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream";
-  const mobileActiveLinkCls = "normal-case block rounded-sm border border-rg-gold/50 px-3 py-3 font-rg-serif text-[15px] tracking-normal text-rg-gold";
+  const linkCls       = "whitespace-nowrap font-rg-mono text-[0.8rem] font-semibold normal-case tracking-[0.02em] text-rg-cream hover:text-white transition-colors duration-150 xl:text-[0.86rem]";
+  const activeLinkCls = "whitespace-nowrap font-rg-mono text-[0.8rem] font-semibold normal-case tracking-[0.02em] text-rg-gold xl:text-[0.86rem]";
+  const mobileLinkCls = "block rounded-sm border border-rg-cream2/10 px-3 py-3 font-rg-mono text-sm normal-case tracking-[0.02em] text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream";
+  const mobileActiveLinkCls = "block rounded-sm border border-rg-gold/50 px-3 py-3 font-rg-mono text-sm normal-case tracking-[0.02em] text-rg-gold";
 
   function NavLink({ href, children }) {
     const active = pathname === href || pathname.startsWith(href + "/");
@@ -161,32 +164,30 @@ export default function HeaderNav() {
     return <Link href={href} className={active ? mobileActiveLinkCls : mobileLinkCls}>{children}</Link>;
   }
 
-  const resourcesLinksWithAdmin = isAdmin
-    ? [...resourceLinks, ["Admin Console", "/admin"]]
-    : resourceLinks;
-  const resourceActiveHrefsWithAdmin = isAdmin
-    ? [...resourceActiveHrefs, "/admin"]
-    : resourceActiveHrefs;
-  const resourcesActive = resourceActiveHrefsWithAdmin.some((h) => pathname === h || pathname.startsWith(`${h}/`));
+  const adminActive = pathname === "/admin" || pathname.startsWith("/admin/");
+  const resourcesActive = resourceActiveHrefs.some((h) => pathname === h || pathname.startsWith(`${h}/`)) || (isAdmin && adminActive);
   const arpActive       = pathname === arpActiveHref || pathname.startsWith(`${arpActiveHref}/`);
+  const visibleResourceLinks = isAdmin
+    ? [...resourceLinks, ["Admin Tools", "#admin-tools"], ...adminResourceLinks]
+    : resourceLinks;
 
-  const dropdownCls = "absolute left-1/2 top-full z-50 mt-3 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30";
-  const dropdownItemCls = "normal-case block whitespace-nowrap px-3 py-2 font-rg-serif text-[14px] tracking-normal text-rg-cream2 hover:text-rg-cream";
+  const dropdownCls = "absolute left-1/2 top-8 z-50 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30";
+  const dropdownItemCls = "block px-3 py-2 font-rg-mono text-xs normal-case tracking-[0.03em] text-rg-cream2 hover:text-rg-cream whitespace-nowrap";
 
   return (
-    <header className="rg-site-header sticky top-0 z-50 w-full max-w-full border-b border-rg-cream2/10 bg-rg-ink">
-      <div className="mx-auto flex min-h-[78px] max-w-[1680px] items-center justify-between gap-6 px-5 py-3 sm:px-8">
+    <header className="sticky top-0 z-50 w-full max-w-full border-b border-rg-cream2/10 bg-rg-ink">
+      <div className="mx-auto flex h-14 max-w-[1640px] items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3 group">
           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
-          <span className="hidden whitespace-nowrap text-rg-cream font-rg-serif text-base tracking-wide sm:block">RevisionGrade&#8482;</span>
+          <span className="hidden text-rg-cream font-rg-serif text-sm tracking-wide sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        <nav className="hidden min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-2 lg:flex 2xl:gap-x-3">
+        <nav className="hidden min-w-0 items-center justify-center gap-3 xl:flex xl:flex-1 2xl:gap-4">
           {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
           {isAuthed && <NavLink href="/manuscripts">Manuscripts</NavLink>}
 
           <NavLink href="/evaluate">Evaluate</NavLink>
-          <div className="relative" ref={reviseMenuRef}>
+          <div className="relative shrink-0" ref={reviseMenuRef}>
             <button
               type="button"
               onClick={() => { setReviseOpen((v) => !v); setResourcesOpen(false); setArpOpen(false); setSgOpen(false); }}
@@ -209,7 +210,7 @@ export default function HeaderNav() {
           </div>
 
           {isAuthed ? (
-            <div className="relative" ref={arpMenuRef}>
+            <div className="relative shrink-0" ref={arpMenuRef}>
               <button
                 type="button"
                 onClick={() => { setArpOpen((v) => !v); setResourcesOpen(false); setSgOpen(false); setReviseOpen(false); }}
@@ -234,11 +235,11 @@ export default function HeaderNav() {
             <NavLink href="/agent-readiness">Agent Readiness&#8482;</NavLink>
           )}
 
-          <div className="relative" ref={sgMenuRef}>
+          <div className="relative shrink-0" ref={sgMenuRef}>
             <button
               type="button"
               onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); setReviseOpen(false); }}
-              className="normal-case whitespace-nowrap px-1 py-2 font-rg-serif text-[13px] font-bold tracking-normal transition-colors duration-150 hover:opacity-80"
+              className="whitespace-nowrap font-rg-mono text-[0.8rem] font-bold normal-case tracking-[0.03em] transition-colors duration-150 hover:opacity-90 xl:text-[0.86rem]"
               style={{ color: "#FF0000", textShadow: "0 0 6px rgba(255,0,0,0.4)" }}
               aria-expanded={sgOpen}
               aria-haspopup="menu"
@@ -257,7 +258,7 @@ export default function HeaderNav() {
             )}
           </div>
 
-          <div className="relative" ref={resourcesMenuRef}>
+          <div className="relative shrink-0" ref={resourcesMenuRef}>
             <button
               type="button"
               onClick={() => { setResourcesOpen((v) => !v); setArpOpen(false); setSgOpen(false); setReviseOpen(false); }}
@@ -270,10 +271,16 @@ export default function HeaderNav() {
             </button>
             {resourcesOpen && (
               <div id="resources-menu" className={`${dropdownCls} w-72`} role="menu">
-                {resourcesLinksWithAdmin.map(([label, href]) => (
-                  <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className={dropdownItemCls}>
-                    {label}
-                  </Link>
+                {visibleResourceLinks.map(([label, href]) => (
+                  href === "#admin-tools" ? (
+                    <div key={href} className="mt-2 border-t border-rg-gold/25 px-3 pt-3 pb-1 font-rg-mono text-[10px] uppercase tracking-[0.16em] text-rg-gold/80">
+                      Admin tools
+                    </div>
+                  ) : (
+                    <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className={dropdownItemCls}>
+                      {label}
+                    </Link>
+                  )
                 ))}
               </div>
             )}
@@ -282,7 +289,7 @@ export default function HeaderNav() {
           <NavLink href="/pricing">Pricing</NavLink>
         </nav>
 
-        <div className="hidden shrink-0 lg:block">
+        <div className="hidden shrink-0 xl:block">
           {authState === "loading" && (
             <span className="inline-block w-14 h-5 rounded bg-rg-cream2/10 animate-pulse" />
           )}
@@ -292,7 +299,7 @@ export default function HeaderNav() {
               onClick={handleSignOut}
               disabled={signingOut}
               data-testid="nav-signout"
-              className="normal-case whitespace-nowrap font-rg-serif text-[13px] tracking-normal text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
+              className="whitespace-nowrap font-rg-mono text-[0.78rem] font-semibold normal-case tracking-[0.02em] text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
             >
               {signingOut ? "Signing out…" : "Sign out"}
             </button>
@@ -300,7 +307,7 @@ export default function HeaderNav() {
           {authState === "anon" && (
             <Link
               href="/login"
-              className="normal-case whitespace-nowrap font-rg-serif text-[13px] tracking-normal text-rg-cream2 hover:text-rg-gold transition-colors duration-150"
+              className="whitespace-nowrap font-rg-mono text-[0.78rem] font-semibold normal-case tracking-[0.02em] text-rg-cream2 hover:text-rg-gold transition-colors duration-150"
             >
               Sign in
             </Link>
@@ -312,7 +319,7 @@ export default function HeaderNav() {
           onClick={() => setMobileOpen((v) => !v)}
           aria-expanded={mobileOpen}
           aria-controls="mobile-nav"
-          className="inline-flex h-10 w-10 items-center justify-center border border-rg-cream2/15 text-rg-cream2 lg:hidden"
+          className="inline-flex h-10 w-10 items-center justify-center border border-rg-cream2/15 text-rg-cream2 xl:hidden"
         >
           <span className="sr-only">Menu</span>
           ☰
@@ -320,7 +327,7 @@ export default function HeaderNav() {
       </div>
 
       {mobileOpen && (
-        <div id="mobile-nav" className="border-t border-rg-cream2/10 bg-rg-ink2 px-4 py-4 lg:hidden">
+        <div id="mobile-nav" className="border-t border-rg-cream2/10 bg-rg-ink2 px-4 py-4 xl:hidden">
           <div className="space-y-2">
             {isAuthed && <MobileLink href="/dashboard">Dashboard</MobileLink>}
             {isAuthed && <MobileLink href="/manuscripts">Manuscripts</MobileLink>}
@@ -330,9 +337,9 @@ export default function HeaderNav() {
             <MobileLink href="/agent-readiness">Agent Readiness&#8482;</MobileLink>
             <MobileLink href="/storygate-studio">Storygate Studio&#8482;</MobileLink>
             <MobileLink href="/resources">Resources</MobileLink>
-            {isAuthed && isAdmin && <MobileLink href="/admin">Admin Console</MobileLink>}
             <MobileLink href="/faq">Author FAQ</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
+            {isAuthed && isAdmin && <MobileLink href="/admin">Admin Control Center</MobileLink>}
             {isAuthed && (
               <button type="button" onClick={handleSignOut} disabled={signingOut} className={mobileLinkCls}>
                 {signingOut ? "Signing out…" : "Sign out"}
