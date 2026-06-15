@@ -10,7 +10,7 @@
  *
  * Canonical template locations:
  *   - DREAM evaluation: docs/templates/evaluation/*.md
- *   - Story Ledger template: docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
+ *   - Story Ledger template: docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md
  */
 
 import { readFileSync } from "fs";
@@ -33,7 +33,7 @@ const STORY_LEDGER_TEMPLATE_PATH = join(
   "docs",
   "benchmarks",
   "story-ledger",
-  "STORY_LEDGER_9_LAYER_TEMPLATE.md",
+  "STORY_LEDGER_10_LAYER_TEMPLATE.md",
 );
 
 const FILE_MAP: Record<DreamTemplateKey, string> = {
@@ -188,7 +188,7 @@ export function buildCompactStoryLedgerBlock(): string {
   if (currentSection) sections.push(currentSection.trim());
 
   return [
-    "10-LAYER STORY LEDGER TEMPLATE (canonical registry plus benchmark structure from docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md):",
+    "10-LAYER STORY LEDGER TEMPLATE (canonical registry plus benchmark structure from docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md):",
     "Every layer MUST be populated. An empty layer is a failure unless the manuscript genuinely lacks that dimension.",
     "",
     ...sections,

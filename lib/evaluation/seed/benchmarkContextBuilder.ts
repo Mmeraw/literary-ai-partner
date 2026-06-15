@@ -46,7 +46,7 @@ export function inferWorkTypeFromWordCount(wordCount: number): string {
 }
 
 // ── Story Ledger Template Structure ─────────────────────────────────────────
-// Now loaded at runtime from docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
+// Now loaded at runtime from docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md
 // via buildCompactStoryLedgerBlock(). The canonical registry contains all 10 layers,
 // required fields, failure conditions, validation contract, and completion standard.
 // Hardcoded inline strings removed — single source of truth.
@@ -62,7 +62,7 @@ const BENCHMARK_EXEMPLAR_CARTEL_BABIES = `
 COMPLETED BENCHMARK EXEMPLAR — STORY LEDGER (Cartel Babies, required-gold):
 This is the canonical product example for seed and Phase 1A Story Ledger quality. Use this as your target shape for the ten-layer scaffold; shrink breadth for shorter submissions, but do not weaken evidence discipline.
 
-- Required-gold source docs: docs/benchmarks/cartel-babies-dream.md, docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md, docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
+- Required-gold source docs: docs/benchmarks/cartel-babies-dream.md, docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md, docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md
 - Completion standard: must capture Michael and Benjamin as dual protagonists, Paolito/Paul identity transformation, Raúl/Navarro governance conflict, Cobra betrayal, Diego loyalty-tax pressure, El Tomatero/red bat, pigs/pig-pen disposal terror, cartel product/lab pressure, radio-channel punishment code, embassy/new-identity transition, and Vancouver aftercare
 - Source integrity: distinguish true structural defects from motif, table-of-contents artifact, anchor issue, package note, or manual-verification concern
 - POV / identity: preserve Michael captivity POV, Benjamin search/origin lane, Paolito→Paul rename chain, and cartel/institutional systems as distinct canonical entities

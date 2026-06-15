@@ -5,7 +5,7 @@ file-role: format-template
 note: >
   This is a BLANK reusable template for the 10-layer Story Ledger.
   It is NOT a completed benchmark. The completed gold-standard examples are in
-  IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_*.md files.
+  IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_*.md files.
   SEED generators and Phase 1A must populate every layer below.
   Phase 0.5a full-context ledger must match this structure.
   Calibrated against: Froggin Noggin, Cartel Babies, Let the River Decide
