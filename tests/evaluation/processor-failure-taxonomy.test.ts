@@ -13,7 +13,7 @@
  *  5. PASS3_FAILED is terminal (legacy path; deterministic on retry).
  *  6. PASS1_FAILED and PASS2_FAILED are NOT terminal (provider transient; retry allowed).
  *  7. All TIMEOUT variants are retryable.
- *  8. All QG_ codes are terminal (content-driven; retrying produces same failure).
+ *  8. Non-kick-eligible QG_ codes are terminal. Kick-eligible QG_ codes get 1 backward kick per FIPOC KICK_MATRIX.
  */
 
 import {
@@ -21,6 +21,7 @@ import {
   maxSelfRecoveryAttemptsForFailureCode,
   classifyFailureBucket,
   isSelfRecoverableFailureCode,
+  isKickEligibleFailureCode,
 } from '@/lib/evaluation/processor';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +39,8 @@ function isRescuable(code: string): boolean {
 describe('Terminal failure codes — must not auto-retry', () => {
   const terminalCodes = [
     // Quality gate — content-driven; retrying produces identical failure
+    // NOTE: kick-eligible QG codes (QG_DUPLICATE_REC, QG_MISSING_RATIONALE, etc.)
+    // are NOT terminal — they get 1 FIPOC backward kick. Only generic QG codes remain terminal.
     'QG_FAILED',
     'QG_SCORE_TOO_LOW',
     'QG_CRITERION_INVALID',
@@ -61,7 +64,7 @@ describe('Terminal failure codes — must not auto-retry', () => {
     // Deterministic pipeline failures
     'PASS3_FAILED',
     'PASS2_INDEPENDENCE_REWRITE_FAILED',
-    'TEMPLATE_COMPLETENESS_GATE_FAILED',
+    // TEMPLATE_COMPLETENESS_GATE_FAILED moved to kick-eligible (FIPOC KICK_MATRIX)
     'SCOPE_CLASSIFICATION_FAILED',
     'MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE',
     'CHUNK_BUDGET_OVERFLOW',
@@ -173,8 +176,18 @@ describe('Self-recovery attempt count policy', () => {
   it('terminal codes always get 0 retries regardless of category', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_FAILED')).toBe(0);
     expect(maxSelfRecoveryAttemptsForFailureCode('PASS3_FAILED')).toBe(0);
-    expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(0);
     expect(maxSelfRecoveryAttemptsForFailureCode('USER_CANCELLED')).toBe(0);
+  });
+
+  it('FIPOC kick-eligible codes get exactly 1 retry (backward kick budget)', () => {
+    expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_DUPLICATE_REC')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_RATIONALE')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_EVIDENCE')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_DENSITY_FLOOR_VIOLATION')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_ARTIFACT_GATE_FAIL')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_PITCH_IDENTITY_DUPLICATE')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_EVIDENCE_FABRICATION')).toBe(1);
   });
 
   it('null/undefined code defaults to 2 retries (conservative unknown-error policy)', () => {
@@ -251,10 +264,20 @@ describe('classifyFailureBucket — bucket assignment contract', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Prefix-matching edge cases', () => {
-  it('any QG_ prefixed code is terminal — prefix match, not exact match', () => {
+  it('non-kick-eligible QG_ prefixed codes are terminal — prefix match', () => {
     expect(isTerminalFailureCode('QG_')).toBe(true);
     expect(isTerminalFailureCode('QG_CUSTOM_FAILURE_2026')).toBe(true);
     expect(isTerminalFailureCode('QG_ARBITRARY_FUTURE_CODE')).toBe(true);
+  });
+
+  it('kick-eligible QG_ codes are NOT terminal — FIPOC override', () => {
+    expect(isTerminalFailureCode('QG_DUPLICATE_REC')).toBe(false);
+    expect(isTerminalFailureCode('QG_MISSING_RATIONALE')).toBe(false);
+    expect(isTerminalFailureCode('QG_MISSING_EVIDENCE')).toBe(false);
+    expect(isTerminalFailureCode('QG_DENSITY_FLOOR_VIOLATION')).toBe(false);
+    expect(isTerminalFailureCode('QG_ARTIFACT_GATE_FAIL')).toBe(false);
+    expect(isTerminalFailureCode('QG_PITCH_IDENTITY_DUPLICATE')).toBe(false);
+    expect(isTerminalFailureCode('QG_EVIDENCE_FABRICATION')).toBe(false);
   });
 
   it('any POLICY_VIOLATION prefixed code is terminal', () => {
@@ -306,9 +329,11 @@ describe('Governance anti-regression: critical category invariants', () => {
     expect(isRescuable('PASS3_FAILED')).toBe(false);
   });
 
-  it('TEMPLATE_COMPLETENESS_GATE_FAILED is terminal — code fix required, retry will reproduce', () => {
-    expect(isTerminalFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(true);
-    expect(isRescuable('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(false);
+  it('TEMPLATE_COMPLETENESS_GATE_FAILED is kick-eligible — FIPOC backward kick to re-synthesis', () => {
+    expect(isTerminalFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(false);
+    expect(isKickEligibleFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(true);
+    expect(isRescuable('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(true);
+    expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(1);
   });
 
   it('PASS2_INDEPENDENCE_REWRITE_FAILED is terminal — deterministic editorial failure', () => {

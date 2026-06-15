@@ -1857,3 +1857,19 @@ export function getRenderedFieldsForSurface(surface: RendererConsumptionEntry['s
 export function getBlockingKicks(): KickMatrixEntry[] {
   return KICK_MATRIX.filter((entry) => entry.blocksAuthorExposure);
 }
+
+/**
+ * Look up the KICK_MATRIX entry whose `failureCode` matches the given code.
+ * Returns `undefined` when no kick is defined for that failure.
+ */
+export function lookupKickForFailure(failureCode: string): KickMatrixEntry | undefined {
+  return KICK_MATRIX.find((entry) => entry.failureCode === failureCode);
+}
+
+/**
+ * Look up all KICK_MATRIX entries whose `dirtyDataDetectedAt` matches the given stage.
+ * A stage may have multiple kick entries (e.g. S09_QUALITYGATEV2 for different failure types).
+ */
+export function lookupKicksForStage(stageId: string): KickMatrixEntry[] {
+  return KICK_MATRIX.filter((entry) => entry.dirtyDataDetectedAt === stageId);
+}
