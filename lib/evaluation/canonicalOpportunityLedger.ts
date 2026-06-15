@@ -20,6 +20,7 @@ export type CanonicalOpportunityLedgerItem = {
   action: string;
   expected_impact: string;
   candidate_text_a?: string;
+  mistake_proofing?: string;
   source_priority?: string;
 };
 
@@ -83,6 +84,7 @@ type RawOpportunity = {
   action: string;
   expected_impact: string;
   candidate_text_a?: string;
+  mistake_proofing?: string;
   issue_type: string;
   source_priority?: string;
 };
@@ -293,6 +295,7 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
         action,
         expected_impact: cleanOptional(rec.expected_impact),
         candidate_text_a: cleanOptional(rec.candidate_text_a) || undefined,
+        mistake_proofing: cleanOptional(rec.mistake_proofing) || undefined,
         issue_type: issueType,
         source_priority: typeof rec.priority === 'string' ? rec.priority : undefined,
       });
@@ -337,6 +340,7 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
     action: action || fix,
     expected_impact: chooseMostSpecific(cluster.map((item) => item.expected_impact || item.reader_effect)),
     candidate_text_a: chooseMostSpecific(cluster.map((item) => item.candidate_text_a ?? '')) || undefined,
+    mistake_proofing: chooseMostSpecific(cluster.map((item) => item.mistake_proofing ?? '')) || undefined,
     source_priority: primary?.source_priority,
   };
 }
@@ -461,6 +465,7 @@ export function opportunityToCriterionRecommendation(item: CanonicalOpportunityL
     mechanism: item.cause,
     specific_fix: item.fix_direction,
     reader_effect: item.reader_effect,
+    mistake_proofing: item.mistake_proofing,
     candidate_text_a: item.candidate_text_a,
     manuscript_coordinates: item.location,
     collapsed_from_criteria: item.related_criteria.filter((criterion) => criterion !== item.primary_criterion),
@@ -476,6 +481,7 @@ export function opportunityToActionItem(item: CanonicalOpportunityLedgerItem): {
   manuscript_coordinates?: string;
   mechanism?: string;
   reader_effect?: string;
+  mistake_proofing?: string;
   candidate_text_a?: string;
   criterion_key?: string;
   opportunity_id: string;
@@ -490,6 +496,7 @@ export function opportunityToActionItem(item: CanonicalOpportunityLedgerItem): {
     manuscript_coordinates: item.location,
     mechanism: item.cause,
     reader_effect: item.reader_effect,
+    mistake_proofing: item.mistake_proofing,
     candidate_text_a: item.candidate_text_a,
     criterion_key: item.primary_criterion,
   };
