@@ -93,7 +93,7 @@ function makePassOutput(criteria: AxisCriterionResult[], pass: 1 | 2 = 1): Singl
 
 const CRITERIA_KEYS = [
   "narrative_drive", "character_voice", "worldbuilding", "pacing",
-  "dialogue", "theme", "structure", "prose_style",
+  "dialogue", "theme", "sceneConstruction", "prose_style",
   "emotional_resonance", "originality", "readability",
   "genre_conventions", "marketability",
 ];
