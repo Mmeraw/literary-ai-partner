@@ -12,6 +12,7 @@ export type SectionType =
   | 'author_bio';
 
 export type GenerateMode = 'generate' | 'regenerate' | 'improve';
+export type SynopsisLength = 'query' | 'standard' | 'extended';
 
 interface GenerateResult {
   content: string;
@@ -30,6 +31,7 @@ interface UseAgentReadinessGenerateReturn {
   generate: (section: SectionType, mode: GenerateMode, opts?: {
     existingContent?: string;
     authorBioInput?: string;
+    synopsisLength?: SynopsisLength;
   }) => Promise<GenerateResult | null>;
   clearError: () => void;
 }
@@ -45,7 +47,7 @@ export function useAgentReadinessGenerate(): UseAgentReadinessGenerateReturn {
   const generate = useCallback(async (
     section: SectionType,
     mode: GenerateMode,
-    opts?: { existingContent?: string; authorBioInput?: string },
+    opts?: { existingContent?: string; authorBioInput?: string; synopsisLength?: SynopsisLength },
   ): Promise<GenerateResult | null> => {
     if (!manuscriptId || !evaluationJobId) {
       setError('No manuscript selected. Go back and select a manuscript with a completed evaluation.');
@@ -66,6 +68,7 @@ export function useAgentReadinessGenerate(): UseAgentReadinessGenerateReturn {
           mode,
           existingContent: opts?.existingContent,
           authorBioInput: opts?.authorBioInput,
+          synopsisLength: opts?.synopsisLength,
         }),
       });
 

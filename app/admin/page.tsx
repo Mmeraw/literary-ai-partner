@@ -31,11 +31,27 @@ const adminCards = [
     priority: "Operations",
   },
   {
+    title: "Eval Monitor",
+    href: "/admin/eval-monitor",
+    eyebrow: "Live tracking · status filters",
+    description:
+      "Monitor queued/running/complete/failed jobs in one view, refresh automatically, and jump directly to forensics by job ID.",
+    priority: "Operations",
+  },
+  {
     title: "Revise Workbench Forensics",
     href: "/admin/revise-forensics",
     eyebrow: "Internal audit · source proof",
     description:
       "Inspect revision_opportunity_ledger_v1 source manifests, field ownership proof, legacy fallback status, withheld reasons, needs-targeting reasons, anchor grounding, and candidate ownership.",
+    priority: "Forensics",
+  },
+  {
+    title: "Artifact Health",
+    href: "/admin/artifact-health",
+    eyebrow: "SIPOC metrics · quality map",
+    description:
+      "List evaluation artifacts by job with registry-required fields, completeness score, accuracy metric, dirty-data rule, kickback owner, and producer/consumer SIPOC metrics.",
     priority: "Forensics",
   },
   {

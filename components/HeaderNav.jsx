@@ -5,7 +5,7 @@
  *
  * Signed-in nav order (per product doctrine):
  *   Dashboard · Manuscripts · Evaluate · Revise · Agent Readiness Package™ · Storygate Studio™ · Resources · Pricing
- *   Admin-only: Admin
+ *   Admin-only access is nested under Resources (Admin Console)
  *
  * Auth states:
  *   "loading" — session check in-flight; render skeleton (no flash)
@@ -146,10 +146,10 @@ export default function HeaderNav() {
     setSigningOut(false);
   }
 
-  const linkCls       = "text-sm tracking-wider uppercase font-rg-mono text-rg-cream hover:text-white transition-colors duration-150";
-  const activeLinkCls = "text-sm tracking-wider uppercase font-rg-mono text-rg-gold";
-  const mobileLinkCls = "block rounded-sm border border-rg-cream2/10 px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream";
-  const mobileActiveLinkCls = "block rounded-sm border border-rg-gold/50 px-3 py-3 font-rg-mono text-xs uppercase tracking-[0.16em] text-rg-gold";
+  const linkCls       = "normal-case whitespace-nowrap px-2 py-2 font-rg-serif text-[13px] tracking-normal text-rg-cream/90 hover:text-white transition-colors duration-150";
+  const activeLinkCls = "normal-case whitespace-nowrap px-2 py-2 font-rg-serif text-[13px] tracking-normal text-rg-gold";
+  const mobileLinkCls = "normal-case block rounded-sm border border-rg-cream2/10 px-3 py-3 font-rg-serif text-[15px] tracking-normal text-rg-cream2 transition hover:border-rg-gold/50 hover:text-rg-cream";
+  const mobileActiveLinkCls = "normal-case block rounded-sm border border-rg-gold/50 px-3 py-3 font-rg-serif text-[15px] tracking-normal text-rg-gold";
 
   function NavLink({ href, children }) {
     const active = pathname === href || pathname.startsWith(href + "/");
@@ -161,21 +161,27 @@ export default function HeaderNav() {
     return <Link href={href} className={active ? mobileActiveLinkCls : mobileLinkCls}>{children}</Link>;
   }
 
-  const resourcesActive = resourceActiveHrefs.some((h) => pathname === h || pathname.startsWith(`${h}/`));
+  const resourcesLinksWithAdmin = isAdmin
+    ? [...resourceLinks, ["Admin Console", "/admin"]]
+    : resourceLinks;
+  const resourceActiveHrefsWithAdmin = isAdmin
+    ? [...resourceActiveHrefs, "/admin"]
+    : resourceActiveHrefs;
+  const resourcesActive = resourceActiveHrefsWithAdmin.some((h) => pathname === h || pathname.startsWith(`${h}/`));
   const arpActive       = pathname === arpActiveHref || pathname.startsWith(`${arpActiveHref}/`);
 
-  const dropdownCls = "absolute left-1/2 top-8 z-50 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30";
-  const dropdownItemCls = "block px-3 py-2 font-rg-mono text-xs uppercase tracking-[0.14em] text-rg-cream2 hover:text-rg-cream whitespace-nowrap";
+  const dropdownCls = "absolute left-1/2 top-full z-50 mt-3 -translate-x-1/2 border border-rg-cream2/15 bg-rg-ink2 p-3 shadow-xl shadow-black/30";
+  const dropdownItemCls = "normal-case block whitespace-nowrap px-3 py-2 font-rg-serif text-[14px] tracking-normal text-rg-cream2 hover:text-rg-cream";
 
   return (
-    <header className="sticky top-0 z-50 w-full max-w-full border-b border-rg-cream2/10 bg-rg-ink">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="rg-site-header sticky top-0 z-50 w-full max-w-full border-b border-rg-cream2/10 bg-rg-ink">
+      <div className="mx-auto flex min-h-[78px] max-w-[1680px] items-center justify-between gap-6 px-5 py-3 sm:px-8">
         <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3 group">
           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center border border-rg-gold/60 text-rg-gold font-rg-serif text-sm group-hover:border-rg-gold transition-colors duration-150">R</span>
-          <span className="hidden text-rg-cream font-rg-serif text-sm tracking-wide sm:block">RevisionGrade&#8482;</span>
+          <span className="hidden whitespace-nowrap text-rg-cream font-rg-serif text-base tracking-wide sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        <nav className="hidden items-center justify-center gap-3 lg:flex lg:flex-1">
+        <nav className="hidden min-w-0 flex-1 flex-wrap items-center justify-center gap-x-2 gap-y-2 lg:flex 2xl:gap-x-3">
           {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
           {isAuthed && <NavLink href="/manuscripts">Manuscripts</NavLink>}
 
@@ -232,7 +238,7 @@ export default function HeaderNav() {
             <button
               type="button"
               onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); setReviseOpen(false); }}
-              className="text-sm tracking-wider uppercase font-rg-mono font-bold transition-colors duration-150 hover:opacity-80"
+              className="normal-case whitespace-nowrap px-1 py-2 font-rg-serif text-[13px] font-bold tracking-normal transition-colors duration-150 hover:opacity-80"
               style={{ color: "#FF0000", textShadow: "0 0 6px rgba(255,0,0,0.4)" }}
               aria-expanded={sgOpen}
               aria-haspopup="menu"
@@ -264,7 +270,7 @@ export default function HeaderNav() {
             </button>
             {resourcesOpen && (
               <div id="resources-menu" className={`${dropdownCls} w-72`} role="menu">
-                {resourceLinks.map(([label, href]) => (
+                {resourcesLinksWithAdmin.map(([label, href]) => (
                   <Link key={href} href={href} role="menuitem" onClick={() => setResourcesOpen(false)} className={dropdownItemCls}>
                     {label}
                   </Link>
@@ -274,7 +280,6 @@ export default function HeaderNav() {
           </div>
 
           <NavLink href="/pricing">Pricing</NavLink>
-          {isAuthed && isAdmin && <NavLink href="/admin">Admin</NavLink>}
         </nav>
 
         <div className="hidden shrink-0 lg:block">
@@ -287,7 +292,7 @@ export default function HeaderNav() {
               onClick={handleSignOut}
               disabled={signingOut}
               data-testid="nav-signout"
-              className="text-sm tracking-wider uppercase font-rg-mono text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
+              className="normal-case whitespace-nowrap font-rg-serif text-[13px] tracking-normal text-rg-dim hover:text-rg-cream2 transition-colors duration-150 disabled:opacity-40"
             >
               {signingOut ? "Signing out…" : "Sign out"}
             </button>
@@ -295,7 +300,7 @@ export default function HeaderNav() {
           {authState === "anon" && (
             <Link
               href="/login"
-              className="text-xs tracking-widest uppercase font-rg-mono text-rg-cream2 hover:text-rg-gold transition-colors duration-150"
+              className="normal-case whitespace-nowrap font-rg-serif text-[13px] tracking-normal text-rg-cream2 hover:text-rg-gold transition-colors duration-150"
             >
               Sign in
             </Link>
@@ -325,9 +330,9 @@ export default function HeaderNav() {
             <MobileLink href="/agent-readiness">Agent Readiness&#8482;</MobileLink>
             <MobileLink href="/storygate-studio">Storygate Studio&#8482;</MobileLink>
             <MobileLink href="/resources">Resources</MobileLink>
+            {isAuthed && isAdmin && <MobileLink href="/admin">Admin Console</MobileLink>}
             <MobileLink href="/faq">Author FAQ</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
-            {isAuthed && isAdmin && <MobileLink href="/admin">Admin</MobileLink>}
             {isAuthed && (
               <button type="button" onClick={handleSignOut} disabled={signingOut} className={mobileLinkCls}>
                 {signingOut ? "Signing out…" : "Sign out"}

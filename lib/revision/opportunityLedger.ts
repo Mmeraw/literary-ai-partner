@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'crypto';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import {
   REVISION_OPERATIONS,
   candidateTextIsCopyPasteReady,
@@ -40,6 +41,9 @@ const REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION = 'Regenerate candidate prose' as 
 
 type RevisionOpportunity = {
   opportunity_id: string;
+  source_opportunity_id?: string;
+  source_criterion?: string;
+  source_ued_hash?: string;
   finding_id?: string;
   criterion: string;
   severity: LedgerSeverity;
@@ -1117,7 +1121,10 @@ function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpport
     (revisionOperation === undefined || normalizeRevisionOperation(revisionOperation) !== undefined) &&
     (candidateTextA === undefined || typeof candidateTextA === 'string') &&
     (candidateTextB === undefined || typeof candidateTextB === 'string') &&
-    (candidateTextC === undefined || typeof candidateTextC === 'string')
+    (candidateTextC === undefined || typeof candidateTextC === 'string') &&
+    (value.source_opportunity_id === undefined || typeof value.source_opportunity_id === 'string') &&
+    (value.source_criterion === undefined || typeof value.source_criterion === 'string') &&
+    (value.source_ued_hash === undefined || typeof value.source_ued_hash === 'string')
   );
 }
 
@@ -1507,6 +1514,132 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
   }
 
   return opportunities;
+}
+
+type CertifiedUedOpportunityProjection = {
+  opportunities: RevisionOpportunity[];
+  sourceUedHash: string;
+  renderedOpportunityCount: number;
+};
+
+function severityFromCanonicalOpportunity(raw: unknown): LedgerSeverity {
+  if (raw === 'high') return 'must';
+  if (raw === 'low') return 'could';
+  return 'should';
+}
+
+function confidenceFromCanonicalOpportunity(raw: unknown): LedgerConfidence {
+  if (raw === 'high') return 'high';
+  if (raw === 'low') return 'medium';
+  return 'medium';
+}
+
+function canonicalUedOpportunityToRevisionOpportunity(item: Record<string, unknown>, sourceUedHash: string): RevisionOpportunity | null {
+  const opportunityId = firstNonEmptyString(item.id, item.opportunity_id);
+  const sourceCriterion = firstNonEmptyString(item.primary_criterion, item.criterion);
+  const criterion = normalizeCriterion(sourceCriterion);
+  const evidenceAnchor = firstNonEmptyString(item.evidence, item.anchor_snippet, item.evidence_anchor);
+  const rationale = firstNonEmptyString(item.fix_direction, item.action, item.symptom);
+  const manuscriptCoordinates = firstNonEmptyString(item.location, item.manuscript_coordinates, `${criterion}:recommendation`);
+
+  if (!opportunityId || !sourceCriterion || !evidenceAnchor || !rationale) return null;
+
+  return ensureOpportunityCandidates({
+    opportunity_id: opportunityId,
+    source_opportunity_id: opportunityId,
+    source_criterion: sourceCriterion,
+    source_ued_hash: sourceUedHash,
+    criterion,
+    severity: severityFromCanonicalOpportunity(item.severity),
+    rationale,
+    evidence_anchor: evidenceAnchor,
+    manuscript_coordinates: manuscriptCoordinates,
+    provenance: 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities',
+    confidence: confidenceFromCanonicalOpportunity(item.severity),
+    decision_state: 'open',
+    candidate_text_a: normalizeOptionalText(item.candidate_text_a),
+    symptom: normalizeOptionalText(item.symptom),
+    cause: normalizeOptionalText(item.cause),
+    fix_direction: normalizeOptionalText(item.fix_direction),
+    reader_effect: normalizeOptionalText(item.reader_effect),
+    mistake_proofing: normalizeOptionalText(item.mistake_proofing),
+  });
+}
+
+function extractRenderedCanonicalOpportunities(unifiedDocument: unknown): Record<string, unknown>[] {
+  if (!isRecord(unifiedDocument)) return [];
+  const ledger = isRecord(unifiedDocument.canonicalOpportunityLedger)
+    ? unifiedDocument.canonicalOpportunityLedger
+    : null;
+  const rendered = Array.isArray(ledger?.rendered_opportunities)
+    ? ledger.rendered_opportunities
+    : [];
+
+  return rendered.filter((item): item is Record<string, unknown> => isRecord(item));
+}
+
+async function loadCertifiedUedOpportunityProjection(
+  supabase: any,
+  jobId: string,
+): Promise<CertifiedUedOpportunityProjection | null> {
+  const [{ data: unifiedRow, error: unifiedError }, { data: certificationRow, error: certificationError }] = await Promise.all([
+    supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'unified_evaluation_document_v1')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'author_exposure_certification_v1')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (unifiedError || certificationError) {
+    throw new Error(`Failed to read certified UED for revision opportunity ledger: ${unifiedError?.message ?? certificationError?.message}`);
+  }
+
+  const unifiedDocument = unifiedRow?.content;
+  if (!unifiedDocument) return null;
+
+  const certification = isRecord(certificationRow?.content) ? certificationRow.content : null;
+  if (!certification) {
+    throw new Error('Certified UED is present but author_exposure_certification_v1 is missing for revision opportunity ledger.');
+  }
+  if (
+    certification.schema_version !== 'author_exposure_certification_v1' ||
+    certification.decision !== 'certified' ||
+    typeof certification.unified_document_hash !== 'string' ||
+    certification.unified_document_hash.trim().length === 0
+  ) {
+    throw new Error('Certified UED is present but author_exposure_certification_v1 is not certified for revision opportunity ledger.');
+  }
+
+  const sourceUedHash = canonicalJsonSha256(unifiedDocument);
+  if (sourceUedHash !== certification.unified_document_hash) {
+    throw new Error(`Certified UED hash mismatch for revision opportunity ledger: expected=${certification.unified_document_hash} actual=${sourceUedHash}`);
+  }
+
+  const rendered = extractRenderedCanonicalOpportunities(unifiedDocument);
+  const opportunities = rendered
+    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash))
+    .filter((item): item is RevisionOpportunity => item !== null);
+
+  if (rendered.length > 0 && opportunities.length === 0) {
+    throw new Error('Certified UED canonical opportunity ledger contains no revision-usable opportunities.');
+  }
+
+  return {
+    opportunities,
+    sourceUedHash,
+    renderedOpportunityCount: rendered.length,
+  };
 }
 
 const MAX_OPPORTUNITIES_SHORT_FORM = REVISE_QUEUE_MAX_SHORT_FORM;
@@ -2010,9 +2143,15 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       ? evalPayloadRecord.word_count
       : jobWordCount;
 
-  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(
-    evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
-  );
+  const uedProjection = await loadCertifiedUedOpportunityProjection(supabase, jobId);
+  const opportunities = uedProjection?.opportunities.length
+    ? capRevisionOpportunities(uedProjection.opportunities, wordCount)
+    : buildRevisionOpportunitiesFromEvaluationPayload(
+        evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
+      );
+  const opportunitySourceAuthority = uedProjection?.opportunities.length
+    ? 'unified_evaluation_document_v1'
+    : 'legacy_evaluation_result_projection';
 
   const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
     contextQuality: contextQualityDecision.status,
@@ -2417,6 +2556,9 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       summary: preflightSummary,
     },
     quality_manifest: qualityManifest,
+    opportunity_source_authority: opportunitySourceAuthority,
+    source_ued_hash: uedProjection?.sourceUedHash ?? null,
+    ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
     opportunities,
   });
 
@@ -2432,6 +2574,9 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     generated_at: now,
     candidate_generation_status: candidateGenerationStatus,
     quality_manifest: qualityManifest,
+    opportunity_source_authority: opportunitySourceAuthority,
+    source_ued_hash: uedProjection?.sourceUedHash ?? null,
+    ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
     mode_contract: modeContractForMetadata(modeContract),
     genre_expectation_context: genreExpectationContext,
     resolved_english_variant: resolvedEnglishVariantLabel(selectedEnglishVariant),

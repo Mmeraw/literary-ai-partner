@@ -19,9 +19,17 @@ const SECTIONS_ORDER = [
   'query_letter', // last because it benefits from having other sections as context
 ] as const;
 
+type SynopsisLength = 'query' | 'standard' | 'extended';
+
+function normalizeSynopsisLength(value: unknown): SynopsisLength {
+  return value === 'query' || value === 'standard' || value === 'extended' ? value : 'standard';
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const { manuscriptId, evaluationJobId, authorBioInput } = body;
+  const synopsisLength = normalizeSynopsisLength(body.synopsisLength);
+  const trimmedAuthorBioInput = typeof authorBioInput === 'string' ? authorBioInput.trim() : '';
 
   if (!manuscriptId || !evaluationJobId) {
     return NextResponse.json(
@@ -54,6 +62,7 @@ export async function POST(request: Request) {
           evaluationJobId,
           section,
           mode: 'generate',
+          ...(section === 'synopsis' ? { synopsisLength } : {}),
         }),
       });
 
@@ -80,7 +89,14 @@ export async function POST(request: Request) {
   }
 
   // Generate bio if author input is provided
-  if (authorBioInput && authorBioInput.trim().length >= 50) {
+  if (trimmedAuthorBioInput && trimmedAuthorBioInput.length < 50) {
+    results['author_bio'] = {
+      content: '',
+      wordCount: 0,
+      error: 'Author Bio input too brief. Please provide at least 50 characters of author-supplied background material.',
+    };
+    errors.push('author_bio: Author Bio input too brief');
+  } else if (trimmedAuthorBioInput.length >= 50) {
     try {
       const res = await fetch(`${origin}/api/agent-readiness/generate`, {
         method: 'POST',
@@ -93,7 +109,7 @@ export async function POST(request: Request) {
           evaluationJobId,
           section: 'author_bio',
           mode: 'generate',
-          authorBioInput,
+          authorBioInput: trimmedAuthorBioInput,
         }),
       });
 
@@ -120,7 +136,7 @@ export async function POST(request: Request) {
   }
 
   const sectionsGenerated = Object.values(results).filter(r => r.content).length;
-  const totalSections = authorBioInput ? 6 : 5;
+  const totalSections = trimmedAuthorBioInput ? 6 : 5;
 
   return NextResponse.json({
     results,

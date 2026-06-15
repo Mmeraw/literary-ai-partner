@@ -2,6 +2,7 @@ import {
   buildRevisionOpportunitiesFromEvaluationPayload,
   ensureRevisionOpportunityLedgerArtifact,
 } from '@/lib/revision/opportunityLedger';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import { candidateTextIsCopyPasteReady } from '@/lib/revision/reviseCardContract';
 import { logRevisionEvent } from '@/lib/revision/logRevisionEvent';
 
@@ -271,6 +272,149 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
 });
 
 describe('ensureRevisionOpportunityLedgerArtifact', () => {
+  it('projects Revise opportunities from certified UED canonical opportunity IDs when available', async () => {
+    const upsertSpy = jest.fn();
+    const unifiedDocument = {
+      title: 'The Price of Vanity',
+      canonicalOpportunityLedger: {
+        rendered_opportunities: [
+          {
+            id: 'OPP-001',
+            primary_criterion: 'themeAndSubtext',
+            related_criteria: ['themeAndSubtext', 'narrativeClosure'],
+            severity: 'high',
+            evidence: 'Total value: Priceless.',
+            location: 'ending:final-beat',
+            symptom: 'The final paragraph explains the theme after the priceless payoff lands.',
+            cause: 'Explicit summary reduces the force of the subtext.',
+            fix_direction: 'Let the “Total value: Priceless” beat carry the theme with less explanation.',
+            reader_effect: 'The ending lands with more restraint and confidence.',
+            action: 'Lighten the final thematic explanation.',
+            expected_impact: 'The reader supplies the conclusion instead of being told the moral.',
+            is_action_item_candidate: true,
+            issue_type: 'thematic_closure',
+            deduped_from: ['themeAndSubtext:1', 'narrativeClosure:1'],
+          },
+        ],
+      },
+    };
+    const uedHash = canonicalJsonSha256(unifiedDocument);
+
+    const supabase = {
+      from: (table: string) => {
+        const state: {
+          selectClause: string | null;
+          filters: Record<string, unknown>;
+          inFilter: { column: string; values: unknown[] } | null;
+        } = { selectClause: null, filters: {}, inFilter: null };
+
+        const chain = {
+          select: (value: string) => {
+            state.selectClause = value;
+            return chain;
+          },
+          eq: (column: string, value: unknown) => {
+            state.filters[column] = value;
+            return chain;
+          },
+          in: (column: string, values: unknown[]) => {
+            state.inFilter = { column, values };
+            return chain;
+          },
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => {
+            if (table === 'evaluation_artifacts' && state.selectClause === 'id, content') {
+              return { data: null, error: null };
+            }
+
+            if (table === 'evaluation_jobs') {
+              return {
+                data: {
+                  id: state.filters.id,
+                  manuscript_id: 6074,
+                  evaluation_project_id: null,
+                  evaluation_result: null,
+                },
+                error: null,
+              };
+            }
+
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content, source_hash') {
+              return {
+                data: {
+                  source_hash: 'evaluation-result-hash',
+                  content: {
+                    overview: { word_count: 1800 },
+                    criteria: [],
+                  },
+                },
+                error: null,
+              };
+            }
+
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content') {
+              if (state.filters.artifact_type === 'unified_evaluation_document_v1') {
+                return { data: { content: unifiedDocument }, error: null };
+              }
+              if (state.filters.artifact_type === 'author_exposure_certification_v1') {
+                return {
+                  data: {
+                    content: {
+                      schema_version: 'author_exposure_certification_v1',
+                      decision: 'certified',
+                      unified_document_hash: uedHash,
+                    },
+                  },
+                  error: null,
+                };
+              }
+              return { data: null, error: null };
+            }
+
+            return { data: null, error: null };
+          },
+          upsert: (payload: unknown) => {
+            upsertSpy(payload);
+            return {
+              select: () => ({
+                limit: async () => ({ data: [{ id: 'ledger-new' }], error: null }),
+              }),
+            };
+          },
+        };
+
+        return chain;
+      },
+    };
+
+    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-ued');
+
+    expect(result.artifactId).toBe('ledger-new');
+    expect(result.opportunities).toHaveLength(1);
+    expect(result.opportunities[0]).toMatchObject({
+      opportunity_id: 'OPP-001',
+      source_opportunity_id: 'OPP-001',
+      source_criterion: 'themeAndSubtext',
+      source_ued_hash: uedHash,
+      provenance: 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities',
+    });
+
+    const persisted = upsertSpy.mock.calls[0][0] as { content: Record<string, unknown> };
+    expect(persisted.content).toMatchObject({
+      opportunity_source_authority: 'unified_evaluation_document_v1',
+      source_ued_hash: uedHash,
+      ued_rendered_opportunity_count: 1,
+    });
+    expect(persisted.content.opportunities).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        opportunity_id: 'OPP-001',
+        source_opportunity_id: 'OPP-001',
+        source_ued_hash: uedHash,
+      }),
+    ]));
+  });
+
   it('rebuilds stale empty ledger when evaluation payload now has opportunities', async () => {
     const upsertSpy = jest.fn();
 

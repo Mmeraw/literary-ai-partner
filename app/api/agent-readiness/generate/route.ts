@@ -25,6 +25,7 @@ type SectionType =
   | 'author_bio';
 
 type GenerateMode = 'generate' | 'regenerate' | 'improve';
+type SynopsisLength = 'query' | 'standard' | 'extended';
 
 interface GenerateRequest {
   manuscriptId: number;
@@ -33,6 +34,7 @@ interface GenerateRequest {
   mode: GenerateMode;
   existingContent?: string;
   authorBioInput?: string;
+  synopsisLength?: SynopsisLength;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -49,6 +51,40 @@ const WORD_LIMITS: Record<SectionType, number> = {
   comparables: 200,
   author_bio: 150,
 };
+
+const SYNOPSIS_LENGTH_LIMITS: Record<SynopsisLength, { min: number; max: number; label: string; instruction: string }> = {
+  query: {
+    min: 100,
+    max: 150,
+    label: 'Query Synopsis',
+    instruction: '100-150 words. Use a compact query-form synopsis that still reveals the ending.',
+  },
+  standard: {
+    min: 250,
+    max: 500,
+    label: 'Standard Synopsis',
+    instruction: '250-500 words. Use the standard agency-submission synopsis length.',
+  },
+  extended: {
+    min: 700,
+    max: 1000,
+    label: 'Extended Synopsis',
+    instruction: '700-1,000 words. Use a fuller submission synopsis with the complete main arc and resolution.',
+  },
+};
+
+function normalizeSynopsisLength(value: unknown): SynopsisLength {
+  return value === 'query' || value === 'standard' || value === 'extended' ? value : 'standard';
+}
+
+function wordLimitFor(section: SectionType, synopsisLength: SynopsisLength): number {
+  return section === 'synopsis' ? SYNOPSIS_LENGTH_LIMITS[synopsisLength].max : WORD_LIMITS[section];
+}
+
+function wordMinimumFor(section: SectionType, synopsisLength: SynopsisLength): number | undefined {
+  if (section === 'synopsis') return SYNOPSIS_LENGTH_LIMITS[synopsisLength].min;
+  return WORD_MINIMUMS[section];
+}
 
 // ── Quality Gate: reject editorial meta-language ─────────────────────────────
 
@@ -86,7 +122,7 @@ const WORD_MINIMUMS: Partial<Record<SectionType, number>> = {
   what_makes_unique: 60,
 };
 
-function qualityGate(text: string, section: SectionType): { pass: boolean; reason?: string } {
+function qualityGate(text: string, section: SectionType, synopsisLength: SynopsisLength = 'standard'): { pass: boolean; reason?: string } {
   if (!text || text.trim().length < 20) {
     return { pass: false, reason: 'Output too short — generation failed' };
   }
@@ -112,13 +148,13 @@ function qualityGate(text: string, section: SectionType): { pass: boolean; reaso
   }
 
   const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-  const limit = WORD_LIMITS[section];
+  const limit = wordLimitFor(section, synopsisLength);
   if (wordCount > limit * 1.1) {
     return { pass: false, reason: `Exceeds word limit: ${wordCount}/${limit} words` };
   }
 
   // Minimum word count — reject thin output that won't serve agents
-  const minWords = WORD_MINIMUMS[section];
+  const minWords = wordMinimumFor(section, synopsisLength);
   if (minWords && wordCount < minWords) {
     return { pass: false, reason: `Output too thin (${wordCount} words) — minimum ${minWords} words required for agent-ready ${section}` };
   }
@@ -128,7 +164,7 @@ function qualityGate(text: string, section: SectionType): { pass: boolean; reaso
 
 // ── System prompts per section ───────────────────────────────────────────────
 
-function getSystemPrompt(section: SectionType): string {
+function getSystemPrompt(section: SectionType, synopsisLength: SynopsisLength = 'standard'): string {
   const baseRules = `You are a professional literary agent submission consultant. You produce polished, agent-ready materials that authors can submit directly to literary agents without editing.
 
 ABSOLUTE RULES:
@@ -150,7 +186,7 @@ QUERY LETTER REQUIREMENTS:
   2. STAKES (1 paragraph): The central conflict — what the protagonist must do, what stands against them, and what they'll lose if they fail. Reveal at least one major turn. This is NOT a teaser — agents want to see narrative architecture.
   3. METADATA (1 line): "[TITLE] is a [genre] complete at [word count] words, with series potential" (or standalone). Include target audience if relevant.
   4. COMPARABLES (1 sentence): "It will appeal to readers of [Comp 1] and [Comp 2]" — woven naturally, not as a bullet list.
-  5. BIO (2-3 sentences): Why YOU wrote THIS book. Professional identity + relevant credential. No life story.
+  5. BIO (optional): Include author bio facts ONLY if approved author-supplied bio material is present in the context. If no approved author bio facts are provided, omit bio claims entirely. NEVER invent credentials, awards, education, locations, publications, or lived experience.
   6. CLOSE: "Thank you for your time and consideration. I look forward to the opportunity to share the full manuscript."
 - VOICE: Confident, precise, literary. Match the manuscript's tone — if the novel is dark, the query is dark. If lyrical, the query is lyrical. Never sound desperate, self-deprecating, or salesy.
 - Every sentence must advance the agent's understanding of the story or the author's credibility. Cut anything generic.
@@ -172,11 +208,12 @@ UNIQUE DIFFERENTIATOR REQUIREMENTS:
 - Write as if pitching to a jaded agent who has read 200 queries today — be specific enough that they can't confuse this book with another.
 - This must work both standalone AND embedded inside the query letter.`;
 
-    case 'synopsis':
+    case 'synopsis': {
+      const synopsisConfig = SYNOPSIS_LENGTH_LIMITS[synopsisLength];
       return `${baseRules}
 
 SYNOPSIS REQUIREMENTS:
-- 250-500 words (350-450 is the sweet spot)
+  - LENGTH: ${synopsisConfig.instruction}
 - MUST REVEAL THE ENDING — agents REQUIRE this. A synopsis that withholds the resolution is an automatic rejection.
 - Write in present tense, third person, active voice throughout.
 - STRUCTURE (follow this arc):
@@ -191,6 +228,7 @@ SYNOPSIS REQUIREMENTS:
 - NO teaser language ("What happens next will change everything"). This is not a blurb — it's a professional narrative summary.
 - MAINTAIN the manuscript's tone — if the novel is literary and quiet, the synopsis is literary and quiet. If it's tense and propulsive, so is the synopsis.
 - Every sentence must move the story forward. Cut transitions, setting descriptions, and subplot details unless they directly affect the main arc.`;
+  }
 
     case 'query_pitch':
       return `${baseRules}
@@ -248,7 +286,7 @@ AUTHOR BIO REQUIREMENTS:
 
 // ── Fetch manuscript & evaluation data from Supabase ─────────────────────────
 
-async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: string) {
+async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: string, userId: string) {
   const admin = createAdminClient();
 
   // Fetch manuscript metadata
@@ -293,13 +331,55 @@ async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: str
     .limit(1)
     .maybeSingle();
 
+  const { data: agentSections } = await admin
+    .from('agent_readiness_sections')
+    .select('section_type, content, status')
+    .eq('user_id', userId)
+    .eq('manuscript_id', manuscriptId)
+    .eq('evaluation_job_id', evaluationJobId);
+
   return {
     manuscript,
     artifact: artifact?.content,
     job,
     chunks: chunks?.map(c => c.content).filter(Boolean) ?? [],
     storyLedger: ledger?.content,
+    agentSections: (agentSections ?? []) as Array<{ section_type: SectionType; content: string | null; status: string | null }>,
   };
+}
+
+function getPersistedAgentSection(
+  ctx: Awaited<ReturnType<typeof fetchManuscriptContext>>,
+  sectionType: SectionType,
+  requiredStatus?: 'approved' | 'draft',
+): string | null {
+  const section = ctx.agentSections.find((candidate) => {
+    if (candidate.section_type !== sectionType) return false;
+    if (requiredStatus && candidate.status !== requiredStatus) return false;
+    return typeof candidate.content === 'string' && candidate.content.trim().length > 0;
+  });
+
+  return section?.content?.trim() ?? null;
+}
+
+function buildQueryLetterSupportContext(ctx: Awaited<ReturnType<typeof fetchManuscriptContext>>): string {
+  const parts: string[] = [];
+  const synopsis = getPersistedAgentSection(ctx, 'synopsis');
+  const unique = getPersistedAgentSection(ctx, 'what_makes_unique');
+  const comparables = getPersistedAgentSection(ctx, 'comparables');
+  const approvedBio = getPersistedAgentSection(ctx, 'author_bio', 'approved');
+
+  if (synopsis) parts.push(`PERSISTED SYNOPSIS DRAFT (story facts only):\n${synopsis}`);
+  if (unique) parts.push(`PERSISTED UNIQUE DIFFERENTIATOR DRAFT:\n${unique}`);
+  if (comparables) parts.push(`PERSISTED COMPARABLES DRAFT:\n${comparables}`);
+
+  if (approvedBio) {
+    parts.push(`APPROVED AUTHOR BIO FACTS (author-supplied; may be used in the query letter):\n${approvedBio}`);
+  } else {
+    parts.push('AUTHOR BIO POLICY: No approved author-supplied bio is available. Omit author credentials and bio claims from the query letter. Do not invent them.');
+  }
+
+  return parts.join('\n\n');
 }
 
 function buildContextSummary(ctx: Awaited<ReturnType<typeof fetchManuscriptContext>>): string {
@@ -389,6 +469,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { manuscriptId, evaluationJobId, section, mode, existingContent, authorBioInput } = body;
+  const synopsisLength = normalizeSynopsisLength(body.synopsisLength);
 
   if (!manuscriptId || !evaluationJobId || !section) {
     return NextResponse.json({ error: 'Missing required fields: manuscriptId, evaluationJobId, section' }, { status: 400 });
@@ -406,18 +487,27 @@ export async function POST(req: NextRequest) {
   }
 
   // Fetch context
-  const ctx = await fetchManuscriptContext(manuscriptId, evaluationJobId);
+  const ctx = await fetchManuscriptContext(manuscriptId, evaluationJobId, user.id);
   if (!ctx.manuscript) {
     return NextResponse.json({ error: 'Manuscript not found' }, { status: 404 });
   }
 
   // Build the prompt
   const contextSummary = buildContextSummary(ctx);
-  const systemPrompt = getSystemPrompt(section);
+  const systemPrompt = getSystemPrompt(section, synopsisLength);
 
   let userMessage = `Using the manuscript data below, generate a professional, agent-submission-ready ${sectionLabel(section)} for "${ctx.manuscript.title}".
 
 ${contextSummary}`;
+
+  if (section === 'synopsis') {
+    const synopsisConfig = SYNOPSIS_LENGTH_LIMITS[synopsisLength];
+    userMessage += `\n\nSYNOPSIS LENGTH SELECTED: ${synopsisConfig.label}. ${synopsisConfig.instruction}`;
+  }
+
+  if (section === 'query_letter') {
+    userMessage += `\n\nQUERY LETTER SUPPORTING PACKAGE CONTEXT:\n${buildQueryLetterSupportContext(ctx)}`;
+  }
 
   // Mode-specific adjustments
   if (mode === 'improve' && existingContent) {
@@ -484,7 +574,7 @@ ${contextSummary}`;
   }
 
   // Quality gate
-  const gate = qualityGate(generated, section);
+  const gate = qualityGate(generated, section, synopsisLength);
   if (!gate.pass) {
     // Try once more with stricter temperature
     try {
@@ -498,7 +588,7 @@ ${contextSummary}`;
         max_tokens: MAX_TOKENS,
       });
       const retryText = sanitizeAuthorFacingProse(retryCompletion.choices[0]?.message?.content?.trim() ?? '');
-      const retryGate = qualityGate(retryText, section);
+      const retryGate = qualityGate(retryText, section, synopsisLength);
       if (retryGate.pass) {
         generated = retryText;
       } else {
@@ -547,7 +637,8 @@ ${contextSummary}`;
     content: generated,
     section,
     wordCount: generated.trim().split(/\s+/).filter(Boolean).length,
-    wordLimit: WORD_LIMITS[section],
+    wordLimit: wordLimitFor(section, synopsisLength),
+    ...(section === 'synopsis' ? { synopsisLength, wordMinimum: SYNOPSIS_LENGTH_LIMITS[synopsisLength].min } : {}),
     model: MODEL,
     mode,
     persisted: true,

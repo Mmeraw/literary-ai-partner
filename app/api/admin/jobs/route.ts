@@ -34,6 +34,8 @@ type PaginationCursor = {
   id: string;
 };
 
+const CANONICAL_STATUSES = new Set(["queued", "running", "complete", "failed"]);
+
 export async function GET(req: NextRequest) {
   // PHASE A.5: Admin authentication
   const denied = await requireAdmin(req);
@@ -63,7 +65,16 @@ export async function GET(req: NextRequest) {
   );
 
   // Parse pagination
-  const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
+  // Allow larger admin-monitor windows to reduce "missing jobs" in UI lists.
+  // This endpoint is admin-only and read-only.
+  const limit = limitParam ? Math.min(parseInt(limitParam, 10), 500) : 100;
+
+  if (status && !CANONICAL_STATUSES.has(status)) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid status filter" },
+      { status: 400 }
+    );
+  }
   
   let cursor: PaginationCursor | null = null;
   if (cursorParam) {
@@ -78,6 +89,66 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const useRecentAllJobsQuery =
+      !status &&
+      !failed_after &&
+      !failed_before &&
+      !cursor;
+
+    if (useRecentAllJobsQuery) {
+      let query = supabase
+        .from("evaluation_jobs")
+        .select(
+          "id,manuscript_id,job_type,status,phase,phase_status,attempt_count,max_attempts,failed_at,next_attempt_at,last_error,created_at,updated_at,work_type,policy_family"
+        )
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(limit + 1);
+
+      if (job_type) query = query.eq("job_type", job_type);
+      if (phase) query = query.eq("phase", phase);
+      if (policy_family) query = query.eq("policy_family", policy_family);
+      if (created_after) query = query.gte("created_at", created_after);
+      if (created_before) query = query.lte("created_at", created_before);
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("[Admin Jobs] Direct recent-jobs query error:", error);
+        return NextResponse.json(
+          { ok: false, error: "Failed to fetch jobs", details: error.message },
+          { status: 500 }
+        );
+      }
+
+      const rawJobs = (data ?? []) as Array<Record<string, unknown>>;
+      const visibleJobs = showTestManuscripts
+        ? rawJobs
+        : rawJobs.filter((j) => {
+            const id = j.manuscript_id;
+            if (id === null || id === undefined) return true;
+            return !isTestManuscript(id as number | string);
+          });
+      const resultJobs = visibleJobs.slice(0, limit);
+      const has_more = visibleJobs.length > limit;
+
+      return NextResponse.json({
+        ok: true,
+        jobs: resultJobs,
+        pagination: {
+          count: resultJobs.length,
+          limit,
+          has_more,
+          next_cursor: null,
+        },
+        filters: {
+          showTestManuscripts,
+          testManuscriptIdMin: TEST_MANUSCRIPT_ID_MIN,
+          ordering: "created_at_desc_all_statuses",
+        },
+      });
+    }
+
     // Call admin_list_jobs RPC
     const { data: jobs, error } = await supabase.rpc("admin_list_jobs", {
       p_status: status,

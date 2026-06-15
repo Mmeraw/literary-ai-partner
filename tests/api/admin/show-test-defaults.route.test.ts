@@ -34,6 +34,7 @@ function makeRequest(url: string): NextRequest {
 
 function buildRpcClient(rows: RpcJob[]) {
   return {
+    from: jest.fn(() => makeThenableQuery({ data: rows, error: null })),
     rpc: jest.fn(async () => ({ data: rows, error: null })),
     auth: {
       admin: {

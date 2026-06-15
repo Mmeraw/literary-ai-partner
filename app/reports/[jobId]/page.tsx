@@ -350,7 +350,8 @@ export default async function ReportPage({
     notFound();
   }
 
-  const canonicalDoc = sanitizeAuthorFacingDisplayValue(persistedDocument.document, isLongForm);
+  const canonicalDoc = persistedDocument.document;
+  const authorFacingCanonicalDoc = sanitizeAuthorFacingDisplayValue(canonicalDoc, isLongForm);
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");
@@ -488,12 +489,12 @@ export default async function ReportPage({
             {/* Title column */}
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-3xl font-bold leading-tight text-[#1C1814] sm:text-4xl">{displayTitle}</h1>
-              <p className="mt-2 text-sm font-medium uppercase tracking-[0.08em] text-[#5C5549]">{canonicalDoc.titleBlock.reportType}</p>
+              <p className="mt-2 text-sm font-medium uppercase tracking-[0.08em] text-[#5C5549]">{authorFacingCanonicalDoc.titleBlock.reportType}</p>
               {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
                 <p className="mt-1 text-sm text-[#5C5549]">{manuscriptTitle}</p>
               )}
               <p className="mt-3 text-xs leading-relaxed text-[#9A9087]">
-                Generated {canonicalDoc.titleBlock.dateGenerated}
+                Generated {authorFacingCanonicalDoc.titleBlock.dateGenerated}
                 {' · '}
                 <span className="font-mono break-all">{params.jobId.slice(0, 8)}</span>
                 <CopyReferenceIdButton
@@ -505,25 +506,25 @@ export default async function ReportPage({
 
             {/* Score card — always visible without scrolling */}
             <aside className={`w-full rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
-              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('market ready') ? 'border-[#9DC79D] bg-[#EEF7EF]' :
-              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('near market ready') ? 'border-[#D9A441] bg-[#FFF6E8]' :
-              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('not market ready') ? 'border-[#C97A7A] bg-[#FDEEEE]' :
+              authorFacingCanonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('market ready') ? 'border-[#9DC79D] bg-[#EEF7EF]' :
+              authorFacingCanonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('near market ready') ? 'border-[#D9A441] bg-[#FFF6E8]' :
+              authorFacingCanonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('not market ready') ? 'border-[#C97A7A] bg-[#FDEEEE]' :
               'border-[#D9D0C3] bg-[#FAF7F2]'
             }`}>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Overall Score</p>
               <p className="mt-1 font-serif text-4xl font-bold leading-none text-[#1A1A1A]">
-                {canonicalDoc.titleBlock.overallScoreLabel}
+                {authorFacingCanonicalDoc.titleBlock.overallScoreLabel}
               </p>
-              {canonicalDoc.titleBlock.overallScoreConfidenceLabel && (
-                <p className="mt-1 text-[10px] text-[#5C5549]">{canonicalDoc.titleBlock.overallScoreConfidenceLabel}</p>
+              {authorFacingCanonicalDoc.titleBlock.overallScoreConfidenceLabel && (
+                <p className="mt-1 text-[10px] text-[#5C5549]">{authorFacingCanonicalDoc.titleBlock.overallScoreConfidenceLabel}</p>
               )}
               <div className="mt-3 border-t border-[#D9D0C3] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Market Readiness</p>
                 <p className="mt-1 text-sm font-bold uppercase text-[#1A1A1A]">
-                  {canonicalDoc.titleBlock.marketReadiness}
+                  {authorFacingCanonicalDoc.titleBlock.marketReadiness}
                 </p>
-                {canonicalDoc.titleBlock.marketReadinessConfidenceLabel && (
-                  <p className="mt-0.5 text-[10px] text-[#5C5549]">{canonicalDoc.titleBlock.marketReadinessConfidenceLabel}</p>
+                {authorFacingCanonicalDoc.titleBlock.marketReadinessConfidenceLabel && (
+                  <p className="mt-0.5 text-[10px] text-[#5C5549]">{authorFacingCanonicalDoc.titleBlock.marketReadinessConfidenceLabel}</p>
                 )}
               </div>
             </aside>
@@ -531,13 +532,13 @@ export default async function ReportPage({
 
           {/* ── Metadata grid (secondary — below the hero) ── */}
           <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden border border-[#D9D0C3] bg-[#D9D0C3] text-sm sm:grid-cols-3 lg:grid-cols-4">
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.genre}{canonicalDoc.titleBlock.genreConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.genreConfidenceLabel})</span> : null}</dd></div>
-            <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{canonicalDoc.titleBlock.audienceTentative ? 'Tentative: ' : ''}{canonicalDoc.titleBlock.targetAudience}{canonicalDoc.titleBlock.audienceConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.audienceConfidenceLabel})</span> : null}</dd></div>
-            {canonicalDoc.titleBlock.shelf ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.shelf}{canonicalDoc.titleBlock.shelfConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.shelfConfidenceLabel})</span> : null}</dd></div> : null}
-            {canonicalDoc.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.submittedWordCount}</dd></div> : null}
-            {canonicalDoc.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.estimatedPages}</dd></div> : null}
-            {canonicalDoc.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.readingGradeLevel}</dd></div> : null}
-            {canonicalDoc.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Dialogue/Narrative Ratio</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
+            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1 font-semibold text-[#1C1814]">{authorFacingCanonicalDoc.titleBlock.genre}{authorFacingCanonicalDoc.titleBlock.genreConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({authorFacingCanonicalDoc.titleBlock.genreConfidenceLabel})</span> : null}</dd></div>
+            <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{authorFacingCanonicalDoc.titleBlock.audienceTentative ? 'Tentative: ' : ''}{authorFacingCanonicalDoc.titleBlock.targetAudience}{authorFacingCanonicalDoc.titleBlock.audienceConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({authorFacingCanonicalDoc.titleBlock.audienceConfidenceLabel})</span> : null}</dd></div>
+            {authorFacingCanonicalDoc.titleBlock.shelf ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1 font-semibold text-[#1C1814]">{authorFacingCanonicalDoc.titleBlock.shelf}{authorFacingCanonicalDoc.titleBlock.shelfConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({authorFacingCanonicalDoc.titleBlock.shelfConfidenceLabel})</span> : null}</dd></div> : null}
+            {authorFacingCanonicalDoc.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1 font-semibold text-[#1C1814]">{authorFacingCanonicalDoc.titleBlock.submittedWordCount}</dd></div> : null}
+            {authorFacingCanonicalDoc.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1 font-semibold text-[#1C1814]">{authorFacingCanonicalDoc.titleBlock.estimatedPages}</dd></div> : null}
+            {authorFacingCanonicalDoc.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1 font-semibold text-[#1C1814]">{authorFacingCanonicalDoc.titleBlock.readingGradeLevel}</dd></div> : null}
+            {authorFacingCanonicalDoc.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Dialogue/Narrative Ratio</dt><dd className="mt-1 font-semibold text-[#1C1814]">{authorFacingCanonicalDoc.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
           </dl>
         </header>
 
@@ -569,25 +570,25 @@ export default async function ReportPage({
         {/* ── One-Paragraph Pitch (template section 2) + One-Sentence Pitch (template section 3) ── */}
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
           <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">One-Paragraph Pitch</h2>
-          <p className="leading-relaxed text-[#1C1814]">{canonicalDoc.oneParagraphPitch}</p>
+          <p className="leading-relaxed text-[#1C1814]">{authorFacingCanonicalDoc.oneParagraphPitch}</p>
         </section>
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
           <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">One-Sentence Pitch</h2>
-          <p className="font-medium leading-relaxed text-[#1C1814]">{canonicalDoc.oneSentencePitch}</p>
+          <p className="font-medium leading-relaxed text-[#1C1814]">{authorFacingCanonicalDoc.oneSentencePitch}</p>
         </section>
 
         {/* ── Premise (template section 4) + Content Warnings (template section 5) ── */}
-        {canonicalDoc.premise && (
+        {authorFacingCanonicalDoc.premise && (
           <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
             <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Premise</h2>
-            <p className="leading-relaxed text-[#1C1814]">{canonicalDoc.premise}</p>
+            <p className="leading-relaxed text-[#1C1814]">{authorFacingCanonicalDoc.premise}</p>
           </section>
         )}
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFF6E8] p-6 shadow-sm">
           <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Content Warnings</h2>
-          {canonicalDoc.contentWarnings.length > 0 ? (
+          {authorFacingCanonicalDoc.contentWarnings.length > 0 ? (
             <ul className="space-y-2 text-[#1C1814]">
-              {canonicalDoc.contentWarnings.map((warning, i) => (
+              {authorFacingCanonicalDoc.contentWarnings.map((warning, i) => (
                 <li key={i} className="flex gap-2 items-start">
                   <span className="shrink-0 mt-0.5 text-[#8B2E2E]">•</span>
                   <span>{warning}</span>
@@ -608,19 +609,19 @@ export default async function ReportPage({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="border border-[#D9D0C3] bg-white p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Total</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.total}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{authorFacingCanonicalDoc.revisionOpportunitySummary.total}</p>
             </div>
             <div className="border border-[#D9D0C3] bg-[#EEF7EF] p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Recommended</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.high}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{authorFacingCanonicalDoc.revisionOpportunitySummary.high}</p>
             </div>
             <div className="border border-[#D9D0C3] bg-[#EEF3F8] p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Optional</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.medium}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{authorFacingCanonicalDoc.revisionOpportunitySummary.medium}</p>
             </div>
             <div className="border border-[#D9D0C3] bg-[#FFF6E8] p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Consider</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.low}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{authorFacingCanonicalDoc.revisionOpportunitySummary.low}</p>
             </div>
           </div>
           <p className="mt-3 text-xs text-[#5C5549]">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
@@ -632,19 +633,19 @@ export default async function ReportPage({
               <h2 className="font-serif text-2xl font-bold text-[#8B2E2E]">Executive Summary</h2>
               <div className="flex items-center gap-4">
                 <span className={`border px-4 py-2 text-sm font-semibold ${
-                  canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('market ready') ? 'border-[#D9D0C3] bg-[#EEF7EF] text-[#1C1814]' :
-                  canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('near market ready') ? 'border-[#D9D0C3] bg-[#FFF6E8] text-[#1C1814]' :
+                  authorFacingCanonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('market ready') ? 'border-[#D9D0C3] bg-[#EEF7EF] text-[#1C1814]' :
+                  authorFacingCanonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('near market ready') ? 'border-[#D9D0C3] bg-[#FFF6E8] text-[#1C1814]' :
                   'border-[#D9D0C3] bg-[#F9E8E8] text-[#1C1814]'
                 }`}>
-                  {canonicalDoc.titleBlock.marketReadiness.toUpperCase()}
+                  {authorFacingCanonicalDoc.titleBlock.marketReadiness.toUpperCase()}
                 </span>
                 <span className="font-serif text-3xl font-bold text-[#8B2E2E]">
-                  {canonicalDoc.titleBlock.overallScoreLabel}
+                  {authorFacingCanonicalDoc.titleBlock.overallScoreLabel}
                 </span>
               </div>
             </div>
             <p className="mb-6 leading-relaxed text-[#1C1814]">
-              {correctScopeLanguage(canonicalDoc.executiveSummary, isLongForm)}
+              {correctScopeLanguage(authorFacingCanonicalDoc.executiveSummary, isLongForm)}
             </p>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -653,7 +654,7 @@ export default async function ReportPage({
                   Top Strengths
                 </h3>
                 <ul className="space-y-2">
-                  {canonicalDoc.topStrengths.map((strength, idx) => (
+                  {authorFacingCanonicalDoc.topStrengths.map((strength, idx) => (
                     <li key={idx} className="border-l-2 border-[#8B2E2E] pl-4 text-[#1C1814]">
                       {strength}
                     </li>
@@ -666,7 +667,7 @@ export default async function ReportPage({
                   Top Risks
                 </h3>
                 <ul className="space-y-2">
-                  {canonicalDoc.topRisks.map((risk, idx) => (
+                  {authorFacingCanonicalDoc.topRisks.map((risk, idx) => (
                     <li key={idx} className="border-l-2 border-[#C8A96E] pl-4 text-[#1C1814]">
                       {risk}
                     </li>
@@ -679,9 +680,9 @@ export default async function ReportPage({
         {/* ── Top Recommendations (template section 10) ── */}
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
           <h2 className="mb-4 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Top Recommendations</h2>
-          {canonicalDoc.topRecommendations.length > 0 ? (
+          {authorFacingCanonicalDoc.topRecommendations.length > 0 ? (
             <ol className="space-y-3 text-[#1C1814]">
-              {canonicalDoc.topRecommendations.map((recommendation, idx) => (
+              {authorFacingCanonicalDoc.topRecommendations.map((recommendation, idx) => (
                 <li key={idx} className="flex items-start gap-3 leading-relaxed">
                   <span className="shrink-0 font-semibold text-[#8B2E2E]">{idx + 1}.</span>
                   <span>{recommendation}</span>
@@ -707,7 +708,7 @@ export default async function ReportPage({
                 </tr>
               </thead>
               <tbody>
-                {canonicalDoc.criteriaScoreGrid.map((row, idx) => (
+                {authorFacingCanonicalDoc.criteriaScoreGrid.map((row, idx) => (
                   <tr key={`${row.label}-${idx}`} className="border-b border-[#E6DED2]">
                     <td className="px-3 py-2 text-[#1C1814]">{row.label}</td>
                     <td className="px-3 py-2 text-right font-semibold text-[#1C1814] whitespace-nowrap">{row.scoreLabel}</td>
@@ -724,7 +725,7 @@ export default async function ReportPage({
             Criterion Rationales &amp; Surfaced Opportunities
           </h2>
           <div className="space-y-4">
-            {canonicalDoc.criterionDetails.map((detail, idx) => (
+            {authorFacingCanonicalDoc.criterionDetails.map((detail, idx) => (
               <article key={`${detail.label}-${idx}`} className="overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#FFFCF7] shadow-[0_1px_0_rgba(28,24,20,0.04)]">
                 <div className="rg-report-criterion-header flex items-center justify-between gap-4 border-b border-[#D9D0C3] bg-[#F7F1E6] px-4 py-3 [color-scheme:light]">
                   <h3 className="font-serif text-base font-bold leading-snug !text-[#8B2E2E]">{detail.label}</h3>
@@ -765,13 +766,13 @@ export default async function ReportPage({
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
           <h2 className="mb-6 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Action Items</h2>
           {/* Quick Wins */}
-          {canonicalDoc.actionItems.quickWins.length > 0 && (
+          {authorFacingCanonicalDoc.actionItems.quickWins.length > 0 && (
             <div className="mb-6">
               <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
                 Quick Wins
               </h3>
               <div className="space-y-3">
-                {canonicalDoc.actionItems.quickWins.map((qw, idx) => (
+                {authorFacingCanonicalDoc.actionItems.quickWins.map((qw, idx) => (
                   <div key={idx} className="border-l-4 border-[#8B2E2E] pl-4 py-2">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold text-[#1C1814]">{qw.action}</p>
@@ -813,13 +814,13 @@ export default async function ReportPage({
             </div>
           )}
           {/* Strategic Revisions */}
-          {canonicalDoc.actionItems.strategicRevisions.length > 0 && (
+          {authorFacingCanonicalDoc.actionItems.strategicRevisions.length > 0 && (
             <div>
               <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
                 Strategic Revisions
               </h3>
               <div className="space-y-3">
-                {canonicalDoc.actionItems.strategicRevisions.map((sr, idx) => (
+                {authorFacingCanonicalDoc.actionItems.strategicRevisions.map((sr, idx) => (
                   <div key={idx} className="border-l-4 border-[#C8A96E] pl-4 py-2">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold text-[#1C1814]">{sr.action}</p>
@@ -1304,13 +1305,13 @@ export default async function ReportPage({
         {/* ── Confidence Explanation (template section 13) ── */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-3">Confidence Explanation</h2>
-          <p className="text-gray-700 whitespace-pre-line">{canonicalDoc.confidenceExplanation}</p>
+          <p className="text-gray-700 whitespace-pre-line">{authorFacingCanonicalDoc.confidenceExplanation}</p>
         </section>
 
         {/* ── Author-Facing Disclaimer ── */}
         <section className="border border-gray-200 rounded-lg p-5 mb-6 bg-gray-50">
           <p className="text-xs text-gray-500 leading-relaxed">
-            {canonicalDoc.disclaimer}
+            {authorFacingCanonicalDoc.disclaimer}
           </p>
         </section>
 

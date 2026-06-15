@@ -29,7 +29,7 @@ export default function AdminJobsPage() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
-    params.set("limit", "50");
+    params.set("limit", "100");
     params.set("show_test", showTestManuscripts ? "1" : "0");
 
     fetch(`/api/admin/jobs?${params}`)
@@ -136,7 +136,7 @@ export default function AdminJobsPage() {
         </div>
 
         <p className="text-sm text-rg-cream2/70">
-          {jobs.length} job(s) found
+          {jobs.length} job(s) found · All-status view is sorted by created date so recent completed jobs are not buried by older failures.
         </p>
 
         {jobs.length === 0 ? (
@@ -175,7 +175,7 @@ export default function AdminJobsPage() {
                   <tr key={job.id} className="transition hover:bg-rg-ink2/50">
                     <td className="px-4 py-3 whitespace-nowrap font-mono text-xs font-semibold">
                       <Link
-                        href={`/evaluate/${job.id}`}
+                        href={`/admin/forensics/${job.id}`}
                         className="text-rg-gold hover:text-rg-cream underline"
                       >
                         {job.id.slice(0, 8)}...
