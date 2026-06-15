@@ -21,6 +21,8 @@ interface RecentJob {
   progress: { submitted_project_title?: string; submitted_author_name?: string; phase_status?: string } | null;
 }
 
+const JOB_LIST_LIMIT = 30;
+
 function statusDot(status: string) {
   if (status === "complete") return "🟢";
   if (status === "failed")   return "🔴";
@@ -48,47 +50,46 @@ function errorText(lastError: RecentJob["last_error"]): string | null {
 export default function EvalMonitorListPage() {
   const [jobs, setJobs] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobIdInput, setJobIdInput] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("failed");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const router = useRouter();
 
+  function load(isRefresh = false) {
+    const params = new URLSearchParams({ limit: String(JOB_LIST_LIMIT), show_test: "1" });
+    if (statusFilter !== "all") params.set("status", statusFilter);
+
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    fetch(`/api/admin/jobs?${params}`, { cache: "no-store" })
+      .then((r) => {
+        if (r.status === 401 || r.status === 403) { router.replace("/evaluate"); return null; }
+        return r.json();
+      })
+      .then((data) => {
+        if (!data) return;
+        const list = data.jobs ?? data.data?.jobs ?? data.data ?? [];
+        setJobs(Array.isArray(list) ? list : []);
+        setLastRefresh(new Date());
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
   useEffect(() => {
-    let cancelled = false;
-
-    function load(isRefresh = false) {
-      const params = new URLSearchParams({ limit: "500", show_test: "1" });
-      if (statusFilter !== "all") params.set("status", statusFilter);
-
-      if (!isRefresh) setLoading(true);
-      fetch(`/api/admin/jobs?${params}`, { cache: "no-store" })
-        .then((r) => {
-          if (r.status === 401 || r.status === 403) { router.replace("/evaluate"); return null; }
-          return r.json();
-        })
-        .then((data) => {
-          if (!data || cancelled) return;
-          const list = data.jobs ?? data.data?.jobs ?? data.data ?? [];
-          setJobs(Array.isArray(list) ? list : []);
-          setLastRefresh(new Date());
-          setError(null);
-        })
-        .catch((e: unknown) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-        })
-        .finally(() => {
-          if (!cancelled && !isRefresh) setLoading(false);
-        });
-    }
-
     load(false);
-    const timer = setInterval(() => load(true), 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [statusFilter, router]);
+    // Deliberately no automatic polling: admin data refreshes only by button click.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const handleGoTo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,7 +105,7 @@ export default function EvalMonitorListPage() {
           <p className="font-rg-mono text-[10px] uppercase tracking-[0.24em] text-rg-gold/70">Admin · Eval Monitor</p>
           <h1 className="font-rg-serif text-3xl">Evaluation Monitor</h1>
           <p className="text-sm text-rg-cream2/60">
-            Live job tracking — all evaluation jobs, all statuses, capped at 500 records.
+            Manual job tracking — defaults to latest failures and is capped at {JOB_LIST_LIMIT} records.
             {lastRefresh && <span> Last refresh: {lastRefresh.toLocaleTimeString()}.</span>}
           </p>
         </header>
@@ -127,11 +128,11 @@ export default function EvalMonitorListPage() {
 
         <div className="flex flex-wrap items-center gap-2 font-rg-mono text-xs">
           {[
-            ["all", "All"],
+            ["failed", "Failed"],
             ["queued", "Queued"],
             ["running", "Running"],
             ["complete", "Complete"],
-            ["failed", "Failed"],
+            ["all", "All"],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -145,6 +146,14 @@ export default function EvalMonitorListPage() {
               {label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => load(true)}
+            disabled={loading || refreshing}
+            className="rounded border border-rg-gold/40 px-3 py-1 text-rg-gold transition hover:border-rg-gold/70 hover:text-rg-cream disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
           <span className="ml-auto text-rg-cream2/45">{jobs.length} job(s)</span>
         </div>
 
