@@ -6,6 +6,7 @@ const read = (relativePath: string) => fs.readFileSync(path.join(process.cwd(), 
 const generateRoute = read('app/api/agent-readiness/generate/route.ts');
 const generateAllRoute = read('app/api/agent-readiness/generate-all/route.ts');
 const hookSource = read('app/agent-readiness/hooks/useAgentReadinessGenerate.ts');
+const workbenchSource = read('app/agent-readiness/AgentReadinessWorkbenchClient.tsx');
 const synopsisPage = read('app/agent-readiness/synopsis/page.tsx');
 const bioPage = read('app/agent-readiness/bio/page.tsx');
 
@@ -38,6 +39,19 @@ describe('Agent Readiness generation contract', () => {
     expect(hookSource).toContain('synopsisLength: opts?.synopsisLength');
     expect(synopsisPage).toContain("type SynopsisLength = \"query\" | \"standard\" | \"extended\"");
     expect(synopsisPage).toContain('synopsisLength: selected');
+  });
+
+  test('main workbench exposes all synopsis variants and author-bio materials input', () => {
+    expect(workbenchSource).toContain('type SynopsisVariant = "short" | "medium" | "long"');
+    expect(workbenchSource).toContain('synopsis_short');
+    expect(workbenchSource).toContain('synopsis_medium');
+    expect(workbenchSource).toContain('synopsis_long');
+    expect(workbenchSource).toContain('100–150 words');
+    expect(workbenchSource).toContain('250–500 words');
+    expect(workbenchSource).toContain('700–1,000 words');
+    expect(workbenchSource).toContain('Author Bio Materials');
+    expect(workbenchSource).toContain('authorBioInput.trim().length < 50');
+    expect(workbenchSource).toContain('author-supplied bio/resume/CV only');
   });
 
   test('generate-all explicitly generates a standard synopsis by default and validates bio input', () => {

@@ -51,7 +51,7 @@ const qualityReport: LedgerQualityReportPayload = {
 };
 
 describe('Phase 1A Story Layer artifact writers', () => {
-  it('builds pass1a_story_layer_v1 with exactly nine canonical layer payloads', () => {
+  it('builds pass1a_story_layer_v1 with exactly ten canonical layer payloads', () => {
     const artifact = buildPass1aStoryLayerArtifact({
       metadata,
       storyLayer: validStoryLayer(),
@@ -65,7 +65,7 @@ describe('Phase 1A Story Layer artifact writers', () => {
     expect(artifact.content.evaluation_project_id).toBe(metadata.evaluation_project_id);
     expect(artifact.content.stage_run_id).toBe(metadata.stage_run_id);
     expect(Object.keys(artifact.content.layers)).toEqual([...STORY_LAYER_KEYS]);
-    expect(STORY_LAYER_COUNT).toBe(9);
+    expect(STORY_LAYER_COUNT).toBe(10);
     expect(artifact.source_hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
