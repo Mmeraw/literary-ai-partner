@@ -12,7 +12,8 @@ import {
 import { canShowCancelEvaluation, isUserCancelled } from '@/lib/evaluation/cancelEvaluationPolicy';
 
 // No client-side progress drift. Progress is driven 100% from backend phase state
-// via getProgressDisplay. Constants below retained only for redirect animation.
+// via getProgressDisplay. The completion sweep is visual only and ends by
+// opening the canonical report page automatically.
 const COMPLETE_ANIMATION_TICK_MS = 200;
 const LONGFORM_WORD_COUNT_THRESHOLD = 25000;
 
@@ -110,10 +111,15 @@ interface PollerProps {
   onComplete?: (job: JobState, isSuccess: boolean) => void;
   refreshInterval?: number; // ms, default 500
   redirectOnComplete?: boolean;
-  redirectDelayMs?: number;
   refreshOnComplete?: boolean;
   /** Auto-redirect to Story Ledger when the pipeline reaches review_gate. */
   redirectOnReviewGate?: boolean;
+  /** Test seam only: production uses a full-page navigation to the report. */
+  reportNavigator?: (href: string) => void;
+}
+
+function defaultReportNavigator(href: string) {
+  window.location.assign(href);
 }
 
 export function EvaluationPoller({
@@ -123,9 +129,9 @@ export function EvaluationPoller({
   onComplete,
   refreshInterval = 500,
   redirectOnComplete = false,
-  redirectDelayMs,
   refreshOnComplete = false,
   redirectOnReviewGate = false,
+  reportNavigator = defaultReportNavigator,
 }: PollerProps) {
   const router = useRouter();
   const [job, setJob] = useState<JobState | null>(initialJob);
@@ -156,7 +162,6 @@ export function EvaluationPoller({
   const [isPolling, setIsPolling] = useState(true);
   const [pollCount, setPollCount] = useState(0);
   const [nextPollDelay, setNextPollDelay] = useState(refreshInterval);
-  const [pendingRedirectDelayMs, setPendingRedirectDelayMs] = useState<number | null>(null);
   const [refreshBump, setRefreshBump] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -170,9 +175,6 @@ export function EvaluationPoller({
   const highWaterMarkRef = useRef<number>(getInitialDisplayProgress(initialJob));
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const redirectCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const redirectDeadlineRef = useRef<number | null>(null);
   const refreshedRef = useRef(false);
   const completionRefreshArmedRef = useRef(false);
   const fetchJobRef = useRef<(() => Promise<void>) | null>(null);
@@ -184,6 +186,15 @@ export function EvaluationPoller({
     // page already renders the review section with a direct link.
     initialJob?.phase === 'review_gate',
   );
+
+  const navigateToReport = useCallback(() => {
+    if (redirectedRef.current) return;
+    redirectedRef.current = true;
+    // Navigate directly to the report page — avoids the intermediate
+    // /evaluate/[jobId]/report server-redirect stub which can silently
+    // fail in Next.js App Router client-side navigation.
+    reportNavigator(`/reports/${jobId}`);
+  }, [jobId, reportNavigator]);
 
   // Completion sweep: animate displayProgress to 100 when the customer-facing
   // report is complete. Long-form waits for Narrative Synthesis; short-form
@@ -225,6 +236,20 @@ export function EvaluationPoller({
     }
   }, [displayProgress, job?.status, refreshOnComplete, router]);
 
+  // Customer-facing completion handoff: once the bar has visibly reached 100%,
+  // open the canonical report automatically. The button/link is only a fallback,
+  // not a required second action.
+  useEffect(() => {
+    if (
+      job?.status === 'complete' &&
+      displayProgress >= 100 &&
+      redirectOnComplete &&
+      !redirectedRef.current
+    ) {
+      navigateToReport();
+    }
+  }, [displayProgress, job?.status, navigateToReport, redirectOnComplete]);
+
   const getAdaptiveDelay = useCallback(
     (unchangedCount: number, networkErrorCount: number) => {
       const base = refreshInterval;
@@ -237,38 +262,6 @@ export function EvaluationPoller({
     },
     [refreshInterval]
   );
-
-  const resolvedRedirectDelayMs = (() => {
-    if (typeof redirectDelayMs === 'number' && Number.isFinite(redirectDelayMs)) {
-      return Math.max(0, Math.min(redirectDelayMs, 15000));
-    }
-
-    const fromEnv = Number(process.env.NEXT_PUBLIC_EVAL_COMPLETE_REDIRECT_DELAY_MS ?? '800');
-    if (Number.isFinite(fromEnv)) {
-      return Math.max(0, Math.min(fromEnv, 15000));
-    }
-
-    return 800;
-  })();
-
-  const navigateToReport = useCallback(() => {
-    if (redirectedRef.current) return;
-    redirectedRef.current = true;
-    if (redirectTimeoutRef.current) {
-      clearTimeout(redirectTimeoutRef.current);
-      redirectTimeoutRef.current = null;
-    }
-    if (redirectCountdownIntervalRef.current) {
-      clearInterval(redirectCountdownIntervalRef.current);
-      redirectCountdownIntervalRef.current = null;
-    }
-    redirectDeadlineRef.current = null;
-    setPendingRedirectDelayMs(null);
-    // Navigate directly to the report page — avoids the intermediate
-    // /evaluate/[jobId]/report server-redirect stub which can silently
-    // fail in Next.js App Router client-side navigation.
-    window.location.href = `/reports/${jobId}`;
-  }, [jobId]);
 
   const scheduleNextPoll = useCallback(
     (delay: number) => {
@@ -409,18 +402,7 @@ export function EvaluationPoller({
         if (isTerminalComplete || nextJob.status === 'failed') {
           setIsPolling(false);
 
-          if (isTerminalComplete && redirectOnComplete && !redirectedRef.current) {
-            if (resolvedRedirectDelayMs === 0) {
-              navigateToReport();
-            } else {
-              redirectDeadlineRef.current = Date.now() + resolvedRedirectDelayMs;
-              setPendingRedirectDelayMs(resolvedRedirectDelayMs);
-              if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
-              redirectTimeoutRef.current = setTimeout(() => {
-                navigateToReport();
-              }, resolvedRedirectDelayMs);
-            }
-          } else if (
+          if (
             isTerminalComplete &&
             refreshOnComplete &&
             !refreshedRef.current
@@ -458,9 +440,7 @@ export function EvaluationPoller({
     jobId,
     navigateToReport,
     onComplete,
-    redirectOnComplete,
     redirectOnReviewGate,
-    resolvedRedirectDelayMs,
     router,
     scheduleNextPoll,
     userId,
@@ -489,41 +469,6 @@ export function EvaluationPoller({
   }, []);
 
   useEffect(() => {
-    if (pendingRedirectDelayMs == null) {
-      if (redirectCountdownIntervalRef.current) {
-        clearInterval(redirectCountdownIntervalRef.current);
-        redirectCountdownIntervalRef.current = null;
-      }
-      return;
-    }
-
-    if (redirectCountdownIntervalRef.current) {
-      clearInterval(redirectCountdownIntervalRef.current);
-      redirectCountdownIntervalRef.current = null;
-    }
-
-    redirectCountdownIntervalRef.current = setInterval(() => {
-      const deadline = redirectDeadlineRef.current;
-      if (deadline == null) return;
-
-      const remaining = Math.max(0, deadline - Date.now());
-      setPendingRedirectDelayMs(remaining);
-
-      if (remaining <= 0 && redirectCountdownIntervalRef.current) {
-        clearInterval(redirectCountdownIntervalRef.current);
-        redirectCountdownIntervalRef.current = null;
-      }
-    }, 100);
-
-    return () => {
-      if (redirectCountdownIntervalRef.current) {
-        clearInterval(redirectCountdownIntervalRef.current);
-        redirectCountdownIntervalRef.current = null;
-      }
-    };
-  }, [pendingRedirectDelayMs]);
-
-  useEffect(() => {
     fetchJobRef.current = fetchJob;
   }, [fetchJob]);
 
@@ -544,14 +489,6 @@ export function EvaluationPoller({
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-      if (redirectTimeoutRef.current) {
-        clearTimeout(redirectTimeoutRef.current);
-        redirectTimeoutRef.current = null;
-      }
-      if (redirectCountdownIntervalRef.current) {
-        clearInterval(redirectCountdownIntervalRef.current);
-        redirectCountdownIntervalRef.current = null;
-      }
     };
   }, [fetchJob, isPolling]);
 
@@ -562,22 +499,12 @@ export function EvaluationPoller({
     setIsPolling(true);
     setPollCount(0);
     setNextPollDelay(refreshInterval);
-    setPendingRedirectDelayMs(null);
     setDisplayProgress(getInitialDisplayProgress(initialJob));
     completionRefreshArmedRef.current = false;
     unchangedCountRef.current = 0;
     networkErrorCountRef.current = 0;
     redirectedRef.current = false;
     refreshedRef.current = false;
-    if (redirectTimeoutRef.current) {
-      clearTimeout(redirectTimeoutRef.current);
-      redirectTimeoutRef.current = null;
-    }
-    if (redirectCountdownIntervalRef.current) {
-      clearInterval(redirectCountdownIntervalRef.current);
-      redirectCountdownIntervalRef.current = null;
-    }
-    redirectDeadlineRef.current = null;
   }, [initialJob, jobId, userId, refreshInterval]);
 
   const formatUserSafeError = (value: string) =>
@@ -845,22 +772,19 @@ export function EvaluationPoller({
           </div>
         )}
 
-        {/* Completion CTA — Final state auto-redirects, Interim state offers manual view */}
+        {/* Completion handoff — Final state auto-opens report; fallback link only. */}
         {isFinalComplete && redirectOnComplete && !redirectedRef.current && (
           <div className="rounded-lg border p-3" style={{ backgroundColor: '#F2EFEA', borderColor: '#A98E4A' }}>
             <p className="text-sm text-stone-800">
               {isLongForm ? 'Final report ready.' : 'Evaluation report ready.'}
-              {pendingRedirectDelayMs != null
-                ? ` Redirecting automatically in ${Math.ceil(pendingRedirectDelayMs / 1000)}s.`
-                : ' Redirecting automatically…'}
+              {' Opening automatically…'}
             </p>
-            <button
-              type="button"
-              onClick={navigateToReport}
+            <a
+              href={`/reports/${jobId}`}
               className="mt-2 inline-flex rounded-md border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-sm hover:bg-stone-50"
             >
               {isLongForm ? 'View Final Report' : 'View Evaluation Report'}
-            </button>
+            </a>
           </div>
         )}
         {isInterimComplete && redirectOnComplete && !redirectedRef.current && (

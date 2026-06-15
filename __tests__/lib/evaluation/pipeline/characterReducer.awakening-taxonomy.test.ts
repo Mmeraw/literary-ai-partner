@@ -18,7 +18,7 @@
  * - Creole social code = collective_force
  */
 
-import { reduceCharacterEvidence } from '@/lib/evaluation/pipeline/characterReducer';
+import { buildCharacterLedgerV2, reduceCharacterEvidence } from '@/lib/evaluation/pipeline/characterReducer';
 import type { Pass1aChunkOutput, Pass1aCharacterChunkEntry } from '@/lib/evaluation/pipeline/types';
 
 function character(
@@ -293,5 +293,206 @@ describe('The Awakening — expanded role taxonomy regression', () => {
     expect(adeleIdx).toBeLessThan(mandeletIdx);
     // background_mention is last
     expect(bgIdx).toBe(order.length - 1);
+  });
+
+  it('keeps thematic cost and storefront/product labels out of character identity', () => {
+    const ledger = reduceCharacterEvidence({
+      jobId: 'price-of-vanity-entity-hygiene-test',
+      totalChunksInManuscript: 1,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Unnamed male narrator/protagonist',
+            role_signal: 'protagonist',
+            narrative_weight_signal: 'primary',
+            gender_identity: 'man',
+            pronouns: ['he/him'],
+            who_is_this: 'The main character whose vanity-driven decisions generate the cost motif.',
+            symbolic_objects: [
+              { object: 'Revlon Frost&Glow product', function: 'The hair-coloring product that initiates the visible damage sequence.' },
+              { object: "Cost tallies and 'Total cost' figure", function: 'The running money ledger that measures the price of vanity.' },
+            ],
+          }),
+          character({
+            canonical_name: 'Kim',
+            role_signal: 'pressure_agent',
+            narrative_weight_signal: 'major',
+            who_is_this: 'The stylist who corrects the narrator\'s hair and values.',
+          }),
+          character({
+            canonical_name: 'Cost',
+            role_signal: 'symbolic_force',
+            narrative_weight_signal: 'major',
+            is_named: false,
+            gender_identity: 'unknown',
+            pronouns: [],
+            who_is_this: 'The theme of escalating monetary and emotional cost.',
+          }),
+          character({
+            canonical_name: "Cost tallies and 'Total cost' figure",
+            role_signal: 'symbolic_force',
+            narrative_weight_signal: 'major',
+            is_named: false,
+            gender_identity: 'unknown',
+            pronouns: [],
+            who_is_this: 'A running accounting motif, not a character.',
+          }),
+          character({
+            canonical_name: 'Shoppers Drug Mart',
+            role_signal: 'collective_force',
+            narrative_weight_signal: 'minor',
+            is_named: false,
+            gender_identity: 'unknown',
+            pronouns: [],
+            who_is_this: 'A retail location where the narrator buys a hair dye kit.',
+          }),
+          character({
+            canonical_name: 'Revlon Frost&Glow',
+            role_signal: 'symbolic_force',
+            narrative_weight_signal: 'minor',
+            is_named: false,
+            gender_identity: 'unknown',
+            pronouns: [],
+            who_is_this: 'A hair coloring product/object, not an identity.',
+          }),
+          character({
+            canonical_name: 'The sea',
+            role_signal: 'symbolic_force',
+            narrative_weight_signal: 'major',
+            is_named: false,
+            gender_identity: 'unknown',
+            pronouns: [],
+            who_is_this: 'A legitimate symbolic/environmental force in a literary ledger.',
+          }),
+        ]),
+      ],
+    });
+
+    const names = ledger.entries.map((e) => e.canonical_name);
+    expect(names).toEqual(expect.arrayContaining([
+      'Unnamed male narrator/protagonist',
+      'Kim',
+      'The sea',
+    ]));
+    expect(names).not.toEqual(expect.arrayContaining([
+      'Cost',
+      "Cost tallies and 'Total cost' figure",
+      'Shoppers Drug Mart',
+      'Revlon Frost&Glow',
+    ]));
+
+    const ledgerV2 = buildCharacterLedgerV2({
+      ledger,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Unnamed male narrator/protagonist',
+            role_signal: 'protagonist',
+            narrative_weight_signal: 'primary',
+            gender_identity: 'man',
+            pronouns: ['he/him'],
+            symbolic_objects: [
+              { object: 'Revlon Frost&Glow product', function: 'The hair-coloring product that initiates the visible damage sequence.' },
+              { object: "Cost tallies and 'Total cost' figure", function: 'The running money ledger that measures the price of vanity.' },
+            ],
+          }),
+        ]),
+      ],
+      jobId: 'price-of-vanity-entity-hygiene-test',
+      totalChunksInManuscript: 1,
+    });
+
+    expect(ledgerV2.objectLedger.map((object) => object.objectName)).toEqual(expect.arrayContaining([
+      'Revlon Frost&Glow product',
+      "Cost tallies and 'Total cost' figure",
+    ]));
+  });
+
+  it('disambiguates the same noun as person, plant, or town by evidence context', () => {
+    const humanLedger = reduceCharacterEvidence({
+      jobId: 'fern-human-test',
+      totalChunksInManuscript: 1,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Fern',
+            role_signal: 'secondary',
+            narrative_weight_signal: 'supporting',
+            gender_identity: 'woman',
+            pronouns: ['she/her'],
+            who_is_this: 'Fern is a human neighbor who speaks with the narrator.',
+            evidence_anchors: [{ excerpt: 'Fern said she would help.', evidence_type: 'identity', confidence: 'explicit' }],
+          }),
+        ]),
+      ],
+    });
+
+    expect(humanLedger.entries.map((entry) => entry.canonical_name)).toContain('Fern');
+
+    const plantLedger = reduceCharacterEvidence({
+      jobId: 'fern-plant-test',
+      totalChunksInManuscript: 1,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Fern',
+            role_signal: 'symbolic_force',
+            narrative_weight_signal: 'minor',
+            is_named: false,
+            gender_identity: 'unknown',
+            pronouns: ['it/its'],
+            descriptors: ['plant', 'botanical object'],
+            who_is_this: 'A fern plant in the windowsill, functioning as an object motif.',
+            evidence_anchors: [{ excerpt: 'The fern drooped in the window.', evidence_type: 'symbol', confidence: 'explicit' }],
+          }),
+        ]),
+      ],
+    });
+
+    expect(plantLedger.entries.map((entry) => entry.canonical_name)).not.toContain('Fern');
+
+    const townLedger = reduceCharacterEvidence({
+      jobId: 'fern-town-test',
+      totalChunksInManuscript: 1,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Fern',
+            role_signal: 'collective_force',
+            narrative_weight_signal: 'minor',
+            is_named: false,
+            gender_identity: 'unknown',
+            pronouns: ['it/its'],
+            descriptors: ['town', 'location'],
+            who_is_this: 'Fern is the town where the family lives, a setting rather than a person.',
+            evidence_anchors: [{ excerpt: 'They drove into Fern before sundown.', evidence_type: 'identity', confidence: 'explicit' }],
+          }),
+        ]),
+      ],
+    });
+
+    expect(townLedger.entries.map((entry) => entry.canonical_name)).not.toContain('Fern');
+
+    const animalLedger = reduceCharacterEvidence({
+      jobId: 'fern-animal-test',
+      totalChunksInManuscript: 1,
+      chunkOutputs: [
+        chunk(0, [
+          character({
+            canonical_name: 'Fern',
+            role_signal: 'animal_companion',
+            narrative_weight_signal: 'supporting',
+            is_named: true,
+            gender_identity: 'unknown',
+            pronouns: ['it/its'],
+            descriptors: ['named dog', 'animal companion'],
+            who_is_this: 'Fern is a named animal companion that follows the child home.',
+            evidence_anchors: [{ excerpt: 'Fern wagged its tail.', evidence_type: 'identity', confidence: 'explicit' }],
+          }),
+        ]),
+      ],
+    });
+
+    expect(animalLedger.entries.map((entry) => entry.canonical_name)).toContain('Fern');
   });
 });

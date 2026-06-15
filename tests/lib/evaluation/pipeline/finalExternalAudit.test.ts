@@ -180,4 +180,51 @@ describe('final external audit', () => {
       }),
     );
   });
+
+  test('provider cannot block solely for missing revision_opportunity_ledger_v1', async () => {
+    process.env.PERPLEXITY_API_KEY = 'test-key';
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                verdict: 'BLOCK',
+                codes: ['FINAL_AUDIT_SCHEMA_INVALID'],
+                reason: 'Required artifact revision_opportunity_ledger_v1 is missing, so the packet is not auditable.',
+                contradictions: [],
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)) as jest.Mock;
+
+    try {
+      const result = await persistFinalExternalAudit({
+        supabase: {} as any,
+        jobId: 'job-final-audit-provider-false-block',
+        manuscriptId: 123,
+        userId: 'user-1',
+        wordCount: 50000,
+        workType: 'novel',
+        evaluationResult: makeResult(),
+        checkedArtifacts: {
+          evaluation_result_v2: { present: true },
+          longform_document_v1: { present: true },
+          revision_opportunity_ledger_v1: { present: false },
+          wave_revision_plan_v1: { present: true },
+        },
+      });
+
+      expect(result.verdict).not.toBe('BLOCK');
+      expect(result.blocking).toBe(false);
+      expect(result.codes).toContain('FINAL_AUDIT_SAFE_TO_RELEASE');
+      expect(result.reason).toContain('Revise-phase only');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });

@@ -20,6 +20,34 @@ describe("upsertEvaluationArtifact", () => {
     expect(fromMock).not.toHaveBeenCalled();
   });
 
+  test("records quality signal but does not block registered artifact persistence below 95 percent", async () => {
+    const singleMock = jest.fn().mockResolvedValue({ data: { id: "artifact-low-quality" }, error: null });
+    const selectMock = jest.fn(() => ({ single: singleMock }));
+    const upsertMock = jest.fn(() => ({ select: selectMock }));
+    const fromMock = jest.fn(() => ({ upsert: upsertMock }));
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const supabase = { from: fromMock };
+
+    const artifactId = await upsertEvaluationArtifact({
+      supabase,
+      jobId: "job-low-quality",
+      manuscriptId: 3988,
+      artifactType: "evaluation_result_v2",
+      content: {
+        schema_version: "evaluation_result_v2",
+        criteria: [],
+      },
+      sourceHash: "hash",
+      artifactVersion: "v2",
+    });
+
+    expect(artifactId).toBe("artifact-low-quality");
+    expect(fromMock).toHaveBeenCalledWith("evaluation_artifacts");
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("quality score"));
+    warnSpy.mockRestore();
+  });
+
   test("writes manuscript_id into evaluation_artifacts payload", async () => {
     const singleMock = jest.fn().mockResolvedValue({ data: { id: "artifact-123" }, error: null });
     const selectMock = jest.fn(() => ({ single: singleMock }));

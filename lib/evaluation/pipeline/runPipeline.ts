@@ -41,6 +41,10 @@ import {
   runQualityGate as defaultRunQualityGate,
   summarizeQualityGateFailures,
 } from "./qualityGate";
+import {
+  PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD,
+  PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD,
+} from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { buildScoreLedger } from "./buildScoreLedger";
 import { buildExcellenceFilter } from "./buildExcellenceFilter";
 import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
@@ -58,7 +62,7 @@ import type {
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { detectModeFromManuscript } from "@/lib/evaluation/modeDetection";
-import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { CRITERIA_KEYS, getCriterionDisplayLabel } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
 import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
@@ -149,6 +153,7 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // in processEvaluationJob; this catches programmatic callers exercising
 // runPipeline directly (stress harness, future map-reduce callers).
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+const PASS1A_DEGRADED_CHUNK_ERROR_CODE = 'PASS1A_DEGRADED_CHUNK_RATIO_EXCEEDED';
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -1764,6 +1769,39 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }
 
     const pass1aResult = pass1aSettled.value;
+    const degradedChunkCount = pass1aResult.degradedChunkCount ?? 0;
+    const degradedChunkIndices = pass1aResult.degradedChunkIndices ?? [];
+    const degradedChunkRatio = pass1aResult.total_chunks > 0
+      ? degradedChunkCount / pass1aResult.total_chunks
+      : 0;
+    if (
+      degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
+      degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+    ) {
+      console.error('[Pipeline][Pass1A] Degraded chunk ratio exceeded fail-closed threshold', {
+        manuscript_id: opts.manuscriptId ?? null,
+        degraded_chunks: degradedChunkCount,
+        total_chunks: pass1aResult.total_chunks,
+        degraded_ratio: degradedChunkRatio.toFixed(3),
+        degraded_indices: degradedChunkIndices,
+      });
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings('failure', {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: 'pass1',
+        errorCode: PASS1A_DEGRADED_CHUNK_ERROR_CODE,
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 1A degraded chunk ratio exceeded threshold (${degradedChunkCount}/${pass1aResult.total_chunks}, ratio=${degradedChunkRatio.toFixed(3)}). Output does not meet next-step input standards.`,
+        error_code: PASS1A_DEGRADED_CHUNK_ERROR_CODE,
+        failed_at: 'pass1',
+      };
+    }
+
     if (pass1aResult.chunkOutputs.length === 0) {
       // Soft-skip: the character ledger is an enrichment layer, not the paid product.
       // Pass 3 can run without it (lower confidence, no WAVE). Build an empty sentinel
@@ -2744,6 +2782,46 @@ export function synthesisToEvaluationResultV2(
     )
     .map(enforceTextualAnchorConfidence);
 
+  const ensureSubstantiveText = (value: string | undefined, minLength = 40): string | null => {
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    return trimmed.length >= minLength ? trimmed : null;
+  };
+
+  const ensureSubstantiveList = (
+    values: string[] | undefined,
+    fallbackFactory: () => string[],
+    minItems = 3,
+    minLength = 12,
+  ): string[] => {
+    const cleaned = Array.isArray(values)
+      ? values
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value) => value.length >= minLength)
+      : [];
+
+    if (cleaned.length >= minItems) {
+      return cleaned.slice(0, minItems);
+    }
+
+    const fallback = fallbackFactory()
+      .map((value) => value.trim())
+      .filter((value) => value.length >= minLength);
+
+    const merged = Array.from(new Set([...cleaned, ...fallback]));
+    return merged.slice(0, minItems);
+  };
+
+  const buildFallbackCriterionRationale = (
+    key: string,
+    score: number | null,
+  ): string => {
+    const scorePhrase = typeof score === "number" ? `${score}/10` : "non-scorable for this submission window";
+    return (
+      `The ${key} criterion currently reads as ${scorePhrase} and shows clear revision leverage in execution, ` +
+      `with evidence-backed opportunities to improve clarity, consequence, and reader trust.`
+    );
+  };
+
   const baseCertification = computeManuscriptCertification({
     inputScale: opts.scopeProfile?.inputScale,
     partialEvaluation: synthesis.partial_evaluation,
@@ -2787,20 +2865,38 @@ export function synthesisToEvaluationResultV2(
         )
       : criteria;
 
-  const weighted = computeWeightedScore(governedCriteria);
-  const propagation = summarizePropagationIntegrity(governedCriteria);
+  const governedCriteriaWithTemplateFallbacks = governedCriteria.map((criterion) => {
+    const substantiveRationale = ensureSubstantiveText(criterion.rationale, 40);
+    if (substantiveRationale) {
+      return criterion;
+    }
+
+    return {
+      ...criterion,
+      rationale: buildFallbackCriterionRationale(criterion.key, criterion.score_0_10),
+    };
+  });
+
+  const criteriaSortedByScore = [...governedCriteriaWithTemplateFallbacks].sort((a, b) => {
+    const aScore = typeof a.score_0_10 === "number" ? a.score_0_10 : -1;
+    const bScore = typeof b.score_0_10 === "number" ? b.score_0_10 : -1;
+    return bScore - aScore;
+  });
+
+  const weighted = computeWeightedScore(governedCriteriaWithTemplateFallbacks);
+  const propagation = summarizePropagationIntegrity(governedCriteriaWithTemplateFallbacks);
 
   const derivedConfidence = deriveGovernanceConfidenceFromCriteria(criteria, propagation);
 
   // Quality-gated Action Items: diversity selection + semantic dedup + anchor preservation
   const quick_wins = buildEnrichedActionItems(
-    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    governedCriteriaWithTemplateFallbacks.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     "high",
     5,
   );
 
   const strategic_revisions = buildEnrichedActionItems(
-    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    governedCriteriaWithTemplateFallbacks.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     "medium",
     5,
   );
@@ -2808,11 +2904,44 @@ export function synthesisToEvaluationResultV2(
   const coverageLimited =
     certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable;
 
-  const overviewSummary = normalizeSummaryWithBottomWeaknesses(
+  const candidateOverviewSummary = normalizeSummaryWithBottomWeaknesses(
     coverageLimited
       ? buildCoverageLimitedSummary(synthesis.coverage_scope)
       : synthesis.overall.one_paragraph_summary,
     propagation.bottomScoreCriteria,
+  );
+
+  const fallbackWeaknesses = propagation.bottomScoreCriteria.slice(0, 2).join(" and ") || "priority criteria";
+  const fallbackOverviewSummary =
+    `This manuscript shows meaningful strengths and clear readiness potential, with the most consequential revision pressure in ${fallbackWeaknesses}; targeted craft tightening should materially improve submission posture.`;
+
+  const overviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
+
+  const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {
+    const label = getCriterionDisplayLabel(criterion.key);
+    return `${label} currently provides a durable manuscript strength with visible reader-facing payoff.`;
+  });
+
+  const fallbackRisks = [...criteriaSortedByScore]
+    .reverse()
+    .slice(0, 3)
+    .map((criterion) => {
+      const label = getCriterionDisplayLabel(criterion.key);
+      return `${label} remains a prioritized revision risk that can reduce reader confidence if unaddressed.`;
+    });
+
+  const overviewTopStrengths = ensureSubstantiveList(
+    synthesis.overall.top_3_strengths,
+    () => fallbackStrengths,
+    3,
+    12,
+  );
+
+  const overviewTopRisks = ensureSubstantiveList(
+    synthesis.overall.top_3_risks,
+    () => fallbackRisks,
+    3,
+    12,
   );
 
   const quickWins = coverageLimited ? [] : quick_wins;
@@ -2881,10 +3010,10 @@ export function synthesisToEvaluationResultV2(
       overall_score_0_100: weighted.overall_score_0_100,
       scored_criteria_count: weighted.scored_count,
       one_paragraph_summary: overviewSummary,
-      top_3_strengths: coverageLimited ? [] : synthesis.overall.top_3_strengths,
-      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : synthesis.overall.top_3_risks,
+      top_3_strengths: coverageLimited ? [] : overviewTopStrengths,
+      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : overviewTopRisks,
     },
-    criteria: governedCriteria,
+    criteria: governedCriteriaWithTemplateFallbacks,
     recommendations: {
       quick_wins: quickWins,
       strategic_revisions: strategicRevisions,

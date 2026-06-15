@@ -91,6 +91,33 @@ function unique(values: Array<string | undefined | null>): string[] {
   return [...set];
 }
 
+function ensureNonEmpty(values: string[], fallback: string[]): string[] {
+  if (values.length > 0) return values;
+  return fallback;
+}
+
+function isUnavailableHeaderValue(value: string | null | undefined): boolean {
+  const normalized = (value ?? '').trim().toLowerCase();
+  return normalized.length === 0 || normalized === 'not available' || normalized === 'not specified' || normalized === 'unknown';
+}
+
+function titleCaseHeaderValue(value: string): string {
+  return value
+    .split(/(\s+|\/|\+)/)
+    .map((part) => {
+      if (/^\s+$|^\/|^\+$/.test(part)) return part;
+      const trimmed = part.trim();
+      if (!trimmed) return part;
+      if (/^[A-Z]{2,}$/.test(trimmed)) return trimmed;
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    })
+    .join('')
+    .replace(/\bAnd\b/g, 'and')
+    .replace(/\bOr\b/g, 'or')
+    .replace(/\bThe\b/g, 'the')
+    .replace(/\bOf\b/g, 'of');
+}
+
 export function buildUnifiedEvaluationDocument(input: {
   mode: CanonicalEvaluationMode;
   result: ShortFormResultLike & {
@@ -113,17 +140,23 @@ export function buildUnifiedEvaluationDocument(input: {
   });
 
   const overallScore = input.result.overview?.overall_score_0_100 ?? null;
+  const genreExpectation = base.titleBlock.genreExpectationContract;
+  const genreExpectationShelf = genreExpectation?.genreExpectationLabels.length
+    ? genreExpectation.genreExpectationLabels.join(' + ')
+    : genreExpectation?.diagnosedGenre;
   const shelf =
     input.mode === 'short_form_evaluation'
       ? null
       : typeof input.dream?.market_shelf?.best_shelf === 'string' && input.dream.market_shelf.best_shelf.trim().length > 0
       ? input.dream.market_shelf.best_shelf.trim()
+      : typeof genreExpectationShelf === 'string' && genreExpectationShelf.trim().length > 0
+      ? titleCaseHeaderValue(genreExpectationShelf.trim())
       : 'Not available';
   const shelfConfidenceLabel = input.mode === 'short_form_evaluation'
     ? null
     : deriveShelfConfidence({
         wordCount: input.result.metrics?.manuscript?.word_count,
-        hasShelf: shelf !== null && shelf !== 'Not available',
+        hasShelf: !isUnavailableHeaderValue(shelf),
       });
   const targetAudience = deriveTargetAudience({
     explicit: input.result.metrics?.manuscript?.target_audience,
@@ -189,6 +222,28 @@ export function buildUnifiedEvaluationDocument(input: {
       ? dream.releasability.map((item) => `${item.dimension}: ${item.verdict}`).join('; ')
       : `${base.titleBlock.marketReadiness}. Prioritize high-impact revisions before submission.`;
 
+  const safeManuscriptScaleContinuityFindings = ensureNonEmpty(manuscriptScaleContinuityFindings, [
+    'Continuity findings are provisionally grounded in the current canonical evaluation surfaces.',
+  ]);
+  const safeStoryLedgerArchitectureMap = ensureNonEmpty(storyLedgerArchitectureMap, [
+    'Story/layer architecture evidence is not yet available in this artifact set.',
+  ]);
+  const safeReviewGateReadinessSurface = ensureNonEmpty(reviewGateReadinessSurface, [
+    'Review-gate readiness surface not available; treat releasability as pending verification.',
+  ]);
+  const safeGovernedLedgerAddenda = ensureNonEmpty(governedLedgerAddenda, [
+    'No governed ledger addenda were attached to this run.',
+  ]);
+  const safeCrossLayerSynthesis = ensureNonEmpty(crossLayerSynthesis, [
+    'Cross-layer synthesis was not provided; use criterion-level findings as current authority.',
+  ]);
+  const safeLayerAwareRevisionSequencing = ensureNonEmpty(layerAwareRevisionSequencing, [
+    'Sequence revisions by highest impact risk first, then recalibrate supporting architecture.',
+  ]);
+  const safeContinuityCoverageProof = ensureNonEmpty(continuityCoverageProof, [
+    'Continuity coverage proof unavailable; certify only evidence-backed findings present in canonical output.',
+  ]);
+
   return {
     ...base,
     templateMode: input.mode,
@@ -200,14 +255,14 @@ export function buildUnifiedEvaluationDocument(input: {
       headerContract: getReportHeaderContract(input.mode),
     },
     modeSpecific: {
-      manuscriptScaleContinuityFindings,
+      manuscriptScaleContinuityFindings: safeManuscriptScaleContinuityFindings,
       revisionPriorityPlan,
-      storyLedgerArchitectureMap,
-      reviewGateReadinessSurface,
-      governedLedgerAddenda,
-      crossLayerSynthesis,
-      layerAwareRevisionSequencing,
-      continuityCoverageProof,
+      storyLedgerArchitectureMap: safeStoryLedgerArchitectureMap,
+      reviewGateReadinessSurface: safeReviewGateReadinessSurface,
+      governedLedgerAddenda: safeGovernedLedgerAddenda,
+      crossLayerSynthesis: safeCrossLayerSynthesis,
+      layerAwareRevisionSequencing: safeLayerAwareRevisionSequencing,
+      continuityCoverageProof: safeContinuityCoverageProof,
       readinessReleasabilityPosture,
     },
   };

@@ -241,7 +241,12 @@ async function runSingleChunk(params: {
 }): Promise<Pass1aChunkOutput> {
   const { chunk, title, workType, seedContextBlock, openai, model, chunkCache } = params;
   const cached = chunkCache?.get(chunk.chunk_index);
-  if (cached) return normalizeChunkOutput(cached);
+  if (cached && !(cached as { _degraded?: boolean })._degraded) return normalizeChunkOutput(cached);
+  if (cached && (cached as { _degraded?: boolean })._degraded) {
+    console.warn('[Pass1A] Ignoring degraded cached chunk and retrying extraction', {
+      chunk_index: chunk.chunk_index,
+    });
+  }
 
   const userPrompt = buildPass1aUserPrompt({
     manuscriptText: chunk.content,
@@ -368,6 +373,10 @@ export interface RunPass1aResult {
   chunkOutputs: Pass1aChunkOutput[];
   failedChunkIndices: number[];
   failedChunkErrors: Array<{ chunk_index: number; error: string }>;
+  /** Chunks that completed LLM calls but returned zero characters due to exhausted retries. */
+  degradedChunkIndices?: number[];
+  /** Number of chunks that are degraded (zero characters, all retries exhausted). */
+  degradedChunkCount?: number;
   model: string;
   prompt_version: string;
   total_chunks: number;
@@ -444,11 +453,24 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
   const chunkOutputs: Pass1aChunkOutput[] = [];
   const failedChunkIndices: number[] = [];
   const failedChunkErrors: Array<{ chunk_index: number; error: string }> = [];
+  const degradedChunkIndices: number[] = [];
 
   for (let i = 0; i < settled.length; i++) {
     const result = settled[i];
     if (result.status === "fulfilled") {
-      chunkOutputs.push(normalizeChunkOutput(result.value));
+      const output = normalizeChunkOutput(result.value);
+      chunkOutputs.push(output);
+      // Track degraded chunks: LLM call completed but all retries exhausted with zero characters.
+      // These must be surfaced to the quality gate — they count as incomplete coverage.
+      const isDegraded = Boolean((result.value as { _degraded?: boolean })._degraded);
+      if (isDegraded) {
+        degradedChunkIndices.push(output.chunk_index);
+        console.warn("[Pass1A] Degraded chunk included in outputs (zero characters after exhausted retries)", {
+          job_id: opts.jobId ?? null,
+          chunk_index: output.chunk_index,
+          degraded_reason: (result.value as { _degraded_reason?: string })._degraded_reason ?? "unknown",
+        });
+      }
     } else {
       const chunkIndex = chunks[i].chunk_index;
       const error = result.reason instanceof Error ? result.reason.message : String(result.reason);
@@ -458,20 +480,35 @@ export async function runPass1a(opts: RunPass1aOptions): Promise<RunPass1aResult
     }
   }
 
+  const successfulNonDegradedCount = chunkOutputs.length - degradedChunkIndices.length;
   console.log("[Pass1A] Sweep complete", {
     job_id: opts.jobId ?? null,
     total_chunks: chunks.length,
-    successful_chunks: chunkOutputs.length,
+    successful_chunks: successfulNonDegradedCount,
+    degraded_chunks: degradedChunkIndices.length,
     failed_chunks: failedChunkIndices.length,
   });
+
+  if (degradedChunkIndices.length > 0) {
+    const degradedRatio = degradedChunkIndices.length / chunks.length;
+    console.error("[Pass1A] DEGRADED CHUNK ALERT: some chunks exhausted all retries and returned zero characters — downstream ledger will be sparse", {
+      job_id: opts.jobId ?? null,
+      degraded_chunks: degradedChunkIndices.length,
+      total_chunks: chunks.length,
+      degraded_ratio: degradedRatio.toFixed(3),
+      degraded_indices: degradedChunkIndices.slice(0, 20),
+    });
+  }
 
   return {
     chunkOutputs,
     failedChunkIndices,
     failedChunkErrors,
+    degradedChunkIndices,
+    degradedChunkCount: degradedChunkIndices.length,
     model,
     prompt_version: PASS1A_PROMPT_VERSION,
     total_chunks: chunks.length,
-    successful_chunks: chunkOutputs.length,
+    successful_chunks: successfulNonDegradedCount,
   };
 }

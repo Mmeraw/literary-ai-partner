@@ -69,6 +69,7 @@ describe("isBlockedCharacterName", () => {
 
 describe("sanitizeBlockedCharacterNames", () => {
   const canonical = ["Michael Salter", "Benjamin Lopez Castro", "Raúl"];
+  const narratorCanonical = ["Unnamed male narrator/protagonist", "Kim"];
 
   it("replaces possessive form: No's → Michael Salter's", () => {
     const input = "No's survival instincts drive the narrative forward.";
@@ -115,6 +116,20 @@ describe("sanitizeBlockedCharacterNames", () => {
   it("returns empty/undefined inputs unchanged", () => {
     expect(sanitizeBlockedCharacterNames("", canonical)).toBe("");
     expect(sanitizeBlockedCharacterNames("test", [])).toBe("test");
+  });
+
+  it("replaces Cost possessive with narrator label (curly apostrophe)", () => {
+    const input = "Cost’s disastrous hair-color day reveals vanity and consequence.";
+    const result = sanitizeBlockedCharacterNames(input, narratorCanonical);
+    expect(result).toBe("The narrator's disastrous hair-color day reveals vanity and consequence.");
+    expect(result).not.toContain("Cost’s");
+  });
+
+  it("replaces Cost in subject position with narrator label", () => {
+    const input = "Cost delivers a propulsive and humorous account of vanity.";
+    const result = sanitizeBlockedCharacterNames(input, narratorCanonical);
+    expect(result).toBe("The narrator delivers a propulsive and humorous account of vanity.");
+    expect(result).not.toMatch(/\bCost delivers\b/);
   });
 });
 
@@ -269,5 +284,21 @@ describe("sanitizeSynthesisCharacterNames — full synthesis output", () => {
     };
     const count = sanitizeSynthesisCharacterNames(synthesis, []);
     expect(count).toBe(0);
+  });
+
+  it("sanitizes Cost in one-sentence pitch to narrator label", () => {
+    const synthesis = {
+      overall: {
+        one_sentence_pitch:
+          "This chapter delivers a propulsive, humorous account of Cost’s disastrous hair-color day while contrasting vanity with hard-won values.",
+      },
+      criteria: [],
+    };
+
+    const count = sanitizeSynthesisCharacterNames(synthesis, ["Unnamed male narrator/protagonist", "Kim"]);
+
+    expect(count).toBeGreaterThan(0);
+    expect(synthesis.overall.one_sentence_pitch).toContain("The narrator's disastrous hair-color day");
+    expect(synthesis.overall.one_sentence_pitch).not.toContain("Cost’s");
   });
 });

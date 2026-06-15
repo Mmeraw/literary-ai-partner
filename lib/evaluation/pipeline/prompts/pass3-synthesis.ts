@@ -54,6 +54,7 @@ Recommendation deduplication:
 - If two recommendations reduce to the same advice, drop one and re-derive a distinct mechanism-level recommendation.
 - Use character names (or "the narrator") rather than abstract role labels like "the protagonist".
 - NEVER use dialogue fragments or common English words as character names. Words like "No", "Yes", "Oh", "Hey", "Well", "So" are NOT character names even if the manuscript text appears to use them. Always use the canonical name from the STORY LEDGER or ENTITY ROSTER instead.
+- NEVER promote ledger/accounting labels, colon headings, prices, product names, or store names into character names. A manuscript line like "Cost: $14.00" is an expense label, not a character named Cost; refer to an unnamed actor as "the narrator" or by the canonical roster name.
 
 REC CONTRACT — SEVEN PARTS (required for every recommendation):
 - ANCHOR: action must name location (scene/paragraph/line/beat/chapter) and anchor_snippet must be non-empty.

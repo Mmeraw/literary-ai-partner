@@ -148,7 +148,12 @@ function formatCrossCuttingRecommendation(
   if (!action) return null;
 
   const why = typeof recommendation.why === "string" ? recommendation.why.trim() : "";
-  return `${label ? `${label}: ` : ""}${action}${why ? `—${why}` : ""}`;
+  if (!why) return `${label ? `${label}: ` : ""}${action}`;
+
+  // CMOS: period cannot precede em dash (period-em-dash is a CMOS violation).
+  // Separate action and rationale as two distinct sentences.
+  const actionBase = action.replace(/\.\s*$/, "");
+  return `${label ? `${label}: ` : ""}${actionBase}. ${why}`;
 }
 
 function extractSummaryFallback(summary: string, maxItems: number): string[] {
@@ -202,7 +207,10 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
             : typeof recommendation.expected_impact === "string" && recommendation.expected_impact.trim()
               ? recommendation.expected_impact.trim()
               : "";
-        return readerSummary ? `${action}—${readerSummary}` : action;
+        // CMOS: avoid period-em-dash. Separate as two sentences.
+        if (!readerSummary) return action;
+        const actionBase = action.replace(/\.\s*$/, "");
+        return `${actionBase}. ${readerSummary}`;
       }),
     ),
   );

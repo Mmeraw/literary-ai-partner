@@ -268,12 +268,16 @@ export function getCanonicalPass3FallbackModel(overrideModel?: string): string {
  *
  * Resolution order:
  *  1) EVAL_SEED_MODEL
- *  2) EVAL_CHEAP_MODEL
+ *  2) EVAL_SYNTHESIS_MODEL
  *  3) optional overrideModel
  *  4) canonical runtime default (EVAL_OPENAI_MODEL)
+ *
+ * Phase 0.5 seed artifacts are story-understanding authority inputs. They
+ * must not silently downgrade to EVAL_CHEAP_MODEL, because a weak seed can
+ * contaminate Phase 1A identity, ending, and DREAM calibration downstream.
  */
 export function getCanonicalSeedModel(overrideModel?: string): string {
-  return resolveEnvBackedModel(["EVAL_SEED_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
+  return resolveEnvBackedModel(["EVAL_SEED_MODEL", "EVAL_SYNTHESIS_MODEL"], overrideModel);
 }
 
 /**

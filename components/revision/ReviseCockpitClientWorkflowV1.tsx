@@ -86,142 +86,10 @@ function optionFor(item: WorkbenchOpportunity, key: OptionKey) {
   return item.options.find((option) => option.key === key);
 }
 
-function rawCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
-  const option = optionFor(item, key);
-  if (!option) return "";
-  return normalize(option.candidateText ?? option.text);
-}
-
 function renderableCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
   const option = optionFor(item, key);
   if (!option) return "";
   return getRenderableCandidateText({ candidateText: option.candidateText ?? option.text, issueStatement: item.issueStatement });
-}
-
-function stripEvidenceWrapper(value: string): string {
-  let text = normalize(value);
-  text = text.replace(/^Evidence:\s*/i, "");
-  text = text.replace(/^Original Passage\s*/i, "");
-  text = text.replace(/^LOCATION\s*/i, "");
-  text = text.replace(/^Recommendation:\s*/i, "");
-  text = text.replace(/^“(.+)”$/u, "$1");
-  text = text.replace(/^"(.+)"$/u, "$1");
-  return text.trim();
-}
-
-function trimWords(value: string, maxWords: number): string {
-  const words = normalize(value).split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return normalize(value);
-  return `${words.slice(0, maxWords).join(" ").replace(/[,;:—–-]+$/, "")}.`;
-}
-
-function sentenceUnits(value: string): string[] {
-  const clean = stripEvidenceWrapper(value);
-  const matches = clean.match(/[^.!?]+[.!?][”"']?/g);
-  if (matches && matches.length > 0) return matches.map((item) => item.trim()).filter(Boolean);
-  return clean ? [clean] : [];
-}
-
-function extractSpeech(value: string): { setup: string; speaker: string; verb: string; speech: string } | null {
-  const clean = stripEvidenceWrapper(value);
-  const match = clean.match(/^(.*?\b)?([A-Z][A-Za-z’'\-]+)\s+(said|asked|whispered|muttered|shouted|called|cried),\s*[“"](.+?)[”"]\.?$/u);
-  if (!match) return null;
-  return {
-    setup: normalize(match[1] ?? ""),
-    speaker: match[2],
-    verb: match[3],
-    speech: normalize(match[4]),
-  };
-}
-
-function quoteSpeech(text: string): string {
-  const clean = normalize(text).replace(/^['"“”]+|['"“”]+$/g, "");
-  return `“${clean}”`;
-}
-
-function fallbackCharacters(item: WorkbenchOpportunity): string[] {
-  const haystack = `${item.title} ${item.issueStatement} ${sourceTextOf(item)} ${item.fixDirection}`;
-  const names = [...haystack.matchAll(/\b[A-Z][a-z]{2,}(?:’s)?\b/g)]
-    .map((match) => match[0].replace(/’s$/, ""))
-    .filter((name) => ![
-      "The", "This", "That", "At", "Item", "Line", "Passage", "Scene", "Chapter",
-      "Kingdom", "Lake", "Concept", "Core", "Premise", "Needs", "Targeting",
-      // Editorial instruction verbs that may be capitalized at sentence start
-      "Deepen", "Expand", "Clarify", "Strengthen", "Tighten", "Compress", "Heighten",
-      "Foreground", "Surface", "Sharpen", "Simplify", "Brighten", "Replace", "Repair",
-      "Rewrite", "Restructure", "Dramatize", "Intensify", "Underscore", "Anchor",
-      "Ground", "Dial", "Trim", "Cut", "Develop", "Revise", "Remove", "Break",
-      "Insert", "Weave", "Highlight", "Show", "Add", "Fix",
-    ].includes(name));
-  return [...new Set(names)].slice(0, 3);
-}
-
-function compressedCandidates(item: WorkbenchOpportunity): Record<OptionKey, string> {
-  const source = stripEvidenceWrapper(sourceTextOf(item));
-  const speech = extractSpeech(source);
-  if (speech) {
-    const shortSpeech = speech.speech.split(/(?<=[.!?])\s+/)[0] || speech.speech;
-    const strongerSpeech = shortSpeech.includes("toadstone")
-      ? shortSpeech.replace(/\.\s*Imagine .+$/i, ".")
-      : shortSpeech;
-    return {
-      A: `${speech.setup ? `${speech.setup}, ` : ""}${speech.speaker} ${speech.verb}, ${quoteSpeech(strongerSpeech)}`,
-      B: `${speech.setup ? `${speech.setup}. ` : ""}${quoteSpeech(strongerSpeech)} ${speech.speaker} ${speech.verb}.`,
-      C: `${speech.speaker} waited for the air to clear. ${quoteSpeech(strongerSpeech)}`,
-    };
-  }
-
-  const sentences = sentenceUnits(source);
-  const first = sentences[0] ?? source;
-  const second = sentences[1] ?? "";
-  return {
-    A: trimWords(first, 28),
-    B: trimWords(second ? `${first} ${second}` : first, 34),
-    C: trimWords(first.replace(/\bvery\b|\breally\b|\bjust\b/gi, "").replace(/\s+/g, " "), 24),
-  };
-}
-
-function replacementCandidates(item: WorkbenchOpportunity): Record<OptionKey, string> {
-  const source = stripEvidenceWrapper(sourceTextOf(item));
-  const speech = extractSpeech(source);
-  if (speech) return compressedCandidates(item);
-
-  const sentences = sentenceUnits(source);
-  const base = trimWords(sentences.slice(0, 2).join(" ") || source, 46);
-  const names = fallbackCharacters(item);
-  const leadName = names[0] ?? "The moment";
-  return {
-    A: base,
-    B: `${leadName} held still long enough for the choice to register, and the moment tightened around it.`,
-    C: `${leadName} felt the cost before anyone named it, and the scene moved on with that pressure still in the air.`,
-  };
-}
-
-function insertionCandidates(item: WorkbenchOpportunity): Record<OptionKey, string> {
-  const names = fallbackCharacters(item);
-  const lead = names[0] ?? "He";
-  const other = names[1] ?? "the others";
-  return {
-    A: `${lead} hesitated, and the small delay told ${other} more than he meant to reveal.`,
-    B: `${lead} felt the choice land before he made it, a pressure no one else had to name.`,
-    C: `${lead} looked away first, and that was enough for the moment to claim its price.`,
-  };
-}
-
-function synthesizedCandidate(item: WorkbenchOpportunity, key: OptionKey): string {
-  const operation = effectiveOperation(item);
-  const source = sourceTextOf(item);
-  if (!source && operation !== "insert_before_selected_passage" && operation !== "insert_after_selected_passage") return "";
-
-  const candidates = operation === "compress_selected_passage"
-    ? compressedCandidates(item)
-    : operation === "insert_before_selected_passage" || operation === "insert_after_selected_passage"
-      ? insertionCandidates(item)
-      : replacementCandidates(item);
-
-  const candidate = candidates[key];
-  if (!candidateTextIsCopyPasteReady(candidate)) return "";
-  return candidate;
 }
 
 function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: string): boolean {
@@ -239,16 +107,6 @@ function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: st
 function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   const renderable = renderableCandidate(item, key);
   if (renderable && candidateTextIsCopyPasteReady(renderable) && !candidateRepeatsSourceForInsertion(item, renderable)) return renderable;
-
-  const raw = rawCandidate(item, key);
-  // Prefer LLM-generated candidate (5+ words) even if it fails strict copy-paste
-  // validation. The LLM was prompted to produce manuscript-specific text — even
-  // imperfect output is more useful than empty or generic placeholders.
-  if (raw && raw.split(/\s+/).length >= 5 && !candidateRepeatsSourceForInsertion(item, raw)) return raw;
-
-  const synthesized = synthesizedCandidate(item, key);
-  if (synthesized && !candidateRepeatsSourceForInsertion(item, synthesized)) return synthesized;
-
   return "";
 }
 
@@ -368,7 +226,7 @@ function optionSectionLabel(item: WorkbenchOpportunity): string {
 }
 
 export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: WorkbenchQueuePayload }) {
-  const allInputItems = useMemo(() => [...payload.opportunities, ...(payload.needsTargeting ?? [])], [payload.opportunities, payload.needsTargeting]);
+  const allInputItems = useMemo(() => payload.opportunities, [payload.opportunities]);
   const [activeId, setActiveId] = useState(allInputItems[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<OptionKey>("A");
   const [filters, setFilters] = useState<Filters>({ search: "", priority: "all", criterion: "all", status: "all", sourceFilter: "all" });
@@ -812,10 +670,10 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                         }
                         return (
                           <>
-                            <button onClick={() => decide("accepted_a", "A", compactGoal(active))} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C]">Mark as Manual Revision</button>
+                            <span className="rounded border border-[#5D4C31] px-2.5 py-1 text-xs text-[#A9987D]">Needs exact A/B/C prose before acceptance</span>
                             <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject All</button>
                             <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                            <button onClick={() => { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Custom Rewrite</button>
+                            <button onClick={() => { if (!customOpen) setCustomText(""); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Custom Rewrite</button>
                           </>
                         );
                       }

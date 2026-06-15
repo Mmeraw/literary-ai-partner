@@ -966,6 +966,7 @@ export async function persistEvaluationResultV2(params: {
     last_heartbeat_at: completionTime,
     heartbeat_at: completionTime,
     last_error: null,
+    failure_code: null,
     updated_at: completionTime,
     completed_at: completionTime,
     phase2_completed_at: completionTime,

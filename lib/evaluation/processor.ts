@@ -163,6 +163,10 @@ import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluatio
 import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
 import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
+import {
+  PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD,
+  PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD,
+} from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { buildSeedConsistencyReport } from '@/lib/evaluation/seed/seedConsistencyReport';
 import {
   buildTwoPassSeedBlock,
@@ -283,6 +287,51 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // Hard manuscript ceiling. Above this, we fail-closed before any AI call.
 // The website upload page displays this as the supported max.
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+const MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2 = 4;
+
+function isDegradedPass1aChunkOutput(output: Pass1aChunkOutput | undefined | null): boolean {
+  return Boolean(output && (output as { _degraded?: boolean })._degraded);
+}
+
+function getCompletedNonDegradedChunkIndexes(cacheMap: Map<number, Pass1aChunkOutput>): number[] {
+  return [...cacheMap.entries()]
+    .filter(([, output]) => !isDegradedPass1aChunkOutput(output))
+    .map(([chunkIndex]) => chunkIndex)
+    .sort((a, b) => a - b);
+}
+
+function getStoryLayerSubstantiveCoverage(payload: Record<string, unknown>): {
+  populatedLayerKeys: string[];
+  populatedLayerCount: number;
+} {
+  const asRecord = (value: unknown): Record<string, unknown> | null =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+
+  const layerChecks: Array<[string, (layer: Record<string, unknown>) => number]> = [
+    ['pov_structure_layer', (layer) => toFiniteNumber(layer.pov_character_count) ?? 0],
+    ['canonical_identity_layer', (layer) => toFiniteNumber(layer.identity_group_count) ?? 0],
+    ['cast_role_tier_layer', (layer) => toFiniteNumber(layer.total_cast) ?? 0],
+    ['identity_pronoun_layer', (layer) => toFiniteNumber(layer.total_characters) ?? 0],
+    ['relationship_network_layer', (layer) => toFiniteNumber(layer.pair_count) ?? 0],
+    ['object_symbol_layer', (layer) => toFiniteNumber(layer.object_count) ?? 0],
+    ['location_timeline_worldstate_layer', (layer) => Math.max(toFiniteNumber(layer.location_count) ?? 0, toFiniteNumber(layer.state_snapshot_count) ?? 0)],
+    ['threat_antagonist_ending_layer', (layer) => Math.max(toFiniteNumber(layer.pressure_system_count) ?? 0, toFiniteNumber(layer.antagonist_count) ?? 0, toFiniteNumber(layer.terminal_entry_count) ?? 0)],
+  ];
+
+  const populatedLayerKeys = layerChecks
+    .filter(([key, getCount]) => {
+      const layer = asRecord(payload[key]);
+      return layer ? getCount(layer) > 0 : false;
+    })
+    .map(([key]) => key);
+
+  return {
+    populatedLayerKeys,
+    populatedLayerCount: populatedLayerKeys.length,
+  };
+}
 
 // Vercel hard-kill wall-clock limit. Vercel terminates the process at 800s
 // regardless of what the function is doing. We must self-chain before this.
@@ -1852,6 +1901,7 @@ const TERMINAL_FAILURE_PREFIXES = [
 ];
 
 const TERMINAL_FAILURE_EXACT = new Set<string>([
+  'CONTEXT_CONTAMINATION_DETECTED',
   'USER_CANCELLED',
   'REVIEW_GATE_REJECTED_BY_AUTHOR',
   'TECHNICAL_FAILURE_REQUIRES_REVIEW',
@@ -4431,6 +4481,8 @@ type SeedArtifact = {
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
+  model: string;
+  prompt_version: string;
   claims: SeedClaim[];
 };
 
@@ -4479,6 +4531,8 @@ function buildStorySeedArtifact(args: { manuscriptText: string; generatedAt: str
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
+    model: 'seed_deterministic',
+    prompt_version: 'story_map_seed_v1:deterministic',
     claims,
   };
 }
@@ -4498,6 +4552,8 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
+    model: 'seed_deterministic',
+    prompt_version: 'evaluation_seed_v1:deterministic',
     claims,
   };
 }
@@ -7374,7 +7430,7 @@ export async function processEvaluationJob(
 
         // Cursor = next chunk index to process. Derived from cache (source of
         // truth) rather than stored cursor to handle cache-ahead-of-cursor edge cases.
-        const completedIndexes = new Set<number>(pass1aCacheMap.keys());
+        const completedIndexes = new Set<number>(getCompletedNonDegradedChunkIndexes(pass1aCacheMap));
         const allChunkIndexes = Array.isArray(allChunks)
           ? allChunks.map(c => c.chunk_index ?? 0)
           : [0];
@@ -7642,7 +7698,7 @@ export async function processEvaluationJob(
           }
 
           // Recompute pending after batch.
-          const completedAfterBatch = new Set<number>(pass1aCacheMap.keys());
+          const completedAfterBatch = new Set<number>(getCompletedNonDegradedChunkIndexes(pass1aCacheMap));
           const pendingAfterBatch = allChunkIndexes.filter(i => !completedAfterBatch.has(i));
           const batchCompletedAt = new Date().toISOString();
 
@@ -8254,8 +8310,9 @@ export async function processEvaluationJob(
         // Reconcile persisted batch-state with cache truth before continuing.
         // This prevents stale progress snapshots (e.g. 10/13) from surviving
         // into failed terminal states when cache is already complete.
-        const canonicalCompletedChunkIndexes = [...pass1aCacheMap.keys()].sort((a, b) => a - b);
-        const canonicalPendingChunkIndexes = expectedChunkIndexes.filter((index) => !pass1aCacheMap.has(index));
+        const canonicalCompletedChunkIndexes = getCompletedNonDegradedChunkIndexes(pass1aCacheMap);
+        const canonicalCompletedChunkIndexSet = new Set(canonicalCompletedChunkIndexes);
+        const canonicalPendingChunkIndexes = expectedChunkIndexes.filter((index) => !canonicalCompletedChunkIndexSet.has(index));
         const priorBatchState =
           progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
             ? (progressState.phase1a_batch_state as Record<string, unknown>)
@@ -8329,6 +8386,9 @@ export async function processEvaluationJob(
         if (totalContaminatedEntities > 0) {
           console.log(`[Processor] ${jobId}: entity contamination filter removed ${totalContaminatedEntities} pseudo-entities across all chunks`);
         }
+
+        const degradedChunkCount = sortedChunkOutputs.filter((chunkOutput) => isDegradedPass1aChunkOutput(chunkOutput)).length;
+        const degradedChunkRatio = totalChunks > 0 ? degradedChunkCount / totalChunks : 0;
 
         const ledgerAssemblyStartedAt = new Date().toISOString();
         await supabase
@@ -8448,7 +8508,8 @@ export async function processEvaluationJob(
             generated_at: new Date().toISOString(),
             pipeline_stats: {
               total_chunks: totalChunks,
-              successful_chunks: sortedChunkOutputs.length,
+              successful_chunks: canonicalCompletedChunkIndexes.length,
+              degraded_chunks: degradedChunkCount,
               failed_chunks: 0,
               protagonists: characterLedger.coverage_summary.protagonists,
               co_protagonists: characterLedger.coverage_summary.co_protagonists,
@@ -8471,6 +8532,7 @@ export async function processEvaluationJob(
           characterLedgerV2Phase1a,
           sortedChunkOutputs,
         );
+        const storyLayerCoverage = getStoryLayerSubstantiveCoverage(storyLayerPayload);
 
         const currentBatchStateForQuality =
           progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
@@ -8489,7 +8551,14 @@ export async function processEvaluationJob(
           {
             chunkCoverage: {
               chunks_expected: totalChunks,
-              chunks_completed: sortedChunkOutputs.length,
+              chunks_completed: canonicalCompletedChunkIndexes.length,
+              degraded_chunks: degradedChunkCount,
+              degraded_ratio: degradedChunkRatio,
+            },
+            storyLayerCoverage: {
+              populated_substantive_layers: storyLayerCoverage.populatedLayerCount,
+              minimum_required_substantive_layers: MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2,
+              populated_layer_keys: storyLayerCoverage.populatedLayerKeys,
             },
             preflightReducer: {
               reducer_status: reducerFailedFromProgress ? 'failed' : 'ok',
@@ -8556,6 +8625,29 @@ export async function processEvaluationJob(
           ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
         });
 
+        const manuscriptWordCountForGate =
+          typeof chunkRouting.manuscript_words === 'number' && Number.isFinite(chunkRouting.manuscript_words)
+            ? chunkRouting.manuscript_words
+            : countWords(manuscriptWithContent.content || '');
+        const requireUserFacingReviewGate = shouldRequireStoryLedgerReviewGate(manuscriptWordCountForGate);
+
+        const technicalInputStandardsFailed = requireUserFacingReviewGate && (
+          storyLayerCoverage.populatedLayerCount < MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2 ||
+          degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
+          degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+        );
+
+        if (technicalInputStandardsFailed) {
+          const msg =
+            `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: Phase 1A output does not meet next-step input standards. ` +
+            `populated_substantive_layers=${storyLayerCoverage.populatedLayerCount}/${MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2}; ` +
+            `degraded_chunks=${degradedChunkCount}/${totalChunks} (ratio=${degradedChunkRatio.toFixed(3)}). ` +
+            `Populated layers: ${storyLayerCoverage.populatedLayerKeys.join(', ') || 'none'}.`;
+          console.error(`[phase_1a] ${jobId}: ${msg}`);
+          await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_INCOMPLETE', { pipelineStage: 'phase_1a' });
+          return { success: false, error: msg };
+        }
+
         // Progress bump: story layer assembled → move bar past the 40% plateau.
         progressState.completed_units = 47;
         progressState.message = 'Assembling story layer';
@@ -8595,11 +8687,6 @@ export async function processEvaluationJob(
 
         // ── 7. Review Gate handoff (Phase Architecture v2 helper) ─────────
         const phase1aNow = new Date().toISOString();
-        const manuscriptWordCountForGate =
-          typeof chunkRouting.manuscript_words === 'number' && Number.isFinite(chunkRouting.manuscript_words)
-            ? chunkRouting.manuscript_words
-            : countWords(manuscriptWithContent.content || '');
-        const requireUserFacingReviewGate = shouldRequireStoryLedgerReviewGate(manuscriptWordCountForGate);
         const reviewGateArtifactTypes = [
           'pass1a_story_layer_v1',
           'ledger_quality_report_v1',

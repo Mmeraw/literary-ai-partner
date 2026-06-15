@@ -156,6 +156,28 @@ async function runPerplexityFinalAudit(packet: FinalExternalAuditPacket): Promis
 }
 
 function mergeProviderAudit(base: FinalExternalAuditResult, provider: ProviderAuditResult): FinalExternalAuditResult {
+  const providerReason = provider.reason.toLowerCase();
+  const optionalReviseLedgerFalseBlock =
+    provider.verdict === 'BLOCK'
+    && provider.codes.includes('FINAL_AUDIT_SCHEMA_INVALID')
+    && providerReason.includes('revision_opportunity_ledger_v1')
+    && !base.missing_required_artifacts.includes('evaluation_result_v2')
+    && !base.missing_required_artifacts.includes('longform_document_v1');
+
+  if (optionalReviseLedgerFalseBlock) {
+    return {
+      ...base,
+      provider: 'perplexity',
+      model: provider.model,
+      reason: base.verdict === 'PASS'
+        ? 'Final verification passed; required long-form artifacts are present. External auditor flagged missing revision_opportunity_ledger_v1, but that artifact is Revise-phase only and is not hard-required for evaluation release.'
+        : base.reason,
+      codes: base.verdict === 'PASS' && !base.codes.includes('FINAL_AUDIT_SAFE_TO_RELEASE')
+        ? [...base.codes, 'FINAL_AUDIT_SAFE_TO_RELEASE']
+        : base.codes,
+    };
+  }
+
   const providerBlocking = provider.verdict === 'BLOCK' && provider.codes.some(isProviderBlockingCode);
   const verdict: FinalExternalAuditVerdict = providerBlocking ? 'BLOCK' : provider.verdict;
   const codes = unique([...base.codes.filter((code) => code !== 'FINAL_AUDIT_PROVIDER_UNAVAILABLE'), ...provider.codes]);

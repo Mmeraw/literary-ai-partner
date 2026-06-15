@@ -1,0 +1,250 @@
+{
+  "run_at": "2026-06-14T20:27:39.920Z",
+  "authority": "docs/SIPOC_EVALUATION_PROCESS.md",
+  "fixture_dir": "/workspaces/literary-ai-partner/tests/fixtures/sipoc",
+  "total_wall_ms": 2032,
+  "wall_budget_ms": 60000,
+  "summary": {
+    "total": 13,
+    "eligible": 13,
+    "skipped_pass_contracts": 0,
+    "passed": 13,
+    "failed": 0
+  },
+  "results": [
+    {
+      "fixture_id": "s01.intake.missing-required-input",
+      "stage_id": "S01_INTAKE",
+      "invariant_id": "INTAKE_REQUIRED_INPUT",
+      "required_failure_codes": [
+        "400"
+      ],
+      "observed_error_codes": [
+        "400"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "missing manuscript_id and manuscript_text → 400 (intake fail-closed)",
+      "duration_ms": 0
+    },
+    {
+      "fixture_id": "s02.queue.canonical-status-only",
+      "stage_id": "S02_QUEUE",
+      "invariant_id": "QUEUE_CANONICAL_STATUS_ONLY",
+      "required_failure_codes": [
+        "CANONICAL_STATUS_VIOLATION"
+      ],
+      "observed_error_codes": [
+        "CANONICAL_STATUS_VIOLATION"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "assertCanonicalStatus rejected non-canonical alias: Non-canonical job status detected: \"completed\". Expected: queued, running, failed, or complete. Run data migration: docs",
+      "duration_ms": 0
+    },
+    {
+      "fixture_id": "s03.claim.atomic-single-claimer",
+      "stage_id": "S03_CLAIM",
+      "invariant_id": "CLAIM_ATOMIC_SINGLE_CLAIMER",
+      "required_failure_codes": [
+        "CLAIM_CONFLICT"
+      ],
+      "observed_error_codes": [
+        "CLAIM_CONFLICT"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "two simulated claimers on the same job_id: only one succeeded",
+      "duration_ms": 0
+    },
+    {
+      "fixture_id": "s04b.routing-chunking.fail-closed-on-budget-overflow",
+      "stage_id": "S04_ROUTING_CHUNKING",
+      "invariant_id": "ROUTING_CHUNKING_BUDGET_OVERFLOW_FAIL_CLOSED",
+      "required_failure_codes": [
+        "CHUNK_BUDGET_OVERFLOW"
+      ],
+      "observed_error_codes": [
+        "CHUNK_BUDGET_OVERFLOW"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "chunker budget overflow contract: post-condition asserts overflow → fail closed",
+      "duration_ms": 0
+    },
+    {
+      "fixture_id": "s04.routing-chunking.fail-closed-on-coverage-mismatch",
+      "stage_id": "S04_ROUTING_CHUNKING",
+      "invariant_id": "ROUTING_CHUNKING_COVERAGE_FAIL_CLOSED",
+      "required_failure_codes": [
+        "VALIDATION_ERROR",
+        "EVALUATION_GATE_REJECTED"
+      ],
+      "observed_error_codes": [
+        "VALIDATION_ERROR"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "chunk coverage mismatch declared=12 routed=11 → VALIDATION_ERROR",
+      "duration_ms": 0
+    },
+    {
+      "fixture_id": "s05.pass1.fail-closed-on-timeout-truncation",
+      "stage_id": "S05_PASS1",
+      "invariant_id": "PASS1_TIMEOUT_TRUNCATION_FAIL_CLOSED",
+      "required_failure_codes": [
+        "PASS1_TIMEOUT",
+        "PASS1_TRUNCATED_EMPTY_RESPONSE"
+      ],
+      "observed_error_codes": [
+        "PASS1_TIMEOUT"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "runPipeline failed at pass1 with PASS1_TIMEOUT",
+      "duration_ms": 2002
+    },
+    {
+      "fixture_id": "s06.pass2.independence-violation",
+      "stage_id": "S06_PASS2",
+      "invariant_id": "PASS2_INDEPENDENCE_MANDATORY",
+      "required_failure_codes": [
+        "PASS2_INDEPENDENCE_REWRITE_FAILED",
+        "QG_INDEPENDENCE_VIOLATION"
+      ],
+      "observed_error_codes": [
+        "QG_LOW_EVIDENCE_COVERAGE",
+        "QG_MISSING_REQUIRED_EVIDENCE",
+        "QG_INDEPENDENCE_VIOLATION"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "quality gate fail codes: QG_LOW_EVIDENCE_COVERAGE,QG_MISSING_REQUIRED_EVIDENCE,QG_INDEPENDENCE_VIOLATION",
+      "duration_ms": 4
+    },
+    {
+      "fixture_id": "s07.pass3.fail-on-generic-or-incoherent-synthesis",
+      "stage_id": "S07_PASS3",
+      "invariant_id": "PASS3_SYNTHESIS_SPECIFICITY_AND_COHERENCE",
+      "required_failure_codes": [
+        "QG_GENERIC_REC",
+        "PASS3_JSON_PARSE_FAILED_MALFORMED"
+      ],
+      "observed_error_codes": [
+        "QG_CONSEQUENCE_CONTRACT",
+        "QG_GENERIC_REC",
+        "QG_SHORT_REC",
+        "QG_REC_INTEGRITY_FAIL",
+        "QG_DUPLICATE_REC",
+        "QG_THIN_RATIONALE",
+        "QG_LOW_EVIDENCE_COVERAGE",
+        "QG_MISSING_REQUIRED_EVIDENCE",
+        "QG_INDEPENDENCE_VIOLATION",
+        "QG_FILLER_REC"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "quality gate fail codes: QG_CONSEQUENCE_CONTRACT,QG_GENERIC_REC,QG_SHORT_REC,QG_REC_INTEGRITY_FAIL,QG_DUPLICATE_REC,QG_THIN_RATIONALE,QG_LOW_EVIDENCE_COVERAGE,QG_MISSING_REQUIRED_EVIDENCE,QG_INDEPENDENCE_VIOLATION,QG_FILLER_REC",
+      "duration_ms": 12
+    },
+    {
+      "fixture_id": "s07.pass3.fail-on-surface-template-splice-or-clamp-malformation",
+      "stage_id": "S07_PASS3",
+      "invariant_id": "PASS3_SURFACE_TEMPLATE_CLAMP_SAFETY",
+      "required_failure_codes": [
+        "PASS3_SURFACE_TEMPLATE_SPLICE_DETECTED",
+        "PASS3_SURFACE_CLAMP_MALFORMED_TEXT"
+      ],
+      "observed_error_codes": [
+        "PASS3_SURFACE_CLAMP_MALFORMED_TEXT"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "surface integrity REJECT: connector_collision_so_because,connector_collision_so_that_because",
+      "duration_ms": 1
+    },
+    {
+      "fixture_id": "s08.er2.score-null-separation",
+      "stage_id": "S08_ER2_NORMALIZATION",
+      "invariant_id": "SCORE_NULL_NEVER_COLLAPSE",
+      "required_failure_codes": [
+        "QG_SCORE_RANGE",
+        "QG_CONSEQUENCE_CONTRACT"
+      ],
+      "observed_error_codes": [
+        "QG_SCORE_RANGE",
+        "QG_CONSEQUENCE_CONTRACT",
+        "QG_GENERIC_REC",
+        "QG_SHORT_REC",
+        "QG_REC_INTEGRITY_FAIL",
+        "QG_DUPLICATE_REC",
+        "QG_THIN_RATIONALE",
+        "QG_LOW_EVIDENCE_COVERAGE",
+        "QG_MISSING_REQUIRED_EVIDENCE",
+        "QG_INDEPENDENCE_VIOLATION",
+        "QG_FILLER_REC"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "quality gate fail codes: QG_SCORE_RANGE,QG_CONSEQUENCE_CONTRACT,QG_GENERIC_REC,QG_SHORT_REC,QG_REC_INTEGRITY_FAIL,QG_DUPLICATE_REC,QG_THIN_RATIONALE,QG_LOW_EVIDENCE_COVERAGE,QG_MISSING_REQUIRED_EVIDENCE,QG_INDEPENDENCE_VIOLATION,QG_FILLER_REC",
+      "duration_ms": 2
+    },
+    {
+      "fixture_id": "s09.qualitygate.generic-editorial-feedback",
+      "stage_id": "S09_QUALITYGATEV2",
+      "invariant_id": "QG_NO_GENERIC_EDITORIAL_FEEDBACK",
+      "required_failure_codes": [
+        "QG_EDITORIAL_GENERIC_FEEDBACK"
+      ],
+      "observed_error_codes": [
+        "QG_CONSEQUENCE_CONTRACT",
+        "QG_GENERIC_REC",
+        "QG_SHORT_REC",
+        "QG_REC_INTEGRITY_FAIL",
+        "QG_DUPLICATE_REC",
+        "QG_THIN_RATIONALE",
+        "QG_LOW_EVIDENCE_COVERAGE",
+        "QG_MISSING_REQUIRED_EVIDENCE",
+        "QG_INDEPENDENCE_VIOLATION",
+        "QG_FILLER_REC",
+        "QG_RECOMMENDATION_INCOMPLETE",
+        "QG_EDITORIAL_GENERIC_FEEDBACK"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "quality gate fail codes: QG_CONSEQUENCE_CONTRACT,QG_GENERIC_REC,QG_SHORT_REC,QG_REC_INTEGRITY_FAIL,QG_DUPLICATE_REC,QG_THIN_RATIONALE,QG_LOW_EVIDENCE_COVERAGE,QG_MISSING_REQUIRED_EVIDENCE,QG_INDEPENDENCE_VIOLATION,QG_FILLER_REC,QG_RECOMMENDATION_INCOMPLETE,QG_EDITORIAL_GENERIC_FEEDBACK",
+      "duration_ms": 2
+    },
+    {
+      "fixture_id": "s10.persistence.fail-closed-on-gate-fail",
+      "stage_id": "S10_PERSISTENCE",
+      "invariant_id": "PERSISTENCE_FAIL_CLOSED",
+      "required_failure_codes": [
+        "EVALUATION_GATE_REJECTED"
+      ],
+      "observed_error_codes": [
+        "EVALUATION_GATE_REJECTED",
+        "EVALUATION_ARTIFACT_VALIDATION_FAILED"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "gate FAIL → no artifact persisted; canonical fail code emitted",
+      "duration_ms": 6
+    },
+    {
+      "fixture_id": "s11.renderer.releasability-gate",
+      "stage_id": "S11_RENDERER",
+      "invariant_id": "RENDERER_RELEASE_GATE_ENFORCED",
+      "required_failure_codes": [
+        "409"
+      ],
+      "observed_error_codes": [
+        "409"
+      ],
+      "pass": true,
+      "reason": "observed_in_required_set",
+      "detail": "release gate blocked: reason=job_not_complete status=failed",
+      "duration_ms": 0
+    }
+  ]
+}
