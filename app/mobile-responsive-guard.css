@@ -46,6 +46,20 @@ pre {
   overflow-x: auto;
 }
 
+/* === Mobile nav product rules ===
+ * Storygate Studio is intentionally the brightest red brand marker.
+ * Admin must not consume public mobile menu space; admin tools live under
+ * Resources on desktop and remain protected at /admin for allow-listed users.
+ */
+#mobile-nav a[href="/storygate-studio"] {
+  color: #ff0000 !important;
+  text-shadow: 0 0 6px rgba(255, 0, 0, 0.45) !important;
+}
+
+#mobile-nav a[href="/admin"] {
+  display: none !important;
+}
+
 /* === Admin pipeline health table guard ===
  * Operator preference: preserve horizontal tables and prevent skinny vertical
  * letter-stacks. Each table section gets its own scroll box so the horizontal
