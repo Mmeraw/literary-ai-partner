@@ -59,7 +59,7 @@ export function validateLayerDecisionsForApproval(layerDecisions: unknown): { ok
   if (!normalizedLayerDecisions) {
     return {
       ok: false,
-      error: 'All 9 layer decisions are required to approve the Story Ledger.',
+      error: `All ${STORY_LAYER_KEYS.length} layer decisions are required to approve the Story Ledger.`,
     };
   }
 
@@ -67,7 +67,7 @@ export function validateLayerDecisionsForApproval(layerDecisions: unknown): { ok
   if (keys.length !== STORY_LAYER_KEYS.length) {
     return {
       ok: false,
-      error: `All 9 layer decisions are required to approve the Story Ledger. Received ${keys.length}.`,
+      error: `All ${STORY_LAYER_KEYS.length} layer decisions are required to approve the Story Ledger. Received ${keys.length}.`,
     };
   }
 

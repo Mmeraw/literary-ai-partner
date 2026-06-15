@@ -175,7 +175,7 @@ export type StoryLayerExtractionResult =
   | { ok: false; reason: string };
 
 /**
- * Extract the 9 canonical story layers from either payload shape:
+ * Extract the canonical story layers from either payload shape:
  *
  *   **Wrapped** — persisted artifact shape: `{ layers: { source_integrity_layer: {...}, ... } }`
  *   **Flat**    — in-memory buildStoryLayerFromLedger() return: `{ source_integrity_layer: {...}, ... }`

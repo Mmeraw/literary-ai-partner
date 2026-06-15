@@ -1,9 +1,9 @@
 ---
-benchmark-schema: ideal-story-ledger-9-layer-v2
-title: Story Ledger 9-Layer Template
+benchmark-schema: ideal-story-ledger-10-layer-v1
+title: Story Ledger 10-Layer Template
 file-role: format-template
 note: >
-  This is a BLANK reusable template for the 9-layer Story Ledger.
+  This is a BLANK reusable template for the 10-layer Story Ledger.
   It is NOT a completed benchmark. The completed gold-standard examples are in
   IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_*.md files.
   SEED generators and Phase 1A must populate every layer below.
@@ -15,12 +15,12 @@ created: 2026-06-02T20:00:00Z
 revised: 2026-05-28T07:00:00Z
 ---
 
-# Story Ledger 9-Layer Template
+# Story Ledger 10-Layer Template
 
 > Template purpose: Blank structure that SEED and Phase 1A must populate for every manuscript.
 > Authority rule: Seed proposes; Phase 1A verifies against manuscript evidence; Review Gate authorizes; accepted_story_ledger_v1 governs Phase 2.
 > Display rule: Never show machine chunk labels to authors. Use chapter, scene, paragraph, page, or quoted evidence anchors.
-> Scope rule: Long-form manuscripts (>=25k words) require full population of all layers and all sub-tables. Short-form manuscripts (<25k words) still require all 9 layers but may have fewer rows per table where the manuscript genuinely has less structural complexity. Do not fabricate complexity that does not exist.
+> Scope rule: Long-form manuscripts (>=25k words) require full population of all layers and all sub-tables. Short-form manuscripts (<25k words) still require all 10 layers but may have fewer rows per table where the manuscript genuinely has less structural complexity. Do not fabricate complexity that does not exist.
 
 ## Completion Standard
 
@@ -126,7 +126,35 @@ Short-form target: 1-3 named POV/camera owners.
 
 ---
 
-# Layer 3 — Canonical Identity
+# Layer 3 — Narrator Attribution
+
+## Required status
+
+One of: `complete_with_confidence` | `complete_with_review_flags` | `unknown_narrator_identity`
+
+## Required fields
+
+| Field | Fill instruction |
+|---|---|
+| Narrator label | `<confirmed narrator name OR "the narrator" OR "the unnamed narrator">` |
+| Narrator confidence | `<confirmed / inferred / unknown>` |
+| Allowed report references | `<safe phrases downstream reports may use>` |
+| Blocked false names | `<terms that must never be treated as narrator names>` |
+| Evidence anchors | `<specific manuscript evidence if narrator identity is confirmed or constrained>` |
+| Attribution note | `<why the narrator label is supported, or why identity remains unknown>` |
+
+If no explicit narrator identity is confirmed, output `the unnamed narrator` and set confidence to `unknown`.
+
+## Narrator attribution failure conditions
+
+- Fails if narrator identity is inferred from theme, motif, object, expense/cost language, prices, vanity language, yes/no tokens, greetings, or section titles.
+- Fails if dialogue fragments, common English words, or blocked non-person tokens are treated as narrator names.
+- Fails if downstream-safe report references are omitted.
+- Fails if an unnamed narrator is upgraded to a named identity without explicit manuscript evidence.
+
+---
+
+# Layer 4 — Canonical Identity
 
 ## Required status
 
@@ -159,7 +187,7 @@ Missing any primary structural character is a blocker.
 
 ---
 
-# Layer 4 — Cast / Role Tier
+# Layer 5 — Cast / Role Tier
 
 ## Required status
 
@@ -189,7 +217,7 @@ Tier assignment guidance: Base tier on PLOT FUNCTION and STRUCTURAL WEIGHT, not 
 
 ---
 
-# Layer 5 — Pronoun Transitions
+# Layer 6 — Pronoun Transitions
 
 ## Required status
 
@@ -213,11 +241,11 @@ Stable pronoun usage is normalized and hidden from review.
 
 - Fails if stable pronoun usage shown as review burden.
 - Fails if species terms, titles, royal terms, or symbolic personification treated as pronoun transitions.
-- Fails if identity name changes (e.g., Paolito → Paul) are treated as pronoun transitions instead of identity/renaming events (those belong in Layer 3).
+- Fails if identity name changes (e.g., Paolito → Paul) are treated as pronoun transitions instead of identity/renaming events (those belong in Layer 4).
 
 ---
 
-# Layer 6 — Relationship Network
+# Layer 7 — Relationship Network
 
 ## Required status
 
@@ -253,7 +281,7 @@ System relationships are NOT between individual characters but between groups, i
 
 ---
 
-# Layer 7 — Object / Symbol
+# Layer 8 — Object / Symbol
 
 ## Required status
 
@@ -294,7 +322,7 @@ Object type guidance:
 
 ---
 
-# Layer 8 — Timeline / Location / Worldstate
+# Layer 9 — Timeline / Location / Worldstate
 
 ## Required status
 
@@ -336,7 +364,7 @@ World rules are the internal logic systems of the manuscript — supernatural me
 
 ---
 
-# Layer 9 — Threat / Pressure / Ending
+# Layer 10 — Threat / Pressure / Ending
 
 ## Required status
 
@@ -369,7 +397,7 @@ Do not collapse all pressure into a single villain or force. Most manuscripts ha
 | `<character 2>` | `<end state>` | `<yes/no>` |
 | `<...>` | `<...>` | `<...>` |
 
-Include ALL major characters in end states. Every character in Layer 4 primary/authority/vulnerability tiers MUST have an end state entry. Do not omit characters who die — their death and its consequences are critical accountability data.
+Include ALL major characters in end states. Every character in Layer 5 primary/authority/vulnerability tiers MUST have an end state entry. Do not omit characters who die — their death and its consequences are critical accountability data.
 
 ## Required fields — Closure ledger
 

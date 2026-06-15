@@ -2,12 +2,12 @@
  * Phase 0.5a — Full-Context Story Ledger Seed Generator
  *
  * Unlike the existing semanticSeedGenerator (which produces claim-based
- * hypotheses), this module generates a COMPLETE 9-layer story ledger with
+ * hypotheses), this module generates a COMPLETE 10-layer story ledger with
  * explicit failure conditions from a single full-context LLM call.
  *
  * Architecture:
  *   - Input: Full manuscript text (no chunking)
- *   - Output: 9-layer story ledger with canonical hard facts + failure conditions
+ *   - Output: 10-layer story ledger with canonical hard facts + failure conditions
  *   - Authority: seed_only (non-authoritative until verified by Phase 1A)
  *   - Purpose: Provides ground truth constraints that prevent downstream
  *     comprehension failures (e.g., "Billy is dead" prevents any recommendation
@@ -88,7 +88,7 @@ export type FullContextStoryLedger = {
   manuscript_title: string;
   manuscript_word_count: number;
 
-  // 9-layer content
+  // 10-layer content
   layers: {
     source_integrity: {
       route: string;
@@ -152,7 +152,7 @@ function buildFullContextSystemPrompt(workType?: string, wordCount?: number): st
   const route = inferSeedRoute(workType, wordCount);
   return `You are Phase 0.5A, the full-manuscript Story Ledger seed writer for RevisionGrade.
 
-Your job: Read the ENTIRE manuscript in one pass and produce a comprehensive 9-layer Story Ledger with explicit failure conditions.
+Your job: Read the ENTIRE manuscript in one pass and produce a comprehensive 10-layer Story Ledger with explicit failure conditions, including narrator attribution.
 
 This ledger becomes the GROUND TRUTH that all downstream evaluation phases must respect. Any downstream recommendation that contradicts this ledger is INVALID.
 
@@ -254,7 +254,7 @@ function buildUserPrompt(params: {
   wordCount: number;
   manuscriptText: string;
 }): string {
-  return `Generate the full 9-layer Story Ledger for this manuscript.
+  return `Generate the full 10-layer Story Ledger for this manuscript.
 
 Title: ${params.title}
 Work type: ${params.workType}

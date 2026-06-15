@@ -126,13 +126,13 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
     );
   }
 
-  // Phase 2 cannot start unless all 9 canonical layer decisions are present,
+  // Phase 2 cannot start unless all canonical layer decisions are present,
   // complete, and structurally valid. On rejected disposition we allow
   // missing decisions (author may bail early).
   if (disposition !== 'rejected') {
     const validation = validateLayerDecisionsForApproval(layer_decisions);
     if (!validation.ok) {
-      const validationError = 'error' in validation ? validation.error : 'All 9 layer decisions are required to approve the Story Ledger.';
+      const validationError = 'error' in validation ? validation.error : 'All canonical layer decisions are required to approve the Story Ledger.';
       return NextResponse.json(
         {
           ok: false,

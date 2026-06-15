@@ -10,7 +10,7 @@
  *
  * Canonical template locations:
  *   - DREAM evaluation: docs/templates/evaluation/*.md
- *   - Story Ledger 9-layer: docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
+ *   - Story Ledger template: docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
  */
 
 import { readFileSync } from "fs";
@@ -73,11 +73,11 @@ export function loadDreamTemplate(key: DreamTemplateKey): string {
 }
 
 /**
- * Load the 9-layer Story Ledger template. Returns the full markdown content.
+ * Load the Story Ledger template. Returns the full markdown content.
  * Caches after first read; returns empty string on read failure.
  */
 export function loadStoryLedgerTemplate(): string {
-  return loadTemplateFile(STORY_LEDGER_TEMPLATE_PATH, "story_ledger_9_layer");
+  return loadTemplateFile(STORY_LEDGER_TEMPLATE_PATH, "story_ledger_template");
 }
 
 /**
@@ -146,7 +146,7 @@ export function buildCompactTemplateBlock(key: DreamTemplateKey): string {
 }
 
 /**
- * Build a compact prompt-ready version of the 9-layer Story Ledger template.
+ * Build a compact prompt-ready version of the Story Ledger template.
  * Extracts layer headings, required fields, and failure conditions from the
  * canonical `.md` file to keep prompt injection within a reasonable token budget.
  */
@@ -188,7 +188,7 @@ export function buildCompactStoryLedgerBlock(): string {
   if (currentSection) sections.push(currentSection.trim());
 
   return [
-    "9-LAYER STORY LEDGER TEMPLATE (canonical structure from docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md):",
+    "10-LAYER STORY LEDGER TEMPLATE (canonical registry plus benchmark structure from docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md):",
     "Every layer MUST be populated. An empty layer is a failure unless the manuscript genuinely lacks that dimension.",
     "",
     ...sections,

@@ -3444,7 +3444,7 @@ READY TO EVALUATE.
 ## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.3.1)
 
 Phase 0: load rules only. Do not read the manuscript.
-Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 9 required layers.
+Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 10 required layers, including narrator attribution.
 Phase 2: score only after pass1a_story_layer_v1 is complete.
 
 Failure modes Phase 1A must avoid:
@@ -3457,7 +3457,7 @@ Failure modes Phase 1A must avoid:
 
 Phase 2 scoring prohibitions:
 - Narrative Closure MUST NOT be scored if Relationship Spine Layer is empty.
-- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 9 required layers pass completeness checks.
+- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 10 required layers pass completeness checks.
 - Recommendations MUST carry validity: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK.
 
 ## REVISIONGRADE PLATFORM FIT — WHAT THIS PLATFORM OPTIMIZES FOR
@@ -3468,7 +3468,7 @@ This platform is NOT a general writing assistant. It is a governed revision oper
 Key platform calibration points:
 - The evaluation must serve the author's revision journey — not a publisher's acquisition filter
 - Scores reflect craft quality against professional standards, not marketability alone
-- The 9 canonical story layers (identity, cast, identity/pronouns, POV, relationships, objects/symbols, location/timeline, threat/ending, source integrity) are the structural backbone — they must inform scoring on all 13 criteria
+- The 10 canonical story layers (source integrity, POV, narrator attribution, identity, cast, identity/pronouns, relationships, objects/symbols, location/timeline, threat/ending) are the structural backbone — they must inform scoring on all 13 criteria
 - WAVE tier tagging (Early / Mid / Late) is mandatory on all recommendations — it tells the author WHEN to fix something
 - Loudest-lane bias is a calibration failure: all lane types must be mapped (plot / emotional / doctrinal / medicine-object / relationship / environmental)
 - The author is the ultimate authority on their manuscript — conflicting AI extractions must be flagged, not silently resolved
@@ -7022,7 +7022,7 @@ export async function processEvaluationJob(
         }
 
         // ── Phase 0.5A Enhanced: Full-Context Story Ledger (behind feature flag) ──
-        // When EVAL_FULL_CONTEXT_LEDGER=true, generate a comprehensive 9-layer
+        // When EVAL_FULL_CONTEXT_LEDGER=true, generate a comprehensive 10-layer
         // story ledger from the full manuscript text in a single LLM call.
         // This provides hard fact constraints that prevent downstream comprehension errors.
         if (process.env.EVAL_FULL_CONTEXT_LEDGER === 'true') {
@@ -8420,7 +8420,7 @@ export async function processEvaluationJob(
           .eq('id', jobId)
           .eq('status', JOB_STATUS.RUNNING);
 
-        // ── Load seed story ledger for 9-layer grounding gate ──────────────
+        // ── Load seed story ledger for 10-layer grounding gate ─────────────
         let seedLedgerForGrounding: FullContextStoryLedger | null = null;
         try {
           const { data: seedLedgerRows } = await supabase
@@ -8437,7 +8437,7 @@ export async function processEvaluationJob(
         }
 
         // Use cleaned (contamination-filtered) chunk outputs for ledger assembly
-        // Pass seed ledger + manuscript text for 9-layer grounding validation
+        // Pass seed ledger + manuscript text for 10-layer grounding validation
         const characterLedger: Pass1aCharacterLedger = reduceCharacterEvidence({
           chunkOutputs: cleanedChunkOutputs,
           jobId: String(job.id),
@@ -8761,11 +8761,11 @@ export async function processEvaluationJob(
             return { success: false, error: msg };
           }
 
-          // All 9 canonical keys are required.  If any are missing the accepted
+          // All canonical keys are required.  If any are missing the accepted
           // ledger would be incomplete and downstream synthesis would be degraded.
           if (layerExtraction.missing_keys.length > 0) {
             const msg =
-              `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: ${layerExtraction.missing_keys.length}/9 canonical layer keys missing ` +
+              `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: ${layerExtraction.missing_keys.length}/${STORY_LAYER_KEYS.length} canonical layer keys missing ` +
               `(${layerExtraction.missing_keys.join(', ')}). Cannot accept an incomplete story ledger.`;
             console.error(`[phase_1a] ${jobId}: ${msg}`);
             await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_INCOMPLETE', { pipelineStage: 'phase_1a' });
@@ -8780,7 +8780,7 @@ export async function processEvaluationJob(
 
           console.log(
             `[phase_1a] ${jobId}: short-form auto-approval — ` +
-            `source_layer_count=${sourceLayerKeyCount}, canonical_layer_count=${canonicalLayerKeyCount}/9, ` +
+            `source_layer_count=${sourceLayerKeyCount}, canonical_layer_count=${canonicalLayerKeyCount}/${STORY_LAYER_KEYS.length}, ` +
             `extraction_shape=${layerExtraction.shape}`,
           );
 

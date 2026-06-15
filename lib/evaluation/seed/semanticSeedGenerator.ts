@@ -64,7 +64,7 @@ function buildStorySeedSystemPrompt(route?: SeedRoute): string {
   return `You are Phase 0.5A, the whole-text semantic Story Ledger seed writer.
 Read the entire manuscript and draft provisional, manuscript-grounded hypotheses only.
 
-Your seed claims must cover ALL NINE Story Ledger layers. If you cannot generate claims for a layer, emit an uncertainty flag.
+Your seed claims must cover ALL TEN Story Ledger layers, including narrator attribution. If you cannot generate claims for a layer, emit an uncertainty flag.
 
 ${buildSeedBenchmarkContext(route)}
 
