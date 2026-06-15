@@ -46,85 +46,85 @@ pre {
   overflow-x: auto;
 }
 
-/* === Admin pipeline health readability guard ===
- * The dashboard is an operator console, not a data dump. Keep it readable at
- * 100% zoom: wrap diagnostic text, keep key columns visible, and make the SIPOC
- * strip explain itself without horizontal fighting.
+/* === Admin pipeline health table guard ===
+ * Operator preference: preserve horizontal tables and prevent skinny vertical
+ * letter-stacks. Each table section gets its own scroll box so the horizontal
+ * scrollbar is nearby instead of only at the top or bottom of the full page.
  */
 main:has(a[href="/admin"]) section:has(h2) .overflow-x-auto {
-  scrollbar-color: rgba(225, 188, 106, 0.55) rgba(248, 239, 223, 0.08);
+  max-height: 72vh;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(248, 239, 223, 0.12);
+  scrollbar-color: rgba(225, 188, 106, 0.7) rgba(248, 239, 223, 0.08);
+  scrollbar-width: auto;
+}
+
+main:has(a[href="/admin"]) section:has(h2) .overflow-x-auto + .overflow-x-auto {
+  margin-top: 1rem;
 }
 
 main:has(a[href="/admin"]) table {
-  table-layout: fixed;
-  width: 100%;
+  table-layout: auto !important;
+  width: max-content !important;
+  min-width: 1500px;
+  max-width: none !important;
+}
+
+main:has(a[href="/admin"]) thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 main:has(a[href="/admin"]) th,
 main:has(a[href="/admin"]) td {
+  min-width: max-content;
   vertical-align: top;
-  overflow-wrap: anywhere;
-  word-break: normal;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
 }
 
-main:has(a[href="/admin"]) td[title],
-main:has(a[href="/admin"]) td span[title] {
-  white-space: normal;
+main:has(a[href="/admin"]) td span,
+main:has(a[href="/admin"]) td a,
+main:has(a[href="/admin"]) td p,
+main:has(a[href="/admin"]) td div,
+main:has(a[href="/admin"]) td code {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  hyphens: none !important;
 }
 
 main:has(a[href="/admin"]) section:has(h2) table th,
 main:has(a[href="/admin"]) section:has(h2) table td {
-  padding-top: 0.85rem;
-  padding-bottom: 0.85rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
 }
 
-/* Recent failed jobs: prioritize the forensic link, stage, code, and readable failure detail. */
-main:has(a[href="/admin"]) section:has(h2) table th:nth-child(1),
-main:has(a[href="/admin"]) section:has(h2) table td:nth-child(1) {
-  width: 9rem;
-}
-
-main:has(a[href="/admin"]) section:has(h2) table th:nth-child(7),
-main:has(a[href="/admin"]) section:has(h2) table td:nth-child(7) {
-  width: 13rem;
-}
-
+/* Keep long diagnostic prose as one readable clipped cell, not a vertical column. */
 main:has(a[href="/admin"]) section:has(h2) table th:nth-child(8),
 main:has(a[href="/admin"]) section:has(h2) table td:nth-child(8) {
-  min-width: 22rem;
+  min-width: 28rem;
   max-width: 34rem;
-  white-space: normal;
-  line-height: 1.55;
 }
 
+main:has(a[href="/admin"]) section:has(h2) table td:nth-child(8) span,
+main:has(a[href="/admin"]) section:has(h2) table td:nth-child(8) p {
+  display: inline-block;
+  max-width: 34rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+/* Do not hide admin data columns on desktop/tablet; horizontal scrolling is intentional. */
 @media (max-width: 1280px) {
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(2),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(2),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(3),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(3),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(4),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(4),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(5),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(5),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(9),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(9),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(10),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(10),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(11),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(11),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(12),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(12),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(13),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(13),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(14),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(14),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(16),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(16),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(17),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(17),
-  main:has(a[href="/admin"]) section:has(h2) table th:nth-child(18),
-  main:has(a[href="/admin"]) section:has(h2) table td:nth-child(18) {
-    display: none;
+  main:has(a[href="/admin"]) section:has(h2) table th,
+  main:has(a[href="/admin"]) section:has(h2) table td {
+    display: table-cell !important;
   }
 }
 
