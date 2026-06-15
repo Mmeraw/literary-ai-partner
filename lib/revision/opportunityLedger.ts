@@ -2019,7 +2019,7 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
 export async function ensureRevisionOpportunityLedgerArtifact(
   supabase: any,
   jobId: string,
-  options?: { forceRebuild?: boolean },
+  options?: { forceRebuild?: boolean; allowLegacyEvaluationProjection?: boolean },
 ): Promise<EnsureLedgerResult> {
   const { data: existingLedgerRow, error: existingLedgerError } = await supabase
     .from('evaluation_artifacts')
@@ -2141,14 +2141,20 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       : jobWordCount;
 
   const uedProjection = await loadCertifiedUedOpportunityProjection(supabase, jobId);
+  if (!uedProjection?.opportunities.length && !options?.allowLegacyEvaluationProjection) {
+    throw new Error(
+      'Certified UED canonicalOpportunityLedger.rendered_opportunities is required for revision_opportunity_ledger_v1. Legacy evaluation_result recommendation projection is disabled for author-facing Revise packages.',
+    );
+  }
+
   const opportunities = uedProjection?.opportunities.length
     ? capRevisionOpportunities(uedProjection.opportunities, wordCount)
     : buildRevisionOpportunitiesFromEvaluationPayload(
         evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
       );
   const opportunitySourceAuthority = uedProjection?.opportunities.length
-    ? 'unified_evaluation_document_v1'
-    : 'legacy_evaluation_result_projection';
+    ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities'
+    : 'legacy_evaluation_result_projection_explicit_backfill_only';
 
   const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
     contextQuality: contextQualityDecision.status,

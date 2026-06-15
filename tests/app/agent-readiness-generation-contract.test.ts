@@ -70,14 +70,17 @@ describe('Agent Readiness generation contract', () => {
   });
 
   test('generation context consumes certified canonical opportunity ledger summaries', () => {
-    expect(generateRoute).toContain("'unified_evaluation_document_v1', 'evaluation_result_v2', 'evaluation_result_v1'");
+    expect(generateRoute).toContain(".eq('artifact_type', 'unified_evaluation_document_v1')");
+    expect(generateRoute).not.toContain("'unified_evaluation_document_v1', 'evaluation_result_v2', 'evaluation_result_v1'");
     expect(generateRoute).toContain("artifact_type', 'author_exposure_certification_v1'");
     expect(generateRoute).toContain('canonicalJsonSha256(unifiedDocument)');
     expect(generateRoute).toContain('canonicalOpportunityLedger');
     expect(generateRoute).toContain('rendered_opportunities');
     expect(generateRoute).toContain('CANONICAL OPPORTUNITY LEDGER — SINGLE RECOMMENDATION SOURCE');
     expect(generateRoute).toContain('canonicalOpportunities:');
-    expect(generateRoute).toContain('extractCertifiedCanonicalOpportunityContext(artifact.content, certificationRow?.content)');
+    expect(generateRoute).toContain('extractCertifiedCanonicalOpportunityContext(artifact?.content, certificationRow?.content)');
+    expect(generateRoute).toContain('CERTIFIED_CANONICAL_OPPORTUNITY_LEDGER_UNAVAILABLE');
+    expect(generateRoute).toContain("sourcePolicy: section === 'author_bio' ? 'author_supplied_only' : ctx.canonicalOpportunitySourcePolicy");
   });
 
   test('author bio page still requires author-supplied upload or pasted source material', () => {

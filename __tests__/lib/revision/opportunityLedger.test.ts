@@ -402,7 +402,7 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
 
     const persisted = upsertSpy.mock.calls[0][0] as { content: Record<string, unknown> };
     expect(persisted.content).toMatchObject({
-      opportunity_source_authority: 'unified_evaluation_document_v1',
+      opportunity_source_authority: 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities',
       source_ued_hash: uedHash,
       ued_rendered_opportunity_count: 1,
     });
@@ -415,7 +415,7 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
     ]));
   });
 
-  it('rebuilds stale empty ledger when evaluation payload now has opportunities', async () => {
+  it('rebuilds stale empty ledger from legacy evaluation payload only when explicit backfill is enabled', async () => {
     const upsertSpy = jest.fn();
 
     const supabase = {
@@ -509,7 +509,7 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
       },
     };
 
-    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-123');
+    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-123', { allowLegacyEvaluationProjection: true });
 
     expect(result.artifactId).toBe('ledger-new');
     expect(result.opportunities.length).toBeGreaterThan(0);
@@ -560,6 +560,84 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
     expect(typeof opportunity.evidence_anchor).toBe('string');
     expect(typeof opportunity.manuscript_coordinates).toBe('string');
     expect(['low', 'medium', 'high']).toContain(opportunity.confidence);
+  });
+
+  it('fails closed instead of projecting raw evaluation recommendations when certified UED opportunities are unavailable', async () => {
+    const supabase = {
+      from: (table: string) => {
+        const state: {
+          selectClause: string | null;
+          filters: Record<string, unknown>;
+        } = {
+          selectClause: null,
+          filters: {},
+        };
+
+        const chain = {
+          select: (value: string) => {
+            state.selectClause = value;
+            return chain;
+          },
+          eq: (column: string, value: unknown) => {
+            state.filters[column] = value;
+            return chain;
+          },
+          in: () => chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => {
+            if (table === 'evaluation_artifacts' && state.selectClause === 'id, content') {
+              return { data: null, error: null };
+            }
+            if (table === 'evaluation_jobs') {
+              return {
+                data: {
+                  id: state.filters.id,
+                  manuscript_id: 6074,
+                  evaluation_project_id: null,
+                  evaluation_result: null,
+                },
+                error: null,
+              };
+            }
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content, source_hash') {
+              return {
+                data: {
+                  source_hash: 'src-hash-raw-only',
+                  content: {
+                    criteria: [
+                      {
+                        key: 'pacing',
+                        recommendations: [
+                          {
+                            diagnosis: 'Raw recommendation must not become Revise truth.',
+                            recommendation: 'This should not be projected without certified UED.',
+                            anchor_snippet: 'A raw evaluation sentence exists but is not certified canonical truth.',
+                            location_ref: 'chapter:1',
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+                error: null,
+              };
+            }
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content') {
+              return { data: null, error: null };
+            }
+            return { data: null, error: null };
+          },
+          upsert: jest.fn(),
+        };
+
+        return chain;
+      },
+    };
+
+    await expect(ensureRevisionOpportunityLedgerArtifact(supabase, 'job-raw-only')).rejects.toThrow(
+      'Certified UED canonicalOpportunityLedger.rendered_opportunities is required',
+    );
   });
 
   it('returns rebuilt opportunities when ledger persistence fails so Workbench render is not blocked', async () => {
@@ -653,7 +731,7 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
       },
     };
 
-    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-123');
+    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-123', { allowLegacyEvaluationProjection: true });
 
     expect(result.artifactId).toBe('ledger-existing');
     expect(result.opportunities.length).toBeGreaterThan(0);
@@ -842,7 +920,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     });
 
     const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, manuscriptChunks, upsertSpy });
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-complete');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-complete', { allowLegacyEvaluationProjection: true });
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
     const status = persisted.content.candidate_generation_status as string;
@@ -874,7 +952,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     });
 
     const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, manuscriptChunks, upsertSpy });
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-partial');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-partial', { allowLegacyEvaluationProjection: true });
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
     const status = persisted.content.candidate_generation_status as string;
@@ -934,7 +1012,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       manuscriptChunks,
       upsertSpy,
     });
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-stable-complete');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-stable-complete', { allowLegacyEvaluationProjection: true });
 
     // Existing rows are never cache authority. The job has one ledger row, but
     // its content is rebuilt from canonical evaluation artifacts and upserted.
@@ -981,7 +1059,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       manuscriptChunks,
       upsertSpy: upsertSpyPartial,
     });
-    await ensureRevisionOpportunityLedgerArtifact(partialSupabase, 'job-stable-partial');
+    await ensureRevisionOpportunityLedgerArtifact(partialSupabase, 'job-stable-partial', { allowLegacyEvaluationProjection: true });
 
     expect(mockHydrate).toHaveBeenCalledTimes(1);
     expect(upsertSpyPartial).toHaveBeenCalledTimes(1);
@@ -1019,7 +1097,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       ],
     });
 
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-limited-context');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-limited-context', { allowLegacyEvaluationProjection: true });
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
     expect(persisted.content.revise_queue_preflight).toMatchObject({
@@ -1058,7 +1136,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       ],
     });
 
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-testimony-dialogue-risk');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-testimony-dialogue-risk', { allowLegacyEvaluationProjection: true });
 
     expect(mockHydrate).not.toHaveBeenCalled();
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
@@ -1088,7 +1166,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       manuscriptChunks: [],
     });
 
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-hydration-input-incomplete');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-hydration-input-incomplete', { allowLegacyEvaluationProjection: true });
 
     expect(mockHydrate).not.toHaveBeenCalled();
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
@@ -1126,7 +1204,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       ],
     });
 
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-hydration-input-contaminated');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-hydration-input-contaminated', { allowLegacyEvaluationProjection: true });
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
     const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
@@ -1164,7 +1242,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       ],
     });
 
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-candidate-quality-fail');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-candidate-quality-fail', { allowLegacyEvaluationProjection: true });
 
     const persisted = upsertSpy.mock.calls[0]?.[0] as { content: Record<string, unknown> };
     const [opp] = persisted.content.opportunities as Array<Record<string, unknown>>;
@@ -1200,7 +1278,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       manuscriptChunks: [{ content: 'He set the letter down and waited until the room went quiet.' }],
     });
 
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-telemetry-canon-blocked');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-telemetry-canon-blocked', { allowLegacyEvaluationProjection: true });
 
     const rejectionEvents = mockLogRevisionEvent.mock.calls
       .map(([call]) => call as Record<string, unknown>)
@@ -1274,7 +1352,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       manuscriptChunks,
     });
 
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-telemetry-overlap');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-telemetry-overlap', { allowLegacyEvaluationProjection: true });
 
     const rejectionEvents = mockLogRevisionEvent.mock.calls
       .map(([call]) => call as Record<string, unknown>)
@@ -1367,7 +1445,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     });
 
     const supabase = makeMinimalSupabase({ criteriaRecommendations: [rec], manuscriptChunks, upsertSpy });
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-regen-heals');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-regen-heals', { allowLegacyEvaluationProjection: true });
 
     // Regen must have been invoked (quality gate triggered it)
     expect(mockRegen).toHaveBeenCalledTimes(1);
@@ -1421,7 +1499,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     });
 
     const supabase = makeMinimalSupabase({ criteriaRecommendations: [rec], manuscriptChunks, upsertSpy });
-    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-regen-still-fails');
+    await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-regen-still-fails', { allowLegacyEvaluationProjection: true });
 
     expect(mockRegen).toHaveBeenCalledTimes(1);
 

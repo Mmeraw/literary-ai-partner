@@ -48,6 +48,12 @@ type CanonicalOpportunityContext = {
   readerEffect: string;
 };
 
+type CertifiedCanonicalOpportunityContext = {
+  opportunities: CanonicalOpportunityContext[];
+  sourcePolicy: 'certified_ued_canonical_opportunity_ledger';
+  failureReason: string | null;
+};
+
 const MODEL = process.env.AGENT_READINESS_MODEL ?? 'gpt-4o';
 const MAX_TOKENS = 2400;
 const TIMEOUT_MS = 45_000;
@@ -232,18 +238,25 @@ function firstString(...values: unknown[]): string {
 function extractCertifiedCanonicalOpportunityContext(
   unifiedDocument: unknown,
   certificationContent: unknown,
-): CanonicalOpportunityContext[] {
-  if (!isRecord(unifiedDocument) || !isRecord(certificationContent)) return [];
+): CertifiedCanonicalOpportunityContext {
+  const blocked = (failureReason: string): CertifiedCanonicalOpportunityContext => ({
+    opportunities: [],
+    sourcePolicy: 'certified_ued_canonical_opportunity_ledger',
+    failureReason,
+  });
+
+  if (!isRecord(unifiedDocument)) return blocked('unified_evaluation_document_v1 missing');
+  if (!isRecord(certificationContent)) return blocked('author_exposure_certification_v1 missing');
   if (
     certificationContent.schema_version !== 'author_exposure_certification_v1' ||
     certificationContent.decision !== 'certified' ||
     typeof certificationContent.unified_document_hash !== 'string'
   ) {
-    return [];
+    return blocked('author_exposure_certification_v1 is not certified');
   }
 
   if (canonicalJsonSha256(unifiedDocument) !== certificationContent.unified_document_hash) {
-    return [];
+    return blocked('certified UED hash mismatch');
   }
 
   const ledger = isRecord(unifiedDocument.canonicalOpportunityLedger)
@@ -253,7 +266,7 @@ function extractCertifiedCanonicalOpportunityContext(
     ? ledger.rendered_opportunities
     : [];
 
-  return rendered
+  const opportunities = rendered
     .filter((item): item is Record<string, unknown> => isRecord(item))
     .map((item) => ({
       id: firstString(item.id, item.opportunity_id),
@@ -266,6 +279,16 @@ function extractCertifiedCanonicalOpportunityContext(
     }))
     .filter((item) => item.id && item.action && item.evidence)
     .slice(0, 10);
+
+  if (rendered.length > 0 && opportunities.length === 0) {
+    return blocked('canonicalOpportunityLedger.rendered_opportunities contains no usable agent-readiness opportunities');
+  }
+
+  return {
+    opportunities,
+    sourcePolicy: 'certified_ued_canonical_opportunity_ledger',
+    failureReason: null,
+  };
 }
 
 async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: string, userId: string) {
@@ -281,7 +304,7 @@ async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: str
     .from('evaluation_artifacts')
     .select('content, artifact_type')
     .eq('job_id', evaluationJobId)
-    .in('artifact_type', ['unified_evaluation_document_v1', 'evaluation_result_v2', 'evaluation_result_v1'])
+    .eq('artifact_type', 'unified_evaluation_document_v1')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -319,14 +342,16 @@ async function fetchManuscriptContext(manuscriptId: number, evaluationJobId: str
     .eq('evaluation_job_id', evaluationJobId)
     .eq('status', 'approved');
 
+  const canonicalOpportunityContext = extractCertifiedCanonicalOpportunityContext(artifact?.content, certificationRow?.content);
+
   return {
     manuscript,
     artifact: artifact?.content,
     chunks: chunks?.map((c) => c.content).filter(Boolean) ?? [],
     storyLedger: ledger?.content,
-    canonicalOpportunities: artifact?.artifact_type === 'unified_evaluation_document_v1'
-      ? extractCertifiedCanonicalOpportunityContext(artifact.content, certificationRow?.content)
-      : [],
+    canonicalOpportunities: canonicalOpportunityContext.opportunities,
+    canonicalOpportunitySourcePolicy: canonicalOpportunityContext.sourcePolicy,
+    canonicalOpportunityFailureReason: canonicalOpportunityContext.failureReason,
     approvedSections: approvedSections ?? [],
   };
 }
@@ -423,6 +448,15 @@ export async function POST(req: NextRequest) {
 
   const ctx = await fetchManuscriptContext(manuscriptId, evaluationJobId, user.id);
   if (!ctx.manuscript) return NextResponse.json({ error: 'Manuscript not found' }, { status: 404 });
+
+  if (section !== 'author_bio' && ctx.canonicalOpportunityFailureReason) {
+    return NextResponse.json({
+      error: 'Certified canonical recommendation ledger unavailable for Agent Readiness generation',
+      code: 'CERTIFIED_CANONICAL_OPPORTUNITY_LEDGER_UNAVAILABLE',
+      details: ctx.canonicalOpportunityFailureReason,
+      sourcePolicy: ctx.canonicalOpportunitySourcePolicy,
+    }, { status: 409 });
+  }
 
   const suppliedBio = authorBioInput?.trim() ?? '';
   const existingApprovedBio = approvedAuthorBio(ctx);
@@ -530,7 +564,7 @@ export async function POST(req: NextRequest) {
     model: MODEL,
     mode,
     persisted: true,
-    sourcePolicy: section === 'author_bio' ? 'author_supplied_only' : 'manuscript_evaluation_story_ledger_grounded',
+    sourcePolicy: section === 'author_bio' ? 'author_supplied_only' : ctx.canonicalOpportunitySourcePolicy,
   });
 }
 
