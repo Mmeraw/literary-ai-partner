@@ -1367,13 +1367,10 @@ export function parsePass3Response(
     const rawFitSummary = typeof rawEntry?.["fit_summary"] === "string" ? rawEntry["fit_summary"].trim() : "";
     const rawGapSummary = typeof rawEntry?.["gap_summary"] === "string" ? rawEntry["gap_summary"].trim() : "";
 
-    // Deterministic 9-10 recommendation filtering (canon rule):
-    // Scores 9-10 may carry at most 1 "consider"-severity recommendation.
-    const suppressedRecommendations = finalScore >= 9
-      ? recommendations
-          .filter((r) => (r as Record<string, unknown>).severity === "consider" || (r as Record<string, unknown>).priority === "consider")
-          .slice(0, 1)
-      : recommendations;
+    // Evidence-driven policy: ALL scores keep their recommendations.
+    // Score determines severity framing (consider vs recommended), NOT whether recs exist.
+    // Score 9-10 recs are "craft-elevation" opportunities, not corrections.
+    const suppressedRecommendations = recommendations;
 
     criteria.push({
       key,
@@ -1386,7 +1383,7 @@ export function parsePass3Response(
         delta > 2 ? String(rawEntry?.["delta_explanation"] ?? "Axes diverge significantly.") : undefined,
       final_rationale: finalRationale,
       fit_summary: rawFitSummary || undefined,
-      gap_summary: (finalScore >= 9 ? "" : rawGapSummary) || undefined,
+      gap_summary: rawGapSummary || undefined,
       pressure_points: pressurePoints.length > 0 ? pressurePoints : [fallbackPressurePoint],
       decision_points: decisionPoints.length > 0 ? decisionPoints : [fallbackDecisionPoint],
       consequence_status: consequenceStatus,
@@ -1418,14 +1415,13 @@ export function parsePass3Response(
       : spineGovernedCriteria;
 
   // ── Post-synthesis validation gate: enforce recommendation density ──
-  // Every non-perfect criterion must produce actionable recommendations.
-  // Score-9 criteria get "growth area" recs (constructive, not corrective).
-  // Score-10 criteria are exempt (perfect scores suppressed per PR #1154).
-  const DENSITY_FLOOR: Record<string, number> = { "<=5": 5, "6-7": 4, "8": 2, "9": 1 };
+  // EVIDENCE-DRIVEN POLICY: Every criterion must produce recommendations.
+  // Score determines severity framing, NOT whether recommendations exist.
+  // Score-9 criteria get "growth area" recs; score-10 get "craft-elevation" recs.
+  const DENSITY_FLOOR: Record<string, number> = { "<=5": 5, "6-7": 3, "8": 2, "9": 2, "10": 1 };
   for (const c of finalCriteria) {
-    if (c.final_score_0_10 >= 10) continue;
     if (hasGovernanceSuppressedRecommendations(c)) continue;
-    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : "9";
+    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : c.final_score_0_10 === 9 ? "9" : "10";
     const minRecs = DENSITY_FLOOR[bucket] ?? 1;
     if (c.recommendations.length < minRecs) {
       const defect = {
@@ -1452,18 +1448,17 @@ export function parsePass3Response(
   }
 
   // ── Producer-side density repair: synthesize evidence-anchored recs to satisfy the template gate ──
-  // Every non-perfect criterion must have at least 1 meaningful recommendation.
-  // Score-8 → 1 rec minimum (actionable improvement), score-9 → 1 rec minimum (growth area).
+  // EVIDENCE-DRIVEN POLICY: Every criterion gets recommendations, including score 9 and 10.
+  // Score-8 → 2 rec minimum, score-9 → 2 rec minimum (growth area), score-10 → 1 rec minimum (craft-elevation).
   // This repair runs AFTER the defect-flagging loop so it can fill the gap that the LLM left,
   // using only anchors already present in the criterion — no fabrication.
-  const TEMPLATE_GATE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 1, "9": 1 };
+  const TEMPLATE_GATE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 2, "9": 2, "10": 1 };
   for (const c of finalCriteria) {
-    if (c.final_score_0_10 >= 10) continue;
     // NOTE: density repair must still backfill governance-suppressed criteria.
     // Although the template gate has an isGovernanceSuppressed exemption,
     // downstream mappings/dedupe/gate state may not preserve the suppression
     // exemption reliably — scored criteria should remain gate-complete.
-    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : "9";
+    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : c.final_score_0_10 === 9 ? "9" : "10";
     const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 1;
     if (minRecs === 0) continue;
 
@@ -1556,7 +1551,7 @@ export function parsePass3Response(
 
     // For groups with >1 member: keep the one on the lowest-scoring criterion, remove others
     // Density-floor protection: don't remove a rec if it would leave its criterion below minimum
-    const DEDUP_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 1, "9": 1 };
+    const DEDUP_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 2, "9": 2, "10": 1 };
     const removalsPerCriterion = new Map<number, number>(); // ci -> count of recs to remove
     const removeSet = new Set<string>(); // "ci:ri" keys to remove
     for (const [, refs] of groups) {
@@ -1568,8 +1563,7 @@ export function parsePass3Response(
       for (let i = 1; i < refs.length; i++) {
         const ci = refs[i].criterionIdx;
         const cScore = finalCriteria[ci].final_score_0_10;
-        if (cScore >= 10) { collapsedCriteria.push(refs[i].criterionKey); removeSet.add(`${ci}:${refs[i].recIdx}`); removalsPerCriterion.set(ci, (removalsPerCriterion.get(ci) ?? 0) + 1); continue; }
-        const bucket = cScore <= 5 ? "<=5" : cScore <= 7 ? "6-7" : cScore === 8 ? "8" : "9";
+        const bucket = cScore <= 5 ? "<=5" : cScore <= 7 ? "6-7" : cScore === 8 ? "8" : cScore === 9 ? "9" : "10";
         const minRecs = DEDUP_DENSITY_FLOOR[bucket] ?? 1;
         const currentCount = finalCriteria[ci].recommendations.length;
         const alreadyRemoving = removalsPerCriterion.get(ci) ?? 0;
@@ -1634,8 +1628,7 @@ export function parsePass3Response(
     const protectedSet = new Set<string>();
     for (let ci = 0; ci < finalCriteria.length; ci++) {
       const score = finalCriteria[ci].final_score_0_10;
-      if (score >= 10) continue;
-      const bucket = score <= 5 ? "<=5" : score <= 7 ? "6-7" : score === 8 ? "8" : "9";
+      const bucket = score <= 5 ? "<=5" : score <= 7 ? "6-7" : score === 8 ? "8" : score === 9 ? "9" : "10";
       const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 1;
       // Protect the first `minRecs` recommendations for this criterion
       for (let ri = 0; ri < Math.min(minRecs, finalCriteria[ci].recommendations.length); ri++) {
@@ -1672,11 +1665,10 @@ export function parsePass3Response(
   // the action matched GENERIC_RE, governance suppression skipped repair, or cap evicted them),
   // inject a pre-validated deterministic rec that is guaranteed to pass isMeaningfulRecommendation.
   for (const c of finalCriteria) {
-    if (c.final_score_0_10 >= 10) continue;
     // NOTE: governance-suppressed criteria must still get last-resort recs.
     // Although the gate has a suppression exemption, downstream dedupe/mapping
     // may not preserve that state — backfill is the safer contract.
-    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : "9";
+    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : c.final_score_0_10 === 9 ? "9" : "10";
     const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 1;
     if (minRecs === 0) continue;
 
