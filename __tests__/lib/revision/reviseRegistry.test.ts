@@ -191,7 +191,7 @@ describe('Revise Registry — process registry', () => {
 
 describe('Revise Registry — artifact registry', () => {
   test('has 13 artifacts', () => {
-    expect(REVISE_ARTIFACT_REGISTRY).toHaveLength(13);
+    expect(REVISE_ARTIFACT_REGISTRY).toHaveLength(15);
   });
 
   test('revision_opportunity_ledger_v1 is requiredForAuthorExposure', () => {
