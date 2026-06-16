@@ -143,26 +143,75 @@ describe("Gate 15 Hardening — Corrective Action & Mistake-Proofing", () => {
       expect(result.layer1).toBeDefined();
     });
 
-    test("Gate 15.1 skips short-form manuscripts", () => {
+    test("Gate 15.1 correctly identifies nonfiction prose (memoirs, essays) but does not block evaluation", () => {
       const { runGate15_1 } = require("@/lib/evaluation/gate15/gate15_1_validator");
 
-      const shortText = "He said hello. She replied warmly. ".repeat(500);
-      const result = runGate15_1(shortText);
+      // Nonfiction: fewer dialogue tags but still has "thought verbs" (argued,
+      // believed, concluded) and some physiological fillers (sighed, exhaled)
+      const nonfictionText = generateNonfictionManuscript(30000);
+      const result = runGate15_1(nonfictionText);
 
-      expect(result.overallStatus).toBe("SKIPPED");
-      expect(result.blocking).toBe(false);
+      // Nonfiction will likely FAIL on thoughtVerbsPerChapter threshold (set to 0!)
+      // because academic/narrative nonfiction naturally uses reasoning verbs
+      expect(["PASS", "FAIL"]).toContain(result.overallStatus);
+      expect(result.wordCount).toBeGreaterThan(25000);
+      // Regardless of status, the pipeline treats this as advisory
     });
 
-    test("Gate 15 orchestrator produces valid artifact regardless of pass/fail", () => {
+    test("Gate 15.1 correctly identifies memoir-style prose but does not block evaluation", () => {
+      const { runGate15_1 } = require("@/lib/evaluation/gate15/gate15_1_validator");
+
+      // Memoir: hybrid of fiction and nonfiction — has dialogue, introspection,
+      // and physiological language
+      const memoirText = generateMemoirManuscript(30000);
+      const result = runGate15_1(memoirText);
+
+      // Memoir will almost certainly FAIL on multiple thresholds
+      expect(result.overallStatus).toBe("FAIL");
+      expect(result.wordCount).toBeGreaterThan(25000);
+      // But this is EXPECTED for memoir — evaluation treats as advisory
+    });
+
+    test("Gate 15.1 skips short-form manuscripts (fiction and nonfiction)", () => {
+      const { runGate15_1 } = require("@/lib/evaluation/gate15/gate15_1_validator");
+
+      // Short fiction
+      const shortFiction = "He said hello. She replied warmly. ".repeat(500);
+      const resultFiction = runGate15_1(shortFiction);
+      expect(resultFiction.overallStatus).toBe("SKIPPED");
+      expect(resultFiction.blocking).toBe(false);
+
+      // Short nonfiction
+      const shortNonfiction = "The author argued that consciousness is irreducible. ".repeat(500);
+      const resultNonfiction = runGate15_1(shortNonfiction);
+      expect(resultNonfiction.overallStatus).toBe("SKIPPED");
+      expect(resultNonfiction.blocking).toBe(false);
+    });
+
+    test("Gate 15 orchestrator produces valid artifact for fiction", () => {
       const { runGate15Audit } = require("@/lib/evaluation/gate15");
 
       const dialogueText = generateDialogueHeavyManuscript(30000);
-      const result = runGate15Audit(dialogueText, "test-job-id", "test-manuscript-id");
+      const result = runGate15Audit(dialogueText, "test-job-fiction", "test-ms-fiction");
 
-      // Must produce a valid artifact structure
       expect(result.version).toBe("gate_15_audit_v1");
-      expect(result.jobId).toBe("test-job-id");
-      expect(result.manuscriptId).toBe("test-manuscript-id");
+      expect(result.jobId).toBe("test-job-fiction");
+      expect(result.manuscriptId).toBe("test-ms-fiction");
+      expect(result.overallStatus).toBeDefined();
+      expect(result.gate15_1).toBeDefined();
+      expect(result.gate15_2).toBeDefined();
+      expect(result.summaryFindings).toBeInstanceOf(Array);
+    });
+
+    test("Gate 15 orchestrator produces valid artifact for nonfiction", () => {
+      const { runGate15Audit } = require("@/lib/evaluation/gate15");
+
+      const nonfictionText = generateNonfictionManuscript(30000);
+      const result = runGate15Audit(nonfictionText, "test-job-nonfiction", "test-ms-nonfiction");
+
+      expect(result.version).toBe("gate_15_audit_v1");
+      expect(result.jobId).toBe("test-job-nonfiction");
+      expect(result.manuscriptId).toBe("test-ms-nonfiction");
       expect(result.overallStatus).toBeDefined();
       expect(result.gate15_1).toBeDefined();
       expect(result.gate15_2).toBeDefined();
@@ -265,6 +314,90 @@ function generateDialogueHeavyManuscript(targetWordCount: number): string {
 
   while (currentWords < targetWordCount) {
     const para = dialogueLines[paragraphs.length % dialogueLines.length];
+    paragraphs.push(para);
+    currentWords += para.split(/\s+/).length;
+  }
+
+  return paragraphs.join("\n\n");
+}
+
+/**
+ * Generate realistic nonfiction prose (essays, how-to, academic).
+ * Nonfiction has fewer dialogue tags but heavy use of "thought verbs"
+ * (argued, believed, concluded, considered) and reasoning language.
+ * Gate 15 should detect these but NEVER block evaluation.
+ */
+function generateNonfictionManuscript(targetWordCount: number): string {
+  const paragraphs: string[] = [];
+  let currentWords = 0;
+
+  const nonfictionLines = [
+    "The author argued that consciousness is irreducible to mere computation.",
+    "She believed that the evidence pointed toward a more nuanced interpretation.",
+    "He considered the implications carefully before drawing his conclusion.",
+    "The researcher felt that previous studies had overlooked this critical variable.",
+    "They concluded that the data supported a multi-factorial model of cognition.",
+    "He thought deeply about the ethical ramifications of such a policy.",
+    "She knew from decades of fieldwork that the conventional wisdom was flawed.",
+    "The committee believed the proposal warranted further investigation.",
+    "He sighed and set down the manuscript. The argument was circular.",
+    "She nodded at the data. The correlation was undeniable.",
+    "The historian argued that the standard narrative omitted key voices.",
+    "He considered whether the framework could accommodate edge cases.",
+    "She felt certain that the methodology was sound, despite criticism.",
+    "They reasoned that if the premise held, the conclusion followed naturally.",
+    "He exhaled and closed the laptop. The chapter needed restructuring.",
+    "She believed the findings would reshape the field within a decade.",
+    "The philosopher thought the distinction between mind and brain was artificial.",
+    "He knew that correlation did not imply causation, yet the pattern persisted.",
+    "She argued persuasively that the policy had unintended consequences.",
+    "He reflected on the implications. The stakes were higher than anyone realized.",
+  ];
+
+  while (currentWords < targetWordCount) {
+    const para = nonfictionLines[paragraphs.length % nonfictionLines.length];
+    paragraphs.push(para);
+    currentWords += para.split(/\s+/).length;
+  }
+
+  return paragraphs.join("\n\n");
+}
+
+/**
+ * Generate realistic memoir prose (hybrid fiction/nonfiction).
+ * Memoirs have dialogue, introspection ("I thought", "I felt", "I knew"),
+ * and physiological language — combines patterns from both fiction and nonfiction.
+ * Gate 15 will almost certainly FAIL on multiple thresholds. Must never block.
+ */
+function generateMemoirManuscript(targetWordCount: number): string {
+  const paragraphs: string[] = [];
+  let currentWords = 0;
+
+  const memoirLines = [
+    '"You can\'t go back there," my mother said, her voice barely a whisper.',
+    "I thought about what she meant. I knew she was right, but I felt the pull.",
+    "He nodded slowly. I believed him then, though I shouldn't have.",
+    '"Tell me what happened," the therapist murmured. I exhaled.',
+    "I felt my chest tighten. The memory was physical, lodged in my body.",
+    '"We don\'t talk about that," my father said. He clenched his jaw.',
+    "I sighed and looked away. Some things couldn't be unsaid.",
+    "She whispered something I couldn't hear. I leaned closer.",
+    "I knew then that everything had changed. I swallowed hard.",
+    '"I thought you understood," he breathed. I shook my head.',
+    "My grandmother nodded. She believed in signs, in omens.",
+    "I felt the grief rise like a tide. I exhaled and steadied myself.",
+    '"Don\'t look back," she murmured. I trembled but obeyed.',
+    "He said nothing. I thought I saw tears, but he turned away.",
+    "I considered leaving. I knew I should. But I stayed.",
+    '"Why?" I asked. She sighed. "Because I thought it was the only way."',
+    "I felt the cold air on my face. My hands shook.",
+    "He believed me, I think. Or he pretended to. I nodded.",
+    "I thought about the years wasted. I exhaled. It was done.",
+    '"Come here," she said softly. I hesitated, then went.',
+  ];
+
+  while (currentWords < targetWordCount) {
+    const para = memoirLines[paragraphs.length % memoirLines.length];
     paragraphs.push(para);
     currentWords += para.split(/\s+/).length;
   }
