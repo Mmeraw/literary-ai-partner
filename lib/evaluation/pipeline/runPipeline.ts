@@ -3075,9 +3075,9 @@ export function synthesisToEvaluationResultV2(
     `This manuscript shows meaningful strengths and clear readiness potential, with the most consequential revision pressure in ${fallbackWeaknesses}; targeted craft tightening should materially improve submission posture.`;
 
   const rawOverviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
-  // Hard cap: normalizeSummaryWithBottomWeaknesses + CMOS expansion can exceed 500 chars.
-  const overviewSummary = rawOverviewSummary.length > 500
-    ? rawOverviewSummary.substring(0, 497).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026"
+  // Hard cap at 750 chars — generous limit so LLM writes substantive summaries.
+  const overviewSummary = rawOverviewSummary.length > 750
+    ? rawOverviewSummary.substring(0, 747).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026"
     : rawOverviewSummary;
 
   const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {

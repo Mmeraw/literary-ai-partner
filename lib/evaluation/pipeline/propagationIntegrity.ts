@@ -154,7 +154,7 @@ function joinCriterionLabels(labels: string[]): string {
 export function normalizeSummaryWithBottomWeaknesses(
   summary: string,
   bottomScoreCriteria: CriterionKey[],
-  maxChars = 500,
+  maxChars = 750,
 ): string {
   const baseSummary = summary.trim();
   const missingCriteria = missingBottomWeaknessCriteria(summary, bottomScoreCriteria);

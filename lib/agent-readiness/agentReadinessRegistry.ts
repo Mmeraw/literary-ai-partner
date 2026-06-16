@@ -124,7 +124,7 @@ export const AGENT_READINESS_PROCESS_REGISTRY: readonly AgentReadinessProcessEnt
       'app/api/agent-readiness/generate/route.ts',
       'app/api/agent-readiness/generate-all/route.ts',
     ],
-    processContract: 'Call OpenAI GPT-4o with evaluation report context and gold standard prompts. Apply word limits per section. Mode: generate (fresh) | regenerate (discard prior) | improve (refine existing). Sections: query_letter (≤450w), what_makes_unique (≤150w), synopsis (≤500w), query_pitch (≤50w), comparables (≤200w), author_bio (≤150w). Author bio requires authorBioInput; system must shape only supplied facts — never invent credentials.',
+    processContract: 'Call OpenAI GPT-4o with evaluation report context and gold standard prompts. Apply word limits per section (10% tolerance band on all limits). Mode: generate (fresh) | regenerate (discard prior) | improve (refine existing). Sections: query_letter (≤450w), what_makes_unique (≤150w), synopsis (query 100-150w, standard 250-500w, extended 700-1000w), query_pitch (≤75w), comparables (≤200w), author_bio (≤200w). Author bio requires authorBioInput; system must shape only supplied facts — never invent credentials.',
     outputArtifacts: ['section_generation_result_v1'],
     outputRequiredFields: ['content', 'wordCount', 'section'],
     outputMetrics: ['word_count', 'generation_latency_ms'],
@@ -801,7 +801,7 @@ export const AGENT_READINESS_KICK_MATRIX: readonly AgentReadinessKickEntry[] = [
     description: 'Generated word count exceeds section limit by more than 10%.',
     blocking: true,
     blocksPackageAssembly: false,
-    remediation: 'Retry generation with tighter constraint. Per-section limits: query_letter 450, what_makes_unique 150, synopsis 500, query_pitch 50, comparables 200, author_bio 150.',
+    remediation: 'Retry generation with tighter constraint. Per-section limits (10% tolerance): query_letter 450, what_makes_unique 150, synopsis (query 150 / standard 500 / extended 1000), query_pitch 75, comparables 200, author_bio 200.',
     httpStatus: 422,
   },
   {
@@ -1125,7 +1125,7 @@ export const SECTION_WORD_LIMIT_REGISTRY: readonly AgentReadinessSectionLimitEnt
   { section: 'query_letter',      wordLimit: 450, wordMinimum: 200, hasMinimum: true },
   { section: 'what_makes_unique', wordLimit: 150, wordMinimum: 60,  hasMinimum: true },
   { section: 'synopsis',          wordLimit: 500, wordMinimum: 150, hasMinimum: true },
-  { section: 'query_pitch',       wordLimit: 50,  wordMinimum: null, hasMinimum: false },
+  { section: 'query_pitch',       wordLimit: 75,  wordMinimum: null, hasMinimum: false },
   { section: 'comparables',       wordLimit: 200, wordMinimum: null, hasMinimum: false },
-  { section: 'author_bio',        wordLimit: 150, wordMinimum: 50,  hasMinimum: true },
+  { section: 'author_bio',        wordLimit: 200, wordMinimum: 50,  hasMinimum: true },
 ] as const;
