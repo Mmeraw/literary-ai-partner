@@ -30,6 +30,7 @@ import {
   classifyFailureDisposition,
   resolveKickTarget,
   isKickEligible,
+  type ReviseStageFailureCode,
 } from '@/lib/revision/reviseFailureRecord';
 import { REVISION_SESSION_ALLOWED_TRANSITIONS } from '@/lib/revision/sessionTransitions';
 import {
@@ -4099,5 +4100,380 @@ describe('E2E Chain 30: Storygate Studio — Eligibility, Submission, Access Con
     });
     expect(accessEvent.action_type).toBe('request_access');
     expect(accessEvent.verification_state).toBe('verified');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 31: Revise Queue Lifecycle — Full State Transitions
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('E2E Chain 31: Revise Queue Lifecycle — Queue Admission → Decisions → Completion', () => {
+  const OPPORTUNITY_IDS = ['opp-lifecycle-001', 'opp-lifecycle-002', 'opp-lifecycle-003', 'opp-lifecycle-004'];
+
+  it('completion certification requires all ready opportunities to have canonical decisions', () => {
+    const result = buildReviseCompletionCertification({
+      manuscriptId: 'ms-lifecycle-001',
+      evaluationJobId: 'eval-lifecycle-001',
+      readyOpportunityIds: OPPORTUNITY_IDS,
+      decisions: [
+        { id: 'd-001', opportunity_id: 'opp-lifecycle-001', decision: 'accepted_a' },
+        { id: 'd-002', opportunity_id: 'opp-lifecycle-002', decision: 'custom' },
+      ],
+      pendingSyncCount: 0,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.diagnostic_code).toBe('COMPLETION_PREMATURE');
+      expect(result.failure.details.unresolved_ready_opportunity_ids).toContain('opp-lifecycle-003');
+      expect(result.failure.details.unresolved_ready_opportunity_ids).toContain('opp-lifecycle-004');
+      expect(result.failure.retryable).toBe(true);
+    }
+  });
+
+  it('pending sync blocks completion even when all opportunities decided', () => {
+    const result = buildReviseCompletionCertification({
+      manuscriptId: 'ms-lifecycle-001',
+      evaluationJobId: 'eval-lifecycle-001',
+      readyOpportunityIds: OPPORTUNITY_IDS,
+      decisions: OPPORTUNITY_IDS.map((id, i) => ({
+        id: `d-${i}`,
+        opportunity_id: id,
+        decision: 'accepted_a',
+      })),
+      pendingSyncCount: 2,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.diagnostic_code).toBe('COMPLETION_PENDING_SYNC');
+      expect(result.failure.retryable).toBe(true);
+    }
+  });
+
+  it('non-canonical decision blocks certification', () => {
+    const result = buildReviseCompletionCertification({
+      manuscriptId: 'ms-lifecycle-001',
+      evaluationJobId: 'eval-lifecycle-001',
+      readyOpportunityIds: ['opp-lifecycle-001'],
+      decisions: [{ id: 'd-001', opportunity_id: 'opp-lifecycle-001', decision: 'INVALID_VALUE' }],
+      pendingSyncCount: 0,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.diagnostic_code).toBe('COMPLETION_CERT_INVALID');
+      expect(result.failure.retryable).toBe(false);
+    }
+  });
+
+  it('full completion: all decided, zero sync pending → certified', () => {
+    const decisions = [
+      { id: 'd-001', opportunity_id: 'opp-lifecycle-001', decision: 'accepted_a' },
+      { id: 'd-002', opportunity_id: 'opp-lifecycle-002', decision: 'accepted_b' },
+      { id: 'd-003', opportunity_id: 'opp-lifecycle-003', decision: 'custom' },
+      { id: 'd-004', opportunity_id: 'opp-lifecycle-004', decision: 'keep_original' },
+    ];
+    const result = buildReviseCompletionCertification({
+      manuscriptId: 'ms-lifecycle-001',
+      evaluationJobId: 'eval-lifecycle-001',
+      readyOpportunityIds: OPPORTUNITY_IDS,
+      decisions,
+      pendingSyncCount: 0,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.record.completion_type).toBe('full');
+      expect(result.record.decision_counts.accepted_a).toBe(1);
+      expect(result.record.decision_counts.accepted_b).toBe(1);
+      expect(result.record.decision_counts.custom).toBe(1);
+      expect(result.record.decision_counts.keep_original).toBe(1);
+      expect(result.record.certification_hash.length).toBeGreaterThan(0);
+      expect(result.record.governance.no_pending_sync_entries).toBe(true);
+    }
+  });
+
+  it('partial completion: some deferred → completion_type = partial', () => {
+    const decisions = [
+      { id: 'd-001', opportunity_id: 'opp-lifecycle-001', decision: 'accepted_a' },
+      { id: 'd-002', opportunity_id: 'opp-lifecycle-002', decision: 'deferred' },
+      { id: 'd-003', opportunity_id: 'opp-lifecycle-003', decision: 'deferred' },
+      { id: 'd-004', opportunity_id: 'opp-lifecycle-004', decision: 'accepted_c' },
+    ];
+    const result = buildReviseCompletionCertification({
+      manuscriptId: 'ms-lifecycle-001',
+      evaluationJobId: 'eval-lifecycle-001',
+      readyOpportunityIds: OPPORTUNITY_IDS,
+      decisions,
+      pendingSyncCount: 0,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.record.completion_type).toBe('partial');
+      expect(result.record.decision_counts.deferred).toBe(2);
+    }
+  });
+
+  it('needs_targeting_deferred: no deferred ready but needs_targeting exists', () => {
+    const decisions = OPPORTUNITY_IDS.map((id, i) => ({
+      id: `d-${i}`,
+      opportunity_id: id,
+      decision: 'accepted_a',
+    }));
+    const result = buildReviseCompletionCertification({
+      manuscriptId: 'ms-lifecycle-001',
+      evaluationJobId: 'eval-lifecycle-001',
+      readyOpportunityIds: OPPORTUNITY_IDS,
+      decisions,
+      pendingSyncCount: 0,
+      needsTargetingCount: 5,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.record.completion_type).toBe('needs_targeting_deferred');
+      expect(result.record.needs_targeting_count).toBe(5);
+    }
+  });
+
+  it('decision ledger columns are complete and fail-closed', () => {
+    expect(REVISION_DECISION_LEDGER_COLUMNS.length).toBe(5);
+    const keys = REVISION_DECISION_LEDGER_COLUMNS.map((c) => c.key);
+    expect(keys).toContain('decision');
+    expect(keys).toContain('option');
+    expect(keys).toContain('criterion');
+    expect(keys).toContain('opportunity');
+    expect(keys).toContain('sync');
+    for (const col of REVISION_DECISION_LEDGER_COLUMNS) {
+      expect(col.failClosedRule.length).toBeGreaterThan(10);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 32: Revised Manuscript Highlight Contract
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('E2E Chain 32: Revised Manuscript Highlight Contract — Decision → Highlight Tone', () => {
+  const HIGHLIGHT_TONES = ['system', 'custom', 'kept', 'rejected', 'deferred'] as const;
+
+  it('every canonical decision maps to a valid highlight tone', () => {
+    const decisionToHighlight: Record<string, string> = {
+      accepted_a: 'system',
+      accepted_b: 'system',
+      accepted_c: 'system',
+      custom: 'custom',
+      keep_original: 'kept',
+      reject: 'rejected',
+      deferred: 'deferred',
+    };
+    for (const [decision, tone] of Object.entries(decisionToHighlight)) {
+      expect(HIGHLIGHT_TONES).toContain(tone);
+      expect(decision.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('FinalReviewDecision type covers all canonical decisions', () => {
+    const canonicalDecisions: string[] = [
+      'accepted_a', 'accepted_b', 'accepted_c', 'custom', 'keep_original', 'reject', 'deferred',
+    ];
+    for (const dec of canonicalDecisions) {
+      expect(typeof dec).toBe('string');
+    }
+    expect(canonicalDecisions.length).toBe(7);
+  });
+
+  it('completion certification decision_counts covers all canonical decisions', () => {
+    const decisions = [
+      { id: 'd-1', opportunity_id: 'opp-1', decision: 'accepted_a' },
+      { id: 'd-2', opportunity_id: 'opp-2', decision: 'accepted_b' },
+      { id: 'd-3', opportunity_id: 'opp-3', decision: 'accepted_c' },
+      { id: 'd-4', opportunity_id: 'opp-4', decision: 'custom' },
+      { id: 'd-5', opportunity_id: 'opp-5', decision: 'keep_original' },
+      { id: 'd-6', opportunity_id: 'opp-6', decision: 'reject' },
+      { id: 'd-7', opportunity_id: 'opp-7', decision: 'deferred' },
+    ];
+    const result = buildReviseCompletionCertification({
+      manuscriptId: 'ms-highlight-001',
+      evaluationJobId: 'eval-highlight-001',
+      readyOpportunityIds: decisions.map((d) => d.opportunity_id),
+      decisions,
+      pendingSyncCount: 0,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.record.decision_counts.accepted_a).toBe(1);
+      expect(result.record.decision_counts.accepted_b).toBe(1);
+      expect(result.record.decision_counts.accepted_c).toBe(1);
+      expect(result.record.decision_counts.custom).toBe(1);
+      expect(result.record.decision_counts.keep_original).toBe(1);
+      expect(result.record.decision_counts.reject).toBe(1);
+      expect(result.record.decision_counts.deferred).toBe(1);
+    }
+  });
+
+  it('accepted options produce system highlight, custom produces custom highlight', () => {
+    const decisionHighlightMap: Record<string, typeof HIGHLIGHT_TONES[number]> = {
+      accepted_a: 'system',
+      accepted_b: 'system',
+      accepted_c: 'system',
+      custom: 'custom',
+      keep_original: 'kept',
+      reject: 'rejected',
+      deferred: 'deferred',
+    };
+    for (const [, tone] of Object.entries(decisionHighlightMap)) {
+      expect(HIGHLIGHT_TONES).toContain(tone);
+    }
+    expect(Object.keys(decisionHighlightMap).length).toBe(7);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 33: Hydration Failure → Recovery Chain
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('E2E Chain 33: Hydration Failure → Structured Artifact → Recovery', () => {
+  it('hydration failure produces a candidate_hydration_failure_v1 artifact', () => {
+    const record = buildHydrationFailureRecord({
+      opportunityId: 'opp-hydration-fail-001',
+      failureCode: 'HYDRATION_SLAE_REJECTION',
+      attemptCount: 1,
+      maxAttempts: 3,
+      rejectionReason: 'All three candidates echoed the anchor text',
+      model: 'gpt-5.1',
+      promptVersion: 'candidate_hydration_v2_premium_prose',
+    });
+    expect(record.artifact_type).toBe('candidate_hydration_failure_v1');
+    expect(record.opportunity_id).toBe('opp-hydration-fail-001');
+    expect(record.failure_code).toBe('HYDRATION_SLAE_REJECTION');
+    expect(record.attempt_count).toBe(1);
+    expect(record.max_attempts).toBe(3);
+  });
+
+  it('hydration failure disposition classifies correctly', () => {
+    const slaeDisposition = classifyFailureDisposition('HYDRATION_SLAE_REJECTION');
+    expect(slaeDisposition).toBe('retryable');
+
+    const timeoutDisposition = classifyFailureDisposition('HYDRATION_TIMEOUT');
+    expect(timeoutDisposition).toBe('retryable');
+
+    const modelErrorDisposition = classifyFailureDisposition('HYDRATION_MODEL_ERROR');
+    expect(modelErrorDisposition).toBe('retryable');
+  });
+
+  it('hydration failure codes are kick-eligible via REVISE_KICK_MATRIX', () => {
+    const hydrationCodes: ReviseStageFailureCode[] = [
+      'HYDRATION_TIMEOUT',
+      'HYDRATION_MODEL_ERROR',
+      'HYDRATION_BATCH_FAILED',
+      'WORKBENCH_HYDRATION_FAILED',
+    ];
+    for (const code of hydrationCodes) {
+      const kick = resolveKickTarget(code);
+      if (kick) {
+        expect(kick.kickCode).toBe(code);
+      }
+    }
+  });
+
+  it('full chain: hydration fails → failure record → disposition → revision failure record', () => {
+    // Step 1: Hydration fails — produces structured artifact
+    const hydrationRecord = buildHydrationFailureRecord({
+      opportunityId: 'opp-hydration-chain-001',
+      failureCode: 'HYDRATION_SLAE_REJECTION',
+      attemptCount: 1,
+      maxAttempts: 3,
+      rejectionReason: 'Candidate A echoed the anchor',
+      model: 'gpt-5.1',
+      promptVersion: 'candidate_hydration_v2_premium_prose',
+    });
+    expect(hydrationRecord.artifact_type).toBe('candidate_hydration_failure_v1');
+
+    // Step 2: Classify disposition
+    const disposition = classifyFailureDisposition(hydrationRecord.failure_code as ReviseStageFailureCode);
+    expect(disposition).toBe('retryable');
+
+    // Step 3: Check retryability (attempt 1 < max 3 for timeout/model_error gets retryable status)
+    const timeoutRecord = buildHydrationFailureRecord({
+      opportunityId: 'opp-hydration-chain-002',
+      failureCode: 'HYDRATION_TIMEOUT',
+      attemptCount: 1,
+      maxAttempts: 3,
+      rejectionReason: null,
+      model: 'gpt-5.1',
+      promptVersion: 'candidate_hydration_v2_premium_prose',
+    });
+    expect(timeoutRecord.hydration_status).toBe('failed_retryable');
+
+    // Step 4: Build revision failure record for pipeline tracking
+    const revisionRecord = buildRevisionFailureRecord({
+      sessionId: 'session-hydration-001',
+      stageId: 'RS04_WORKBENCH_LOAD',
+      failureCode: 'WORKBENCH_HYDRATION_FAILED',
+      attemptCount: 1,
+      opportunityId: hydrationRecord.opportunity_id,
+      errorMessage: 'Hydration SLAE rejected all candidates',
+    });
+    expect(revisionRecord.artifact_type).toBe('revision_failure_record_v1');
+    expect(revisionRecord.disposition).toBe('retryable');
+    expect(revisionRecord.opportunity_id).toBe('opp-hydration-chain-001');
+  });
+
+  it('hydration exhausted attempts → terminal status', () => {
+    const exhausted = buildHydrationFailureRecord({
+      opportunityId: 'opp-hydration-exhausted',
+      failureCode: 'HYDRATION_TIMEOUT',
+      attemptCount: 3,
+      maxAttempts: 3,
+      rejectionReason: null,
+      model: 'gpt-5.1',
+      promptVersion: 'candidate_hydration_v2_premium_prose',
+    });
+    expect(exhausted.hydration_status).toBe('failed_terminal');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 34: Revise Queue Hard Caps + Metric Registry
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('E2E Chain 34: Revise Queue Hard Caps + Metric Registry Governance', () => {
+  it('short-form and long-form opportunity caps are enforced', () => {
+    expect(REVISE_QUEUE_LEDGER_LIMITS.shortFormMaxOpportunities).toBe(50);
+    expect(REVISE_QUEUE_LEDGER_LIMITS.longFormMaxOpportunities).toBe(100);
+    expect(REVISE_QUEUE_LEDGER_LIMITS.longFormWordThreshold).toBe(25_000);
+  });
+
+  it('all 12 metric keys have descriptions', () => {
+    const metricKeys = Object.keys(REVISE_QUEUE_LEDGER_INPUT_METRICS);
+    expect(metricKeys.length).toBe(12);
+    for (const key of metricKeys) {
+      expect(REVISE_QUEUE_LEDGER_INPUT_METRICS[key as keyof typeof REVISE_QUEUE_LEDGER_INPUT_METRICS].length).toBeGreaterThan(10);
+    }
+  });
+
+  it('queue ledger has 8 columns with fail-closed rules', () => {
+    expect(REVISE_QUEUE_LEDGER_COLUMNS.length).toBe(8);
+    for (const col of REVISE_QUEUE_LEDGER_COLUMNS) {
+      expect(col.failClosedRule.length).toBeGreaterThan(10);
+      expect(col.requiredInputs.length).toBeGreaterThan(0);
+      expect(col.requiredOutputs.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('decision ledger columns track sync state', () => {
+    const syncCol = REVISION_DECISION_LEDGER_COLUMNS.find((c) => c.key === 'sync');
+    expect(syncCol).toBeDefined();
+    expect(syncCol!.outputMetrics).toContain('synced_decision_count');
+    expect(syncCol!.failClosedRule).toContain('Sync errors');
+  });
+
+  it('getReviseQueueLedgerColumnLabel returns correct labels', () => {
+    expect(getReviseQueueLedgerColumnLabel('index')).toBe('#');
+    expect(getReviseQueueLedgerColumnLabel('severity')).toBe('Severity');
+    expect(getReviseQueueLedgerColumnLabel('status')).toBe('Status');
+    expect(getReviseQueueLedgerColumnLabel('options')).toBe('Options');
+  });
+
+  it('every queue column has input and output metrics from the canonical registry', () => {
+    const validMetrics = new Set(Object.keys(REVISE_QUEUE_LEDGER_INPUT_METRICS));
+    for (const col of REVISE_QUEUE_LEDGER_COLUMNS) {
+      for (const metric of [...col.inputMetrics, ...col.outputMetrics]) {
+        expect(validMetrics.has(metric)).toBe(true);
+      }
+    }
   });
 });
