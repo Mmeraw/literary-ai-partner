@@ -18,7 +18,12 @@ function makeTemplateReadySynthesis(): SynthesisOutput {
       decision_points: ["A clear scene decision materially shifts trajectory."],
       consequence_status: "landed" as const,
       evidence: [{ snippet: `"Quoted anchor for ${key}" establishes concrete manuscript evidence.` }],
-      recommendations: [],
+      recommendations: [{
+        action: `Strengthen the ${key} dimension by refining the underlying craft mechanics for deeper reader engagement.`,
+        priority: "Optional" as const,
+        evidence_anchor: `"Quoted anchor for ${key}" establishes concrete manuscript evidence.`,
+        reader_consequence: "Deepens the reader's sense of consequence and emotional investment.",
+      }],
       confidence_score_0_100: 86,
       confidence_level: "high" as const,
       confidence_reasons: ["evidence_density_strong"],

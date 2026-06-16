@@ -108,13 +108,13 @@ const FAILED_JOB_PROFILES: Array<{
 ];
 
 // ─── Density floor rules (mirrored from runPass3Synthesis) ──────────────────
-const DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 0 };
+const DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 1, "9": 1 };
 function getBucket(score: number): string {
-  return score <= 5 ? "<=5" : score <= 7 ? "6-7" : "8";
+  return score <= 5 ? "<=5" : score <= 7 ? "6-7" : score === 8 ? "8" : "9";
 }
 function getMinRecs(score: number): number {
-  if (score >= 9) return 0;
-  return DENSITY_FLOOR[getBucket(score)] ?? 0;
+  if (score >= 10) return 0;
+  return DENSITY_FLOOR[getBucket(score)] ?? 1;
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -156,9 +156,9 @@ describe("Last-resort recs fill density floor for real failed jobs", () => {
   }
 });
 
-describe("Exhaustive: every criterion × every score 0-8 produces passing recs", () => {
+describe("Exhaustive: every criterion × every score 0-9 produces passing recs", () => {
   for (const key of CRITERIA_KEYS) {
-    for (let score = 0; score <= 8; score++) {
+    for (let score = 0; score <= 9; score++) {
       const needed = getMinRecs(score);
       if (needed === 0) continue;
 
@@ -178,8 +178,8 @@ describe("Edge cases", () => {
     expect(buildLastResortRecommendations("concept", 7, 0)).toEqual([]);
   });
 
-  it("score=9 would never trigger (density floor = 0)", () => {
-    expect(getMinRecs(9)).toBe(0);
+  it("score=9 triggers density floor = 1 (growth area rec)", () => {
+    expect(getMinRecs(9)).toBe(1);
     expect(getMinRecs(10)).toBe(0);
   });
 

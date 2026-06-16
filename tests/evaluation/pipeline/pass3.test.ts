@@ -520,7 +520,7 @@ describe("parsePass3Response", () => {
     expect(densityViolations).toHaveLength(0);
   });
 
-  it("density repair: score-9 criterion is not touched by density repair", () => {
+  it("density repair: score-9 criterion gets minimum 1 growth-area rec", () => {
     const fixture = makePass3Fixture();
     fixture.criteria[2] = {
       ...fixture.criteria[2],
@@ -532,8 +532,8 @@ describe("parsePass3Response", () => {
 
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
 
-    // Score ≥9: repair must NOT add recs (gate has no minimum for 9-10)
-    expect(result.criteria[2].recommendations).toHaveLength(0);
+    // Score 9: density floor requires at least 1 growth-area recommendation
+    expect(result.criteria[2].recommendations.length).toBeGreaterThanOrEqual(1);
   });
 
   it("density repair: criterion with no evidence anchors does not fabricate recommendations", () => {
