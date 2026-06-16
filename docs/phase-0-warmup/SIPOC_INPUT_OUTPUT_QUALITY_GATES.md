@@ -143,7 +143,7 @@ seed_fit_gap_report_v1
 
 # Phase 0.5A — Enhanced Ledger (`full_context_story_ledger_v1`)
 
-**This is a separate stage from Phase 0 seed generation.** It runs AFTER seeds are produced and generates the deep 9-layer story ledger from full manuscript context.
+**This is a separate stage from Phase 0 seed generation.** It runs AFTER seeds are produced and generates the deep 10-layer story ledger from full manuscript context.
 
 ## SLA / timing target
 

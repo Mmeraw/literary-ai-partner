@@ -9,22 +9,12 @@
 
 import { assessLedgerCorruption } from '@/lib/evaluation/review-gate/ledgerCorruptionAssessor';
 import { shouldTimeGatedUnblock } from '@/lib/evaluation/phase-architecture-v2/phaseInputGuards';
+import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
 
 describe('Ledger Corruption Assessor', () => {
   it('scores a pristine ledger at 0.0', () => {
     const layers: Record<string, unknown> = {};
-    const layerNames = [
-      'canonical_identity_layer',
-      'cast_role_tier_layer',
-      'identity_pronoun_layer',
-      'location_timeline_worldstate_layer',
-      'object_symbol_layer',
-      'pov_structure_layer',
-      'relationship_network_layer',
-      'source_integrity_layer',
-      'threat_antagonist_ending_layer',
-    ];
-    for (const name of layerNames) {
+    for (const name of STORY_LAYER_KEYS) {
       layers[name] = {
         health: { status: 'healthy', truth_status: 'verified' },
         schema_version: '1',
@@ -34,8 +24,8 @@ describe('Ledger Corruption Assessor', () => {
 
     const result = assessLedgerCorruption(layers);
     expect(result.corruption_score).toBe(0);
-    expect(result.layers_healthy).toBe(9);
-    expect(result.layers_present).toBe(9);
+    expect(result.layers_healthy).toBe(STORY_LAYER_KEYS.length);
+    expect(result.layers_present).toBe(STORY_LAYER_KEYS.length);
     expect(result.missing_layers).toHaveLength(0);
     expect(result.usable).toBe(true);
   });
@@ -45,7 +35,7 @@ describe('Ledger Corruption Assessor', () => {
     expect(result.corruption_score).toBe(1);
     expect(result.layers_present).toBe(0);
     expect(result.usable).toBe(false);
-    expect(result.missing_layers).toHaveLength(9);
+    expect(result.missing_layers).toHaveLength(STORY_LAYER_KEYS.length);
   });
 
   it('marks ledger usable when 5+ layers present', () => {

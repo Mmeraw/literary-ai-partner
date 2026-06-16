@@ -1,6 +1,6 @@
 ---
-benchmark-schema: ideal-story-ledger-9-layer-v1
-title: Froggin Noggin — Ideal Story Ledger 9-Layer Benchmark
+benchmark-schema: ideal-story-ledger-10-layer-v1
+title: Froggin Noggin — Ideal Story Ledger 10-Layer Benchmark
 manuscript: Froggin Noggin FULL NOVEL
 author: Michael J. Meraw
 scope: full-manuscript
@@ -15,9 +15,9 @@ source-benchmarks:
   - docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
 ---
 
-# Froggin Noggin — Ideal Story Ledger 9-Layer Benchmark
+# Froggin Noggin — Ideal Story Ledger 10-Layer Benchmark
 
-> Benchmark purpose: This is a filled, idealized nine-layer Story Ledger target, not a blank template.
+> Benchmark purpose: This is a filled, idealized ten-layer Story Ledger target, not a blank template.
 > Runtime purpose: SEED and Phase 1A should use this kind of completed structure as a benchmark shape.
 > Authority rule: Seed proposes; Phase 1A must use the seed as the baseline scaffold and verify/correct/reject every claim against manuscript evidence. Review Gate/accepted_story_ledger_v1 remains the authority for Phase 2.
 > Display rule: never show machine chunk labels to authors. Use chapter, scene, paragraph, page, or quoted evidence anchors.

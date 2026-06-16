@@ -1,12 +1,12 @@
-# Ideal Story Ledger 9-Layer Benchmarks
+# Ideal Story Ledger 10-Layer Benchmarks
 
 These files are filled benchmark examples, not blank templates.
 
-They define what a completed, high-quality nine-layer Story Ledger should look like for three benchmark manuscripts:
+They define what a completed, high-quality ten-layer Story Ledger should look like for three benchmark manuscripts:
 
-1. `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md`
-2. `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md`
-3. `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md`
+1. `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_FROGGIN_NOGGIN.md`
+2. `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md`
+3. `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md`
 
 ## Purpose
 
@@ -19,19 +19,20 @@ These benchmarks support:
 - `seed_fit_gap_report_v1` generation
 - regression testing against known answer keys
 
-## Required nine layers
+## Required ten layers
 
-Every ideal benchmark uses the same nine-layer Story Ledger structure:
+Every ideal benchmark uses the same ten-layer Story Ledger structure:
 
 1. Source Integrity
 2. POV Structure
-3. Canonical Identity
-4. Cast / Role Tier
-5. Pronoun Transitions
-6. Relationship Network
-7. Object / Symbol
-8. Timeline / Location / Worldstate
-9. Threat / Pressure / Ending
+3. Narrator Attribution
+4. Canonical Identity
+5. Cast / Role Tier
+6. Pronoun Transitions
+7. Relationship Network
+8. Object / Symbol
+9. Timeline / Location / Worldstate
+10. Threat / Pressure / Ending
 
 ## Governance note
 

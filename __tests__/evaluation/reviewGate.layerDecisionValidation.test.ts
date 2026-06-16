@@ -15,7 +15,7 @@ function buildValidLayerDecisionSet() {
 }
 
 describe('validateLayerDecisionsForApproval', () => {
-  it('passes for exactly 9 canonical layer decisions', () => {
+  it('passes for exactly 10 canonical layer decisions', () => {
     const result = validateLayerDecisionsForApproval(buildValidLayerDecisionSet());
     expect(result).toEqual({ ok: true });
   });

@@ -94,16 +94,16 @@ docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger
 
 ```text
 docs/benchmarks/story-ledger/README.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
-docs/benchmarks/story-ledger/FROGGIN_NOGGIN_9_LAYER_OPTIMIZATION_ADDENDUM.md
-docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
+docs/benchmarks/story-ledger/FROGGIN_NOGGIN_10_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_10_LAYER_OPTIMIZATION_ADDENDUM.md
 ```
 
 ### F. Retired benchmark references — not current Story Ledger authority
 
-Retired benchmark references have been removed from the active authority set and must not be treated as current warmup authority, benchmark gate, release gate, or Story Ledger exemplar. Use the nine-layer Story Ledger benchmark set above; when a single product example is required, use `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md`.
+Retired benchmark references have been removed from the active authority set and must not be treated as current warmup authority, benchmark gate, release gate, or Story Ledger exemplar. Use the ten-layer Story Ledger benchmark set above; when a single product example is required, use `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md`.
 
 ### G. Registered canon and governance — required for 0.5A/0.5B authority grounding
 

@@ -8,7 +8,7 @@ export const REVISE_QUEUE_WARMUP_FILES = [
   'docs/canon/revise-queue-six-part-diagnostic.md',
   'docs/gold-standards/revise-queue-rendering-exemplars.md',
   'docs/gold-standards/revise-queue-invalid-examples.md',
-  // Nine-layer benchmarked story ledgers and governing contracts used during warmup calibration.
+  // Ten-layer benchmarked story ledgers and governing contracts used during warmup calibration.
   'docs/STORY_LEDGER_QUALITY_GATE.md',
   'docs/canon/STORY_LEDGER_SEMANTIC_INTEGRITY_CONTRACT.md',
   'docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md',

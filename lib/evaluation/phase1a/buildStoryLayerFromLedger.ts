@@ -32,6 +32,7 @@ import type {
 } from '@/lib/evaluation/pipeline/types';
 import type { StoryLayerPayload } from './storyLayerArtifactWriters';
 import { buildPovStructureFromChunkOutputs } from '@/lib/evaluation/pipeline/povStructure';
+import { buildUnnamedNarratorLayer } from '@/lib/evaluation/storyLedger/narratorAttributionLayer';
 import {
   applyIdentityDependencyMetadata,
   assessStoryLayerIdentityDependencies,
@@ -185,7 +186,18 @@ function buildPovStructureLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 3 — Canonical Identity & Alias Map
+// Layer 3 — Narrator Attribution
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildNarratorAttributionLayer(): Record<string, unknown> {
+  return {
+    schema_version: 'narrator_attribution_layer_v1',
+    ...buildUnnamedNarratorLayer(),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layer 4 — Canonical Identity & Alias Map
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildCanonicalIdentityLayer(
@@ -228,7 +240,7 @@ function buildCanonicalIdentityLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 4 — Cast Role Tiers
+// Layer 5 — Cast Role Tiers
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildCastRoleTierLayer(
@@ -274,7 +286,7 @@ function buildCastRoleTierLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 5 — Identity & Pronoun Verification
+// Layer 6 — Identity & Pronoun Verification
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildIdentityPronounLayer(
@@ -306,7 +318,7 @@ function buildIdentityPronounLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 5 — Relationship Arc Network
+// Layer 7 — Relationship Arc Network
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildRelationshipNetworkLayer(
@@ -348,7 +360,7 @@ function buildRelationshipNetworkLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 6 — Object / Symbol / Motif Lifecycle
+// Layer 8 — Object / Symbol / Motif Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildObjectSymbolLayer(
@@ -389,7 +401,7 @@ function buildObjectSymbolLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 7 — Location / Timeline / World State
+// Layer 9 — Location / Timeline / World State
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -531,7 +543,7 @@ function buildLocationTimelineWorldstateLayer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Layer 8 — Threat / Antagonist / Ending Accountability
+// Layer 10 — Threat / Antagonist / Ending Accountability
 // ─────────────────────────────────────────────────────────────────────────────
 
 type PressureSourceKind = 'character' | 'non_character' | 'internal';
@@ -931,13 +943,7 @@ export function buildStoryLayerFromLedger(
   const rawLayers: StoryLayerPayload = {
     source_integrity_layer: buildSourceIntegrityLayer(ledger, ledgerV2ForLayers),
     pov_structure_layer: buildPovStructureLayer(ledger, ledgerV2ForLayers, chunkOutputs),
-    narrator_attribution_layer: {
-      layer_key: 'narrator_attribution_layer',
-      status: hasZeroVerifiedCharacters ? 'INSUFFICIENT_SIGNAL' : 'SCORABLE',
-      narrator_attribution_required: hasIdentityProjectionWithoutVerifiedCharacters,
-      verified_character_count: ledger.entries.length,
-      note: 'Narrator attribution is preserved as an explicit story layer contract surface; no inferred narrator identity is fabricated.',
-    },
+    narrator_attribution_layer: buildNarratorAttributionLayer(),
     canonical_identity_layer: buildCanonicalIdentityLayer(ledger, ledgerV2ForLayers),
     cast_role_tier_layer: buildCastRoleTierLayer(ledger, ledgerV2ForLayers),
     identity_pronoun_layer: buildIdentityPronounLayer(ledger, ledgerV2ForLayers),

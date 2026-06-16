@@ -144,6 +144,7 @@ export function sanitizeBlockedCharacterNames(
   canonicalNames: string[],
 ): string {
   if (!text) return text;
+    if (!Array.isArray(canonicalNames) || canonicalNames.length === 0) return text;
 
   const hasCanonicalNames = canonicalNames.some((name) => typeof name === "string" && name.trim().length > 0);
   if (!hasCanonicalNames && !containsCostFalseCharacterReference(text)) return text;
