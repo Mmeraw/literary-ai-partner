@@ -26,6 +26,20 @@ import {
 } from '@/lib/evaluation/reportHeaderPolicy';
 import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 
+/** Format words that are not valid genre names — mirrors templateCompletenessGate.FORMAT_WORDS. */
+const FORMAT_WORDS = new Set([
+  'book', 'chapter', 'excerpt', 'fiction', 'manuscript', 'novel', 'novella',
+  'nonfiction', 'poem', 'screenplay', 'short fiction', 'short story', 'story',
+]);
+
+/** Return the genre string only if it is not a bare format word. */
+function sanitizeGenre(value: string | undefined | null, fallback: string): string {
+  if (!value || !value.trim()) return fallback;
+  const normalized = value.trim().toLowerCase().replace(/[\s\-_/]+/g, ' ').trim();
+  if (FORMAT_WORDS.has(normalized)) return fallback;
+  return value.trim();
+}
+
 export type ShortFormCriterionRecommendation = {
   opportunity_id?: string;
   priority?: 'high' | 'medium' | 'low';
@@ -82,6 +96,7 @@ export type ShortFormResultLike = {
     dialogue_percentage?: number;
     narrative_percentage?: number;
     diagnosed_genre?: string;
+    target_audience?: string;
   };
   governance?: {
     transparency?: {
@@ -314,6 +329,24 @@ function isFormatOnlyGenre(value: string): boolean {
   return FORMAT_ONLY_GENRE_VALUES.has(value.trim().toLowerCase());
 }
 
+function normalizeRecommendationPriority(value: unknown): ShortFormCriterionRecommendation['priority'] {
+  return value === 'high' || value === 'medium' || value === 'low' ? value : undefined;
+}
+
+function normalizeRecommendationAnchorType(value: unknown): ShortFormCriterionRecommendation['anchor_type'] {
+  return value === 'verbatim_quote' || value === 'paraphrased_observation' || value === 'editorial_diagnosis'
+    ? value
+    : undefined;
+}
+
+function normalizeCriterionRecommendation(rec: ShortFormCriterionRecommendation): ShortFormCriterionRecommendation {
+  return {
+    ...rec,
+    priority: normalizeRecommendationPriority(rec.priority),
+    anchor_type: normalizeRecommendationAnchorType(rec.anchor_type),
+  };
+}
+
 function titleCaseGenre(value: string): string {
   return value
     .split(/(\s+|\/|\+)/)
@@ -425,18 +458,16 @@ export function buildShortFormEvaluationDocument(input: {
   const genreExpectationContract = buildGenreExpectationHeader(
     result.governance?.transparency?.genre_expectation_context,
   );
-  const rawGenre = clean(result.enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre, 'Not specified');
   const genreExpectationLabel = genreExpectationContract?.genreExpectationLabels.length
     ? genreExpectationContract.genreExpectationLabels.join(' + ')
     : genreExpectationContract?.diagnosedGenre;
-  const displayGenre = isFallbackGenre(rawGenre)
-    ? rawGenre
-    : isFormatOnlyGenre(rawGenre) && genreExpectationLabel
+  const rawGenreValue = clean(result.enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre, 'Not specified');
+  const displayGenre = isFallbackGenre(rawGenreValue)
+    ? rawGenreValue
+    : isFormatOnlyGenre(rawGenreValue) && genreExpectationLabel
     ? genreExpectationLabel
-    : isFormatOnlyGenre(rawGenre)
-      ? 'Fiction'
-      : rawGenre;
-  const genreIsFallback = isFallbackGenre(rawGenre) || (isFormatOnlyGenre(rawGenre) && !genreExpectationLabel);
+    : sanitizeGenre(rawGenreValue, 'Not specified');
+  const genreIsFallback = isFallbackGenre(displayGenre);
 
   const criteriaScoreGrid: ShortFormCriterionGridRow[] = orderedCriteria.map((criterion) => {
     return {
@@ -456,7 +487,7 @@ export function buildShortFormEvaluationDocument(input: {
     const canonicalRecommendations = renderedOpportunities
       .filter((item) => item.primary_criterion === criterion.key || item.related_criteria.includes(criterion.key))
       .slice(0, 3)
-      .map(opportunityToShortFormCriterionRecommendation);
+      .map((item) => normalizeCriterionRecommendation(opportunityToShortFormCriterionRecommendation(item)));
 
     return {
       key: criterion.key,
@@ -469,7 +500,7 @@ export function buildShortFormEvaluationDocument(input: {
       recommendations: canonicalRecommendations.length > 0
         ? canonicalRecommendations
         : Array.isArray(criterion.recommendations)
-          ? criterion.recommendations.slice(0, 1)
+          ? criterion.recommendations.slice(0, 1).map(normalizeCriterionRecommendation)
           : [],
     };
   });

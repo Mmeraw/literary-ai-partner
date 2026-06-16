@@ -50,11 +50,16 @@ function buildBlockedNamePatterns(blockedWords: string[]): RegExp[] {
     patterns.push(new RegExp(`\\b${capitalized}/[A-Z]\\w+`, "g"));
 
     // Pattern 3: "No notices", "No is", "No was" — subject position
-    // Only for very common blocked words that the LLM frequently promotes
-    if (["no", "yes", "oh", "hey", "well", "so", "cost"].includes(word.toLowerCase())) {
+    // Only for very common blocked words that the LLM frequently promotes.
+    if ([
+      "no", "yes", "oh", "hey", "well", "so",
+      // Financial / thematic tokens that appear as sentence subjects when hallucinated as names
+      "cost", "price", "value", "money", "profit", "loss", "expense",
+      "total", "vanity", "beauty", "truth", "fate", "hope", "grace",
+    ].includes(word.toLowerCase())) {
       patterns.push(
         new RegExp(
-            `\\b${capitalized}(?= (?:[a-z]+ly )?(?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows|delivers|drives|anchors|contrasts|counts|tallies|calculates|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|earns))\\b`,
+          `\\b${capitalized}(?= (?:[a-z]+ly )?(?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows|delivers|drives|anchors|contrasts|counts|tallies|calculates|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|earns))\\b`,
           "g",
         ),
       );
@@ -107,12 +112,19 @@ function replaceCostSubjectFalseName(text: string, replacementName: string): str
   );
 }
 
+function containsCostFalseCharacterReference(text: string): boolean {
+  return /\bCost(?:['’]s\b|(?= (?:[a-z]+ly )?(?:is|was|has|had|needs|wants|tries|learns|counts|tallies|calculates|contrasts|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|remains|becomes|represents|embodies|anchors|drives|delivers|earns)\b))/g.test(text);
+}
+
 // Pre-build patterns for the most dangerous blocked words
 const TOP_BLOCKED_WORDS = [
   "no", "yes", "oh", "hey", "well", "so", "cost", "ok", "okay",
   "ah", "huh", "um", "uh", "sure", "right", "fine",
   "good", "bad", "please", "thanks", "sorry",
   "stop", "wait", "look", "listen", "come", "go", "run", "help",
+  // Financial / thematic tokens (observed: "Cost" from ledger-style price labels)
+  "cost", "price", "value", "money", "profit", "loss", "expense",
+  "total", "vanity", "beauty", "truth", "fate", "hope", "grace",
 ];
 
 const BLOCKED_NAME_PATTERNS = buildBlockedNamePatterns(TOP_BLOCKED_WORDS);
@@ -132,7 +144,9 @@ export function sanitizeBlockedCharacterNames(
   canonicalNames: string[],
 ): string {
   if (!text) return text;
-    if (!Array.isArray(canonicalNames) || canonicalNames.length === 0) return text;
+
+  const hasCanonicalNames = canonicalNames.some((name) => typeof name === "string" && name.trim().length > 0);
+  if (!hasCanonicalNames && !containsCostFalseCharacterReference(text)) return text;
 
   // The primary canonical name is the best replacement for any blocked word
   // used as a character reference (typically the protagonist).

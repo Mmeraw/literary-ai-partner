@@ -58,7 +58,7 @@ function makeSinglePassOutput(pass: 1 | 2): SinglePassOutput {
           priority: "medium",
           action: `Strengthen the ${key} dimension with more targeted evidence from the manuscript text.`,
           expected_impact: "Increases specificity and reader connection.",
-          anchor_snippet: '"slowly"',
+          anchor_snippet: "The river moved slowly through the valley.",
           issue_family: "scene_structure",
           strategic_lever: "scene_goal_clarity",
           revision_granularity: "scene",
@@ -109,7 +109,7 @@ function makeSynthesisOutput(): SynthesisOutput {
             `In the opening scene for ${key}, replace the abstract transition beat with a concrete cause-and-effect move because the current phrasing blunts tension before the decision point.`,
           expected_impact:
             "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
-          anchor_snippet: '"slowly"',
+          anchor_snippet: "The river moved slowly through the valley.",
           source_pass: 3 as const,
           issue_family: "scene_structure",
           strategic_lever: "scene_goal_clarity",
@@ -554,7 +554,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         action: duplicateAction,
         expected_impact:
           "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
-        anchor_snippet: '"slowly"',
+        anchor_snippet: "The river moved slowly through the valley.",
         source_pass: 3,
         issue_family: "scene_structure",
         strategic_lever: "scene_goal_clarity",
@@ -572,7 +572,7 @@ describe("runPipeline (e2e with injected runners)", () => {
         action: duplicateAction,
         expected_impact:
           "Gives the reader a clearer escalation chain, improving urgency and comprehension at the turn.",
-        anchor_snippet: '"slowly"',
+        anchor_snippet: "She watched from the bank.",
         source_pass: 3,
         issue_family: "scene_structure",
         strategic_lever: "scene_goal_clarity",
@@ -592,7 +592,7 @@ describe("runPipeline (e2e with injected runners)", () => {
     mockRunPass3.mockResolvedValueOnce(synthesisWithDupes);
 
     const result = await runPipeline({
-      manuscriptText: "test",
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank.",
       workType: "literary_fiction",
       title: "Test",
       openaiApiKey: "sk-test",
@@ -1171,7 +1171,7 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
     mockRunPass3bLongform.mockRejectedValue(new Error("Should never be called from main pipeline"));
 
     const result = await runPipeline({
-      manuscriptText: "a ".repeat(25_001),
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank. " + "a ".repeat(25_001),
       workType: "literary_fiction",
       title: "Froggin Noggin",
       openaiApiKey: "sk-test",
@@ -1246,7 +1246,7 @@ describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
     );
 
     const result = await runPipeline({
-      manuscriptText: "a ".repeat(25_001),
+      manuscriptText: "The river moved slowly through the valley. She watched from the bank. " + "a ".repeat(25_001),
       workType: "literary_fiction",
       title: "Long Novel",
       openaiApiKey: "sk-test",
@@ -1293,7 +1293,7 @@ describe("synthesisToEvaluationResult adapter", () => {
             priority: "high" as const,
             action: `High priority: improve ${key} by grounding in specific textual moments.`,
             expected_impact: "Significant improvement.",
-            anchor_snippet: '"slowly"',
+            anchor_snippet: "The river moved slowly through the valley.",
             source_pass: 1 as const,
             issue_family: "scene_structure",
             strategic_lever: "scene_goal_clarity",
@@ -1307,7 +1307,7 @@ describe("synthesisToEvaluationResult adapter", () => {
             priority: "medium" as const,
             action: `Medium priority: continue developing ${key} throughout the manuscript.`,
             expected_impact: "Incremental improvement.",
-            anchor_snippet: '"moved"',
+            anchor_snippet: "moved slowly through the valley",
             source_pass: 2 as const,
             issue_family: "scene_structure",
             strategic_lever: "scene_goal_clarity",
@@ -1668,7 +1668,7 @@ describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () =
 
     try {
       const result = await runPipeline({
-        manuscriptText: "a ".repeat(25_001),
+        manuscriptText: "The river moved slowly through the valley. She watched from the bank. " + "a ".repeat(25_001),
         workType: "literary_fiction",
         title: "Cartel Babies",
         openaiApiKey: "sk-test",

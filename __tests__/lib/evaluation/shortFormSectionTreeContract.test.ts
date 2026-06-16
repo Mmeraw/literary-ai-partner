@@ -309,4 +309,74 @@ describe('short-form section tree contract', () => {
       .filter(Boolean);
     expect(printedCriterionOpportunityIds).toContain(closureOpportunities[0].id);
   });
+
+  /**
+   * REGRESSION TEST: Price of Vanity — genre was rendered as "novel" (a
+   * format word) because the Title Block used metrics.manuscript.genre
+   * without filtering. The builder must prefer enrichment.diagnosed_genre
+   * and reject bare FORMAT_WORDS.
+   */
+  test('genre: rejects bare format word "novel" in title block', () => {
+    const doc = buildShortFormEvaluationDocument({
+      displayTitle: 'The Price of Vanity',
+      result: {
+        generated_at: '2026-06-11T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 72,
+          verdict: 'revise',
+          one_paragraph_summary: 'A humorous account of vanity and hair disasters.',
+          top_3_strengths: ['Voice', 'Humor', 'Pacing'],
+          top_3_risks: ['Risk one'],
+        },
+        metrics: {
+          manuscript: {
+            title: 'The Price of Vanity',
+            word_count: 1498,
+            genre: 'novel',
+            target_audience: 'Adult Readers',
+          },
+        },
+        enrichment: {
+          premise: 'A man learns about vanity through a bad hair day.',
+          trigger_warnings: [],
+        },
+        criteria: [],
+      },
+    });
+
+    expect(doc.titleBlock.genre).toBe('Not specified');
+    expect(doc.titleBlock.genreConfidenceLabel).toBeNull();
+  });
+
+  test('genre: prefers enrichment.diagnosed_genre over metrics.manuscript.genre', () => {
+    const doc = buildShortFormEvaluationDocument({
+      displayTitle: 'The Price of Vanity',
+      result: {
+        generated_at: '2026-06-11T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 72,
+          verdict: 'revise',
+          one_paragraph_summary: 'A humorous account of vanity and hair disasters.',
+          top_3_strengths: ['Voice', 'Humor', 'Pacing'],
+          top_3_risks: ['Risk one'],
+        },
+        metrics: {
+          manuscript: {
+            title: 'The Price of Vanity',
+            word_count: 1498,
+            genre: 'novel',
+            target_audience: 'Adult Readers',
+          },
+        },
+        enrichment: {
+          premise: 'A man learns about vanity through a bad hair day.',
+          trigger_warnings: [],
+          diagnosed_genre: 'Comedy / comic fiction + Literary / upmarket fiction',
+        },
+        criteria: [],
+      },
+    });
+
+    expect(doc.titleBlock.genre).toBe('Comedy / Comic Fiction + Literary / Upmarket Fiction');
+  });
 });

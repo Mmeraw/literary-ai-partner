@@ -691,11 +691,12 @@ export function classifyFailureBucket(code: string | null | undefined): FailureB
       code === 'SUPABASE_CONTRACT_VIOLATED' || code === 'ARTIFACT_PERSISTENCE_FAILED' ||
       code === 'CONTEXT_CONTAMINATION_DETECTED') return 'supabase_contract';
   // OpenAI / provider transient
-  if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
-      code === 'PASS1_TIMEOUT' || code === 'PASS2_TIMEOUT' || code === 'PASS3_TIMEOUT' ||
-      code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
-      code === 'PHASE2_PASS12_FAILED' ||
-      code === 'PASS2_INDEPENDENCE_REWRITE_FAILED') return 'openai_provider';
+    if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
+    code === 'PASS1_TIMEOUT' || code === 'PASS2_TIMEOUT' || code === 'PASS3_TIMEOUT' ||
+    code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
+    code === 'PHASE2_PASS12_FAILED' ||
+    code === 'PASS2_INDEPENDENCE_REWRITE_FAILED' ||
+    code === 'RETRYING_CHECKPOINT') return 'openai_provider';
   // Vercel / platform
   if (code.startsWith('VERCEL_') || code === 'WORKER_TIMEOUT' ||
       code === 'LEASE_EXPIRED' || code === 'PROCESSOR_UNCAUGHT_ERROR') return 'vercel_platform';
@@ -5323,6 +5324,7 @@ export async function processEvaluationJob(
       const failedStatus = nextLifecycleStatus(JOB_STATUS.FAILED);
       let finalizeSucceeded = false;
 
+      const isCheckpointRetry = errorCode === 'RETRYING_CHECKPOINT';
       const fallbackPayload = {
         status: failedStatus,
         phase: failedPhase,
@@ -5339,7 +5341,7 @@ export async function processEvaluationJob(
           bucket: pipelineFailureEnvelope.bucket,
           phase: failedPhase,
           pipeline_stage: pipelineFailureEnvelope.pipeline_stage,
-          operator_action_needed: 'Review finalization/template diagnostics before retrying this job.',
+          operator_action_needed: isCheckpointRetry ? undefined : 'Review finalization/template diagnostics before retrying this job.',
         },
         failed_at: now,
         claimed_by: null,
@@ -9318,6 +9320,7 @@ export async function processEvaluationJob(
         | { ok: true; pass1Output: SinglePassOutput; pass2Output: SinglePassOutput }
         | { ok: false; error: string; errorCode: string }
       > => {
+        let hadPass12CheckpointProgress = false;
         try {
           const [{ runPass1 }, { runPass2 }, { enforcePass2LexicalIndependence }, { loadCanonicalRegistry }, { buildLedgerBlockForPrompt }] = await Promise.all([
             import('@/lib/evaluation/pipeline/runPass1'),
@@ -9372,6 +9375,7 @@ export async function processEvaluationJob(
                 pass1CacheMap.set(Number(idx), entry.result);
                 pass1ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
+              hadPass12CheckpointProgress = hadPass12CheckpointProgress || pass1CacheMap.size > 0;
               console.log(`[phase_2] ${jobId}: loaded pass1_chunk_cache_v1 with ${pass1CacheMap.size} cached chunks (hash match)`);
             } else if (pass1Content?.chunks) {
               console.warn(`[phase_2] ${jobId}: pass1_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
@@ -9384,6 +9388,7 @@ export async function processEvaluationJob(
                 pass2CacheMap.set(Number(idx), entry.result);
                 pass2ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
+              hadPass12CheckpointProgress = hadPass12CheckpointProgress || pass2CacheMap.size > 0;
               console.log(`[phase_2] ${jobId}: loaded pass2_chunk_cache_v1 with ${pass2CacheMap.size} cached chunks (hash match)`);
             } else if (pass2Content?.chunks) {
               console.warn(`[phase_2] ${jobId}: pass2_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
@@ -9424,6 +9429,7 @@ export async function processEvaluationJob(
           };
 
           const onPass1ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            hadPass12CheckpointProgress = true;
             pass1ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
             pass1UpsertPending++;
             if (pass1UpsertPending >= CHECKPOINT_INTERVAL) {
@@ -9433,6 +9439,7 @@ export async function processEvaluationJob(
           };
 
           const onPass2ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            hadPass12CheckpointProgress = true;
             pass2ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
             pass2UpsertPending++;
             if (pass2UpsertPending >= CHECKPOINT_INTERVAL) {
@@ -9519,7 +9526,11 @@ export async function processEvaluationJob(
           };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PHASE2_PASS12_FAILED';
+          const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED')
+            ? 'CHUNK_ROUTING_NOT_ENGAGED'
+            : hadPass12CheckpointProgress
+              ? 'RETRYING_CHECKPOINT'
+              : 'PHASE2_PASS12_FAILED';
           return { ok: false, error: msg, errorCode: code };
         }
       };
@@ -9643,7 +9654,7 @@ export async function processEvaluationJob(
                 error_code: pass12Recovery.errorCode,
                 error: pass12Recovery.error,
               });
-              await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+              await markFailed(pass12Recovery.error, pass12Recovery.errorCode, { pipelineStage: 'phase_2' });
               return { success: false, error: pass12Recovery.errorCode };
             }
             capturedPass1 = pass12Recovery.pass1Output;
@@ -9772,7 +9783,7 @@ export async function processEvaluationJob(
         try {
           const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2Short);
           if (pass12Recovery.ok === false) {
-            await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+            await markFailed(pass12Recovery.error, pass12Recovery.errorCode, { pipelineStage: 'phase_2' });
             return { success: false, error: pass12Recovery.errorCode };
           }
           capturedPass1Short = pass12Recovery.pass1Output;

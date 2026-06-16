@@ -658,4 +658,67 @@ describe("runQualityGate", () => {
       expect(dialogueCheck.passed).toBe(true);
     }
   });
+
+  // ── QG_PITCH_IDENTITY_DUPLICATE — Price of Vanity regression ──────────
+
+  it("rejects when one_sentence_pitch is verbatim identical to summary (QG_PITCH_IDENTITY_DUPLICATE)", () => {
+    const synthesis = makeValidSynthesis();
+    const duplicatedText = synthesis.overall.one_paragraph_summary;
+    (synthesis.overall as Record<string, unknown>).one_sentence_pitch = duplicatedText;
+    (synthesis.overall as Record<string, unknown>).one_paragraph_pitch = duplicatedText;
+
+    const result = runQualityGate(synthesis);
+    expect(result.pass).toBe(false);
+    const check = result.checks.find((c) => c.check_id === "pitch_identity_separation");
+    expect(check).toBeDefined();
+    expect(check!.passed).toBe(false);
+    expect(check!.error_code).toBe("QG_PITCH_IDENTITY_DUPLICATE");
+  });
+
+  it("passes when pitches are distinct from summary", () => {
+    const synthesis = makeValidSynthesis();
+    (synthesis.overall as Record<string, unknown>).one_sentence_pitch =
+      "A gripping tale of survival in cartel territory.";
+    (synthesis.overall as Record<string, unknown>).one_paragraph_pitch =
+      "The novel follows Michael through captivity, exploring how ordinary people respond to extraordinary violence. The prose never flinches from consequences while maintaining a compassionate eye on every character's humanity.";
+
+    const result = runQualityGate(synthesis);
+    const check = result.checks.find((c) => c.check_id === "pitch_identity_separation");
+    if (check) {
+      expect(check.passed).toBe(true);
+    }
+  });
+
+  // ── QG_EVIDENCE_FABRICATION — Price of Vanity regression ──────────────
+
+  it("rejects when >30% of evidence anchors are fabricated (QG_EVIDENCE_FABRICATION)", () => {
+    const synthesis = makeValidSynthesis();
+    // Replace most anchor_snippets with diagnostic statements not in manuscript
+    for (const criterion of synthesis.criteria) {
+      for (const rec of criterion.recommendations) {
+        rec.anchor_snippet = "The narrative lacks sensory grounding, leaving the reader without orientation.";
+      }
+    }
+
+    // Manuscript that does NOT contain the diagnostic text
+    const manuscript = "Elena walked through the garden. The roses smelled sweet. Marcus waited by the gate.";
+
+    const result = runQualityGate(synthesis, undefined, undefined, manuscript);
+    expect(result.pass).toBe(false);
+    const check = result.checks.find((c) => c.check_id === "evidence_grounding");
+    expect(check).toBeDefined();
+    expect(check!.passed).toBe(false);
+    expect(check!.error_code).toBe("QG_EVIDENCE_FABRICATION");
+  });
+
+  it("passes evidence grounding when all anchors are from the manuscript", () => {
+    const synthesis = makeValidSynthesis();
+    const manuscript = 'she whispered something he could not quite hear. The river moved slowly through the valley.';
+    // Default anchors from makeValidSynthesis use text from manuscript
+    const result = runQualityGate(synthesis, undefined, undefined, manuscript);
+    const check = result.checks.find((c) => c.check_id === "evidence_grounding");
+    if (check) {
+      expect(check.passed).toBe(true);
+    }
+  });
 });

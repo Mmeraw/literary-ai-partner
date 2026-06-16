@@ -211,3 +211,27 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 - Advisory: inherits through `@workflow/builders`/`@workflow/core`/`esbuild` chain
 - Accepted: same rationale as the existing `workflow`, `@workflow/builders`, and `@workflow/core` entries — the workflow SDK is a feature-flagged additive dependency not yet active in production request paths
 - Time-boxed expiry: **2026-09-30**
+
+### form-data
+- **Status**: KNOWN — transitive dependency / audit key
+- Advisory: `GHSA-hmw2-7cc7-3qxx` — CRLF injection in multipart field names and filenames for `form-data >=4.0.0 <4.0.6`
+- Severity/CVSS: high / 7.5
+- Current repo state: audit reports a transitive `form-data@4.0.x` node; no production request path in this PR introduces user-controlled multipart field names or filenames through this package
+- Accepted: documented as an existing dependency-chain advisory while upstream/direct dependency resolution is tracked; this PR adds evaluation quality gates and does not add a new multipart upload surface
+- Time-boxed expiry: **2026-09-30**
+
+### vite
+- **Status**: KNOWN — transitive/dev tooling dependency / audit key
+- Advisories: `GHSA-v6wh-96g9-6wx3` and `GHSA-fx2h-pf6j-xcff` affecting Vite dev-server/editor paths on Windows
+- Severity: high audit key due to `server.fs.deny` bypass advisory
+- Current repo state: audit reports `vite@8.0.x` in the dependency graph; this PR does not add or expose a Vite dev server in production request handling
+- Accepted: dev/build tooling advisory only for this change; production runtime is Next/Vercel and no user-controlled file-system dev-server path is introduced here
+- Time-boxed expiry: **2026-09-30**
+
+### ws
+- **Status**: KNOWN — transitive dependency via `engine.io-client`
+- Advisories: `GHSA-58qx-3vcg-4xpx` and `GHSA-96hv-2xvq-fx4p` affecting `ws >=8.0.0 <8.21.0`
+- Severity/CVSS: high / 7.5 for memory exhaustion DoS advisory
+- Current repo state: audit reports `engine.io-client/node_modules/ws`; this PR does not add websocket handling or expose a new websocket endpoint
+- Accepted: transitive dependency-chain advisory with no new production websocket surface in this change; tracked for upstream dependency resolution
+- Time-boxed expiry: **2026-09-30**
