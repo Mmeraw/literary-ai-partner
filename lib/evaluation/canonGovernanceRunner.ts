@@ -1,13 +1,15 @@
 /**
  * Canon Governance Runner
  *
- * Non-blocking post-evaluation layer that runs after WAVE execution and before
+ * Post-evaluation layer that runs after WAVE execution and before
  * job completion. Produces governance audit artifacts for:
  *   - Gate 15 (mechanical purity + overcorrection firewall)
  *   - Golden Spine (motif/object continuity ledger)
  *   - Dialogue Canon Audit (speaker differentiation, attribution, exposition)
  *
- * All layers are fire-and-forget: they never fail the evaluation job.
+ * Gate 15 FAIL now feeds into the Finalization Quality Guard in processor.ts,
+ * blocking report shipment (status = quality_issue_detected). Golden Spine and
+ * Dialogue Canon remain advisory (logged but non-blocking).
  * Long-form only (≥25,000 words). Short-form manuscripts skip all layers.
  *
  * Architecture:

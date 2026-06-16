@@ -287,4 +287,136 @@ describe("evaluation architecture invariants", () => {
     expect(migrationSql).toContain("lease_token          = NULL");
     expect(migrationSql).toContain("lease_until          = NULL");
   });
+
+  // ── Gate 15 blocking policy invariants ──────────────────────────────────
+  // Gate 15 is a pre-persistence invariant: it must run BEFORE
+  // persistEvaluationResultV2 and must never exist as a post-completion
+  // lifecycle mutation.
+
+  /** Extract text between two section markers (or to end of file if no end marker). */
+  function sectionBetween(source: string, startMarker: string, endMarker?: string): string {
+    const startIdx = source.indexOf(startMarker);
+    if (startIdx === -1) return "";
+    const endIdx = endMarker ? source.indexOf(endMarker, startIdx + startMarker.length) : -1;
+    return endIdx > startIdx
+      ? source.substring(startIdx, endIdx)
+      : source.substring(startIdx);
+  }
+
+  test("pre-persistence gate ordering: Artifact Consistency < Gate 15 < persistenceLock < persistEvaluationResultV2", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    // All four landmarks must exist
+    const artifactConsistencyIdx = processorCode.indexOf("Artifact Consistency Gate v1");
+    const gate15Idx = processorCode.indexOf("Gate 15 Pre-Finalization Invariant");
+    const persistLockIdx = processorCode.indexOf("declarePersistenceLock('persistence/after-template-completeness')");
+    const persistRpcIdx = processorCode.indexOf("await persistEvaluationResultV2(");
+    expect(artifactConsistencyIdx).toBeGreaterThan(-1);
+    expect(gate15Idx).toBeGreaterThan(-1);
+    expect(persistLockIdx).toBeGreaterThan(-1);
+    expect(persistRpcIdx).toBeGreaterThan(-1);
+
+    // Strict ordering: Artifact Consistency < Gate 15 < persistence lock < persistEvaluationResultV2
+    expect(artifactConsistencyIdx).toBeLessThan(gate15Idx);
+    expect(gate15Idx).toBeLessThan(persistLockIdx);
+    expect(persistLockIdx).toBeLessThan(persistRpcIdx);
+  });
+
+  test("Gate 15 fail branch: markFailed + return before persistence lock, no RPC inside fail branch", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    // The Gate 15 section (between header and persistence lock) must contain the fail path
+    const preRpcSection = sectionBetween(
+      processorCode,
+      "Gate 15 Pre-Finalization Invariant",
+      "declarePersistenceLock('persistence/after-template-completeness')",
+    );
+    expect(preRpcSection.length).toBeGreaterThan(0);
+
+    // Must call runGate15Audit
+    expect(preRpcSection).toContain("runGate15Audit(manuscriptText");
+
+    // Must call markFailed with the Gate 15 error code
+    expect(preRpcSection).toContain("GATE15_MECHANICAL_PURITY_FAILED");
+    expect(preRpcSection).toContain("markFailed(");
+
+    // Must return success:false
+    expect(preRpcSection).toContain("success: false");
+
+    // The fail branch must NOT acquire the persistence lock or call the RPC
+    // Extract the fail branch: from 'GATE 15 BLOCKED' to 'return {' (inclusive)
+    const blockIdx = preRpcSection.indexOf("GATE 15 BLOCKED");
+    expect(blockIdx).toBeGreaterThan(-1);
+    const failBranch = preRpcSection.substring(blockIdx);
+    expect(failBranch).not.toContain("declarePersistenceLock");
+    expect(failBranch).not.toContain("persistEvaluationResultV2");
+  });
+
+  test("Canon Governance advisory section (Phase 3 WAVE path): no lifecycle mutations for Gate 15", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    // Section bounded: from advisory header to the Finalization Quality Guard header
+    const advisorySection = sectionBetween(
+      processorCode,
+      "Canon Governance Runner (advisory \u2014 Gate 15 blocking is pre-RPC)",
+      "Finalization Quality Guard (Phase 3 / WAVE-only path)",
+    );
+    expect(advisorySection.length).toBeGreaterThan(0);
+
+    // This section must NOT contain any lifecycle-mutating Gate 15 patterns
+    expect(advisorySection).not.toContain("QUALITY_GATE15_FAILED");
+    expect(advisorySection).not.toContain("quality_issue_detected");
+    expect(advisorySection).not.toContain("markFailed");
+    expect(advisorySection).not.toContain("GATE15_MECHANICAL_PURITY_FAILED");
+  });
+
+  test("Canon Governance advisory section (inline path): no lifecycle mutations for Gate 15", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    // Section bounded: from inline advisory header to the next return statement
+    const inlineAdvisorySection = sectionBetween(
+      processorCode,
+      "Canon Governance Runner (advisory layers \u2014 Gate 15 already ran pre-RPC)",
+      "evaluation already finalized via atomic RPC",
+    );
+    expect(inlineAdvisorySection.length).toBeGreaterThan(0);
+
+    // This section must NOT contain any lifecycle-mutating Gate 15 patterns
+    expect(inlineAdvisorySection).not.toContain("QUALITY_GATE15_FAILED");
+    expect(inlineAdvisorySection).not.toContain("quality_issue_detected");
+    expect(inlineAdvisorySection).not.toContain("markFailed");
+    expect(inlineAdvisorySection).not.toContain("GATE15_MECHANICAL_PURITY_FAILED");
+  });
+
+  test("Finalization Quality Guard section: no QUALITY_GATE15_FAILED violation", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    // Section bounded: from Finalization Quality Guard header to the next major section
+    // (phase_3 WAVE complete log or PHASE 1A header)
+    const fqgSection = sectionBetween(
+      processorCode,
+      "Finalization Quality Guard (Phase 3 / WAVE-only path)",
+      "phase_3 WAVE complete",
+    );
+    expect(fqgSection.length).toBeGreaterThan(0);
+
+    // Must not contain any Gate 15 violation code
+    expect(fqgSection).not.toContain("QUALITY_GATE15_FAILED");
+    expect(fqgSection).not.toContain("GATE15_MECHANICAL_PURITY_FAILED");
+  });
+
+  test("no stale comments about Gate 15 feeding into post-completion guards", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    expect(processorCode).not.toContain("Gate 15 FAIL now feeds into the Finalization Quality Guard");
+    expect(processorCode).not.toContain("Gate 15 FAIL now feeds into the Quality Guard");
+    // QUALITY_GATE15_FAILED must not exist anywhere in processor.ts
+    expect(processorCode).not.toContain("QUALITY_GATE15_FAILED");
+  });
 });

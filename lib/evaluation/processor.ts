@@ -6823,14 +6823,18 @@ export async function processEvaluationJob(
           }
         }
 
-        // ── Canon Governance Runner (non-blocking, fire-and-forget) ──────
-        // Runs Gate 15, Golden Spine, Dialogue Canon audit, and Revision Canon Metadata after WAVE.
+        // ── Canon Governance Runner (advisory — Gate 15 blocking is pre-RPC) ──
+        // Runs Gate 15, Golden Spine, Dialogue Canon audit after WAVE. All results
+        // are advisory/reporting only here — Gate 15 blocking is enforced pre-RPC
+        // before persistEvaluationResultV2. This path only executes for jobs that
+        // already passed Gate 15 in phase_2.
+        let canonGovernanceResult: Awaited<ReturnType<typeof import('@/lib/evaluation/canonGovernanceRunner').runCanonGovernance>> | null = null;
         try {
           const { runCanonGovernance } = await import('@/lib/evaluation/canonGovernanceRunner');
           const evalCriteria = Array.isArray(evalArtifactRow?.content?.criteria)
             ? (evalArtifactRow.content.criteria as Array<{ key?: string }>).map(c => c.key).filter((k): k is string => typeof k === 'string')
             : [];
-          const canonResult = await Promise.race([
+          canonGovernanceResult = await Promise.race([
             runCanonGovernance({
               manuscriptText: manuscriptWithContent.content || '',
               jobId,
@@ -6841,12 +6845,12 @@ export async function processEvaluationJob(
             }, supabase),
             new Promise<null>((resolve) => setTimeout(() => resolve(null), 30_000)),
           ]);
-          if (canonResult) {
+          if (canonGovernanceResult) {
             const layers = [
-              canonResult.gate15 ? `Gate15=${canonResult.gate15.overallStatus}` : null,
-              canonResult.goldenSpine ? `GoldenSpine=${canonResult.goldenSpine.overallStatus}` : null,
-              canonResult.dialogueCanon ? `Dialogue=${canonResult.dialogueCanon.overallStatus}` : null,
-              canonResult.revisionCanonMetadata ? `RevMeta=${canonResult.revisionCanonMetadata.overallStatus}` : null,
+              canonGovernanceResult.gate15 ? `Gate15=${canonGovernanceResult.gate15.overallStatus}` : null,
+              canonGovernanceResult.goldenSpine ? `GoldenSpine=${canonGovernanceResult.goldenSpine.overallStatus}` : null,
+              canonGovernanceResult.dialogueCanon ? `Dialogue=${canonGovernanceResult.dialogueCanon.overallStatus}` : null,
+              canonGovernanceResult.revisionCanonMetadata ? `RevMeta=${canonGovernanceResult.revisionCanonMetadata.overallStatus}` : null,
             ].filter(Boolean).join(', ');
             console.log(`[CanonGovernance/Phase3] ${jobId}: ${layers}`);
           }
@@ -6855,9 +6859,14 @@ export async function processEvaluationJob(
             canonErr instanceof Error ? canonErr.message : String(canonErr));
         }
 
-        // ── Finalization Quality Guard ──────────────────────────────────
-        // Before marking complete, verify the evaluation deliverable is usable.
-        // Any quality violation → status = quality_issue_detected, not complete.
+        // ── Finalization Quality Guard (Phase 3 / WAVE-only path) ────────
+        // ARCHITECTURAL NOTE: This guard runs AFTER the job was already marked
+        // complete by persistEvaluationResultV2 in phase_2. It can only annotate
+        // or report — its "quality_issue_detected" downgrade is a post-completion
+        // mutation, not a true pre-persistence invariant. True blocking gates
+        // (Gate 15, artifact consistency, template completeness) run pre-RPC.
+        // TODO: Migrate remaining checks (density, ledger, rec count) to the
+        // pre-persistence boundary so all blocking is pre-terminal.
         clearInterval(leaseRenewalLoopP3);
         const phase3Now = new Date().toISOString();
         const qualityViolations: Array<{ code: string; detail: string }> = [];
@@ -6940,6 +6949,10 @@ export async function processEvaluationJob(
             detail: `${densityFailures.length} criteria below density floor: ${failSummary}`,
           });
         }
+
+        // NOTE: Gate 15 blocking is enforced pre-RPC (before persistEvaluationResultV2).
+        // If the job reached phase_3 WAVE-only path, Gate 15 already PASSED in phase_2.
+        // The Canon Governance Runner above is advisory only (persists audit artifacts).
 
         if (qualityViolations.length > 0) {
           const violationCodes = qualityViolations.map((v) => v.code).join(', ');
@@ -11158,6 +11171,81 @@ export async function processEvaluationJob(
       };
     }
 
+    // ── Gate 15 Pre-Finalization Invariant ──────────────────────────────────
+    // Gate 15 (Mechanical Purity + Overcorrection Firewall) runs BEFORE the
+    // atomic completion RPC (persistEvaluationResultV2). If Gate 15 FAIL →
+    // markFailed → return success:false. Never acquires persistence lock,
+    // never calls persistEvaluationResultV2. Gate 15 auto-skips for short-form
+    // manuscripts (<25,000 words) so this is zero-cost for short-form evaluations.
+    //
+    // Uses canonical word count from coverageForReporting (same source as
+    // routing/chunking), not a recalculated ad hoc count.
+    {
+      const { runGate15Audit } = await import('@/lib/evaluation/gate15');
+      const canonicalWordCount = coverageForReporting?.sourceWords ?? manuscriptText.split(/\s+/).filter(Boolean).length;
+      const gate15Result = runGate15Audit(manuscriptText, String(job.id), String(job.manuscript_id));
+
+      // Persist the Gate 15 artifact regardless of outcome (audit trail).
+      // The artifact records what the gate saw — the exact final view model
+      // (effectiveEvaluationResult) that would have been persisted.
+      try {
+        const gate15Hash = stableSourceHash({
+          manuscriptId: manuscript.id,
+          jobId: job.id,
+          userId: manuscriptWithContent.user_id,
+          manuscriptText,
+          promptVersion: `gate_15_audit_v1:${gate15Result.overallStatus}`,
+          model: 'gate15_deterministic',
+        });
+        await upsertEvaluationArtifact({
+          supabase,
+          jobId: job.id,
+          manuscriptId: job.manuscript_id,
+          artifactType: 'gate_15_audit_v1',
+          artifactVersion: 'gate_15_audit_v1',
+          sourceHash: gate15Hash,
+          content: {
+            ...gate15Result,
+            canonicalWordCount,
+            evaluationCriteriaCount: effectiveEvaluationResult.criteria.length,
+          },
+        });
+        console.log(`[Gate15/PreRPC] ${jobId}: gate_15_audit_v1 persisted — status=${gate15Result.overallStatus} words=${canonicalWordCount}`);
+      } catch (gate15PersistErr) {
+        console.error(`[Gate15/PreRPC] ${jobId}: artifact persist failed (non-fatal)`,
+          gate15PersistErr instanceof Error ? gate15PersistErr.message : String(gate15PersistErr));
+      }
+
+      // BLOCKING: If Gate 15 FAIL, do NOT acquire persistence lock or call
+      // persistEvaluationResultV2. Route through existing pre-persistence failure path.
+      if (gate15Result.overallStatus === 'FAIL') {
+        const findings = gate15Result.summaryFindings?.join('; ') ?? 'no details';
+        console.error(`[Gate15/PreRPC] ${jobId}: GATE 15 BLOCKED — ${findings}`);
+
+        await markFailed(
+          'Gate 15 (Mechanical Purity) audit failed. The evaluation contains quality defects that must be resolved before the report can be delivered.',
+          'GATE15_MECHANICAL_PURITY_FAILED',
+          {
+            pipelineStage: 'gate_15_pre_finalization',
+            diagnostics: {
+              gate15Status: gate15Result.overallStatus,
+              gate15_1Status: gate15Result.gate15_1.overallStatus,
+              gate15_2Status: gate15Result.gate15_2.overallStatus,
+              findings: gate15Result.summaryFindings,
+              canonicalWordCount,
+            },
+          },
+        );
+
+        return {
+          success: false,
+          error: `Gate 15 (Mechanical Purity) FAIL — ${findings}`,
+        };
+      }
+
+      console.log(`[Gate15/PreRPC] ${jobId}: Gate 15 ${gate15Result.overallStatus} (${canonicalWordCount} words) — proceeding to completion`);
+    }
+
     declarePersistenceLock('persistence/after-template-completeness');
 
     const persistArtifactsStartedAt = startLatencyStage({
@@ -11468,7 +11556,7 @@ export async function processEvaluationJob(
               waveOuterErr instanceof Error ? waveOuterErr.message : String(waveOuterErr));
           }
 
-          // ── Canon Governance Runner (non-blocking, fire-and-forget) ──────
+          // ── Canon Governance Runner (advisory layers — Gate 15 already ran pre-RPC) ──────
           try {
             const { runCanonGovernance } = await import('@/lib/evaluation/canonGovernanceRunner');
             const inlineCriteriaKeys = Array.isArray(finalScores)
