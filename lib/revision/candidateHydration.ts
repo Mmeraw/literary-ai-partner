@@ -7,8 +7,11 @@
  * through the same SLAE rules before accepting.
  *
  * Contract:
- * - Fire-and-forget: any failure leaves opportunities blocked rather than
+ * - Non-fatal: any failure leaves opportunities blocked rather than
  *   shipping unvalidated prose. The caller must not throw on hydration failure.
+ * - Observable: every failure produces a HydrationFailureRecordV1 artifact
+ *   (returned in HydrationResult.failureRecords) so callers can persist
+ *   structured diagnostics instead of accumulating hidden inventory.
  * - SLAE-compliant: candidates that echo the anchor or are too short are
  *   discarded. All three must pass for an opportunity to be marked supported.
  * - Idempotent from the ledger's perspective: the caller controls whether to
@@ -17,6 +20,11 @@
 
 import OpenAI from 'openai';
 import { buildEnglishVariantPromptBlock } from '@/lib/evaluation/englishVariant';
+import {
+  buildHydrationFailureRecord,
+  type HydrationFailureRecordV1,
+  type ReviseStageFailureCode,
+} from './reviseFailureRecord';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +75,8 @@ export type HydrationResult = {
   candidates: Map<string, HydrationCandidates>;
   /** Map from opportunity_id → hydration-specific rejection reason code. */
   rejectionReasons?: Map<string, string>;
+  /** Structured failure records for every failed opportunity. Replaces silent fire-and-forget. */
+  failureRecords: HydrationFailureRecordV1[];
 };
 
 // ── SLAE-equivalent validation ────────────────────────────────────────────────
@@ -286,9 +296,10 @@ export async function hydrateLedgerCandidates(
 ): Promise<HydrationResult> {
   const candidates = new Map<string, HydrationCandidates>();
   const rejectionReasons = new Map<string, string>();
+  const failureRecords: HydrationFailureRecordV1[] = [];
 
   if (blocked.length === 0) {
-    return { hydratedCount: 0, skippedCount: 0, candidates, rejectionReasons };
+    return { hydratedCount: 0, skippedCount: 0, candidates, rejectionReasons, failureRecords };
   }
 
   const openai = new OpenAI({
@@ -316,6 +327,17 @@ export async function hydrateLedgerCandidates(
       const rawContent = completion.choices[0]?.message?.content ?? '';
       if (!rawContent) {
         console.warn(`[CandidateHydration] OpenAI returned empty content for chunk offset=${offset}`);
+        for (const opp of chunk) {
+          failureRecords.push(buildHydrationFailureRecord({
+            opportunityId: opp.opportunity_id,
+            failureCode: 'HYDRATION_MODEL_ERROR',
+            attemptCount: 1,
+            maxAttempts: 1,
+            rejectionReason: 'empty_response',
+            model: HYDRATION_MODEL,
+            promptVersion: HYDRATION_PROMPT_VERSION,
+          }));
+        }
         continue;
       }
 
@@ -324,6 +346,17 @@ export async function hydrateLedgerCandidates(
         parsed = JSON.parse(rawContent) as Record<string, unknown>;
       } catch {
         console.warn(`[CandidateHydration] Failed to parse OpenAI response as JSON for chunk offset=${offset}`);
+        for (const opp of chunk) {
+          failureRecords.push(buildHydrationFailureRecord({
+            opportunityId: opp.opportunity_id,
+            failureCode: 'HYDRATION_MODEL_ERROR',
+            attemptCount: 1,
+            maxAttempts: 1,
+            rejectionReason: 'json_parse_failed',
+            model: HYDRATION_MODEL,
+            promptVersion: HYDRATION_PROMPT_VERSION,
+          }));
+        }
         continue;
       }
 
@@ -366,22 +399,45 @@ export async function hydrateLedgerCandidates(
         );
         const hasMissingCandidate = !a || !b || !c;
 
+        let rejectionCode: string;
         if (anyGenericFiller) {
-          rejectionReasons.set(id, 'hydration_candidate_rejected_generic_filler');
+          rejectionCode = 'hydration_candidate_rejected_generic_filler';
         } else if (anyAdvice) {
-          rejectionReasons.set(id, 'hydration_candidate_rejected_advice_not_prose');
+          rejectionCode = 'hydration_candidate_rejected_advice_not_prose';
         } else if (anyEchoOverlap) {
-          rejectionReasons.set(id, 'hydration_candidate_rejected_overlap');
+          rejectionCode = 'hydration_candidate_rejected_overlap';
         } else if (hasMissingCandidate) {
-          rejectionReasons.set(id, 'hydration_candidate_rejected_incomplete');
+          rejectionCode = 'hydration_candidate_rejected_incomplete';
         } else {
-          rejectionReasons.set(id, 'hydration_candidate_rejected_quality');
+          rejectionCode = 'hydration_candidate_rejected_quality';
         }
+        rejectionReasons.set(id, rejectionCode);
+        failureRecords.push(buildHydrationFailureRecord({
+          opportunityId: id,
+          failureCode: 'HYDRATION_SLAE_REJECTION',
+          attemptCount: 1,
+          maxAttempts: 1,
+          rejectionReason: rejectionCode,
+          model: HYDRATION_MODEL,
+          promptVersion: HYDRATION_PROMPT_VERSION,
+        }));
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[CandidateHydration] OpenAI call failed for chunk offset=${offset} (non-fatal):`, message);
-      // Continue to the next chunk rather than aborting entirely.
+      const isTimeout = message.includes('timeout') || message.includes('ETIMEDOUT');
+      const failureCode: ReviseStageFailureCode = isTimeout ? 'HYDRATION_TIMEOUT' : 'HYDRATION_MODEL_ERROR';
+      for (const opp of chunk) {
+        failureRecords.push(buildHydrationFailureRecord({
+          opportunityId: opp.opportunity_id,
+          failureCode,
+          attemptCount: 1,
+          maxAttempts: 1,
+          rejectionReason: message.slice(0, 500),
+          model: HYDRATION_MODEL,
+          promptVersion: HYDRATION_PROMPT_VERSION,
+        }));
+      }
     }
   }
 
@@ -390,5 +446,6 @@ export async function hydrateLedgerCandidates(
     skippedCount: 0,
     candidates,
     rejectionReasons,
+    failureRecords,
   };
 }

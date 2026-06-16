@@ -34,12 +34,13 @@ describe("REVISION_SESSION_ALLOWED_TRANSITIONS", () => {
 
   test("defines the Stage 3 lifecycle graph exactly", () => {
     expect(REVISION_SESSION_ALLOWED_TRANSITIONS).toEqual({
-      open: ["findings_ready", "failed"],
-      findings_ready: ["synthesis_started"],
-      synthesis_started: ["proposals_ready", "failed"],
-      proposals_ready: ["applied", "failed"],
+      open: ["findings_ready", "failed", "failed_retryable"],
+      findings_ready: ["synthesis_started", "failed", "failed_retryable"],
+      synthesis_started: ["proposals_ready", "failed", "failed_retryable"],
+      proposals_ready: ["applied", "failed", "failed_retryable"],
       applied: [],
       failed: [],
+      failed_retryable: ["open", "findings_ready", "synthesis_started", "failed"],
     });
   });
 });

@@ -4,7 +4,8 @@ export type RevisionEventType =
   | "apply"
   | "finalize"
   | "immutability"
-  | "smoke";
+  | "smoke"
+  | "hydration";
 
 export type RevisionEventSeverity =
   | "info"
@@ -42,7 +43,10 @@ export type RevisionEventCode =
   | "SMOKE_RUN_PASSED"
   | "SMOKE_RUN_FAILED"
   | "CANDIDATE_HYDRATION_REJECTED"
-  | "REVISION_CANDIDATE_REJECTED";
+  | "REVISION_CANDIDATE_REJECTED"
+  | "REVISION_SESSION_FAILED_RETRYABLE"
+  | "REVISION_SESSION_RETRY_FROM_FAILED_RETRYABLE"
+  | "REVISION_SESSION_RETRY_FAILED";
 
 export type LogRevisionEventInput = {
   revision_session_id?: string | null;

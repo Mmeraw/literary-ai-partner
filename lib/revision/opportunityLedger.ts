@@ -2396,6 +2396,24 @@ export async function ensureRevisionOpportunityLedgerArtifact(
               }
             }
 
+            // Surface hydration failure records for admin diagnostics
+            if (hydration.failureRecords && hydration.failureRecords.length > 0) {
+              void logRevisionEvent({
+                evaluation_run_id: jobId,
+                event_type: 'hydration',
+                severity: 'warn',
+                event_code: 'CANDIDATE_HYDRATION_REJECTED',
+                message: `${hydration.failureRecords.length} hydration failure(s) across ${blockedOpps.length} blocked opportunities`,
+                metadata: {
+                  failure_count: hydration.failureRecords.length,
+                  blocked_count: blockedOpps.length,
+                  hydrated_count: hydration.hydratedCount,
+                  failure_codes: [...new Set(hydration.failureRecords.map((r) => r.failure_code))],
+                  failure_records: hydration.failureRecords,
+                },
+              });
+            }
+
             const postHydrationPreflighted = applyReviseQueuePreflight(opportunities, {
               contextQuality: contextQualityDecision.status,
               evaluationMode: modeContract.evaluation_mode,
