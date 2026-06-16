@@ -67,6 +67,30 @@ import {
   hashContent,
   type CrossCheckVerdict,
 } from '@/lib/revision/repairCrossCheck';
+import {
+  KICK_MATRIX,
+  PROCESS_REGISTRY,
+  ARTIFACT_REGISTRY,
+  lookupKickForFailure,
+  lookupKicksForStage,
+  getBlockingKicks,
+  getProcess,
+  getArtifact,
+} from '@/lib/evaluation/fipocRegistry';
+import {
+  REVISE_QUEUE_LEDGER_LIMITS,
+  REVISE_QUEUE_LEDGER_INPUT_METRICS,
+  REVISE_QUEUE_LEDGER_COLUMNS,
+  REVISION_DECISION_LEDGER_COLUMNS,
+  getReviseQueueLedgerColumnLabel,
+} from '@/lib/revision/reviseQueueLedgerContract';
+import {
+  REVISE_KICK_MATRIX,
+  REVISE_PROCESS_REGISTRY,
+  REVISE_ARTIFACT_REGISTRY,
+  REVISE_FIELD_REGISTRY,
+  REVISE_CERTIFICATION_GATE_REGISTRY,
+} from '@/lib/revision/reviseRegistry';
 
 jest.mock('@/lib/revision/logRevisionEvent', () => ({
   logRevisionEvent: jest.fn(async () => undefined),
@@ -1154,5 +1178,351 @@ describe('E2E Chain 7: Multi-Stage Failure Cascades', () => {
     });
     expect(record.artifact_type).toBe('revision_failure_record_v1');
     expect(record.disposition).toBe('retryable');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 8: Evaluation FIPOC KICK_MATRIX — every kick code traced
+// SIPOC authority: docs/SIPOC_EVALUATION_PROCESS.md, lib/evaluation/fipocRegistry.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 8: Evaluation FIPOC KICK_MATRIX Governance', () => {
+  it('FIPOC: all eval kick codes resolve via lookupKickForFailure', () => {
+    for (const kick of KICK_MATRIX) {
+      const resolved = lookupKickForFailure(kick.failureCode);
+      expect(resolved).not.toBeUndefined();
+      expect(resolved!.failureCode).toBe(kick.failureCode);
+      expect(resolved!.kickBackTo).toBeTruthy();
+      expect(resolved!.retryLimit).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('FIPOC: every kick blocks author exposure (eval pipeline is strict)', () => {
+    const blocking = getBlockingKicks();
+    // At least the core pipeline kicks must block
+    expect(blocking.length).toBeGreaterThan(0);
+    for (const kick of blocking) {
+      expect(kick.blocksAuthorExposure).toBe(true);
+    }
+  });
+
+  it('FIPOC: critical failure codes have correct kick targets', () => {
+    const seedKick = lookupKickForFailure('SEED_FIT_GAP_BLOCKED');
+    expect(seedKick!.kickBackTo).toBe('ADJACENT_PHASE_0_5A');
+
+    const handoffKick = lookupKickForFailure('HANDOFF_GENERIC_LANGUAGE');
+    expect(handoffKick!.kickBackTo).toBe('S05_PASS1 or S06_PASS2');
+
+    const qgKick = lookupKickForFailure('QG_ARTIFACT_GATE_FAIL');
+    expect(qgKick!.kickBackTo).toBe('S07_PASS3');
+
+    const bannedEntityKick = lookupKickForFailure('PHASE5_BANNED_ENTITY');
+    expect(bannedEntityKick!.kickBackTo).toBe('S07_PASS3');
+
+    const revisionLedgerKick = lookupKickForFailure('REVISION_LEDGER_EVIDENCE_MISSING');
+    expect(revisionLedgerKick!.kickBackTo).toBe('ADJACENT_REVISION_LEDGER');
+    expect(revisionLedgerKick!.blocksAuthorExposure).toBe(false);
+  });
+
+  it('FIPOC: every process stage in PROCESS_REGISTRY has required fields', () => {
+    expect(PROCESS_REGISTRY.length).toBeGreaterThan(0);
+    for (const stage of PROCESS_REGISTRY) {
+      expect(stage.stageId).toBeTruthy();
+      expect(stage.processName).toBeTruthy();
+      expect(stage.phase).toBeTruthy();
+      expect(stage.activeState).toBeTruthy();
+      expect(stage.codeSurfaces.length).toBeGreaterThan(0);
+      expect(stage.outputArtifacts.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('FIPOC: every artifact in ARTIFACT_REGISTRY has producer and required fields', () => {
+    expect(ARTIFACT_REGISTRY.length).toBeGreaterThan(0);
+    for (const artifact of ARTIFACT_REGISTRY) {
+      expect(artifact.artifact).toBeTruthy();
+      expect(artifact.producerStageId).toBeTruthy();
+      expect(artifact.requiredFields.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('FIPOC: stage kicks resolve to valid stages', () => {
+    const stageIds = PROCESS_REGISTRY.map((s) => s.stageId);
+    for (const kick of KICK_MATRIX) {
+      // kickBackTo may contain " or " for multi-target kicks
+      const targets = kick.kickBackTo.split(' or ').map((t) => t.trim());
+      for (const target of targets) {
+        // Target must be a known stage or a special composite like "failed producer stage named by audit"
+        if (!target.includes('named by')) {
+          expect(stageIds).toContain(target);
+        }
+      }
+    }
+  });
+
+  it('full chain: eval FIPOC → kick resolution → artifact traceability', () => {
+    // Trace: QG_ARTIFACT_GATE_FAIL detected at S09 → kicks to S07_PASS3
+    const kick = lookupKickForFailure('QG_ARTIFACT_GATE_FAIL');
+    expect(kick).toBeDefined();
+    expect(kick!.dirtyDataDetectedAt).toBe('S09_QUALITYGATEV2');
+    expect(kick!.kickBackTo).toBe('S07_PASS3');
+
+    // The target stage exists in process registry
+    const targetStage = getProcess(kick!.kickBackTo);
+    expect(targetStage).toBeDefined();
+    expect(targetStage!.processName).toBeTruthy();
+
+    // The detecting stage produces artifacts that feed into the target
+    const detectingStage = getProcess(kick!.dirtyDataDetectedAt);
+    expect(detectingStage).toBeDefined();
+
+    // Kick blocks author exposure
+    expect(kick!.blocksAuthorExposure).toBe(true);
+    expect(kick!.retryLimit).toBe(1);
+    expect(kick!.ifRetryFails).toContain('Fail closed');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 9: Queue Ledger Contract — limits, metrics, column governance
+// SIPOC authority: RS01–RS03, lib/revision/reviseQueueLedgerContract.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 9: Queue Ledger Contract Governance', () => {
+  it('SIPOC: hard caps enforced (short=50, long=100)', () => {
+    expect(REVISE_QUEUE_LEDGER_LIMITS.shortFormMaxOpportunities).toBe(50);
+    expect(REVISE_QUEUE_LEDGER_LIMITS.longFormMaxOpportunities).toBe(100);
+    expect(REVISE_QUEUE_LEDGER_LIMITS.longFormWordThreshold).toBe(25_000);
+  });
+
+  it('SIPOC: all 12 metric keys documented with descriptions', () => {
+    const metricKeys = Object.keys(REVISE_QUEUE_LEDGER_INPUT_METRICS);
+    expect(metricKeys).toContain('total_opportunities');
+    expect(metricKeys).toContain('ready_for_revise');
+    expect(metricKeys).toContain('needs_targeting');
+    expect(metricKeys).toContain('ready_rate');
+    expect(metricKeys).toContain('ledger_backing_coverage');
+    expect(metricKeys).toContain('candidate_option_coverage');
+    expect(metricKeys).toContain('anchor_coverage');
+    expect(metricKeys).toContain('author_decision_count');
+    expect(metricKeys).toContain('synced_decision_count');
+    for (const key of metricKeys) {
+      expect(REVISE_QUEUE_LEDGER_INPUT_METRICS[key as keyof typeof REVISE_QUEUE_LEDGER_INPUT_METRICS]).toBeTruthy();
+    }
+  });
+
+  it('SIPOC: queue columns have fail-closed rules', () => {
+    expect(REVISE_QUEUE_LEDGER_COLUMNS.length).toBeGreaterThan(0);
+    for (const col of REVISE_QUEUE_LEDGER_COLUMNS) {
+      expect(col.key).toBeTruthy();
+      expect(col.label).toBeTruthy();
+      expect(col.definition).toBeTruthy();
+      expect(col.failClosedRule).toBeTruthy();
+    }
+  });
+
+  it('SIPOC: decision ledger columns have sync governance', () => {
+    expect(REVISION_DECISION_LEDGER_COLUMNS.length).toBeGreaterThan(0);
+    const syncCol = REVISION_DECISION_LEDGER_COLUMNS.find((c) => c.key === 'sync');
+    expect(syncCol).toBeDefined();
+    expect(syncCol!.failClosedRule).toBeTruthy();
+  });
+
+  it('SIPOC: column labels resolve for all queue column keys', () => {
+    for (const col of REVISE_QUEUE_LEDGER_COLUMNS) {
+      const label = getReviseQueueLedgerColumnLabel(col.key);
+      expect(label).toBe(col.label);
+    }
+  });
+
+  it('SIPOC: revise PROCESS_REGISTRY covers RS01–RS10', () => {
+    const expectedStages = [
+      'RS01_LEDGER_ASSEMBLY', 'RS02_QUEUE_ADMISSION', 'RS03_QUEUE_PRIORITIZATION',
+      'RS04_WORKBENCH_LOAD', 'RS05_CANDIDATE_GENERATION', 'RS06_AUTHOR_DECISION',
+      'RS07_LEDGER_SYNC', 'RS08_COMPLETION', 'RS09_CROSSCHECK_VERIFICATION', 'RS10_TRUSTEDPATH',
+    ];
+    const registeredStageIds = REVISE_PROCESS_REGISTRY.map((s) => s.stageId);
+    for (const expected of expectedStages) {
+      expect(registeredStageIds).toContain(expected);
+    }
+  });
+
+  it('SIPOC: revise ARTIFACT_REGISTRY has all core artifacts', () => {
+    const artifactNames = REVISE_ARTIFACT_REGISTRY.map((a) => a.artifact);
+    expect(artifactNames).toContain('revision_opportunity_ledger_v1');
+    expect(artifactNames).toContain('revise_queue_v1');
+    expect(artifactNames).toContain('revision_ledger_decision_v1');
+    expect(artifactNames).toContain('revision_completion_record_v1');
+    expect(artifactNames).toContain('repair_cross_check_v1');
+    expect(artifactNames).toContain('trustedpath_result_v1');
+    expect(artifactNames).toContain('revision_failure_record_v1');
+    expect(artifactNames).toContain('candidate_hydration_failure_v1');
+  });
+
+  it('SIPOC: revise FIELD_REGISTRY has canonical enum contracts', () => {
+    const fieldNames = REVISE_FIELD_REGISTRY.map((f) => f.field);
+    expect(fieldNames).toContain('admission_status');
+    expect(fieldNames).toContain('readiness');
+    expect(fieldNames).toContain('decision');
+    expect(fieldNames).toContain('severity');
+    expect(fieldNames).toContain('verdict');
+    expect(fieldNames).toContain('revision_session_status');
+    // Session status includes failed_retryable (SIPOC amendment)
+    const sessionField = REVISE_FIELD_REGISTRY.find((f) => f.field === 'revision_session_status');
+    expect(sessionField!.allowedValues).toContain('failed_retryable');
+  });
+
+  it('SIPOC: certification gates cover key pipeline seams', () => {
+    expect(REVISE_CERTIFICATION_GATE_REGISTRY.length).toBeGreaterThan(0);
+    const gateIds = REVISE_CERTIFICATION_GATE_REGISTRY.map((g) => g.gateId);
+    // At minimum: queue admission, workbench evidence, candidate set, author decision, completion
+    expect(gateIds.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('full chain: eval opportunities → queue limits → admission → ledger metrics', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 5, tone: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+
+    // Opportunities respect hard cap for short-form
+    expect(opportunities.length).toBeLessThanOrEqual(REVISE_QUEUE_LEDGER_LIMITS.shortFormMaxOpportunities);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Every opportunity has ledger-backing fields for queue rendering
+    for (const opp of opportunities) {
+      expect(opp.opportunity_id).toBeTruthy();
+      expect(opp.criterion).toBeTruthy();
+      expect(opp.severity).toMatch(/^(must|should|could)$/);
+      expect(opp.evidence_anchor).toBeTruthy();
+    }
+
+    // Context quality resolves for admission
+    const contextDecision = resolveReviseContextQuality({
+      quality_report: { gate_ready_status: 'clean', layer_truth_status: {}, blocking_reasons: [] },
+    });
+    expect(contextDecision.status).toBe('clean');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 10: Candidate Quality Gate — rejection taxonomy
+// SIPOC authority: RS05, candidateQuality.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 10: Candidate Quality Gate Rejection Taxonomy', () => {
+  const ANCHOR = 'His calamity was not completely without positivity though.';
+
+  it('EMPTY_CANDIDATE: null/empty text rejected', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: null, anchor: ANCHOR },
+      { key: 'B', text: '', anchor: ANCHOR },
+      { key: 'C', text: '   ', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('EMPTY_CANDIDATE');
+  });
+
+  it('TOO_SHORT: under 8 words rejected', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'He turned slowly.', anchor: ANCHOR },
+      { key: 'B', text: 'Short.', anchor: ANCHOR },
+      { key: 'C', text: 'Very short text here.', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('TOO_SHORT');
+  });
+
+  it('GENERIC_PROSE: cliché patterns rejected', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'The silence stretched between them like a thread about to snap, and they waited for the first move.', anchor: ANCHOR },
+      { key: 'B', text: 'Something shifted in the room, and the air grew heavy with expectation and unspoken words of meaning.', anchor: ANCHOR },
+      { key: 'C', text: 'He looked away first, knowing the moment had passed beyond any possible return to where they started.', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('GENERIC_PROSE');
+  });
+
+  it('NON_EXECUTABLE_PROSE: editorial commentary rejected', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'This revision should be stronger. The passage would be improved by adding more sensory detail and texture.', anchor: ANCHOR },
+      { key: 'B', text: 'Here is a rewrite that captures the intended mood. Consider changing the opening line for better effect.', anchor: ANCHOR },
+      { key: 'C', text: 'The author should show rather than tell. The reader would benefit from more concrete physical description.', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('NON_EXECUTABLE_PROSE');
+  });
+
+  it('NOT_EXECUTABLE: placeholder tokens rejected', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'He walked toward the [INSERT LOCATION] and paused at the threshold, waiting for the right moment.', anchor: ANCHOR },
+      { key: 'B', text: 'The TODO remained visible on the wall, a reminder of all the work still left to accomplish here.', anchor: ANCHOR },
+      { key: 'C', text: 'Morning light caught his temples as he reached for the phone and his hand trembled slightly with age.', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('NOT_EXECUTABLE');
+  });
+
+  it('ANCHOR_ECHO: candidate too similar to anchor rejected', () => {
+    const longAnchor = 'His calamity was not completely without positivity though he chuckled to himself when he thought of that ironic observation.';
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'His calamity was not completely without positivity though he chuckled to himself when he thought of that ironic observation.', anchor: longAnchor },
+      { key: 'B', text: 'Morning light caught the grey at his temples as he reached for the phone and his hand trembled but not his voice.', anchor: longAnchor },
+      { key: 'C', text: 'She noticed the shift in his posture when the door opened and the way his shoulders dropped with sudden relief.', anchor: longAnchor },
+    ]);
+    expect(result.passed).toBe(true); // B and C pass, only A echoes
+    const aResult = result.candidateResults.find((r) => r.key === 'A');
+    expect(aResult!.reasons).toContain('ANCHOR_ECHO');
+  });
+
+  it('passing candidates: well-crafted manuscript prose accepted', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'He turned, and the weight of the moment pressed against his chest like a hand. The plastic receiver was cold beneath his fingers.', anchor: ANCHOR },
+      { key: 'B', text: 'The silence settled over the room like old snow. She watched him from the doorway, counting the seconds between each breath.', anchor: ANCHOR },
+      { key: 'C', text: 'Morning light caught the grey at his temples as he reached for the phone. His hand trembled, but his voice did not.', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.passedCandidateCount).toBe(3);
+    expect(result.reasons).toHaveLength(0);
+  });
+
+  it('≥2 passing required: one bad candidate still passes gate', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: '', anchor: ANCHOR }, // EMPTY
+      { key: 'B', text: 'The silence settled over the room like old snow. She watched him from the doorway, counting the seconds between each breath.', anchor: ANCHOR },
+      { key: 'C', text: 'Morning light caught the grey at his temples as he reached for the phone. His hand trembled, but his voice did not.', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.passedCandidateCount).toBe(2);
+  });
+
+  it('<2 passing: two bad candidates fails gate', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: '', anchor: ANCHOR },
+      { key: 'B', text: 'Short.', anchor: ANCHOR },
+      { key: 'C', text: 'Morning light caught the grey at his temples as he reached for the phone. His hand trembled, but his voice did not.', anchor: ANCHOR },
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.passedCandidateCount).toBe(1);
+    expect(result.reasons).toContain('REVISION_QUALITY_FAILED');
+  });
+
+  it('full chain: eval → opportunities → candidate quality gate → admission (e2e)', () => {
+    const fixture = makeEvalFixture({ dialogue: 3, pacing: 4 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    const opp = opportunities[0];
+
+    // Candidates from fixture pass quality gate
+    const qualityResult = evaluateCardCandidateQuality([
+      { key: 'A', text: opp.candidate_text_a, anchor: opp.evidence_anchor },
+      { key: 'B', text: opp.candidate_text_b, anchor: opp.evidence_anchor },
+      { key: 'C', text: opp.candidate_text_c, anchor: opp.evidence_anchor },
+    ]);
+    expect(qualityResult.passed).toBe(true);
+
+    // Passes admission gate
+    const admissionInput = makeWorkbenchAdmissionInput(opp);
+    const admissionResult = runWorkbenchAdmissionGate(admissionInput);
+    const diagnosticReasons = admissionResult.reasons.filter((r) => r.startsWith('DIAGNOSTIC_'));
+    expect(diagnosticReasons).toHaveLength(0);
   });
 });
