@@ -230,6 +230,6 @@ describe("progress copy regression", () => {
     );
 
     expect(pollerSource).not.toContain("thirteen evaluation criteria");
-    expect(pollerSource).toContain("RevisionGrade is analyzing your writing");
+    expect(pollerSource).toContain("Analyzing your writing's story, structure, and craft signals.");
   });
 });

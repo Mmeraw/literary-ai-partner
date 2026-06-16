@@ -48,7 +48,7 @@ function makeThenableQuery<T extends object>(
   extras?: Partial<T>,
 ): T & PromiseLike<{ data: unknown; error: unknown }> {
   const query: Record<string, unknown> = {};
-  const chainMethods = ["select", "eq", "gte", "order", "limit", "lt", "in"];
+  const chainMethods = ["select", "eq", "gte", "lte", "order", "limit", "lt", "in"];
 
   for (const method of chainMethods) {
     query[method] = jest.fn(() => query);
@@ -99,6 +99,24 @@ function buildPipelineHealthClient() {
   };
 }
 
+function buildAdminJobsClient(rows: RpcJob[]) {
+  return {
+    rpc: jest.fn(async () => ({ data: rows, error: null })),
+    from: jest.fn((table: string) => {
+      if (table === "evaluation_jobs") {
+        return makeThenableQuery({ data: rows, error: null });
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    }),
+    auth: {
+      admin: {
+        listUsers: jest.fn(async () => ({ data: { users: [] } })),
+      },
+    },
+  } as const;
+}
+
 describe("Admin show_test default visibility hardening", () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -107,7 +125,7 @@ describe("Admin show_test default visibility hardening", () => {
 
   describe("GET /api/admin/jobs", () => {
     it("includes test-range manuscripts by default when show_test is omitted", async () => {
-      const client = buildRpcClient([
+      const client = buildAdminJobsClient([
         { id: "job-non-test", manuscript_id: 120, has_more: false },
         { id: "job-test", manuscript_id: 9500, has_more: false },
       ]);
@@ -124,7 +142,7 @@ describe("Admin show_test default visibility hardening", () => {
     });
 
     it("hides test-range manuscripts when show_test=0", async () => {
-      const client = buildRpcClient([
+      const client = buildAdminJobsClient([
         { id: "job-non-test", manuscript_id: 120, has_more: false },
         { id: "job-test", manuscript_id: 9500, has_more: false },
       ]);
