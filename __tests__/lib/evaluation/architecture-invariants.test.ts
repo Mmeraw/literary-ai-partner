@@ -303,13 +303,13 @@ describe("evaluation architecture invariants", () => {
       : source.substring(startIdx);
   }
 
-  test("pre-persistence gate ordering: Artifact Consistency < Gate 15 < persistenceLock < persistEvaluationResultV2", () => {
+  test("pre-persistence gate ordering: Artifact Consistency < Gate 15 (advisory) < persistenceLock < persistEvaluationResultV2", () => {
     const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
     const processorCode = fs.readFileSync(processorPath, "utf8");
 
     // All four landmarks must exist
     const artifactConsistencyIdx = processorCode.indexOf("Artifact Consistency Gate v1");
-    const gate15Idx = processorCode.indexOf("Gate 15 Pre-Finalization Invariant");
+    const gate15Idx = processorCode.indexOf("Gate 15 Pre-Finalization Advisory");
     const persistLockIdx = processorCode.indexOf("declarePersistenceLock('persistence/after-template-completeness')");
     const persistRpcIdx = processorCode.indexOf("await persistEvaluationResultV2(");
     expect(artifactConsistencyIdx).toBeGreaterThan(-1);
@@ -317,20 +317,20 @@ describe("evaluation architecture invariants", () => {
     expect(persistLockIdx).toBeGreaterThan(-1);
     expect(persistRpcIdx).toBeGreaterThan(-1);
 
-    // Strict ordering: Artifact Consistency < Gate 15 < persistence lock < persistEvaluationResultV2
+    // Strict ordering: Artifact Consistency < Gate 15 (advisory) < persistence lock < persistEvaluationResultV2
     expect(artifactConsistencyIdx).toBeLessThan(gate15Idx);
     expect(gate15Idx).toBeLessThan(persistLockIdx);
     expect(persistLockIdx).toBeLessThan(persistRpcIdx);
   });
 
-  test("Gate 15 fail branch: markFailed + return before persistence lock, no RPC inside fail branch", () => {
+  test("Gate 15 advisory section: runs audit, persists artifact, but does NOT block evaluation", () => {
     const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
     const processorCode = fs.readFileSync(processorPath, "utf8");
 
-    // The Gate 15 section (between header and persistence lock) must contain the fail path
+    // The Gate 15 section (between header and persistence lock) must exist
     const preRpcSection = sectionBetween(
       processorCode,
-      "Gate 15 Pre-Finalization Invariant",
+      "Gate 15 Pre-Finalization Advisory",
       "declarePersistenceLock('persistence/after-template-completeness')",
     );
     expect(preRpcSection.length).toBeGreaterThan(0);
@@ -338,20 +338,18 @@ describe("evaluation architecture invariants", () => {
     // Must call runGate15Audit
     expect(preRpcSection).toContain("runGate15Audit(manuscriptText");
 
-    // Must call markFailed with the Gate 15 error code
-    expect(preRpcSection).toContain("GATE15_MECHANICAL_PURITY_FAILED");
-    expect(preRpcSection).toContain("markFailed(");
+    // Must persist the artifact
+    expect(preRpcSection).toContain("gate_15_audit_v1");
+    expect(preRpcSection).toContain("upsertEvaluationArtifact");
 
-    // Must return success:false
-    expect(preRpcSection).toContain("success: false");
+    // Must be advisory-only: no markFailed, no return success:false
+    expect(preRpcSection).not.toContain("markFailed(");
+    expect(preRpcSection).not.toContain("success: false");
+    expect(preRpcSection).not.toContain("GATE 15 BLOCKED");
 
-    // The fail branch must NOT acquire the persistence lock or call the RPC
-    // Extract the fail branch: from 'GATE 15 BLOCKED' to 'return {' (inclusive)
-    const blockIdx = preRpcSection.indexOf("GATE 15 BLOCKED");
-    expect(blockIdx).toBeGreaterThan(-1);
-    const failBranch = preRpcSection.substring(blockIdx);
-    expect(failBranch).not.toContain("declarePersistenceLock");
-    expect(failBranch).not.toContain("persistEvaluationResultV2");
+    // Must declare advisory_only in the persisted artifact
+    expect(preRpcSection).toContain("advisory_only: true");
+    expect(preRpcSection).toContain("ADVISORY FAIL (non-blocking)");
   });
 
   test("Canon Governance advisory section (Phase 3 WAVE path): no lifecycle mutations for Gate 15", () => {
