@@ -47,6 +47,26 @@ import {
   summarizePropagationIntegrity,
   normalizeSummaryWithBottomWeaknesses,
 } from '@/lib/evaluation/pipeline/propagationIntegrity';
+import {
+  validateReviseCardContract,
+  candidateTextIsCopyPasteReady,
+  hasForbiddenMetaSuggestion,
+  hasWordProcessorArtifact,
+  inferRevisionOperation,
+  operationRequiresStructuralPreview,
+  type ReviseCardValidationInput,
+} from '@/lib/revision/reviseCardContract';
+import {
+  evaluateCardCandidateQuality,
+  evaluateCandidateQuality,
+  type CandidateQualityInput,
+} from '@/lib/revision/candidateQuality';
+import {
+  isTrustedPathEligible,
+  isRepairCrossCheckEnabled,
+  hashContent,
+  type CrossCheckVerdict,
+} from '@/lib/revision/repairCrossCheck';
 
 jest.mock('@/lib/revision/logRevisionEvent', () => ({
   logRevisionEvent: jest.fn(async () => undefined),
@@ -701,5 +721,438 @@ describe('E2E Chain 4: Failure Path Governance', () => {
     // Normal forward progression
     expect(REVISION_SESSION_ALLOWED_TRANSITIONS['open']).toContain('findings_ready');
     expect(REVISION_SESSION_ALLOWED_TRANSITIONS['findings_ready']).toContain('synthesis_started');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 5: Workbench Card Contract → A/B/C Candidate Quality → Author Decision
+// SIPOC authority: RS02 card contract, RS04 workbench load, RS05 candidate generation, RS06 author decision
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 5: Workbench Card Contract → Candidate Quality → Author Decision', () => {
+  const GOOD_CANDIDATE_A = 'He turned, and the weight of the moment pressed against his chest like a hand. The plastic receiver was cold beneath his fingers. He counted to three.';
+  const GOOD_CANDIDATE_B = 'The silence settled over the room like old snow. She watched him from the doorway, counting the seconds between each breath he took.';
+  const GOOD_CANDIDATE_C = 'Morning light caught the grey at his temples as he reached for the phone. His hand trembled, but his voice did not.';
+
+  it('SIPOC RS02: well-formed card passes six-part diagnostic validation', () => {
+    const input: ReviseCardValidationInput = {
+      issueStatement: 'The opening passage summarizes rather than dramatizes the protagonist\'s internal conflict.',
+      symptom: 'The narrator reports the moment in summary rather than dramatizing it through embodied action.',
+      cause: 'Because the author relies on telling rather than showing, the dimension flattens into exposition.',
+      fixStrategy: 'Replace the summarized passage with one beat of embodied interiority.',
+      readerImpact: 'The reader will feel the weight of the protagonist\'s choice viscerally.',
+      operationNote: 'Replace selected passage at paragraph 3.',
+      sourceText: MANUSCRIPT_SNIPPET,
+      sourceLocationLabel: 'Chapter 1, paragraph 3',
+      revisionOperation: 'replace_selected_passage',
+      candidateTexts: [GOOD_CANDIDATE_A, GOOD_CANDIDATE_B, GOOD_CANDIDATE_C],
+    };
+    const result = validateReviseCardContract(input);
+    expect(result.readiness).toBe('ready_for_revise');
+    expect(result.reason).toBeNull();
+  });
+
+  it('SIPOC RS02: missing diagnostic fields → needs_targeting (not deleted)', () => {
+    const input: ReviseCardValidationInput = {
+      issueStatement: 'Issue exists.',
+      symptom: '',
+      cause: '',
+      fixStrategy: '',
+      readerImpact: '',
+      operationNote: '',
+      sourceText: MANUSCRIPT_SNIPPET,
+      sourceLocationLabel: 'Chapter 1',
+      revisionOperation: 'replace_selected_passage',
+      candidateTexts: [GOOD_CANDIDATE_A, GOOD_CANDIDATE_B, GOOD_CANDIDATE_C],
+    };
+    const result = validateReviseCardContract(input);
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toBeTruthy();
+  });
+
+  it('SIPOC RS02: missing candidate texts → needs_targeting', () => {
+    const input: ReviseCardValidationInput = {
+      issueStatement: 'The opening passage summarizes rather than dramatizes.',
+      symptom: 'Narrator reports in summary.',
+      cause: 'Telling rather than showing.',
+      fixStrategy: 'Replace with embodied interiority.',
+      readerImpact: 'Reader feels the weight viscerally.',
+      operationNote: 'Replace paragraph 3.',
+      sourceText: MANUSCRIPT_SNIPPET,
+      sourceLocationLabel: 'Chapter 1, paragraph 3',
+      revisionOperation: 'replace_selected_passage',
+      candidateTexts: [GOOD_CANDIDATE_A],
+    };
+    const result = validateReviseCardContract(input);
+    expect(result.readiness).toBe('needs_targeting');
+  });
+
+  it('SIPOC RS05: candidate quality gate requires ≥2 passing candidates', () => {
+    const candidates: CandidateQualityInput[] = [
+      { key: 'A', text: GOOD_CANDIDATE_A, anchor: MANUSCRIPT_SNIPPET },
+      { key: 'B', text: GOOD_CANDIDATE_B, anchor: MANUSCRIPT_SNIPPET },
+      { key: 'C', text: GOOD_CANDIDATE_C, anchor: MANUSCRIPT_SNIPPET },
+    ];
+    const result = evaluateCardCandidateQuality(candidates);
+    expect(result.passed).toBe(true);
+    expect(result.passedCandidateCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('SIPOC RS05: empty candidates fail quality gate', () => {
+    const candidates: CandidateQualityInput[] = [
+      { key: 'A', text: '', anchor: MANUSCRIPT_SNIPPET },
+      { key: 'B', text: null, anchor: MANUSCRIPT_SNIPPET },
+      { key: 'C', text: 'Too short.', anchor: MANUSCRIPT_SNIPPET },
+    ];
+    const result = evaluateCardCandidateQuality(candidates);
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('EMPTY_CANDIDATE');
+  });
+
+  it('SIPOC RS05: candidates must be copy-paste ready (no meta-suggestions, no HTML)', () => {
+    expect(candidateTextIsCopyPasteReady(GOOD_CANDIDATE_A)).toBe(true);
+    // Editorial directive phrasing is not manuscript prose
+    expect(candidateTextIsCopyPasteReady('Strengthen the opening passage to sharpen the stakes and deepen the reader\'s investment.')).toBe(false);
+    expect(candidateTextIsCopyPasteReady('<p>He turned slowly.</p>')).toBe(false);
+    expect(candidateTextIsCopyPasteReady(null)).toBe(false);
+    expect(candidateTextIsCopyPasteReady('')).toBe(false);
+  });
+
+  it('SIPOC RS05: forbidden meta-suggestions are caught', () => {
+    // Exact phrases from FORBIDDEN_META_SUGGESTIONS list
+    expect(hasForbiddenMetaSuggestion('Apply the same repair goal to strengthen the opening.')).toBe(true);
+    expect(hasForbiddenMetaSuggestion('Review this opportunity before proceeding.')).toBe(true);
+    expect(hasForbiddenMetaSuggestion('The recommended repair path is to add a beat.')).toBe(true);
+    // Real manuscript prose is not forbidden
+    expect(hasForbiddenMetaSuggestion('He turned, and the weight pressed against his chest.')).toBe(false);
+  });
+
+  it('SIPOC RS05: word processor artifacts are caught', () => {
+    expect(hasWordProcessorArtifact('<span style="color:red">He turned.</span>')).toBe(true);
+    expect(hasWordProcessorArtifact('He turned, and the weight pressed against his chest.')).toBe(false);
+  });
+
+  it('SIPOC RS04: revision operation inferred from fix direction', () => {
+    expect(inferRevisionOperation({ fixDirection: 'Insert a beat of dialogue before the reveal' })).toBe('insert_before_selected_passage');
+    expect(inferRevisionOperation({ fixDirection: 'Compress the reflective passage to tighten pacing' })).toBe('compress_selected_passage');
+    expect(inferRevisionOperation({ fixDirection: 'Delete the redundant attribution tag' })).toBe('delete_selected_passage');
+    expect(inferRevisionOperation({ scope: 'Line' })).toBe('replace_selected_passage');
+    expect(inferRevisionOperation({ scope: 'Chapter' })).toBe('rewrite_multi_paragraph_span');
+  });
+
+  it('SIPOC RS04: structural operations require preview', () => {
+    expect(operationRequiresStructuralPreview('rewrite_multi_paragraph_span')).toBe(true);
+    expect(operationRequiresStructuralPreview('delete_selected_passage')).toBe(true);
+    expect(operationRequiresStructuralPreview('replace_selected_passage')).toBe(false);
+  });
+
+  it('full chain: eval → card contract → candidate quality → admission (e2e)', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 5 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    const opp = opportunities[0];
+
+    // Card contract validates the opportunity's six-part diagnostic
+    const cardInput: ReviseCardValidationInput = {
+      issueStatement: opp.symptom || 'Issue',
+      symptom: opp.symptom || 'Symptom',
+      cause: opp.cause || 'Cause',
+      fixStrategy: opp.fix_direction || 'Fix',
+      readerImpact: opp.reader_effect || 'Impact',
+      operationNote: opp.revision_operation || 'replace_selected_passage',
+      sourceText: opp.evidence_anchor || MANUSCRIPT_SNIPPET,
+      sourceLocationLabel: 'Chapter 1, paragraph 3',
+      revisionOperation: (opp.revision_operation as 'replace_selected_passage') || 'replace_selected_passage',
+      candidateTexts: [
+        opp.candidate_text_a || GOOD_CANDIDATE_A,
+        opp.candidate_text_b || GOOD_CANDIDATE_B,
+        opp.candidate_text_c || GOOD_CANDIDATE_C,
+      ],
+    };
+    const cardResult = validateReviseCardContract(cardInput);
+    expect(cardResult.readiness).toBe('ready_for_revise');
+
+    // Candidate quality validates A/B/C
+    const qualityResult = evaluateCardCandidateQuality([
+      { key: 'A', text: cardInput.candidateTexts[0], anchor: opp.evidence_anchor },
+      { key: 'B', text: cardInput.candidateTexts[1], anchor: opp.evidence_anchor },
+      { key: 'C', text: cardInput.candidateTexts[2], anchor: opp.evidence_anchor },
+    ]);
+    expect(qualityResult.passed).toBe(true);
+
+    // Admission gate runs structural checks
+    const admissionInput = makeWorkbenchAdmissionInput(opp);
+    const admissionResult = runWorkbenchAdmissionGate(admissionInput);
+    const diagnosticReasons = admissionResult.reasons.filter((r) => r.startsWith('DIAGNOSTIC_'));
+    expect(diagnosticReasons).toHaveLength(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 6: Cross-Check Verification → TrustedPath Auto-Apply
+// SIPOC authority: RS09 cross-check verification, RS10 TrustedPath
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 6: Cross-Check Verification → TrustedPath Auto-Apply', () => {
+  it('SIPOC RS10: only approve verdict is TrustedPath eligible', () => {
+    expect(isTrustedPathEligible('approve')).toBe(true);
+    expect(isTrustedPathEligible('flag')).toBe(false);
+    expect(isTrustedPathEligible('reject')).toBe(false);
+    expect(isTrustedPathEligible('unavailable')).toBe(false);
+    expect(isTrustedPathEligible('pending')).toBe(false);
+    expect(isTrustedPathEligible(null)).toBe(false);
+    expect(isTrustedPathEligible(undefined)).toBe(false);
+  });
+
+  it('SIPOC RS09: all five verdict values are canonical', () => {
+    const canonicalVerdicts: CrossCheckVerdict[] = ['approve', 'flag', 'reject', 'unavailable', 'pending'];
+    for (const verdict of canonicalVerdicts) {
+      expect(typeof isTrustedPathEligible(verdict)).toBe('boolean');
+    }
+  });
+
+  it('SIPOC RS09: content hashing is deterministic for cache invalidation', () => {
+    const text = 'He turned, and the weight of the moment pressed against his chest.';
+    const hash1 = hashContent(text);
+    const hash2 = hashContent(text);
+    expect(hash1).toBe(hash2);
+    expect(hash1.length).toBe(64); // SHA-256 hex
+    // Different text → different hash
+    expect(hashContent(text + ' ')).not.toBe(hash1);
+  });
+
+  it('SIPOC RS09: non-approve verdicts kick to RS06 author decision for manual review', () => {
+    const nonApproveVerdicts: CrossCheckVerdict[] = ['flag', 'reject', 'unavailable', 'pending'];
+    for (const verdict of nonApproveVerdicts) {
+      expect(isTrustedPathEligible(verdict)).toBe(false);
+    }
+    // KICK_MATRIX has TRUSTEDPATH_INELIGIBLE_VERDICT → RS06
+    const kickTarget = resolveKickTarget('TRUSTEDPATH_INELIGIBLE_VERDICT');
+    expect(kickTarget).not.toBeNull();
+    expect(kickTarget!.targetStageId).toBe('RS06_AUTHOR_DECISION');
+  });
+
+  it('SIPOC RS09: invalid verdict kicks to RS06 with CROSSCHECK_INVALID_VERDICT', () => {
+    const kickTarget = resolveKickTarget('CROSSCHECK_INVALID_VERDICT');
+    expect(kickTarget).not.toBeNull();
+    expect(kickTarget!.targetStageId).toBe('RS06_AUTHOR_DECISION');
+    // Disposition is manual_review — human must decide how to handle non-canonical verdict
+    const disposition = classifyFailureDisposition('CROSSCHECK_INVALID_VERDICT');
+    expect(disposition).toBe('manual_review');
+  });
+
+  it('full chain: approve verdict → TrustedPath eligible → auto-apply path', () => {
+    // Step 1: Cross-check returns approve
+    const verdict: CrossCheckVerdict = 'approve';
+    expect(isTrustedPathEligible(verdict)).toBe(true);
+
+    // Step 2: No kick needed — flows directly to TrustedPath
+    // (TRUSTEDPATH_INELIGIBLE_VERDICT only fires for non-approve)
+
+    // Step 3: Completion certification still works after TrustedPath auto-applies
+    const opportunityIds = ['opp-tp-1', 'opp-tp-2'];
+    const decisions = opportunityIds.map((id, i) => ({
+      id: `dec-tp-${i}`,
+      opportunity_id: id,
+      decision: i === 0 ? 'accepted_a' : 'keep_original', // First one was auto-applied by TrustedPath
+      created_at: new Date().toISOString(),
+    }));
+    const completion = buildReviseCompletionCertification({
+      manuscriptId: '999',
+      evaluationJobId: 'job-tp-001',
+      readyOpportunityIds: opportunityIds,
+      decisions,
+    });
+    expect(completion.ok).toBe(true);
+  });
+
+  it('full chain: flag verdict → manual review → author decides → completion', () => {
+    // Step 1: Cross-check returns flag
+    const verdict: CrossCheckVerdict = 'flag';
+    expect(isTrustedPathEligible(verdict)).toBe(false);
+
+    // Step 2: Kicked to RS06 for manual review
+    const kickTarget = resolveKickTarget('TRUSTEDPATH_INELIGIBLE_VERDICT');
+    expect(kickTarget!.targetStageId).toBe('RS06_AUTHOR_DECISION');
+
+    // Step 3: Author manually decides
+    const decisions = [
+      { id: 'dec-manual-1', opportunity_id: 'opp-flagged', decision: 'keep_original', created_at: new Date().toISOString() },
+    ];
+    const completion = buildReviseCompletionCertification({
+      manuscriptId: '999',
+      evaluationJobId: 'job-flag-001',
+      readyOpportunityIds: ['opp-flagged'],
+      decisions,
+    });
+    expect(completion.ok).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 7: Multi-Stage Failure Cascades
+// SIPOC authority: REVISE_KICK_MATRIX, revision_failure_record_v1
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 7: Multi-Stage Failure Cascades', () => {
+  it('RS01 failure → kick to S10b → failure record produced', () => {
+    const record = buildRevisionFailureRecord({
+      sessionId: 'session-cascade-001',
+      stageId: 'RS01',
+      failureCode: 'LEDGER_EVIDENCE_MISSING',
+      errorMessage: 'evaluation_result_v2 not certified by Phase 5',
+      attemptCount: 1,
+    });
+    expect(record.artifact_type).toBe('revision_failure_record_v1');
+    expect(record.disposition).toBe('retryable');
+
+    const kick = resolveKickTarget('LEDGER_EVIDENCE_MISSING');
+    expect(kick!.targetStageId).toBe('S10b_PHASE5_AUTHOR_EXPOSURE_GATE');
+    expect(kick!.severity).toBe('blocking');
+  });
+
+  it('RS04 anchor failure → kick to RS02 → needs_targeting', () => {
+    const record = buildRevisionFailureRecord({
+      sessionId: 'session-cascade-002',
+      stageId: 'RS04',
+      failureCode: 'WORKBENCH_ANCHOR_UNRESOLVABLE',
+      errorMessage: 'Anchor text not found in manuscript version',
+      attemptCount: 1,
+    });
+    expect(record.disposition).toBe('manual_review');
+
+    const kick = resolveKickTarget('WORKBENCH_ANCHOR_UNRESOLVABLE');
+    expect(kick!.targetStageId).toBe('RS02_QUEUE_ADMISSION');
+    expect(kick!.severity).toBe('advisory');
+  });
+
+  it('RS05 voice gate → kick to RS04 → regenerate candidates', () => {
+    const record = buildRevisionFailureRecord({
+      sessionId: 'session-cascade-003',
+      stageId: 'RS05',
+      failureCode: 'CANDIDATE_VOICE_GATE_FAIL',
+      errorMessage: 'Generated candidate violates voice preservation contract',
+      attemptCount: 1,
+    });
+    expect(record.disposition).toBe('manual_review');
+
+    const kick = resolveKickTarget('CANDIDATE_VOICE_GATE_FAIL');
+    expect(kick!.targetStageId).toBe('RS04_WORKBENCH_LOAD');
+  });
+
+  it('RS07 sync failure → kick to RS06 → throw, do not write', () => {
+    const kick = resolveKickTarget('LEDGER_SYNC_VALIDATION_FAIL');
+    expect(kick!.targetStageId).toBe('RS06_AUTHOR_DECISION');
+    expect(kick!.severity).toBe('blocking');
+    expect(kick!.blocksAuthorExposure).toBe(true);
+  });
+
+  it('RS08 premature completion → kick to RS07 → sync then re-certify', () => {
+    const kick = resolveKickTarget('COMPLETION_PREMATURE');
+    expect(kick!.targetStageId).toBe('RS07_LEDGER_SYNC');
+    expect(kick!.severity).toBe('blocking');
+  });
+
+  it('cascading failure: RS05 voice fail → RS04 reload → RS05 canon fail → escalate', () => {
+    // First failure: voice gate → manual_review
+    const fail1 = buildRevisionFailureRecord({
+      sessionId: 'session-cascade-multi',
+      stageId: 'RS05',
+      failureCode: 'CANDIDATE_VOICE_GATE_FAIL',
+      errorMessage: 'Voice preservation violated',
+      attemptCount: 1,
+    });
+    expect(fail1.disposition).toBe('manual_review');
+    const kick1 = resolveKickTarget('CANDIDATE_VOICE_GATE_FAIL');
+    expect(kick1!.targetStageId).toBe('RS04_WORKBENCH_LOAD');
+
+    // Second failure at same stage: canon gate → also manual_review
+    const fail2 = buildRevisionFailureRecord({
+      sessionId: 'session-cascade-multi',
+      stageId: 'RS05',
+      failureCode: 'CANDIDATE_CANON_GATE_FAIL',
+      errorMessage: 'Candidate introduces banned entity',
+      attemptCount: 2,
+    });
+    expect(fail2.disposition).toBe('manual_review');
+    const kick2 = resolveKickTarget('CANDIDATE_CANON_GATE_FAIL');
+    expect(kick2!.targetStageId).toBe('RS04_WORKBENCH_LOAD');
+
+    // Both failures produce structured artifacts with incrementing attempt count
+    expect(fail1.attempt_count).toBe(1);
+    expect(fail2.attempt_count).toBe(2);
+  });
+
+  it('hydration failure → structured artifact → retry path', () => {
+    const record = buildHydrationFailureRecord({
+      opportunityId: 'opp-cascade-hydration',
+      failureCode: 'HYDRATION_TIMEOUT',
+      attemptCount: 1,
+      maxAttempts: 3,
+      rejectionReason: null,
+      model: 'gpt-5.1',
+      promptVersion: 'hydration_v2',
+    });
+    expect(record.artifact_type).toBe('candidate_hydration_failure_v1');
+    expect(record.hydration_status).toBe('failed_retryable');
+    expect(record.attempt_count).toBe(1);
+    expect(record.max_attempts).toBe(3);
+
+    // Max attempts exceeded → terminal
+    const terminalRecord = buildHydrationFailureRecord({
+      opportunityId: 'opp-cascade-hydration',
+      failureCode: 'HYDRATION_TIMEOUT',
+      attemptCount: 3,
+      maxAttempts: 3,
+      rejectionReason: null,
+      model: 'gpt-5.1',
+      promptVersion: 'hydration_v2',
+    });
+    expect(terminalRecord.hydration_status).toBe('failed_terminal');
+  });
+
+  it('SIPOC KICK_MATRIX: all 11 kick codes have valid entries with required fields', () => {
+    const expectedKickCodes = [
+      'LEDGER_EVIDENCE_MISSING',
+      'ADMISSION_CARD_CONTRACT_FAIL',
+      'ADMISSION_CANON_GATE_FAIL',
+      'WORKBENCH_ANCHOR_UNRESOLVABLE',
+      'CANDIDATE_VOICE_GATE_FAIL',
+      'CANDIDATE_CANON_GATE_FAIL',
+      'LEDGER_SYNC_VALIDATION_FAIL',
+      'DECISION_INVALID_VALUE',
+      'COMPLETION_PREMATURE',
+      'TRUSTEDPATH_INELIGIBLE_VERDICT',
+      'CROSSCHECK_INVALID_VERDICT',
+    ];
+    for (const code of expectedKickCodes) {
+      const kick = resolveKickTarget(code);
+      expect(kick).not.toBeNull();
+      expect(kick!.kickCode).toBe(code);
+      expect(kick!.targetStageId).toBeTruthy();
+      expect(kick!.triggeringStageId).toBeTruthy();
+      expect(kick!.triggerCondition).toBeTruthy();
+      expect(kick!.resolution).toBeTruthy();
+      expect(typeof kick!.blocksAuthorExposure).toBe('boolean');
+      expect(['blocking', 'advisory', 'warning']).toContain(kick!.severity);
+    }
+  });
+
+  it('SIPOC: failed_retryable re-entry requires revision_failure_record_v1 (state machine)', () => {
+    // failed_retryable allows re-entry to open (and forward progression states)
+    const transitions = REVISION_SESSION_ALLOWED_TRANSITIONS['failed_retryable'];
+    expect(transitions).toContain('open');
+
+    // A failure record must accompany the transition
+    const record = buildRevisionFailureRecord({
+      sessionId: 'session-reentry',
+      stageId: 'RS01',
+      failureCode: 'LEDGER_EVIDENCE_MISSING',
+      errorMessage: 'Re-entry after retryable failure',
+      attemptCount: 2,
+    });
+    expect(record.artifact_type).toBe('revision_failure_record_v1');
+    expect(record.disposition).toBe('retryable');
   });
 });
