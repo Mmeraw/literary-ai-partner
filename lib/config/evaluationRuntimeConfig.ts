@@ -354,7 +354,7 @@ export function resolveEvaluationRuntimeConfig(
       const minWordsRaw = env.EVAL_MIN_MANUSCRIPT_WORDS;
       if (minWordsRaw && minWordsRaw.trim() !== "") {
         return parseBoundedInteger(env, "EVAL_MIN_MANUSCRIPT_WORDS", {
-          defaultValue: 200,
+          defaultValue: 500,
           min: 0,
           max: 20000,
         });
@@ -370,7 +370,7 @@ export function resolveEvaluationRuntimeConfig(
         return Math.ceil(chars / 5);
       }
 
-      return 200;
+      return 500;
     })(),
     // Default raised from 10 → 13: Vercel Pro/Enterprise fluid-compute hard ceiling
     // is 800s (13m 20s). A 10-minute default killed legitimate large-manuscript jobs
