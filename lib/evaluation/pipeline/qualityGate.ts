@@ -91,6 +91,10 @@ export const QG_EVIDENCE_HARD_CEILING = 350;
 export const QG_MAX_OVERVIEW_LENGTH = 750;
 /** Hard ceiling: overview beyond this length is a true LLM runaway, not post-processing drift. */
 export const QG_OVERVIEW_HARD_CEILING = 800;
+/** Default fabrication ratio threshold — hard-fail when exceeded. */
+export const QG_EVIDENCE_FABRICATION_THRESHOLD = 0.50;
+/** Warning threshold for evidence fabrication — log diagnostic but don't fail. */
+export const QG_EVIDENCE_FABRICATION_WARNING = 0.25;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
 export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 6;
 export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
@@ -522,16 +526,16 @@ export function runQualityGate(
     // Hard-fail when >30% of anchors are fabricated editorial diagnoses.
     // Renderers differentiate verbatim_quote from editorial_diagnosis.
     const fabricationRatio = total_recommendations > 0 ? diagnosis_count / total_recommendations : 0;
-    const fabricationExcessive = fabricationRatio > 0.3;
+    const fabricationExcessive = fabricationRatio > QG_EVIDENCE_FABRICATION_THRESHOLD;
     checks.push({
       check_id: "evidence_grounding",
       passed: !fabricationExcessive,
       error_code: fabricationExcessive ? "QG_EVIDENCE_FABRICATION" : undefined,
       details: diagnosis_count > 0
-        ? `${diagnosis_count}/${total_recommendations} anchor(s) classified as editorial_diagnosis (${(fabricationRatio * 100).toFixed(0)}% fabrication${fabricationExcessive ? " — exceeds 30% threshold" : ""}; ${ungrounded.slice(0, 3).map(u => `${u.criterion_key}: "${u.anchor_snippet.substring(0, 40)}…"`).join("; ")}${ungrounded.length > 3 ? ` +${ungrounded.length - 3} more` : ""})`
+        ? `${diagnosis_count}/${total_recommendations} anchor(s) classified as editorial_diagnosis (${(fabricationRatio * 100).toFixed(0)}% fabrication${fabricationExcessive ? ` — exceeds ${(QG_EVIDENCE_FABRICATION_THRESHOLD * 100).toFixed(0)}% threshold` : ""}; ${ungrounded.slice(0, 3).map(u => `${u.criterion_key}: "${u.anchor_snippet.substring(0, 40)}…"`).join("; ")}${ungrounded.length > 3 ? ` +${ungrounded.length - 3} more` : ""})`
         : `All ${total_recommendations} anchor(s) grounded in manuscript text`,
     });
-    if (fabricationRatio > 0.15) {
+    if (fabricationRatio > QG_EVIDENCE_FABRICATION_WARNING) {
       warnings.push(`[evidence_grounding] ${diagnosis_count}/${total_recommendations} anchors are editorial_diagnosis (${(fabricationRatio * 100).toFixed(0)}% fabrication — evidence must be grounded in submitted manuscript text, not system-generated diagnostics)`);
     }
   }

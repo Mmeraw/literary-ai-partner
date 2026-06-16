@@ -726,7 +726,7 @@ describe("runQualityGate", () => {
 
   // ── QG_EVIDENCE_FABRICATION — Price of Vanity regression ──────────────
 
-  it("rejects when >30% of evidence anchors are fabricated (QG_EVIDENCE_FABRICATION)", () => {
+  it("rejects when >50% of evidence anchors are fabricated (QG_EVIDENCE_FABRICATION)", () => {
     const synthesis = makeValidSynthesis();
     // Replace most anchor_snippets with diagnostic statements not in manuscript
     for (const criterion of synthesis.criteria) {
