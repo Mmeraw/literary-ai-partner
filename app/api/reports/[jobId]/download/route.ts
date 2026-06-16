@@ -2525,10 +2525,11 @@ function renderPremiumReportHtml(
     .score-grid div { padding: 0.12in; background: #faf7f2; border: 1px solid #d9d0c3; border-radius: 6px; text-align: center; }
     .score-grid span { display: block; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; }
     .score-grid strong { display: block; margin-top: 0.04in; font-size: 18pt; color: #1c1814; }
-    table { width: 100%; border-collapse: collapse; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; }
-    th { padding: 0.08in; color: #5c5549; text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #b8922a; }
-    td { padding: 0.08in; border-bottom: 1px solid #e6ded2; vertical-align: top; }
-    th:nth-child(2), th:nth-child(3), td:nth-child(2), td:nth-child(3) { text-align: right; }
+    table { width: 100%; border-collapse: collapse; }
+    .score-grid-table { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; table-layout: fixed; }
+    .score-grid-table th { padding: 0.08in; color: #5c5549; text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #b8922a; }
+    .score-grid-table td { padding: 0.08in; border-bottom: 1px solid #e6ded2; vertical-align: top; }
+    .score-grid-table th:nth-child(2), .score-grid-table th:nth-child(3), .score-grid-table td:nth-child(2), .score-grid-table td:nth-child(3) { text-align: right; }
     .score-cell, .criterion-score { font-weight: 700; white-space: nowrap; }
     .score-strong { color: #3a6b2a; } .score-watch { color: #8b5e1a; } .score-risk { color: #8b2020; } .score-muted { color: #5c5549; }
     .criterion-card { margin: 0 0 0.22in; padding: 0.18in 0.2in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; break-inside: avoid; }
@@ -2581,7 +2582,7 @@ function renderPremiumReportHtml(
   <section class="section"><h2>Top Strengths</h2>${renderHtmlOrderedList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
   <section class="section"><h2>Top Risks</h2>${renderHtmlOrderedList(result.overview.top_3_risks, 'No risks supplied.')}</section>
   <section class="section"><h2>Top Recommendations</h2>${topRecommendations.length > 0 ? renderHtmlOrderedList(topRecommendations) : `<p>See per-criterion opportunities below for detailed revision guidance.</p>`}</section>
-  <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+  <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
   <section class="allow-break"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${criteriaCards}</section>
   <section class="section"><h2>Confidence Explanation</h2><p><strong>${escapeHtml(CONFIDENCE_EXPLANATION.title)}</strong></p><p>${escapeHtml(CONFIDENCE_EXPLANATION.intro)}</p><ul class="rg-bullet-list">${CONFIDENCE_EXPLANATION.levels.map((l) => `<li><span class="rg-list-marker">\u2022</span><span><strong>${escapeHtml(l.label)}:</strong> ${escapeHtml(l.description)}</span></li>`).join('')}</ul></section>
   ${dreamHtml}
@@ -3668,4 +3669,5 @@ export const __testingDownload = {
   renderCanonicalTemplateHtml,
   buildCanonicalTemplateDocx,
   loadCertifiedUnifiedEvaluationDocumentArtifact,
+  renderPremiumReportHtml,
 };

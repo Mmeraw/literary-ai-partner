@@ -380,4 +380,156 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(docxText).not.toContain('Story Ledger or Layer-Aware Architecture Map');
     expect(docxText).not.toContain('UED fallback marker');
   });
+
+  test('does not let score-grid table CSS clip opportunity detail rows in PDF downloads', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+
+    const canonicalDoc = buildShortFormEvaluationDocument({
+      displayTitle: 'Diamonds Aren\'t Forever',
+      result: {
+        generated_at: '2026-06-14T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 72,
+          verdict: 'revise',
+          one_paragraph_summary: 'PDF CSS scoping regression test.',
+          top_3_strengths: ['Strong premise'],
+          top_3_risks: ['Pacing drift'],
+        },
+        enrichment: {
+          premise: 'A heist gone wrong.',
+          trigger_warnings: [],
+          reading_grade_level: 9,
+          dialogue_percentage: 30,
+          narrative_percentage: 70,
+        },
+        metrics: { manuscript: { title: 'Diamonds', word_count: 6000, genre: 'thriller', target_audience: 'Adult readers' } },
+        criteria: [
+          {
+            key: 'pacing',
+            score_0_10: 6,
+            confidence_level: 'moderate',
+            rationale: 'Pacing stalls in the second act.',
+            recommendations: [
+              {
+                priority: 'high',
+                action: 'Tighten the second act.',
+                anchor_snippet: 'The long corridor stretched endlessly, and she counted each fluorescent light overhead — one, two, three — until the pattern blurred into monotony and the reader lost all sense of temporal urgency.',
+                symptom: 'Pacing stalls where reflective passages delay forward momentum.',
+                mechanism: 'Extended interior monologue without scene-level stakes.',
+                specific_fix: 'Insert a ticking-clock element at the chapter midpoint to restore urgency.',
+                reader_effect: 'Maintains forward momentum through the mid-novel transition.',
+                mistake_proofing: 'Check each chapter for at least one forward-pull sentence in the final paragraph.',
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const html = testing.renderCanonicalTemplateHtml(canonicalDoc);
+
+    // Short-form: score-grid table MUST have scoped class
+    expect(html).toContain('class="score-grid-table"');
+
+    // Short-form: nth-child column rules scoped to .score-grid-table, not global
+    const sfStyleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/);
+    expect(sfStyleMatch).toBeTruthy();
+    const sfNthRules = sfStyleMatch![1].match(/[^\n;{}]*nth-child[^;{}]*/g) || [];
+    for (const rule of sfNthRules) {
+      expect(rule).toContain('.score-grid-table');
+    }
+
+    // Opportunity values use div-based layout, not table cells
+    expect(html).toContain('class="opp-field"');
+    expect(html).toContain('class="opp-val"');
+    expect(html).not.toContain('<table class="opp-table">');
+    expect(html).not.toContain('<td class="opp-val">');
+
+    // opp-val CSS allows wrapping
+    expect(html).toContain('white-space:normal');
+    expect(html).toContain('overflow-wrap:anywhere');
+
+    // Long evidence text is fully present (not truncated)
+    expect(html).toContain('The long corridor stretched endlessly');
+    expect(html).toContain('the reader lost all sense of temporal urgency.');
+  });
+
+  test('long-form premium PDF scopes score-grid CSS to .score-grid-table class', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+
+    const result = {
+      generated_at: '2026-06-14T00:00:00.000Z',
+      overview: {
+        overall_score_0_100: 72,
+        verdict: 'revise',
+        one_paragraph_summary: 'Long-form PDF CSS scoping test.',
+        top_3_strengths: ['Strong premise'],
+        top_3_risks: ['Pacing drift'],
+      },
+      enrichment: {
+        premise: 'A heist gone wrong.',
+        trigger_warnings: [],
+        reading_grade_level: 9,
+        dialogue_percentage: 30,
+        narrative_percentage: 70,
+      },
+      metrics: { manuscript: { title: 'Diamonds', word_count: 55000, genre: 'thriller', target_audience: 'Adult readers' } },
+      criteria: [
+        {
+          key: 'pacing',
+          score_0_10: 6,
+          confidence_level: 'moderate',
+          rationale: 'Pacing stalls.',
+          recommendations: [
+            {
+              priority: 'high',
+              action: 'Tighten second act.',
+              anchor_snippet: 'She counted each fluorescent light overhead until the pattern blurred.',
+              symptom: 'Pacing stalls.',
+              mechanism: 'Extended interior monologue.',
+              specific_fix: 'Insert ticking-clock element.',
+              reader_effect: 'Maintains momentum.',
+              mistake_proofing: 'Check each chapter for forward-pull sentence.',
+            },
+          ],
+        },
+      ],
+    };
+
+    const metadata = {
+      displayTitle: 'Diamonds Aren\'t Forever',
+      generatedAt: '2026-06-14',
+      score: '72/100',
+      verdict: 'Revise',
+      wordCount: 55000,
+      estimatedPages: 220,
+      reportType: 'Long-Form Evaluation',
+      shelf: 'Fiction',
+      genre: 'Thriller',
+      targetAudience: 'Adult readers',
+    };
+
+    const html = testing.renderPremiumReportHtml(result, metadata, 'Summary fallback.', null, null);
+
+    // Long-form: score-grid table MUST use .score-grid-table class
+    expect(html).toContain('class="score-grid-table"');
+
+    // No global unscoped th/td nth-child column rules — all must be scoped to .score-grid-table
+    // Extract CSS style block
+    const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/);
+    expect(styleMatch).toBeTruthy();
+    const css = styleMatch![1];
+
+    // table-layout:fixed must only appear on .score-grid-table, not globally
+    expect(css).not.toMatch(/^\s*table\s*\{[^}]*table-layout:\s*fixed/m);
+    expect(css).toContain('.score-grid-table');
+
+    // nth-child column rules must be scoped to .score-grid-table
+    const nthChildRules = css.match(/[^\n]*nth-child[^\n]*/g) || [];
+    for (const rule of nthChildRules) {
+      expect(rule).toContain('.score-grid-table');
+    }
+  });
 });
