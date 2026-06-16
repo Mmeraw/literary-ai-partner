@@ -82,6 +82,7 @@ import {
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
 import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
+import { lookupKicksForStage } from '@/lib/evaluation/fipocRegistry';
 import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
 import {
   buildScoreLedger,
@@ -1909,21 +1910,84 @@ const TERMINAL_FAILURE_EXACT = new Set<string>([
 ]);
 
 /**
+ * FIPOC KICK_MATRIX-eligible failure codes: gate failures where the LLM can
+ * produce different (potentially clean) output on a re-synthesis attempt.
+ * These get exactly 1 backward kick before becoming terminal.
+ *
+ * Corresponds to KICK_MATRIX entries at S09_QUALITYGATEV2 and S07_PASS3.
+ */
+const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
+  'TEMPLATE_COMPLETENESS_GATE_FAILED',
+  'QG_DUPLICATE_REC',
+  'QG_MISSING_RATIONALE',
+  'QG_MISSING_EVIDENCE',
+  'QG_DENSITY_FLOOR_VIOLATION',
+  'QG_ARTIFACT_GATE_FAIL',
+  'QG_PITCH_IDENTITY_DUPLICATE',
+  'QG_EVIDENCE_FABRICATION',
+  // v2 gate-specific error codes (synthesis-repairable):
+  'QG_SUMMARY_OMITS_WEAKNESS',
+  'QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH',
+  'QG_MISSING_REQUIRED_EVIDENCE',
+  'QG_CONSEQUENCE_CONTRACT',
+]);
+
+/**
+ * v2 check_ids that are synthesis-repairable and should be treated as
+ * kick-eligible when unwrapping QG_FAILED. Used to bridge the gap between
+ * the generic QG_FAILED wrapper and the specific underlying check failures.
+ */
+const KICK_ELIGIBLE_V2_CHECK_IDS = new Set<string>([
+  'v2_summary_weakness_presence',
+  'v2_fidelity_score_confidence_alignment',
+  'v2_scored_anchor_threshold',
+  'v2_completeness_bridge',
+]);
+
+/**
+ * Returns true if a failure code is eligible for a backward kick per FIPOC KICK_MATRIX.
+ * Kick-eligible codes get 1 re-synthesis attempt before becoming terminal.
+ */
+export function isKickEligibleFailureCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return KICK_ELIGIBLE_FAILURE_CODES.has(code);
+}
+
+/**
+ * Returns true if a v2 quality gate check_id is synthesis-repairable.
+ * Used to unwrap QG_FAILED and determine kick eligibility from the
+ * underlying check failures rather than the generic wrapper code.
+ */
+export function isKickEligibleV2CheckId(checkId: string | null | undefined): boolean {
+  if (!checkId) return false;
+  return KICK_ELIGIBLE_V2_CHECK_IDS.has(checkId);
+}
+
+/**
  * Returns true if a failure code is terminal (must NOT be rescued or retried).
  * A terminal failure means re-running will produce the same failure.
+ *
+ * KICK_MATRIX override: codes in KICK_ELIGIBLE_FAILURE_CODES are NOT terminal
+ * on their first occurrence — the processor checks kick_attempts in progress
+ * to decide whether the budget is exhausted.
  */
 export function isTerminalFailureCode(code: string | null | undefined): boolean {
   if (!code) return false; // Unknown code: assume rescuable (conservative)
   if (code === 'LLR_PRE_ARTIFACT_GENERATION_BLOCK') {
     return false;
   }
+  if (KICK_ELIGIBLE_FAILURE_CODES.has(code)) return false;
   if (TERMINAL_FAILURE_EXACT.has(code)) return true;
   return TERMINAL_FAILURE_PREFIXES.some((prefix) => code.startsWith(prefix));
 }
 
 export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | undefined): number {
-  if (isTerminalFailureCode(code)) return 0;
   if (!code) return 2;
+
+  // FIPOC KICK_MATRIX: kick-eligible gate failures get exactly 1 retry (backward kick).
+  if (KICK_ELIGIBLE_FAILURE_CODES.has(code)) return 1;
+
+  if (isTerminalFailureCode(code)) return 0;
 
   // S06b Self-Correction Policy: handoff gate failures get exactly 1 retry.
   // LLM may produce clean output on a second attempt; if retry also fails,
@@ -2147,6 +2211,93 @@ async function assertPass12HandoffOrRequeuePhase2ForRepair(params: {
       reason: error.message,
     });
   }
+}
+
+// ── FIPOC KICK_MATRIX backward kick ────────────────────────────────────────
+// When a quality gate or template completeness gate detects a kickable defect,
+// re-queue the job to re-run synthesis (Phase 3) instead of terminal failure.
+// Budget: 1 kick per defect type, tracked via progress.kick_attempts.
+
+const KICK_MAX_ATTEMPTS = 1;
+
+type BackwardKickResult =
+  | { kicked: true; kickCount: number; reason: string }
+  | { kicked: false; reason: string };
+
+async function attemptBackwardKickToSynthesis(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  progressState: Record<string, unknown>;
+  failureCode: string;
+  violationSummary: string;
+}): Promise<BackwardKickResult> {
+  const kickAttempts =
+    typeof params.progressState.kick_attempts === 'object' && params.progressState.kick_attempts !== null
+      ? (params.progressState.kick_attempts as Record<string, number>)
+      : {};
+
+  const previousKickCount = kickAttempts[params.failureCode] ?? 0;
+
+  if (previousKickCount >= KICK_MAX_ATTEMPTS) {
+    return {
+      kicked: false,
+      reason: `kick budget exhausted for ${params.failureCode} (${previousKickCount}/${KICK_MAX_ATTEMPTS})`,
+    };
+  }
+
+  const nextKickCount = previousKickCount + 1;
+  const kickNow = new Date().toISOString();
+
+  const updatedKickAttempts = { ...kickAttempts, [params.failureCode]: nextKickCount };
+
+  const { error: requeueErr } = await params.supabase
+    .from('evaluation_jobs')
+    .update({
+      status: JOB_STATUS.QUEUED,
+      phase: 'phase_3',
+      phase_status: JOB_STATUS.QUEUED,
+      claimed_by: null,
+      claimed_at: null,
+      lease_token: null,
+      lease_until: null,
+      last_heartbeat_at: null,
+      last_heartbeat: null,
+      worker_pulse_at: null,
+      failure_code: null,
+      last_error: null,
+      updated_at: kickNow,
+      progress: {
+        ...params.progressState,
+        phase: 'phase_3',
+        phase_status: JOB_STATUS.QUEUED,
+        message: `Backward kick: re-queued for synthesis after ${params.failureCode}`,
+        kick_attempts: updatedKickAttempts,
+        last_kick_at: kickNow,
+        last_kick_failure_code: params.failureCode,
+        last_kick_violation_summary: params.violationSummary,
+      },
+    })
+    .eq('id', params.jobId)
+    .eq('status', JOB_STATUS.RUNNING);
+
+  if (requeueErr) {
+    return {
+      kicked: false,
+      reason: `requeue failed: ${requeueErr.message}`,
+    };
+  }
+
+  console.warn(
+    `[FIPOC-KICK] ${params.jobId}: backward kick to phase_3 after ${params.failureCode} ` +
+    `(attempt ${nextKickCount}/${KICK_MAX_ATTEMPTS})`,
+    params.violationSummary,
+  );
+
+  return {
+    kicked: true,
+    kickCount: nextKickCount,
+    reason: `kicked back to phase_3 for re-synthesis (${params.failureCode})`,
+  };
 }
 
 /**
@@ -8963,10 +9114,18 @@ export async function processEvaluationJob(
             .eq('id', job.id)
             .eq('status', JOB_STATUS.RUNNING)
             .select('id, status, phase, phase_status')
-            .single();
+            .maybeSingle();
 
           if (shortFormQueueErr) {
             throw new Error(`Phase 1A short-form bypass transition failed: ${shortFormQueueErr.message}`);
+          }
+
+          if (!shortFormQueueRow) {
+            console.warn(
+              `[Processor] ${jobId}: short-form bypass 0 rows — job already transitioned`,
+              { returned: shortFormQueueRow ?? null },
+            );
+            return { success: true };
           }
 
           console.log(
@@ -10352,7 +10511,12 @@ export async function processEvaluationJob(
     // re-run QG. This avoids killing an otherwise complete evaluation over a
     // presentation/template defect.
     if (!qualityGateV2.pass) {
-      const hardFailedChecks = qualityGateV2.checks.filter((check) => !check.passed);
+      // Exclude v2_fidelity_score_confidence_alignment from hard-fail count,
+      // matching the gate's own logic (qualityGate.ts line 1882-1883) which
+      // considers fidelity mismatch a soft-downgrade, not a hard block.
+      const hardFailedChecks = qualityGateV2.checks.filter(
+        (check) => !check.passed && check.check_id !== 'v2_fidelity_score_confidence_alignment',
+      );
       const isOnlySummaryWeakness =
         hardFailedChecks.length === 1 &&
         hardFailedChecks[0].check_id === 'v2_summary_weakness_presence';
@@ -10573,6 +10737,33 @@ export async function processEvaluationJob(
             ? v2DiagnosticPersistError.message
             : String(v2DiagnosticPersistError),
           v2DiagnosticPersistError,
+        );
+      }
+
+      // ── FIPOC backward kick: unwrap QG_FAILED and check if any underlying
+      // failed check is synthesis-repairable (kick-eligible). Check both
+      // error_code and check_id to cover v1 and v2 gate check formats. ──
+      const failedErrorCodes = failedCheckRecords
+        .map((check) => (check as Record<string, unknown>).error_code as string | undefined)
+        .filter((code): code is string => typeof code === 'string');
+      const failedCheckIds = failedCheckRecords
+        .map((check) => (check as Record<string, unknown>).check_id as string | undefined)
+        .filter((id): id is string => typeof id === 'string');
+      const kickableCode = failedErrorCodes.find((code) => isKickEligibleFailureCode(code))
+        ?? failedCheckIds.find((id) => KICK_ELIGIBLE_V2_CHECK_IDS.has(id));
+      if (kickableCode) {
+        const kickResult = await attemptBackwardKickToSynthesis({
+          supabase,
+          jobId,
+          progressState,
+          failureCode: kickableCode,
+          violationSummary: gateError,
+        });
+        if (kickResult.kicked) {
+          return { success: false, error: `[FIPOC-KICK] ${kickResult.reason}` };
+        }
+        console.warn(
+          `[Processor] ${jobId}: QG backward kick declined — ${kickResult.reason}; falling through to terminal failure`,
         );
       }
 
@@ -10854,12 +11045,32 @@ export async function processEvaluationJob(
     // Validates that the evaluation artifact meets the short-form template's
     // structural requirements BEFORE persisting. If critical violations are
     // detected, the artifact is NOT persisted and support is alerted.
+    //
+    // FIPOC KICK_MATRIX: if the failure is kick-eligible, attempt a backward
+    // kick to re-run synthesis before terminal failure.
     const templateCompletenessCheck = validateTemplateCompleteness(effectiveEvaluationResult);
     if (!templateCompletenessCheck.pass) {
       console.error(
         `[Processor] ${jobId}: Template completeness gate FAILED — ${templateCompletenessCheck.violations.length} violation(s)`,
         templateCompletenessCheck.summary,
       );
+
+      // ── FIPOC backward kick: re-queue for synthesis if budget allows ──
+      if (isKickEligibleFailureCode(TEMPLATE_COMPLETENESS_FAILURE_CODE)) {
+        const kickResult = await attemptBackwardKickToSynthesis({
+          supabase,
+          jobId,
+          progressState,
+          failureCode: TEMPLATE_COMPLETENESS_FAILURE_CODE,
+          violationSummary: templateCompletenessCheck.summary,
+        });
+        if (kickResult.kicked) {
+          return { success: false, error: `[FIPOC-KICK] ${kickResult.reason}` };
+        }
+        console.warn(
+          `[Processor] ${jobId}: backward kick declined — ${kickResult.reason}; falling through to terminal failure`,
+        );
+      }
 
       await markFailed(
         TEMPLATE_COMPLETENESS_USER_MESSAGE,

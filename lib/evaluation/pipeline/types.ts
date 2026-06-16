@@ -831,6 +831,15 @@ export type PipelineResult =
             rec_index?: number;
           }>;
         };
+        /** Handoff truncation retry diagnostics — present when systemic INCOMPLETE_SENTENCE triggered a Pass 1+2 retry with boosted token budget. */
+        handoff_truncation_retry?: {
+          attempted: boolean;
+          reason: 'HANDOFF_INCOMPLETE_SENTENCE';
+          original_token_budget: number;
+          boosted_token_budget: number;
+          original_violation_count: number;
+          retry_result: 'success' | 'failed' | 'not_attempted';
+        };
         /** SIPOC dual-checkpoint completeness gate failure diagnostics. */
         completeness_gate?: {
           critical_count: number;

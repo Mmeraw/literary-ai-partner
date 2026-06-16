@@ -11,6 +11,8 @@ import {
   getBlockingKicks,
   getProcess,
   getRenderedFieldsForSurface,
+  lookupKickForFailure,
+  lookupKicksForStage,
 } from '@/lib/evaluation/fipocRegistry';
 
 const NON_STAGE_CONSUMERS = new Set([
@@ -290,5 +292,48 @@ describe('executable FIPOC registry', () => {
       const lines = fs.readFileSync(fullPath, 'utf8').trim().split('\n');
       expect(lines.length - 1).toBe(rowCount);
     }
+  });
+});
+
+describe('KICK_MATRIX lookup functions', () => {
+  test('lookupKickForFailure returns correct entry for QG_ARTIFACT_GATE_FAIL', () => {
+    const entry = lookupKickForFailure('QG_ARTIFACT_GATE_FAIL');
+    expect(entry).toBeDefined();
+    expect(entry!.dirtyDataDetectedAt).toBe('S09_QUALITYGATEV2');
+    expect(entry!.kickBackTo).toBe('S07_PASS3');
+    expect(entry!.retryLimit).toBe(1);
+    expect(entry!.blocksAuthorExposure).toBe(true);
+  });
+
+  test('lookupKickForFailure returns undefined for non-existent failure code', () => {
+    expect(lookupKickForFailure('NONEXISTENT_CODE')).toBeUndefined();
+  });
+
+  test('lookupKicksForStage returns all kicks for S09_QUALITYGATEV2', () => {
+    const kicks = lookupKicksForStage('S09_QUALITYGATEV2');
+    expect(kicks.length).toBeGreaterThanOrEqual(1);
+    expect(kicks.every((k) => k.dirtyDataDetectedAt === 'S09_QUALITYGATEV2')).toBe(true);
+  });
+
+  test('lookupKicksForStage returns empty array for stage with no kicks', () => {
+    expect(lookupKicksForStage('NONEXISTENT_STAGE')).toEqual([]);
+  });
+
+  test('every KICK_MATRIX entry has valid structure', () => {
+    for (const entry of KICK_MATRIX) {
+      expect(entry.dirtyDataDetectedAt).toBeTruthy();
+      expect(entry.failure).toBeTruthy();
+      expect(entry.kickBackTo).toBeTruthy();
+      expect(entry.redoAction).toBeTruthy();
+      expect(entry.retryLimit).toBeGreaterThanOrEqual(1);
+      expect(entry.ifRetryFails).toBeTruthy();
+      expect(entry.failureCode).toBeTruthy();
+      expect(typeof entry.blocksAuthorExposure).toBe('boolean');
+    }
+  });
+
+  test('every KICK_MATRIX failureCode is unique', () => {
+    const codes = KICK_MATRIX.map((k) => k.failureCode);
+    expect(new Set(codes).size).toBe(codes.length);
   });
 });

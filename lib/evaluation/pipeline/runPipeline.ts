@@ -1911,7 +1911,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // Blocks garbled text, scaffold residue, broken modals from reaching Pass 3.
   // Canon: Runtime Doctrine #11/#13, Volume III §III.PL5, SIPOC S06b_HANDOFF_GATE
   {
-    const handoffResult = runPass12HandoffGate(pass1Output, pass2Output);
+    let handoffResult = runPass12HandoffGate(pass1Output, pass2Output);
     if (!handoffResult.ok) {
       console.warn("[Pipeline][HandoffGate] Violations detected", {
         manuscript_id: opts.manuscriptId ?? null,
@@ -1923,37 +1923,196 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
 
       if (!shouldPassHandoffGate(handoffResult)) {
-        timings.total_ms = nowMs() - pipelineStartMs;
-        logPipelineTimings("failure", {
-          manuscriptId: opts.manuscriptId,
-          title: opts.title,
-          workType: opts.workType,
-          failedAt: "pass2",
-          errorCode: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
-          timings,
-        });
-        return {
-          ok: false,
-          error: `Pass 1/2 Handoff Gate failed: ${handoffResult.total_violations} violation(s) — ${handoffResult.violations.slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
-          error_code: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
-          failed_at: "pass2",
-          failure_details: {
-            handoff_gate: {
-              total_violations: handoffResult.total_violations,
-              pass1_violations: handoffResult.pass1_violations,
-              pass2_violations: handoffResult.pass2_violations,
-              check_summary: handoffResult.check_summary,
-              first_violations: handoffResult.violations.slice(0, 10),
+        // ── Systemic truncation detection + retry ────────────────────────
+        // When HANDOFF_INCOMPLETE_SENTENCE dominates (>50% of violations),
+        // the cause is likely token-budget truncation, not LLM content quality.
+        // Retry Pass 1+2 once with a boosted output token budget.
+        const incompleteSentenceCount = handoffResult.check_summary.HANDOFF_INCOMPLETE_SENTENCE ?? 0;
+        const isSystemicTruncation =
+          incompleteSentenceCount > 0 &&
+          incompleteSentenceCount / handoffResult.total_violations > 0.5;
+
+        if (isSystemicTruncation) {
+          const HANDOFF_TRUNCATION_RETRY_BUDGET = 16_000;
+          const defaultBudget = 8_000; // documented default for pass1/pass2
+
+          console.warn("[Pipeline][HandoffGate] Systemic truncation detected — retrying Pass 1+2 with boosted token budget", {
+            manuscript_id: opts.manuscriptId ?? null,
+            title: opts.title,
+            incomplete_sentence_count: incompleteSentenceCount,
+            total_violations: handoffResult.total_violations,
+            original_token_budget: defaultBudget,
+            boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+          });
+
+          try {
+            await opts.onHeartbeat?.("handoff_truncation_retry/pass1+2");
+
+            const [retryPass1Result, retryPass2Result] = await Promise.allSettled([
+              _runPass1({
+                manuscriptText: opts.manuscriptText,
+                manuscriptChunks: opts.manuscriptChunks,
+                workType: opts.workType,
+                title: opts.title,
+                englishVariant: opts.englishVariant,
+                executionMode: opts.executionMode,
+                openaiApiKey: opts.openaiApiKey,
+                jobId: opts.jobId,
+                openAiTimeoutMs: opts._openAiTimeoutMs,
+                registry,
+                scopeProfile: scopeProfile ?? undefined,
+                _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
+                characterLedgerBlock: ledgerBlockForP1P2 || undefined,
+                _maxOutputTokensOverride: HANDOFF_TRUNCATION_RETRY_BUDGET,
+              }),
+              _runPass2({
+                manuscriptText: opts.manuscriptText,
+                manuscriptChunks: opts.manuscriptChunks,
+                workType: opts.workType,
+                title: opts.title,
+                englishVariant: opts.englishVariant,
+                executionMode: opts.executionMode,
+                model: opts.model,
+                openaiApiKey: opts.openaiApiKey,
+                manuscriptId: opts.manuscriptId,
+                jobId: opts.jobId,
+                openAiTimeoutMs: opts._openAiTimeoutMs,
+                registry,
+                scopeProfile: scopeProfile ?? undefined,
+                _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
+                characterLedgerBlock: [ledgerBlockForP1P2, opts._storyLedgerContextBlock].filter(Boolean).join('\n\n') || undefined,
+                authorCorrectionsBlock: opts._authorCorrectionsBlock ?? undefined,
+                _maxOutputTokensOverride: HANDOFF_TRUNCATION_RETRY_BUDGET,
+              }),
+            ]);
+
+            if (retryPass1Result.status === "fulfilled" && retryPass2Result.status === "fulfilled") {
+              const retryHandoff = runPass12HandoffGate(retryPass1Result.value, retryPass2Result.value);
+
+              if (retryHandoff.ok || shouldPassHandoffGate(retryHandoff)) {
+                // Retry succeeded — swap outputs and continue to Pass 3
+                pass1Output = retryPass1Result.value;
+                pass2Output = retryPass2Result.value;
+                handoffResult = retryHandoff;
+
+                console.log("[Pipeline][HandoffGate] Truncation retry SUCCEEDED — using boosted outputs", {
+                  manuscript_id: opts.manuscriptId ?? null,
+                  handoff_retry_attempted: true,
+                  handoff_retry_reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                  original_token_budget: defaultBudget,
+                  boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+                  original_violation_count: incompleteSentenceCount,
+                  retry_violation_count: retryHandoff.check_summary.HANDOFF_INCOMPLETE_SENTENCE ?? 0,
+                  retry_result: "success",
+                });
+              } else {
+                console.warn("[Pipeline][HandoffGate] Truncation retry FAILED — gate still not passing", {
+                  manuscript_id: opts.manuscriptId ?? null,
+                  handoff_retry_attempted: true,
+                  handoff_retry_reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                  original_token_budget: defaultBudget,
+                  boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+                  original_violation_count: incompleteSentenceCount,
+                  retry_violation_count: retryHandoff.total_violations,
+                  retry_result: "failed",
+                });
+                // Fall through to return original failure with retry diagnostics
+              }
+            } else {
+              const pass1Err = retryPass1Result.status === "rejected"
+                ? (retryPass1Result.reason instanceof Error ? retryPass1Result.reason.message : String(retryPass1Result.reason))
+                : null;
+              const pass2Err = retryPass2Result.status === "rejected"
+                ? (retryPass2Result.reason instanceof Error ? retryPass2Result.reason.message : String(retryPass2Result.reason))
+                : null;
+              console.warn("[Pipeline][HandoffGate] Truncation retry pass execution failed", {
+                manuscript_id: opts.manuscriptId ?? null,
+                handoff_retry_attempted: true,
+                handoff_retry_reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                pass1_error: pass1Err,
+                pass2_error: pass2Err,
+                retry_result: "failed",
+              });
+            }
+          } catch (retryErr) {
+            console.warn("[Pipeline][HandoffGate] Truncation retry threw unexpected error", {
+              manuscript_id: opts.manuscriptId ?? null,
+              error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+            });
+          }
+
+          // Re-check: if retry fixed the handoff, the variables were swapped above
+          // and handoffResult is now the retry result. If not, fall through.
+          if (!handoffResult.ok && !shouldPassHandoffGate(handoffResult)) {
+            timings.total_ms = nowMs() - pipelineStartMs;
+            logPipelineTimings("failure", {
+              manuscriptId: opts.manuscriptId,
+              title: opts.title,
+              workType: opts.workType,
+              failedAt: "pass2",
+              errorCode: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+              timings,
+            });
+            return {
+              ok: false,
+              error: `Pass 1/2 Handoff Gate failed: ${handoffResult.total_violations} violation(s) — ${handoffResult.violations.slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+              error_code: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+              failed_at: "pass2",
+              failure_details: {
+                handoff_gate: {
+                  total_violations: handoffResult.total_violations,
+                  pass1_violations: handoffResult.pass1_violations,
+                  pass2_violations: handoffResult.pass2_violations,
+                  check_summary: handoffResult.check_summary,
+                  first_violations: handoffResult.violations.slice(0, 10),
+                },
+                handoff_truncation_retry: {
+                  attempted: true,
+                  reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                  original_token_budget: defaultBudget,
+                  boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+                  original_violation_count: incompleteSentenceCount,
+                  retry_result: "failed",
+                },
+              },
+            };
+          }
+        } else {
+          // Non-systemic handoff failure — return immediately
+          timings.total_ms = nowMs() - pipelineStartMs;
+          logPipelineTimings("failure", {
+            manuscriptId: opts.manuscriptId,
+            title: opts.title,
+            workType: opts.workType,
+            failedAt: "pass2",
+            errorCode: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+            timings,
+          });
+          return {
+            ok: false,
+            error: `Pass 1/2 Handoff Gate failed: ${handoffResult.total_violations} violation(s) — ${handoffResult.violations.slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+            error_code: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+            failed_at: "pass2",
+            failure_details: {
+              handoff_gate: {
+                total_violations: handoffResult.total_violations,
+                pass1_violations: handoffResult.pass1_violations,
+                pass2_violations: handoffResult.pass2_violations,
+                check_summary: handoffResult.check_summary,
+                first_violations: handoffResult.violations.slice(0, 10),
+              },
             },
-          },
-        };
+          };
+        }
       }
 
       // Below threshold — log warning but proceed
-      console.log("[Pipeline][HandoffGate] Below threshold — proceeding with warnings", {
-        manuscript_id: opts.manuscriptId ?? null,
-        violations_allowed: handoffResult.total_violations,
-      });
+      if (handoffResult.ok || shouldPassHandoffGate(handoffResult)) {
+        console.log("[Pipeline][HandoffGate] Below threshold — proceeding with warnings", {
+          manuscript_id: opts.manuscriptId ?? null,
+          violations_allowed: handoffResult.total_violations,
+        });
+      }
     }
   }
 

@@ -462,6 +462,12 @@ export interface RunPass2Options {
    * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
    */
   _onChunkComplete?: (chunk_index: number, result: SinglePassOutput) => Promise<void>;
+  /**
+   * Internal override for max output tokens. When set, takes precedence over
+   * the runtime config default. Only used by runPipeline.ts when retrying
+   * after systemic handoff truncation detection.
+   */
+  _maxOutputTokensOverride?: number;
 }
 
 // ── Pass 2 Recommendation Action Normalizer ─────────────────────────────────
@@ -655,19 +661,26 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
             } catch (error) {
               const isRateLimit = isRateLimitError(error);
               const isTimeout = isTimeoutError(error);
-              if ((!isRateLimit && !isTimeout) || attempt >= chunkRetryMax) {
+              const isTruncated = isTruncatedJsonParseError(error);
+              if ((!isRateLimit && !isTimeout && !isTruncated) || attempt >= chunkRetryMax) {
                 throw error;
               }
 
               const suggestedWait = isRateLimit ? parseRetryAfterMs(error) : null;
               const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
               const jitterMs = Math.floor(Math.random() * 750);
-              const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+              const waitMs = isTruncated
+                ? 1000 + jitterMs  // Brief pause before fresh attempt
+                : Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
               if (isRateLimit) {
                 rateLimitRetryCount += 1;
                 rateLimitWaitMs += waitMs;
                 console.warn(
                   `[Pass2] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
+                );
+              } else if (isTruncated) {
+                console.warn(
+                  `[Pass2] Chunk ${chunk.chunk_index} JSON truncated (inner retry exhausted); outer retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
                 );
               } else {
                 console.warn(
@@ -702,7 +715,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
         chunkResults.push(result.value);
       } else {
         const reason = String(result.reason instanceof Error ? result.reason.message : result.reason);
-        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : isTimeoutError(result.reason) ? "TIMEOUT" : "OTHER";
+        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : isTimeoutError(result.reason) ? "TIMEOUT" : isTruncatedJsonParseError(result.reason) ? "JSON_TRUNCATED" : "OTHER";
         chunkFailuresByReason[bucket] = (chunkFailuresByReason[bucket] ?? 0) + 1;
         failures.push({
           chunkIndex: selectedChunks[i].chunk_index,
@@ -830,7 +843,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
 
   console.log(`[Pass2] completion request model=${selectedModel}`);
 
-  let activeMaxTokens = getEvaluationRuntimeConfig().pass.pass2MaxTokens;
+  let activeMaxTokens = opts._maxOutputTokensOverride ?? getEvaluationRuntimeConfig().pass.pass2MaxTokens;
   const modelCallStartMs = nowMs();
   let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
   let modelCallMs = nowMs() - modelCallStartMs;
