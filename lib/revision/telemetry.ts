@@ -4,7 +4,8 @@ export type RevisionEventType =
   | "apply"
   | "finalize"
   | "immutability"
-  | "smoke";
+  | "smoke"
+  | "hydration";
 
 export type RevisionEventSeverity =
   | "info"
