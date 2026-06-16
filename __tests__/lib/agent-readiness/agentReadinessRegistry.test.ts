@@ -444,16 +444,16 @@ describe('SECTION_WORD_LIMIT_REGISTRY', () => {
     expect(entry!.wordMinimum).toBe(150);
   });
 
-  test('query_pitch limit is 50, has no minimum', () => {
+  test('query_pitch limit is 75, has no minimum', () => {
     const entry = SECTION_WORD_LIMIT_REGISTRY.find((s) => s.section === 'query_pitch');
-    expect(entry!.wordLimit).toBe(50);
+    expect(entry!.wordLimit).toBe(75);
     expect(entry!.hasMinimum).toBe(false);
     expect(entry!.wordMinimum).toBeNull();
   });
 
-  test('author_bio limit is 150, minimum is 50', () => {
+  test('author_bio limit is 200, minimum is 50', () => {
     const entry = SECTION_WORD_LIMIT_REGISTRY.find((s) => s.section === 'author_bio');
-    expect(entry!.wordLimit).toBe(150);
+    expect(entry!.wordLimit).toBe(200);
     expect(entry!.wordMinimum).toBe(50);
   });
 
