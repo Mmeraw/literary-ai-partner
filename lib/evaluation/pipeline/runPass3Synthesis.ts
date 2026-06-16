@@ -84,6 +84,7 @@ import {
   UNAVAILABLE_SPINE,
   type DiagnosticSpine,
 } from "@/lib/evaluation/diagnosticSpine";
+import { repairPitchIdentity } from "./pitchIdentityRepair";
 // PR-K (2026-05-16): Pass 3 and QualityGateV2 must use the SAME helper for
 // summary weakness enforcement. Previously Pass 3 had a local implementation
 // with "ANY mention satisfies" (.some) + slice(0,3) semantics, while the gate
@@ -1823,6 +1824,29 @@ export function parsePass3Response(
         dominantCraftEngine: extractedCraftEngine ?? expectationContext.dominant_craft_engine,
       })
     : null;
+
+  // ── Pitch Identity Repair ──────────────────────────────────────────
+  // Dream Template requires one_sentence_pitch, one_paragraph_pitch, and
+  // one_paragraph_summary to be semantically distinct. LLMs frequently
+  // collapse them into the same text. This deterministic repair replaces
+  // collapsed fields using premise/strengths/risks as distinct sources.
+  const pitchRepair = repairPitchIdentity({
+    one_paragraph_summary: sanitizedOverall.one_paragraph_summary,
+    one_sentence_pitch: (sanitizedOverall as Record<string, unknown>).one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (sanitizedOverall as Record<string, unknown>).one_paragraph_pitch as string | undefined,
+    premise: extractedPremise,
+    top_3_strengths: sanitizedOverall.top_3_strengths,
+    top_3_risks: sanitizedOverall.top_3_risks,
+    title: undefined, // title not available at this scope
+  });
+  if (pitchRepair.repaired) {
+    if (pitchRepair.one_sentence_pitch) {
+      (sanitizedOverall as Record<string, unknown>).one_sentence_pitch = pitchRepair.one_sentence_pitch;
+    }
+    if (pitchRepair.one_paragraph_pitch) {
+      (sanitizedOverall as Record<string, unknown>).one_paragraph_pitch = pitchRepair.one_paragraph_pitch;
+    }
+  }
 
   return {
     criteria: sanitizedCriteria,

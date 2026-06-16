@@ -1839,8 +1839,15 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream:
   children.push(para('Consider including content warnings in book marketing or front matter.'));
 
   children.push(makeHeading('Revision Opportunity Summary'));
-  children.push(para(`Total: ${doc.revisionOpportunitySummary.total}`));
-  children.push(para(`Recommended: ${doc.revisionOpportunitySummary.high} | Optional: ${doc.revisionOpportunitySummary.medium} | Consider: ${doc.revisionOpportunitySummary.low}`));
+  // Metric values are structured data — bypass cleanReportText to prevent truncation
+  children.push(new Paragraph({
+    spacing: { after: 115, line: 310 },
+    children: [new TextRun({ text: `Total: ${doc.revisionOpportunitySummary.total}`, size: 22, font: 'Calibri', bold: true, color: docxHex(RG.textPrimary) })],
+  }));
+  children.push(new Paragraph({
+    spacing: { after: 115, line: 310 },
+    children: [new TextRun({ text: `Recommended: ${doc.revisionOpportunitySummary.high}  |  Optional: ${doc.revisionOpportunitySummary.medium}  |  Consider: ${doc.revisionOpportunitySummary.low}`, size: 22, font: 'Calibri', color: docxHex(RG.textPrimary) })],
+  }));
   children.push(makeHeading('Executive Summary'));
   children.push(makeCallout('Executive Editorial Assessment', doc.executiveSummary, RG.surfaceAlt));
   children.push(makeHeading('Top Strengths'));

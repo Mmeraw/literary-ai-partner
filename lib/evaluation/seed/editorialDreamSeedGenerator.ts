@@ -165,7 +165,16 @@ CRITICAL RULES:
 - Scores should be honest — do not inflate. A strong manuscript with real weaknesses gets 75-85.
 - Revision items must be SPECIFIC — name characters, scenes, chapters. "Add more closure" is not acceptable; "Add a 500-word Billy aftermath beat after the tent confrontation to ground the emotional stakes" is.
 - The "what this should not become" field prevents the author from misreading criticism as a mandate to flatten their work
-- acceptance_checks verify you actually read the ending, middle, and key turning points`;
+- acceptance_checks verify you actually read the ending, middle, and key turning points
+
+DO NOT (HARD CONSTRAINTS):
+- DO NOT cluster evidence in the opening chapters. Evidence MUST be distributed across opening, middle, and final thirds.
+- DO NOT inflate scores. A manuscript with real weaknesses does not get 90+. Be honest.
+- DO NOT fabricate genre classifications, audience segments, or comp titles not supported by the manuscript's actual content and tone.
+- DO NOT write generic revision advice ("strengthen the middle", "deepen character arcs"). Every revision item must name specific characters, scenes, and chapters.
+- DO NOT emit acceptance_checks that can be answered without reading the full manuscript. Each must verify comprehension of the ending, key turning points, and middle sections.
+- DO NOT hallucinate character names, plot events, or scene details not in the submitted text.
+- DO NOT project your own aesthetic preferences. Score based on what the manuscript IS doing, not what you wish it were doing.`;
 
 // ─── Generator ───────────────────────────────────────────────────────────────
 

@@ -37,6 +37,16 @@ Rules:
 
 STYLE AUTHORITY — CMOS 17th Edition: All author-facing text (rationales, recommendations, summaries, strengths, risks) MUST conform. Em dashes (—) closed, no spaces ("the river—restless—carved"). En dashes (–) for ranges. Oxford comma: "voice, pacing, and theme." Periods/commas inside quotes. Possessives: James's arc. Compound adjectives hyphenated before nouns.
 
+OUTPUT QUALITY STANDARD (MANDATORY — this is the product the customer pays for):
+Your output text IS the evaluation report the author reads. Every sentence must be MAXIMALLY POLISHED:
+1. ZERO tolerance for typos, misspellings, grammar errors, or malformed punctuation in YOUR output. The report evaluates the author's prose — it cannot contain errors of its own.
+2. Every rationale must read like a senior developmental editor wrote it: precise, authoritative, specific, and grounded in craft terminology.
+3. Every recommendation action must be a complete, grammatically perfect imperative sentence. No fragments, no stubs, no trailing ellipses.
+4. Every fit_summary and gap_summary must be publication-ready prose — proper paragraph structure, varied sentence lengths, professional editorial voice.
+5. Strengths and risks must be specific, vivid, and craft-grounded — not generic praise ("well-crafted") or vague criticism ("could be stronger").
+6. The executive summary (one_paragraph_summary) must read like a literary agent's editorial assessment letter — polished, authoritative, and insightful.
+7. PROOFREAD your output before emitting it. If a sentence is awkward, rewrite it. If a word is repeated, vary it. If punctuation is wrong, fix it. The author is paying for editorial excellence.
+
 Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the more diagnostic axis with justification.
 
 Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
@@ -112,6 +122,12 @@ ANCHOR_SNIPPET CANNOT RULES (hard ban — violation = suppressed recommendation)
 - You CANNOT paraphrase the manuscript's effect. Wrong: "Pacing stalls where a reflective passage delays action". Right: "Money was clearly one way he could differentiate himself."
 - You CANNOT invent anchor text. Every anchor_snippet must be copy-pasteable from the submitted manuscript. If you grep the manuscript for your anchor and get zero hits, suppress the recommendation.
 - When the manuscript is short (< 3,000 words), some criteria may lack quotable evidence. In that case, set recommendation_status to "insufficient_evidence" — do NOT fabricate an anchor.
+
+EVIDENCE DEPTH (Dream Template Standard):
+- Evidence snippets must provide passage-level context, not just isolated clauses. When the diagnosis references a multi-sentence structural issue, quote the key sentence PLUS enough surrounding text for the author to locate the passage (2-3 sentences, ≤ 200 chars).
+- Every evidence entry should include char_start/char_end offsets from Pass 1/2 when available, providing exact manuscript coordinates.
+- Single-word or single-clause evidence ("Looks mattered.") is acceptable ONLY when the entire diagnostic applies to that exact phrase. For structural, pacing, or arc issues, include the paragraph-level context.
+- manuscript_coordinates MUST be populated for every recommendation. Format: "paragraph:N" or "sentence:N" or "section:label". The author must be able to find the target passage immediately.
 
 GATE 2 — CHARACTER CO-PRESENCE VALIDATION
 If a recommendation names two or more characters together in a scene, check the CHARACTER ARC LEDGER coPresenceMap. If their firstSharedChunk is AFTER the target chapter, the recommendation is suppressed.
@@ -205,16 +221,25 @@ Recommendation density floor (for criteria scoring ≤8):
 - TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined for long-form manuscripts (≥25,000 words). For short-form manuscripts (<25,000 words), the cap is 50 revision opportunities. Prioritize "recommended" severity first, then "optional", then "consider". If the evidence supports more than the cap, emit the most impactful opportunities up to the cap and stop.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PRIORITY HIERARCHY (P3 — DETERMINISTIC SCORE-DRIVEN)
+PRIORITY HIERARCHY (Dream Template Standard — LEVERAGE-FIRST RANKING)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Recommendation priority MUST be derived from the criterion score. Do not output "medium" for everything — an author reading "0 high-priority items" when three criteria score 6/10 loses trust in the report's editorial authority.
+Recommendation priority MUST be derived from LEVERAGE (author impact × actionability), not just criterion score. The author should see the most immediately fixable, highest-impact items first.
 
-RULE (enforced deterministically post-synthesis — but set it correctly in output):
-  Score ≤6  → priority = "high"   (Recommended — weakest areas, fix first)
-  Score 7   → priority = "medium" (Optional — real revision targets, fix second)
-  Score ≥8  → priority = "low"    (Consider — enhancement only, fix last or ignore)
+LEVERAGE RANKING ORDER (highest to lowest):
+1. LINE-LEVEL POLISH (typos, grammar errors, spelling mistakes, punctuation errors) — these are the most immediately actionable and embarrassing if unfixed. Examples: "All toll" → "All told", "In was" → "It was", "full readied" → "fully readied", "effects" → "affects". If a manuscript has surface-level errors, they MUST appear as Priority #1 "Recommended" items because they are the cheapest fixes with the highest credibility impact.
+2. MECHANICAL CRAFT (sentence construction, verb tense consistency, pronoun clarity, dialogue punctuation) — concrete, locatable fixes that improve readability immediately.
+3. SCENE-LEVEL STRUCTURE (missing beats, undramatized turns, pacing sags) — require targeted insertion or revision at specific passages.
+4. ARC/CHARACTER WORK (emotional arc gaps, relationship underdevelopment) — important but require broader revision planning.
+5. THEMATIC/VOICE (thematic coherence, voice consistency, tonal shifts) — highest-level concerns that require the most editorial judgment.
 
-A report with three 6-scoring criteria MUST have high-priority recommendations. "All medium" is never acceptable when scores indicate clear weakness.
+SCORE-BASED FLOOR (still applies):
+  Score ≤6  → priority = "high"   (Recommended — weakest areas)
+  Score 7   → priority = "medium" (Optional — real revision targets)
+  Score ≥8  → priority = "low"    (Consider — enhancement only)
+
+But WITHIN each priority band, rank by leverage: line-level polish first, then mechanical craft, then scene-level, then arc, then thematic. An author reading the report should see their typos and grammar fixes BEFORE their character arc suggestions.
+
+A report with three 6-scoring criteria MUST have high-priority recommendations. "All medium" is never acceptable when scores indicate clear weakness. And if the manuscript has obvious surface errors (typos, misspellings), those MUST be the first items the author sees regardless of which criterion they fall under.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CROSS-CRITERION DEDUPLICATION (P4 — STRATEGIC LEVER COLLAPSE)
@@ -271,6 +296,16 @@ RULE: Every pacing/tension/momentum/closure recommendation on a non-propulsion-f
 
 ANTI-PATTERN: If your action text would fit identically in a thriller evaluation, it is genre-uncalibrated. Rewrite with genre-relative framing.
 
+MANUSCRIPT-SPECIFIC RECOMMENDATION REQUIREMENT (Dream Template Standard):
+Every recommendation MUST answer four questions or it will be rejected:
+1. WHAT — the specific craft problem (not "pacing is slow" but "the salon scene at paragraph 6 stalls because three consecutive sentences summarize rather than dramatize")
+2. WHERE — exact manuscript location (anchor_snippet with verbatim quote + manuscript_coordinates). The author must be able to find this passage in their .docx immediately.
+3. WHY — the editorial mechanism causing the problem and the reader effect if unfixed
+4. PRESERVE — what the author must NOT damage when revising (e.g., "preserve Kim's warmth in the closing beat" or "keep the cost-tracking motif intact")
+
+ANTI-PATTERN: "Insert one concrete stakes beat" is GENERIC and REJECTED.
+CORRECT: "At the sentence beginning 'He had to accept the color as is,' insert one sentence showing the social consequence of arriving late to dinner with damaged hair — this grounds the vanity theme in real interpersonal stakes. Preserve the resigned tone of the original line."
+
 SCORE ≤8 RECOMMENDATION CONTRACT:
 Any criterion with final_score_0_10 ≤ 8 MUST include:
 1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
@@ -309,7 +344,13 @@ Return ONLY JSON with keys:
     - one_sentence_pitch: MARKET HOOK. 1 sentence. Sells the story to an agent/reader. Names the protagonist and core dramatic situation. Written as sales copy. NO evaluation language ("the manuscript demonstrates…"). Example: "A sardonic diamond dealer's retirement trip becomes a reckoning with mortality."
     - one_paragraph_pitch: STORY SYNOPSIS. 2–4 sentences. Tells the reader what happens. Names characters, central conflict, stakes, and tonal register. Written as back-cover copy. Must add information beyond one_sentence_pitch.
     - one_paragraph_summary: DIAGNOSTIC JUDGMENT. What's working, what needs revision, overall posture. Contains evaluation language, score references, and revision direction. Written as editorial feedback.
-  - These three fields MUST be semantically distinct. If any two share >50% of their content, the quality gate will fail. Do NOT derive one from another.
+  - These three fields MUST be semantically distinct. If any two share >50% of their content, the quality gate will fail.
+  - DO NOT derive one from another. Write each field independently from scratch.
+  - DO NOT start one_sentence_pitch with the same words as one_paragraph_pitch or one_paragraph_summary. Each must open differently.
+  - DO NOT copy or paraphrase any sentence from one_paragraph_summary into one_paragraph_pitch. The summary is editorial feedback; the pitch is sales copy.
+  - DO NOT use evaluation language ("the manuscript demonstrates", "score of", "criterion", "revision", "craft gaps") in one_sentence_pitch or one_paragraph_pitch. Those belong only in one_paragraph_summary.
+  - DO NOT create one_sentence_pitch by truncating one_paragraph_pitch to its first sentence. The hook must be a standalone selling line with different wording.
+  - DO NOT reuse the same opening clause, subject, or sentence structure across any two of these three fields. A reader seeing all three sections back-to-back must perceive three completely different texts.
 - enrichment { premise, trigger_warnings[], diagnosed_genre, target_audience, dominant_craft_engine }
   - dominant_craft_engine: Identify the manuscript's PRIMARY technique for generating reader engagement. Choose exactly one: "suspense_engine" (plot-driven tension, cliffhangers, reveals), "atmosphere_engine" (environmental dread, accumulating silence, sensory immersion, tonal pressure), "voice_engine" (narrator personality, humor, rhetorical style carries the reader), "emotional_engine" (character interiority, relationship dynamics, grief/joy/fear), "thematic_engine" (ideas, philosophical argument, moral complexity drives interest), "structural_engine" (timeline manipulation, POV shifts, formal innovation). Include a 1-sentence rationale. This field calibrates recommendations — an atmosphere_engine manuscript should not receive "increase plot momentum" advice.
   - premise: 1–2 sentence elevator pitch that captures the core dramatic situation — protagonist or central force, primary conflict/tension, and emotional/tonal register. Suitable for query letters, back-cover copy, or marketing. Do not begin with the title or "This is a story about."

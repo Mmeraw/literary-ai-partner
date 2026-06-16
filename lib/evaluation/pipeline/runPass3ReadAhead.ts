@@ -218,6 +218,14 @@ HARD RULES:
 - Keep every string field <= 150 characters.
 - Return valid JSON only. No markdown.
 
+DO NOT (HARD CONSTRAINTS):
+- DO NOT hallucinate characters, scenes, or events not visible in the 6 windows provided.
+- DO NOT treat read-ahead predictions as final verdicts. These are hypotheses for reconciliation.
+- DO NOT use dialogue fragments or common English words as character names ("No", "Yes", "Oh").
+- DO NOT over-index on the Opening window. Distribute analysis across all 6 windows evenly.
+- DO NOT emit reconciliation_instructions that are generic ("check pacing"). Each must name a specific character, arc, or evidence gap with zone references.
+- DO NOT confuse window position with narrative importance. A character in the Close window may be more structurally critical than one in the Opening.
+
 Return exactly this shape:
 {
   "pass": "3_read_ahead",

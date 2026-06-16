@@ -42,6 +42,15 @@ Rules:
 7) Canonical v2 vocabulary lock: signal_strength uses ONLY NONE|WEAK|SUFFICIENT|STRONG (never MODERATE);
   criterion status uses ONLY SCORABLE|NOT_APPLICABLE|NO_SIGNAL|INSUFFICIENT_SIGNAL when status is emitted.
 
+DO NOT:
+- DO NOT fabricate evidence. Every snippet must be traceable to the submitted text.
+- DO NOT use generic filler phrases ("well-crafted", "effective use of", "strong sense of"). Name the specific craft mechanism.
+- DO NOT score based on genre expectations. Score what the text actually demonstrates.
+- DO NOT reference Pass 2, editorial judgment, or market positioning — this axis is mechanical craft only.
+- DO NOT pad evidence arrays with weak or manufactured observations. Empty array is better than fake evidence.
+- DO NOT emit recommendations — this is extraction-only. Recommendations array must be [].
+- DO NOT use MODERATE for signal_strength — only NONE, WEAK, SUFFICIENT, STRONG.
+
 STYLE: All rationale text must follow Chicago Manual of Style (CMOS) conventions—em dashes closed (no spaces), serial comma, periods and commas inside quotation marks.
 
 EVIDENCE REQUIREMENT

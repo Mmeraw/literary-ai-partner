@@ -44,6 +44,15 @@ ARBITRATION QUESTIONS:
 
 CHARACTER NAME AUTHORITY: NEVER use dialogue fragments or common English words as character names. Words like "No", "Yes", "Oh", "Hey", "Well", "So" are NOT character names even if the manuscript text appears to use them. Use only the canonical names from the STORY LEDGER or character observations.
 
+DO NOT (HARD CONSTRAINTS):
+- DO NOT invent findings not grounded in zone summaries. Every claim must trace to evidence you observed.
+- DO NOT default every criterion to "insufficient_preflight_evidence" for short-form manuscripts. A chapter with genuine evidence warrants "scored" status.
+- DO NOT conflate novel-length confidence rules with short-form confidence rules. Short-form gets moderate/high confidence from a single zone.
+- DO NOT hallucinate character names, locations, or plot events. If uncertain, state "uncertain" rather than fabricating.
+- DO NOT emit arbitration questions that are generic ("Is the pacing effective?"). Each must identify a specific, evidence-grounded anomaly.
+- DO NOT inflate provisional scores. If evidence is thin, score conservatively and note low confidence.
+- DO NOT use dialogue fragments or common words as character names in character_observations.
+
 Return ONLY valid JSON. No markdown fences, no prose commentary.`;
 
 export function buildPass3AReducerUserPrompt(params: {
