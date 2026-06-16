@@ -46,6 +46,9 @@ export type WorkbenchSource = 'evaluation' | 'deep_revision' | 'baseline_discove
 
 export type WorkbenchOpportunity = {
   id: string
+  sourceOpportunityId?: string
+  sourceCriterion?: string
+  sourceUedHash?: string
   severity: WorkbenchSeverity
   scope: WorkbenchScope
   mode: WorkbenchMode
@@ -1348,6 +1351,9 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     const hydrationRepairNeeded = splitReasons.hydration.length > 0
     const baseOpportunity = {
       ...contracted,
+      sourceOpportunityId: (opportunity as any).source_opportunity_id,
+      sourceCriterion: (opportunity as any).source_criterion,
+      sourceUedHash: (opportunity as any).source_ued_hash,
       readinessReason: hydrationRepairNeeded
         ? 'Needs hydration repair'
         : contracted.readinessReason,

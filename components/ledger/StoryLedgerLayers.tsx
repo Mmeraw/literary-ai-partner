@@ -1,7 +1,7 @@
 /**
  * StoryLedgerLayers.tsx
  *
- * Purpose-built UI maps for all 9 canonical Story Ledger layers.
+ * Purpose-built UI maps for all 10 canonical Story Ledger layers.
  * Each renderer is spec'd against STORY_LAYER_PROFORMA_V1 and the
  * dream-state gold samples from the Story-Ledger-Phase documentation pack.
  *

@@ -2,12 +2,12 @@
  * Phase 0.5a — Full-Context Story Ledger Seed Generator
  *
  * Unlike the existing semanticSeedGenerator (which produces claim-based
- * hypotheses), this module generates a COMPLETE 9-layer story ledger with
+ * hypotheses), this module generates a COMPLETE 10-layer story ledger with
  * explicit failure conditions from a single full-context LLM call.
  *
  * Architecture:
  *   - Input: Full manuscript text (no chunking)
- *   - Output: 9-layer story ledger with canonical hard facts + failure conditions
+ *   - Output: 10-layer story ledger with canonical hard facts + failure conditions
  *   - Authority: seed_only (non-authoritative until verified by Phase 1A)
  *   - Purpose: Provides ground truth constraints that prevent downstream
  *     comprehension failures (e.g., "Billy is dead" prevents any recommendation
@@ -40,6 +40,7 @@ import { BLOCKED_CANONICAL_NAMES } from '@/lib/evaluation/pipeline/pass1aQuarant
 export type StoryLedgerLayer =
   | 'source_integrity'
   | 'pov_structure'
+  | 'narrator_attribution'
   | 'canonical_identity'
   | 'cast_role_tier'
   | 'pronoun_transitions'
@@ -87,7 +88,7 @@ export type FullContextStoryLedger = {
   manuscript_title: string;
   manuscript_word_count: number;
 
-  // 9-layer content
+  // 10-layer content
   layers: {
     source_integrity: {
       route: string;
@@ -98,6 +99,13 @@ export type FullContextStoryLedger = {
       pov_characters: string[];
       camera_owners: string[];
       note: string;
+    };
+    narrator_attribution: {
+      narrator_label: string;
+      narrator_confidence: 'confirmed' | 'inferred' | 'unknown';
+      allowed_references: string[];
+      blocked_false_names: string[];
+      attribution_note: string;
     };
     canonical_identity: {
       primary_entities: string[];
@@ -144,7 +152,7 @@ function buildFullContextSystemPrompt(workType?: string, wordCount?: number): st
   const route = inferSeedRoute(workType, wordCount);
   return `You are Phase 0.5A, the full-manuscript Story Ledger seed writer for RevisionGrade.
 
-Your job: Read the ENTIRE manuscript in one pass and produce a comprehensive 9-layer Story Ledger with explicit failure conditions.
+Your job: Read the ENTIRE manuscript in one pass and produce a comprehensive 10-layer Story Ledger with explicit failure conditions, including narrator attribution.
 
 This ledger becomes the GROUND TRUTH that all downstream evaluation phases must respect. Any downstream recommendation that contradicts this ledger is INVALID.
 
@@ -164,6 +172,13 @@ SCHEMA:
       "pov_characters": ["characters who hold narrative POV"],
       "camera_owners": ["characters/entities whose perspective controls scenes"],
       "note": "brief description of POV strategy"
+    },
+    "narrator_attribution": {
+      "narrator_label": "confirmed narrator name OR 'the narrator' OR 'the unnamed narrator'",
+      "narrator_confidence": "confirmed | inferred | unknown",
+      "allowed_references": ["safe labels downstream may use for the narrator"],
+      "blocked_false_names": ["tokens that must never be treated as narrator names"],
+      "attribution_note": "why this narrator label is supported by the manuscript"
     },
     "canonical_identity": {
       "primary_entities": ["ALL named characters/forces that are plot-critical"],
@@ -229,7 +244,8 @@ CRITICAL RULES:
 8. Include ALL major characters in character_end_states, especially those who DIE.
 9. Do not confuse cosmology/religion with physical geography (e.g., a deity is not a "lake owner").
 10. Do not confuse mutation/transformation with death (e.g., mutated fish are alive, not dead fish).
-11. NEVER list dialogue fragments, interjections, or common English words as character entities. Words like "No", "Yes", "Oh", "Hey" that appear at the start of dialogue lines followed by a comma are NOT character names. Only list proper names, titles, nicknames, or stable identity labels from the manuscript.`;
+11. NEVER list dialogue fragments, interjections, or common English words as character entities. Words like "No", "Yes", "Oh", "Hey" that appear at the start of dialogue lines followed by a comma are NOT character names. Only list proper names, titles, nicknames, or stable identity labels from the manuscript.
+12. Narrator attribution is a separate authority layer. Do NOT infer narrator names from themes, cost/expense labels, prices, vanity language, yes/no tokens, greetings, or other non-person text. If narrator identity is not explicitly confirmed, set narrator_label to "the unnamed narrator" and narrator_confidence to "unknown".`;
 }
 
 function buildUserPrompt(params: {
@@ -238,7 +254,7 @@ function buildUserPrompt(params: {
   wordCount: number;
   manuscriptText: string;
 }): string {
-  return `Generate the full 9-layer Story Ledger for this manuscript.
+  return `Generate the full 10-layer Story Ledger for this manuscript.
 
 Title: ${params.title}
 Work type: ${params.workType}
@@ -298,6 +314,7 @@ function normalizeLayerName(key: string): StoryLedgerLayer | null {
   const map: Record<string, StoryLedgerLayer> = {
     source_integrity: 'source_integrity',
     pov_structure: 'pov_structure',
+    narrator_attribution: 'narrator_attribution',
     canonical_identity: 'canonical_identity',
     cast_role_tier: 'cast_role_tier',
     pronoun_transitions: 'pronoun_transitions',
@@ -340,6 +357,73 @@ function normalizeAcceptanceChecks(raw: unknown): Array<{ question: string; corr
       correct_answer: typeof item.correct_answer === 'string' ? item.correct_answer : '',
     }))
     .filter((c) => c.question.length > 0 && c.correct_answer.length > 0);
+}
+
+const NARRATOR_FALSE_NAME_BLOCKLIST = new Set([
+  ...BLOCKED_CANONICAL_NAMES,
+  'cost',
+  'price',
+  'vanity',
+  'total',
+  'expense',
+  'expenses',
+  'yes/no',
+]);
+
+function cleanLedgerStringArray(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((s): s is string => typeof s === 'string').map((s) => s.trim()).filter(Boolean)
+    : [];
+}
+
+function isUnsafeNarratorOrEntityName(value: unknown): boolean {
+  if (typeof value !== 'string') return true;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return true;
+  if (NARRATOR_FALSE_NAME_BLOCKLIST.has(normalized)) return true;
+  if (/^(?:cost|price|total)\s*[:=]/i.test(value.trim())) return true;
+  if (/\b(?:cost|expense|price|vanity)\s+(?:ledger|tally|figure|label|motif|theme)\b/i.test(value)) return true;
+  return false;
+}
+
+function normalizeNarratorConfidence(raw: unknown): 'confirmed' | 'inferred' | 'unknown' {
+  return raw === 'confirmed' || raw === 'inferred' || raw === 'unknown' ? raw : 'unknown';
+}
+
+function normalizeNarratorAttribution(raw: unknown): FullContextStoryLedger['layers']['narrator_attribution'] {
+  const record = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const rawConfidence = normalizeNarratorConfidence(record.narrator_confidence);
+  const rawLabel = typeof record.narrator_label === 'string' ? record.narrator_label.trim() : '';
+  const unsafeLabel = isUnsafeNarratorOrEntityName(rawLabel);
+  const narratorLabel = !rawLabel || rawConfidence !== 'confirmed' || unsafeLabel
+    ? 'the unnamed narrator'
+    : rawLabel;
+  const allowedReferences = cleanLedgerStringArray(record.allowed_references)
+    .filter((item) => !isUnsafeNarratorOrEntityName(item));
+  const blockedFalseNames = [
+    ...cleanLedgerStringArray(record.blocked_false_names),
+    'Cost',
+    'Price',
+    'Vanity',
+    'Yes',
+    'No',
+    'Oh',
+    'Hey',
+  ];
+
+  return {
+    narrator_label: narratorLabel,
+    narrator_confidence: unsafeLabel ? 'unknown' : rawConfidence,
+    allowed_references: [...new Set([narratorLabel, ...allowedReferences, 'the narrator', 'the unnamed narrator'])],
+    blocked_false_names: [...new Set(blockedFalseNames.map((item) => item.trim()).filter(Boolean))],
+    attribution_note: typeof record.attribution_note === 'string' && record.attribution_note.trim().length > 0
+      ? record.attribution_note.trim()
+      : 'Narrator naming is restricted to manuscript-confirmed attribution; otherwise downstream systems must use “the narrator” or “the unnamed narrator.”',
+  };
+}
+
+function normalizeCanonicalEntityList(raw: unknown): string[] {
+  return cleanLedgerStringArray(raw).filter((entity) => !isUnsafeNarratorOrEntityName(entity));
 }
 
 function normalizeCharacterEndStates(raw: unknown): CharacterEndState[] {
@@ -400,6 +484,9 @@ function buildFullLedger(
   const povStructure = layers.pov_structure && typeof layers.pov_structure === 'object'
     ? layers.pov_structure
     : {} as any;
+  const narratorAttribution = layers.narrator_attribution && typeof layers.narrator_attribution === 'object'
+    ? layers.narrator_attribution
+    : {} as any;
   const canonicalIdentity = layers.canonical_identity && typeof layers.canonical_identity === 'object'
     ? layers.canonical_identity
     : {} as any;
@@ -439,21 +526,14 @@ function buildFullLedger(
           : [],
       },
       pov_structure: {
-        pov_characters: Array.isArray(povStructure.pov_characters)
-          ? povStructure.pov_characters.filter((s: unknown): s is string => typeof s === 'string')
-          : [],
-        camera_owners: Array.isArray(povStructure.camera_owners)
-          ? povStructure.camera_owners.filter((s: unknown): s is string => typeof s === 'string')
-          : [],
+        pov_characters: normalizeCanonicalEntityList(povStructure.pov_characters),
+        camera_owners: normalizeCanonicalEntityList(povStructure.camera_owners),
         note: typeof povStructure.note === 'string' ? povStructure.note : '',
       },
+      narrator_attribution: normalizeNarratorAttribution(narratorAttribution),
       canonical_identity: {
-        primary_entities: Array.isArray(canonicalIdentity.primary_entities)
-          ? canonicalIdentity.primary_entities.filter((s: unknown): s is string => typeof s === 'string')
-          : [],
-        must_not_omit: Array.isArray(canonicalIdentity.must_not_omit)
-          ? canonicalIdentity.must_not_omit.filter((s: unknown): s is string => typeof s === 'string')
-          : [],
+        primary_entities: normalizeCanonicalEntityList(canonicalIdentity.primary_entities),
+        must_not_omit: normalizeCanonicalEntityList(canonicalIdentity.must_not_omit),
       },
       cast_role_tier: {
         tiers: Array.isArray(castRoleTier.tiers)
@@ -719,6 +799,15 @@ export function buildLedgerSeedContextBlock(ledger: FullContextStoryLedger): str
   }
   lines.push('');
 
+  lines.push('── NARRATOR ATTRIBUTION AUTHORITY ──');
+  lines.push(`Narrator label: ${ledger.layers.narrator_attribution.narrator_label}`);
+  lines.push(`Narrator confidence: ${ledger.layers.narrator_attribution.narrator_confidence}`);
+  lines.push(`Allowed narrator references: ${ledger.layers.narrator_attribution.allowed_references.join(', ')}`);
+  lines.push(`Blocked false narrator names: ${ledger.layers.narrator_attribution.blocked_false_names.join(', ')}`);
+  lines.push(`Attribution note: ${ledger.layers.narrator_attribution.attribution_note}`);
+  lines.push('If narrator attribution is not confirmed, use “the narrator” or “the unnamed narrator.” Never infer a narrator name from theme words, expenses, prices, greetings, yes/no tokens, or cost labels.');
+  lines.push('');
+
   // Object mobility (critical for preventing "objects move" errors)
   lines.push('── OBJECT MOBILITY ──');
   for (const obj of ledger.layers.object_symbol.objects) {
@@ -767,3 +856,8 @@ export function buildLedgerSeedContextBlock(ledger: FullContextStoryLedger): str
 
   return lines.join('\n');
 }
+
+export const __testingFullContextStoryLedger = {
+  normalizeNarratorAttribution,
+  normalizeCanonicalEntityList,
+};

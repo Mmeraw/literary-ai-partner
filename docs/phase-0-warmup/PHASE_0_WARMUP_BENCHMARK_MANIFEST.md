@@ -59,25 +59,25 @@ docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger
 
 ## Story Ledger benchmark answer keys
 
-These files define benchmark-quality nine-layer Story Ledger targets and should be used for SEED quality, Phase 1A Story Ledger extraction expectations, fit-gap reporting, and regression targets.
+These files define benchmark-quality ten-layer Story Ledger targets and should be used for SEED quality, Phase 1A Story Ledger extraction expectations, fit-gap reporting, and regression targets.
 
 ```text
 docs/benchmarks/story-ledger/README.md
-docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
+docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md
 
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
 
-docs/benchmarks/story-ledger/FROGGIN_NOGGIN_9_LAYER_OPTIMIZATION_ADDENDUM.md
-docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/story-ledger/FROGGIN_NOGGIN_10_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_10_LAYER_OPTIMIZATION_ADDENDUM.md
 ```
 
-Note: The template (`STORY_LEDGER_9_LAYER_TEMPLATE.md`) defines the blank structure that seeds MUST populate. The benchmark files are filled gold-standard examples showing what good output looks like. The template structure is compiled into the seed generator prompts at runtime via `lib/evaluation/seed/benchmarkContextBuilder.ts`.
+Note: The template (`STORY_LEDGER_10_LAYER_TEMPLATE.md`) defines the blank structure that seeds MUST populate. The benchmark files are filled gold-standard examples showing what good output looks like. The template structure is compiled into the seed generator prompts at runtime via `lib/evaluation/seed/benchmarkContextBuilder.ts`.
 
 ## Retired benchmark references — not current warmup authority
 
-Retired benchmark references must not be used as current Story Ledger benchmark gates. Current warmup authority is the nine-layer Story Ledger file set in this manifest, with `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md` as the primary product exemplar when a single example is needed.
+Retired benchmark references must not be used as current Story Ledger benchmark gates. Current warmup authority is the ten-layer Story Ledger file set in this manifest, with `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md` as the primary product exemplar when a single example is needed.
 
 ## Runtime hierarchy
 

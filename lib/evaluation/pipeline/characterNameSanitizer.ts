@@ -54,7 +54,7 @@ function buildBlockedNamePatterns(blockedWords: string[]): RegExp[] {
     if (["no", "yes", "oh", "hey", "well", "so", "cost"].includes(word.toLowerCase())) {
       patterns.push(
         new RegExp(
-          `\b${capitalized}(?= (?:[a-z]+ly )?(?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows|delivers|drives|anchors|contrasts|counts|tallies|calculates|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|earns))\b`,
+            `\\b${capitalized}(?= (?:[a-z]+ly )?(?:is|was|has|had|will|would|could|should|can|may|might|must|does|did|notices|realizes|sees|hears|feels|thinks|knows|finds|takes|makes|gives|comes|goes|runs|walks|looks|turns|moves|grabs|reaches|struggles|survives|escapes|arrives|discovers|understands|remembers|recognizes|decides|accepts|refuses|demands|pleads|whispers|shouts|screams|cries|laughs|smiles|nods|shakes|watches|waits|stands|sits|lies|falls|rises|begins|starts|stops|continues|remains|becomes|appears|seems|demonstrates|reveals|shows|exhibits|displays|maintains|develops|navigates|confronts|faces|endures|experiences|observes|reacts|responds|adapts|transforms|evolves|emerges|represents|embodies|possesses|lacks|needs|wants|tries|attempts|manages|fails|succeeds|learns|teaches|leads|follows|delivers|drives|anchors|contrasts|counts|tallies|calculates|fixes|meets|encounters|visits|enters|races|pays|spends|saves|loses|gains|earns))\\b`,
           "g",
         ),
       );
@@ -132,6 +132,7 @@ export function sanitizeBlockedCharacterNames(
   canonicalNames: string[],
 ): string {
   if (!text) return text;
+    if (!Array.isArray(canonicalNames) || canonicalNames.length === 0) return text;
 
   // The primary canonical name is the best replacement for any blocked word
   // used as a character reference (typically the protagonist).

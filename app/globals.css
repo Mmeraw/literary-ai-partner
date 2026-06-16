@@ -2,6 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
+/* === Revise CTA standard === */
+/* Brand editorial red — not blue. Blue is a generic web color; this is RevisionGrade. */
+.rg-revise-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid #7A2520 !important;
+  border-radius: 0.25rem;
+  background: #8B2E2E !important;
+  color: #FFFDF9 !important;
+  padding: 0.75rem 1.25rem;
+  font-weight: 800 !important;
+  line-height: 1.1;
+  text-decoration: none !important;
+  box-shadow: 0 8px 18px rgba(139, 46, 46, 0.22);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.rg-revise-cta:hover,
+.rg-revise-cta:focus-visible {
+  background: #7A2520 !important;
+  border-color: #6B1E1A !important;
+  color: #FFFDF9 !important;
+  box-shadow: 0 10px 22px rgba(122, 37, 32, 0.28);
+}
+
+.rg-revise-cta:focus-visible {
+  outline: 3px solid rgba(139, 46, 46, 0.30);
+  outline-offset: 3px;
+}
+
+/* Long report pages can be very large. Render offscreen sections lazily to
+   reduce interaction blocking and Chrome INP warnings on first clicks/scrolls. */
+.rg-report-page section {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 640px;
+}
+
+.rg-report-criterion-header,
+.rg-report-criterion-header * {
+  color-scheme: light;
+}
+
+@media print {
+  .rg-report-page section {
+    content-visibility: visible;
+    contain-intrinsic-size: auto;
+  }
+}
+
 /* === Warm CTA/button contrast guard === */
 a[class*="bg-rg-gold"],
 button[class*="bg-rg-gold"],
@@ -46,6 +97,44 @@ button[class*="bg-red"] {
 .bg-rg-ink .font-rg-mono {
   font-size: max(1.125rem, 1em);
   font-weight: 700;
+}
+
+/* === Site header spacing/readability guard ===
+ * The marketing dark-background guard intentionally enlarges text on content
+ * pages. The global nav needs tighter, predictable sizing so desktop labels do
+ * not collide at 100% browser zoom.
+ */
+.rg-site-header {
+  box-shadow: 0 1px 0 rgba(255, 248, 234, 0.06);
+}
+
+.bg-rg-ink.rg-site-header a,
+.bg-rg-ink.rg-site-header button,
+.bg-rg-ink.rg-site-header span {
+  font-size: inherit;
+  line-height: 1.25;
+}
+
+/* Belt-and-suspenders: every interactive nav element — no uppercase, ever. */
+.rg-site-header nav a,
+.rg-site-header nav button,
+.rg-site-header nav span,
+.rg-site-header [data-testid="nav-signout"],
+.rg-site-header a[href="/login"] {
+  letter-spacing: 0.015em !important;
+  line-height: 1.25 !important;
+  text-transform: none !important;
+  font-variant: normal !important;
+}
+
+@media (min-width: 1024px) {
+  .rg-site-header nav a,
+  .rg-site-header nav button,
+  .rg-site-header nav span,
+  .rg-site-header [data-testid="nav-signout"],
+  .rg-site-header a[href="/login"] {
+    font-size: 14px !important;
+  }
 }
 
 /* === Evaluation workspace shell === */
