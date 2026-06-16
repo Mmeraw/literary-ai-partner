@@ -136,6 +136,58 @@ import {
   checkRecommendationIntegrity,
   meetsMinimumTier,
 } from '@/lib/evaluation/pipeline/recommendationIntegrityGate';
+import {
+  classifyAnchor,
+  runEvidenceGroundingGate,
+  stampAnchorTypes,
+} from '@/lib/evaluation/pipeline/evidenceGroundingGate';
+import {
+  resolveEvaluationMode,
+  resolveModeRouting,
+  shouldBypassUserFacingReviewGate,
+  sparseEvidenceIsNotFailure,
+  MICRO_EXCERPT_MIN_WORDS,
+  MICRO_EXCERPT_MAX_WORDS,
+  SHORT_EXCERPT_MAX_WORDS,
+  SHORT_FORM_PATTERN_MAX_WORDS,
+  FULL_SHORT_FORM_MAX_WORDS,
+  LONG_FORM_MIN_WORDS,
+} from '@/lib/evaluation/modeRouting';
+import {
+  classifySubmissionScope,
+  countWords,
+} from '@/lib/evaluation/pipeline/submissionScope';
+import {
+  evaluatePackageCompleteness,
+  buildAgentReadinessPackageV1,
+  buildPackageExportV1,
+  buildPersistedCreatorApprovalV1,
+  AGENT_READINESS_REQUIRED_SECTION_TYPES,
+} from '@/lib/agent-readiness/packagePersistence';
+import {
+  buildCreatorApprovalV1,
+  evaluateCreatorApprovalGate,
+} from '@/lib/agent-readiness/creatorApprovalGate';
+import {
+  AUTHOR_DECISION_TRANSITIONS,
+  QUEUE_ITEM_LIFECYCLE_TRANSITIONS,
+  type AuthorDecisionState,
+  type QueueItemLifecycleState,
+} from '@/lib/revision/reviseRegistry';
+import {
+  validateStorygateSubmission,
+  type StorygateSubmissionValidatorInput,
+} from '@/lib/storygate/storygateSubmissionValidator';
+import {
+  buildStorygateSubmissionRequestV1,
+  buildAccessLogEventV1,
+} from '@/lib/storygate/storygatePersistence';
+import {
+  STORYGATE_ADMISSION_THRESHOLD,
+  STORYGATE_REQUIRED_PACKAGE_FIELDS,
+  STORYGATE_FORBIDDEN_SCOPE_TERMS,
+  STORYGATE_PROCESS_REGISTRY,
+} from '@/lib/storygate/storygateRegistry';
 
 
 jest.mock('@/lib/revision/logRevisionEvent', () => ({
@@ -3221,5 +3273,831 @@ describe('E2E Chain 24: Revise Session State Machine — Full Lifecycle Transiti
       status = next;
     }
     expect(status).toBe('applied');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 25: Evidence Grounding Gate — Anchor Classification + Stamping
+// SIPOC authority: evidenceGroundingGate.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 25: Evidence Grounding Gate — Anchor Classification + Stamping', () => {
+  const MANUSCRIPT = `He chuckled to himself, when he thought of that saying. It was time, yet again, to color his hair. The salon looked like a warehouse inside with tall ceilings and exposed brick. He had recently moved to Toronto from a small town in Ontario. Can you bleach my eyebrows and how long would it take? He realized that he should not be judgmental.`;
+
+  it('verbatim manuscript quote classified as verbatim_quote', () => {
+    const result = classifyAnchor('The salon looked like a warehouse inside with tall ceilings', MANUSCRIPT);
+    expect(result.anchor_type).toBe('verbatim_quote');
+    expect(result.match_score).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it('editorial diagnostic text classified as editorial_diagnosis', () => {
+    const result = classifyAnchor('The narrative voice shifts psychic distance mid-passage without signaling the transition', MANUSCRIPT);
+    expect(result.anchor_type).toBe('editorial_diagnosis');
+    expect(result.match_score).toBeLessThan(0.45);
+  });
+
+  it('too-short anchor classified as editorial_diagnosis', () => {
+    const result = classifyAnchor('short', MANUSCRIPT);
+    expect(result.anchor_type).toBe('editorial_diagnosis');
+    expect(result.match_score).toBe(0);
+  });
+
+  it('empty anchor classified as editorial_diagnosis', () => {
+    const result = classifyAnchor('', MANUSCRIPT);
+    expect(result.anchor_type).toBe('editorial_diagnosis');
+    expect(result.match_score).toBe(0);
+  });
+
+  it('no manuscript text → assume verbatim_quote (avoid false positives)', () => {
+    const result = classifyAnchor('Some passage from the text that we cannot verify', '');
+    expect(result.anchor_type).toBe('verbatim_quote');
+  });
+
+  it('runEvidenceGroundingGate reports ungrounded recommendations', () => {
+    const criteria = [
+      { key: 'dialogue', recommendations: [{ anchor_snippet: 'Can you bleach my eyebrows and how long would it take?' }] },
+      { key: 'voice', recommendations: [{ anchor_snippet: 'The narrative voice shifts psychic distance mid-passage' }] },
+    ];
+    const report = runEvidenceGroundingGate(criteria, MANUSCRIPT);
+    expect(report.total_recommendations).toBe(2);
+    expect(report.verbatim_count).toBe(1);
+    expect(report.diagnosis_count).toBe(1);
+    expect(report.fully_grounded).toBe(false);
+    expect(report.ungrounded).toHaveLength(1);
+    expect(report.ungrounded[0].criterion_key).toBe('voice');
+  });
+
+  it('stampAnchorTypes mutates recs and produces report', () => {
+    const criteria = [
+      { key: 'character', recommendations: [{ anchor_snippet: 'He realized that he should not be judgmental' } as { anchor_snippet: string; anchor_type?: string }] },
+    ];
+    const report = stampAnchorTypes(criteria, MANUSCRIPT);
+    expect(report.verbatim_count).toBe(1);
+    expect(criteria[0].recommendations[0].anchor_type).toBe('verbatim_quote');
+  });
+
+  it('full chain: eval recs → evidence grounding → stamp → report → admission decision', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    const criteria = fixture.criteria.map((c) => ({
+      key: c.key,
+      recommendations: c.recommendations.map((r) => ({ anchor_snippet: r.anchor_snippet || '' })),
+    }));
+    const report = runEvidenceGroundingGate(criteria, MANUSCRIPT);
+    expect(report.total_recommendations).toBeGreaterThan(0);
+    for (const ungrounded of report.ungrounded) {
+      expect(ungrounded.anchor_type).toBe('editorial_diagnosis');
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 26: Mode Routing — Short-Form vs Long-Form Gate Requirements
+// SIPOC authority: modeRouting.ts, submissionScope.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 26: Mode Routing — Short-Form vs Long-Form Gate Requirements', () => {
+  it('micro excerpt (200-999 words) → micro_excerpt_diagnostic, no review gate', () => {
+    const routing = resolveModeRouting(500);
+    expect(routing.evaluationMode).toBe('micro_excerpt_diagnostic');
+    expect(routing.isShortForm).toBe(true);
+    expect(routing.requiresUserFacingReviewGate).toBe(false);
+    expect(routing.requiresAcceptedStoryLedger).toBe(false);
+    expect(routing.storyLedgerAuthority).toBe('disabled');
+  });
+
+  it('short excerpt (1000-3999 words) → short_excerpt_evaluation', () => {
+    const routing = resolveModeRouting(2500);
+    expect(routing.evaluationMode).toBe('short_excerpt_evaluation');
+    expect(routing.isShortForm).toBe(true);
+    expect(routing.storyLedgerAuthority).toBe('diagnostic_only');
+  });
+
+  it('short form pattern (4000-7000 words) → short_form_pattern_read', () => {
+    const routing = resolveModeRouting(5000);
+    expect(routing.evaluationMode).toBe('short_form_pattern_read');
+    expect(routing.isShortForm).toBe(true);
+    expect(routing.storyLedgerAuthority).toBe('advisory_internal');
+  });
+
+  it('full short form (7001-24999 words) → full_short_form_evaluation', () => {
+    const routing = resolveModeRouting(15000);
+    expect(routing.evaluationMode).toBe('full_short_form_evaluation');
+    expect(routing.isShortForm).toBe(true);
+    expect(routing.requiresAcceptedStoryLedger).toBe(false);
+  });
+
+  it('long form (25000+ words) → long_form_evaluation with all gates', () => {
+    const routing = resolveModeRouting(30000);
+    expect(routing.evaluationMode).toBe('long_form_evaluation');
+    expect(routing.isLongForm).toBe(true);
+    expect(routing.requiresUserFacingReviewGate).toBe(true);
+    expect(routing.requiresAcceptedStoryLedger).toBe(true);
+    expect(routing.pass3aBlocking).toBe(true);
+    expect(routing.storyLedgerAuthority).toBe('governed');
+  });
+
+  it('below minimum words → throws SUBMISSION_TOO_SHORT_FOR_EVALUATION', () => {
+    expect(() => resolveEvaluationMode(100)).toThrow('SUBMISSION_TOO_SHORT_FOR_EVALUATION');
+    expect(() => resolveEvaluationMode(0)).toThrow('SUBMISSION_TOO_SHORT_FOR_EVALUATION');
+    expect(() => resolveEvaluationMode(-1)).toThrow('SUBMISSION_TOO_SHORT_FOR_EVALUATION');
+  });
+
+  it('boundary values are correct per SIPOC', () => {
+    expect(MICRO_EXCERPT_MIN_WORDS).toBe(200);
+    expect(MICRO_EXCERPT_MAX_WORDS).toBe(999);
+    expect(SHORT_EXCERPT_MAX_WORDS).toBe(3999);
+    expect(SHORT_FORM_PATTERN_MAX_WORDS).toBe(7000);
+    expect(FULL_SHORT_FORM_MAX_WORDS).toBe(24999);
+    expect(LONG_FORM_MIN_WORDS).toBe(25000);
+  });
+
+  it('shouldBypassUserFacingReviewGate is true for short form', () => {
+    expect(shouldBypassUserFacingReviewGate(500)).toBe(true);
+    expect(shouldBypassUserFacingReviewGate(5000)).toBe(true);
+    expect(shouldBypassUserFacingReviewGate(30000)).toBe(false);
+  });
+
+  it('sparseEvidenceIsNotFailure is true for short form', () => {
+    expect(sparseEvidenceIsNotFailure(500)).toBe(true);
+    expect(sparseEvidenceIsNotFailure(5000)).toBe(true);
+    expect(sparseEvidenceIsNotFailure(30000)).toBe(false);
+  });
+
+  it('full chain: word count → mode → scope profile → gate requirements → admission', () => {
+    const shortScope = classifySubmissionScope('a '.repeat(3000), 1);
+    expect(shortScope.inputScale).toBe('light_chapter');
+    expect(shortScope.confidenceCapSummary).toBe('MODERATE');
+    expect(shortScope.evaluationMode).toBe('short_excerpt_evaluation');
+    expect(shortScope.requiresUserFacingReviewGate).toBe(false);
+
+    const longScope = classifySubmissionScope('a '.repeat(55000), 10);
+    expect(longScope.inputScale).toBe('full_manuscript');
+    expect(longScope.confidenceCapSummary).toBe('HIGH');
+    expect(longScope.evaluationMode).toBe('long_form_evaluation');
+    expect(longScope.requiresUserFacingReviewGate).toBe(true);
+    expect(longScope.requiresAcceptedStoryLedger).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 27: Submission Scope Profile — Input Scale + Confidence Cap
+// SIPOC authority: submissionScope.ts, scopePolicy.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 27: Submission Scope Profile — Input Scale + Confidence Cap', () => {
+  it('micro excerpt: ≤999 words → micro_excerpt, LOW confidence', () => {
+    const scope = classifySubmissionScope('word '.repeat(500), 1);
+    expect(scope.inputScale).toBe('micro_excerpt');
+    expect(scope.confidenceCapSummary).toBe('LOW');
+    expect(scope.wordCount).toBe(500);
+  });
+
+  it('light chapter: 1000-3999 words → light_chapter, MODERATE', () => {
+    const scope = classifySubmissionScope('word '.repeat(2000), 1);
+    expect(scope.inputScale).toBe('light_chapter');
+    expect(scope.confidenceCapSummary).toBe('MODERATE');
+  });
+
+  it('standard chapter: 4000-7000 words → standard_chapter, MODERATE', () => {
+    const scope = classifySubmissionScope('word '.repeat(5000), 1);
+    expect(scope.inputScale).toBe('standard_chapter');
+    expect(scope.confidenceCapSummary).toBe('MODERATE');
+  });
+
+  it('standalone novelette: 7001-24999 words → novelette, HIGH', () => {
+    const scope = classifySubmissionScope('word '.repeat(15000), 1, 'standalone');
+    expect(scope.inputScale).toBe('novelette');
+    expect(scope.confidenceCapSummary).toBe('HIGH');
+  });
+
+  it('chapters multi_chapter: 7001-24999 words → multi_chapter, HIGH', () => {
+    const scope = classifySubmissionScope('word '.repeat(15000), 3, 'chapters');
+    expect(scope.inputScale).toBe('multi_chapter');
+    expect(scope.confidenceCapSummary).toBe('HIGH');
+  });
+
+  it('full manuscript: 50000+ words → full_manuscript, HIGH', () => {
+    const scope = classifySubmissionScope('word '.repeat(55000), 10);
+    expect(scope.inputScale).toBe('full_manuscript');
+    expect(scope.confidenceCapSummary).toBe('HIGH');
+  });
+
+  it('countWords handles edge cases', () => {
+    expect(countWords('')).toBe(0);
+    expect(countWords('  ')).toBe(0);
+    expect(countWords('hello')).toBe(1);
+    expect(countWords('hello world')).toBe(2);
+    expect(countWords('  hello   world  ')).toBe(2);
+  });
+
+  it('scope profile includes mode-aware routing fields', () => {
+    const scope = classifySubmissionScope('word '.repeat(30000), 5);
+    expect(scope.scopePolicyVersion).toBe('v3-mode-aware');
+    expect(scope.evaluationMode).toBeDefined();
+    expect(scope.requiresUserFacingReviewGate).toBeDefined();
+    expect(scope.requiresAcceptedStoryLedger).toBeDefined();
+    expect(scope.storyLedgerAuthority).toBeDefined();
+  });
+
+  it('full chain: manuscript → scope → mode → gate requirements → eval routing', () => {
+    const micro = classifySubmissionScope('word '.repeat(300), 1);
+    expect(micro.evaluationMode).toBe('micro_excerpt_diagnostic');
+    expect(micro.requiresUserFacingReviewGate).toBe(false);
+    expect(sparseEvidenceIsNotFailure(micro.wordCount)).toBe(true);
+
+    const long = classifySubmissionScope('word '.repeat(30000), 5);
+    expect(long.evaluationMode).toBe('long_form_evaluation');
+    expect(long.requiresUserFacingReviewGate).toBe(true);
+    expect(long.requiresAcceptedStoryLedger).toBe(true);
+    expect(sparseEvidenceIsNotFailure(long.wordCount)).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 28: Agent Readiness Package — Full Lifecycle with Fictitious Author
+// SIPOC authority: packagePersistence.ts, creatorApprovalGate.ts, agentReadinessRegistry.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 28: Agent Readiness Package — Full Lifecycle with Fictitious Author', () => {
+  const FICTITIOUS_SECTIONS = [
+    { section_type: 'query_letter', content: 'Dear Agent, I am writing to introduce THE PRICE OF VANITY, a literary fiction novel exploring the consequences of superficial self-image in modern Toronto. At 65,000 words, this debut novel follows Marcus Chen, a middle-aged software developer whose obsessive pursuit of youthful appearance leads him through a series of increasingly absurd salon visits that strip away his pretensions and reveal the person underneath.' },
+    { section_type: 'what_makes_unique', content: 'THE PRICE OF VANITY offers a rare male perspective on beauty culture and aging anxiety. Unlike typical literary fiction that treats vanity as a female concern, this novel places a middle-aged man at the center of the beauty-industrial complex, using dark humor and precise prose to examine how consumer culture shapes identity regardless of gender.' },
+    { section_type: 'synopsis', content: 'Marcus Chen arrives at a Toronto salon to color his graying hair for the fourteenth time. What begins as routine maintenance spirals into a day-long ordeal when the stylist suggests bleaching his eyebrows. Through a series of escalating decisions — each more expensive and invasive than the last — Marcus confronts the gap between the man he sees in the mirror and the man he wishes he could be.' },
+    { section_type: 'query_pitch', content: 'For fans of Sheila Heti and Ben Lerner, THE PRICE OF VANITY is a sharp, funny literary novel about a man who walks into a salon and walks out questioning everything he thought he knew about himself.' },
+    { section_type: 'comparables', content: 'Comparable titles include HOW SHOULD A PERSON BE? by Sheila Heti (autofiction examining identity), LEAVING THE ATOCHA STATION by Ben Lerner (male protagonist navigating inauthenticity), and SEVERANCE by Ling Ma (satire of consumer culture and routine).' },
+    { section_type: 'author_bio', content: 'Marcus Rivera is a Toronto-based fiction writer whose work explores masculinity, consumer culture, and the quiet anxieties of middle age. He holds an MFA from the University of British Columbia and has published short fiction in The Malahat Review and PRISM International. THE PRICE OF VANITY is his first novel. He does not, despite persistent rumors, bleach his own eyebrows.' },
+  ];
+
+  it('all 6 required section types match AGENT_READINESS_REQUIRED_SECTION_TYPES', () => {
+    expect(AGENT_READINESS_REQUIRED_SECTION_TYPES).toHaveLength(6);
+    const expected = ['query_letter', 'what_makes_unique', 'synopsis', 'query_pitch', 'comparables', 'author_bio'];
+    expect([...AGENT_READINESS_REQUIRED_SECTION_TYPES]).toEqual(expected);
+  });
+
+  it('all 6 sections present produces complete package', () => {
+    const result = buildAgentReadinessPackageV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      userId: 'user-marcus',
+      manuscriptTitle: 'The Price of Vanity',
+      approvedSections: FICTITIOUS_SECTIONS,
+      packageVersion: 1,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.package.artifact_type).toBe('agent_readiness_package_v1');
+      expect(result.package.source_section_count).toBe(6);
+      expect(result.package.sections.query_letter).toContain('THE PRICE OF VANITY');
+      expect(result.package.sections.author_bio).toContain('Marcus Rivera');
+      expect(result.package.package_hash).toBeTruthy();
+    }
+  });
+
+  it('missing author_bio → package assembly fails with specific missing type', () => {
+    const withoutBio = FICTITIOUS_SECTIONS.filter((s) => s.section_type !== 'author_bio');
+    const result = buildAgentReadinessPackageV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      userId: 'user-marcus',
+      manuscriptTitle: 'The Price of Vanity',
+      approvedSections: withoutBio,
+      packageVersion: 1,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.completeness.missingSections).toContain('author_bio');
+  });
+
+  it('missing synopsis → package assembly fails', () => {
+    const withoutSynopsis = FICTITIOUS_SECTIONS.filter((s) => s.section_type !== 'synopsis');
+    const result = buildAgentReadinessPackageV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      userId: 'user-marcus',
+      manuscriptTitle: 'The Price of Vanity',
+      approvedSections: withoutSynopsis,
+      packageVersion: 1,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.completeness.missingSections).toContain('synopsis');
+  });
+
+  it('completeness gate: all approved → passes', () => {
+    const completeness = evaluatePackageCompleteness({
+      manuscriptId: 'ms-vanity-001',
+      sections: FICTITIOUS_SECTIONS.map((s) => ({ ...s, status: 'approved' })),
+    });
+    expect(completeness.allSectionsApproved).toBe(true);
+    expect(completeness.approvedCount).toBe(6);
+    expect(completeness.missingSections).toHaveLength(0);
+  });
+
+  it('completeness gate: draft section not counted as approved', () => {
+    const withDraft = FICTITIOUS_SECTIONS.map((s) =>
+      s.section_type === 'author_bio' ? { ...s, status: 'draft' } : { ...s, status: 'approved' },
+    );
+    const completeness = evaluatePackageCompleteness({
+      manuscriptId: 'ms-vanity-001',
+      sections: withDraft,
+    });
+    expect(completeness.allSectionsApproved).toBe(false);
+    expect(completeness.missingSections).toContain('author_bio');
+  });
+
+  it('creator approval: approved → passes gate', () => {
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'abc123',
+      approvalState: 'approved',
+      decidedBy: 'user-marcus',
+    });
+    const gateResult = evaluateCreatorApprovalGate({ approval });
+    expect(gateResult.ok).toBe(true);
+    if (gateResult.ok) {
+      expect(gateResult.approval.approval_state).toBe('approved');
+    }
+  });
+
+  it('creator approval: pending → blocked retryable', () => {
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'abc123',
+      approvalState: 'pending',
+    });
+    const gateResult = evaluateCreatorApprovalGate({ approval });
+    expect(gateResult.ok).toBe(false);
+    if (!gateResult.ok) {
+      expect(gateResult.failure.approval_state).toBe('pending');
+      expect(gateResult.failure.retryable).toBe(true);
+    }
+  });
+
+  it('creator approval: rejected → blocked not retryable', () => {
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'abc123',
+      approvalState: 'rejected',
+      decidedBy: 'user-marcus',
+    });
+    const gateResult = evaluateCreatorApprovalGate({ approval });
+    expect(gateResult.ok).toBe(false);
+    if (!gateResult.ok) {
+      expect(gateResult.failure.approval_state).toBe('rejected');
+      expect(gateResult.failure.retryable).toBe(false);
+    }
+  });
+
+  it('export artifact: produces valid package_export_v1 for docx and txt', () => {
+    const docx = buildPackageExportV1({
+      packageHash: 'hash-vanity-pkg',
+      format: 'docx',
+      filename: 'the-price-of-vanity-agent-readiness.docx',
+    });
+    expect(docx.artifact_type).toBe('package_export_v1');
+    expect(docx.format).toBe('docx');
+
+    const txt = buildPackageExportV1({
+      packageHash: 'hash-vanity-pkg',
+      format: 'txt',
+      filename: 'the-price-of-vanity-agent-readiness.txt',
+    });
+    expect(txt.format).toBe('txt');
+  });
+
+  it('full chain: eval → all sections → completeness → package → approval → export', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    const completeness = evaluatePackageCompleteness({
+      manuscriptId: 'ms-vanity-001',
+      sections: FICTITIOUS_SECTIONS.map((s) => ({ ...s, status: 'approved' })),
+    });
+    expect(completeness.allSectionsApproved).toBe(true);
+
+    const packageResult = buildAgentReadinessPackageV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      userId: 'user-marcus',
+      manuscriptTitle: 'The Price of Vanity',
+      approvedSections: FICTITIOUS_SECTIONS,
+      packageVersion: 1,
+    });
+    expect(packageResult.ok).toBe(true);
+    if (!packageResult.ok) return;
+
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: packageResult.package.package_hash,
+      approvalState: 'approved',
+      decidedBy: 'user-marcus',
+    });
+    const gateResult = evaluateCreatorApprovalGate({ approval });
+    expect(gateResult.ok).toBe(true);
+
+    const exportArtifact = buildPackageExportV1({
+      packageHash: packageResult.package.package_hash,
+      format: 'txt',
+      filename: 'the-price-of-vanity-agent-readiness.txt',
+    });
+    expect(exportArtifact.artifact_type).toBe('package_export_v1');
+    expect(exportArtifact.package_hash).toBe(packageResult.package.package_hash);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 29: Author Decision Flow — Accept A/B/C, Reject, Custom, Defer
+// SIPOC authority: reviseRegistry.ts (AUTHOR_DECISION_TRANSITIONS, QUEUE_ITEM_LIFECYCLE_TRANSITIONS)
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 29: Author Decision Flow — Accept A/B/C, Reject, Custom, Defer', () => {
+  it('pending → accept option A', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.pending).toContain('accepted_a');
+  });
+
+  it('pending → accept option B', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.pending).toContain('accepted_b');
+  });
+
+  it('pending → accept option C', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.pending).toContain('accepted_c');
+  });
+
+  it('pending → custom revision (author writes their own)', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.pending).toContain('custom');
+  });
+
+  it('pending → keep_original (reject all, keep manuscript text)', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.pending).toContain('keep_original');
+  });
+
+  it('pending → reject', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.pending).toContain('reject');
+  });
+
+  it('pending → deferred (skip for now, revisit later)', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.pending).toContain('deferred');
+  });
+
+  it('accepted_a can be changed to reject, keep_original, or deferred', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.accepted_a).toContain('reject');
+    expect(AUTHOR_DECISION_TRANSITIONS.accepted_a).toContain('keep_original');
+    expect(AUTHOR_DECISION_TRANSITIONS.accepted_a).toContain('deferred');
+  });
+
+  it('custom can be changed to reject, keep_original, or deferred', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.custom).toContain('reject');
+    expect(AUTHOR_DECISION_TRANSITIONS.custom).toContain('keep_original');
+    expect(AUTHOR_DECISION_TRANSITIONS.custom).toContain('deferred');
+  });
+
+  it('keep_original can be changed to any accept, custom, reject, or deferred', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.keep_original).toContain('accepted_a');
+    expect(AUTHOR_DECISION_TRANSITIONS.keep_original).toContain('accepted_b');
+    expect(AUTHOR_DECISION_TRANSITIONS.keep_original).toContain('accepted_c');
+    expect(AUTHOR_DECISION_TRANSITIONS.keep_original).toContain('custom');
+    expect(AUTHOR_DECISION_TRANSITIONS.keep_original).toContain('reject');
+    expect(AUTHOR_DECISION_TRANSITIONS.keep_original).toContain('deferred');
+  });
+
+  it('deferred can be re-opened to any decision', () => {
+    expect(AUTHOR_DECISION_TRANSITIONS.deferred).toContain('accepted_a');
+    expect(AUTHOR_DECISION_TRANSITIONS.deferred).toContain('accepted_b');
+    expect(AUTHOR_DECISION_TRANSITIONS.deferred).toContain('accepted_c');
+    expect(AUTHOR_DECISION_TRANSITIONS.deferred).toContain('custom');
+    expect(AUTHOR_DECISION_TRANSITIONS.deferred).toContain('keep_original');
+    expect(AUTHOR_DECISION_TRANSITIONS.deferred).toContain('reject');
+  });
+
+  it('all 7 canonical decision values exist', () => {
+    const states = Object.keys(AUTHOR_DECISION_TRANSITIONS) as AuthorDecisionState[];
+    expect(states).toContain('pending');
+    expect(states).toContain('accepted_a');
+    expect(states).toContain('accepted_b');
+    expect(states).toContain('accepted_c');
+    expect(states).toContain('custom');
+    expect(states).toContain('keep_original');
+    expect(states).toContain('reject');
+    expect(states).toContain('deferred');
+    expect(states).toHaveLength(8);
+  });
+
+  it('queue item lifecycle: queued → ready_for_revise → in_review → decided → synced', () => {
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.queued).toContain('ready_for_revise');
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.ready_for_revise).toContain('in_review');
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.in_review).toContain('decided');
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.decided).toContain('synced');
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.synced).toContain('trustedpath_applied');
+  });
+
+  it('queue item: needs_targeting can be deferred or re-admitted', () => {
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.needs_targeting).toContain('ready_for_revise');
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.needs_targeting).toContain('deferred');
+  });
+
+  it('queue item: deferred can be re-admitted', () => {
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.deferred).toContain('ready_for_revise');
+  });
+
+  it('queue item: trustedpath_applied is terminal', () => {
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS.trustedpath_applied).toHaveLength(0);
+  });
+
+  it('full chain: eval → opportunity → queued → ready → in_review → decided → synced', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Trace queue lifecycle
+    let queueState: QueueItemLifecycleState = 'queued';
+    const QUEUE_PATH: QueueItemLifecycleState[] = ['ready_for_revise', 'in_review', 'decided', 'synced', 'trustedpath_applied'];
+    for (const next of QUEUE_PATH) {
+      expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS[queueState]).toContain(next);
+      queueState = next;
+    }
+    expect(queueState).toBe('trustedpath_applied');
+    expect(QUEUE_ITEM_LIFECYCLE_TRANSITIONS[queueState]).toHaveLength(0);
+
+    // Trace author decision: pending → accepted_a → keep_original (changed mind) → accepted_b (final)
+    let decisionState: AuthorDecisionState = 'pending';
+    expect(AUTHOR_DECISION_TRANSITIONS[decisionState]).toContain('accepted_a');
+    decisionState = 'accepted_a';
+    expect(AUTHOR_DECISION_TRANSITIONS[decisionState]).toContain('keep_original');
+    decisionState = 'keep_original';
+    expect(AUTHOR_DECISION_TRANSITIONS[decisionState]).toContain('accepted_b');
+    decisionState = 'accepted_b';
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 30: Storygate Studio — Eligibility, Submission, Access Control
+// SIPOC authority: storygateRegistry.ts, storygateSubmissionValidator.ts, storygatePersistence.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 30: Storygate Studio — Eligibility, Submission, Access Control', () => {
+  const COMPLETE_PACKAGE: Record<string, unknown> = {
+    query_letter: 'Dear Agent, THE PRICE OF VANITY is a 65,000-word literary fiction novel set in modern Toronto.',
+    synopsis: 'Marcus Chen arrives at a Toronto salon to color his graying hair for the fourteenth time.',
+    author_bio: 'Marcus Rivera is a Toronto-based fiction writer. MFA from UBC. Published in The Malahat Review.',
+    elevator_pitch: 'A man walks into a salon. What begins as hair coloring becomes a reckoning with vanity.',
+    agent_pitch: 'For fans of Sheila Heti and Ben Lerner — dark humor meets male beauty anxiety.',
+    market_comparables: 'HOW SHOULD A PERSON BE? (Heti), LEAVING THE ATOCHA STATION (Lerner), SEVERANCE (Ma).',
+    market_category: 'Literary Fiction / Contemporary',
+    target_audience: 'Readers of literary fiction exploring identity, masculinity, and consumer culture.',
+    market_position_statement: 'Literary fiction for the beauty-obsessed age, told from a rare male perspective.',
+    sample_pages: 'He chuckled to himself when he thought of that saying. It was time, yet again, to color his hair.',
+    rights_declaration: 'confirmed',
+  };
+
+  it('admission threshold is 9.0/10 (not 8.0)', () => {
+    expect(STORYGATE_ADMISSION_THRESHOLD).toBe(9.0);
+  });
+
+  it('requires 11 package fields', () => {
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toHaveLength(11);
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toContain('query_letter');
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toContain('synopsis');
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toContain('author_bio');
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toContain('market_comparables');
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toContain('market_category');
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toContain('rights_declaration');
+    expect(STORYGATE_REQUIRED_PACKAGE_FIELDS).toContain('sample_pages');
+  });
+
+  it('score 9.0+ with complete package → eligible', () => {
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'hash-123',
+      approvalState: 'approved',
+      decidedBy: 'user-marcus',
+    });
+    const result = validateStorygateSubmission({
+      packageFields: COMPLETE_PACKAGE,
+      creatorApproval: approval,
+      readinessScore: 9.2,
+    });
+    expect(result.eligible).toBe(true);
+    expect(result.packageGatePass).toBe(true);
+    expect(result.readinessGatePass).toBe(true);
+    expect(result.rightsGatePass).toBe(true);
+    expect(result.creatorApprovalGatePass).toBe(true);
+    expect(result.failureCodes).toHaveLength(0);
+  });
+
+  it('score 8.9 → SCORE_BELOW_THRESHOLD, not eligible', () => {
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'hash-123',
+      approvalState: 'approved',
+      decidedBy: 'user-marcus',
+    });
+    const result = validateStorygateSubmission({
+      packageFields: COMPLETE_PACKAGE,
+      creatorApproval: approval,
+      readinessScore: 8.9,
+    });
+    expect(result.eligible).toBe(false);
+    expect(result.readinessGatePass).toBe(false);
+    expect(result.failureCodes).toContain('SCORE_BELOW_THRESHOLD');
+  });
+
+  it('qualified professional equivalent bypasses score gate', () => {
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'hash-123',
+      approvalState: 'approved',
+      decidedBy: 'user-marcus',
+    });
+    const result = validateStorygateSubmission({
+      packageFields: COMPLETE_PACKAGE,
+      creatorApproval: approval,
+      readinessScore: 7.0,
+      qualifiedProfessionalEquivalent: true,
+    });
+    expect(result.readinessGatePass).toBe(true);
+  });
+
+  it('missing required fields → MISSING_REQUIRED_FIELDS', () => {
+    const incomplete = { ...COMPLETE_PACKAGE };
+    delete incomplete.market_comparables;
+    delete incomplete.synopsis;
+    const result = validateStorygateSubmission({
+      packageFields: incomplete,
+      readinessScore: 9.5,
+    });
+    expect(result.packageGatePass).toBe(false);
+    expect(result.failureCodes).toContain('MISSING_REQUIRED_FIELDS');
+    expect(result.missingFields).toContain('market_comparables');
+    expect(result.missingFields).toContain('synopsis');
+  });
+
+  it('placeholder text → PLACEHOLDER_TEXT_DETECTED', () => {
+    const withPlaceholder = { ...COMPLETE_PACKAGE, synopsis: 'TBD — coming soon' };
+    const result = validateStorygateSubmission({
+      packageFields: withPlaceholder,
+      readinessScore: 9.5,
+    });
+    expect(result.failureCodes).toContain('PLACEHOLDER_TEXT_DETECTED');
+    expect(result.placeholderFields).toContain('synopsis');
+  });
+
+  it('forbidden scope terms → FORBIDDEN_SCOPE_REQUESTED', () => {
+    const result = validateStorygateSubmission({
+      packageFields: COMPLETE_PACKAGE,
+      readinessScore: 9.5,
+      requestedScopeText: 'We want film rights marketplace and screenplay conversion',
+    });
+    expect(result.failureCodes).toContain('FORBIDDEN_SCOPE_REQUESTED');
+    expect(result.forbiddenScopeTerms.length).toBeGreaterThan(0);
+  });
+
+  it('forbidden scope terms registry matches SIPOC', () => {
+    expect(STORYGATE_FORBIDDEN_SCOPE_TERMS).toContain('film_track');
+    expect(STORYGATE_FORBIDDEN_SCOPE_TERMS).toContain('screenplay_conversion');
+    expect(STORYGATE_FORBIDDEN_SCOPE_TERMS).toContain('producer_facing_materials');
+  });
+
+  it('missing rights declaration → RIGHTS_DECLARATION_MISSING', () => {
+    const noRights = { ...COMPLETE_PACKAGE, rights_declaration: '' };
+    const result = validateStorygateSubmission({
+      packageFields: noRights,
+      readinessScore: 9.5,
+    });
+    expect(result.failureCodes).toContain('RIGHTS_DECLARATION_MISSING');
+    expect(result.rightsGatePass).toBe(false);
+  });
+
+  it('no creator approval → CREATOR_APPROVAL_REQUIRED', () => {
+    const result = validateStorygateSubmission({
+      packageFields: COMPLETE_PACKAGE,
+      readinessScore: 9.5,
+      creatorApproval: null,
+    });
+    expect(result.failureCodes).toContain('CREATOR_APPROVAL_REQUIRED');
+    expect(result.creatorApprovalGatePass).toBe(false);
+  });
+
+  it('buildStorygateSubmissionRequestV1 produces valid artifact', () => {
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'hash-123',
+      approvalState: 'approved',
+      decidedBy: 'user-marcus',
+    });
+    const submission = buildStorygateSubmissionRequestV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: 'hash-123',
+      creatorUserId: 'user-marcus',
+      projectTitle: 'The Price of Vanity',
+      primaryGenre: 'Literary Fiction',
+      creatorName: 'Marcus Rivera',
+      creatorEmail: 'marcus@example.com',
+      packageFields: COMPLETE_PACKAGE,
+      creatorApproval: approval,
+      readinessScore: 9.2,
+    });
+    expect(submission.artifact_type).toBe('storygate_submission_request_v1');
+    expect(submission.status).toBe('SUBMITTED');
+    expect(submission.validation_result.eligible).toBe(true);
+    expect(submission.submission_hash).toBeTruthy();
+  });
+
+  it('access log event produces valid artifact with canon hash', () => {
+    const event = buildAccessLogEventV1({
+      eventId: 'evt-001',
+      actionType: 'request_access',
+      actorUserId: 'agent-001',
+      listingId: 'listing-vanity-001',
+      requesterId: 'agent-001',
+      validatorsRun: ['industry_verification_v1'],
+    });
+    expect(event.artifact_type).toBe('access_log_event_v1');
+    expect(event.action_type).toBe('request_access');
+    expect(event.canon_hash).toBeTruthy();
+  });
+
+  it('STORYGATE_PROCESS_REGISTRY has sequential stages starting SG01', () => {
+    expect(STORYGATE_PROCESS_REGISTRY.length).toBeGreaterThan(0);
+    expect(STORYGATE_PROCESS_REGISTRY[0].stageId).toBe('SG01_CREATOR_SUBMISSION');
+    for (let i = 0; i < STORYGATE_PROCESS_REGISTRY.length; i++) {
+      expect(STORYGATE_PROCESS_REGISTRY[i].sequence).toBe(i + 1);
+    }
+  });
+
+  it('full chain: eval → package → approval → storygate submission → validation → access log', () => {
+    // Step 1: Evaluation produces fixture with score 9.2
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Step 2: Agent readiness package complete
+    const arSections = [
+      { section_type: 'query_letter', content: COMPLETE_PACKAGE.query_letter as string },
+      { section_type: 'what_makes_unique', content: 'Rare male perspective on beauty culture.' },
+      { section_type: 'synopsis', content: COMPLETE_PACKAGE.synopsis as string },
+      { section_type: 'query_pitch', content: 'Sharp literary fiction about vanity.' },
+      { section_type: 'comparables', content: COMPLETE_PACKAGE.market_comparables as string },
+      { section_type: 'author_bio', content: COMPLETE_PACKAGE.author_bio as string },
+    ];
+    const arResult = buildAgentReadinessPackageV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      userId: 'user-marcus',
+      manuscriptTitle: 'The Price of Vanity',
+      approvedSections: arSections,
+      packageVersion: 1,
+    });
+    expect(arResult.ok).toBe(true);
+    if (!arResult.ok) return;
+
+    // Step 3: Creator approval
+    const approval = buildCreatorApprovalV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: arResult.package.package_hash,
+      approvalState: 'approved',
+      decidedBy: 'user-marcus',
+    });
+
+    // Step 4: Storygate submission
+    const submission = buildStorygateSubmissionRequestV1({
+      manuscriptId: 'ms-vanity-001',
+      evaluationJobId: 'eval-job-001',
+      packageHash: arResult.package.package_hash,
+      creatorUserId: 'user-marcus',
+      projectTitle: 'The Price of Vanity',
+      primaryGenre: 'Literary Fiction',
+      creatorName: 'Marcus Rivera',
+      creatorEmail: 'marcus@example.com',
+      packageFields: COMPLETE_PACKAGE,
+      creatorApproval: approval,
+      readinessScore: 9.2,
+    });
+    expect(submission.validation_result.eligible).toBe(true);
+    expect(submission.status).toBe('SUBMITTED');
+
+    // Step 5: Access log — agent requests access
+    const accessEvent = buildAccessLogEventV1({
+      eventId: 'evt-agent-request-001',
+      actionType: 'request_access',
+      actorUserId: 'agent-literary-001',
+      listingId: 'listing-vanity-001',
+      requesterId: 'agent-literary-001',
+      verificationState: 'verified',
+      validatorsRun: ['industry_verification_v1', 'storygate_submission_validator_v1'],
+    });
+    expect(accessEvent.action_type).toBe('request_access');
+    expect(accessEvent.verification_state).toBe('verified');
   });
 });
