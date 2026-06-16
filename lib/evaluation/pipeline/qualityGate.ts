@@ -88,6 +88,8 @@ export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 1500;
 export const QG_MAX_EVIDENCE_LENGTH = 200;
 export const QG_MAX_OVERVIEW_LENGTH = 500;
+/** Hard ceiling: overview beyond this length is a real LLM constraint violation, not post-processing drift. */
+export const QG_OVERVIEW_HARD_CEILING = 550;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
 export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 6;
 export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
@@ -552,13 +554,22 @@ export function runQualityGate(
         : `All evidence excerpts ≤ ${QG_MAX_EVIDENCE_LENGTH} chars`,
   });
 
-  // ── Check 6: Overview length (≤500 chars) ────────────────────────────────
-  const overviewLen = synthesis.overall.one_paragraph_summary.length;
+  // ── Check 6: Overview length (≤500 target, 550 hard ceiling) ──────────────
+  // Post-processing (CMOS expansion, weakness enforcement) can push past 500.
+  // 501-550: auto-repair by trimming at word boundary. >550: hard fail.
+  let overviewLen = synthesis.overall.one_paragraph_summary.length;
+  if (overviewLen > QG_MAX_OVERVIEW_LENGTH && overviewLen <= QG_OVERVIEW_HARD_CEILING) {
+    synthesis.overall.one_paragraph_summary =
+      synthesis.overall.one_paragraph_summary.substring(0, 497).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026";
+    overviewLen = synthesis.overall.one_paragraph_summary.length;
+  }
   checks.push({
     check_id: "overview_length",
-    passed: overviewLen <= QG_MAX_OVERVIEW_LENGTH,
-    error_code: overviewLen > QG_MAX_OVERVIEW_LENGTH ? "QG_LONG_OVERVIEW" : undefined,
-    details: `Overview: ${overviewLen} chars (max ${QG_MAX_OVERVIEW_LENGTH})`,
+    passed: overviewLen <= QG_OVERVIEW_HARD_CEILING,
+    error_code: overviewLen > QG_OVERVIEW_HARD_CEILING ? "QG_LONG_OVERVIEW" : undefined,
+    details: overviewLen <= QG_MAX_OVERVIEW_LENGTH
+      ? `Overview: ${overviewLen} chars (max ${QG_MAX_OVERVIEW_LENGTH})`
+      : `Overview: ${overviewLen} chars (auto-repaired from >${QG_MAX_OVERVIEW_LENGTH}, hard ceiling ${QG_OVERVIEW_HARD_CEILING})`,
   });
 
   // ── Check 6b: Pitch/Summary Identity Separation (P1) ──────────────────────
