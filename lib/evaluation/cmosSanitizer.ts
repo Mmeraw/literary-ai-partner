@@ -7,8 +7,14 @@
  * Handles:
  * - Em dashes: closed up (no surrounding spaces)
  * - Double hyphens converted to em dashes
- * - Quotation mark punctuation placement
+ * - Quotation mark punctuation placement (periods/commas inside quotes)
  * - Latin abbreviation expansion in prose context
+ * - Straight quotes → curly (typographer's) quotes
+ * - Repeated words ("the the") removal
+ * - Double spaces → single space
+ * - Common LLM grammar/spelling errors
+ * - Bullet formatting (hyphens/asterisks → proper bullet characters)
+ * - Heading case normalization (ALL CAPS → Title Case)
  */
 
 /**
@@ -67,6 +73,97 @@ function expandLatinAbbreviations(text: string): string {
 }
 
 /**
+ * Convert straight quotes to curly (typographer's) quotes.
+ * CMOS 6.115: Use curly quotation marks in published text.
+ */
+function fixStraightQuotes(text: string): string {
+  let result = text;
+  // Opening double quote: after whitespace/start or opening paren/bracket
+  result = result.replace(/(^|[\s(\[])"/g, "$1\u201c");
+  // Closing double quote: before whitespace/end or punctuation
+  result = result.replace(/"([\s.,;:!?)}\]\n]|$)/g, "\u201d$1");
+  // Opening single quote: after whitespace/start (careful not to hit apostrophes)
+  result = result.replace(/(^|[\s(\[])'/g, "$1\u2018");
+  // Closing single quote / apostrophe: between letters
+  result = result.replace(/(\w)'(\w)/g, "$1\u2019$2");
+  // Closing single quote after word
+  result = result.replace(/'([\s.,;:!?)}\]\n]|$)/g, "\u2019$1");
+  return result;
+}
+
+/**
+ * Fix repeated words ("the the", "a a", "is is").
+ * Common LLM artifact.
+ */
+function fixRepeatedWords(text: string): string {
+  return text.replace(/\b(\w{2,})\s+\1\b/gi, "$1");
+}
+
+/**
+ * Normalize multiple spaces to single space.
+ * CMOS 2.12: One space after periods and all punctuation.
+ */
+function fixDoubleSpaces(text: string): string {
+  return text.replace(/ {2,}/g, " ");
+}
+
+/**
+ * Fix common LLM grammar/spelling errors that appear in editorial output.
+ * These are mechanical corrections only — not style preferences.
+ */
+function fixCommonLLMErrors(text: string): string {
+  let result = text;
+  // "alot" → "a lot"
+  result = result.replace(/\balot\b/gi, "a lot");
+  // "alright" → "all right" (CMOS preference)
+  result = result.replace(/\balright\b/gi, "all right");
+  // Double period at end
+  result = result.replace(/\.\.(\s|$)/g, ".$1");
+  // Comma splice before "however" mid-sentence (common LLM error)
+  // ", however," is correct; ", however " without second comma is wrong
+  result = result.replace(/, however ([a-z])/g, "; however, $1");
+  return result;
+}
+
+/**
+ * Normalize bullet markers to consistent style.
+ * CMOS 6.127–6.131: Lists should use consistent markers.
+ * Convert hyphens used as bullets to proper bullet characters.
+ */
+function fixBulletFormatting(text: string): string {
+  let result = text;
+  // Lines starting with " - " or "- " (hyphen bullets) → "• " (proper bullet)
+  result = result.replace(/^(\s*)-\s+/gm, "$1\u2022 ");
+  // Lines starting with " * " (asterisk bullets) → "• "
+  result = result.replace(/^(\s*)\*\s+/gm, "$1\u2022 ");
+  return result;
+}
+
+/**
+ * Enforce CMOS title case for headings embedded in text.
+ * CMOS 8.159: Capitalize first and last words, and all major words.
+ * Applied only to text that looks like a heading (ALL CAPS or Title Case with colon).
+ */
+function fixHeadingCase(text: string): string {
+  // Don't modify running prose — only fix ALL-CAPS headings that appear as labels
+  // e.g., "FIT SUMMARY:" → "Fit Summary:" 
+  return text.replace(
+    /^([A-Z][A-Z\s]{2,}):(\s)/gm,
+    (_match, heading: string, trail: string) => {
+      const minor = new Set(["a", "an", "the", "and", "but", "or", "nor", "for", "yet", "so", "in", "on", "at", "to", "of", "by", "up", "as"]);
+      const words = heading.toLowerCase().split(/\s+/);
+      const titleCased = words.map((w: string, i: number) => {
+        if (i === 0 || i === words.length - 1 || !minor.has(w)) {
+          return w.charAt(0).toUpperCase() + w.slice(1);
+        }
+        return w;
+      }).join(" ");
+      return `${titleCased}:${trail}`;
+    },
+  );
+}
+
+/**
  * Apply all CMOS sanitization rules to a single text string.
  * Safe to call on any string; returns the input unchanged if no fixes needed.
  */
@@ -78,6 +175,12 @@ export function sanitizeCMOS(text: string): string {
   result = fixDoubleHyphens(result);
   result = fixQuotePunctuation(result);
   result = expandLatinAbbreviations(result);
+  result = fixStraightQuotes(result);
+  result = fixRepeatedWords(result);
+  result = fixDoubleSpaces(result);
+  result = fixCommonLLMErrors(result);
+  result = fixBulletFormatting(result);
+  result = fixHeadingCase(result);
   return result;
 }
 
