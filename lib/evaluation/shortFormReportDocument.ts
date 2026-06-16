@@ -546,6 +546,11 @@ export function buildShortFormEvaluationDocument(input: {
     'Prioritize the lowest-scoring criteria with the highest reader-impact revisions first.',
   ];
 
+  // ── Score-10 suppression: near-perfect manuscripts don't need a shopping list ──
+  const scorableCriteria = orderedCriteria.filter(c => typeof c.score_0_10 === 'number');
+  const allCriteriaExcellent = scorableCriteria.length > 0 && scorableCriteria.every(c => (c.score_0_10 ?? 0) >= 9);
+  const isPerfectScore = (typeof overallScore === 'number' && overallScore >= 95) || allCriteriaExcellent;
+
   return {
     templateMode: 'short_form_evaluation',
     sectionOrder: SECTION_ORDER,
@@ -594,29 +599,35 @@ export function buildShortFormEvaluationDocument(input: {
       (result.overview?.top_3_strengths ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
       fallbackStrengths,
     ),
-    topRisks: ensureNonEmptyList(
-      (result.overview?.top_3_risks ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
-      fallbackRisks,
-    ),
-    topRecommendations: ensureNonEmptyList(
-      (canonicalTopRecommendations.length > 0 ? canonicalTopRecommendations : topRecommendations)
-        .map((item) => mistakeProofText(item))
-        .filter(Boolean),
-      fallbackTopRecommendations,
-    ),
+    topRisks: isPerfectScore
+      ? ['No significant revision risks identified at this quality level.']
+      : ensureNonEmptyList(
+          (result.overview?.top_3_risks ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
+          fallbackRisks,
+        ),
+    topRecommendations: isPerfectScore
+      ? ['This manuscript demonstrates exceptional quality across all evaluated criteria. Consider final line-edit polish and submission-readiness review only.']
+      : ensureNonEmptyList(
+          (canonicalTopRecommendations.length > 0 ? canonicalTopRecommendations : topRecommendations)
+            .map((item) => mistakeProofText(item))
+            .filter(Boolean),
+          fallbackTopRecommendations,
+        ),
     canonicalOpportunityLedger,
     criteriaScoreGrid,
     criterionDetails,
-    actionItems: {
-      quickWins: renderedOpportunities
-        .filter((item) => item.is_action_item_candidate && item.severity === 'high')
-        .slice(0, 3)
-        .map(opportunityToActionItem),
-      strategicRevisions: renderedOpportunities
-        .filter((item) => item.is_action_item_candidate && item.severity !== 'high')
-        .slice(0, 4)
-        .map(opportunityToActionItem),
-    },
+    actionItems: isPerfectScore
+      ? { quickWins: [], strategicRevisions: [] }
+      : {
+          quickWins: renderedOpportunities
+            .filter((item) => item.is_action_item_candidate && item.severity === 'high')
+            .slice(0, 3)
+            .map(opportunityToActionItem),
+          strategicRevisions: renderedOpportunities
+            .filter((item) => item.is_action_item_candidate && item.severity !== 'high')
+            .slice(0, 4)
+            .map(opportunityToActionItem),
+        },
     confidenceExplanation:
       input.confidenceExplanation ??
       'Confidence reflects how strongly each diagnosis is supported by direct textual evidence in the submitted material. High confidence indicates strong evidence; moderate confidence indicates meaningful but potentially ambiguous evidence; low confidence indicates limited or conflicting evidence and should be treated as a prompt for review.',
