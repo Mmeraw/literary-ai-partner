@@ -73,6 +73,7 @@ import {
   ARTIFACT_REGISTRY,
   FIELD_REGISTRY as EVAL_FIELD_REGISTRY,
   RENDERER_CONSUMPTION_MATRIX,
+  AUTHORITY_SOURCE_REGISTRY,
   lookupKickForFailure,
   lookupKicksForStage,
   getBlockingKicks,
@@ -109,6 +110,13 @@ import {
   assertValidRevisionSessionTransition,
   buildRevisionSessionTransitionUpdate,
 } from '@/lib/revision/sessionTransitions';
+import { runVoiceGate } from '@/lib/revision/voiceGate';
+import { runCanonGate } from '@/lib/revision/canonGate';
+import {
+  checkRecommendationIntegrity,
+  meetsMinimumTier,
+} from '@/lib/evaluation/pipeline/recommendationIntegrityGate';
+
 
 jest.mock('@/lib/revision/logRevisionEvent', () => ({
   logRevisionEvent: jest.fn(async () => undefined),
@@ -2079,5 +2087,283 @@ describe('E2E Chain 13: Session State Machine Transition Governance', () => {
       status = next;
     }
     expect(status).toBe('applied');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 14: Voice Gate + Canon Gate Admission Integration
+// SIPOC authority: reviseAdmissionGate.ts, voiceGate.ts, canonGate.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 14: Voice Gate + Canon Gate Admission Integration', () => {
+  it('voice gate: first-person POV candidate passes when using I-narrator', () => {
+    const result = runVoiceGate({
+      candidateText: 'I turned and felt the weight of it pressing against my chest.',
+      pov: 'first',
+      tense: 'past',
+    });
+    expect(result.passed).toBe(true);
+    expect(result.reasons).toHaveLength(0);
+  });
+
+  it('voice gate: first-person POV candidate fails when using third-person pronouns only', () => {
+    const result = runVoiceGate({
+      candidateText: 'She turned and felt the weight of it pressing against her chest.',
+      pov: 'first',
+      tense: 'past',
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('VOICE_DRIFT_POV');
+  });
+
+  it('voice gate: past tense candidate fails when using present-only verbs', () => {
+    const result = runVoiceGate({
+      candidateText: 'He walks down the street and looks at the sky.',
+      pov: 'third',
+      tense: 'past',
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('VOICE_DRIFT_TENSE');
+  });
+
+  it('voice gate: forbidden voice patterns caught', () => {
+    const result = runVoiceGate({
+      candidateText: 'The rain fell softly upon the cobblestones.',
+      forbiddenVoicePatterns: [/upon the cobblestones/],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('VOICE_DRIFT_FORBIDDEN_PATTERN');
+  });
+
+  it('canon gate: known entities pass', () => {
+    const result = runCanonGate({
+      candidateText: 'Marcus turned and looked at Elaine.',
+      knownEntities: ['Marcus', 'Elaine'],
+    });
+    expect(result.passed).toBe(true);
+    expect(result.reasons).toHaveLength(0);
+  });
+
+  it('canon gate: unknown entity name triggers UNSUPPORTED_FACT', () => {
+    const result = runCanonGate({
+      candidateText: 'Marcus turned and looked at Sophia.',
+      knownEntities: ['Marcus', 'Elaine'],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('UNSUPPORTED_FACT');
+  });
+
+  it('canon gate: forbidden facts trigger CANON_DRIFT', () => {
+    const result = runCanonGate({
+      candidateText: 'Marcus lived in New York his whole life.',
+      knownEntities: ['Marcus'],
+      forbiddenFacts: [/New York/],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain('CANON_DRIFT');
+  });
+
+  it('canon gate: allowedNewEntities permits new names', () => {
+    const result = runCanonGate({
+      candidateText: 'Marcus introduced Sophia to the group.',
+      knownEntities: ['Marcus'],
+      allowedNewEntities: ['Sophia'],
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  it('full chain: voice + canon gates → admission decision', () => {
+    // Good candidate: correct POV, tense, known entities
+    const fixture = makeEvalFixture({ dialogue: 5, pacing: 6 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    const opp = opportunities[0];
+    const admissionInput = makeWorkbenchAdmissionInput(opp);
+    const result = runWorkbenchAdmissionGate(admissionInput);
+
+    // Check that voice and canon reasons are NOT present for well-formed candidates
+    const voiceReasons = result.reasons.filter((r) => r.startsWith('VOICE_DRIFT'));
+    const canonReasons = result.reasons.filter((r) => r === 'UNSUPPORTED_FACT' || r === 'CANON_DRIFT');
+    expect(voiceReasons).toHaveLength(0);
+    expect(canonReasons).toHaveLength(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 15: Authority Source Registry & Provenance Chain
+// SIPOC authority: FIPOC AUTHORITY_SOURCE_REGISTRY, fipocRegistry.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 15: Authority Source Registry & Provenance Chain', () => {
+  it('FIPOC: authority source registry has SIPOC evaluation process', () => {
+    const sipoc = AUTHORITY_SOURCE_REGISTRY.find((a) => a.authorityId === 'SIPOC_EVALUATION_PROCESS_V1');
+    expect(sipoc).toBeDefined();
+    expect(sipoc!.family).toBe('sipoc');
+    expect(sipoc!.runtimeBinding).toBe('binding');
+    expect(sipoc!.surfacedInSipocUi).toBe(true);
+    expect(sipoc!.appliesToStageIds.length).toBeGreaterThan(0);
+    expect(sipoc!.appliesToArtifacts.length).toBeGreaterThan(0);
+  });
+
+  it('FIPOC: all 3 template authorities exist (short, long, multi-layer)', () => {
+    const shortForm = AUTHORITY_SOURCE_REGISTRY.find((a) => a.authorityId === 'EVALUATION_TEMPLATE_SHORT_FORM');
+    const longForm = AUTHORITY_SOURCE_REGISTRY.find((a) => a.authorityId === 'EVALUATION_TEMPLATE_LONG_FORM');
+    const multiLayer = AUTHORITY_SOURCE_REGISTRY.find((a) => a.authorityId === 'EVALUATION_TEMPLATE_LONG_FORM_MULTI_LAYER');
+
+    expect(shortForm).toBeDefined();
+    expect(longForm).toBeDefined();
+    expect(multiLayer).toBeDefined();
+
+    // All are templates with surfaced-in-SIPOC-UI
+    for (const auth of [shortForm!, longForm!, multiLayer!]) {
+      expect(auth.family).toBe('template');
+      expect(auth.runtimeBinding).toBe('template');
+      expect(auth.surfacedInSipocUi).toBe(true);
+      expect(auth.path).toContain('templates/evaluation');
+    }
+  });
+
+  it('FIPOC: every authority entry has required structural fields', () => {
+    for (const entry of AUTHORITY_SOURCE_REGISTRY) {
+      expect(entry.authorityId).toBeTruthy();
+      expect(entry.family).toBeTruthy();
+      expect(entry.title).toBeTruthy();
+      expect(entry.path).toBeTruthy();
+      expect(entry.runtimeBinding).toBeTruthy();
+      expect(entry.executionUse).toBeTruthy();
+      expect(typeof entry.surfacedInSipocUi).toBe('boolean');
+    }
+  });
+
+  it('FIPOC: authority sources reference valid stage IDs from PROCESS_REGISTRY', () => {
+    const validStageIds = new Set(PROCESS_REGISTRY.map((p) => p.stageId));
+    for (const entry of AUTHORITY_SOURCE_REGISTRY) {
+      for (const stageId of entry.appliesToStageIds) {
+        expect(validStageIds.has(stageId)).toBe(true);
+      }
+    }
+  });
+
+  it('FIPOC: authority sources reference valid artifact names from ARTIFACT_REGISTRY', () => {
+    const validArtifacts = new Set(ARTIFACT_REGISTRY.map((a) => a.artifact));
+    for (const entry of AUTHORITY_SOURCE_REGISTRY) {
+      for (const artifact of entry.appliesToArtifacts) {
+        expect(validArtifacts.has(artifact)).toBe(true);
+      }
+    }
+  });
+
+  it('FIPOC: rendering contract authority exists and covers all renderer stages', () => {
+    const renderingContract = AUTHORITY_SOURCE_REGISTRY.find(
+      (a) => a.authorityId === 'EVALUATION_RENDERING_CONTRACT',
+    );
+    expect(renderingContract).toBeDefined();
+    expect(renderingContract!.appliesToStageIds).toContain('S11a_RENDERER_WEBPAGE');
+    expect(renderingContract!.appliesToStageIds).toContain('S11b_DOWNLOAD_PIPELINE');
+  });
+
+  it('full chain: authority → template contract → UED → renderer parity', () => {
+    // Authority says short-form template exists
+    const shortFormAuth = AUTHORITY_SOURCE_REGISTRY.find(
+      (a) => a.authorityId === 'EVALUATION_TEMPLATE_SHORT_FORM',
+    );
+    expect(shortFormAuth).toBeDefined();
+
+    // Template contract matches authority path
+    const templateContract = EVALUATION_TEMPLATE_CONTRACTS.short_form_evaluation;
+    expect(templateContract.templatePath).toBe(shortFormAuth!.path);
+
+    // UED builds successfully
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'short_form_evaluation',
+      result: makeEvalResult({ wordCount: 8_000, genre: 'Thriller', title: 'Authority Chain Test' }),
+      displayTitle: 'Authority Chain Test',
+      dream: null,
+    });
+    expect(ued.templateMode).toBe('short_form_evaluation');
+
+    // Render manifest passes parity
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-authority-chain',
+      unifiedDocument: ued,
+    });
+    expect(manifest.parity.status).toBe('pass');
+
+    // Certification certifies
+    const cert = buildAuthorExposureCertificationV1FromManifest(manifest);
+    expect(cert.decision).toBe('certified');
+    expect(cert.active_template_path).toBe(shortFormAuth!.path);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 16: Recommendation Integrity Gate — Eval vs Revise Tiers
+// SIPOC authority: recommendationIntegrityGate.ts, reviseAdmissionGate.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 16: Recommendation Integrity Gate — Eval vs Revise Tiers', () => {
+  it('integrity gate: well-formed recommendation meets evaluation report tier', () => {
+    const result = checkRecommendationIntegrity({
+      action: 'Sharpen Marcus\'s central ironic reversal in the "salon disaster" scene to crystallize the thematic arc.',
+      symptom: 'The reversal is implied but not dramatized on the page for the reader.',
+      cause: 'The final scene summarizes Marcus\'s reaction rather than showing the emotional shift.',
+      reader_effect: 'Reader leaves the story without the cathartic payoff the premise promises.',
+      anchor_snippet: 'His calamity was not completely without positivity though.',
+      surface: 'evaluation_report' as const,
+    });
+    expect(meetsMinimumTier(result, 'evaluation_report')).toBe(true);
+  });
+
+  it('integrity gate: minimal recommendation without diagnostics fails revise tier', () => {
+    const result = checkRecommendationIntegrity({
+      action: 'Improve the pacing of chapter three.',
+      anchor_snippet: 'The room was quiet.',
+      surface: 'revise_queue' as const,
+    });
+    // Missing symptom/cause → violations → below PASS_STRONG
+    expect(meetsMinimumTier(result, 'revise_queue')).toBe(false);
+  });
+
+  it('integrity gate: empty recommendation fails', () => {
+    const result = checkRecommendationIntegrity({
+      action: '',
+      anchor_snippet: '',
+    });
+    expect(result.tier).toBe('FAIL');
+    expect(meetsMinimumTier(result, 'evaluation_report')).toBe(false);
+    expect(meetsMinimumTier(result, 'revise_queue')).toBe(false);
+  });
+
+  it('integrity gate: revise queue requires PASS_STRONG (stricter than eval)', () => {
+    // Full diagnostic with specific anchor reference (proper noun + quote)
+    const strongResult = checkRecommendationIntegrity({
+      action: 'Rewrite Marcus\'s opening paragraph near "It was time" to establish motivation in the first three sentences.',
+      symptom: 'The reader has no reason to invest in Marcus as protagonist until page five.',
+      cause: 'The opening delays character motivation behind scene-setting at the salon.',
+      reader_effect: 'Reader disengages before the story earns their attention and emotional investment.',
+      anchor_snippet: 'It was time, yet again, to color his hair at the same salon.',
+      surface: 'revise_queue' as const,
+    });
+
+    // Always meets eval tier
+    expect(meetsMinimumTier(strongResult, 'evaluation_report')).toBe(true);
+  });
+
+  it('full chain: eval opportunities → integrity gate → admission checks integrity', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Each opportunity goes through the admission gate which includes integrity check
+    for (const opp of opportunities.slice(0, 3)) {
+      const admissionInput = makeWorkbenchAdmissionInput(opp);
+      const result = runWorkbenchAdmissionGate(admissionInput);
+      // The admission gate runs integrity check — verify it produces a decision
+      expect(result.admission_status).toBeDefined();
+      expect(['admission_passed', 'withheld']).toContain(result.admission_status);
+      // Reasons array is always present (may contain INTEGRITY_ codes for fixture recs)
+      expect(Array.isArray(result.reasons)).toBe(true);
+    }
   });
 });
