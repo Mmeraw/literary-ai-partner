@@ -1785,6 +1785,13 @@ export function parsePass3Response(
 
   const sanitizedOverall = sanitizeCMOSOverall(rawOverallObj as Record<string, unknown>) as typeof rawOverallObj;
 
+  // CMOS sanitization can expand abbreviations (e.g. "e.g." → "for example,"),
+  // pushing the summary past the 500-char QG limit. Re-cap after sanitization.
+  if (typeof sanitizedOverall.one_paragraph_summary === "string" && sanitizedOverall.one_paragraph_summary.length > 500) {
+    (sanitizedOverall as Record<string, unknown>).one_paragraph_summary =
+      sanitizedOverall.one_paragraph_summary.substring(0, 497).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026";
+  }
+
   // Extract enrichment surfaces from LLM output.
   // These fields feed the final EvaluationResultV2 template-completeness gate;
   // dropping diagnosed_genre / target_audience here causes otherwise valid

@@ -3074,7 +3074,11 @@ export function synthesisToEvaluationResultV2(
   const fallbackOverviewSummary =
     `This manuscript shows meaningful strengths and clear readiness potential, with the most consequential revision pressure in ${fallbackWeaknesses}; targeted craft tightening should materially improve submission posture.`;
 
-  const overviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
+  const rawOverviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
+  // Hard cap: normalizeSummaryWithBottomWeaknesses + CMOS expansion can exceed 500 chars.
+  const overviewSummary = rawOverviewSummary.length > 500
+    ? rawOverviewSummary.substring(0, 497).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026"
+    : rawOverviewSummary;
 
   const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {
     const label = getCriterionDisplayLabel(criterion.key);
