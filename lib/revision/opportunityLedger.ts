@@ -473,17 +473,31 @@ export function resolveReviseContextQuality(ledgerQualityReportContent: unknown,
     };
   }
 
+  // repair_required means "fragmented identity or zero antagonist coverage;
+  // ledger may be incomplete but not critically broken". This should degrade
+  // to 'limited' — not 'blocked' — so opportunities can still reach the
+  // Revise Queue with advisory warnings. Only true hard-fail statuses
+  // (blocked, blocked_content_hard_fail) should fully block the queue.
+  if (gateReadyStatus === 'repair_required') {
+    return {
+      status: 'limited',
+      source: 'ledger_quality_report_v1',
+      gate_ready_status: gateReadyStatus,
+      blocking_reasons: blockingReasons,
+      degraded_layers: degradedLayers,
+    };
+  }
+
   if (
     gateReadyStatus === 'blocked' ||
-    gateReadyStatus === 'blocked_content_hard_fail' ||
-    gateReadyStatus === 'repair_required'
+    gateReadyStatus === 'blocked_content_hard_fail'
   ) {
     // In TESTIMONY mode (memoir, personal essay), "no POV characters" is
     // expected — the unnamed first-person narrator IS the protagonist.
     // Downgrade from 'blocked' to 'limited' so the Revise queue can proceed.
     const isTestimonyPovSoftening =
       evaluationMode?.toUpperCase() === 'TESTIMONY' &&
-      gateReadyStatus === 'repair_required' &&
+      blockingReasons.length > 0 &&
       blockingReasons.every((reason) =>
         /\bno pov\b|no protagonist\b|narrator is unnamed\b/i.test(reason),
       );
@@ -2307,7 +2321,8 @@ export async function ensureRevisionOpportunityLedgerArtifact(
 
       for (const o of opportunities) {
         const needsCandidates = !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c;
-        const needsHydration = o.preflight_status === 'passed'
+        const preflightAllowsHydration = o.preflight_status === 'passed' || o.preflight_status === 'limited_context';
+        const needsHydration = preflightAllowsHydration
           && o.grounding_status !== 'supported'
           && needsCandidates;
         if (!needsHydration) continue;

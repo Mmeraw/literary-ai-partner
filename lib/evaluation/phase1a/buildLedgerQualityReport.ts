@@ -493,11 +493,17 @@ export function buildLedgerQualityReport(
 
   const hardFailPresent = hardFails.length > 0;
 
-  // Gate-ready status
+  // Gate-ready status — count only distinct root-cause warnings, not inherited
+  // dependency copies. A single SAME_NAME_AMBIGUITY in canonical_identity
+  // produces 8 identity_dependency:* warnings (one per dependent layer); these
+  // are informational cascade metadata, not independent issues.
+  const rootCauseWarnings = warnings.filter(
+    (c) => !c.key.startsWith('identity_dependency:'),
+  );
   let gate_ready_status: GateReadyStatus;
   if (hardFailPresent) {
     gate_ready_status = 'blocked_content_hard_fail';
-  } else if (warnings.length > 3) {
+  } else if (rootCauseWarnings.length > 3) {
     gate_ready_status = 'repair_required';
   } else {
     gate_ready_status = 'reviewable';

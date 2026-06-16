@@ -632,7 +632,7 @@ describe('Revise Pipeline Stress: Testimony POV Softening', () => {
     expect(result.status).toBe('limited');
   });
 
-  it('non-testimony mode still blocks for missing POV', () => {
+  it('non-testimony mode also resolves repair_required as limited (not blocked)', () => {
     const qualityReport = {
       quality_report: {
         gate_ready_status: 'repair_required',
@@ -643,7 +643,7 @@ describe('Revise Pipeline Stress: Testimony POV Softening', () => {
       },
     };
     const result = resolveReviseContextQuality(qualityReport, 'FICTION');
-    expect(result.status).toBe('blocked');
+    expect(result.status).toBe('limited');
   });
 
   it('testimony mode still blocks for hard content failures', () => {
@@ -658,7 +658,7 @@ describe('Revise Pipeline Stress: Testimony POV Softening', () => {
     expect(result.status).toBe('blocked');
   });
 
-  it('testimony mode still blocks when reasons include non-POV issues', () => {
+  it('repair_required with mixed reasons still resolves as limited', () => {
     const qualityReport = {
       quality_report: {
         gate_ready_status: 'repair_required',
@@ -670,7 +670,7 @@ describe('Revise Pipeline Stress: Testimony POV Softening', () => {
       },
     };
     const result = resolveReviseContextQuality(qualityReport, 'TESTIMONY');
-    expect(result.status).toBe('blocked');
+    expect(result.status).toBe('limited');
   });
 
   it('testimony mode with "no protagonist" reason also softens', () => {

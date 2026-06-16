@@ -191,8 +191,8 @@ export const REVISE_PROCESS_REGISTRY: readonly ReviseStage[] = [
     consumers: ['RS02_QUEUE_ADMISSION'],
     uiExposed: false,
     certificationStatus: 'partial',
-    fitGapStatus: 'gap',
-    notes: 'opportunityLedger.ts is active; revisionOpportunityLedgerArtifact.ts writes the artifact. Hard caps only: short-form max 50, long-form max 100 opportunities. Caps are not targets.',
+    fitGapStatus: 'emerging',
+    notes: 'opportunityLedger.ts is active; revisionOpportunityLedgerArtifact.ts writes the artifact. Hard caps only: short-form max 50, long-form max 100 opportunities. Caps are not targets. Context quality now correctly resolves repair_required as limited (not blocked); hydration eligibility accepts limited_context preflight status.',
   },
   {
     sequence: 20,
@@ -218,7 +218,7 @@ export const REVISE_PROCESS_REGISTRY: readonly ReviseStage[] = [
     uiExposed: false,
     certificationStatus: 'partial',
     fitGapStatus: 'emerging',
-    notes: 'admission_status is exactly: admission_passed | withheld. Six-part diagnostic is exactly: symptom, cause, fixDirection, readerEffect, evidence_anchor, revision_operation. UI/card aliases: fixStrategy=fixDirection, readerImpact=readerEffect, operationTargeting=revision_operation + location, evidence.quotedExcerpt=evidence_anchor.',
+    notes: 'admission_status is exactly: admission_passed | withheld. Six-part diagnostic is exactly: symptom, cause, fixDirection, readerEffect, evidence_anchor, revision_operation. UI/card aliases: fixStrategy=fixDirection, readerImpact=readerEffect, operationTargeting=revision_operation + location, evidence.quotedExcerpt=evidence_anchor. Admission gate now accepts limited_context preflight and limited context_quality (not just passed/clean).',
   },
   {
     sequence: 30,

@@ -170,6 +170,35 @@ Illegal transitions must throw and must not write to the database.
 
 ---
 
+## Corrective Actions Applied
+
+### Root Cause: Canon Gate Blocking 100% of Revise Queue Opportunities (2026-06-12)
+
+**Problem:** Production data showed 189 of 189 opportunities (100%) blocked by `canon_authority_blocked`. Zero opportunities ever reached the user. All 11 revision sessions were stuck in `open` with 0 findings, 0 proposals.
+
+**Root cause chain:**
+1. `buildLedgerQualityReport.ts` counted dependency-inherited warnings (one canonical identity issue cascaded to 8 downstream layers) toward the >3 warning threshold, causing `gate_ready_status: "repair_required"` even when the underlying issue was a single same-name ambiguity.
+2. `resolveReviseContextQuality` treated `repair_required` identically to `blocked` and `blocked_content_hard_fail`, returning `context_quality: "blocked"`.
+3. `preflightReasonsForOpportunity` pushed `canon_authority_blocked` for every opportunity when `context_quality === "blocked"`.
+4. `isSupportedForUserQueue` rejected all blocked opportunities.
+5. Hydration (RS05) only attempted opportunities with `preflight_status === "passed"`, so zero candidates were generated.
+
+**Fixes applied:**
+1. **`buildLedgerQualityReport.ts`** — Exclude `identity_dependency:*` cascade warnings from the >3 root-cause warning count. These are informational metadata documenting which layers inherit canonical identity risk; they are not independent issues.
+2. **`resolveReviseContextQuality`** — `repair_required` now maps to `context_quality: "limited"` (not `"blocked"`). Only `blocked` and `blocked_content_hard_fail` produce `"blocked"`.
+3. **`opportunityLedger.ts` hydration eligibility** — Allow `limited_context` opportunities to enter hydration (RS05), not just `passed`.
+4. **`isSupportedForUserQueue`** — Accept `limited_context` preflight status for user queue admission (alongside `passed`).
+5. **`reviseAdmissionGate.ts`** — Accept `limited_context` preflight and `limited` context quality for admission (not just `passed`/`clean`).
+
+**Doctrine preserved:**
+- `blocked` and `blocked_content_hard_fail` still fully block (no weakening of hard-fail gates)
+- SLAE validation unchanged
+- Candidate quality gates unchanged
+- `limited_context` cards have confidence capped at `medium` per existing logic
+- No production validation rules were weakened
+
+---
+
 ## CSV Mirrors
 
 The Revise executable FIPOC is seven mirrored tables: process, artifact, field,

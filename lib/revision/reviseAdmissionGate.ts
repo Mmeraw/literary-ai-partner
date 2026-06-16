@@ -138,8 +138,8 @@ export function runReviseAdmissionGate(opportunity: ReviseAdmissionOpportunity):
   const reasons: string[] = [];
 
   if (opportunity.grounding_status !== 'supported') reasons.push('UNSUPPORTED_REVISION');
-  if (opportunity.preflight_status !== 'passed') reasons.push('PREFLIGHT_NOT_PASSED');
-  if (opportunity.context_quality !== 'clean') reasons.push('CONTEXT_INSUFFICIENT');
+  if (opportunity.preflight_status !== 'passed' && opportunity.preflight_status !== 'limited_context') reasons.push('PREFLIGHT_NOT_PASSED');
+  if (opportunity.context_quality !== 'clean' && opportunity.context_quality !== 'limited') reasons.push('CONTEXT_INSUFFICIENT');
 
   const base = {
     anchor: opportunity.evidence_anchor,
