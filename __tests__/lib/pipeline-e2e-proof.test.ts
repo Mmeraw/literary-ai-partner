@@ -112,6 +112,7 @@ import {
 } from '@/lib/revision/sessionTransitions';
 import { runVoiceGate } from '@/lib/revision/voiceGate';
 import { runCanonGate } from '@/lib/revision/canonGate';
+import { REVISION_OPERATIONS } from '@/lib/revision/reviseCardContract';
 import {
   checkRecommendationIntegrity,
   meetsMinimumTier,
@@ -2365,5 +2366,427 @@ describe('E2E Chain 16: Recommendation Integrity Gate — Eval vs Revise Tiers',
       // Reasons array is always present (may contain INTEGRITY_ codes for fixture recs)
       expect(Array.isArray(result.reasons)).toBe(true);
     }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 17: Revise Card Contract Validation — Full Readiness Chain
+// SIPOC authority: reviseCardContract.ts, FORBIDDEN_META_SUGGESTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 17: Revise Card Contract Validation — Full Readiness Chain', () => {
+  const validInput: ReviseCardValidationInput = {
+    issueStatement: 'The opening scene delays character motivation behind scene-setting.',
+    symptom: 'Reader has no reason to invest in the protagonist until page five.',
+    cause: 'The author front-loads setting detail before establishing emotional stakes.',
+    fixStrategy: 'Move the protagonist motivation into the first three sentences.',
+    readerImpact: 'Reader engages immediately because the character wants something on page one.',
+    operationNote: 'Replace the opening paragraph with a motivation-first version.',
+    sourceText: 'The salon looked like a warehouse inside, with tall ceilings and exposed ductwork.',
+    sourceLocationLabel: 'Chapter 1, paragraph 1',
+    revisionOperation: 'replace_selected_passage' as const,
+    candidateTexts: [
+      'Marcus needed the color to hold. Three days until the audition, and his roots were showing silver again. The salon smelled of bleach and ambition.',
+      'Silver at the temples meant time was running out. Marcus sat in the cracked vinyl chair, counting the hours until his audition.',
+      'The mirror showed what Marcus feared most: age creeping in at the edges. He gripped the armrest and told the stylist to make it disappear.',
+    ],
+  };
+
+  it('fully valid card returns ready_for_revise', () => {
+    const result = validateReviseCardContract(validInput);
+    expect(result.readiness).toBe('ready_for_revise');
+    expect(result.reason).toBeNull();
+  });
+
+  it('missing issueStatement returns needs_targeting', () => {
+    const result = validateReviseCardContract({ ...validInput, issueStatement: '' });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('issue statement');
+  });
+
+  it('missing symptom returns needs_targeting', () => {
+    const result = validateReviseCardContract({ ...validInput, symptom: '' });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('symptom');
+  });
+
+  it('missing cause returns needs_targeting', () => {
+    const result = validateReviseCardContract({ ...validInput, cause: null });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('cause');
+  });
+
+  it('missing fixStrategy returns needs_targeting', () => {
+    const result = validateReviseCardContract({ ...validInput, fixStrategy: undefined });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('fix strategy');
+  });
+
+  it('missing readerImpact returns needs_targeting', () => {
+    const result = validateReviseCardContract({ ...validInput, readerImpact: '' });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('reader impact');
+  });
+
+  it('needs_targeting operation returns needs_targeting', () => {
+    const result = validateReviseCardContract({ ...validInput, revisionOperation: 'needs_targeting' });
+    expect(result.readiness).toBe('needs_targeting');
+  });
+
+  it('fewer than 3 candidates returns needs_targeting', () => {
+    const result = validateReviseCardContract({ ...validInput, candidateTexts: ['Only one candidate.'] });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('A/B/C');
+  });
+
+  it('duplicate candidates returns needs_targeting', () => {
+    const same = 'Marcus needed the color to hold. Three days until the audition.';
+    const result = validateReviseCardContract({
+      ...validInput,
+      candidateTexts: [same, same, 'Silver at the temples meant time was running out.'],
+    });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('distinct');
+  });
+
+  it('forbidden meta-suggestion in candidate returns needs_targeting', () => {
+    const result = validateReviseCardContract({
+      ...validInput,
+      candidateTexts: [
+        'Apply the same repair goal to strengthen the opening of the scene.',
+        validInput.candidateTexts[1]!,
+        validInput.candidateTexts[2]!,
+      ],
+    });
+    expect(result.readiness).toBe('needs_targeting');
+    expect(result.reason).toContain('copy-paste ready');
+  });
+
+  it('hasForbiddenMetaSuggestion catches imperative editorial commands', () => {
+    expect(hasForbiddenMetaSuggestion('Apply the same repair goal to strengthen the scene.')).toBe(true);
+    expect(hasForbiddenMetaSuggestion('Review this opportunity before proceeding.')).toBe(true);
+    expect(hasForbiddenMetaSuggestion('The recommended repair path is to add a beat.')).toBe(true);
+    expect(hasForbiddenMetaSuggestion('The default repair plan drawn from the evaluation.')).toBe(true);
+  });
+
+  it('hasForbiddenMetaSuggestion allows clean prose', () => {
+    expect(hasForbiddenMetaSuggestion('Marcus turned and felt the weight of it pressing against his chest.')).toBe(false);
+    expect(hasForbiddenMetaSuggestion('The rain hammered the salon windows while he waited.')).toBe(false);
+  });
+
+  it('hasWordProcessorArtifact detects HTML and entities', () => {
+    expect(hasWordProcessorArtifact('<p>Some paragraph</p>')).toBe(true);
+    expect(hasWordProcessorArtifact('Content with &nbsp; entities')).toBe(true);
+    expect(hasWordProcessorArtifact('Clean prose without artifacts.')).toBe(false);
+  });
+
+  it('candidateTextIsCopyPasteReady rejects short text', () => {
+    expect(candidateTextIsCopyPasteReady('Too short.')).toBe(false);
+    expect(candidateTextIsCopyPasteReady('')).toBe(false);
+    expect(candidateTextIsCopyPasteReady(null)).toBe(false);
+  });
+
+  it('inferRevisionOperation maps fix directions to operations', () => {
+    expect(inferRevisionOperation({ fixDirection: 'insert a new beat before the climax' })).toBe('insert_before_selected_passage');
+    expect(inferRevisionOperation({ fixDirection: 'compress this overlong passage' })).toBe('compress_selected_passage');
+    expect(inferRevisionOperation({ fixDirection: 'delete the redundant paragraph' })).toBe('delete_selected_passage');
+    expect(inferRevisionOperation({ fixDirection: 'split the paragraph at the tonal shift' })).toBe('split_paragraph');
+    expect(inferRevisionOperation({ fixDirection: 'merge these two short paragraphs' })).toBe('merge_paragraphs');
+    expect(inferRevisionOperation({ fixDirection: 'reorder the beats in this section' })).toBe('reorder_within_section');
+  });
+
+  it('operationRequiresStructuralPreview for destructive operations', () => {
+    expect(operationRequiresStructuralPreview('rewrite_multi_paragraph_span')).toBe(true);
+    expect(operationRequiresStructuralPreview('delete_selected_passage')).toBe(true);
+    expect(operationRequiresStructuralPreview('merge_paragraphs')).toBe(true);
+    expect(operationRequiresStructuralPreview('reorder_within_section')).toBe(true);
+    expect(operationRequiresStructuralPreview('replace_selected_passage')).toBe(false);
+    expect(operationRequiresStructuralPreview('insert_after_selected_passage')).toBe(false);
+  });
+
+  it('full chain: eval → infer operation → validate card → readiness', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    for (const opp of opportunities.slice(0, 2)) {
+      const operation = inferRevisionOperation({
+        scope: opp.scope,
+        fixDirection: opp.fix_direction,
+        recommendation: opp.action,
+      });
+      expect(REVISION_OPERATIONS).toContain(operation);
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 18: Propagation Integrity + Quality Gate Decision Chain
+// SIPOC authority: propagationIntegrity.ts, qualityGate.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 18: Propagation Integrity + Quality Gate Decision Chain', () => {
+  it('strong integrity: all criteria high confidence with evidence', () => {
+    const fixture = makeEvalFixture({});
+    // Ensure all criteria have high confidence for strong integrity
+    const strongCriteria = fixture.criteria.map((c) => ({
+      ...c,
+      confidence_level: 'high' as const,
+      confidence_score_0_100: 90,
+    }));
+    const summary = summarizePropagationIntegrity(strongCriteria);
+    expect(summary.upstreamIntegrity).toBe('strong');
+    expect(summary.authorityLevel).toBe('normal');
+    expect(summary.reasons).toHaveLength(0);
+  });
+
+  it('weak integrity: many low confidence criteria → blocked authority', () => {
+    const fixture = makeEvalFixture({});
+    // Degrade 6 criteria to low confidence
+    const weakCriteria = fixture.criteria.map((c, i) => {
+      if (i < 6) {
+        return { ...c, confidence_level: 'low' as const, confidence_score_0_100: 30 };
+      }
+      return c;
+    });
+    const summary = summarizePropagationIntegrity(weakCriteria);
+    expect(summary.upstreamIntegrity).toBe('weak');
+    expect(summary.authorityLevel).toBe('blocked');
+    expect(summary.reasons).toContain('low_or_missing_evidence_cluster');
+  });
+
+  it('mixed integrity: moderate confidence → constrained authority', () => {
+    const fixture = makeEvalFixture({});
+    // Set 4 criteria to moderate confidence
+    const mixedCriteria = fixture.criteria.map((c, i) => {
+      if (i < 4) {
+        return { ...c, confidence_level: 'moderate' as const, confidence_score_0_100: 65 };
+      }
+      return c;
+    });
+    const summary = summarizePropagationIntegrity(mixedCriteria);
+    expect(summary.upstreamIntegrity).toBe('mixed');
+    expect(summary.authorityLevel).toBe('constrained');
+  });
+
+  it('bottom score criteria identified correctly', () => {
+    const fixture = makeEvalFixture({ pacing: 2, dialogue: 3 });
+    const summary = summarizePropagationIntegrity(fixture.criteria);
+    expect(summary.bottomScoreCriteria.length).toBeGreaterThan(0);
+    expect(summary.bottomScoreCriteria).toContain('pacing');
+  });
+
+  it('normalizeSummaryWithBottomWeaknesses appends missing criteria', () => {
+    const original = 'The manuscript shows strong character work.';
+    const result = normalizeSummaryWithBottomWeaknesses(original, ['pacing', 'dialogue']);
+    expect(result).toContain('pacing');
+    expect(result).toContain('dialogue');
+    expect(result).toContain('Main weaknesses');
+  });
+
+  it('normalizeSummaryWithBottomWeaknesses no-ops when criteria already mentioned', () => {
+    const original = 'The pacing and dialogue need improvement.';
+    const result = normalizeSummaryWithBottomWeaknesses(original, ['pacing', 'dialogue']);
+    expect(result).toBe(original);
+  });
+
+  it('full chain: eval → propagation → authority level → quality gate → revise admission', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+
+    // Step 1: Propagation integrity
+    const propagation = summarizePropagationIntegrity(fixture.criteria);
+    expect(propagation.authorityLevel).toBeDefined();
+    expect(['normal', 'constrained', 'blocked']).toContain(propagation.authorityLevel);
+
+    // Step 2: Bottom weakness tracking
+    expect(propagation.bottomScoreCriteria.length).toBeGreaterThan(0);
+
+    // Step 3: Opportunities from same fixture
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Step 4: Admission gates
+    for (const opp of opportunities.slice(0, 2)) {
+      const admissionInput = makeWorkbenchAdmissionInput(opp);
+      const result = runWorkbenchAdmissionGate(admissionInput);
+      expect(result.admission_status).toBeDefined();
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 19: Unified End-to-End — Eval → All Gates → Revise → Agent Readiness
+// SIPOC authority: full pipeline spine
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 19: Unified End-to-End — Eval → All Gates → Revise → Agent Readiness', () => {
+  it('complete pipeline: eval → propagation → opportunities → admission → workbench → completion → agent readiness → export', () => {
+    // ── Phase 1: Evaluation produces result ──
+    const fixture = makeEvalFixture({ dialogue: 5, pacing: 6, character: 7 });
+    expect(fixture.criteria.length).toBe(CRITERIA_KEYS.length);
+
+    // ── Phase 2: Propagation integrity check ──
+    const propagation = summarizePropagationIntegrity(fixture.criteria);
+    expect(['strong', 'mixed']).toContain(propagation.upstreamIntegrity);
+
+    // ── Phase 3: Build revision opportunities ──
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // ── Phase 4: Context quality check ──
+    const contextQuality = resolveReviseContextQuality(null);
+    expect(contextQuality.status).toBeDefined();
+
+    // ── Phase 5: Admission gate per opportunity ──
+    const admitted: typeof opportunities = [];
+    for (const opp of opportunities) {
+      const admissionInput = makeWorkbenchAdmissionInput(opp);
+      const gate = runWorkbenchAdmissionGate(admissionInput);
+      if (gate.admission_status === 'admission_passed') {
+        admitted.push(opp);
+      }
+    }
+
+    // ── Phase 6: Workbench card validation ──
+    for (const opp of admitted.slice(0, 2)) {
+      const operation = inferRevisionOperation({
+        scope: opp.scope,
+        fixDirection: opp.fix_direction,
+      });
+      expect(REVISION_OPERATIONS).toContain(operation);
+    }
+
+    // ── Phase 7: Cross-check eligibility ──
+    for (const opp of admitted.slice(0, 2)) {
+      const eligible = isTrustedPathEligible({
+        candidateSource: 'llm_synthesis',
+        hasAuthorEdit: false,
+        crossCheckRequired: false,
+      });
+      expect(typeof eligible).toBe('boolean');
+    }
+
+    // ── Phase 8: Completion certification ──
+    const certInput: ReviseCompletionCertificationInput = {
+      manuscriptId: '999',
+      evaluationJobId: 'job-e2e-pipeline-001',
+      readyOpportunityIds: admitted.slice(0, 3).map((_, i) => `opp-${i}`),
+      decisions: admitted.slice(0, 3).map((_, i) => ({
+        id: `dec-${i}`,
+        opportunity_id: `opp-${i}`,
+        decision: 'accepted_a',
+        created_at: new Date().toISOString(),
+      })),
+    };
+    const certResult = buildReviseCompletionCertification(certInput);
+    expect(certResult.ok).toBe(true);
+    if (certResult.ok) {
+      expect(certResult.record.certification_status).toBe('certified');
+    }
+
+    // ── Phase 9: Agent readiness package ──
+    const approvedSections = AGENT_READINESS_REQUIRED_SECTION_TYPES.map((type) => ({
+      section_type: type,
+      content: `Content for ${type} section with sufficient detail for the agent readiness package.`,
+    }));
+    const completeness = evaluatePackageCompleteness({
+      manuscriptId: '999',
+      sections: approvedSections.map((s) => ({ ...s, status: 'approved' })),
+    });
+    expect(completeness.allSectionsApproved).toBe(true);
+    expect(completeness.missingSections).toHaveLength(0);
+
+    const readinessResult = buildAgentReadinessPackageV1({
+      manuscriptId: '999',
+      evaluationJobId: 'job-e2e-pipeline-001',
+      userId: '00000000-0000-0000-0000-000000000999',
+      manuscriptTitle: 'The Price of Vanity',
+      approvedSections,
+      packageVersion: 1,
+    });
+    expect(readinessResult.ok).toBe(true);
+    if (!readinessResult.ok) return;
+    expect(readinessResult.package.artifact_type).toBe('agent_readiness_package_v1');
+
+    // ── Phase 10: Package export ──
+    const exportPkg = buildPackageExportV1({
+      packageHash: readinessResult.package.package_hash,
+      format: 'json',
+      filename: 'the-price-of-vanity-agent-readiness.json',
+    });
+    expect(exportPkg.artifact_type).toBe('package_export_v1');
+    expect(exportPkg.package_hash).toBe(readinessResult.package.package_hash);
+  });
+
+  it('failure path: eval → failure record → kick → retry → completion', () => {
+    // ── Failure occurs during workbench ──
+    const failureRecord = buildRevisionFailureRecord({
+      sessionId: 'session-e2e-failure',
+      stage: 'workbench_hydration',
+      failureCode: 'CANDIDATE_HYDRATION_TIMEOUT',
+      message: 'LLM synthesis timed out after 30s',
+      attemptNumber: 1,
+      maxRetries: 3,
+    });
+    expect(failureRecord.artifact_type).toBe('revision_failure_record_v1');
+    expect(failureRecord.disposition).toBeDefined();
+
+    // ── Classify disposition ──
+    const disposition = classifyFailureDisposition('CANDIDATE_HYDRATION_TIMEOUT');
+    expect(['retryable', 'terminal', 'manual_review']).toContain(disposition);
+
+    // ── KICK_MATRIX lookup ──
+    const kickTarget = resolveKickTarget(failureRecord.stage, failureRecord.failureCode);
+    if (isKickEligible(failureRecord.stage, failureRecord.failureCode)) {
+      expect(kickTarget).toBeDefined();
+    }
+
+    // ── Session transitions: failed_retryable → open (retry) ──
+    expect(() => assertValidRevisionSessionTransition('open' as any, 'failed_retryable' as any)).not.toThrow();
+    expect(() => assertValidRevisionSessionTransition('failed_retryable' as any, 'open' as any)).not.toThrow();
+
+    // ── Retry completes successfully ──
+    const retryPath = ['open', 'findings_ready', 'synthesis_started', 'proposals_ready', 'applied'];
+    let status = 'failed_retryable';
+    for (const next of retryPath) {
+      expect(() => assertValidRevisionSessionTransition(status as any, next as any)).not.toThrow();
+      status = next;
+    }
+    expect(status).toBe('applied');
+  });
+
+  it('renderer path: eval → UED → manifest → parity → certification → all surfaces', () => {
+    // ── Build evaluation ──
+    const fixture = makeEvalFixture({});
+    const mode = inferCanonicalEvaluationModeFromWordCount(8_000);
+    expect(mode).toBe('short_form_evaluation');
+
+    // ── Build UED ──
+    const ued = buildUnifiedEvaluationDocument({
+      mode,
+      result: makeEvalResult({ wordCount: 8_000, genre: 'Literary Fiction', title: 'Unified Test' }),
+      displayTitle: 'Unified Test',
+      dream: null,
+    });
+    expect(ued.templateMode).toBe('short_form_evaluation');
+
+    // ── Build manifest ──
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-unified-e2e',
+      unifiedDocument: ued,
+    });
+    expect(manifest.parity.status).toBe('pass');
+    const surfaceKeys = Object.keys(manifest.surfaces);
+    expect(surfaceKeys.length).toBe(4); // webpage, PDF, DOCX, TXT
+
+    // ── Certification ──
+    const cert = buildAuthorExposureCertificationV1FromManifest(manifest);
+    expect(cert.decision).toBe('certified');
+
+    // ── Verify all 4 surfaces present ──
+    expect(surfaceKeys).toContain('webpage');
+    expect(surfaceKeys).toContain('pdf');
+    expect(surfaceKeys).toContain('docx');
+    expect(surfaceKeys).toContain('txt');
   });
 });
