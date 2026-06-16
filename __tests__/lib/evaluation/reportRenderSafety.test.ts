@@ -75,10 +75,10 @@ describe("reportRenderSafety", () => {
       "This Toronto-set story about Cost's disastrous day works well. Cost actively contrasts the $341 tally with Kim's values. Cost: $14.00 remains a literal expense label.",
     );
 
-    expect(cleaned).toContain("the narrator's disastrous day");
+    expect(cleaned).toContain("the narrator\u2019s disastrous day");
     expect(cleaned).toContain("The narrator actively contrasts");
     expect(cleaned).toContain("Cost: $14.00");
-    expect(cleaned).not.toContain("Cost's");
+    expect(cleaned).not.toContain("Cost\u2019s");
     expect(cleaned).not.toContain("Cost actively");
   });
 });
