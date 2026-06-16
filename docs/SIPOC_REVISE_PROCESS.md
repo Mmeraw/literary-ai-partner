@@ -135,10 +135,16 @@ deferred → ready_for_revise
 ## Revision Session State Machine
 
 ```
-open → findings_ready → synthesis_started → proposals_ready → applied | failed
+open → findings_ready → synthesis_started → proposals_ready → applied | failed | failed_retryable
+
+failed_retryable → open   (re-entry after classified retryable failure)
 ```
 
 `applied` and `failed` are terminal. No transition out of either is permitted.
+`failed_retryable` allows re-entry to `open` after the failure is classified as
+retryable by `classifyFailureDisposition()` and a kick target is resolved via
+`REVISE_KICK_MATRIX`. Every `failed_retryable` → `open` transition must be
+accompanied by a `revision_failure_record_v1` artifact.
 Illegal transitions must throw and must not write to the database.
 
 ---
