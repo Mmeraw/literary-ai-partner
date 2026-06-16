@@ -110,6 +110,8 @@ export type ShortFormResultLike = {
   };
 };
 
+type CanonicalRenderedOpportunity = ReturnType<typeof buildCanonicalOpportunityLedger>['rendered_opportunities'][number];
+
 export type ShortFormTemplateSectionId =
   | 'title_block'
   | 'one_paragraph_pitch'
@@ -397,6 +399,27 @@ function ensureNonEmptyList(values: string[], fallback: string[]): string[] {
   return fallback.map((value) => value.trim()).filter((value) => value.length > 0);
 }
 
+function opportunityToShortFormCriterionRecommendation(
+  item: CanonicalRenderedOpportunity,
+): ShortFormCriterionRecommendation {
+  const recommendation = opportunityToCriterionRecommendation(item);
+
+  return {
+    opportunity_id: recommendation.opportunity_id,
+    priority: item.severity,
+    action: recommendation.action,
+    expected_impact: recommendation.expected_impact,
+    anchor_snippet: recommendation.anchor_snippet,
+    anchor_type: 'verbatim_quote',
+    symptom: recommendation.symptom,
+    mechanism: recommendation.mechanism,
+    specific_fix: recommendation.specific_fix,
+    reader_effect: recommendation.reader_effect,
+    mistake_proofing: recommendation.mistake_proofing,
+    collapsed_from_criteria: recommendation.collapsed_from_criteria,
+  };
+}
+
 export function buildShortFormEvaluationDocument(input: {
   result: ShortFormResultLike;
   displayTitle: string;
@@ -464,7 +487,7 @@ export function buildShortFormEvaluationDocument(input: {
     const canonicalRecommendations = renderedOpportunities
       .filter((item) => item.primary_criterion === criterion.key || item.related_criteria.includes(criterion.key))
       .slice(0, 3)
-      .map((item) => normalizeCriterionRecommendation(opportunityToCriterionRecommendation(item) as ShortFormCriterionRecommendation));
+      .map(opportunityToShortFormCriterionRecommendation);
 
     return {
       key: criterion.key,

@@ -9,17 +9,10 @@
  * downstream processes how much to trust the ledger — it never blocks.
  */
 
-const CANONICAL_LAYER_NAMES = [
-  'canonical_identity_layer',
-  'cast_role_tier_layer',
-  'identity_pronoun_layer',
-  'location_timeline_worldstate_layer',
-  'object_symbol_layer',
-  'pov_structure_layer',
-  'relationship_network_layer',
-  'source_integrity_layer',
-  'threat_antagonist_ending_layer',
-] as const;
+import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
+
+const CANONICAL_LAYER_NAMES = STORY_LAYER_KEYS;
+const CANONICAL_LAYER_COUNT = STORY_LAYER_KEYS.length;
 
 type LayerHealthStatus = 'healthy' | 'degraded_but_usable' | 'degraded' | 'missing' | 'empty' | 'unknown';
 
@@ -41,7 +34,7 @@ export interface CorruptionAssessment {
   missing_layers: string[];
   /** Layers that are degraded but present */
   degraded_layers: string[];
-  /** Total layers present (of 9 canonical) */
+  /** Total layers present (of all canonical layers) */
   layers_present: number;
   /** Total layers healthy */
   layers_healthy: number;
@@ -204,9 +197,9 @@ export function assessLedgerCorruption(
 
   let summary: string;
   if (overallScore === 0) {
-    summary = 'Story ledger is pristine — all 9 layers healthy.';
+    summary = `Story ledger is pristine — all ${CANONICAL_LAYER_COUNT} layers healthy.`;
   } else if (overallScore < 0.2) {
-    summary = `Story ledger is mostly healthy (${healthyCount}/9 pristine, ${degradedLayers.length} degraded).`;
+    summary = `Story ledger is mostly healthy (${healthyCount}/${CANONICAL_LAYER_COUNT} pristine, ${degradedLayers.length} degraded).`;
   } else if (overallScore < 0.5) {
     summary = `Story ledger is moderately degraded (${degradedLayers.length} degraded, ${missingLayers.length} missing). Usable with reduced confidence.`;
   } else if (usable) {

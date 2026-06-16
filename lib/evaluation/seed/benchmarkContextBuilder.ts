@@ -4,7 +4,7 @@
  * Builds a compact context block from the dream/gold-standard benchmarks
  * and failure modes docs. This context is injected into seed generation
  * prompts so the LLM has:
- *   1. The exact 9-layer structure it must populate
+ *   1. The exact 10-layer structure it must populate
  *   2. Per-layer failure conditions (what NOT to do)
  *   3. Gold-standard example shapes (what good output looks like)
  *   4. Structural validation criteria
@@ -45,9 +45,9 @@ export function inferWorkTypeFromWordCount(wordCount: number): string {
   return 'novel';
 }
 
-// ── 9-Layer Template Structure ──────────────────────────────────────────────
-// Now loaded at runtime from docs/benchmarks/story-ledger/STORY_LEDGER_9_LAYER_TEMPLATE.md
-// via buildCompactStoryLedgerBlock(). The canonical .md file contains all 9 layers,
+// ── Story Ledger Template Structure ─────────────────────────────────────────
+// Now loaded at runtime from docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md
+// via buildCompactStoryLedgerBlock(). The canonical registry contains all 10 layers,
 // required fields, failure conditions, validation contract, and completion standard.
 // Hardcoded inline strings removed — single source of truth.
 
@@ -60,9 +60,9 @@ export function inferWorkTypeFromWordCount(wordCount: number): string {
 
 const BENCHMARK_EXEMPLAR_CARTEL_BABIES = `
 COMPLETED BENCHMARK EXEMPLAR — STORY LEDGER (Cartel Babies, required-gold):
-This is the canonical product example for seed and Phase 1A Story Ledger quality. Use this as your target shape for the nine-layer scaffold; shrink breadth for shorter submissions, but do not weaken evidence discipline.
+This is the canonical product example for seed and Phase 1A Story Ledger quality. Use this as your target shape for the ten-layer scaffold; shrink breadth for shorter submissions, but do not weaken evidence discipline.
 
-- Required-gold source docs: docs/benchmarks/cartel-babies-dream.md, docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md, docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
+- Required-gold source docs: docs/benchmarks/cartel-babies-dream.md, docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md, docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md
 - Completion standard: must capture Michael and Benjamin as dual protagonists, Paolito/Paul identity transformation, Raúl/Navarro governance conflict, Cobra betrayal, Diego loyalty-tax pressure, El Tomatero/red bat, pigs/pig-pen disposal terror, cartel product/lab pressure, radio-channel punishment code, embassy/new-identity transition, and Vancouver aftercare
 - Source integrity: distinguish true structural defects from motif, table-of-contents artifact, anchor issue, package note, or manual-verification concern
 - POV / identity: preserve Michael captivity POV, Benjamin search/origin lane, Paolito→Paul rename chain, and cartel/institutional systems as distinct canonical entities
@@ -103,11 +103,12 @@ export function buildSeedBenchmarkContext(route?: SeedRoute): string {
 }
 
 /**
- * Returns the 9-layer names in canonical order for structural validation.
+ * Returns the 10-layer names in canonical order for structural validation.
  */
 export const CANONICAL_LAYER_NAMES = [
   'source_integrity',
   'pov_structure',
+  'narrator_attribution',
   'canonical_identity',
   'cast_role_tier',
   'pronoun_transitions',
@@ -131,7 +132,7 @@ export type SeedStructuralValidation = {
 };
 
 /**
- * Validates that a generated ledger has the required 9-layer structure populated.
+ * Validates that a generated ledger has the required 10-layer structure populated.
  * Does NOT validate content quality (that's assessLedgerQuality's job) — this
  * validates structural completeness against the template.
  */

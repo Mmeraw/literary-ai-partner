@@ -24,10 +24,10 @@ export const STORY_LAYER_METADATA = {
   },
   narrator_attribution_layer: {
     title: "Narrator Attribution",
-    shortLabel: "Narrator signals",
+    shortLabel: "Narrator authority",
     description:
-      "How narration is attributed and whether unnamed or ambiguous narrator references need author confirmation before downstream use.",
-    iconToken: "🧭",
+      "Who is allowed to speak as the narrator in reports. Narrator names require explicit evidence; when unsupported, reports must use the narrator or unnamed narrator rather than inferred theme, object, cost, greeting, or yes/no labels.",
+    iconToken: "🗣",
   },
   canonical_identity_layer: {
     title: "Canonical Identity",

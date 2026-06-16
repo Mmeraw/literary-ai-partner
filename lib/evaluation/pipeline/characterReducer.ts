@@ -647,14 +647,14 @@ export function reduceCharacterEvidence(params: {
    *  any character whose canonical_name does not appear in the manuscript
    *  (case-insensitive substring match) will be rejected from the ledger. */
   manuscriptText?: string;
-  /** Full 9-layer seed story ledger (Phase 0.5a). When provided, all
-   *  character names are validated against all 9 layers + manuscript text.
+  /** Full 10-layer seed story ledger (Phase 0.5a). When provided, all
+   *  character names are validated against all 10 layers + manuscript text.
    *  Characters not grounded in the seed OR manuscript are rejected. */
   seedLedger?: FullContextStoryLedger | null;
   /** Canonical entity names from the seed story ledger (Phase 0.5a).
    *  Characters appearing in this set are always accepted regardless of
    *  manuscript text matching (they were already validated at seed time).
-   *  @deprecated Use seedLedger instead for full 9-layer grounding. */
+  *  @deprecated Use seedLedger instead for full 10-layer grounding. */
   seedEntityNames?: string[];
 }): Pass1aCharacterLedger {
   const { jobId, totalChunksInManuscript } = params;
@@ -1095,9 +1095,9 @@ export function reduceCharacterEvidence(params: {
     })
     .slice(0, MAX_LEDGER_ENTRIES);
 
-  // ── Character grounding gate (9-layer seed authority) ────────────────────
+  // ── Character grounding gate (10-layer seed authority) ───────────────────
   // Reject any character whose canonical_name does not appear in the
-  // 9-layer seed story ledger OR the manuscript text. Prevents cross-
+  // 10-layer seed story ledger OR the manuscript text. Prevents cross-
   // contamination from LLM hallucination or context window bleed.
   let sorted: typeof sortedRaw;
   if (params.manuscriptText || params.seedLedger || params.seedEntityNames) {

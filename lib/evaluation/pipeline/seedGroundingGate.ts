@@ -3,7 +3,7 @@
  *
  * Validates that downstream pipeline outputs (character names, objects,
  * relationships, locations) are grounded in either:
- *   1. The 9-layer seed story ledger (Phase 0.5a authority)
+ *   1. The 10-layer seed story ledger (Phase 0.5a authority)
  *   2. The raw manuscript text (direct evidence)
  *
  * Prevents cross-contamination from LLM hallucination or context window
@@ -46,7 +46,7 @@ export interface GroundingDiagnostic {
 // ── Build the grounding index from seed + manuscript ──────────────────────
 
 /**
- * Extract all grounded entity names from the 9-layer seed story ledger
+ * Extract all grounded entity names from the 10-layer seed story ledger
  * and the raw manuscript text. Returns a GroundingIndex that can be used
  * to validate any downstream output.
  */

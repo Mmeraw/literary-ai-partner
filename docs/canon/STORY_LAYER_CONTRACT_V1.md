@@ -10,7 +10,7 @@ Phase 0 → Phase 1A → Review Gate → Approval Normalizer → Phase 2
 
 Phase 2 may consume `accepted_story_ledger_v1` as its only story-understanding authority. It may also consume `dream_calibration_packet_v1`, `manuscript_evidence_map`, and non-governing support artifacts.
 
-`pass1a_story_layer_v1` contains exactly nine story layers and nothing else. Governance remains separate. Support artifacts remain separate.
+`pass1a_story_layer_v1` contains exactly ten story layers and nothing else. Governance remains separate. Support artifacts remain separate.
 
 ## Artifact flow
 
@@ -43,19 +43,20 @@ The Approval Normalizer must never create `accepted_story_ledger_v1` from `pass1
 
 `accepted_with_override` may only be written by `admin` or `operator` roles and must preserve unresolved warnings in governance.
 
-## Nine-layer model
+## Ten-layer model
 
 ```mermaid
 flowchart TD
     A[pass1a_story_layer_v1] --> A1[source_integrity_layer]
     A --> A2[pov_structure_layer]
-    A --> A3[canonical_identity_layer]
-    A --> A4[cast_role_tier_layer]
-    A --> A5[identity_pronoun_layer]
-    A --> A6[relationship_network_layer]
-    A --> A7[object_symbol_layer]
-    A --> A8[location_timeline_worldstate_layer]
-    A --> A9[threat_antagonist_ending_layer]
+    A --> A3[narrator_attribution_layer]
+    A --> A4[canonical_identity_layer]
+    A --> A5[cast_role_tier_layer]
+    A --> A6[identity_pronoun_layer]
+    A --> A7[relationship_network_layer]
+    A --> A8[object_symbol_layer]
+    A --> A9[location_timeline_worldstate_layer]
+    A --> A10[threat_antagonist_ending_layer]
 
     B[governance_rail_v1] --> B1[warnings]
     B --> B2[evidence_locations]
@@ -103,7 +104,7 @@ export type RuntimeArtifactEnvelope = {
 
 ## Supporting signal artifacts
 
-`story_shape_signal_map_v1` and `manuscript_signal_appendix_v1` enrich Phase 2 but do not alter, override, or replace `accepted_story_ledger_v1`. They are not Story Layer layers and do not create Layer 9.
+`story_shape_signal_map_v1` and `manuscript_signal_appendix_v1` enrich Phase 2 but do not alter, override, or replace `accepted_story_ledger_v1`. They are not Story Layer layers and do not create any additional Story Layer.
 
 They must reference `accepted_story_ledger_v1.artifact_id` and `accepted_story_ledger_v1.source_hash`. If the accepted ledger changes, those support artifacts are stale and must be regenerated or marked degraded before use.
 

@@ -73,7 +73,7 @@ Revise Queue → WAVE Revision Pipeline
 | **Canon ref** | SIPOC `S04_PHASE0_5A`, docs/governance/seed-phase-template-alignment-contract.md |
 | **Runtime code** | `lib/evaluation/seed/fullContextStoryLedger.ts` |
 | **Input** | Full manuscript text (no chunking) — single LLM call |
-| **Output** | 9-layer Story Ledger seed: source_integrity, pov_structure, canonical_identity, cast_role_tier, pronoun_transitions, relationship_network, object_symbol, timeline_location_worldstate, threat_pressure_ending |
+| **Output** | 10-layer Story Ledger seed: source_integrity, pov_structure, narrator_attribution, canonical_identity, cast_role_tier, pronoun_transitions, relationship_network, object_symbol, timeline_location_worldstate, threat_pressure_ending |
 | **Schema** | `StoryLedgerSeed` type with `layers: Record<StoryLedgerLayer, object>`, `failure_conditions: CharacterEndState[]` |
 | **Ownership** | RG-owned (model output). Author-derived (based on manuscript). |
 | **Quality gates** | `validateLedgerStructure()` — structural completeness check; all 9 layers must be non-empty |

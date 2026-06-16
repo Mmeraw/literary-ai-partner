@@ -182,6 +182,24 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 - Accepted: `esbuild` is a dev/build-time tool only. It is invoked by `tsx` for TypeScript transpilation in scripts and CI, never exposed to production request paths or user-controlled network input. No production bundle depends on `esbuild` at runtime.
 - Time-boxed expiry: **2026-09-30**
 
+### form-data
+- **Status**: KNOWN — transitive dependency / audit key
+- Advisory: `GHSA-hmw2-7cc7-3qxx` — CRLF injection in multipart field names and filenames for `form-data >=4.0.0 <4.0.6`
+- Accepted: no direct production code path in this change constructs multipart requests from untrusted field names/filenames through this transitive package; tracked pending upstream dependency resolution.
+- Time-boxed expiry: **2026-09-30**
+
+### vite
+- **Status**: KNOWN — transitive build/dev tooling dependency
+- Advisory chain: Vite 8 Windows-only dev-server/file-system advisories through tooling dependency graph
+- Accepted: Vite is not used as the production request handler for this Next.js app; remaining exposure is build/dev tooling, not a deployed runtime endpoint in this change.
+- Time-boxed expiry: **2026-09-30**
+
+### ws
+- **Status**: KNOWN — transitive WebSocket dependency
+- Advisory chain: `ws` memory disclosure/DoS advisories through transitive tooling/runtime dependency graph
+- Accepted: this change does not add or expose a user-controlled WebSocket server path using `ws`; tracked pending upstream dependency updates.
+- Time-boxed expiry: **2026-09-30**
+
 ### tsx
 - **Status**: KNOWN — dev-only script runner (transitive `esbuild` advisory)
 - Advisory: inherits from `esbuild` advisory chain
