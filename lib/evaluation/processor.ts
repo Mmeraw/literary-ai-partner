@@ -11191,12 +11191,23 @@ export async function processEvaluationJob(
       };
     }
 
-    // ── Gate 15 Pre-Finalization Invariant ──────────────────────────────────
+    // ── Gate 15 Pre-Finalization Advisory ──────────────────────────────────
     // Gate 15 (Mechanical Purity + Overcorrection Firewall) runs BEFORE the
-    // atomic completion RPC (persistEvaluationResultV2). If Gate 15 FAIL →
-    // markFailed → return success:false. Never acquires persistence lock,
-    // never calls persistEvaluationResultV2. Gate 15 auto-skips for short-form
-    // manuscripts (<25,000 words) so this is zero-cost for short-form evaluations.
+    // atomic completion RPC (persistEvaluationResultV2).
+    //
+    // IMPORTANT: Gate 15 is ADVISORY-ONLY during the evaluation pipeline.
+    // Its canon role is to validate text after revision waves (Wave 15→16
+    // transition in the Revise phase). During initial evaluation, the
+    // manuscript text contains the author's original creative choices
+    // (dialogue tags, thought verbs, physiological fillers) which are
+    // EXPECTED features of fiction writing — not defects to block on.
+    //
+    // Gate 15 findings are persisted as an audit artifact for downstream
+    // use by the Revise Queue, but they NEVER block evaluation completion.
+    // The evaluation's job is to REPORT on the manuscript, not to refuse
+    // to complete because the manuscript has dialogue tags.
+    //
+    // Gate 15 auto-skips for short-form manuscripts (<25,000 words).
     //
     // Uses canonical word count from coverageForReporting (same source as
     // routing/chunking), not a recalculated ad hoc count.
@@ -11206,8 +11217,8 @@ export async function processEvaluationJob(
       const gate15Result = runGate15Audit(manuscriptText, String(job.id), String(job.manuscript_id));
 
       // Persist the Gate 15 artifact regardless of outcome (audit trail).
-      // The artifact records what the gate saw — the exact final view model
-      // (effectiveEvaluationResult) that would have been persisted.
+      // The artifact records manuscript-level mechanical purity findings
+      // for downstream Revise Queue use.
       try {
         const gate15Hash = stableSourceHash({
           manuscriptId: manuscript.id,
@@ -11228,42 +11239,25 @@ export async function processEvaluationJob(
             ...gate15Result,
             canonicalWordCount,
             evaluationCriteriaCount: effectiveEvaluationResult.criteria.length,
+            advisory_only: true,
+            advisory_reason: 'Gate 15 is advisory during evaluation pipeline; blocking reserved for Revise phase (Wave 15→16 transition)',
           },
         });
-        console.log(`[Gate15/PreRPC] ${jobId}: gate_15_audit_v1 persisted — status=${gate15Result.overallStatus} words=${canonicalWordCount}`);
+        console.log(`[Gate15/PreRPC] ${jobId}: gate_15_audit_v1 persisted — status=${gate15Result.overallStatus} words=${canonicalWordCount} (ADVISORY-ONLY, non-blocking)`);
       } catch (gate15PersistErr) {
         console.error(`[Gate15/PreRPC] ${jobId}: artifact persist failed (non-fatal)`,
           gate15PersistErr instanceof Error ? gate15PersistErr.message : String(gate15PersistErr));
       }
 
-      // BLOCKING: If Gate 15 FAIL, do NOT acquire persistence lock or call
-      // persistEvaluationResultV2. Route through existing pre-persistence failure path.
+      // ADVISORY: Gate 15 findings are logged but NEVER block evaluation completion.
+      // The manuscript's dialogue tags, thought verbs, and physiological fillers are
+      // the author's creative choices — they inform the Revise Queue, not the evaluation gate.
       if (gate15Result.overallStatus === 'FAIL') {
         const findings = gate15Result.summaryFindings?.join('; ') ?? 'no details';
-        console.error(`[Gate15/PreRPC] ${jobId}: GATE 15 BLOCKED — ${findings}`);
-
-        await markFailed(
-          'Gate 15 (Mechanical Purity) audit failed. The evaluation contains quality defects that must be resolved before the report can be delivered.',
-          'GATE15_MECHANICAL_PURITY_FAILED',
-          {
-            pipelineStage: 'gate_15_pre_finalization',
-            diagnostics: {
-              gate15Status: gate15Result.overallStatus,
-              gate15_1Status: gate15Result.gate15_1.overallStatus,
-              gate15_2Status: gate15Result.gate15_2.overallStatus,
-              findings: gate15Result.summaryFindings,
-              canonicalWordCount,
-            },
-          },
-        );
-
-        return {
-          success: false,
-          error: `Gate 15 (Mechanical Purity) FAIL — ${findings}`,
-        };
+        console.warn(`[Gate15/PreRPC] ${jobId}: Gate 15 ADVISORY FAIL (non-blocking) — ${findings}`);
+      } else {
+        console.log(`[Gate15/PreRPC] ${jobId}: Gate 15 ${gate15Result.overallStatus} (${canonicalWordCount} words) — proceeding to completion`);
       }
-
-      console.log(`[Gate15/PreRPC] ${jobId}: Gate 15 ${gate15Result.overallStatus} (${canonicalWordCount} words) — proceeding to completion`);
     }
 
     declarePersistenceLock('persistence/after-template-completeness');
