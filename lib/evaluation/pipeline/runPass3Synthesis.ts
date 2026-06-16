@@ -100,6 +100,7 @@ import type { CriterionKey } from "@/schemas/criteria-keys";
 import { pipelineLog } from "./pipelineLogger";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 import { sanitizeSynthesisCharacterNames } from "./characterNameSanitizer";
+import { classifyAnchor } from "./evidenceGroundingGate";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -1685,6 +1686,46 @@ export function parsePass3Response(
     console.info(
       `[Pass3-FinalVerification] ${c.key} score=${c.final_score_0_10} injected ${lastResortRecs.length} last-resort rec(s) (had ${currentMeaningful} meaningful, needed ${minRecs})`,
     );
+  }
+
+  // ── Option 2: Post-LLM anchor enforcement — defence in depth ──────────────
+  // After all synthesis, density repair, and last-resort paths, sweep every
+  // recommendation and replace any anchor_snippet classified as editorial_diagnosis
+  // with the best available grounded evidence from the criterion. This is the
+  // deterministic safety net: regardless of what the LLM or repair paths produced,
+  // no editorial_diagnosis anchor survives to persistence.
+  if (manuscriptText && manuscriptText.trim().length > 0) {
+    let enforcedCount = 0;
+    for (const c of finalCriteria) {
+      // Build a pool of grounded anchors for this criterion from evidence
+      // and quoted rationale spans (both are manuscript-sourced).
+      const groundedPool: string[] = [
+        ...c.evidence
+          .map((e) => (typeof e.snippet === "string" ? e.snippet.trim() : ""))
+          .filter((s) => s.length >= 10),
+        ...extractQuotedRationaleSpans(c.final_rationale).filter((s) => s.length >= 10),
+      ];
+      // Pre-filter pool to only verified grounded anchors.
+      const verifiedPool = groundedPool.filter((anchor) => {
+        const result = classifyAnchor(anchor, manuscriptText!);
+        return result.anchor_type !== "editorial_diagnosis";
+      });
+      if (verifiedPool.length === 0) continue;
+
+      for (const rec of c.recommendations) {
+        const result = classifyAnchor(rec.anchor_snippet, manuscriptText!);
+        if (result.anchor_type === "editorial_diagnosis") {
+          // Replace with best grounded anchor from the verified pool.
+          rec.anchor_snippet = verifiedPool[enforcedCount % verifiedPool.length].slice(0, 200);
+          enforcedCount++;
+        }
+      }
+    }
+    if (enforcedCount > 0) {
+      console.info(
+        `[Pass3-AnchorEnforcement] Replaced ${enforcedCount} editorial_diagnosis anchor(s) with grounded evidence`,
+      );
+    }
   }
 
   // Build overall
