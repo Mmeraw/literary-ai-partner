@@ -3441,6 +3441,26 @@ export function runPreflightChecks(): PreflightResult {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SHORT-FORM PERPLEXITY CONSTRAINT (Issue #1015)
+//
+// Normal short-form evaluations (<25K words) make zero Perplexity API calls.
+// Perplexity is only enabled for short-form when explicitly overridden via
+// EVAL_PPLX_SHORT_FORM_ENABLED=true (dispute resolution / premium QA mode).
+// Long-form evaluations always use Perplexity when a key is configured.
+// ─────────────────────────────────────────────────────────────────────────────
+function resolvePerplexityKeyForRoute(
+  perplexityApiKey: string | undefined,
+  route: 'long_form' | 'short_form',
+): string | undefined {
+  if (!perplexityApiKey) return undefined;
+  if (route === 'long_form') return perplexityApiKey;
+  // Short-form: suppress unless operator explicitly enables for dispute/premium QA.
+  const shortFormOverride = process.env.EVAL_PPLX_SHORT_FORM_ENABLED === 'true';
+  if (shortFormOverride) return perplexityApiKey;
+  return undefined;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PHASE 0 — Gold Standard Warm-Up
 //
 // Loads the WAVE evaluation gold standard into the LLM's context window as a
@@ -6593,7 +6613,7 @@ export async function processEvaluationJob(
             jobId: String(job.id),
             model: getCanonicalPipelineModel(openAiModel),
             openaiApiKey,
-            perplexityApiKey: perplexityApiKey || undefined,
+            perplexityApiKey: resolvePerplexityKeyForRoute(perplexityApiKey, chunkRouting.route),
             manuscriptId: String(manuscriptWithContent.id),
             englishVariant: selectedEnglishVariant,
             executionMode: 'TRUSTED_PATH',

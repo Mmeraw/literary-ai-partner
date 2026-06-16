@@ -157,7 +157,7 @@ describe("prompt pack governance specs", () => {
     // P6: GENRE-CALIBRATED LANGUAGE section must be present
     expect(PASS3_SYSTEM_PROMPT).toContain("GENRE-CALIBRATED LANGUAGE");
     expect(PASS3_SYSTEM_PROMPT).toContain("RELATIVE FRAMING");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(40000);  // P3 (~700) + P4 (~1100) + P5 (~1500) + P6 (~1500) + abstract-criteria grounding (~300) + anchor CANNOT rules (~300) + OUTPUT QUALITY STANDARD (~600) + leverage-first priority (~1200) + manuscript-specific recs (~700) + evidence depth (~500) + DO NOT constraints (~800)
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(40000);  // P3 (~700) + P4 (~1100) + P5 (~1500) + P6 (~1500) + abstract-criteria grounding (~300) + anchor CANNOT rules (~300) + OUTPUT QUALITY STANDARD (~600) + leverage-first priority (~1200) + manuscript-specific recs (~700) + evidence depth (~500) + CMOS DO NOT constraints (~800)
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",
