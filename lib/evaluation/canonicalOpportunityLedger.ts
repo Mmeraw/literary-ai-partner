@@ -445,8 +445,8 @@ export function formatOpportunityForTopRecommendation(item: CanonicalOpportunity
   const action = item.fix_direction || item.action;
   const impact = item.reader_effect || item.expected_impact;
   return mistakeProofText(
-    `[${item.id}] ${action}${impact ? ` ${impact}` : ''} (${label}).`,
-    `[${item.id}] ${action}`,
+    `${action}${impact ? ` ${impact}` : ''} (${label}).`,
+    action,
   );
 }
 
@@ -457,7 +457,7 @@ export function opportunityToCriterionRecommendation(item: CanonicalOpportunityL
   return {
     opportunity_id: item.id,
     priority: item.severity,
-    action: `[${item.id}] ${item.action || item.fix_direction}`,
+    action: item.action || item.fix_direction,
     expected_impact: item.expected_impact || item.reader_effect,
     anchor_snippet: item.evidence,
     anchor_type: 'verbatim_quote',
@@ -488,7 +488,7 @@ export function opportunityToActionItem(item: CanonicalOpportunityLedgerItem): {
 } {
   return {
     opportunity_id: item.id,
-    action: `[${item.id}] ${item.action || item.fix_direction}`,
+    action: item.action || item.fix_direction,
     why: item.cause || item.expected_impact || item.reader_effect,
     effort: item.severity === 'high' ? 'medium' : 'low',
     impact: item.severity === 'low' ? 'medium' : 'high',

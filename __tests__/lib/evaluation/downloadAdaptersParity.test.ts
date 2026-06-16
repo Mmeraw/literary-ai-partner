@@ -147,7 +147,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     // TXT must include Action Items
     expect(txt).toContain('ACTION ITEMS');
     expect(txt).toContain('Strategic Revisions:');
-    expect(txt).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(txt).toContain('Increase the stakes surrounding the missing man.');
     expect(txt).toContain('Location: narrativeDrive:recommendation');
 
     // HTML/PDF must include all 6 diagnostic fields
@@ -170,7 +170,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     // HTML/PDF must include Action Items
     expect(html).toContain('Action Items');
     expect(html).toContain('Strategic Revisions');
-    expect(html).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(html).toContain('Increase the stakes surrounding the missing man.');
     expect(html).toContain('narrativeDrive:recommendation');
 
     // DOCX must include all 6 diagnostic fields
@@ -185,7 +185,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     // DOCX must include Action Items
     expect(docxText).toContain('Action Items');
-    expect(docxText).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(docxText).toContain('Increase the stakes surrounding the missing man.');
     expect(docxText).toContain('narrativeDrive:recommendation');
   });
 

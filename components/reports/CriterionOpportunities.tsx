@@ -55,7 +55,7 @@ function OpportunityCard({ opp, idx }: { opp: Opportunity; idx: number }) {
     <div className={`border border-[#D9D0C3] border-l-4 ${accent} bg-white`}>
       <div className={`px-3 py-1.5 border-b border-[#E6DED2] ${labelColor}`}>
         <span className="text-[10px] font-bold uppercase tracking-wider">
-          {label} {opp.opportunity_id ? `· ${opp.opportunity_id}` : `#${idx + 1}`}
+          {label} #{idx + 1}
         </span>
       </div>
       <div className="divide-y divide-[#EDE7DE]">

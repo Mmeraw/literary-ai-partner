@@ -177,9 +177,8 @@ function formatLedgerRecommendation(item: CanonicalRenderedOpportunity): string 
     : typeof item.expected_impact === "string" && item.expected_impact.trim()
       ? item.expected_impact.trim()
       : "";
-  const id = typeof item.id === "string" && item.id.trim() ? `[${item.id.trim()}] ` : "";
   const actionBase = action.replace(/\.\s*$/, "");
-  return `${id}${actionBase}${impact ? `. ${impact}` : "."}`;
+  return `${actionBase}${impact ? `. ${impact}` : "."}`;
 }
 
 function extractSummaryFallback(summary: string, maxItems: number): string[] {
