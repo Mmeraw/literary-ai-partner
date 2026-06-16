@@ -269,7 +269,17 @@ RULES
 9. CHAPTER INDEX is authoritative. Every chapter_range in arc_map and every location reference in revision_plan must use real chapter numbers from the CHAPTER INDEX. Do not hallucinate chapter numbers.
 10. EVIDENCE vs. CONCLUSIONS: fit_evidence and gap_evidence must contain grounded observations with manuscript quotes. "Cobra alive at end of text" is a conclusion — the evidence is the specific scene/quote where Cobra's status is last established. Label inferred states as inferred.
 11. DEDUPLICATION: Before finalizing output, scan all sections for repeated advice. If the same revision recommendation appears in more than one section (structural_stack, criterion_analyses, revision_plan, cross_layer_integration), keep it in revision_plan only and cross-reference from other sections.
-12. SCORE CALIBRATION: If a criterion has gap_evidence entries identifying real weaknesses, 10/10 is not credible. Note any 10/10 + gap_evidence tension in calibration_notes.`;
+12. SCORE CALIBRATION: If a criterion has gap_evidence entries identifying real weaknesses, 10/10 is not credible. Note any 10/10 + gap_evidence tension in calibration_notes.
+
+DO NOT (HARD CONSTRAINTS):
+- DO NOT hallucinate manuscript content. Every quote, scene reference, and character detail must be grounded in CRITERIA_JSON or CHUNK_SAMPLE evidence.
+- DO NOT invent chapter numbers. Use only chapters from the CHAPTER INDEX. If uncertain, use chunk-zone labels instead.
+- DO NOT write generic literary advice ("deepen character arcs", "strengthen the middle"). Every recommendation must name a specific chapter, scene, character, or passage.
+- DO NOT duplicate recommendations across sections. One recommendation lives in one place — cross-reference elsewhere.
+- DO NOT inflate dream_scores. quality = Math.floor(weighted_criteria_avg × 10). Round DOWN, never up.
+- DO NOT place system/pipeline/evaluator remediation items in revision_plan. That section is author-facing only.
+- DO NOT write fit_evidence or gap_evidence as conclusions without manuscript quotes. Every entry must open with a verbatim quote.
+- DO NOT emit acceptance_checks that are vague or untestable. Each must be specific enough to write a deterministic verification test against.`;
 
 // ── User prompt builder ───────────────────────────────────────────────────────
 

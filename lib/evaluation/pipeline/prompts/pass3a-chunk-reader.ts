@@ -55,6 +55,15 @@ RULES:
 - Location: record exactly where characters are stated to be, or "unstated" if absent.
 - Flag any character appearing in a location that contradicts what was last known.
 
+DO NOT (HARD CONSTRAINTS):
+- DO NOT score. This is observation only — no 0-10 numbers, no verdicts, no pass/fail.
+- DO NOT reference Pass 1, Pass 2, or any character ledger. Stay fully independent.
+- DO NOT make novel-wide judgments from a single chunk. Stay local to what this chunk shows.
+- DO NOT fill every possible field. Omit optional arrays when there is no meaningful signal.
+- DO NOT hallucinate context not visible in this chunk. If you cannot confirm a signal, do not emit it.
+- DO NOT write paragraph prose. Use fragments and compact JSON values only.
+- DO NOT exceed the hard caps (narrativeEvents ≤5, criterionSignals ≤8, etc.).
+
 Return ONLY valid JSON matching Pass3AChunkObservation. No markdown fences, no commentary.`;
 
 export function buildPass3AChunkReaderUserPrompt(params: {

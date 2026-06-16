@@ -245,7 +245,17 @@ CRITICAL RULES:
 9. Do not confuse cosmology/religion with physical geography (e.g., a deity is not a "lake owner").
 10. Do not confuse mutation/transformation with death (e.g., mutated fish are alive, not dead fish).
 11. NEVER list dialogue fragments, interjections, or common English words as character entities. Words like "No", "Yes", "Oh", "Hey" that appear at the start of dialogue lines followed by a comma are NOT character names. Only list proper names, titles, nicknames, or stable identity labels from the manuscript.
-12. Narrator attribution is a separate authority layer. Do NOT infer narrator names from themes, cost/expense labels, prices, vanity language, yes/no tokens, greetings, or other non-person text. If narrator identity is not explicitly confirmed, set narrator_label to "the unnamed narrator" and narrator_confidence to "unknown".`;
+12. Narrator attribution is a separate authority layer. Do NOT infer narrator names from themes, cost/expense labels, prices, vanity language, yes/no tokens, greetings, or other non-person text. If narrator identity is not explicitly confirmed, set narrator_label to "the unnamed narrator" and narrator_confidence to "unknown".
+
+DO NOT (HARD CONSTRAINTS):
+- DO NOT skim or sample. Read the FULL manuscript before generating the ledger.
+- DO NOT fabricate character details, relationships, or end-states not present in the text. If uncertain, say "uncertain" — do not guess.
+- DO NOT confuse character death with character absence, transformation, or metaphorical departure. Mark is_terminal only for confirmed deaths.
+- DO NOT list dialogue fragments ("No", "Yes", "Oh") or common English words as character entities.
+- DO NOT infer narrator identity from non-person text (prices, greetings, vanity language, thematic terms).
+- DO NOT emit generic failure conditions. Each must be specific and falsifiable — catching a concrete comprehension error.
+- DO NOT conflate contamination models across manuscripts. Describe how influence/danger moves in THIS specific story.
+- DO NOT omit any of the 10 layers. Every layer must have at least one entry or an explicit note explaining why evidence is absent.`;
 }
 
 function buildUserPrompt(params: {

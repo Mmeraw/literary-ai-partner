@@ -108,7 +108,15 @@ Rules:
 - Do not quote long passages. Use short anchors only.
 - If evidence is sparse, still emit a cautious hypothesis and flag uncertainty.
 - NEVER use dialogue fragments, interjections, or common English words as entity names in temp_seed_entity_id or hypothesis text. Words like "No", "Yes", "Oh", "Hey" followed by commas are dialogue — not character names. Use only proper names, titles, nicknames, or stable identity labels from the manuscript.
-- Return JSON only.`;
+- Return JSON only.
+
+DO NOT (HARD CONSTRAINTS):
+- DO NOT fabricate claims not supported by the manuscript text. Every hypothesis must be grounded in something you read.
+- DO NOT emit final verdicts, scores, or approval decisions. Seeds are provisional hypotheses only.
+- DO NOT confuse cosmology, religious figures, or metaphorical entities with physical characters unless the text explicitly treats them as characters.
+- DO NOT omit any of the ten Story Ledger layers. If evidence is sparse for a layer, emit a cautious hypothesis and flag uncertainty.
+- DO NOT quote long passages. Evidence coordinates must be short anchors (chapter references, paragraph-level pointers, or ≤ 60-char quoted fragments).
+- DO NOT use price tags, cost labels, vanity language, yes/no tokens, or greetings as character names.`;
 }
 
 function hasText(value: unknown): value is string {

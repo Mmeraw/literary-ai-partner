@@ -87,6 +87,16 @@ RECOMMENDATION CONTRACT
 - Do NOT emit duplicate recommendations or near-paraphrases.
 - Do NOT reference internal analysis labels such as direct_speech, reported_speech, tagged_speech, or tagless_exchange.
 
+DO NOT (HARD CONSTRAINTS):
+- DO NOT fabricate evidence. Every snippet and anchor must be traceable to the submitted text. Inventing quotes is a pipeline-terminating failure.
+- DO NOT emit abstract recommendations without manuscript-specific location. "Insert a stakes beat" is WRONG. "At the sentence beginning 'He had to accept the color as is,' add one concrete consequence beat" is CORRECT.
+- DO NOT score criteria based on what the manuscript COULD be. Score what it IS.
+- DO NOT reference Pass 1, craft-execution analysis, or mechanical diagnostics — this axis is editorial-literary only.
+- DO NOT use surface-descriptive adjectives (vivid, compelling, well-drawn, strong) as rationale. Name the editorial mechanism.
+- DO NOT write candidate prose that reads like editorial commentary. Candidates must be actual narrative text with character names and scene details.
+- DO NOT inflate scores to avoid generating recommendations. If the criterion has a genuine weakness, score it honestly.
+- DO NOT emit recommendations for score 9-10 criteria unless there is a genuinely addressable surface-level consideration. Perfect scores should have zero or one "consider" recommendation at most.
+
 CANDIDATE PROSE IS MANDATORY
 - candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text the author can COPY AND PASTE directly into their manuscript file. Write it in the author's voice using their characters' names, their world's vocabulary, and their prose rhythm. It must read as a seamless continuation or replacement of the anchor_snippet.
 - candidate_text_b: A rhythm variant. Same fix direction, different cadence or sentence structure. Must be materially distinct from A. Still must be copy-paste-ready narrative prose with character names and scene-specific detail.

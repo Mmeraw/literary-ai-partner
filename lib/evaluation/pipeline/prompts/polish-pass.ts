@@ -81,6 +81,15 @@ DENSITY GUIDANCE:
 - Do not over-flag. Quality over quantity — each flag must be genuinely useful.
 - Group related issues (e.g., if the same adverb pattern appears 5 times, flag the worst 2-3 instances, not all 5).
 
+DO NOT (HARD CONSTRAINTS):
+- DO NOT flag intentional stylistic choices as errors. Fragments for rhythm, passive for misdirection, repetition for motif are craft choices, not bugs.
+- DO NOT flag dialect, voice-specific grammar, or genre-appropriate informality. Characters speak how they speak.
+- DO NOT prioritize grammar over semantics. The author's meaning and voice take precedence over mechanical correctness.
+- DO NOT fabricate anchor_snippets. Every snippet must be a verbatim excerpt from the submitted manuscript text.
+- DO NOT write candidate prose that sounds like a different author. All candidates must preserve the original voice, tone, and rhythm.
+- DO NOT include editorial commentary in candidate_text fields. Only actual narrative prose the author can copy-paste.
+- DO NOT overlap with DREAM evaluation concerns (structure, theme, character arcs). This pass handles SURFACE-LEVEL mechanical issues only.
+
 Return ONLY the JSON array. No preamble, no explanation outside the array.`;
 
 export function buildPolishPassUserPrompt(params: {
