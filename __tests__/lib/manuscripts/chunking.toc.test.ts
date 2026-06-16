@@ -205,4 +205,29 @@ describe("chunkManuscript — TOC awareness (issue #382)", () => {
     // Last chunk reaches end of text.
     expect(chunks[chunks.length - 1].char_end).toBe(text.length);
   });
+
+  it("issue #385: chapters with epigraph/scene-break between heading and prose still get chapter labels", async () => {
+    // Regression test for the all-BlankBreak labels bug.
+    // Manuscripts where each chapter heading is followed by a scene break (***) or
+    // short epigraph before the body prose were previously rejected by the
+    // countSubstantiveFollowingChars strictness layer.
+    const chapterWithEpigraph = (n: number) =>
+      `Chapter ${n} – Title ${n}\n\n` +
+      `***\n\n` +
+      `"A man is not dead while his name is still spoken." — Terry Pratchett\n\n` +
+      `${"Substantive prose for chapter " + n + ". ".repeat(1500)}\n\n`;
+
+    const text = Array.from({ length: 10 }, (_, i) => chapterWithEpigraph(i + 1)).join("");
+    const chunks = await chunkManuscript(text);
+    const labels = chunks.map((c) => c.label ?? "");
+    const chapterLabels = labels.filter((l) => l.startsWith("Chapter"));
+
+    // At least some chapters should survive as labeled boundaries —
+    // previously ALL were BlankBreak because scene break (***) terminated
+    // the substantive chars count.
+    expect(chapterLabels.length).toBeGreaterThanOrEqual(3);
+    // No chunk should have only BlankBreak labels when real chapter headings exist.
+    const blankBreakOnly = labels.every((l) => l === "BlankBreak" || l === "Start" || l === "End" || l === "***" || l === "");
+    expect(blankBreakOnly).toBe(false);
+  });
 });
