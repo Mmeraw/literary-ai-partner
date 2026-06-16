@@ -3021,7 +3021,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       }));
     }
 
-    // Gap summary (what needs to close — only for scores ≤8)
+    // Gap summary (what needs to close — rendered for all scores when present)
     if (typeof criterionRecord.gap_summary === 'string' && criterionRecord.gap_summary.trim()) {
       children.push(new Paragraph({
         spacing: { before: 40, after: 40 },
@@ -3040,7 +3040,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       }));
     }
 
-    // Opportunities (only for scores ≤8 — suppressed for 9-10 by pipeline)
+    // Opportunities (evidence-driven — rendered for all scores when present)
     const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
     opportunities.forEach((opportunity, idx) => {
       children.push(bodyPara(`${exportSeverity(opportunity.priority)} #${idx + 1}`, {
