@@ -46,7 +46,7 @@ The active native Story Ledger / DREAM benchmark authorities are the three entri
 
 ## The Gold Standard
 
-**[`cartel-babies-dream.md`](./cartel-babies-dream.md)** + **[`story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md`](./story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md)** — *Cartel Babies* (Michael J. Meraw). Required-gold long-form multi-layer benchmark plus revised nine-layer Story Ledger answer key. Use this as the primary product exemplar for seed / Phase 1A Story Ledger testing because it combines dual-protagonist tracking, identity transition, institutional rescue/protection, symbolic object lifecycles, cartel pressure systems, and explicit completion/failure conditions.
+**[`cartel-babies-dream.md`](./cartel-babies-dream.md)** + **[`story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md`](./story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md)** — *Cartel Babies* (Michael J. Meraw). Required-gold long-form multi-layer benchmark plus revised ten-layer Story Ledger answer key. Use this as the primary product exemplar for seed / Phase 1A Story Ledger testing because it combines dual-protagonist tracking, narrator attribution, identity transition, institutional rescue/protection, symbolic object lifecycles, cartel pressure systems, and explicit completion/failure conditions.
 
 `Froggin Noggin` remains a required-gold DREAM benchmark, and `Let the River Decide` remains calibration-tier. When a single code or test example is needed, prefer `Cartel Babies`.
 

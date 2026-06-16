@@ -1,6 +1,6 @@
 ---
-benchmark-schema: ideal-story-ledger-9-layer-optimization-addendum-v1
-title: Let the River Decide — Nine-Layer Story Ledger Optimization Addendum
+benchmark-schema: ideal-story-ledger-10-layer-optimization-addendum-v1
+title: Let the River Decide — Ten-Layer Story Ledger Optimization Addendum
 manuscript: Let the River Decide
 author: Michael J. Meraw, with contributions from Clifford R. Wagner
 scope: full-manuscript
@@ -10,12 +10,12 @@ benchmark-role: gold-standard-story-ledger-addendum
 benchmark-tier: required-gold
 created: 2026-05-31T04:45:00Z
 applies-to:
-  - docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
+  - docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
 source-manuscript:
   - Let the River Decide uploaded review copy, 37 chapters plus epilogue
 ---
 
-# Let the River Decide — Nine-Layer Story Ledger Optimization Addendum
+# Let the River Decide — Ten-Layer Story Ledger Optimization Addendum
 
 This addendum tightens the existing Let the River Decide ideal Story Ledger benchmark. It turns the current macro scaffold into a full operational answer key for SEED and Phase 1A.
 

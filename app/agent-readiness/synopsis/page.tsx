@@ -142,12 +142,12 @@ function SynopsisPage() {
 
   const genState = useAgentReadinessGenerate();
   const handleGenerate = useCallback(async (_section: string, mode: 'generate' | 'regenerate' | 'improve') => {
-    const result = await genState.generate('synopsis', mode, { existingContent: content });
+    const result = await genState.generate('synopsis', mode, { existingContent: content, synopsisLength: selected });
     if (result) {
       setContent(result.content);
       setApproved(false);
     }
-  }, [genState, content]);
+  }, [genState, content, selected]);
 
   const wordCount = countWords(content);
   const limits: Record<SynopsisLength, [number, number]> = {

@@ -70,16 +70,16 @@ docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger
 
 ```text
 docs/benchmarks/story-ledger/README.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
-docs/benchmarks/story-ledger/FROGGIN_NOGGIN_9_LAYER_OPTIMIZATION_ADDENDUM.md
-docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_9_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
+docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
+docs/benchmarks/story-ledger/FROGGIN_NOGGIN_10_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_10_LAYER_OPTIMIZATION_ADDENDUM.md
 ```
 
 ### F. Retired benchmark references — not current Story Ledger authority
 
-Retired benchmark references have been removed from the active benchmark set. Current seed / Phase 1A Story Ledger calibration must use the nine-layer Story Ledger files above, with `IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md` as the primary product exemplar when a single example is needed.
+Retired benchmark references have been removed from the active benchmark set. Current seed / Phase 1A Story Ledger calibration must use the ten-layer Story Ledger files above, with `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md` as the primary product exemplar when a single example is needed.
 
 ### G. Registered canon and governance files required for 0.5A/0.5B
 
@@ -286,7 +286,7 @@ This PR must not:
 - bypass semantic gates
 - bypass candidate prose validation
 - make Phase 0.5B opportunities automatically author-facing
-- re-enable the old nine-layer author approval click-through flow
+- re-enable the old ten-layer author approval click-through flow
 - allow best-guess seeds without Phase 0 canon/governance proof
 - create a divergent warmup loader or second authority registry
 

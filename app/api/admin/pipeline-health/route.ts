@@ -495,7 +495,7 @@ export async function GET(req: NextRequest) {
         // Section A: added cross_check_* fields; Section D: restart tracking
         "id, user_id, manuscript_id, status, phase, phase_status, progress, last_error, created_at, updated_at, cross_check_status, cross_check_error, cross_check_completed_at, attempt_count, max_attempts"
       )
-      .gte("created_at", new Date(Date.now() - intervalToMs(interval)).toISOString())
+      .gte("updated_at", new Date(Date.now() - intervalToMs(interval)).toISOString())
       .order("updated_at", { ascending: false })
       .limit(limit);
 

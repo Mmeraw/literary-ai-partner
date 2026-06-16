@@ -289,7 +289,7 @@ export default async function StoryLedgerPage({
 
   // Non-admin users never see the Story Ledger — redirect to evaluation page.
   // The ledger runs underneath as a provisional story map; only admins can
-  // inspect the raw 9-layer diagnostic view.
+  // inspect the raw 10-layer diagnostic view.
   if (!isAdminViewer) {
     redirect(`/evaluate/${params.jobId}`);
   }
