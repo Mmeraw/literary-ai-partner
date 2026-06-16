@@ -532,23 +532,20 @@ describe('Known gap guards (audit-locked)', () => {
     expect(stage!.processContract).toMatch(/both the assembly and export step/i);
   });
 
-  test('AR05_AUTHOR_REVIEW is marked critical — approval is not persisted to DB', () => {
+  test('AR05_AUTHOR_REVIEW is marked proven — approval persisted via API', () => {
     const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR05_AUTHOR_REVIEW');
     expect(stage).toBeDefined();
-    expect(stage!.fitGapStatus).toBe('critical');
-    expect(stage!.certificationStatus).toBe('missing_critical');
-    // The notes must document the gap explicitly
-    expect(stage!.notes).toMatch(/KNOWN GAP/i);
-    expect(stage!.notes).toMatch(/Approve button/i);
+    expect(stage!.fitGapStatus).toBe('ok');
+    expect(stage!.certificationStatus).toBe('proven');
+    expect(stage!.notes).toMatch(/approve/i);
   });
 
-  test('AR06_COMPLETENESS_CHECK is marked critical — download gated on allSectionsStarted not allSectionsApproved', () => {
+  test('AR06_COMPLETENESS_CHECK is marked proven — export gated on approved status in DB', () => {
     const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR06_COMPLETENESS_CHECK');
     expect(stage).toBeDefined();
-    expect(stage!.fitGapStatus).toBe('critical');
-    expect(stage!.certificationStatus).toBe('missing_critical');
-    expect(stage!.notes).toMatch(/KNOWN GAP/i);
-    expect(stage!.notes).toMatch(/allSectionsStarted/i);
+    expect(stage!.fitGapStatus).toBe('ok');
+    expect(stage!.certificationStatus).toBe('proven');
+    expect(stage!.notes).toMatch(/approved/i);
   });
 
   test('agent_readiness_package_v1 is marked critical — assembled inline, not from DB', () => {
@@ -560,20 +557,19 @@ describe('Known gap guards (audit-locked)', () => {
     expect(artifact!.dirtyDataRule).toMatch(/KNOWN GAP/i);
   });
 
-  test('author_review_decision_v1 is marked critical — decision not persisted to DB', () => {
+  test('author_review_decision_v1 is marked ok — decision persisted via API', () => {
     const artifact = AGENT_READINESS_ARTIFACT_REGISTRY.find((a) => a.artifact === 'author_review_decision_v1');
     expect(artifact).toBeDefined();
-    expect(artifact!.fitGapStatus).toBe('critical');
-    expect(artifact!.dirtyDataRule).toMatch(/KNOWN GAP/i);
+    expect(artifact!.fitGapStatus).toBe('ok');
+    expect(artifact!.dirtyDataRule).toMatch(/approval/i);
   });
 
-  test('AR04_SECTION_PERSISTENCE is marked critical — DB failure is non-fatal', () => {
+  test('AR04_SECTION_PERSISTENCE is marked proven — DB failure returns HTTP 500', () => {
     const stage = AGENT_READINESS_PROCESS_REGISTRY.find((s) => s.stageId === 'AR04_SECTION_PERSISTENCE');
     expect(stage).toBeDefined();
-    expect(stage!.fitGapStatus).toBe('critical');
-    expect(stage!.certificationStatus).toBe('missing_critical');
-    expect(stage!.notes).toMatch(/KNOWN GAP/i);
-    expect(stage!.notes).toMatch(/non-fatal/i);
+    expect(stage!.fitGapStatus).toBe('ok');
+    expect(stage!.certificationStatus).toBe('proven');
+    expect(stage!.notes).toMatch(/500/i);
   });
 
   test('AR08_EXPORT is marked gap — export does not enforce completeness or approval', () => {
@@ -588,11 +584,11 @@ describe('Known gap guards (audit-locked)', () => {
     expect(stage!.processContract).not.toMatch(/blocked.*all.*6.*approved/i);
   });
 
-  test('agent_readiness_section_v1 artifact is marked critical — persistence non-fatal', () => {
+  test('agent_readiness_section_v1 artifact is marked ok — persistence returns HTTP 500 on failure', () => {
     const artifact = AGENT_READINESS_ARTIFACT_REGISTRY.find((a) => a.artifact === 'agent_readiness_section_v1');
     expect(artifact).toBeDefined();
-    expect(artifact!.fitGapStatus).toBe('critical');
-    expect(artifact!.dirtyDataRule).toMatch(/KNOWN GAP/i);
+    expect(artifact!.fitGapStatus).toBe('ok');
+    expect(artifact!.dirtyDataRule).toMatch(/500/i);
   });
 
   test('SIPOC_AGENT_READINESS authority source doc exists on disk', () => {
