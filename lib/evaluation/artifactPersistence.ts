@@ -28,6 +28,8 @@ export type ArtifactType =
   | "evaluation_seed_v1"
   /** Phase 0.5B governed revise opportunity seed. Not author-facing until admission/candidate validation. */
   | "revise_opportunity_seed_v1"
+  /** Phase 0.5B editorial dream seed — full-manuscript diagnostic informing Pass 1 enrichment. seed_only authority. */
+  | "editorial_dream_seed_v1"
   | "diagnostic_pass3_snapshot_v1"
   /** Audit-grade: raw Pass 1 / Pass 2 / Pass 3 outputs as emitted on gate failure. Not user-visible. */
   | "pass_outputs_diagnostic_v1"
@@ -91,6 +93,8 @@ export type ArtifactType =
    * objects, blockers). User-visible in the report Ledger tab.
    */
   | "pass1a_character_ledger_v1"
+  /** Seed–ledger cross-check: classifies entity-level contradictions between Phase 0.5 seed and Phase 1A ledger. */
+  | "seed_contradiction_report_v1"
   /**
    * Accepted Story Ledger — normalized, governance-validated story authority
    * artifact required by downstream Phase 2/3 consumers.
