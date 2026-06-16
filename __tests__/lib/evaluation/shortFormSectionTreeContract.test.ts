@@ -288,7 +288,8 @@ describe('short-form section tree contract', () => {
     expect(closureOpportunities).toHaveLength(1);
     expect(closureOpportunities[0].related_criteria).toEqual(expect.arrayContaining(['themeAndSubtext', 'narrativeClosure']));
 
-    expect(doc.topRecommendations.join('\n')).toContain('OPP-');
+    expect(doc.topRecommendations.length).toBeGreaterThan(0);
+    expect(doc.topRecommendations.join('\n')).not.toContain('OPP-');
     expect(doc.topRecommendations.join('\n')).not.toContain('In was 2:00 p.m.');
 
     const actionOpportunityIds = [
