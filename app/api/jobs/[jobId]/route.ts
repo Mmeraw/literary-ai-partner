@@ -111,6 +111,8 @@ type CanonicalJobResponse = {
   progress_high_water?: number | null;
   /** UI-only cancellation display state, sourced from progress JSONB; lifecycle status remains canonical. */
   dashboard_status?: string | null;
+  /** Issue #1011 — true when DREAM artifact exists (or when short-form, which has no DREAM phase). */
+  dream_ready?: boolean;
 };
 
 const NO_STORE_HEADERS = {
@@ -368,7 +370,20 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       }
     }
 
-    // 6f) Surface operational visibility fields for explicit stuck-state UX.
+    // 6f2) Issue #1011 — dream_ready flag for long-form report hold.
+    // Short-form jobs have no DREAM phase; dream_ready is always true.
+    // Long-form jobs: true only after longform_document_v1 artifact exists.
+    if (job.status === 'complete') {
+      const isLf = typeof response.job.manuscript_word_count === 'number' && response.job.manuscript_word_count >= LONGFORM_THRESHOLD;
+      if (!isLf) {
+        response.job.dream_ready = true;
+      } else {
+        // pass3_completed_at is set above when longform_document_v1 exists.
+        response.job.dream_ready = !!response.job.pass3_completed_at;
+      }
+    }
+
+    // 6g) Surface operational visibility fields for explicit stuck-state UX.
     //     Only emitted to operators/admins — these fields contain pipeline internals.
     if (canSeeOperationalDetails) {
       const operationalSignal = extractOperationalSignal(job, canonicalPhase.phase);
