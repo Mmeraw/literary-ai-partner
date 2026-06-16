@@ -487,7 +487,7 @@ export function buildShortFormEvaluationDocument(input: {
     const canonicalRecommendations = renderedOpportunities
       .filter((item) => item.primary_criterion === criterion.key || item.related_criteria.includes(criterion.key))
       .slice(0, 3)
-      .map(opportunityToShortFormCriterionRecommendation);
+      .map((item) => normalizeCriterionRecommendation(opportunityToShortFormCriterionRecommendation(item)));
 
     return {
       key: criterion.key,
