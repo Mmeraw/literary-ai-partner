@@ -5,6 +5,7 @@
  * Full reset to phase_0/queued from ANY status.
  * - Wipes progress JSONB (preserves claim_events audit trail)
  * - Clears phase0_started_at, phase0_completed_at, attempt_count
+ * - Clears claimed_by, claimed_at, lease_token, lease_until
  * - Progress bar on the UI will show clean queued state (no stale error messages)
  *
  * Use this (not raw SQL) whenever a job must be re-run from scratch.

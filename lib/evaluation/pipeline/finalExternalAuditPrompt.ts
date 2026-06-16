@@ -84,7 +84,9 @@ export function buildFinalExternalAuditPrompt(packet: FinalExternalAuditPacket):
     'Return ONLY compact JSON with: verdict, codes, reason, contradictions.',
     'Allowed verdicts: PASS, WARN, BLOCK.',
     'Allowed codes: FINAL_AUDIT_SAFE_TO_RELEASE, FINAL_AUDIT_PROVIDER_UNAVAILABLE, FINAL_AUDIT_MISSING_DREAM, FINAL_AUDIT_MISSING_WAVE, FINAL_AUDIT_MISSING_PHASE5, FINAL_AUDIT_LOW_COVERAGE, FINAL_AUDIT_CONTRADICTION, FINAL_AUDIT_SCHEMA_INVALID.',
-    'BLOCK only for missing required artifacts, contradiction, low coverage, or schema invalidity. Do not write literary feedback.',
+    'Hard-required evaluation-release artifacts are evaluation_result_v2 and longform_document_v1 only.',
+    'revision_opportunity_ledger_v1 is a Revise-phase artifact; if it is absent while evaluation_result_v2 and longform_document_v1 are present, do NOT return BLOCK.',
+    'BLOCK only for missing hard-required artifacts, contradiction, low coverage, or schema invalidity. Do not write literary feedback.',
     'Audit packet JSON:',
     JSON.stringify(packet),
   ].join('\n');

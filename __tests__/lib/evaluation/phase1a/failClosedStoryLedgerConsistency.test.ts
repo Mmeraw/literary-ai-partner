@@ -191,4 +191,48 @@ describe('fail-closed Story Ledger consistency guards', () => {
     expect(report.blocking_reasons.join(' ')).toContain('TECHNICAL_BLOCK');
     expect(report.blocking_reasons.join(' ')).toContain('chunk coverage incomplete');
   });
+
+  it('classifies high degraded chunk ratio as retryable technical block', () => {
+    const ledger = makeLedgerWithNoCharacters();
+    const ledgerV2 = makePollutedV2();
+    const layers = buildStoryLayerFromLedger(ledger, ledgerV2);
+    const report = buildLedgerQualityReport(
+      ledger,
+      ledgerV2,
+      layers,
+      {
+        chunkCoverage: {
+          chunks_expected: 20,
+          chunks_completed: 18,
+          degraded_chunks: 2,
+          degraded_ratio: 0.1,
+        },
+      },
+    );
+
+    expect(report.gate_ready_status).toBe('blocked_retryable_technical');
+    expect(report.blocking_reasons.join(' ')).toContain('degraded chunk ratio too high');
+  });
+
+  it('classifies sparse substantive story-layer coverage as retryable technical block', () => {
+    const ledger = makeLedgerWithNoCharacters();
+    const ledgerV2 = makePollutedV2();
+    const layers = buildStoryLayerFromLedger(ledger, ledgerV2);
+    const report = buildLedgerQualityReport(
+      ledger,
+      ledgerV2,
+      layers,
+      {
+        storyLayerCoverage: {
+          populated_substantive_layers: 1,
+          minimum_required_substantive_layers: 4,
+          populated_layer_keys: ['identity_pronoun_layer'],
+        },
+      },
+    );
+
+    expect(report.gate_ready_status).toBe('blocked_retryable_technical');
+    expect(report.blocking_reasons.join(' ')).toContain('substantive coverage below minimum');
+    expect(report.blocking_reasons.join(' ')).toContain('identity_pronoun_layer');
+  });
 });

@@ -3,6 +3,7 @@
 // not a canonical evaluation criterion key alias.
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { sanitizeCMOS } from "@/lib/evaluation/cmosSanitizer";
+import { sanitizeBlockedCharacterNames } from "@/lib/evaluation/pipeline/characterNameSanitizer";
 import {
   CRITERIA_KEYS,
   type CriterionKey,
@@ -321,7 +322,12 @@ export function mistakeProofText(text: unknown, fallback = ''): string {
   // 5. Re-collapse any whitespace introduced by stripping.
   result = result.replace(/  +/g, ' ').trim();
 
-  // 6. CMOS style pass.
+  // 6. Block false character-name promotion in author-facing surfaces.
+  // Example: The Price of Vanity uses "Cost: $14.00" as an expense label;
+  // downstream prose must not render that as a person named Cost.
+  result = sanitizeBlockedCharacterNames(result, []);
+
+  // 7. CMOS style pass.
   result = sanitizeCMOS(result);
 
   return result || fallback;

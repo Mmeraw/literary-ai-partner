@@ -146,10 +146,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     // TXT must include Action Items
     expect(txt).toContain('ACTION ITEMS');
-    expect(txt).toContain('Quick Wins:');
-    expect(txt).toContain('Tighten the opening hook.');
     expect(txt).toContain('Strategic Revisions:');
-    expect(txt).toContain('Restructure middle act.');
+    expect(txt).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(txt).toContain('Location: narrativeDrive:recommendation');
 
     // HTML/PDF must include all 6 diagnostic fields
     expect(html).not.toContain('class="score-box"');
@@ -170,10 +169,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     // HTML/PDF must include Action Items
     expect(html).toContain('Action Items');
-    expect(html).toContain('Quick Wins');
-    expect(html).toContain('Tighten the opening hook.');
     expect(html).toContain('Strategic Revisions');
-    expect(html).toContain('Restructure middle act.');
+    expect(html).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(html).toContain('narrativeDrive:recommendation');
 
     // DOCX must include all 6 diagnostic fields
     const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
@@ -187,8 +185,8 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     // DOCX must include Action Items
     expect(docxText).toContain('Action Items');
-    expect(docxText).toContain('Tighten the opening hook.');
-    expect(docxText).toContain('Restructure middle act.');
+    expect(docxText).toContain('[OPP-001] Increase the stakes surrounding the missing man.');
+    expect(docxText).toContain('narrativeDrive:recommendation');
   });
 
   test('renders DREAM template sections and suppresses UED multi-layer fallback sections when dream is present', async () => {
@@ -269,6 +267,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
         comparison_space: ['Psychological suspense'],
         market_danger: 'Could blur into generic thriller positioning.',
       },
+      what_not_to_become: ['A generic puzzle thriller that loses its emotional wound.'],
       structural_stack: [
         {
           layer_name: 'Causal Spine',
@@ -295,6 +294,21 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
           revision_queue: ['[LOCATION: Midpoint] [OPERATION: tighten] Add consequence beat.'],
         },
       ],
+      layer_analyses: [
+        {
+          layer_name: 'Memory Layer',
+          status: 'moderate',
+          needed_revision: 'Clarify the rules of remembered versus staged evidence.',
+        },
+      ],
+      cross_layer_integration: [
+        {
+          motif: 'Red shoes',
+          description: 'The image should connect witness memory to final agency.',
+          integration_quality: 'moderate',
+          revision_note: 'Echo the image before the final reveal.',
+        },
+      ],
       revision_plan: [
         {
           priority: 'P1',
@@ -307,6 +321,10 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
       releasability: [
         { dimension: 'Narrative Cohesion', current_status: 'Strong with revision notes', verdict: 'Revise' },
       ],
+      acceptance_checks: {
+        required_detection: ['Detect that the memory layer changes the thriller spine.'],
+        failure_conditions: ['Fail if the report treats the manuscript as a flat procedural.'],
+      },
     } as any;
 
     const txt = testing.buildCanonicalTemplateTxt(canonicalDoc, dream, 'job-template-truth');
@@ -316,11 +334,31 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     expect(txt).toContain('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
     expect(txt).toContain('MARKET SHELF');
+    expect(txt).toContain('What Not to Become:');
+    expect(txt).toContain('A generic puzzle thriller that loses its emotional wound.');
+    expect(txt).toContain('LAYER ANALYSIS');
+    expect(txt).toContain('Memory Layer');
+    expect(txt).toContain('CROSS-LAYER INTEGRATION');
+    expect(txt).toContain('Red shoes');
+    expect(txt).toContain('REVIEW GATE');
+    expect(txt).toContain('Detect that the memory layer changes the thriller spine.');
+    expect(txt).toContain('Location: Midpoint | Operation: Tighten | Recommendation: Add consequence beat.');
+    expect(txt).not.toContain('[LOCATION: Midpoint]');
     expect(txt).not.toContain('STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP');
     expect(txt).not.toContain('UED fallback marker');
 
     expect(html).toContain('Narrative Synthesis');
     expect(html).toContain('Market Shelf');
+    expect(html).toContain('What Not to Become');
+    expect(html).toContain('A generic puzzle thriller that loses its emotional wound.');
+    expect(html).toContain('Layer Analysis');
+    expect(html).toContain('Memory Layer');
+    expect(html).toContain('Cross-Layer Integration');
+    expect(html).toContain('Red shoes');
+    expect(html).toContain('Review Gate');
+    expect(html).toContain('Detect that the memory layer changes the thriller spine.');
+    expect(html).toContain('Location: Midpoint | Operation: Tighten | Recommendation: Add consequence beat.');
+    expect(html).not.toContain('[LOCATION: Midpoint]');
     expect(html).toContain('Dream-driven executive verdict appears in all adapters.');
     expect(html).not.toContain('Story Ledger or Layer-Aware Architecture Map');
     expect(html).not.toContain('UED fallback marker');
@@ -328,6 +366,16 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
 
     expect(docxText).toContain('Narrative Synthesis');
     expect(docxText).toContain('Market Shelf');
+    expect(docxText).toContain('What Not to Become');
+    expect(docxText).toContain('A generic puzzle thriller that loses its emotional wound.');
+    expect(docxText).toContain('Layer Analysis');
+    expect(docxText).toContain('Memory Layer');
+    expect(docxText).toContain('Cross-Layer Integration');
+    expect(docxText).toContain('Red shoes');
+    expect(docxText).toContain('Review Gate');
+    expect(docxText).toContain('Detect that the memory layer changes the thriller spine.');
+    expect(docxText).toContain('Location: Midpoint | Operation: Tighten | Recommendation: Add consequence beat.');
+    expect(docxText).not.toContain('[LOCATION: Midpoint]');
     expect(docxText).toContain('Dream-driven executive verdict appears in all adapters.');
     expect(docxText).not.toContain('Story Ledger or Layer-Aware Architecture Map');
     expect(docxText).not.toContain('UED fallback marker');

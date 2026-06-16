@@ -7,12 +7,14 @@ export const REVISION_SESSION_ALLOWED_TRANSITIONS: Record<
   RevisionSessionStatus,
   readonly RevisionSessionStatus[]
 > = {
-  open: ["findings_ready", "failed"],
-  findings_ready: ["synthesis_started"],
-  synthesis_started: ["proposals_ready", "failed"],
-  proposals_ready: ["applied", "failed"],
+  open: ["findings_ready", "failed", "failed_retryable"],
+  findings_ready: ["synthesis_started", "failed", "failed_retryable"],
+  synthesis_started: ["proposals_ready", "failed", "failed_retryable"],
+  proposals_ready: ["applied", "failed", "failed_retryable"],
   applied: [],
   failed: [],
+  // failed_retryable allows re-entry: session restarts from the appropriate stage
+  failed_retryable: ["open", "findings_ready", "synthesis_started", "failed"],
 };
 
 export type TransitionRevisionSessionStateInput = {
@@ -74,7 +76,8 @@ function transitionEventCode(nextStatus: RevisionSessionStatus):
   | "REVISION_SESSION_SYNTHESIS_STARTED"
   | "REVISION_SESSION_PROPOSALS_READY"
   | "REVISION_SESSION_APPLIED"
-  | "REVISION_SESSION_FAILED" {
+  | "REVISION_SESSION_FAILED"
+  | "REVISION_SESSION_FAILED_RETRYABLE" {
   switch (nextStatus) {
     case "findings_ready":
       return "REVISION_SESSION_FINDINGS_READY";
@@ -86,6 +89,8 @@ function transitionEventCode(nextStatus: RevisionSessionStatus):
       return "REVISION_SESSION_APPLIED";
     case "failed":
       return "REVISION_SESSION_FAILED";
+    case "failed_retryable":
+      return "REVISION_SESSION_FAILED_RETRYABLE";
     default:
       throw new Error(`No transition event code defined for status: ${nextStatus}`);
   }
@@ -184,7 +189,7 @@ export function buildRevisionSessionTransitionUpdate(
     );
   }
 
-  if (input.nextStatus === "failed") {
+  if (input.nextStatus === "failed" || input.nextStatus === "failed_retryable") {
     update.failure_code = requireTrimmedString("failure_code", input.failure_code);
     update.failure_message = requireTrimmedString(
       "failure_message",

@@ -54,6 +54,7 @@ Recommendation deduplication:
 - If two recommendations reduce to the same advice, drop one and re-derive a distinct mechanism-level recommendation.
 - Use character names (or "the narrator") rather than abstract role labels like "the protagonist".
 - NEVER use dialogue fragments or common English words as character names. Words like "No", "Yes", "Oh", "Hey", "Well", "So" are NOT character names even if the manuscript text appears to use them. Always use the canonical name from the STORY LEDGER or ENTITY ROSTER instead.
+- NEVER promote ledger/accounting labels, colon headings, prices, product names, or store names into character names. A manuscript line like "Cost: $14.00" is an expense label, not a character named Cost; refer to an unnamed actor as "the narrator" or by the canonical roster name.
 
 REC CONTRACT — SEVEN PARTS (required for every recommendation):
 - ANCHOR: action must name location (scene/paragraph/line/beat/chapter) and anchor_snippet must be non-empty.
@@ -101,6 +102,9 @@ Before emitting any recommendation, validate ALL of the following. A single fail
 GATE 1 — EVIDENCE QUOTE REQUIRED
 Every recommendation MUST include an anchor_snippet containing a verbatim or near-verbatim quote from the manuscript. If you cannot locate the exact offending line, the recommendation is suppressed.
 → Rule: Do not use craft-weakness labels like "glib aside", "mixed metaphor", "lyrical drift", or "unclear orientation" UNLESS anchor_snippet contains the verbatim target. If you cannot locate the offending line, OMIT the recommendation entirely.
+
+CRITICAL FAILURE MODE — ABSTRACT CRITERIA:
+For voice, pacing, proseControl, tone, narrativeClosure, and marketability, you MUST still quote the specific manuscript passage where the issue manifests. Do NOT write a diagnostic sentence as the anchor (e.g., "The narrative voice shifts psychic distance mid-passage" or "Pacing stalls where a reflective passage delays the next action trigger"). These are editorial diagnoses, not evidence. Instead, quote the EXACT prose where the voice shifts, the pacing stalls, or the tone breaks — e.g., anchor_snippet: "He chuckled to himself, when he thought of that" (the passage where psychic distance shifts). The evidence[] array from Pass 1/2 already contains grounded manuscript quotes for every criterion — use those as your anchor source.
 
 GATE 2 — CHARACTER CO-PRESENCE VALIDATION
 If a recommendation names two or more characters together in a scene, check the CHARACTER ARC LEDGER coPresenceMap. If their firstSharedChunk is AFTER the target chapter, the recommendation is suppressed.

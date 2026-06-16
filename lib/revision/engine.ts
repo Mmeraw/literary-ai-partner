@@ -12,6 +12,14 @@ import {
   getRevisionSessionById,
 } from "./sessions";
 import { checkRefinementEligibilityByEvaluationRun } from "@/lib/governance/evaluationBridge";
+import {
+  buildRevisionFailureRecord,
+  classifyFailureDisposition,
+  isKickEligible,
+  resolveKickTarget,
+  type ReviseStageFailureCode,
+  type RevisionFailureRecordV1,
+} from "./reviseFailureRecord";
 import type {
   ApplyRevisionSessionResult,
   ChangeProposal,
@@ -51,6 +59,7 @@ export type StartRevisionEngineResult = {
 export type FinalizeRevisionEngineResult = {
   revision_session: RevisionSession;
   apply_result: ApplyRevisionSessionResult;
+  failure_record?: RevisionFailureRecordV1;
 };
 
 async function getSourceVersionIdForEvaluationRun(evaluationRunId: string): Promise<string> {
@@ -153,7 +162,44 @@ export async function startRevisionEngine(
   const existing = await findExistingRevisionSessionForEvaluationRun(input.evaluation_run_id);
 
   // `failed` is a terminal state with no valid outbound transitions; create a fresh session.
-  if (existing && existing.status !== "failed") {
+  // `failed_retryable` sessions can be re-entered — transition back to open and retry.
+  if (existing && existing.status === "failed_retryable") {
+    try {
+      await transitionRevisionSessionState(existing.id, {
+        nextStatus: "open",
+        findings_count: existing.findings_count,
+        actionable_findings_count: existing.actionable_findings_count,
+        proposal_ready_actionable_findings_count: existing.proposal_ready_actionable_findings_count,
+        proposals_created_count: existing.proposals_created_count,
+      });
+
+      void logRevisionEvent({
+        revision_session_id: existing.id,
+        manuscript_version_id: existing.source_version_id,
+        evaluation_run_id: existing.evaluation_run_id,
+        event_type: "session",
+        event_code: "REVISION_SESSION_RETRY_FROM_FAILED_RETRYABLE",
+        message: `Session ${existing.id} re-entered from failed_retryable. Previous failure: ${existing.failure_code}`,
+        metadata: {
+          previous_failure_code: existing.failure_code,
+          previous_failure_message: existing.failure_message,
+        },
+      });
+    } catch (retryError) {
+      void logRevisionEvent({
+        revision_session_id: existing.id,
+        manuscript_version_id: existing.source_version_id,
+        evaluation_run_id: existing.evaluation_run_id,
+        event_type: "session",
+        severity: "error",
+        event_code: "REVISION_SESSION_RETRY_FAILED",
+        message: retryError instanceof Error ? retryError.message : String(retryError),
+      });
+      // Fall through to create a new session
+    }
+  }
+
+  if (existing && existing.status !== "failed" && existing.status !== "failed_retryable") {
     await ensureOperationalRevisionFindings(
       input.evaluation_run_id,
       existing.source_version_id,
@@ -296,16 +342,24 @@ export async function finalizeRevisionEngine(
       apply_result: applyResult,
     };
   } catch (error) {
-    if (readySession && readySession.status !== "applied" && readySession.status !== "failed") {
+    const failureRecord = classifyAndRecordFailure({
+      sessionId: revisionSessionId,
+      stageId: 'RS10_TRUSTEDPATH',
+      errorMessage: error instanceof Error ? error.message : String(error),
+      fallbackCode: 'REVISION_FINALIZE_FAILED',
+    });
+
+    if (readySession && readySession.status !== "applied" && readySession.status !== "failed" && readySession.status !== "failed_retryable") {
       try {
+        const nextStatus = failureRecord.disposition === 'retryable' ? 'failed_retryable' : 'failed';
         await transitionRevisionSessionState(revisionSessionId, {
-          nextStatus: "failed",
+          nextStatus,
           findings_count: readySession.findings_count,
           actionable_findings_count: readySession.actionable_findings_count,
           proposal_ready_actionable_findings_count:
             readySession.proposal_ready_actionable_findings_count,
           proposals_created_count: readySession.proposals_created_count,
-          failure_code: "REVISION_FINALIZE_FAILED",
+          failure_code: failureRecord.failure_code,
           failure_message: error instanceof Error ? error.message : String(error),
         });
       } catch (transitionError) {
@@ -327,8 +381,96 @@ export async function finalizeRevisionEngine(
       severity: "error",
       event_code: "REVISION_SESSION_FINALIZE_FAILED",
       message: error instanceof Error ? error.message : String(error),
+      metadata: {
+        failure_record: failureRecord,
+      },
     });
 
     throw error;
   }
+}
+
+// ─── KICK_MATRIX Wiring: Failure Classification + Recovery ────────────────────
+
+/**
+ * Map error messages to revise stage failure codes.
+ * Uses the same pattern as evaluation pipeline's failureClassification.
+ */
+function inferReviseStageFailureCode(errorMessage: string): ReviseStageFailureCode | null {
+  const lower = errorMessage.toLowerCase();
+
+  // Ledger assembly failures
+  if (lower.includes('ledger') && lower.includes('evidence')) return 'LEDGER_EVIDENCE_MISSING';
+  if (lower.includes('ledger') && lower.includes('empty')) return 'LEDGER_EMPTY';
+  if (lower.includes('ledger') && lower.includes('criterion')) return 'LEDGER_CRITERION_MISSING';
+  if (lower.includes('ledger') && lower.includes('assembly')) return 'LEDGER_ASSEMBLY_FAILED';
+
+  // Admission gate failures
+  if (lower.includes('admission') && lower.includes('card')) return 'ADMISSION_CARD_CONTRACT_FAIL';
+  if (lower.includes('admission') && lower.includes('canon')) return 'ADMISSION_CANON_GATE_FAIL';
+  if (lower.includes('admission') && lower.includes('voice')) return 'ADMISSION_VOICE_GATE_FAIL';
+
+  // Workbench failures
+  if (lower.includes('anchor') && lower.includes('unresolvable')) return 'WORKBENCH_ANCHOR_UNRESOLVABLE';
+  if (lower.includes('diagnostic') && lower.includes('incomplete')) return 'WORKBENCH_DIAGNOSTIC_INCOMPLETE';
+  if (lower.includes('mode') && lower.includes('contract') && lower.includes('missing')) return 'WORKBENCH_MODE_CONTRACT_MISSING';
+  if (lower.includes('hydration') && lower.includes('failed')) return 'WORKBENCH_HYDRATION_FAILED';
+
+  // Candidate generation failures
+  if (lower.includes('candidate') && lower.includes('voice')) return 'CANDIDATE_VOICE_GATE_FAIL';
+  if (lower.includes('candidate') && lower.includes('canon')) return 'CANDIDATE_CANON_GATE_FAIL';
+  if (lower.includes('candidate') && lower.includes('duplicate')) return 'CANDIDATE_DUPLICATES_ORIGINAL';
+  if (lower.includes('candidate') && lower.includes('empty')) return 'CANDIDATE_EMPTY';
+  if (lower.includes('candidate') && lower.includes('generation')) return 'CANDIDATE_GENERATION_FAILED';
+
+  // Ledger sync failures
+  if (lower.includes('sync') && lower.includes('validation')) return 'LEDGER_SYNC_VALIDATION_FAIL';
+  if (lower.includes('sync') && lower.includes('duplicate')) return 'LEDGER_SYNC_DUPLICATE_LOCAL_ID';
+  if (lower.includes('sync') && lower.includes('db')) return 'LEDGER_SYNC_DB_ERROR';
+
+  // Completion failures
+  if (lower.includes('completion') && lower.includes('premature')) return 'COMPLETION_PREMATURE';
+  if (lower.includes('completion') && lower.includes('pending')) return 'COMPLETION_PENDING_SYNC';
+
+  // Cross-check failures
+  if (lower.includes('crosscheck') && lower.includes('timeout')) return 'CROSSCHECK_TIMEOUT';
+  if (lower.includes('crosscheck') && lower.includes('unavailable')) return 'CROSSCHECK_UNAVAILABLE';
+
+  // TrustedPath failures
+  if (lower.includes('trustedpath') && lower.includes('ineligible')) return 'TRUSTEDPATH_INELIGIBLE_VERDICT';
+  if (lower.includes('trustedpath') && lower.includes('already')) return 'TRUSTEDPATH_ALREADY_DECIDED';
+
+  // Hydration failures
+  if (lower.includes('hydration') && lower.includes('timeout')) return 'HYDRATION_TIMEOUT';
+  if (lower.includes('hydration') && lower.includes('slae')) return 'HYDRATION_SLAE_REJECTION';
+  if (lower.includes('hydration') && lower.includes('model')) return 'HYDRATION_MODEL_ERROR';
+
+  return null;
+}
+
+/**
+ * Classify a runtime error into a structured failure record.
+ * Consults REVISE_KICK_MATRIX for kick eligibility.
+ */
+function classifyAndRecordFailure(input: {
+  sessionId: string;
+  stageId: string;
+  errorMessage: string;
+  fallbackCode: ReviseStageFailureCode;
+  opportunityId?: string;
+  attemptCount?: number;
+  evidence?: string[];
+}): RevisionFailureRecordV1 {
+  const inferredCode = inferReviseStageFailureCode(input.errorMessage);
+  const failureCode = inferredCode ?? input.fallbackCode;
+
+  return buildRevisionFailureRecord({
+    sessionId: input.sessionId,
+    stageId: input.stageId,
+    failureCode,
+    attemptCount: input.attemptCount ?? 1,
+    opportunityId: input.opportunityId ?? null,
+    errorMessage: input.errorMessage,
+    evidence: input.evidence,
+  });
 }

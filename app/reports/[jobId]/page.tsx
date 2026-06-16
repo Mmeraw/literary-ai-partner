@@ -84,6 +84,24 @@ function hasMeaningfulText(value: unknown): boolean {
   return typeof value === 'string' ? value.trim().length > 0 : typeof value === 'number';
 }
 
+function sanitizeAuthorFacingDisplayValue<T>(value: T, isLongForm: boolean): T {
+  if (typeof value === 'string') {
+    return correctScopeLanguage(mistakeProofText(value), isLongForm) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeAuthorFacingDisplayValue(item, isLongForm)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, sanitizeAuthorFacingDisplayValue(entry, isLongForm)]),
+    ) as T;
+  }
+
+  return value;
+}
+
 function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
   label: string;
   classes: string;
@@ -332,7 +350,7 @@ export default async function ReportPage({
     notFound();
   }
 
-  const canonicalDoc = persistedDocument.document;
+  const canonicalDoc = sanitizeAuthorFacingDisplayValue(persistedDocument.document, isLongForm);
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");
@@ -439,7 +457,7 @@ export default async function ReportPage({
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#F6F1EA] [overflow-wrap:anywhere]">
+    <div className="rg-report-page min-h-screen overflow-x-hidden bg-[#F6F1EA] [overflow-wrap:anywhere]">
       {printMode && <AutoPrintOnLoad enabled />}
       <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 sm:py-8">
         {/* Header + Title Block (template section 1) */}
@@ -453,7 +471,8 @@ export default async function ReportPage({
                 <div className="flex flex-col items-center gap-0.5">
                   <Link
                     href={`/workbench?manuscriptId=${manuscriptId}&evaluationJobId=${params.jobId}`}
-                    className="inline-flex items-center gap-1.5 rounded-sm bg-[#006DFF] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0057CC] focus:outline-none focus:ring-2 focus:ring-[#006DFF] focus:ring-offset-2"
+                    className="rg-revise-cta px-4 py-2 text-sm !text-white visited:!text-white"
+                    style={{ color: '#FFFDF9' }}
                   >
                     Revise now
                   </Link>
@@ -706,22 +725,22 @@ export default async function ReportPage({
           </h2>
           <div className="space-y-4">
             {canonicalDoc.criterionDetails.map((detail, idx) => (
-              <article key={`${detail.label}-${idx}`} className="overflow-hidden border border-[#D9D0C3] bg-white">
-                <div className="flex items-center justify-between gap-3 bg-[#1C1814] px-4 py-2.5">
-                  <h3 className="font-serif text-sm font-bold leading-snug text-[#F5EFE0]">{detail.label}</h3>
-                  <div className="flex items-center gap-2 shrink-0 text-xs uppercase tracking-wide">
-                    <span className="font-serif text-base font-bold text-[#C8A96E]">{detail.scoreLabel}</span>
-                    <span className="border-l border-[#3A3530] pl-2 text-[#9A9087]">{detail.confidenceLabel}</span>
+              <article key={`${detail.label}-${idx}`} className="overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#FFFCF7] shadow-[0_1px_0_rgba(28,24,20,0.04)]">
+                <div className="rg-report-criterion-header flex items-center justify-between gap-4 border-b border-[#D9D0C3] bg-[#F7F1E6] px-4 py-3 [color-scheme:light]">
+                  <h3 className="font-serif text-base font-bold leading-snug !text-[#8B2E2E]">{detail.label}</h3>
+                  <div className="flex shrink-0 items-center gap-2 text-sm">
+                    <span className="font-serif text-base font-bold !text-[#8B2E2E]">{detail.scoreLabel}</span>
+                    <span className="border-l border-[#C8A96E]/60 pl-2 font-medium !text-[#5C5549]">{detail.confidenceLabel}</span>
                   </div>
                 </div>
                 <div className="space-y-3 p-4">
                   {detail.supportLabel ? (
-                    <p className="text-xs font-medium text-[#5C5549]">{detail.supportLabel}</p>
+                    <p className="text-xs font-medium !text-[#5C5549]">{detail.supportLabel}</p>
                   ) : null}
                   {detail.rationaleLabel ? (
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8B2E2E]">{detail.rationaleLabel}</p>
+                    <p className="text-xs font-semibold tracking-[0.06em] !text-[#8B2E2E]">{detail.rationaleLabel}</p>
                   ) : null}
-                  <p className="text-sm leading-relaxed text-[#1C1814]">{detail.rationaleText}</p>
+                  <p className="text-sm leading-relaxed !text-[#1C1814]">{detail.rationaleText}</p>
                   {detail.recommendations.length > 0 ? (
                     <CriterionOpportunities
                       recommendations={detail.recommendations as Array<{

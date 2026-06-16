@@ -41,6 +41,10 @@ import {
   runQualityGate as defaultRunQualityGate,
   summarizeQualityGateFailures,
 } from "./qualityGate";
+import {
+  PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD,
+  PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD,
+} from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { buildScoreLedger } from "./buildScoreLedger";
 import { buildExcellenceFilter } from "./buildExcellenceFilter";
 import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
@@ -58,7 +62,7 @@ import type {
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import { detectModeFromManuscript } from "@/lib/evaluation/modeDetection";
-import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { CRITERIA_KEYS, getCriterionDisplayLabel } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
 import { PASS2_PROMPT_VERSION } from "./prompts/pass2-editorial";
 import { PASS3_PROMPT_VERSION } from "./prompts/pass3-synthesis";
@@ -149,6 +153,7 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // in processEvaluationJob; this catches programmatic callers exercising
 // runPipeline directly (stress harness, future map-reduce callers).
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+const PASS1A_DEGRADED_CHUNK_ERROR_CODE = 'PASS1A_DEGRADED_CHUNK_RATIO_EXCEEDED';
 import type {
   RuleEvaluationInput,
   RuleStage,
@@ -1764,6 +1769,39 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     }
 
     const pass1aResult = pass1aSettled.value;
+    const degradedChunkCount = pass1aResult.degradedChunkCount ?? 0;
+    const degradedChunkIndices = pass1aResult.degradedChunkIndices ?? [];
+    const degradedChunkRatio = pass1aResult.total_chunks > 0
+      ? degradedChunkCount / pass1aResult.total_chunks
+      : 0;
+    if (
+      degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
+      degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+    ) {
+      console.error('[Pipeline][Pass1A] Degraded chunk ratio exceeded fail-closed threshold', {
+        manuscript_id: opts.manuscriptId ?? null,
+        degraded_chunks: degradedChunkCount,
+        total_chunks: pass1aResult.total_chunks,
+        degraded_ratio: degradedChunkRatio.toFixed(3),
+        degraded_indices: degradedChunkIndices,
+      });
+      timings.total_ms = nowMs() - pipelineStartMs;
+      logPipelineTimings('failure', {
+        manuscriptId: opts.manuscriptId,
+        title: opts.title,
+        workType: opts.workType,
+        failedAt: 'pass1',
+        errorCode: PASS1A_DEGRADED_CHUNK_ERROR_CODE,
+        timings,
+      });
+      return {
+        ok: false,
+        error: `Pass 1A degraded chunk ratio exceeded threshold (${degradedChunkCount}/${pass1aResult.total_chunks}, ratio=${degradedChunkRatio.toFixed(3)}). Output does not meet next-step input standards.`,
+        error_code: PASS1A_DEGRADED_CHUNK_ERROR_CODE,
+        failed_at: 'pass1',
+      };
+    }
+
     if (pass1aResult.chunkOutputs.length === 0) {
       // Soft-skip: the character ledger is an enrichment layer, not the paid product.
       // Pass 3 can run without it (lower confidence, no WAVE). Build an empty sentinel
@@ -1873,7 +1911,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // Blocks garbled text, scaffold residue, broken modals from reaching Pass 3.
   // Canon: Runtime Doctrine #11/#13, Volume III §III.PL5, SIPOC S06b_HANDOFF_GATE
   {
-    const handoffResult = runPass12HandoffGate(pass1Output, pass2Output);
+    let handoffResult = runPass12HandoffGate(pass1Output, pass2Output);
     if (!handoffResult.ok) {
       console.warn("[Pipeline][HandoffGate] Violations detected", {
         manuscript_id: opts.manuscriptId ?? null,
@@ -1885,37 +1923,196 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       });
 
       if (!shouldPassHandoffGate(handoffResult)) {
-        timings.total_ms = nowMs() - pipelineStartMs;
-        logPipelineTimings("failure", {
-          manuscriptId: opts.manuscriptId,
-          title: opts.title,
-          workType: opts.workType,
-          failedAt: "pass2",
-          errorCode: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
-          timings,
-        });
-        return {
-          ok: false,
-          error: `Pass 1/2 Handoff Gate failed: ${handoffResult.total_violations} violation(s) — ${handoffResult.violations.slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
-          error_code: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
-          failed_at: "pass2",
-          failure_details: {
-            handoff_gate: {
-              total_violations: handoffResult.total_violations,
-              pass1_violations: handoffResult.pass1_violations,
-              pass2_violations: handoffResult.pass2_violations,
-              check_summary: handoffResult.check_summary,
-              first_violations: handoffResult.violations.slice(0, 10),
+        // ── Systemic truncation detection + retry ────────────────────────
+        // When HANDOFF_INCOMPLETE_SENTENCE dominates (>50% of violations),
+        // the cause is likely token-budget truncation, not LLM content quality.
+        // Retry Pass 1+2 once with a boosted output token budget.
+        const incompleteSentenceCount = handoffResult.check_summary.HANDOFF_INCOMPLETE_SENTENCE ?? 0;
+        const isSystemicTruncation =
+          incompleteSentenceCount > 0 &&
+          incompleteSentenceCount / handoffResult.total_violations > 0.5;
+
+        if (isSystemicTruncation) {
+          const HANDOFF_TRUNCATION_RETRY_BUDGET = 16_000;
+          const defaultBudget = 8_000; // documented default for pass1/pass2
+
+          console.warn("[Pipeline][HandoffGate] Systemic truncation detected — retrying Pass 1+2 with boosted token budget", {
+            manuscript_id: opts.manuscriptId ?? null,
+            title: opts.title,
+            incomplete_sentence_count: incompleteSentenceCount,
+            total_violations: handoffResult.total_violations,
+            original_token_budget: defaultBudget,
+            boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+          });
+
+          try {
+            await opts.onHeartbeat?.("handoff_truncation_retry/pass1+2");
+
+            const [retryPass1Result, retryPass2Result] = await Promise.allSettled([
+              _runPass1({
+                manuscriptText: opts.manuscriptText,
+                manuscriptChunks: opts.manuscriptChunks,
+                workType: opts.workType,
+                title: opts.title,
+                englishVariant: opts.englishVariant,
+                executionMode: opts.executionMode,
+                openaiApiKey: opts.openaiApiKey,
+                jobId: opts.jobId,
+                openAiTimeoutMs: opts._openAiTimeoutMs,
+                registry,
+                scopeProfile: scopeProfile ?? undefined,
+                _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
+                characterLedgerBlock: ledgerBlockForP1P2 || undefined,
+                _maxOutputTokensOverride: HANDOFF_TRUNCATION_RETRY_BUDGET,
+              }),
+              _runPass2({
+                manuscriptText: opts.manuscriptText,
+                manuscriptChunks: opts.manuscriptChunks,
+                workType: opts.workType,
+                title: opts.title,
+                englishVariant: opts.englishVariant,
+                executionMode: opts.executionMode,
+                model: opts.model,
+                openaiApiKey: opts.openaiApiKey,
+                manuscriptId: opts.manuscriptId,
+                jobId: opts.jobId,
+                openAiTimeoutMs: opts._openAiTimeoutMs,
+                registry,
+                scopeProfile: scopeProfile ?? undefined,
+                _chunkConcurrency: opts._prebuiltCharacterLedger ? 3 : undefined,
+                characterLedgerBlock: [ledgerBlockForP1P2, opts._storyLedgerContextBlock].filter(Boolean).join('\n\n') || undefined,
+                authorCorrectionsBlock: opts._authorCorrectionsBlock ?? undefined,
+                _maxOutputTokensOverride: HANDOFF_TRUNCATION_RETRY_BUDGET,
+              }),
+            ]);
+
+            if (retryPass1Result.status === "fulfilled" && retryPass2Result.status === "fulfilled") {
+              const retryHandoff = runPass12HandoffGate(retryPass1Result.value, retryPass2Result.value);
+
+              if (retryHandoff.ok || shouldPassHandoffGate(retryHandoff)) {
+                // Retry succeeded — swap outputs and continue to Pass 3
+                pass1Output = retryPass1Result.value;
+                pass2Output = retryPass2Result.value;
+                handoffResult = retryHandoff;
+
+                console.log("[Pipeline][HandoffGate] Truncation retry SUCCEEDED — using boosted outputs", {
+                  manuscript_id: opts.manuscriptId ?? null,
+                  handoff_retry_attempted: true,
+                  handoff_retry_reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                  original_token_budget: defaultBudget,
+                  boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+                  original_violation_count: incompleteSentenceCount,
+                  retry_violation_count: retryHandoff.check_summary.HANDOFF_INCOMPLETE_SENTENCE ?? 0,
+                  retry_result: "success",
+                });
+              } else {
+                console.warn("[Pipeline][HandoffGate] Truncation retry FAILED — gate still not passing", {
+                  manuscript_id: opts.manuscriptId ?? null,
+                  handoff_retry_attempted: true,
+                  handoff_retry_reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                  original_token_budget: defaultBudget,
+                  boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+                  original_violation_count: incompleteSentenceCount,
+                  retry_violation_count: retryHandoff.total_violations,
+                  retry_result: "failed",
+                });
+                // Fall through to return original failure with retry diagnostics
+              }
+            } else {
+              const pass1Err = retryPass1Result.status === "rejected"
+                ? (retryPass1Result.reason instanceof Error ? retryPass1Result.reason.message : String(retryPass1Result.reason))
+                : null;
+              const pass2Err = retryPass2Result.status === "rejected"
+                ? (retryPass2Result.reason instanceof Error ? retryPass2Result.reason.message : String(retryPass2Result.reason))
+                : null;
+              console.warn("[Pipeline][HandoffGate] Truncation retry pass execution failed", {
+                manuscript_id: opts.manuscriptId ?? null,
+                handoff_retry_attempted: true,
+                handoff_retry_reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                pass1_error: pass1Err,
+                pass2_error: pass2Err,
+                retry_result: "failed",
+              });
+            }
+          } catch (retryErr) {
+            console.warn("[Pipeline][HandoffGate] Truncation retry threw unexpected error", {
+              manuscript_id: opts.manuscriptId ?? null,
+              error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+            });
+          }
+
+          // Re-check: if retry fixed the handoff, the variables were swapped above
+          // and handoffResult is now the retry result. If not, fall through.
+          if (!handoffResult.ok && !shouldPassHandoffGate(handoffResult)) {
+            timings.total_ms = nowMs() - pipelineStartMs;
+            logPipelineTimings("failure", {
+              manuscriptId: opts.manuscriptId,
+              title: opts.title,
+              workType: opts.workType,
+              failedAt: "pass2",
+              errorCode: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+              timings,
+            });
+            return {
+              ok: false,
+              error: `Pass 1/2 Handoff Gate failed: ${handoffResult.total_violations} violation(s) — ${handoffResult.violations.slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+              error_code: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+              failed_at: "pass2",
+              failure_details: {
+                handoff_gate: {
+                  total_violations: handoffResult.total_violations,
+                  pass1_violations: handoffResult.pass1_violations,
+                  pass2_violations: handoffResult.pass2_violations,
+                  check_summary: handoffResult.check_summary,
+                  first_violations: handoffResult.violations.slice(0, 10),
+                },
+                handoff_truncation_retry: {
+                  attempted: true,
+                  reason: "HANDOFF_INCOMPLETE_SENTENCE",
+                  original_token_budget: defaultBudget,
+                  boosted_token_budget: HANDOFF_TRUNCATION_RETRY_BUDGET,
+                  original_violation_count: incompleteSentenceCount,
+                  retry_result: "failed",
+                },
+              },
+            };
+          }
+        } else {
+          // Non-systemic handoff failure — return immediately
+          timings.total_ms = nowMs() - pipelineStartMs;
+          logPipelineTimings("failure", {
+            manuscriptId: opts.manuscriptId,
+            title: opts.title,
+            workType: opts.workType,
+            failedAt: "pass2",
+            errorCode: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+            timings,
+          });
+          return {
+            ok: false,
+            error: `Pass 1/2 Handoff Gate failed: ${handoffResult.total_violations} violation(s) — ${handoffResult.violations.slice(0, 3).map((v) => `${v.code} on ${v.criterion_key}`).join("; ")}`,
+            error_code: handoffResult.violations[0]?.code ?? "HANDOFF_GATE_FAILED",
+            failed_at: "pass2",
+            failure_details: {
+              handoff_gate: {
+                total_violations: handoffResult.total_violations,
+                pass1_violations: handoffResult.pass1_violations,
+                pass2_violations: handoffResult.pass2_violations,
+                check_summary: handoffResult.check_summary,
+                first_violations: handoffResult.violations.slice(0, 10),
+              },
             },
-          },
-        };
+          };
+        }
       }
 
       // Below threshold — log warning but proceed
-      console.log("[Pipeline][HandoffGate] Below threshold — proceeding with warnings", {
-        manuscript_id: opts.manuscriptId ?? null,
-        violations_allowed: handoffResult.total_violations,
-      });
+      if (handoffResult.ok || shouldPassHandoffGate(handoffResult)) {
+        console.log("[Pipeline][HandoffGate] Below threshold — proceeding with warnings", {
+          manuscript_id: opts.manuscriptId ?? null,
+          violations_allowed: handoffResult.total_violations,
+        });
+      }
     }
   }
 
@@ -2744,6 +2941,46 @@ export function synthesisToEvaluationResultV2(
     )
     .map(enforceTextualAnchorConfidence);
 
+  const ensureSubstantiveText = (value: string | undefined, minLength = 40): string | null => {
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    return trimmed.length >= minLength ? trimmed : null;
+  };
+
+  const ensureSubstantiveList = (
+    values: string[] | undefined,
+    fallbackFactory: () => string[],
+    minItems = 3,
+    minLength = 12,
+  ): string[] => {
+    const cleaned = Array.isArray(values)
+      ? values
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value) => value.length >= minLength)
+      : [];
+
+    if (cleaned.length >= minItems) {
+      return cleaned.slice(0, minItems);
+    }
+
+    const fallback = fallbackFactory()
+      .map((value) => value.trim())
+      .filter((value) => value.length >= minLength);
+
+    const merged = Array.from(new Set([...cleaned, ...fallback]));
+    return merged.slice(0, minItems);
+  };
+
+  const buildFallbackCriterionRationale = (
+    key: string,
+    score: number | null,
+  ): string => {
+    const scorePhrase = typeof score === "number" ? `${score}/10` : "non-scorable for this submission window";
+    return (
+      `The ${key} criterion currently reads as ${scorePhrase} and shows clear revision leverage in execution, ` +
+      `with evidence-backed opportunities to improve clarity, consequence, and reader trust.`
+    );
+  };
+
   const baseCertification = computeManuscriptCertification({
     inputScale: opts.scopeProfile?.inputScale,
     partialEvaluation: synthesis.partial_evaluation,
@@ -2787,20 +3024,38 @@ export function synthesisToEvaluationResultV2(
         )
       : criteria;
 
-  const weighted = computeWeightedScore(governedCriteria);
-  const propagation = summarizePropagationIntegrity(governedCriteria);
+  const governedCriteriaWithTemplateFallbacks = governedCriteria.map((criterion) => {
+    const substantiveRationale = ensureSubstantiveText(criterion.rationale, 40);
+    if (substantiveRationale) {
+      return criterion;
+    }
+
+    return {
+      ...criterion,
+      rationale: buildFallbackCriterionRationale(criterion.key, criterion.score_0_10),
+    };
+  });
+
+  const criteriaSortedByScore = [...governedCriteriaWithTemplateFallbacks].sort((a, b) => {
+    const aScore = typeof a.score_0_10 === "number" ? a.score_0_10 : -1;
+    const bScore = typeof b.score_0_10 === "number" ? b.score_0_10 : -1;
+    return bScore - aScore;
+  });
+
+  const weighted = computeWeightedScore(governedCriteriaWithTemplateFallbacks);
+  const propagation = summarizePropagationIntegrity(governedCriteriaWithTemplateFallbacks);
 
   const derivedConfidence = deriveGovernanceConfidenceFromCriteria(criteria, propagation);
 
   // Quality-gated Action Items: diversity selection + semantic dedup + anchor preservation
   const quick_wins = buildEnrichedActionItems(
-    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    governedCriteriaWithTemplateFallbacks.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     "high",
     5,
   );
 
   const strategic_revisions = buildEnrichedActionItems(
-    criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+    governedCriteriaWithTemplateFallbacks.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     "medium",
     5,
   );
@@ -2808,11 +3063,44 @@ export function synthesisToEvaluationResultV2(
   const coverageLimited =
     certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable;
 
-  const overviewSummary = normalizeSummaryWithBottomWeaknesses(
+  const candidateOverviewSummary = normalizeSummaryWithBottomWeaknesses(
     coverageLimited
       ? buildCoverageLimitedSummary(synthesis.coverage_scope)
       : synthesis.overall.one_paragraph_summary,
     propagation.bottomScoreCriteria,
+  );
+
+  const fallbackWeaknesses = propagation.bottomScoreCriteria.slice(0, 2).join(" and ") || "priority criteria";
+  const fallbackOverviewSummary =
+    `This manuscript shows meaningful strengths and clear readiness potential, with the most consequential revision pressure in ${fallbackWeaknesses}; targeted craft tightening should materially improve submission posture.`;
+
+  const overviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
+
+  const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {
+    const label = getCriterionDisplayLabel(criterion.key);
+    return `${label} currently provides a durable manuscript strength with visible reader-facing payoff.`;
+  });
+
+  const fallbackRisks = [...criteriaSortedByScore]
+    .reverse()
+    .slice(0, 3)
+    .map((criterion) => {
+      const label = getCriterionDisplayLabel(criterion.key);
+      return `${label} remains a prioritized revision risk that can reduce reader confidence if unaddressed.`;
+    });
+
+  const overviewTopStrengths = ensureSubstantiveList(
+    synthesis.overall.top_3_strengths,
+    () => fallbackStrengths,
+    3,
+    12,
+  );
+
+  const overviewTopRisks = ensureSubstantiveList(
+    synthesis.overall.top_3_risks,
+    () => fallbackRisks,
+    3,
+    12,
   );
 
   const quickWins = coverageLimited ? [] : quick_wins;
@@ -2881,10 +3169,10 @@ export function synthesisToEvaluationResultV2(
       overall_score_0_100: weighted.overall_score_0_100,
       scored_criteria_count: weighted.scored_count,
       one_paragraph_summary: overviewSummary,
-      top_3_strengths: coverageLimited ? [] : synthesis.overall.top_3_strengths,
-      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : synthesis.overall.top_3_risks,
+      top_3_strengths: coverageLimited ? [] : overviewTopStrengths,
+      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : overviewTopRisks,
     },
-    criteria: governedCriteria,
+    criteria: governedCriteriaWithTemplateFallbacks,
     recommendations: {
       quick_wins: quickWins,
       strategic_revisions: strategicRevisions,

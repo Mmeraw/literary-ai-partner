@@ -9,6 +9,7 @@ import { type SlaeGroundingStatus } from './slae';
 import { modeContractForMetadata, resolveRevisionModeContract } from './modeContract';
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
 import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import {
   hydrateLedgerCandidates,
   HYDRATION_MODEL,
@@ -20,6 +21,7 @@ import { regenerateCandidatesForQualityFailed } from './candidateRegeneration';
 import { enrichDiagnosticFields, needsDiagnosticEnrichment, type EnrichmentOpportunity } from './diagnosticEnrichment';
 import { logRevisionEvent } from './logRevisionEvent';
 import type { CandidateRejectionTelemetry } from './telemetry';
+import { getArtifact } from '@/lib/evaluation/fipocRegistry';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -39,6 +41,10 @@ const REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION = 'Regenerate candidate prose' as 
 
 type RevisionOpportunity = {
   opportunity_id: string;
+  source_opportunity_id?: string;
+  source_criterion?: string;
+  source_ued_hash?: string;
+  finding_id?: string;
   criterion: string;
   severity: LedgerSeverity;
   rationale: string;
@@ -467,17 +473,31 @@ export function resolveReviseContextQuality(ledgerQualityReportContent: unknown,
     };
   }
 
+  // repair_required means "fragmented identity or zero antagonist coverage;
+  // ledger may be incomplete but not critically broken". This should degrade
+  // to 'limited' — not 'blocked' — so opportunities can still reach the
+  // Revise Queue with advisory warnings. Only true hard-fail statuses
+  // (blocked, blocked_content_hard_fail) should fully block the queue.
+  if (gateReadyStatus === 'repair_required') {
+    return {
+      status: 'limited',
+      source: 'ledger_quality_report_v1',
+      gate_ready_status: gateReadyStatus,
+      blocking_reasons: blockingReasons,
+      degraded_layers: degradedLayers,
+    };
+  }
+
   if (
     gateReadyStatus === 'blocked' ||
-    gateReadyStatus === 'blocked_content_hard_fail' ||
-    gateReadyStatus === 'repair_required'
+    gateReadyStatus === 'blocked_content_hard_fail'
   ) {
     // In TESTIMONY mode (memoir, personal essay), "no POV characters" is
     // expected — the unnamed first-person narrator IS the protagonist.
     // Downgrade from 'blocked' to 'limited' so the Revise queue can proceed.
     const isTestimonyPovSoftening =
       evaluationMode?.toUpperCase() === 'TESTIMONY' &&
-      gateReadyStatus === 'repair_required' &&
+      blockingReasons.length > 0 &&
       blockingReasons.every((reason) =>
         /\bno pov\b|no protagonist\b|narrator is unnamed\b/i.test(reason),
       );
@@ -1120,6 +1140,10 @@ function isCanonicalRevisionOpportunity(value: unknown): value is RevisionOpport
 }
 
 function ensureOpportunityCandidates(opportunity: RevisionOpportunity): RevisionOpportunity {
+  const findingId = firstNonEmptyString(
+    opportunity.finding_id,
+    `${opportunity.provenance}:${opportunity.criterion}:${opportunity.manuscript_coordinates}`,
+  );
   const operation = opportunity.revision_operation ?? inferLedgerRevisionOperation({
     criterion: opportunity.criterion,
     anchor: opportunity.evidence_anchor,
@@ -1146,6 +1170,7 @@ function ensureOpportunityCandidates(opportunity: RevisionOpportunity): Revision
 
   return {
     ...opportunity,
+    finding_id: findingId,
     revision_operation: operation,
     candidate_text_a: candidateA,
     candidate_text_b: candidateB,
@@ -1154,6 +1179,73 @@ function ensureOpportunityCandidates(opportunity: RevisionOpportunity): Revision
     grounding_note: blocked
       ? 'Explicit candidate prose missing or malformed; backend fallback prose blocked by SLAE.'
       : (opportunity.grounding_note ?? null),
+  };
+}
+
+function buildRevisionLedgerQualityManifest(input: {
+  opportunities: RevisionOpportunity[];
+  wordCount: number | null | undefined;
+  contextQualityDecision: ReviseContextQualityDecision;
+  candidateGenerationStatus: string;
+}): Record<string, unknown> {
+  const registry = getArtifact('revision_opportunity_ledger_v1');
+  const total = input.opportunities.length;
+  const ready = input.opportunities.filter((o) => o.preflight_status === 'passed' && o.grounding_status === 'supported').length;
+  const needsTargeting = input.opportunities.filter((o) => o.preflight_status === 'blocked' || o.grounding_status !== 'supported').length;
+  const limitedContext = input.opportunities.filter((o) => o.preflight_status === 'limited_context').length;
+  const withEvidence = input.opportunities.filter((o) => Boolean(o.evidence_anchor?.trim())).length;
+  const withFinding = input.opportunities.filter((o) => Boolean(o.finding_id?.trim())).length;
+  const withLocation = input.opportunities.filter((o) => Boolean(o.manuscript_coordinates?.trim())).length;
+  const withOperation = input.opportunities.filter((o) => Boolean(o.revision_operation?.trim())).length;
+  const withCandidateSet = input.opportunities.filter((o) =>
+    Boolean(o.candidate_text_a?.trim()) && Boolean(o.candidate_text_b?.trim()) && Boolean(o.candidate_text_c?.trim()),
+  ).length;
+  const missingFieldsByOpportunity = input.opportunities
+    .map((o) => {
+      const missing: string[] = [];
+      if (!o.opportunity_id?.trim()) missing.push('opportunity_id');
+      if (!o.finding_id?.trim()) missing.push('finding_id');
+      if (!o.criterion?.trim()) missing.push('criterion');
+      if (!o.severity?.trim()) missing.push('severity');
+      if (!o.evidence_anchor?.trim()) missing.push('evidence_anchor');
+      if (!o.manuscript_coordinates?.trim()) missing.push('manuscript_coordinates');
+      if (!o.revision_operation?.trim()) missing.push('revision_operation');
+      if (!o.preflight_status?.trim()) missing.push('preflight_status');
+      return { opportunity_id: o.opportunity_id, missing };
+    })
+    .filter((row) => row.missing.length > 0);
+
+  return {
+    artifact_type: 'revision_opportunity_ledger_v1',
+    producer_stage_id: registry?.producerStageId ?? 'ADJACENT_REVISION_LEDGER',
+    completeness_metric: registry?.completenessMetric ?? null,
+    accuracy_metric: registry?.accuracyMetric ?? null,
+    dirty_data_rule: registry?.dirtyDataRule ?? null,
+    regeneration_owner_stage_id: registry?.regenerationOwnerStageId ?? 'ADJACENT_REVISION_LEDGER',
+    contract_status: missingFieldsByOpportunity.length > 0 || total === 0 || needsTargeting > 0 || input.contextQualityDecision.status === 'blocked'
+      ? 'degraded'
+      : 'clean',
+    opportunity_limits: {
+      cap: getReviseQueueMaxOpportunities(input.wordCount),
+      word_count: input.wordCount ?? null,
+      long_form_threshold: REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD,
+    },
+    metrics: {
+      total_opportunities: total,
+      ready_for_revise: ready,
+      needs_targeting: needsTargeting,
+      limited_context: limitedContext,
+      ready_rate: total === 0 ? 0 : ready / total,
+      finding_id_coverage: total === 0 ? 0 : withFinding / total,
+      evidence_anchor_coverage: total === 0 ? 0 : withEvidence / total,
+      manuscript_location_coverage: total === 0 ? 0 : withLocation / total,
+      revision_operation_coverage: total === 0 ? 0 : withOperation / total,
+      candidate_option_coverage: total === 0 ? 0 : withCandidateSet / total,
+    },
+    context_quality: input.contextQualityDecision.status,
+    gate_ready_status: input.contextQualityDecision.gate_ready_status,
+    candidate_generation_status: input.candidateGenerationStatus,
+    missing_fields_by_opportunity: missingFieldsByOpportunity,
   };
 }
 
@@ -1440,6 +1532,132 @@ const MAX_OPPORTUNITIES_LONG_FORM = REVISE_QUEUE_MAX_LONG_FORM;
 const LONG_FORM_WORD_THRESHOLD = REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD;
 
 const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
+
+type CertifiedUedOpportunityProjection = {
+  opportunities: RevisionOpportunity[];
+  sourceUedHash: string;
+  renderedOpportunityCount: number;
+};
+
+function severityFromCanonicalOpportunity(raw: unknown): LedgerSeverity {
+  if (raw === 'high') return 'must';
+  if (raw === 'low') return 'could';
+  return 'should';
+}
+
+function confidenceFromCanonicalOpportunity(raw: unknown): LedgerConfidence {
+  if (raw === 'high') return 'high';
+  if (raw === 'low') return 'medium';
+  return 'medium';
+}
+
+function canonicalUedOpportunityToRevisionOpportunity(item: Record<string, unknown>, sourceUedHash: string): RevisionOpportunity | null {
+  const opportunityId = firstNonEmptyString(item.id, item.opportunity_id);
+  const sourceCriterion = firstNonEmptyString(item.primary_criterion, item.criterion);
+  const criterion = normalizeCriterion(sourceCriterion);
+  const evidenceAnchor = firstNonEmptyString(item.evidence, item.anchor_snippet, item.evidence_anchor);
+  const rationale = firstNonEmptyString(item.fix_direction, item.action, item.symptom);
+  const manuscriptCoordinates = firstNonEmptyString(item.location, item.manuscript_coordinates, `${criterion}:recommendation`);
+
+  if (!opportunityId || !sourceCriterion || !evidenceAnchor || !rationale) return null;
+
+  return ensureOpportunityCandidates({
+    opportunity_id: opportunityId,
+    source_opportunity_id: opportunityId,
+    source_criterion: sourceCriterion,
+    source_ued_hash: sourceUedHash,
+    criterion,
+    severity: severityFromCanonicalOpportunity(item.severity),
+    rationale,
+    evidence_anchor: evidenceAnchor,
+    manuscript_coordinates: manuscriptCoordinates,
+    provenance: 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities',
+    confidence: confidenceFromCanonicalOpportunity(item.severity),
+    decision_state: 'open',
+    candidate_text_a: normalizeOptionalText(item.candidate_text_a),
+    symptom: normalizeOptionalText(item.symptom),
+    cause: normalizeOptionalText(item.cause),
+    fix_direction: normalizeOptionalText(item.fix_direction),
+    reader_effect: normalizeOptionalText(item.reader_effect),
+    mistake_proofing: normalizeOptionalText(item.mistake_proofing),
+  });
+}
+
+function extractRenderedCanonicalOpportunities(unifiedDocument: unknown): Record<string, unknown>[] {
+  if (!isRecord(unifiedDocument)) return [];
+  const ledger = isRecord(unifiedDocument.canonicalOpportunityLedger)
+    ? unifiedDocument.canonicalOpportunityLedger
+    : null;
+  const rendered = Array.isArray(ledger?.rendered_opportunities)
+    ? ledger.rendered_opportunities
+    : [];
+
+  return rendered.filter((item): item is Record<string, unknown> => isRecord(item));
+}
+
+async function loadCertifiedUedOpportunityProjection(
+  supabase: any,
+  jobId: string,
+): Promise<CertifiedUedOpportunityProjection | null> {
+  const [{ data: unifiedRow, error: unifiedError }, { data: certificationRow, error: certificationError }] = await Promise.all([
+    supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'unified_evaluation_document_v1')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('evaluation_artifacts')
+      .select('content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'author_exposure_certification_v1')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (unifiedError || certificationError) {
+    throw new Error(`Failed to read certified UED for revision opportunity ledger: ${unifiedError?.message ?? certificationError?.message}`);
+  }
+
+  const unifiedDocument = unifiedRow?.content;
+  if (!unifiedDocument) return null;
+
+  const certification = isRecord(certificationRow?.content) ? certificationRow.content : null;
+  if (!certification) {
+    throw new Error('Certified UED is present but author_exposure_certification_v1 is missing for revision opportunity ledger.');
+  }
+  if (
+    certification.schema_version !== 'author_exposure_certification_v1' ||
+    certification.decision !== 'certified' ||
+    typeof certification.unified_document_hash !== 'string' ||
+    certification.unified_document_hash.trim().length === 0
+  ) {
+    throw new Error('Certified UED is present but author_exposure_certification_v1 is not certified for revision opportunity ledger.');
+  }
+
+  const sourceUedHash = canonicalJsonSha256(unifiedDocument);
+  if (sourceUedHash !== certification.unified_document_hash) {
+    throw new Error(`Certified UED hash mismatch for revision opportunity ledger: expected=${certification.unified_document_hash} actual=${sourceUedHash}`);
+  }
+
+  const rendered = extractRenderedCanonicalOpportunities(unifiedDocument);
+  const opportunities = rendered
+    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash))
+    .filter((item): item is RevisionOpportunity => item !== null);
+
+  if (rendered.length > 0 && opportunities.length === 0) {
+    throw new Error('Certified UED canonical opportunity ledger contains no revision-usable opportunities.');
+  }
+
+  return {
+    opportunities,
+    sourceUedHash,
+    renderedOpportunityCount: rendered.length,
+  };
+}
 
 function extractChunkCacheRecommendations(chunkCachePayload: unknown): RevisionOpportunity[] {
   if (!isRecord(chunkCachePayload)) return [];
@@ -1815,7 +2033,7 @@ export function buildRevisionOpportunitiesFromEvaluationPayload(
 export async function ensureRevisionOpportunityLedgerArtifact(
   supabase: any,
   jobId: string,
-  options?: { forceRebuild?: boolean },
+  options?: { forceRebuild?: boolean; allowLegacyEvaluationProjection?: boolean },
 ): Promise<EnsureLedgerResult> {
   const { data: existingLedgerRow, error: existingLedgerError } = await supabase
     .from('evaluation_artifacts')
@@ -1936,9 +2154,21 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       ? evalPayloadRecord.word_count
       : jobWordCount;
 
-  const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(
-    evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
-  );
+  const uedProjection = await loadCertifiedUedOpportunityProjection(supabase, jobId);
+  if (!uedProjection?.opportunities.length && !options?.allowLegacyEvaluationProjection) {
+    throw new Error(
+      'Certified UED canonicalOpportunityLedger.rendered_opportunities is required for revision_opportunity_ledger_v1. Legacy evaluation_result recommendation projection is disabled for author-facing Revise packages.',
+    );
+  }
+
+  const opportunities = uedProjection?.opportunities.length
+    ? capRevisionOpportunities(uedProjection.opportunities, wordCount)
+    : buildRevisionOpportunitiesFromEvaluationPayload(
+        evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
+      );
+  const opportunitySourceAuthority = uedProjection?.opportunities.length
+    ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities'
+    : 'legacy_evaluation_result_projection_explicit_backfill_only';
 
   const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
     contextQuality: contextQualityDecision.status,
@@ -2091,7 +2321,8 @@ export async function ensureRevisionOpportunityLedgerArtifact(
 
       for (const o of opportunities) {
         const needsCandidates = !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c;
-        const needsHydration = o.preflight_status === 'passed'
+        const preflightAllowsHydration = o.preflight_status === 'passed' || o.preflight_status === 'limited_context';
+        const needsHydration = preflightAllowsHydration
           && o.grounding_status !== 'supported'
           && needsCandidates;
         if (!needsHydration) continue;
@@ -2178,6 +2409,24 @@ export async function ensureRevisionOpportunityLedgerArtifact(
                 opp.candidate_text_b = '';
                 opp.candidate_text_c = '';
               }
+            }
+
+            // Surface hydration failure records for admin diagnostics
+            if (hydration.failureRecords && hydration.failureRecords.length > 0) {
+              void logRevisionEvent({
+                evaluation_run_id: jobId,
+                event_type: 'hydration',
+                severity: 'warn',
+                event_code: 'CANDIDATE_HYDRATION_REJECTED',
+                message: `${hydration.failureRecords.length} hydration failure(s) across ${blockedOpps.length} blocked opportunities`,
+                metadata: {
+                  failure_count: hydration.failureRecords.length,
+                  blocked_count: blockedOpps.length,
+                  hydrated_count: hydration.hydratedCount,
+                  failure_codes: [...new Set(hydration.failureRecords.map((r) => r.failure_code))],
+                  failure_records: hydration.failureRecords,
+                },
+              });
             }
 
             const postHydrationPreflighted = applyReviseQueuePreflight(opportunities, {
@@ -2300,6 +2549,13 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       ? 'backend_filled_abc_v1_chunk_enriched'
       : 'backend_filled_abc_v1') + hydrationStatusSuffix;
 
+  const qualityManifest = buildRevisionLedgerQualityManifest({
+    opportunities,
+    wordCount,
+    contextQualityDecision,
+    candidateGenerationStatus,
+  });
+
   for (const opportunity of opportunities) {
     if (!(opportunity.grounding_status !== 'supported' || opportunity.preflight_status === 'blocked')) continue;
 
@@ -2335,6 +2591,10 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
     },
+    quality_manifest: qualityManifest,
+    opportunity_source_authority: opportunitySourceAuthority,
+    source_ued_hash: uedProjection?.sourceUedHash ?? null,
+    ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
     opportunities,
   });
 
@@ -2349,6 +2609,10 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     source_hash: sourceHash,
     generated_at: now,
     candidate_generation_status: candidateGenerationStatus,
+    quality_manifest: qualityManifest,
+    opportunity_source_authority: opportunitySourceAuthority,
+    source_ued_hash: uedProjection?.sourceUedHash ?? null,
+    ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
     mode_contract: modeContractForMetadata(modeContract),
     genre_expectation_context: genreExpectationContext,
     resolved_english_variant: resolvedEnglishVariantLabel(selectedEnglishVariant),

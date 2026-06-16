@@ -479,6 +479,12 @@ export interface RunPass1Options {
    * Injected into BOTH the chunk-path (forwarded via ...opts spread) and direct-window path.
    */
   characterLedgerBlock?: string;
+  /**
+   * Internal override for max output tokens. When set, takes precedence over
+   * the runtime config default. Only used by runPipeline.ts when retrying
+   * after systemic handoff truncation detection.
+   */
+  _maxOutputTokensOverride?: number;
 }
 
 /**
@@ -810,7 +816,7 @@ export async function runPass1(opts: RunPass1Options): Promise<SinglePassOutput>
 
   console.log(`[Pass1] completion request model=${selectedModel}`);
 
-  let activeMaxTokens = getEffectivePass1MaxTokens();
+  let activeMaxTokens = opts._maxOutputTokensOverride ?? getEffectivePass1MaxTokens();
   const modelCallStartMs = nowMs();
   let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
   let modelCallMs = nowMs() - modelCallStartMs;

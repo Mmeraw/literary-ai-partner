@@ -116,7 +116,7 @@ jobs:
         with:
           name: phase2d-evidence-${{ github.sha }}
           path: artifacts/phase2d-evidence-ci.log
-          retention-days: 90
+          retention-days: 14
 
       - name: Evidence Summary
         if: success()

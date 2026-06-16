@@ -263,4 +263,28 @@ describe("evaluation architecture invariants", () => {
     expect(processorCode).toContain("@/lib/evaluation/phase-architecture-v2/reviewGateHandoff");
     expect(processorCode).toContain("buildReviewGateHandoff(");
   });
+
+  test("phase_1a handoff update treats stale-worker 0-row races as benign", () => {
+    const processorPath = path.join(repoRoot, "lib/evaluation/processor.ts");
+    const processorCode = fs.readFileSync(processorPath, "utf8");
+
+    const handoffStart = processorCode.indexOf("const { data: phase1aHandoffRow, error: phase1aHandoffErr } = await supabase");
+    const handoffEnd = processorCode.indexOf("if (phase1aHandoffErr)", handoffStart);
+    expect(handoffStart).toBeGreaterThan(-1);
+    expect(handoffEnd).toBeGreaterThan(handoffStart);
+
+    const handoffUpdate = processorCode.slice(handoffStart, handoffEnd);
+    expect(handoffUpdate).toContain(".maybeSingle()");
+    expect(handoffUpdate).not.toContain(".single()");
+  });
+
+  test("admin reset RPC clears full claim ownership metadata", () => {
+    const migrationPath = path.join(repoRoot, "supabase/migrations/20260524120000_fix_admin_reset_to_phase0.sql");
+    const migrationSql = fs.readFileSync(migrationPath, "utf8");
+
+    expect(migrationSql).toContain("claimed_by           = NULL");
+    expect(migrationSql).toContain("claimed_at           = NULL");
+    expect(migrationSql).toContain("lease_token          = NULL");
+    expect(migrationSql).toContain("lease_until          = NULL");
+  });
 });

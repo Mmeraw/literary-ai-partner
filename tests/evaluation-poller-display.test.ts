@@ -140,13 +140,13 @@ describe("getProgressDisplay: canonical state mapping", () => {
 
   // ── Phase 2 ───────────────────────────────────────────────────────────────
 
-  test("phase_2 -> building your report, 67%", () => {
+  test("phase_2 -> validating your evaluation, 67%", () => {
     const pd = getProgressDisplay({
       status: "running",
       phase: "phase_2",
       phase_status: "running",
     });
-    expect(pd!.label).toBe("Building your report...");
+    expect(pd!.label).toBe("Validating your evaluation...");
     expect(pd!.percentage).toBe(67);
     expect(pd!.color).toBe("blue");
     expect(pd!.hardStop).toBe(false);

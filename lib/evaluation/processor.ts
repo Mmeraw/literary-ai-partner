@@ -82,6 +82,7 @@ import {
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
 import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
+import { lookupKicksForStage } from '@/lib/evaluation/fipocRegistry';
 import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
 import {
   buildScoreLedger,
@@ -163,6 +164,10 @@ import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluatio
 import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
 import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
 import { buildLedgerQualityReport } from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
+import {
+  PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD,
+  PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD,
+} from '@/lib/evaluation/phase1a/buildLedgerQualityReport';
 import { buildSeedConsistencyReport } from '@/lib/evaluation/seed/seedConsistencyReport';
 import {
   buildTwoPassSeedBlock,
@@ -283,6 +288,51 @@ const STRUCTURAL_CHUNKING_THRESHOLD_WORDS = 3_000;
 // Hard manuscript ceiling. Above this, we fail-closed before any AI call.
 // The website upload page displays this as the supported max.
 const HARD_MANUSCRIPT_CEILING_WORDS = 300_000;
+const MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2 = 4;
+
+function isDegradedPass1aChunkOutput(output: Pass1aChunkOutput | undefined | null): boolean {
+  return Boolean(output && (output as { _degraded?: boolean })._degraded);
+}
+
+function getCompletedNonDegradedChunkIndexes(cacheMap: Map<number, Pass1aChunkOutput>): number[] {
+  return [...cacheMap.entries()]
+    .filter(([, output]) => !isDegradedPass1aChunkOutput(output))
+    .map(([chunkIndex]) => chunkIndex)
+    .sort((a, b) => a - b);
+}
+
+function getStoryLayerSubstantiveCoverage(payload: Record<string, unknown>): {
+  populatedLayerKeys: string[];
+  populatedLayerCount: number;
+} {
+  const asRecord = (value: unknown): Record<string, unknown> | null =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+
+  const layerChecks: Array<[string, (layer: Record<string, unknown>) => number]> = [
+    ['pov_structure_layer', (layer) => toFiniteNumber(layer.pov_character_count) ?? 0],
+    ['canonical_identity_layer', (layer) => toFiniteNumber(layer.identity_group_count) ?? 0],
+    ['cast_role_tier_layer', (layer) => toFiniteNumber(layer.total_cast) ?? 0],
+    ['identity_pronoun_layer', (layer) => toFiniteNumber(layer.total_characters) ?? 0],
+    ['relationship_network_layer', (layer) => toFiniteNumber(layer.pair_count) ?? 0],
+    ['object_symbol_layer', (layer) => toFiniteNumber(layer.object_count) ?? 0],
+    ['location_timeline_worldstate_layer', (layer) => Math.max(toFiniteNumber(layer.location_count) ?? 0, toFiniteNumber(layer.state_snapshot_count) ?? 0)],
+    ['threat_antagonist_ending_layer', (layer) => Math.max(toFiniteNumber(layer.pressure_system_count) ?? 0, toFiniteNumber(layer.antagonist_count) ?? 0, toFiniteNumber(layer.terminal_entry_count) ?? 0)],
+  ];
+
+  const populatedLayerKeys = layerChecks
+    .filter(([key, getCount]) => {
+      const layer = asRecord(payload[key]);
+      return layer ? getCount(layer) > 0 : false;
+    })
+    .map(([key]) => key);
+
+  return {
+    populatedLayerKeys,
+    populatedLayerCount: populatedLayerKeys.length,
+  };
+}
 
 // Vercel hard-kill wall-clock limit. Vercel terminates the process at 800s
 // regardless of what the function is doing. We must self-chain before this.
@@ -642,11 +692,12 @@ export function classifyFailureBucket(code: string | null | undefined): FailureB
       code === 'SUPABASE_CONTRACT_VIOLATED' || code === 'ARTIFACT_PERSISTENCE_FAILED' ||
       code === 'CONTEXT_CONTAMINATION_DETECTED') return 'supabase_contract';
   // OpenAI / provider transient
-  if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
-      code === 'PASS1_TIMEOUT' || code === 'PASS2_TIMEOUT' || code === 'PASS3_TIMEOUT' ||
-      code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
-      code === 'PHASE2_PASS12_FAILED' ||
-      code === 'PASS2_INDEPENDENCE_REWRITE_FAILED') return 'openai_provider';
+    if (code.startsWith('OPENAI_') || code === 'QUOTA_EXCEEDED' ||
+    code === 'PASS1_TIMEOUT' || code === 'PASS2_TIMEOUT' || code === 'PASS3_TIMEOUT' ||
+    code === 'PASS1_FAILED' || code === 'PASS2_FAILED' || code === 'PASS3_FAILED' ||
+    code === 'PHASE2_PASS12_FAILED' ||
+    code === 'PASS2_INDEPENDENCE_REWRITE_FAILED' ||
+    code === 'RETRYING_CHECKPOINT') return 'openai_provider';
   // Vercel / platform
   if (code.startsWith('VERCEL_') || code === 'WORKER_TIMEOUT' ||
       code === 'LEASE_EXPIRED' || code === 'PROCESSOR_UNCAUGHT_ERROR') return 'vercel_platform';
@@ -1852,27 +1903,91 @@ const TERMINAL_FAILURE_PREFIXES = [
 ];
 
 const TERMINAL_FAILURE_EXACT = new Set<string>([
+  'CONTEXT_CONTAMINATION_DETECTED',
   'USER_CANCELLED',
   'REVIEW_GATE_REJECTED_BY_AUTHOR',
   'TECHNICAL_FAILURE_REQUIRES_REVIEW',
 ]);
 
 /**
+ * FIPOC KICK_MATRIX-eligible failure codes: gate failures where the LLM can
+ * produce different (potentially clean) output on a re-synthesis attempt.
+ * These get exactly 1 backward kick before becoming terminal.
+ *
+ * Corresponds to KICK_MATRIX entries at S09_QUALITYGATEV2 and S07_PASS3.
+ */
+const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
+  'TEMPLATE_COMPLETENESS_GATE_FAILED',
+  'QG_DUPLICATE_REC',
+  'QG_MISSING_RATIONALE',
+  'QG_MISSING_EVIDENCE',
+  'QG_DENSITY_FLOOR_VIOLATION',
+  'QG_ARTIFACT_GATE_FAIL',
+  'QG_PITCH_IDENTITY_DUPLICATE',
+  'QG_EVIDENCE_FABRICATION',
+  // v2 gate-specific error codes (synthesis-repairable):
+  'QG_SUMMARY_OMITS_WEAKNESS',
+  'QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH',
+  'QG_MISSING_REQUIRED_EVIDENCE',
+  'QG_CONSEQUENCE_CONTRACT',
+]);
+
+/**
+ * v2 check_ids that are synthesis-repairable and should be treated as
+ * kick-eligible when unwrapping QG_FAILED. Used to bridge the gap between
+ * the generic QG_FAILED wrapper and the specific underlying check failures.
+ */
+const KICK_ELIGIBLE_V2_CHECK_IDS = new Set<string>([
+  'v2_summary_weakness_presence',
+  'v2_fidelity_score_confidence_alignment',
+  'v2_scored_anchor_threshold',
+  'v2_completeness_bridge',
+]);
+
+/**
+ * Returns true if a failure code is eligible for a backward kick per FIPOC KICK_MATRIX.
+ * Kick-eligible codes get 1 re-synthesis attempt before becoming terminal.
+ */
+export function isKickEligibleFailureCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return KICK_ELIGIBLE_FAILURE_CODES.has(code);
+}
+
+/**
+ * Returns true if a v2 quality gate check_id is synthesis-repairable.
+ * Used to unwrap QG_FAILED and determine kick eligibility from the
+ * underlying check failures rather than the generic wrapper code.
+ */
+export function isKickEligibleV2CheckId(checkId: string | null | undefined): boolean {
+  if (!checkId) return false;
+  return KICK_ELIGIBLE_V2_CHECK_IDS.has(checkId);
+}
+
+/**
  * Returns true if a failure code is terminal (must NOT be rescued or retried).
  * A terminal failure means re-running will produce the same failure.
+ *
+ * KICK_MATRIX override: codes in KICK_ELIGIBLE_FAILURE_CODES are NOT terminal
+ * on their first occurrence — the processor checks kick_attempts in progress
+ * to decide whether the budget is exhausted.
  */
 export function isTerminalFailureCode(code: string | null | undefined): boolean {
   if (!code) return false; // Unknown code: assume rescuable (conservative)
   if (code === 'LLR_PRE_ARTIFACT_GENERATION_BLOCK') {
     return false;
   }
+  if (KICK_ELIGIBLE_FAILURE_CODES.has(code)) return false;
   if (TERMINAL_FAILURE_EXACT.has(code)) return true;
   return TERMINAL_FAILURE_PREFIXES.some((prefix) => code.startsWith(prefix));
 }
 
 export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | undefined): number {
-  if (isTerminalFailureCode(code)) return 0;
   if (!code) return 2;
+
+  // FIPOC KICK_MATRIX: kick-eligible gate failures get exactly 1 retry (backward kick).
+  if (KICK_ELIGIBLE_FAILURE_CODES.has(code)) return 1;
+
+  if (isTerminalFailureCode(code)) return 0;
 
   // S06b Self-Correction Policy: handoff gate failures get exactly 1 retry.
   // LLM may produce clean output on a second attempt; if retry also fails,
@@ -2096,6 +2211,93 @@ async function assertPass12HandoffOrRequeuePhase2ForRepair(params: {
       reason: error.message,
     });
   }
+}
+
+// ── FIPOC KICK_MATRIX backward kick ────────────────────────────────────────
+// When a quality gate or template completeness gate detects a kickable defect,
+// re-queue the job to re-run synthesis (Phase 3) instead of terminal failure.
+// Budget: 1 kick per defect type, tracked via progress.kick_attempts.
+
+const KICK_MAX_ATTEMPTS = 1;
+
+type BackwardKickResult =
+  | { kicked: true; kickCount: number; reason: string }
+  | { kicked: false; reason: string };
+
+async function attemptBackwardKickToSynthesis(params: {
+  supabase: SupabaseClient<any, any, any>;
+  jobId: string;
+  progressState: Record<string, unknown>;
+  failureCode: string;
+  violationSummary: string;
+}): Promise<BackwardKickResult> {
+  const kickAttempts =
+    typeof params.progressState.kick_attempts === 'object' && params.progressState.kick_attempts !== null
+      ? (params.progressState.kick_attempts as Record<string, number>)
+      : {};
+
+  const previousKickCount = kickAttempts[params.failureCode] ?? 0;
+
+  if (previousKickCount >= KICK_MAX_ATTEMPTS) {
+    return {
+      kicked: false,
+      reason: `kick budget exhausted for ${params.failureCode} (${previousKickCount}/${KICK_MAX_ATTEMPTS})`,
+    };
+  }
+
+  const nextKickCount = previousKickCount + 1;
+  const kickNow = new Date().toISOString();
+
+  const updatedKickAttempts = { ...kickAttempts, [params.failureCode]: nextKickCount };
+
+  const { error: requeueErr } = await params.supabase
+    .from('evaluation_jobs')
+    .update({
+      status: JOB_STATUS.QUEUED,
+      phase: 'phase_3',
+      phase_status: JOB_STATUS.QUEUED,
+      claimed_by: null,
+      claimed_at: null,
+      lease_token: null,
+      lease_until: null,
+      last_heartbeat_at: null,
+      last_heartbeat: null,
+      worker_pulse_at: null,
+      failure_code: null,
+      last_error: null,
+      updated_at: kickNow,
+      progress: {
+        ...params.progressState,
+        phase: 'phase_3',
+        phase_status: JOB_STATUS.QUEUED,
+        message: `Backward kick: re-queued for synthesis after ${params.failureCode}`,
+        kick_attempts: updatedKickAttempts,
+        last_kick_at: kickNow,
+        last_kick_failure_code: params.failureCode,
+        last_kick_violation_summary: params.violationSummary,
+      },
+    })
+    .eq('id', params.jobId)
+    .eq('status', JOB_STATUS.RUNNING);
+
+  if (requeueErr) {
+    return {
+      kicked: false,
+      reason: `requeue failed: ${requeueErr.message}`,
+    };
+  }
+
+  console.warn(
+    `[FIPOC-KICK] ${params.jobId}: backward kick to phase_3 after ${params.failureCode} ` +
+    `(attempt ${nextKickCount}/${KICK_MAX_ATTEMPTS})`,
+    params.violationSummary,
+  );
+
+  return {
+    kicked: true,
+    kickCount: nextKickCount,
+    reason: `kicked back to phase_3 for re-synthesis (${params.failureCode})`,
+  };
 }
 
 /**
@@ -3394,7 +3596,7 @@ READY TO EVALUATE.
 ## EVALUATION GOVERNANCE RULES (canon_correction_playbook_v1 v1.3.1)
 
 Phase 0: load rules only. Do not read the manuscript.
-Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 9 required layers.
+Phase 1A: read the manuscript and build pass1a_story_layer_v1 — the Story Layer / Story Ledger artifact with 10 required layers, including narrator attribution.
 Phase 2: score only after pass1a_story_layer_v1 is complete.
 
 Failure modes Phase 1A must avoid:
@@ -3407,7 +3609,7 @@ Failure modes Phase 1A must avoid:
 
 Phase 2 scoring prohibitions:
 - Narrative Closure MUST NOT be scored if Relationship Spine Layer is empty.
-- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 9 required layers pass completeness checks.
+- Criterion scores MUST NOT finalize before pass1a_story_layer_v1 exists and all 10 required layers pass completeness checks.
 - Recommendations MUST carry validity: VALID / PARTIALLY_VALID / ALREADY_PRESENT / CANON_FALSE / SOURCE_UNSUPPORTED / VOICE_RISK.
 
 ## REVISIONGRADE PLATFORM FIT — WHAT THIS PLATFORM OPTIMIZES FOR
@@ -3418,7 +3620,7 @@ This platform is NOT a general writing assistant. It is a governed revision oper
 Key platform calibration points:
 - The evaluation must serve the author's revision journey — not a publisher's acquisition filter
 - Scores reflect craft quality against professional standards, not marketability alone
-- The 9 canonical story layers (identity, cast, identity/pronouns, POV, relationships, objects/symbols, location/timeline, threat/ending, source integrity) are the structural backbone — they must inform scoring on all 13 criteria
+- The 10 canonical story layers (source integrity, POV, narrator attribution, identity, cast, identity/pronouns, relationships, objects/symbols, location/timeline, threat/ending) are the structural backbone — they must inform scoring on all 13 criteria
 - WAVE tier tagging (Early / Mid / Late) is mandatory on all recommendations — it tells the author WHEN to fix something
 - Loudest-lane bias is a calibration failure: all lane types must be mapped (plot / emotional / doctrinal / medicine-object / relationship / environmental)
 - The author is the ultimate authority on their manuscript — conflicting AI extractions must be flagged, not silently resolved
@@ -4431,6 +4633,8 @@ type SeedArtifact = {
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
+  model: string;
+  prompt_version: string;
   claims: SeedClaim[];
 };
 
@@ -4479,6 +4683,8 @@ function buildStorySeedArtifact(args: { manuscriptText: string; generatedAt: str
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
+    model: 'seed_deterministic',
+    prompt_version: 'story_map_seed_v1:deterministic',
     claims,
   };
 }
@@ -4498,6 +4704,8 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: args.generatedAt,
+    model: 'seed_deterministic',
+    prompt_version: 'evaluation_seed_v1:deterministic',
     claims,
   };
 }
@@ -5267,6 +5475,7 @@ export async function processEvaluationJob(
       const failedStatus = nextLifecycleStatus(JOB_STATUS.FAILED);
       let finalizeSucceeded = false;
 
+      const isCheckpointRetry = errorCode === 'RETRYING_CHECKPOINT';
       const fallbackPayload = {
         status: failedStatus,
         phase: failedPhase,
@@ -5283,7 +5492,7 @@ export async function processEvaluationJob(
           bucket: pipelineFailureEnvelope.bucket,
           phase: failedPhase,
           pipeline_stage: pipelineFailureEnvelope.pipeline_stage,
-          operator_action_needed: 'Review finalization/template diagnostics before retrying this job.',
+          operator_action_needed: isCheckpointRetry ? undefined : 'Review finalization/template diagnostics before retrying this job.',
         },
         failed_at: now,
         claimed_by: null,
@@ -6966,7 +7175,7 @@ export async function processEvaluationJob(
         }
 
         // ── Phase 0.5A Enhanced: Full-Context Story Ledger (behind feature flag) ──
-        // When EVAL_FULL_CONTEXT_LEDGER=true, generate a comprehensive 9-layer
+        // When EVAL_FULL_CONTEXT_LEDGER=true, generate a comprehensive 10-layer
         // story ledger from the full manuscript text in a single LLM call.
         // This provides hard fact constraints that prevent downstream comprehension errors.
         if (process.env.EVAL_FULL_CONTEXT_LEDGER === 'true') {
@@ -7374,7 +7583,7 @@ export async function processEvaluationJob(
 
         // Cursor = next chunk index to process. Derived from cache (source of
         // truth) rather than stored cursor to handle cache-ahead-of-cursor edge cases.
-        const completedIndexes = new Set<number>(pass1aCacheMap.keys());
+        const completedIndexes = new Set<number>(getCompletedNonDegradedChunkIndexes(pass1aCacheMap));
         const allChunkIndexes = Array.isArray(allChunks)
           ? allChunks.map(c => c.chunk_index ?? 0)
           : [0];
@@ -7642,7 +7851,7 @@ export async function processEvaluationJob(
           }
 
           // Recompute pending after batch.
-          const completedAfterBatch = new Set<number>(pass1aCacheMap.keys());
+          const completedAfterBatch = new Set<number>(getCompletedNonDegradedChunkIndexes(pass1aCacheMap));
           const pendingAfterBatch = allChunkIndexes.filter(i => !completedAfterBatch.has(i));
           const batchCompletedAt = new Date().toISOString();
 
@@ -8254,8 +8463,9 @@ export async function processEvaluationJob(
         // Reconcile persisted batch-state with cache truth before continuing.
         // This prevents stale progress snapshots (e.g. 10/13) from surviving
         // into failed terminal states when cache is already complete.
-        const canonicalCompletedChunkIndexes = [...pass1aCacheMap.keys()].sort((a, b) => a - b);
-        const canonicalPendingChunkIndexes = expectedChunkIndexes.filter((index) => !pass1aCacheMap.has(index));
+        const canonicalCompletedChunkIndexes = getCompletedNonDegradedChunkIndexes(pass1aCacheMap);
+        const canonicalCompletedChunkIndexSet = new Set(canonicalCompletedChunkIndexes);
+        const canonicalPendingChunkIndexes = expectedChunkIndexes.filter((index) => !canonicalCompletedChunkIndexSet.has(index));
         const priorBatchState =
           progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
             ? (progressState.phase1a_batch_state as Record<string, unknown>)
@@ -8330,6 +8540,9 @@ export async function processEvaluationJob(
           console.log(`[Processor] ${jobId}: entity contamination filter removed ${totalContaminatedEntities} pseudo-entities across all chunks`);
         }
 
+        const degradedChunkCount = sortedChunkOutputs.filter((chunkOutput) => isDegradedPass1aChunkOutput(chunkOutput)).length;
+        const degradedChunkRatio = totalChunks > 0 ? degradedChunkCount / totalChunks : 0;
+
         const ledgerAssemblyStartedAt = new Date().toISOString();
         await supabase
           .from('evaluation_jobs')
@@ -8360,7 +8573,7 @@ export async function processEvaluationJob(
           .eq('id', jobId)
           .eq('status', JOB_STATUS.RUNNING);
 
-        // ── Load seed story ledger for 9-layer grounding gate ──────────────
+        // ── Load seed story ledger for 10-layer grounding gate ─────────────
         let seedLedgerForGrounding: FullContextStoryLedger | null = null;
         try {
           const { data: seedLedgerRows } = await supabase
@@ -8377,7 +8590,7 @@ export async function processEvaluationJob(
         }
 
         // Use cleaned (contamination-filtered) chunk outputs for ledger assembly
-        // Pass seed ledger + manuscript text for 9-layer grounding validation
+        // Pass seed ledger + manuscript text for 10-layer grounding validation
         const characterLedger: Pass1aCharacterLedger = reduceCharacterEvidence({
           chunkOutputs: cleanedChunkOutputs,
           jobId: String(job.id),
@@ -8448,7 +8661,8 @@ export async function processEvaluationJob(
             generated_at: new Date().toISOString(),
             pipeline_stats: {
               total_chunks: totalChunks,
-              successful_chunks: sortedChunkOutputs.length,
+              successful_chunks: canonicalCompletedChunkIndexes.length,
+              degraded_chunks: degradedChunkCount,
               failed_chunks: 0,
               protagonists: characterLedger.coverage_summary.protagonists,
               co_protagonists: characterLedger.coverage_summary.co_protagonists,
@@ -8471,6 +8685,7 @@ export async function processEvaluationJob(
           characterLedgerV2Phase1a,
           sortedChunkOutputs,
         );
+        const storyLayerCoverage = getStoryLayerSubstantiveCoverage(storyLayerPayload);
 
         const currentBatchStateForQuality =
           progressState.phase1a_batch_state && typeof progressState.phase1a_batch_state === 'object'
@@ -8489,7 +8704,14 @@ export async function processEvaluationJob(
           {
             chunkCoverage: {
               chunks_expected: totalChunks,
-              chunks_completed: sortedChunkOutputs.length,
+              chunks_completed: canonicalCompletedChunkIndexes.length,
+              degraded_chunks: degradedChunkCount,
+              degraded_ratio: degradedChunkRatio,
+            },
+            storyLayerCoverage: {
+              populated_substantive_layers: storyLayerCoverage.populatedLayerCount,
+              minimum_required_substantive_layers: MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2,
+              populated_layer_keys: storyLayerCoverage.populatedLayerKeys,
             },
             preflightReducer: {
               reducer_status: reducerFailedFromProgress ? 'failed' : 'ok',
@@ -8556,6 +8778,29 @@ export async function processEvaluationJob(
           ledger_quality_report_v1: storyLayerRefs.ledger_quality_report_v1.artifact_id,
         });
 
+        const manuscriptWordCountForGate =
+          typeof chunkRouting.manuscript_words === 'number' && Number.isFinite(chunkRouting.manuscript_words)
+            ? chunkRouting.manuscript_words
+            : countWords(manuscriptWithContent.content || '');
+        const requireUserFacingReviewGate = shouldRequireStoryLedgerReviewGate(manuscriptWordCountForGate);
+
+        const technicalInputStandardsFailed = requireUserFacingReviewGate && (
+          storyLayerCoverage.populatedLayerCount < MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2 ||
+          degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
+          degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+        );
+
+        if (technicalInputStandardsFailed) {
+          const msg =
+            `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: Phase 1A output does not meet next-step input standards. ` +
+            `populated_substantive_layers=${storyLayerCoverage.populatedLayerCount}/${MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2}; ` +
+            `degraded_chunks=${degradedChunkCount}/${totalChunks} (ratio=${degradedChunkRatio.toFixed(3)}). ` +
+            `Populated layers: ${storyLayerCoverage.populatedLayerKeys.join(', ') || 'none'}.`;
+          console.error(`[phase_1a] ${jobId}: ${msg}`);
+          await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_INCOMPLETE', { pipelineStage: 'phase_1a' });
+          return { success: false, error: msg };
+        }
+
         // Progress bump: story layer assembled → move bar past the 40% plateau.
         progressState.completed_units = 47;
         progressState.message = 'Assembling story layer';
@@ -8595,11 +8840,6 @@ export async function processEvaluationJob(
 
         // ── 7. Review Gate handoff (Phase Architecture v2 helper) ─────────
         const phase1aNow = new Date().toISOString();
-        const manuscriptWordCountForGate =
-          typeof chunkRouting.manuscript_words === 'number' && Number.isFinite(chunkRouting.manuscript_words)
-            ? chunkRouting.manuscript_words
-            : countWords(manuscriptWithContent.content || '');
-        const requireUserFacingReviewGate = shouldRequireStoryLedgerReviewGate(manuscriptWordCountForGate);
         const reviewGateArtifactTypes = [
           'pass1a_story_layer_v1',
           'ledger_quality_report_v1',
@@ -8674,11 +8914,11 @@ export async function processEvaluationJob(
             return { success: false, error: msg };
           }
 
-          // All 9 canonical keys are required.  If any are missing the accepted
+          // All canonical keys are required.  If any are missing the accepted
           // ledger would be incomplete and downstream synthesis would be degraded.
           if (layerExtraction.missing_keys.length > 0) {
             const msg =
-              `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: ${layerExtraction.missing_keys.length}/9 canonical layer keys missing ` +
+              `QUALITY_ACCEPTED_LEDGER_INCOMPLETE: ${layerExtraction.missing_keys.length}/${STORY_LAYER_KEYS.length} canonical layer keys missing ` +
               `(${layerExtraction.missing_keys.join(', ')}). Cannot accept an incomplete story ledger.`;
             console.error(`[phase_1a] ${jobId}: ${msg}`);
             await markFailed(msg, 'QUALITY_ACCEPTED_LEDGER_INCOMPLETE', { pipelineStage: 'phase_1a' });
@@ -8693,7 +8933,7 @@ export async function processEvaluationJob(
 
           console.log(
             `[phase_1a] ${jobId}: short-form auto-approval — ` +
-            `source_layer_count=${sourceLayerKeyCount}, canonical_layer_count=${canonicalLayerKeyCount}/9, ` +
+            `source_layer_count=${sourceLayerKeyCount}, canonical_layer_count=${canonicalLayerKeyCount}/${STORY_LAYER_KEYS.length}, ` +
             `extraction_shape=${layerExtraction.shape}`,
           );
 
@@ -8874,10 +9114,18 @@ export async function processEvaluationJob(
             .eq('id', job.id)
             .eq('status', JOB_STATUS.RUNNING)
             .select('id, status, phase, phase_status')
-            .single();
+            .maybeSingle();
 
           if (shortFormQueueErr) {
             throw new Error(`Phase 1A short-form bypass transition failed: ${shortFormQueueErr.message}`);
+          }
+
+          if (!shortFormQueueRow) {
+            console.warn(
+              `[Processor] ${jobId}: short-form bypass 0 rows — job already transitioned`,
+              { returned: shortFormQueueRow ?? null },
+            );
+            return { success: true };
           }
 
           console.log(
@@ -9231,6 +9479,7 @@ export async function processEvaluationJob(
         | { ok: true; pass1Output: SinglePassOutput; pass2Output: SinglePassOutput }
         | { ok: false; error: string; errorCode: string }
       > => {
+        let hadPass12CheckpointProgress = false;
         try {
           const [{ runPass1 }, { runPass2 }, { enforcePass2LexicalIndependence }, { loadCanonicalRegistry }, { buildLedgerBlockForPrompt }] = await Promise.all([
             import('@/lib/evaluation/pipeline/runPass1'),
@@ -9285,6 +9534,7 @@ export async function processEvaluationJob(
                 pass1CacheMap.set(Number(idx), entry.result);
                 pass1ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
+              hadPass12CheckpointProgress = hadPass12CheckpointProgress || pass1CacheMap.size > 0;
               console.log(`[phase_2] ${jobId}: loaded pass1_chunk_cache_v1 with ${pass1CacheMap.size} cached chunks (hash match)`);
             } else if (pass1Content?.chunks) {
               console.warn(`[phase_2] ${jobId}: pass1_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
@@ -9297,6 +9547,7 @@ export async function processEvaluationJob(
                 pass2CacheMap.set(Number(idx), entry.result);
                 pass2ChunkResults[Number(idx)] = { result: entry.result, completed_at: entry.completed_at ?? new Date().toISOString() };
               }
+              hadPass12CheckpointProgress = hadPass12CheckpointProgress || pass2CacheMap.size > 0;
               console.log(`[phase_2] ${jobId}: loaded pass2_chunk_cache_v1 with ${pass2CacheMap.size} cached chunks (hash match)`);
             } else if (pass2Content?.chunks) {
               console.warn(`[phase_2] ${jobId}: pass2_chunk_cache_v1 source_hash mismatch — ignoring stale cache`);
@@ -9337,6 +9588,7 @@ export async function processEvaluationJob(
           };
 
           const onPass1ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            hadPass12CheckpointProgress = true;
             pass1ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
             pass1UpsertPending++;
             if (pass1UpsertPending >= CHECKPOINT_INTERVAL) {
@@ -9346,6 +9598,7 @@ export async function processEvaluationJob(
           };
 
           const onPass2ChunkComplete = async (chunkIndex: number, result: SinglePassOutput) => {
+            hadPass12CheckpointProgress = true;
             pass2ChunkResults[chunkIndex] = { result, completed_at: new Date().toISOString() };
             pass2UpsertPending++;
             if (pass2UpsertPending >= CHECKPOINT_INTERVAL) {
@@ -9432,7 +9685,11 @@ export async function processEvaluationJob(
           };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED') ? 'CHUNK_ROUTING_NOT_ENGAGED' : 'PHASE2_PASS12_FAILED';
+          const code = msg.includes('CHUNK_ROUTING_NOT_ENGAGED')
+            ? 'CHUNK_ROUTING_NOT_ENGAGED'
+            : hadPass12CheckpointProgress
+              ? 'RETRYING_CHECKPOINT'
+              : 'PHASE2_PASS12_FAILED';
           return { ok: false, error: msg, errorCode: code };
         }
       };
@@ -9556,7 +9813,7 @@ export async function processEvaluationJob(
                 error_code: pass12Recovery.errorCode,
                 error: pass12Recovery.error,
               });
-              await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+              await markFailed(pass12Recovery.error, pass12Recovery.errorCode, { pipelineStage: 'phase_2' });
               return { success: false, error: pass12Recovery.errorCode };
             }
             capturedPass1 = pass12Recovery.pass1Output;
@@ -9685,7 +9942,7 @@ export async function processEvaluationJob(
         try {
           const pass12Recovery = await runPass12ForHandoffRecovery(prebuiltLedgerP2Short);
           if (pass12Recovery.ok === false) {
-            await markFailed(pass12Recovery.error, 'PHASE2_PASS12_FAILED', { pipelineStage: 'phase_2' });
+            await markFailed(pass12Recovery.error, pass12Recovery.errorCode, { pipelineStage: 'phase_2' });
             return { success: false, error: pass12Recovery.errorCode };
           }
           capturedPass1Short = pass12Recovery.pass1Output;
@@ -10254,7 +10511,12 @@ export async function processEvaluationJob(
     // re-run QG. This avoids killing an otherwise complete evaluation over a
     // presentation/template defect.
     if (!qualityGateV2.pass) {
-      const hardFailedChecks = qualityGateV2.checks.filter((check) => !check.passed);
+      // Exclude v2_fidelity_score_confidence_alignment from hard-fail count,
+      // matching the gate's own logic (qualityGate.ts line 1882-1883) which
+      // considers fidelity mismatch a soft-downgrade, not a hard block.
+      const hardFailedChecks = qualityGateV2.checks.filter(
+        (check) => !check.passed && check.check_id !== 'v2_fidelity_score_confidence_alignment',
+      );
       const isOnlySummaryWeakness =
         hardFailedChecks.length === 1 &&
         hardFailedChecks[0].check_id === 'v2_summary_weakness_presence';
@@ -10475,6 +10737,33 @@ export async function processEvaluationJob(
             ? v2DiagnosticPersistError.message
             : String(v2DiagnosticPersistError),
           v2DiagnosticPersistError,
+        );
+      }
+
+      // ── FIPOC backward kick: unwrap QG_FAILED and check if any underlying
+      // failed check is synthesis-repairable (kick-eligible). Check both
+      // error_code and check_id to cover v1 and v2 gate check formats. ──
+      const failedErrorCodes = failedCheckRecords
+        .map((check) => (check as Record<string, unknown>).error_code as string | undefined)
+        .filter((code): code is string => typeof code === 'string');
+      const failedCheckIds = failedCheckRecords
+        .map((check) => (check as Record<string, unknown>).check_id as string | undefined)
+        .filter((id): id is string => typeof id === 'string');
+      const kickableCode = failedErrorCodes.find((code) => isKickEligibleFailureCode(code))
+        ?? failedCheckIds.find((id) => KICK_ELIGIBLE_V2_CHECK_IDS.has(id));
+      if (kickableCode) {
+        const kickResult = await attemptBackwardKickToSynthesis({
+          supabase,
+          jobId,
+          progressState,
+          failureCode: kickableCode,
+          violationSummary: gateError,
+        });
+        if (kickResult.kicked) {
+          return { success: false, error: `[FIPOC-KICK] ${kickResult.reason}` };
+        }
+        console.warn(
+          `[Processor] ${jobId}: QG backward kick declined — ${kickResult.reason}; falling through to terminal failure`,
         );
       }
 
@@ -10756,12 +11045,32 @@ export async function processEvaluationJob(
     // Validates that the evaluation artifact meets the short-form template's
     // structural requirements BEFORE persisting. If critical violations are
     // detected, the artifact is NOT persisted and support is alerted.
+    //
+    // FIPOC KICK_MATRIX: if the failure is kick-eligible, attempt a backward
+    // kick to re-run synthesis before terminal failure.
     const templateCompletenessCheck = validateTemplateCompleteness(effectiveEvaluationResult);
     if (!templateCompletenessCheck.pass) {
       console.error(
         `[Processor] ${jobId}: Template completeness gate FAILED — ${templateCompletenessCheck.violations.length} violation(s)`,
         templateCompletenessCheck.summary,
       );
+
+      // ── FIPOC backward kick: re-queue for synthesis if budget allows ──
+      if (isKickEligibleFailureCode(TEMPLATE_COMPLETENESS_FAILURE_CODE)) {
+        const kickResult = await attemptBackwardKickToSynthesis({
+          supabase,
+          jobId,
+          progressState,
+          failureCode: TEMPLATE_COMPLETENESS_FAILURE_CODE,
+          violationSummary: templateCompletenessCheck.summary,
+        });
+        if (kickResult.kicked) {
+          return { success: false, error: `[FIPOC-KICK] ${kickResult.reason}` };
+        }
+        console.warn(
+          `[Processor] ${jobId}: backward kick declined — ${kickResult.reason}; falling through to terminal failure`,
+        );
+      }
 
       await markFailed(
         TEMPLATE_COMPLETENESS_USER_MESSAGE,

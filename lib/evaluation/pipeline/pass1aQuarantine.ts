@@ -124,6 +124,12 @@ export const BLOCKED_CANONICAL_NAMES = new Set(
     "narrator", "unknown", "none", "n/a", "na", "null", "character",
     "person", "man", "woman", "boy", "girl", "child", "baby",
     "sir", "ma'am", "madam", "mister", "miss",
+    // Financial / thematic tokens the LLM may promote to character names
+    // (observed: "Cost" extracted from ledger-style price labels "Cost: $65.00")
+    "cost", "price", "value", "money", "profit", "loss", "expense",
+    "total", "sum", "balance", "credit", "debit", "fee", "charge",
+    "vanity", "beauty", "truth", "fate", "hope", "grace", "faith",
+    "justice", "mercy", "fortune", "chance", "dream", "silence",
   ],
 );
 

@@ -188,7 +188,7 @@ No transitions may be skipped. No states may be bypassed.
 | Phase | Artifact | Purpose |
 |-------|----------|--------|
 | Phase 0.5a | `story_map_seed_v1`, `evaluation_seed_v1` | Seed-guided extraction claims |
-| Phase 0.5a | `full_context_story_ledger_v1` | 9-layer deep story ledger |
+| Phase 0.5a | `full_context_story_ledger_v1` | 10-layer deep story ledger |
 | Phase 0.5b | `editorial_dream_seed_v1` | Early editorial assessment |
 | Phase 1A | `pass1a_chunk_cache_v1`, `pass1a_character_ledger_v1` | Per-chunk extraction + merged ledger |
 | Phase 1A | `pass1a_story_layer_v1`, `ledger_quality_report_v1` | Story layer + quality assessment |

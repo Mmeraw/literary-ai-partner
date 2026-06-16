@@ -129,7 +129,7 @@ function makeStubPass(pass: 1 | 2): SinglePassOutput {
           priority: "medium" as const,
           action: `In the scene for ${key}, clarify the cause-and-effect move because the current phrasing lacks tension.`,
           expected_impact: "Improves specificity.",
-          anchor_snippet: '"progress"',
+          anchor_snippet: "The text demonstrates measurable progress.",
           issue_family: "scene_structure",
           strategic_lever: "scene_goal_clarity",
           revision_granularity: "scene",
@@ -161,7 +161,7 @@ function makeStubSynthesis(): SynthesisOutput {
           priority: "medium" as const,
           action: `In the opening scene for ${key}, replace the abstract transition with a concrete cause-and-effect move because the current phrasing blunts tension.`,
           expected_impact: "Improves specificity and reader connection.",
-          anchor_snippet: '"progress"',
+          anchor_snippet: "The text demonstrates measurable progress.",
           source_pass: 3 as const,
           issue_family: "scene_structure",
           strategic_lever: "scene_goal_clarity",
@@ -198,7 +198,7 @@ describe("runPipeline routing field in pipeline_result", () => {
     const stub3 = makeStubSynthesis();
 
     const result = await runPipeline({
-      manuscriptText: "A short test manuscript with enough words to pass minimum validation checks.",
+      manuscriptText: "The text demonstrates measurable progress. A short test manuscript with enough words to pass minimum validation checks.",
       workType: "novel_chapter",
       title: "Routing Proof Test",
       model: "gpt-5-mini",

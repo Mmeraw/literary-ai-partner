@@ -33,6 +33,8 @@ export type SeedArtifact = {
   authority: 'seed_only';
   artifact_status: 'created' | 'superseded' | 'archived' | 'failed';
   generated_at: string;
+  model: string;
+  prompt_version: string;
   claims: SeedClaim[];
 };
 
@@ -62,7 +64,7 @@ function buildStorySeedSystemPrompt(route?: SeedRoute): string {
   return `You are Phase 0.5A, the whole-text semantic Story Ledger seed writer.
 Read the entire manuscript and draft provisional, manuscript-grounded hypotheses only.
 
-Your seed claims must cover ALL NINE Story Ledger layers. If you cannot generate claims for a layer, emit an uncertainty flag.
+Your seed claims must cover ALL TEN Story Ledger layers, including narrator attribution. If you cannot generate claims for a layer, emit an uncertainty flag.
 
 ${buildSeedBenchmarkContext(route)}
 
@@ -336,6 +338,8 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: generatedAt,
+    model,
+    prompt_version: SEMANTIC_SEED_PROMPT_VERSION,
     claims: storyClaims,
   };
 
@@ -344,6 +348,8 @@ export async function generateSemanticSeedArtifacts(input: GenerateSemanticSeedA
     authority: 'seed_only',
     artifact_status: 'created',
     generated_at: generatedAt,
+    model,
+    prompt_version: SEMANTIC_SEED_PROMPT_VERSION,
     claims: evaluationClaims,
   };
 

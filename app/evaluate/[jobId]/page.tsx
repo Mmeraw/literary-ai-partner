@@ -143,7 +143,7 @@ export default async function EvaluationReportPage({ params }: PageProps) {
         {/* Top bar: title left, back button right */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A6A1F]">Evaluation Report</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8A6A1F]">{isTerminal ? "Evaluation Report" : "Evaluation in Progress"}</p>
             <h1 className="mt-2 font-rg-serif text-3xl font-semibold text-stone-950 sm:text-4xl">{manuscriptTitle ?? "Evaluation"}</h1>
             <p className="mt-2 text-sm text-stone-500">
               <span className="font-medium text-stone-700">Reference ID:</span> <span className="break-all font-mono text-stone-900">{jobId}</span>

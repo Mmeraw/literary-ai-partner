@@ -167,7 +167,7 @@ export default function ReliabilityPage() {
           </p>
           <div className="mt-10 flex flex-wrap gap-4 font-rg-mono text-xs uppercase tracking-[0.18em]">
             <Link href="/methodology" className="border border-rg-gold bg-rg-gold px-5 py-3 text-rg-ink transition hover:bg-transparent hover:text-rg-gold">Read Methodology</Link>
-            <Link href="/revise" className="border border-rg-cream2/30 px-5 py-3 text-rg-cream transition hover:border-rg-gold hover:text-rg-gold">See Revise</Link>
+            <Link href="/revise" className="rg-revise-cta">See Revise</Link>
           </div>
         </div>
 

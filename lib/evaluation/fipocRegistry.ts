@@ -399,12 +399,12 @@ export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
     supplier: 'Phase 0 authority proof plus manuscript text',
     inputArtifacts: ['phase0_authority_proof_v1'],
     inputRequiredFields: ['authority_paths', 'manuscript_text'],
-    inputMetrics: ['seed output >= 500 words', '9 ledger layers attempted', '13 criteria scaffolded'],
+    inputMetrics: ['seed output >= 500 words', '10 ledger layers attempted', '13 criteria scaffolded'],
     codeSurfaces: ['lib/evaluation/phase-architecture-v2/phase05aStoryMapSeed.ts', 'lib/evaluation/seed/semanticSeedGenerator.ts'],
     processContract: 'Produce provisional story map, evaluation seed, and full-context story ledger.',
     outputArtifacts: ['story_map_seed_v1', 'evaluation_seed_v1', 'full_context_story_ledger_v1'],
     outputRequiredFields: ['candidate_entity_registry', 'likely_13_criteria_strengths', 'story_layers'],
-    outputMetrics: ['all 9 story layers present', 'seed_authority=seed_only', 'schema_valid=true'],
+    outputMetrics: ['all 10 story layers present', 'seed_authority=seed_only', 'schema_valid=true'],
     forwardKick: 'ADJACENT_SEED_COMPLETENESS_GATE',
     backwardKick: 'ADJACENT_PHASE_0',
     dirtyDataRules: ['malformed seed JSON', 'missing story ledger layer', 'unverified seed claims'],
@@ -807,9 +807,9 @@ export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
     inputMetrics: ['no persist if gate fails', 'atomic RPC available'],
     codeSurfaces: ['lib/evaluation/persistEvaluationResultV2.ts'],
     processContract: 'Persist canonical evaluation artifact and terminal job state atomically.',
-    outputArtifacts: ['evaluation_artifact_row'],
-    outputRequiredFields: ['artifact_type=evaluation_result_v2', 'content', 'created_at'],
-    outputMetrics: ['artifact ID returned', 'terminal status canonical'],
+    outputArtifacts: ['evaluation_artifact_row', 'artifact_quality_manifest_v1'],
+    outputRequiredFields: ['artifact_type=evaluation_result_v2', 'content', 'created_at', 'artifact_quality_manifest_v1'],
+    outputMetrics: ['artifact ID returned', 'terminal status canonical', 'SIPOC artifact completeness and accuracy metrics emitted'],
     forwardKick: 'ADJACENT_WAVE or S10b_PHASE5_AUTHOR_EXPOSURE_GATE for short-form',
     backwardKick: 'S09_QUALITYGATEV2',
     dirtyDataRules: ['gate failed but persist attempted', 'artifact validation failed'],
@@ -1020,12 +1020,12 @@ export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
     supplier: 'Certified evaluation and governance artifacts',
     inputArtifacts: ['evaluation_result_v2', 'accepted_story_ledger_v1', 'longform_document_v1', 'wave_revision_plan_v1', 'author_exposure_certification_v1'],
     inputRequiredFields: ['finding_id', 'criterion', 'evidence_anchor'],
-    inputMetrics: ['evidence coverage 100%', 'all opportunities traceable'],
+    inputMetrics: ['evaluation evidence available or row remains Needs Targeting', 'all Ready opportunities traceable by finding_id and source location'],
     codeSurfaces: ['lib/revision/opportunityLedger.ts', 'lib/evaluation/processor.ts'],
     processContract: 'Build evidence-backed opportunities for Revise without rerunning evaluation.',
     outputArtifacts: ['revision_opportunity_ledger_v1'],
     outputRequiredFields: ['opportunity_id', 'finding_id', 'criterion', 'severity', 'evidence_anchor', 'revision_operation'],
-    outputMetrics: ['no opportunity without evidence', 'Ready vs Needs Targeting classified'],
+    outputMetrics: ['no Ready opportunity without evidence_anchor or manuscript_wide_support', 'finding_id_coverage and evidence_anchor_coverage emitted in quality_manifest', 'Ready vs Needs Targeting classified'],
     forwardKick: 'ADJACENT_REVISE',
     backwardKick: 'S07_PASS3 or ledger builder',
     dirtyDataRules: ['empty ledger', 'missing evidence anchor', 'vague operation'],
@@ -1047,15 +1047,15 @@ export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
     supplier: 'Revision opportunity ledger plus optional revise seed',
     inputArtifacts: ['revision_opportunity_ledger_v1', 'revise_opportunity_seed_v1'],
     inputRequiredFields: ['criterion', 'severity', 'source_location', 'evidence_anchor', 'revision_operation'],
-    inputMetrics: ['ledger non-empty', 'A/B/C are prose when Ready'],
+    inputMetrics: ['ledger may be empty when no evidence-backed opportunities exist', 'A/B/C are manuscript-ready prose when Ready'],
     codeSurfaces: ['Revise Queue admission handler'],
-    processContract: 'Admit evidence-backed revision items into the authenticated workbench.',
+    processContract: 'Admit only evidence-backed revision items into the authenticated workbench. Ready items require exact source targeting plus three manuscript-ready A/B/C candidates; incomplete rows remain Needs Targeting.',
     outputArtifacts: ['revise_queue_items_v1', 'revision_ledger_decisions'],
     outputRequiredFields: ['author_decision_state', 'trustedpath_eligibility', 'source_artifact_reference'],
-    outputMetrics: ['Ready and Needs Targeting not mixed', 'author decisions persisted'],
+    outputMetrics: ['Ready and Needs Targeting not mixed', 'Ready items have exactly three quality-gated A/B/C candidates', 'author decisions persisted'],
     forwardKick: 'Revise Workbench',
     backwardKick: 'ADJACENT_REVISION_LEDGER',
-    dirtyDataRules: ['Revise reruns evaluator', 'A/B/C not prose', 'author decision not persisted'],
+    dirtyDataRules: ['Revise reruns evaluator', 'A/B/C not prose', 'generic or malformed candidate prose', 'Ready row missing source passage', 'author decision not persisted'],
     retryBudget: 1,
     failureCodes: ['REVISE_ADMISSION_FAILED', 'REVISE_QUEUE_EMPTY', 'REVISE_EVIDENCE_MISSING', 'REVISE_ABC_NOT_PROSE', 'REVISE_AUTHOR_DECISION_NOT_PERSISTED'],
     consumers: ['Revise Workbench', 'TrustedPath'],
@@ -1063,7 +1063,7 @@ export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
     reviseHandoff: true,
     certificationStatus: 'emerging',
     fitGapStatus: 'gap',
-    notes: 'Revise is a consume-and-repair surface, not a second evaluator.',
+    notes: 'Revise is a consume-and-repair surface, not a second evaluator. Queue size is evidence-driven; caps are not targets.',
   },
 ];
 
@@ -1133,7 +1133,7 @@ export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
     producerStageId: 'ADJACENT_PHASE_0_5A',
     consumerStageIds: ['S05_PASS1', 'S07_PASS3'],
     requiredFields: ['canonical_identity', 'cast_role_tier', 'pov_structure', 'character_end_states'],
-    completenessMetric: '9 story layers present',
+    completenessMetric: '10 story layers present',
     accuracyMetric: 'canonical entities consistent across all layers',
     dirtyDataRule: 'story ledger names are ground truth unless manuscript evidence proves otherwise',
     regenerationOwnerStageId: 'ADJACENT_PHASE_0_5A',
@@ -1229,7 +1229,7 @@ export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
     producerStageId: 'S05_PASS1',
     consumerStageIds: ['ADJACENT_SEMANTIC_GATE', 'ADJACENT_REVIEW_GATE'],
     requiredFields: ['story_layers'],
-    completenessMetric: '9 layers present',
+    completenessMetric: '10 layers present',
     accuracyMetric: 'layers consistent with full context story ledger',
     dirtyDataRule: 'degraded canonical identity suppresses dependent layers',
     regenerationOwnerStageId: 'S05_PASS1',
@@ -1352,6 +1352,18 @@ export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
     completenessMetric: 'content persisted atomically',
     accuracyMetric: 'artifact_type matches artifact_version and content schema',
     dirtyDataRule: 'invalid artifact row blocks release',
+    regenerationOwnerStageId: 'S10_PERSISTENCE',
+    requiredForAuthorExposure: true,
+    fitGapStatus: 'gap',
+  },
+  {
+    artifact: 'artifact_quality_manifest_v1',
+    producerStageId: 'S10_PERSISTENCE',
+    consumerStageIds: ['S10b_PHASE5_AUTHOR_EXPOSURE_GATE', 'ADJACENT_REVISION_LEDGER'],
+    requiredFields: ['artifact_type', 'producer_stage_id', 'completeness_metric', 'accuracy_metric', 'dirty_data_rule', 'contract_status'],
+    completenessMetric: 'every persisted artifact is mapped to a SIPOC/FIPOC completeness metric or explicitly marked registry_missing',
+    accuracyMetric: 'accuracy metric is artifact-specific and inherited from ARTIFACT_REGISTRY, not a generic percentage gate',
+    dirtyDataRule: 'missing SIPOC metric or blocking artifact signal routes to owning producer/kickback owner',
     regenerationOwnerStageId: 'S10_PERSISTENCE',
     requiredForAuthorExposure: true,
     fitGapStatus: 'gap',
@@ -1528,10 +1540,10 @@ export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
     artifact: 'revision_opportunity_ledger_v1',
     producerStageId: 'ADJACENT_REVISION_LEDGER',
     consumerStageIds: ['ADJACENT_REVISE'],
-    requiredFields: ['opportunity_id', 'finding_id', 'criterion', 'evidence_anchor', 'revision_operation'],
-    completenessMetric: 'every opportunity has evidence and source location',
-    accuracyMetric: 'items derive from evaluation evidence, not new diagnosis',
-    dirtyDataRule: 'empty/evidence-free ledger blocks Revise admission',
+    requiredFields: ['quality_manifest', 'opportunities', 'opportunity_id', 'finding_id', 'criterion', 'severity', 'evidence_anchor', 'manuscript_coordinates', 'revision_operation', 'preflight_status'],
+    completenessMetric: 'every opportunity has finding_id, criterion, severity, source location, evidence, operation, and readiness status',
+    accuracyMetric: 'items derive from evaluation evidence and preserve source provenance without re-diagnosing in Revise',
+    dirtyDataRule: 'empty/evidence-free or untraceable ledger blocks Ready admission and routes affected rows to Needs Targeting',
     regenerationOwnerStageId: 'ADJACENT_REVISION_LEDGER',
     requiredForAuthorExposure: false,
     fitGapStatus: 'gap',
@@ -1844,4 +1856,20 @@ export function getRenderedFieldsForSurface(surface: RendererConsumptionEntry['s
 
 export function getBlockingKicks(): KickMatrixEntry[] {
   return KICK_MATRIX.filter((entry) => entry.blocksAuthorExposure);
+}
+
+/**
+ * Look up the KICK_MATRIX entry whose `failureCode` matches the given code.
+ * Returns `undefined` when no kick is defined for that failure.
+ */
+export function lookupKickForFailure(failureCode: string): KickMatrixEntry | undefined {
+  return KICK_MATRIX.find((entry) => entry.failureCode === failureCode);
+}
+
+/**
+ * Look up all KICK_MATRIX entries whose `dirtyDataDetectedAt` matches the given stage.
+ * A stage may have multiple kick entries (e.g. S09_QUALITYGATEV2 for different failure types).
+ */
+export function lookupKicksForStage(stageId: string): KickMatrixEntry[] {
+  return KICK_MATRIX.filter((entry) => entry.dirtyDataDetectedAt === stageId);
 }

@@ -174,6 +174,8 @@ function truncateStr(s: string | null, maxLen: number = 50): string {
   return s.length > maxLen ? s.substring(0, maxLen) + "…" : s;
 }
 
+const lightBadgeClass = "inline-block px-2 py-0.5 rounded text-xs font-extrabold ring-1";
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -511,11 +513,11 @@ export default function PipelineHealthPage() {
                         stage.health
                       )}`}
                     />
-                    <span className="text-xs font-bold text-rg-cream truncate">
+                    <span className="text-xs font-extrabold text-stone-950 truncate">
                       {stage.stageId}
                     </span>
                   </div>
-                  <div className="text-xs font-medium text-rg-cream2/60 space-y-0.5">
+                  <div className="text-xs font-bold text-stone-800 space-y-0.5">
                     <p>✓ {stage.okCount}</p>
                     <p className={stage.failedCount > 0 ? "text-red-600 font-medium" : ""}>
                       ✗ {stage.failedCount}
@@ -924,19 +926,19 @@ export default function PipelineHealthPage() {
             <h3 className="font-bold text-rg-cream mb-2">Job Status</h3>
             <ul className="space-y-1.5">
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">complete</span>
+                <span className={`${lightBadgeClass} bg-green-100 text-green-950 ring-green-700/30`}>complete</span>
                 <span className="text-rg-cream2/70">Evaluation finished successfully</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">running</span>
+                <span className={`${lightBadgeClass} bg-blue-100 text-blue-950 ring-blue-700/30`}>running</span>
                 <span className="text-rg-cream2/70">Job actively executing in pipeline</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">queued</span>
+                <span className={`${lightBadgeClass} bg-yellow-100 text-yellow-950 ring-yellow-700/30`}>queued</span>
                 <span className="text-rg-cream2/70">Waiting for execution slot</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">failed</span>
+                <span className={`${lightBadgeClass} bg-red-100 text-red-950 ring-red-700/30`}>failed</span>
                 <span className="text-rg-cream2/70">Pipeline errored — see Error Code</span>
               </li>
             </ul>
@@ -1013,15 +1015,15 @@ export default function PipelineHealthPage() {
             <h3 className="font-bold text-rg-cream mb-2">Diagnostics Status</h3>
             <ul className="space-y-1.5">
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">available</span>
+                <span className={`${lightBadgeClass} bg-green-100 text-green-950 ring-green-700/30`}>available</span>
                 <span className="text-rg-cream2/70">Full diagnostic trace present</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">blocked_by_307</span>
+                <span className={`${lightBadgeClass} bg-orange-100 text-orange-950 ring-orange-700/30`}>blocked_by_307</span>
                 <span className="text-rg-cream2/70">Blocked by issue #307 persistence work</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">missing</span>
+                <span className={`${lightBadgeClass} bg-red-100 text-red-950 ring-red-700/30`}>missing</span>
                 <span className="text-rg-cream2/70">Diagnostic artifact not found</span>
               </li>
               <li className="flex items-center gap-2">
@@ -1036,7 +1038,7 @@ export default function PipelineHealthPage() {
             <h3 className="font-bold text-rg-cream mb-2">Pass 4 (Cross-Check)</h3>
             <ul className="space-y-1.5">
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">completed</span>
+                <span className={`${lightBadgeClass} bg-green-100 text-green-950 ring-green-700/30`}>completed</span>
                 <span className="text-rg-cream2/70">External adjudication verified scores</span>
               </li>
               <li className="flex items-center gap-2">
@@ -1044,11 +1046,11 @@ export default function PipelineHealthPage() {
                 <span className="text-rg-cream2/70">Cross-check not required for this mode</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">failed_soft</span>
+                <span className={`${lightBadgeClass} bg-orange-100 text-orange-950 ring-orange-700/30`}>failed_soft</span>
                 <span className="text-rg-cream2/70">Cross-check failed but non-blocking</span>
               </li>
               <li className="flex items-center gap-2">
-                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">—</span>
+                <span className={`${lightBadgeClass} bg-red-100 text-red-950 ring-red-700/30`}>—</span>
                 <span className="text-rg-cream2/70">Not yet reached or data unavailable</span>
               </li>
             </ul>

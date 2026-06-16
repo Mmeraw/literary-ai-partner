@@ -4,9 +4,9 @@ import { buildSeedBenchmarkContext } from '@/lib/evaluation/seed/benchmarkContex
 
 const REPO_ROOT = process.cwd();
 const STORY_LEDGER_DIR = join(REPO_ROOT, 'docs/benchmarks/story-ledger');
-const CARTEL_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md');
-const FROGGIN_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_FROGGIN_NOGGIN.md');
-const RIVER_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md');
+const CARTEL_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md');
+const FROGGIN_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_FROGGIN_NOGGIN.md');
+const RIVER_LEDGER_PATH = join(STORY_LEDGER_DIR, 'IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md');
 const INDEX_PATH = join(REPO_ROOT, 'docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md');
 
 function read(filePath: string): string {
@@ -23,14 +23,14 @@ describe('Native Story Ledger canon — Cartel Babies primary example', () => {
   it('uses Cartel Babies as the canonical required-gold product example', () => {
     const ledger = read(CARTEL_LEDGER_PATH);
 
-    expect(ledger).toContain('benchmark-schema: ideal-story-ledger-9-layer-v1');
+    expect(ledger).toContain('benchmark-schema: ideal-story-ledger-10-layer-v1');
     expect(ledger).toContain('benchmark-tier: required-gold');
     expect(ledger).toContain('revised: 2026-05-31T03:56:00Z');
     expect(ledger).toContain('docs/benchmarks/cartel-babies-dream.md');
     expect(ledger).toContain('docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md');
   });
 
-  it('guards the Cartel Babies completion standard and nine-layer doctrine', () => {
+  it('guards the Cartel Babies completion standard and ten-layer doctrine', () => {
     const ledger = read(CARTEL_LEDGER_PATH);
 
     for (const token of [
@@ -66,7 +66,7 @@ describe('Native Story Ledger canon — Cartel Babies primary example', () => {
 
     for (const context of [longFormContext, shortFormContext]) {
       expect(context).toContain('COMPLETED BENCHMARK EXEMPLAR — STORY LEDGER (Cartel Babies, required-gold)');
-      expect(context).toContain('IDEAL_STORY_LEDGER_9_LAYER_BENCHMARK_CARTEL_BABIES.md');
+      expect(context).toContain('IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md');
       expect(context).not.toContain(retiredDisplayName);
       expect(context).not.toContain(retiredSlug);
     }

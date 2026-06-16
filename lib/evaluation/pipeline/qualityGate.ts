@@ -515,21 +515,21 @@ export function runQualityGate(
   if (manuscriptText && manuscriptText.trim().length > 0 && totalRecs > 0) {
     evidenceGroundingReport = stampAnchorTypes(synthesis.criteria as never, manuscriptText);
     const { diagnosis_count, total_recommendations, ungrounded } = evidenceGroundingReport;
-    // Evidence grounding is a classification + warning gate (soft-fail).
-    // It stamps anchor_type on each recommendation so renderers can differentiate
-    // verbatim quotes from diagnostic statements. The check always passes —
-    // quarantine/re-rendering happens downstream based on anchor_type field.
-    // Systemic fabrication (>50%) is logged as a warning for observability.
+    // Evidence grounding gate: stamps anchor_type on each recommendation.
+    // Hard-fail when >30% of anchors are fabricated editorial diagnoses.
+    // Renderers differentiate verbatim_quote from editorial_diagnosis.
     const fabricationRatio = total_recommendations > 0 ? diagnosis_count / total_recommendations : 0;
+    const fabricationExcessive = fabricationRatio > 0.3;
     checks.push({
       check_id: "evidence_grounding",
-      passed: true,
+      passed: !fabricationExcessive,
+      error_code: fabricationExcessive ? "QG_EVIDENCE_FABRICATION" : undefined,
       details: diagnosis_count > 0
-        ? `${diagnosis_count}/${total_recommendations} anchor(s) classified as editorial_diagnosis (${ungrounded.slice(0, 3).map(u => `${u.criterion_key}: "${u.anchor_snippet.substring(0, 40)}…"`).join("; ")}${ungrounded.length > 3 ? ` +${ungrounded.length - 3} more` : ""})`
+        ? `${diagnosis_count}/${total_recommendations} anchor(s) classified as editorial_diagnosis (${(fabricationRatio * 100).toFixed(0)}% fabrication${fabricationExcessive ? " — exceeds 30% threshold" : ""}; ${ungrounded.slice(0, 3).map(u => `${u.criterion_key}: "${u.anchor_snippet.substring(0, 40)}…"`).join("; ")}${ungrounded.length > 3 ? ` +${ungrounded.length - 3} more` : ""})`
         : `All ${total_recommendations} anchor(s) grounded in manuscript text`,
     });
-    if (fabricationRatio > 0.5) {
-      warnings.push(`[evidence_grounding] ${diagnosis_count}/${total_recommendations} anchors are editorial_diagnosis (systemic fabrication detected — renderers will label as "Diagnostic Basis" instead of "Evidence")`);
+    if (fabricationRatio > 0.15) {
+      warnings.push(`[evidence_grounding] ${diagnosis_count}/${total_recommendations} anchors are editorial_diagnosis (${(fabricationRatio * 100).toFixed(0)}% fabrication — evidence must be grounded in submitted manuscript text, not system-generated diagnostics)`);
     }
   }
 
@@ -562,7 +562,8 @@ export function runQualityGate(
   });
 
   // ── Check 6b: Pitch/Summary Identity Separation (P1) ──────────────────────
-  // Warn (soft-fail) when one_sentence_pitch or one_paragraph_pitch duplicates the summary.
+  // Hard-fail when one_sentence_pitch, one_paragraph_pitch, or executive summary
+  // are identical — each section must serve a distinct editorial purpose.
   const oneSentencePitch = (synthesis.overall as Record<string, unknown>).one_sentence_pitch as string | undefined;
   const oneParagraphPitch = (synthesis.overall as Record<string, unknown>).one_paragraph_pitch as string | undefined;
   if (oneSentencePitch || oneParagraphPitch) {
@@ -570,18 +571,31 @@ export function runQualityGate(
     const sentenceNorm = (oneSentencePitch ?? "").trim().toLowerCase();
     const paragraphNorm = (oneParagraphPitch ?? "").trim().toLowerCase();
     const pitchDuplicates: string[] = [];
-    if (sentenceNorm && summaryNorm.includes(sentenceNorm)) pitchDuplicates.push("one_sentence_pitch ⊂ summary");
-    if (paragraphNorm && summaryNorm.includes(paragraphNorm)) pitchDuplicates.push("one_paragraph_pitch ⊂ summary");
-    if (sentenceNorm && paragraphNorm && paragraphNorm.includes(sentenceNorm)) pitchDuplicates.push("one_sentence_pitch ⊂ one_paragraph_pitch");
-    if (pitchDuplicates.length > 0) {
-      warnings.push(`[pitch_identity] Pitch/summary duplication detected: ${pitchDuplicates.join(", ")}. Sections should serve distinct editorial purposes.`);
+    if (sentenceNorm && summaryNorm === sentenceNorm) pitchDuplicates.push("one_sentence_pitch = summary");
+    if (paragraphNorm && summaryNorm === paragraphNorm) pitchDuplicates.push("one_paragraph_pitch = summary");
+    if (sentenceNorm && paragraphNorm && sentenceNorm === paragraphNorm) pitchDuplicates.push("one_sentence_pitch = one_paragraph_pitch");
+    // Softer containment check (substring duplication)
+    const pitchContainments: string[] = [];
+    if (sentenceNorm && sentenceNorm !== summaryNorm && summaryNorm.includes(sentenceNorm)) pitchContainments.push("one_sentence_pitch ⊂ summary");
+    if (paragraphNorm && paragraphNorm !== summaryNorm && summaryNorm.includes(paragraphNorm)) pitchContainments.push("one_paragraph_pitch ⊂ summary");
+    if (sentenceNorm && paragraphNorm && sentenceNorm !== paragraphNorm && paragraphNorm.includes(sentenceNorm)) pitchContainments.push("one_sentence_pitch ⊂ one_paragraph_pitch");
+    if (pitchContainments.length > 0) {
+      warnings.push(`[pitch_identity] Pitch/summary containment detected: ${pitchContainments.join(", ")}. Sections should serve distinct editorial purposes.`);
+    }
+    // Exact identity is a hard failure — identical sections violate the template contract
+    const isExactDuplicate = pitchDuplicates.length > 0;
+    if (isExactDuplicate) {
+      warnings.push(`[pitch_identity] HARD FAIL: Pitch/summary sections are verbatim identical: ${pitchDuplicates.join(", ")}. Template requires distinct One-Paragraph Pitch, One-Sentence Pitch, and Executive Summary.`);
     }
     checks.push({
       check_id: "pitch_identity_separation",
-      passed: true, // soft-fail: warn only, never block
-      details: pitchDuplicates.length > 0
-        ? `Identity overlap: ${pitchDuplicates.join(", ")}`
-        : "Pitches are semantically distinct from summary",
+      passed: !isExactDuplicate,
+      error_code: isExactDuplicate ? "QG_PITCH_IDENTITY_DUPLICATE" : undefined,
+      details: isExactDuplicate
+        ? `Verbatim duplication: ${pitchDuplicates.join(", ")}`
+        : pitchContainments.length > 0
+          ? `Containment overlap: ${pitchContainments.join(", ")}`
+          : "Pitches are semantically distinct from summary",
     });
   }
 

@@ -12,6 +12,10 @@
 
 import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  EVALUATE_ARTIFACT_QUALITY_THRESHOLD,
+  evaluateArtifactPayloadQuality,
+} from "./artifactQualityCertification";
 
 export type ArtifactType =
   | "evaluation_result_v1"
@@ -269,6 +273,19 @@ export async function upsertEvaluationArtifact(params: {
   if (!Number.isFinite(params.manuscriptId) || params.manuscriptId <= 0) {
     throw new Error(
       `[ArtifactPersistence] Upsert aborted for job_id=${params.jobId}: invalid manuscriptId=${params.manuscriptId}`,
+    );
+  }
+
+  const qualityCertification = evaluateArtifactPayloadQuality({
+    artifact: params.artifactType,
+    content: params.content,
+  });
+  if (!qualityCertification.certified) {
+    console.warn(
+      `[ArtifactPersistence] ${params.jobId}: ${params.artifactType} quality score ` +
+      `${qualityCertification.score_0_100}/${EVALUATE_ARTIFACT_QUALITY_THRESHOLD}; ` +
+      `issues=${qualityCertification.issues.map((issue) => `${issue.code}:${issue.path}`).join(',')}; ` +
+      `persisting for admin artifact-health triage`,
     );
   }
 

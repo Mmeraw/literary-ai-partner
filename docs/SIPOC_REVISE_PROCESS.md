@@ -48,7 +48,7 @@ AGENT READINESS FACTORY   (future)
 9. **Original manuscript is never mutated.** All decisions are ledger entries. The manuscript is only mutated when the author explicitly exports a revised draft.
 10. **UI must not simulate or fabricate author decisions.** The UI is a read-surface for persisted state only. It must not guess or infer `author_decision_state`.
 11. **Hard caps are enforced.** Short-form: max 50 opportunities. Long-form: max 100 opportunities. Queue assembly respects these limits post-admission.
-12. **Completion gate is a required future stage.** `RS08_COMPLETION` is `planned_required / missing_critical`. No completion certification currently exists; this is an explicit gap.
+12. **Completion gate is active.** `RS08_COMPLETION` emits `revision_completion_record_v1` and certifies only when all `ready_for_revise` items have persisted decisions and no pending sync remains.
 13. **`needs_targeting` items are not deleted.** They persist in an advisory view. Authors may retarget them. They do not block completion of `ready_for_revise` items.
 14. **Observability is passive.** Telemetry (`lib/revision/telemetry.ts`) and governance logs must not alter control flow.
 
@@ -66,7 +66,7 @@ Revision Opportunity Ledger Assembly (RS01)
         Author Decision Capture (RS06)
           → Ledger Sync (RS07)
             → [when all ready items decided]
-            Completion Certification (RS08)  [planned_required]
+            Completion Certification (RS08)  [active]
               → end state
         ↑ async/feature-flagged ↑
         Repair Cross-Check Verification (RS09)
@@ -93,7 +93,7 @@ violation.
 | A/B/C Candidate Generation | RS05 | Workbench | active | partial |
 | Author Decision Capture | RS06 | Author Decision | active | partial |
 | Ledger Sync | RS07 | Ledger Sync | active | partial |
-| Completion Certification | RS08 | Completion | **planned_required** | **missing_critical** |
+| Completion Certification | RS08 | Completion | active | certified |
 | Cross-Check Verification | RS09 | Cross-Check | active | partial |
 | TrustedPath Auto-Apply | RS10 | TrustedPath | active | partial |
 
@@ -163,11 +163,39 @@ Illegal transitions must throw and must not write to the database.
 
 | Gap | Stage | Notes |
 |---|---|---|
-| Completion Certification | RS08 | No formal completion record currently emitted. Planned. |
 | Queue Item Lifecycle Persistence | RS03 | Queue state lives in-memory / client; no durable lifecycle record. |
 | Needs-Targeting Retargeting Flow | RS02/RS04 | Author retargeting path exists in UI but has no formal admission re-run. |
-| Revision Quality Drift Metrics | RS07 | `RevisionQualityDriftMetrics` tracked but not surfaced in a completion record. |
+| Revision Quality Drift Metrics | RS07/RS08 | `RevisionQualityDriftMetrics` is tracked; completion records must remain passive and must not alter author decisions. |
 | TrustedPath Eligibility Certification | RS10 | `isTrustedPathEligible` gate exists; no formal eligibility record emitted. |
+
+---
+
+## Corrective Actions Applied
+
+### Root Cause: Canon Gate Blocking 100% of Revise Queue Opportunities (2026-06-12)
+
+**Problem:** Production data showed 189 of 189 opportunities (100%) blocked by `canon_authority_blocked`. Zero opportunities ever reached the user. All 11 revision sessions were stuck in `open` with 0 findings, 0 proposals.
+
+**Root cause chain:**
+1. `buildLedgerQualityReport.ts` counted dependency-inherited warnings (one canonical identity issue cascaded to 8 downstream layers) toward the >3 warning threshold, causing `gate_ready_status: "repair_required"` even when the underlying issue was a single same-name ambiguity.
+2. `resolveReviseContextQuality` treated `repair_required` identically to `blocked` and `blocked_content_hard_fail`, returning `context_quality: "blocked"`.
+3. `preflightReasonsForOpportunity` pushed `canon_authority_blocked` for every opportunity when `context_quality === "blocked"`.
+4. `isSupportedForUserQueue` rejected all blocked opportunities.
+5. Hydration (RS05) only attempted opportunities with `preflight_status === "passed"`, so zero candidates were generated.
+
+**Fixes applied:**
+1. **`buildLedgerQualityReport.ts`** — Exclude `identity_dependency:*` cascade warnings from the >3 root-cause warning count. These are informational metadata documenting which layers inherit canonical identity risk; they are not independent issues.
+2. **`resolveReviseContextQuality`** — `repair_required` now maps to `context_quality: "limited"` (not `"blocked"`). Only `blocked` and `blocked_content_hard_fail` produce `"blocked"`.
+3. **`opportunityLedger.ts` hydration eligibility** — Allow `limited_context` opportunities to enter hydration (RS05), not just `passed`.
+4. **`isSupportedForUserQueue`** — Accept `limited_context` preflight status for user queue admission (alongside `passed`).
+5. **`reviseAdmissionGate.ts`** — Accept `limited_context` preflight and `limited` context quality for admission (not just `passed`/`clean`).
+
+**Doctrine preserved:**
+- `blocked` and `blocked_content_hard_fail` still fully block (no weakening of hard-fail gates)
+- SLAE validation unchanged
+- Candidate quality gates unchanged
+- `limited_context` cards have confidence capped at `medium` per existing logic
+- No production validation rules were weakened
 
 ---
 
@@ -198,6 +226,9 @@ Generated by `npm run fipoc:export` from `lib/revision/reviseRegistry.ts`.
 | `ready_rate` | `ready_for_revise / total_opportunities`; passive observability only | RS02 |
 | `synced_decision_count` | Must equal `author_decision_count` before completion | RS07, RS08 |
 | `anchor_coverage` | % of items with resolved anchor in source manuscript | RS04 |
+| `finding_id_coverage` | % of ledger opportunities with stable `finding_id`; Ready rows must be traceable | RS01, RS02 |
+| `candidate_option_coverage` | % of opportunities with exact A/B/C manuscript-ready candidates; Ready rows require all three | RS02, RS04, RS05 |
+| `needs_targeting_count` | Count of evidence-backed but incomplete rows withheld from author acceptance | RS02, RS04 |
 | `trustedpath_apply_rate` | `appliedCount / total_eligible`; passive | RS10 |
 | `queue_cap_utilization` | `queue_length / hard_cap`; short-form=50, long-form=100 | RS03 |
 

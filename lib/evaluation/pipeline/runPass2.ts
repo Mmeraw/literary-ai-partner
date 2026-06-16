@@ -191,6 +191,11 @@ function isTimeoutError(reason: unknown): boolean {
   );
 }
 
+function isTruncatedJsonParseError(reason: unknown): boolean {
+  const text = String(reason instanceof Error ? reason.message : reason).toLowerCase();
+  return text.includes("json_parse_failed_truncated") || text.includes("truncated");
+}
+
 function parseRetryAfterMs(reason: unknown): number | null {
   if (typeof reason === "object" && reason !== null) {
     const maybeHeaders = (reason as { headers?: unknown; response?: { headers?: unknown } }).headers
@@ -457,6 +462,12 @@ export interface RunPass2Options {
    * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
    */
   _onChunkComplete?: (chunk_index: number, result: SinglePassOutput) => Promise<void>;
+  /**
+   * Internal override for max output tokens. When set, takes precedence over
+   * the runtime config default. Only used by runPipeline.ts when retrying
+   * after systemic handoff truncation detection.
+   */
+  _maxOutputTokensOverride?: number;
 }
 
 // ── Pass 2 Recommendation Action Normalizer ─────────────────────────────────
@@ -650,19 +661,26 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
             } catch (error) {
               const isRateLimit = isRateLimitError(error);
               const isTimeout = isTimeoutError(error);
-              if ((!isRateLimit && !isTimeout) || attempt >= chunkRetryMax) {
+              const isTruncated = isTruncatedJsonParseError(error);
+              if ((!isRateLimit && !isTimeout && !isTruncated) || attempt >= chunkRetryMax) {
                 throw error;
               }
 
               const suggestedWait = isRateLimit ? parseRetryAfterMs(error) : null;
               const backoffMs = Math.min(90_000, chunkRetryBaseMs * Math.pow(2, attempt));
               const jitterMs = Math.floor(Math.random() * 750);
-              const waitMs = Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+              const waitMs = isTruncated
+                ? 1000 + jitterMs  // Brief pause before fresh attempt
+                : Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
               if (isRateLimit) {
                 rateLimitRetryCount += 1;
                 rateLimitWaitMs += waitMs;
                 console.warn(
                   `[Pass2] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
+                );
+              } else if (isTruncated) {
+                console.warn(
+                  `[Pass2] Chunk ${chunk.chunk_index} JSON truncated (inner retry exhausted); outer retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
                 );
               } else {
                 console.warn(
@@ -697,7 +715,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
         chunkResults.push(result.value);
       } else {
         const reason = String(result.reason instanceof Error ? result.reason.message : result.reason);
-        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : isTimeoutError(result.reason) ? "TIMEOUT" : "OTHER";
+        const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : isTimeoutError(result.reason) ? "TIMEOUT" : isTruncatedJsonParseError(result.reason) ? "JSON_TRUNCATED" : "OTHER";
         chunkFailuresByReason[bucket] = (chunkFailuresByReason[bucket] ?? 0) + 1;
         failures.push({
           chunkIndex: selectedChunks[i].chunk_index,
@@ -825,7 +843,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
 
   console.log(`[Pass2] completion request model=${selectedModel}`);
 
-  let activeMaxTokens = getEvaluationRuntimeConfig().pass.pass2MaxTokens;
+  let activeMaxTokens = opts._maxOutputTokensOverride ?? getEvaluationRuntimeConfig().pass.pass2MaxTokens;
   const modelCallStartMs = nowMs();
   let { completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens);
   let modelCallMs = nowMs() - modelCallStartMs;
@@ -943,6 +961,47 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
   try {
     parsedOutput = parsePass2Response(responseText, selectedModel);
   } catch (error) {
+    if (!retriedForLength && (finishReason === "length" || isTruncatedJsonParseError(error))) {
+      retriedForLength = true;
+      const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens);
+      console.warn("[Pass2] Truncated or incomplete JSON response; retrying with higher output token budget", {
+        model: selectedModel,
+        initialMaxTokens: activeMaxTokens,
+        retryMaxTokens,
+        finish_reason: finishReason,
+        error_message: error instanceof Error ? error.message : String(error),
+        usage: completion.usage,
+      });
+
+      activeMaxTokens = retryMaxTokens;
+      const retryStartMs = nowMs();
+      ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
+      modelCallMs += nowMs() - retryStartMs;
+      trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2_retry", model: selectedModel, usage: completion.usage });
+
+      firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
+      rawContent = firstChoice?.message?.content;
+      responseText = extractResponseText(rawContent);
+      const retryCompletionWithIds = completion as { request_id?: unknown; id?: unknown };
+      const retryRequestId =
+        typeof retryCompletionWithIds.request_id === "string"
+          ? retryCompletionWithIds.request_id
+          : typeof retryCompletionWithIds.id === "string"
+          ? retryCompletionWithIds.id
+          : undefined;
+
+      opts._onCompletion?.({
+        pass: 2,
+        raw_text: responseText,
+        model: selectedModel,
+        usage: completion.usage,
+        finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
+        request_id: retryRequestId,
+        generated_at: new Date().toISOString(),
+      });
+
+      parsedOutput = parsePass2Response(responseText, selectedModel);
+    } else {
     console.error("[Pass2] Parse boundary diagnostic", {
       job_id: opts.jobId ?? null,
       manuscript_id: opts.manuscriptId ?? null,
@@ -959,6 +1018,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       error_message: error instanceof Error ? error.message : String(error),
     });
     throw error;
+    }
   }
   const parseValidationMs = nowMs() - parseValidationStartMs;
   const totalMs = nowMs() - passStartMs;

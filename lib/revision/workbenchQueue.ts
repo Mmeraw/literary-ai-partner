@@ -46,6 +46,9 @@ export type WorkbenchSource = 'evaluation' | 'deep_revision' | 'baseline_discove
 
 export type WorkbenchOpportunity = {
   id: string
+  sourceOpportunityId?: string
+  sourceCriterion?: string
+  sourceUedHash?: string
   severity: WorkbenchSeverity
   scope: WorkbenchScope
   mode: WorkbenchMode
@@ -647,9 +650,11 @@ function hasPlaceholderCoordinates(coordinates: string): boolean {
 function isSupportedForUserQueue(opportunity: WorkbenchOpportunity): boolean {
   if (opportunity.readiness !== 'ready_for_revise') return false
   if (opportunity.groundingStatus !== 'supported') return false
-  // Fail-closed: only explicitly preflight-passed cards are user-admissible.
-  // Legacy/stale rows missing preflight metadata must be withheld.
-  if (opportunity.preflightStatus !== 'passed') return false
+  // Fail-closed: explicitly preflight-passed or limited-context cards are
+  // user-admissible. limited_context cards passed all quality checks but the
+  // story canon had advisory-level degradation (not hard-fail). Legacy/stale
+  // rows missing preflight metadata must still be withheld.
+  if (opportunity.preflightStatus !== 'passed' && opportunity.preflightStatus !== 'limited_context') return false
   if (hasPlaceholderCoordinates(opportunity.anchor)) return false
   if ((opportunity.hydrationFailureReasons?.length ?? 0) > 0) return false
   if ((opportunity.resBlockerReasons?.length ?? 0) > 0) return false
@@ -1348,6 +1353,9 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     const hydrationRepairNeeded = splitReasons.hydration.length > 0
     const baseOpportunity = {
       ...contracted,
+      sourceOpportunityId: (opportunity as any).source_opportunity_id,
+      sourceCriterion: (opportunity as any).source_criterion,
+      sourceUedHash: (opportunity as any).source_ued_hash,
       readinessReason: hydrationRepairNeeded
         ? 'Needs hydration repair'
         : contracted.readinessReason,

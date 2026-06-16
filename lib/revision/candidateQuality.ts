@@ -55,8 +55,14 @@ const GENERIC_PATTERNS = [
   /\bsomething shifted\b/i,
   /\bthe room seemed smaller\b/i,
   /\bthe moment (settled|tightened|claimed its price)\b/i,
+  /\bmoment to claim its price\b/i,
   /\bhe looked away first\b/i,
   /\bthe weight settled\b/i,
+  /\bhesitated,? and\b/i,
+  /\bsmall delay told\b/i,
+  /\bpressure (?:no one else had to name|of the moment)\b/i,
+  /\bchoice land before\b/i,
+  /^\s*after\s+(?:hesitated|looked|waited|paused)\b/i,
 ];
 
 const COMMENTARY_PATTERNS = [

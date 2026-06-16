@@ -100,6 +100,7 @@ import type { CriterionKey } from "@/schemas/criteria-keys";
 import { pipelineLog } from "./pipelineLogger";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 import { sanitizeSynthesisCharacterNames } from "./characterNameSanitizer";
+import { classifyAnchor } from "./evidenceGroundingGate";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -1139,11 +1140,12 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   // Belt-and-suspenders: after prompt enforcement, deterministically replace
   // any blocked character names (No, Yes, Oh, Hey, etc.) that leaked through
   // the LLM's free-text output with canonical names from the story ledger.
-  if (opts.canonicalEntityNames && opts.canonicalEntityNames.length > 0) {
-    const sanitizedCount = sanitizeSynthesisCharacterNames(synthesis, opts.canonicalEntityNames);
+  {
+    const canonicalNames = opts.canonicalEntityNames ?? [];
+    const sanitizedCount = sanitizeSynthesisCharacterNames(synthesis, canonicalNames);
     if (sanitizedCount > 0) {
       console.info(
-        `[Pass3-NameAuthority] Deterministic sanitizer replaced blocked character names in ${sanitizedCount} field(s). Canonical names: [${opts.canonicalEntityNames.slice(0, 3).join(", ")}]`,
+        `[Pass3-NameAuthority] Deterministic sanitizer replaced blocked character names in ${sanitizedCount} field(s). Canonical names: [${canonicalNames.slice(0, 3).join(", ") || "fallback:narrator"}]`,
       );
     }
   }
@@ -1678,12 +1680,52 @@ export function parsePass3Response(
     if (currentMeaningful >= minRecs) continue;
 
     const shortfall = minRecs - currentMeaningful;
-    const lastResortRecs = buildLastResortRecommendations(c.key, c.final_score_0_10, shortfall);
+    const lastResortRecs = buildLastResortRecommendations(c.key, c.final_score_0_10, shortfall, c);
     c.recommendations = [...c.recommendations, ...lastResortRecs];
 
     console.info(
       `[Pass3-FinalVerification] ${c.key} score=${c.final_score_0_10} injected ${lastResortRecs.length} last-resort rec(s) (had ${currentMeaningful} meaningful, needed ${minRecs})`,
     );
+  }
+
+  // ── Option 2: Post-LLM anchor enforcement — defence in depth ──────────────
+  // After all synthesis, density repair, and last-resort paths, sweep every
+  // recommendation and replace any anchor_snippet classified as editorial_diagnosis
+  // with the best available grounded evidence from the criterion. This is the
+  // deterministic safety net: regardless of what the LLM or repair paths produced,
+  // no editorial_diagnosis anchor survives to persistence.
+  if (manuscriptText && manuscriptText.trim().length > 0) {
+    let enforcedCount = 0;
+    for (const c of finalCriteria) {
+      // Build a pool of grounded anchors for this criterion from evidence
+      // and quoted rationale spans (both are manuscript-sourced).
+      const groundedPool: string[] = [
+        ...c.evidence
+          .map((e) => (typeof e.snippet === "string" ? e.snippet.trim() : ""))
+          .filter((s) => s.length >= 10),
+        ...extractQuotedRationaleSpans(c.final_rationale).filter((s) => s.length >= 10),
+      ];
+      // Pre-filter pool to only verified grounded anchors.
+      const verifiedPool = groundedPool.filter((anchor) => {
+        const result = classifyAnchor(anchor, manuscriptText!);
+        return result.anchor_type !== "editorial_diagnosis";
+      });
+      if (verifiedPool.length === 0) continue;
+
+      for (const rec of c.recommendations) {
+        const result = classifyAnchor(rec.anchor_snippet, manuscriptText!);
+        if (result.anchor_type === "editorial_diagnosis") {
+          // Replace with best grounded anchor from the verified pool.
+          rec.anchor_snippet = verifiedPool[enforcedCount % verifiedPool.length].slice(0, 200);
+          enforcedCount++;
+        }
+      }
+    }
+    if (enforcedCount > 0) {
+      console.info(
+        `[Pass3-AnchorEnforcement] Replaced ${enforcedCount} editorial_diagnosis anchor(s) with grounded evidence`,
+      );
+    }
   }
 
   // Build overall
@@ -2729,20 +2771,20 @@ function buildDensityRepairRecommendations(
   const rationaleSpans = extractQuotedRationaleSpans(c.final_rationale)
     .filter((s) => s.length >= 20);
 
-  // Last-resort: use a leading rationale excerpt as a pseudo-anchor so the
-  // rec is still grounded in the criterion's own diagnostic text.
-  const rationaleExcerpt = c.final_rationale.replace(/\s+/g, " ").trim().slice(0, 120);
+  // Anchors must be manuscript-grounded. Rationale excerpts and synthetic
+  // diagnostic text are NOT valid anchors — the evidence grounding gate
+  // (QG_EVIDENCE_FABRICATION) correctly rejects them as editorial_diagnosis.
+  // If no evidence snippets or quoted rationale spans are available, do not
+  // fabricate an anchor; return an empty array so the caller can let the gate
+  // report the defect honestly rather than injecting ungrounded text.
   const anchors: string[] = [
     ...evidenceSnippets,
     ...rationaleSpans,
-    ...(rationaleExcerpt.length >= 20 ? [rationaleExcerpt] : []),
   ];
 
   if (anchors.length === 0) {
-    // Deterministic fallback: use the criterion-aware specific fix as a synthetic anchor
-    // so density repair NEVER fails. Every criterion must meet the density floor.
-    const fallbackAnchor = `Evaluation identified a ${key} craft issue that affects reader experience at the current score level.`;
-    anchors.push(fallbackAnchor);
+    // No manuscript-grounded anchor available. Do not fabricate.
+    return [];
   }
 
   // Intent fragment for action template: prefer gap_summary over rationale sentence.
@@ -2930,19 +2972,40 @@ export function buildLastResortRecommendations(
   key: SynthesizedCriterion["key"],
   score: number,
   needed: number,
+  criterion?: SynthesizedCriterion,
 ): SynthesizedCriterion["recommendations"] {
   if (needed <= 0) return [];
 
   const template = LAST_RESORT_RECS[key];
   if (!template) return [];
 
+  // Use manuscript-grounded evidence from the criterion instead of the
+  // hardcoded editorial anchor_snippet in LAST_RESORT_RECS. The template
+  // anchors are diagnostic text that the evidence grounding gate correctly
+  // rejects as editorial_diagnosis → QG_EVIDENCE_FABRICATION.
+  const evidenceAnchors: string[] = (criterion?.evidence ?? [])
+    .map((e) => (typeof e.snippet === "string" ? e.snippet.trim() : ""))
+    .filter((s) => s.length >= 10);
+
+  // Also try quoted spans from the rationale (may contain manuscript quotes).
+  const rationaleQuotes = criterion?.final_rationale
+    ? extractQuotedRationaleSpans(criterion.final_rationale).filter((s) => s.length >= 10)
+    : [];
+
+  const groundedAnchors = [...evidenceAnchors, ...rationaleQuotes];
+
   const recs: SynthesizedCriterion["recommendations"] = [];
   for (let i = 0; i < needed; i++) {
+    // Prefer grounded anchor; fall back to template only if zero evidence exists.
+    const anchorSnippet = groundedAnchors.length > 0
+      ? groundedAnchors[i % groundedAnchors.length].slice(0, 200)
+      : template.anchor_snippet;
+
     recs.push({
       priority: score <= 6 ? "high" : score === 7 ? "medium" : "low",
       action: template.action,
       specific_fix: template.specific_fix,
-      anchor_snippet: template.anchor_snippet,
+      anchor_snippet: anchorSnippet,
       source_pass: 3,
       issue_family: CRITERION_ISSUE_FAMILY[key] ?? "exposition",
       strategic_lever: CRITERION_STRATEGIC_LEVER[key] ?? "scene_goal_clarity",

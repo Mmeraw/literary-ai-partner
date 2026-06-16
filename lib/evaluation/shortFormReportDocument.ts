@@ -1,5 +1,11 @@
 import { CRITERIA_KEYS, getCriterionDisplayLabel, type CriterionKey } from '@/schemas/criteria-keys';
 import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations';
+import {
+  buildCanonicalOpportunityLedger,
+  formatOpportunityForTopRecommendation,
+  opportunityToActionItem,
+  opportunityToCriterionRecommendation,
+} from '@/lib/evaluation/canonicalOpportunityLedger';
 import { buildReportPitches, summarizeRevisionOpportunities, type RevisionOpportunitySummary } from '@/lib/evaluation/reportTemplateContract';
 import { getCriterionRationalePresentation, getCriterionSupportLabel, type RenderableCriterion } from '@/lib/evaluation/reportCriterionDisplay';
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
@@ -20,16 +26,33 @@ import {
 } from '@/lib/evaluation/reportHeaderPolicy';
 import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 
+/** Format words that are not valid genre names — mirrors templateCompletenessGate.FORMAT_WORDS. */
+const FORMAT_WORDS = new Set([
+  'book', 'chapter', 'excerpt', 'fiction', 'manuscript', 'novel', 'novella',
+  'nonfiction', 'poem', 'screenplay', 'short fiction', 'short story', 'story',
+]);
+
+/** Return the genre string only if it is not a bare format word. */
+function sanitizeGenre(value: string | undefined | null, fallback: string): string {
+  if (!value || !value.trim()) return fallback;
+  const normalized = value.trim().toLowerCase().replace(/[\s\-_/]+/g, ' ').trim();
+  if (FORMAT_WORDS.has(normalized)) return fallback;
+  return value.trim();
+}
+
 export type ShortFormCriterionRecommendation = {
+  opportunity_id?: string;
   priority?: 'high' | 'medium' | 'low';
   action?: string;
   expected_impact?: string;
   anchor_snippet?: string;
+  anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
   symptom?: string;
   mechanism?: string;
   specific_fix?: string;
   reader_effect?: string;
   mistake_proofing?: string;
+  collapsed_from_criteria?: string[];
 };
 
 export type ShortFormCriterion = {
@@ -72,6 +95,8 @@ export type ShortFormResultLike = {
     reading_grade_level?: number;
     dialogue_percentage?: number;
     narrative_percentage?: number;
+    diagnosed_genre?: string;
+    target_audience?: string;
   };
   governance?: {
     transparency?: {
@@ -84,6 +109,8 @@ export type ShortFormResultLike = {
     strategic_revisions?: Array<{ action?: string; why?: string; effort?: string; impact?: string }>;
   };
 };
+
+type CanonicalRenderedOpportunity = ReturnType<typeof buildCanonicalOpportunityLedger>['rendered_opportunities'][number];
 
 export type ShortFormTemplateSectionId =
   | 'title_block'
@@ -155,6 +182,7 @@ export type ShortFormEvaluationDocument = {
   topStrengths: string[];
   topRisks: string[];
   topRecommendations: string[];
+  canonicalOpportunityLedger?: ReturnType<typeof buildCanonicalOpportunityLedger>;
   criteriaScoreGrid: ShortFormCriterionGridRow[];
   criterionDetails: ShortFormCriterionDetail[];
   actionItems: {
@@ -175,6 +203,8 @@ export type ShortFormEvaluationDocument = {
       candidate_text_a?: string;
       /** Source criterion key */
       criterion_key?: string;
+      /** Canonical opportunity ID reused across report surfaces. */
+      opportunity_id?: string;
     }>;
     strategicRevisions: Array<{
       action: string;
@@ -193,6 +223,8 @@ export type ShortFormEvaluationDocument = {
       candidate_text_a?: string;
       /** Source criterion key */
       criterion_key?: string;
+      /** Canonical opportunity ID reused across report surfaces. */
+      opportunity_id?: string;
     }>;
   };
   confidenceExplanation: string;
@@ -279,8 +311,57 @@ const FALLBACK_GENRE_VALUES = new Set([
   '',
 ]);
 
+const FORMAT_ONLY_GENRE_VALUES = new Set([
+  'novel',
+  'short story',
+  'story',
+  'chapter',
+  'excerpt',
+  'manuscript',
+  'fiction',
+]);
+
 function isFallbackGenre(value: string): boolean {
   return FALLBACK_GENRE_VALUES.has(value.trim().toLowerCase());
+}
+
+function isFormatOnlyGenre(value: string): boolean {
+  return FORMAT_ONLY_GENRE_VALUES.has(value.trim().toLowerCase());
+}
+
+function normalizeRecommendationPriority(value: unknown): ShortFormCriterionRecommendation['priority'] {
+  return value === 'high' || value === 'medium' || value === 'low' ? value : undefined;
+}
+
+function normalizeRecommendationAnchorType(value: unknown): ShortFormCriterionRecommendation['anchor_type'] {
+  return value === 'verbatim_quote' || value === 'paraphrased_observation' || value === 'editorial_diagnosis'
+    ? value
+    : undefined;
+}
+
+function normalizeCriterionRecommendation(rec: ShortFormCriterionRecommendation): ShortFormCriterionRecommendation {
+  return {
+    ...rec,
+    priority: normalizeRecommendationPriority(rec.priority),
+    anchor_type: normalizeRecommendationAnchorType(rec.anchor_type),
+  };
+}
+
+function titleCaseGenre(value: string): string {
+  return value
+    .split(/(\s+|\/|\+)/)
+    .map((part) => {
+      if (/^\s+$|^\/|^\+$/.test(part)) return part;
+      const trimmed = part.trim();
+      if (!trimmed) return part;
+      if (/^[A-Z]{2,}$/.test(trimmed)) return trimmed;
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    })
+    .join('')
+    .replace(/\bAnd\b/g, 'and')
+    .replace(/\bOr\b/g, 'or')
+    .replace(/\bThe\b/g, 'the')
+    .replace(/\bOf\b/g, 'of');
 }
 
 function estimatePages(wordCount: number | null | undefined): string {
@@ -312,6 +393,33 @@ function ensureOrderedCriteria(criteria: ShortFormCriterion[]): ShortFormCriteri
   );
 }
 
+function ensureNonEmptyList(values: string[], fallback: string[]): string[] {
+  const cleaned = values.map((value) => value.trim()).filter((value) => value.length > 0);
+  if (cleaned.length > 0) return cleaned;
+  return fallback.map((value) => value.trim()).filter((value) => value.length > 0);
+}
+
+function opportunityToShortFormCriterionRecommendation(
+  item: CanonicalRenderedOpportunity,
+): ShortFormCriterionRecommendation {
+  const recommendation = opportunityToCriterionRecommendation(item);
+
+  return {
+    opportunity_id: recommendation.opportunity_id,
+    priority: item.severity,
+    action: recommendation.action,
+    expected_impact: recommendation.expected_impact,
+    anchor_snippet: recommendation.anchor_snippet,
+    anchor_type: 'verbatim_quote',
+    symptom: recommendation.symptom,
+    mechanism: recommendation.mechanism,
+    specific_fix: recommendation.specific_fix,
+    reader_effect: recommendation.reader_effect,
+    mistake_proofing: recommendation.mistake_proofing,
+    collapsed_from_criteria: recommendation.collapsed_from_criteria,
+  };
+}
+
 export function buildShortFormEvaluationDocument(input: {
   result: ShortFormResultLike;
   displayTitle: string;
@@ -330,7 +438,13 @@ export function buildShortFormEvaluationDocument(input: {
     one_paragraph_pitch: (result.overview as Record<string, unknown> | undefined)?.one_paragraph_pitch as string | undefined,
   });
   const opportunitySummary = summarizeRevisionOpportunities(orderedCriteria);
+  const canonicalOpportunityLedger = buildCanonicalOpportunityLedger(result);
+  const renderedOpportunities = canonicalOpportunityLedger.rendered_opportunities;
   const topRecommendations = buildTopRecommendations(result as never, 5);
+  const canonicalTopRecommendations = renderedOpportunities
+    .filter((item) => item.issue_type !== 'mechanics_typo')
+    .slice(0, 5)
+    .map(formatOpportunityForTopRecommendation);
 
   const rawWordCount = typeof result.metrics?.manuscript?.word_count === 'number'
     ? result.metrics.manuscript.word_count
@@ -344,6 +458,16 @@ export function buildShortFormEvaluationDocument(input: {
   const genreExpectationContract = buildGenreExpectationHeader(
     result.governance?.transparency?.genre_expectation_context,
   );
+  const genreExpectationLabel = genreExpectationContract?.genreExpectationLabels.length
+    ? genreExpectationContract.genreExpectationLabels.join(' + ')
+    : genreExpectationContract?.diagnosedGenre;
+  const rawGenreValue = clean(result.enrichment?.diagnosed_genre ?? result.metrics?.manuscript?.genre, 'Not specified');
+  const displayGenre = isFallbackGenre(rawGenreValue)
+    ? rawGenreValue
+    : isFormatOnlyGenre(rawGenreValue) && genreExpectationLabel
+    ? genreExpectationLabel
+    : sanitizeGenre(rawGenreValue, 'Not specified');
+  const genreIsFallback = isFallbackGenre(displayGenre);
 
   const criteriaScoreGrid: ShortFormCriterionGridRow[] = orderedCriteria.map((criterion) => {
     return {
@@ -360,6 +484,10 @@ export function buildShortFormEvaluationDocument(input: {
     const detailText = rationalePresentation?.text
       ? mistakeProofText(rationalePresentation.text)
       : 'No rationale available for this criterion in this run.';
+    const canonicalRecommendations = renderedOpportunities
+      .filter((item) => item.primary_criterion === criterion.key || item.related_criteria.includes(criterion.key))
+      .slice(0, 3)
+      .map((item) => normalizeCriterionRecommendation(opportunityToShortFormCriterionRecommendation(item)));
 
     return {
       key: criterion.key,
@@ -369,7 +497,11 @@ export function buildShortFormEvaluationDocument(input: {
       supportLabel: getCriterionSupportLabel(renderable),
       rationaleLabel: rationalePresentation?.label,
       rationaleText: detailText,
-      recommendations: Array.isArray(criterion.recommendations) ? criterion.recommendations.slice(0, 3) : [],
+      recommendations: canonicalRecommendations.length > 0
+        ? canonicalRecommendations
+        : Array.isArray(criterion.recommendations)
+          ? criterion.recommendations.slice(0, 1).map(normalizeCriterionRecommendation)
+          : [],
     };
   });
 
@@ -382,6 +514,38 @@ export function buildShortFormEvaluationDocument(input: {
     ? result.enrichment?.trigger_warnings.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     : [];
 
+  const fallbackExecutiveSummary =
+    'This evaluation identifies actionable strengths and risks with prioritized revision guidance to improve manuscript readiness.';
+  const executiveSummarySource =
+    typeof result.overview?.one_paragraph_summary === 'string' && result.overview.one_paragraph_summary.trim().length > 0
+      ? result.overview.one_paragraph_summary
+      : fallbackExecutiveSummary;
+  const executiveSummary = mistakeProofText(executiveSummarySource);
+
+  const fallbackStrengths = orderedCriteria
+    .filter((criterion) => typeof criterion.score_0_10 === 'number')
+    .sort((a, b) => (b.score_0_10 ?? -1) - (a.score_0_10 ?? -1))
+    .slice(0, 3)
+    .map((criterion) => `${getCriterionDisplayLabel(criterion.key as CriterionKey)} demonstrates a clear relative strength in the evaluated sample.`);
+
+  if (fallbackStrengths.length === 0) {
+    fallbackStrengths.push('Core manuscript potential is visible in the available evidence sample.');
+  }
+
+  const fallbackRisks = orderedCriteria
+    .filter((criterion) => typeof criterion.score_0_10 === 'number')
+    .sort((a, b) => (a.score_0_10 ?? 11) - (b.score_0_10 ?? 11))
+    .slice(0, 3)
+    .map((criterion) => `${getCriterionDisplayLabel(criterion.key as CriterionKey)} remains a revision risk requiring focused improvement.`);
+
+  if (fallbackRisks.length === 0) {
+    fallbackRisks.push('Insufficient scored evidence requires targeted revision review before submission decisions.');
+  }
+
+  const fallbackTopRecommendations = [
+    'Prioritize the lowest-scoring criteria with the highest reader-impact revisions first.',
+  ];
+
   return {
     templateMode: 'short_form_evaluation',
     sectionOrder: SECTION_ORDER,
@@ -390,7 +554,7 @@ export function buildShortFormEvaluationDocument(input: {
       reportType: input.reportType ?? 'Short-Form Evaluation',
       overallScoreLabel: formatScoreFractionForDisplay(overallScore, 100),
       marketReadiness: deriveVerdict(overallScore, result.overview?.verdict),
-      genre: clean(result.metrics?.manuscript?.genre, 'Not specified'),
+      genre: isFallbackGenre(displayGenre) ? displayGenre : titleCaseGenre(displayGenre),
       targetAudience: clean(result.metrics?.manuscript?.target_audience, 'Adult Readers'),
       submittedWordCount:
         typeof result.metrics?.manuscript?.word_count === 'number'
@@ -404,7 +568,7 @@ export function buildShortFormEvaluationDocument(input: {
           : 'Not available',
       dateGenerated: formatDate(result.generated_at),
       // Suppress confidence badge when genre is a fallback ("Not specified") — absence is not uncertainty.
-      genreConfidenceLabel: isFallbackGenre(clean(result.metrics?.manuscript?.genre, 'Not specified')) ? null : genreConf,
+      genreConfidenceLabel: genreIsFallback ? null : genreConf,
       marketReadinessConfidenceLabel: marketConf,
       overallScoreConfidenceLabel: overallConf,
       audienceConfidenceLabel: audienceConf.label,
@@ -425,21 +589,33 @@ export function buildShortFormEvaluationDocument(input: {
         ? contentWarningsRaw.map((warning) => mistakeProofText(warning))
         : ['No content warnings identified.'],
     revisionOpportunitySummary: opportunitySummary,
-    executiveSummary: mistakeProofText(result.overview?.one_paragraph_summary ?? 'No summary available.'),
-    topStrengths: (result.overview?.top_3_strengths ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
-    topRisks: (result.overview?.top_3_risks ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
-    topRecommendations: topRecommendations.map((item) => mistakeProofText(item)).filter(Boolean),
+    executiveSummary,
+    topStrengths: ensureNonEmptyList(
+      (result.overview?.top_3_strengths ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
+      fallbackStrengths,
+    ),
+    topRisks: ensureNonEmptyList(
+      (result.overview?.top_3_risks ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
+      fallbackRisks,
+    ),
+    topRecommendations: ensureNonEmptyList(
+      (canonicalTopRecommendations.length > 0 ? canonicalTopRecommendations : topRecommendations)
+        .map((item) => mistakeProofText(item))
+        .filter(Boolean),
+      fallbackTopRecommendations,
+    ),
+    canonicalOpportunityLedger,
     criteriaScoreGrid,
     criterionDetails,
     actionItems: {
-      quickWins: (Array.isArray(result.recommendations?.quick_wins)
-        ? result.recommendations!.quick_wins
-        : []
-      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string; criterion_key?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
-      strategicRevisions: (Array.isArray(result.recommendations?.strategic_revisions)
-        ? result.recommendations!.strategic_revisions
-        : []
-      ).filter((item): item is { action: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string; criterion_key?: string } => typeof item?.action === 'string' && item.action.trim().length > 0),
+      quickWins: renderedOpportunities
+        .filter((item) => item.is_action_item_candidate && item.severity === 'high')
+        .slice(0, 3)
+        .map(opportunityToActionItem),
+      strategicRevisions: renderedOpportunities
+        .filter((item) => item.is_action_item_candidate && item.severity !== 'high')
+        .slice(0, 4)
+        .map(opportunityToActionItem),
     },
     confidenceExplanation:
       input.confidenceExplanation ??

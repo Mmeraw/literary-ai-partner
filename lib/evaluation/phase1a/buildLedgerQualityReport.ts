@@ -34,12 +34,22 @@ type LedgerQualityTechnicalSignals = {
   chunkCoverage?: {
     chunks_expected: number;
     chunks_completed: number;
+    degraded_chunks?: number;
+    degraded_ratio?: number;
+  };
+  storyLayerCoverage?: {
+    populated_substantive_layers: number;
+    minimum_required_substantive_layers: number;
+    populated_layer_keys?: string[];
   };
   preflightReducer?: {
     reducer_status: 'ok' | 'failed' | 'unknown';
     preflight_authority?: 'full' | 'reduced' | 'advisory' | 'unavailable' | null;
   };
 };
+
+export const PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD = 0.1;
+export const PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD = 2;
 
 /** Primary/major role tiers that can trigger ending-accountability hard-fails. */
 const PRIMARY_ROLE_TIERS = new Set<string>([
@@ -415,6 +425,40 @@ export function buildLedgerQualityReport(
     );
   }
 
+  if (chunkCoverage) {
+    const degradedChunks = Number.isFinite(chunkCoverage.degraded_chunks)
+      ? Number(chunkCoverage.degraded_chunks)
+      : 0;
+    const degradedRatio = Number.isFinite(chunkCoverage.degraded_ratio)
+      ? Number(chunkCoverage.degraded_ratio)
+      : (
+          Number.isFinite(chunkCoverage.chunks_expected) && chunkCoverage.chunks_expected > 0
+            ? degradedChunks / chunkCoverage.chunks_expected
+            : 0
+        );
+
+    if (
+      degradedChunks >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
+      degradedRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+    ) {
+      technicalBlockingReasons.push(
+        `TECHNICAL_BLOCK: Phase 1A degraded chunk ratio too high (${degradedChunks}/${chunkCoverage.chunks_expected}, ratio=${degradedRatio.toFixed(3)}). Retry exhausted chunk extraction before content-quality judgment.`,
+      );
+    }
+  }
+
+  const storyLayerCoverage = technicalSignals?.storyLayerCoverage;
+  if (
+    storyLayerCoverage &&
+    Number.isFinite(storyLayerCoverage.populated_substantive_layers) &&
+    Number.isFinite(storyLayerCoverage.minimum_required_substantive_layers) &&
+    storyLayerCoverage.populated_substantive_layers < storyLayerCoverage.minimum_required_substantive_layers
+  ) {
+    technicalBlockingReasons.push(
+      `TECHNICAL_BLOCK: Story Layer substantive coverage below minimum (${storyLayerCoverage.populated_substantive_layers}/${storyLayerCoverage.minimum_required_substantive_layers}). Populated layers: ${(storyLayerCoverage.populated_layer_keys ?? []).join(', ') || 'none'}. Retry or repair extraction before release to the next step.`,
+    );
+  }
+
   const preflightReducer = technicalSignals?.preflightReducer;
   if (preflightReducer?.reducer_status === 'failed') {
     technicalBlockingReasons.push(
@@ -449,11 +493,17 @@ export function buildLedgerQualityReport(
 
   const hardFailPresent = hardFails.length > 0;
 
-  // Gate-ready status
+  // Gate-ready status — count only distinct root-cause warnings, not inherited
+  // dependency copies. A single SAME_NAME_AMBIGUITY in canonical_identity
+  // produces 8 identity_dependency:* warnings (one per dependent layer); these
+  // are informational cascade metadata, not independent issues.
+  const rootCauseWarnings = warnings.filter(
+    (c) => !c.key.startsWith('identity_dependency:'),
+  );
   let gate_ready_status: GateReadyStatus;
   if (hardFailPresent) {
     gate_ready_status = 'blocked_content_hard_fail';
-  } else if (warnings.length > 3) {
+  } else if (rootCauseWarnings.length > 3) {
     gate_ready_status = 'repair_required';
   } else {
     gate_ready_status = 'reviewable';

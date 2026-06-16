@@ -110,7 +110,7 @@ jobs:
         with:
           name: flow1-evidence-${{ github.sha }}
           path: artifacts/flow1-evidence-ci.log
-          retention-days: 90
+          retention-days: 14
 
       - name: Evidence Summary
         if: success()

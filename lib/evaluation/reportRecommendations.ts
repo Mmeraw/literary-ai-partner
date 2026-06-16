@@ -15,9 +15,22 @@ type CriterionRecommendation = {
   mechanism?: string;
 };
 
+type CanonicalRenderedOpportunity = {
+  id?: string;
+  issue_type?: string;
+  fix_direction?: string;
+  action?: string;
+  reader_effect?: string;
+  expected_impact?: string;
+  primary_criterion?: string;
+};
+
 type ArtifactLike = {
   summary?: string;
   overview?: { one_paragraph_summary?: string };
+  canonicalOpportunityLedger?: {
+    rendered_opportunities?: CanonicalRenderedOpportunity[];
+  };
   criteria?: Array<{
     recommendations?: CriterionRecommendation[];
   }>;
@@ -148,7 +161,25 @@ function formatCrossCuttingRecommendation(
   if (!action) return null;
 
   const why = typeof recommendation.why === "string" ? recommendation.why.trim() : "";
-  return `${label ? `${label}: ` : ""}${action}${why ? `—${why}` : ""}`;
+  if (!why) return `${label ? `${label}: ` : ""}${action}`;
+
+  // CMOS: period cannot precede em dash (period-em-dash is a CMOS violation).
+  // Separate action and rationale as two distinct sentences.
+  const actionBase = action.replace(/\.\s*$/, "");
+  return `${label ? `${label}: ` : ""}${actionBase}. ${why}`;
+}
+
+function formatLedgerRecommendation(item: CanonicalRenderedOpportunity): string | null {
+  const action = normalizeRecommendationActionForDisplay(item.fix_direction || item.action || "");
+  if (!action) return null;
+  const impact = typeof item.reader_effect === "string" && item.reader_effect.trim()
+    ? item.reader_effect.trim()
+    : typeof item.expected_impact === "string" && item.expected_impact.trim()
+      ? item.expected_impact.trim()
+      : "";
+  const id = typeof item.id === "string" && item.id.trim() ? `[${item.id.trim()}] ` : "";
+  const actionBase = action.replace(/\.\s*$/, "");
+  return `${id}${actionBase}${impact ? `. ${impact}` : "."}`;
 }
 
 function extractSummaryFallback(summary: string, maxItems: number): string[] {
@@ -172,8 +203,20 @@ function extractSummaryFallback(summary: string, maxItems: number): string[] {
     .slice(0, maxItems);
 }
 
-export function buildTopRecommendations(artifact: ArtifactLike | null | undefined, maxItems = 5): string[] {
+export function buildTopRecommendations(artifact: ArtifactLike | null | undefined, maxItems = 2): string[] {
   if (!artifact) return [];
+
+  // Canonical recommendation authority: when a ledger is attached to the
+  // unified document, top recommendations are projections from that ledger only.
+  const ledgerItems = artifact.canonicalOpportunityLedger?.rendered_opportunities ?? [];
+  const ledgerRecommendations = ledgerItems
+    .filter((item) => item.issue_type !== "mechanics_typo")
+    .map(formatLedgerRecommendation)
+    .filter((value): value is string => Boolean(value));
+
+  if (ledgerRecommendations.length > 0) {
+    return selectDiverseByOpening(uniq(ledgerRecommendations), maxItems);
+  }
 
   const quickWinItems = (artifact.recommendations?.quick_wins ?? [])
     .map((recommendation) => formatCrossCuttingRecommendation(recommendation))
@@ -202,7 +245,10 @@ export function buildTopRecommendations(artifact: ArtifactLike | null | undefine
             : typeof recommendation.expected_impact === "string" && recommendation.expected_impact.trim()
               ? recommendation.expected_impact.trim()
               : "";
-        return readerSummary ? `${action}—${readerSummary}` : action;
+        // CMOS: avoid period-em-dash. Separate as two sentences.
+        if (!readerSummary) return action;
+        const actionBase = action.replace(/\.\s*$/, "");
+        return `${actionBase}. ${readerSummary}`;
       }),
     ),
   );

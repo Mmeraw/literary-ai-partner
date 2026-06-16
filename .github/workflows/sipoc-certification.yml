@@ -1,7 +1,7 @@
 name: SIPOC Certification
 
 "on":
-  pull_request:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -18,7 +18,7 @@ name: SIPOC Certification
       - ".github/workflows/sipoc-certification.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

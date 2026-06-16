@@ -9,7 +9,8 @@ export type RevisionSessionStatus =
   | "synthesis_started"
   | "proposals_ready"
   | "applied"
-  | "failed";
+  | "failed"
+  | "failed_retryable";
 export type FindingActionHint = ProposalAction;
 export type FindingStatus = "open" | "resolved" | "ignored";
 

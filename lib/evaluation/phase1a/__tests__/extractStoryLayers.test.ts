@@ -9,7 +9,7 @@ type StoryLayerExtractionFailure = Extract<ReturnType<typeof extractStoryLayers>
  *
  * PR #890 introduced a short-form auto-approval path that checked for
  * `storyLayerPayload.layers`, but buildStoryLayerFromLedger() returns
- * a flat object with 9 top-level canonical keys — no `.layers` wrapper.
+ * a flat object with 10 top-level canonical keys — no `.layers` wrapper.
  * This caused every short-form eval since June 1 to persist
  * `accepted_story_ledger_v1.layers = {}`, starving Pass 3.
  *
@@ -37,13 +37,13 @@ function expectExtractionFailure(result: ReturnType<typeof extractStoryLayers>):
 
 describe('extractStoryLayers', () => {
   describe('flat shape (buildStoryLayerFromLedger return value)', () => {
-    it('should extract all 9 canonical layer keys', () => {
+    it('should extract all 10 canonical layer keys', () => {
       const result = extractStoryLayers(buildFlatPayload());
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error('unreachable');
       expect(result.shape).toBe('flat');
-      expect(Object.keys(result.layers).length).toBe(9);
+      expect(Object.keys(result.layers).length).toBe(STORY_LAYER_KEYS.length);
       for (const key of STORY_LAYER_KEYS) {
         expect(result.layers[key]).toBeDefined();
         expect(typeof result.layers[key]).toBe('object');
@@ -68,13 +68,13 @@ describe('extractStoryLayers', () => {
   });
 
   describe('wrapped shape (persisted artifact content)', () => {
-    it('should extract all 9 canonical layer keys from .layers', () => {
+    it('should extract all 10 canonical layer keys from .layers', () => {
       const result = extractStoryLayers(buildWrappedPayload());
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error('unreachable');
       expect(result.shape).toBe('wrapped');
-      expect(Object.keys(result.layers).length).toBe(9);
+      expect(Object.keys(result.layers).length).toBe(STORY_LAYER_KEYS.length);
       for (const key of STORY_LAYER_KEYS) {
         expect(result.layers[key]).toBeDefined();
         expect(typeof result.layers[key]).toBe('object');
@@ -139,24 +139,24 @@ describe('extractStoryLayers', () => {
     });
   });
 
-  describe('canonical key count must be exactly 9', () => {
-    it('STORY_LAYER_KEYS has exactly 9 entries', () => {
-      expect(STORY_LAYER_KEYS.length).toBe(9);
+  describe('canonical key count must be exactly 10', () => {
+    it('STORY_LAYER_KEYS has exactly 10 entries', () => {
+      expect(STORY_LAYER_KEYS.length).toBe(10);
     });
 
-    it('full flat payload produces 9 layers with 0 missing', () => {
+    it('full flat payload produces 10 layers with 0 missing', () => {
       const result = extractStoryLayers(buildFlatPayload());
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error('unreachable');
-      expect(Object.keys(result.layers).length).toBe(9);
+      expect(Object.keys(result.layers).length).toBe(STORY_LAYER_KEYS.length);
       expect(result.missing_keys.length).toBe(0);
     });
 
-    it('full wrapped payload produces 9 layers with 0 missing', () => {
+    it('full wrapped payload produces 10 layers with 0 missing', () => {
       const result = extractStoryLayers(buildWrappedPayload());
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error('unreachable');
-      expect(Object.keys(result.layers).length).toBe(9);
+      expect(Object.keys(result.layers).length).toBe(STORY_LAYER_KEYS.length);
       expect(result.missing_keys.length).toBe(0);
     });
   });
