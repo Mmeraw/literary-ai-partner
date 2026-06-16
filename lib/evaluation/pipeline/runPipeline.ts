@@ -832,7 +832,7 @@ export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
  * already backfilled it. This safety net re-injects last-resort recs for any criterion
  * that fell below the floor after dedupe.
  */
-const POST_DEDUPE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 1, "9": 1 };
+const POST_DEDUPE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 2, "9": 2, "10": 1 };
 
 function enforceTemplateDensityAfterPreGateDedupe(synthesis: SynthesisOutput): {
   synthesis: SynthesisOutput;
@@ -840,8 +840,8 @@ function enforceTemplateDensityAfterPreGateDedupe(synthesis: SynthesisOutput): {
 } {
   let restoredCount = 0;
   const criteria = synthesis.criteria.map((criterion) => {
-    if (criterion.final_score_0_10 == null || criterion.final_score_0_10 >= 10) return criterion;
-    const bucket = criterion.final_score_0_10 <= 5 ? "<=5" : criterion.final_score_0_10 <= 7 ? "6-7" : criterion.final_score_0_10 === 8 ? "8" : "9";
+    if (criterion.final_score_0_10 == null) return criterion;
+    const bucket = criterion.final_score_0_10 <= 5 ? "<=5" : criterion.final_score_0_10 <= 7 ? "6-7" : criterion.final_score_0_10 === 8 ? "8" : criterion.final_score_0_10 === 9 ? "9" : "10";
     const minRecs = POST_DEDUPE_DENSITY_FLOOR[bucket] ?? 1;
     if (minRecs === 0) return criterion;
 

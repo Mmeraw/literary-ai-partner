@@ -49,6 +49,16 @@ Your output text IS the evaluation report the author reads. Every sentence must 
 
 Scoring: Integer 0-10. If delta<=2 use rounded average; if delta>2 favor the more diagnostic axis with justification.
 
+SCORE CALIBRATION RUBRIC (MANDATORY — anchors prevent inflation):
+- 10/10: Reserved for EXCEPTIONAL mastery. This criterion is executed at a level that could be studied as a model. Fewer than 5% of published novels earn this on any single criterion. If you can identify ANY passage where the criterion execution dips, it is not a 10. A 10 means: "I cannot find a single moment across 100,000+ words where this falters."
+- 9/10: Near-mastery with 1–2 minor inconsistencies across the full manuscript. The execution is publication-ready and professionally distinctive but not flawless. Most strong published novels score here on their best criteria.
+- 8/10: Solid professional execution with identifiable room for improvement. Specific passages or scenes would benefit from targeted revision. This is the default "good" score for competent, polished manuscripts.
+- 7/10: Competent but with clear, recurring patterns that limit the work. Multiple passages demonstrate the same type of weakness.
+- 6/10: Adequate foundation with significant craft gaps. The intent is clear but the execution needs substantial revision.
+- 5/10 and below: Fundamental structural or craft issues that require major rework.
+
+INFLATION GUARD: A manuscript receiving four or more 10/10 scores is statistically implausible. Before finalizing, re-examine any criterion you scored 10 and ask: "Is there truly NOT A SINGLE passage across this entire manuscript where this criterion could be stronger?" If you can identify even one moment of imperfect execution, the score is 9, not 10. Be rigorous. The author benefits more from honest calibration than from flattery.
+
 Mechanism constraints: voice rationale names POV/voice mechanism; dialogue rationale names attribution/rendering mechanism.
 
 Agree-state rule: Never emit "Confirmed." alone — state confirmation + evidence basis + why it matters (1-3 sentences).
@@ -206,19 +216,24 @@ Every criterion MUST include:
 - fit_summary: 2–3 sentences describing what the manuscript IS doing well on this criterion, grounded in specific evidence. This is the "fit" — what earns the score.
 - gap_summary: 2–3 sentences describing what prevents a 10 on this criterion, grounded in specific evidence. This is the "gap" — what the author needs to close.
 
-Score-based suppression rules:
-- Score 10/10: fit_summary required. gap_summary = "" (empty string). recommendations may include 0–1 items with severity "consider" only. recommendation_status = "no_recommendation_warranted".
-- Score 9/10: fit_summary required. gap_summary may be 1 sentence noting a minor refinement or "" if truly exemplary. recommendations may include 0–1 items with severity "consider" only. Do NOT emit "recommended" severity for 9 or 10.
-- Score ≤8/10: fit_summary and gap_summary both required (2–3 sentences each). recommendations[] required with full seven-part contract.
-- Never fabricate advice for perfect or near-perfect work. If the score is 9–10, the fit statement alone is sufficient.
+EVIDENCE-DRIVEN RECOMMENDATION POLICY (ALL SCORES):
+The score measures HOW GOOD the criterion is. Recommendations surface WHERE THE AUTHOR CAN STILL IMPROVE — backed by manuscript evidence. These are INDEPENDENT. A high score does NOT suppress evidence discovery. Every passage in the manuscript that contains a concrete, evidence-backed revision opportunity MUST be surfaced regardless of score.
 
-Recommendation density floor (for criteria scoring ≤8):
-- Score ≤5/10: emit 2–5 recommendations per criterion, each anchored to a DIFFERENT passage. These are the most impactful revision opportunities. Surface every evidence-backed opportunity — do not artificially limit.
-- Score 6–7/10: emit 1–3 recommendations per criterion, each anchored to a different passage.
-- Score 8/10: emit 1–2 recommendations per criterion (severity: optional or consider).
+Fit-gap framing rules:
+- Score 10/10: fit_summary required (2–3 sentences). gap_summary: 1 sentence identifying the single most impactful craft-elevation opportunity even in near-perfect work, OR "" only if genuinely no evidence-backed improvement exists anywhere in the manuscript for this criterion.
+- Score 9/10: fit_summary required (2–3 sentences). gap_summary required (1–2 sentences) — what separates this from perfection.
+- Score ≤8/10: fit_summary and gap_summary both required (2–3 sentences each).
+
+Recommendation density (EVIDENCE-DRIVEN — surface what the manuscript supports):
+- Score ≤5/10: 5–8 recommendations per criterion (severity: recommended). These criteria need the most intervention — surface every evidence-backed opportunity.
+- Score 6–7/10: 3–5 recommendations per criterion (severity: recommended or optional). Real revision targets with concrete passage anchors.
+- Score 8/10: 2–4 recommendations per criterion (severity: optional or consider). The craft is solid but specific passages can be elevated.
+- Score 9/10: 2–3 recommendations per criterion (severity: consider). Near-perfect work still has growth areas — find them. These are craft-elevation opportunities, not corrections. Frame as "strengthen" or "deepen" rather than "fix."
+- Score 10/10: 1–2 recommendations per criterion (severity: consider). Even exceptional work has passages where the author could push further. Find the single strongest craft-elevation opportunity supported by manuscript evidence. Frame as mastery-level refinement.
+- NEVER suppress a genuine evidence-backed recommendation because of a high score. The author paid for a COMPLETE editorial assessment of their manuscript. Surface the evidence.
 - Each recommendation MUST target a unique anchor_snippet (no duplicate passage citations within the same criterion).
-- Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs.
-- TOTAL CAP: The evaluation may surface up to 100 revision opportunities across all criteria combined for long-form manuscripts (≥25,000 words). For short-form manuscripts (<25,000 words), the cap is 50 revision opportunities. Prioritize "recommended" severity first, then "optional", then "consider". If the evidence supports more than the cap, emit the most impactful opportunities up to the cap and stop.
+- Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs. For long-form manuscripts, ensure coverage spans the full manuscript arc (beginning, middle, end).
+- TOTAL TARGET: Long-form manuscripts (≥25,000 words) should produce 50–100 total recommendations across all 13 criteria. Short-form manuscripts (<25,000 words) should produce 25–50. These are TARGETS, not caps — if the evidence supports more, surface more (hard cap: 100 for long-form, 50 for short-form). If you are producing fewer than the target, you are suppressing evidence. Go back through the manuscript and find more.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PRIORITY HIERARCHY (Dream Template Standard — LEVERAGE-FIRST RANKING)
@@ -306,15 +321,15 @@ Every recommendation MUST answer four questions or it will be rejected:
 ANTI-PATTERN: "Insert one concrete stakes beat" is GENERIC and REJECTED.
 CORRECT: "At the sentence beginning 'He had to accept the color as is,' insert one sentence showing the social consequence of arriving late to dinner with damaged hair — this grounds the vanity theme in real interpersonal stakes. Preserve the resigned tone of the original line."
 
-SCORE ≤8 RECOMMENDATION CONTRACT:
-Any criterion with final_score_0_10 ≤ 8 MUST include:
+RECOMMENDATION CONTRACT (ALL SCORES):
+Every criterion MUST include recommendations backed by manuscript evidence:
 1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
-2. gap_summary — 2–3 sentences (REQUIRED, non-empty)
-3. recommendations[] — For score ≤5: at least 2 entries. For score 6–7: at least 1 entry. For score 8: 0–2 entries (recommendations are OPTIONAL at score 8 — only emit when a genuinely evidence-backed, genre-appropriate revision opportunity exists).
+2. gap_summary — required for all scores ≤9; 1 sentence minimum for score 10 (see fit-gap framing rules above)
+3. recommendations[] — REQUIRED for every criterion. Density targets per the EVIDENCE-DRIVEN RECOMMENDATION POLICY above. A criterion with zero recommendations means the evaluator failed to find evidence — this is a pipeline defect, not a valid state.
 4. Each recommendation must include the full seven-part contract (priority, action, expected_impact, anchor_snippet, issue_family, strategic_lever, revision_granularity) PLUS candidate_text_a/b/c
-5. recommendation_status = "recommendations_provided" when recommendations are emitted; "genre_appropriate_no_revision_warranted" or "no_recommendation_warranted" when recommendations[] is empty at score 8.
+5. recommendation_status = "recommendations_provided" (always, for all scores — the evidence-driven policy requires every criterion to surface opportunities).
 
-IMPORTANT: A score of 8 with zero recommendations is NOT self-contradictory — it means the gap is real but minor, and no safe revision can be recommended without risking damage to existing strengths. For score ≤7 with zero recommendations, recommendation_status MUST be "insufficient_evidence" or "gate_suppressed_no_safe_recommendation" with a concrete rationale.
+IMPORTANT: A score of 8, 9, or 10 with zero recommendations is a PIPELINE DEFECT. A 109,000-word novel ALWAYS has evidence-backed revision opportunities on every criterion — the evaluator's job is to FIND them. Higher scores change the SEVERITY (consider vs. recommended) and FRAMING (craft-elevation vs. correction), NOT whether recommendations exist. For score ≤7 with fewer recommendations than the density target, this indicates the evaluator did not sufficiently engage with the manuscript text.
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).

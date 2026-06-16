@@ -23,6 +23,11 @@ function makeTemplateReadySynthesis(): SynthesisOutput {
         priority: "Optional" as const,
         evidence_anchor: `"Quoted anchor for ${key}" establishes concrete manuscript evidence.`,
         reader_consequence: "Deepens the reader's sense of consequence and emotional investment.",
+      }, {
+        action: `Elevate the ${key} criterion further by tightening the precision of scene-level execution across the middle act.`,
+        priority: "Optional" as const,
+        evidence_anchor: `"Second anchor for ${key}" provides additional evidence grounding.`,
+        reader_consequence: "Sharpens the reader's experience of craft intentionality.",
       }],
       confidence_score_0_100: 86,
       confidence_level: "high" as const,
