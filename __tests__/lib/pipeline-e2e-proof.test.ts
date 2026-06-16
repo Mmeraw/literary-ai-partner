@@ -71,11 +71,14 @@ import {
   KICK_MATRIX,
   PROCESS_REGISTRY,
   ARTIFACT_REGISTRY,
+  FIELD_REGISTRY as EVAL_FIELD_REGISTRY,
+  RENDERER_CONSUMPTION_MATRIX,
   lookupKickForFailure,
   lookupKicksForStage,
   getBlockingKicks,
   getProcess,
   getArtifact,
+  getRenderedFieldsForSurface,
 } from '@/lib/evaluation/fipocRegistry';
 import {
   REVISE_QUEUE_LEDGER_LIMITS,
@@ -91,6 +94,21 @@ import {
   REVISE_FIELD_REGISTRY,
   REVISE_CERTIFICATION_GATE_REGISTRY,
 } from '@/lib/revision/reviseRegistry';
+import {
+  EVALUATION_TEMPLATE_CONTRACTS,
+  buildUnifiedEvaluationDocument,
+  type CanonicalEvaluationMode,
+} from '@/lib/evaluation/unifiedEvaluationDocument';
+import {
+  buildReportRenderManifestV1,
+  buildAuthorExposureCertificationV1FromManifest,
+  inferCanonicalEvaluationModeFromWordCount,
+  type ReportRenderManifestV1,
+} from '@/lib/evaluation/reportRenderParity';
+import {
+  assertValidRevisionSessionTransition,
+  buildRevisionSessionTransitionUpdate,
+} from '@/lib/revision/sessionTransitions';
 
 jest.mock('@/lib/revision/logRevisionEvent', () => ({
   logRevisionEvent: jest.fn(async () => undefined),
@@ -1524,5 +1542,542 @@ describe('E2E Chain 10: Candidate Quality Gate Rejection Taxonomy', () => {
     const admissionResult = runWorkbenchAdmissionGate(admissionInput);
     const diagnosticReasons = admissionResult.reasons.filter((r) => r.startsWith('DIAGNOSTIC_'));
     expect(diagnosticReasons).toHaveLength(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 11: Short-Form Renderer Parity — Webpage + PDF/DOCX/TXT
+// SIPOC authority: FIPOC RENDERER_CONSUMPTION_MATRIX, reportRenderParity.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+function makeEvalResult(overrides: { wordCount: number; genre: string; title: string }) {
+  return {
+    generated_at: '2025-06-10T00:00:00Z',
+    overview: {
+      overall_score_0_100: 72,
+      overall_score_confidence: 'high' as const,
+      submission_readiness: 'Not Ready' as const,
+      submission_readiness_confidence: 'high' as const,
+      verdict: 'Promising manuscript with significant craft opportunities.',
+      one_paragraph_summary: 'A compelling premise with strong character work but pacing inconsistencies.',
+      executive_summary: 'The manuscript demonstrates clear voice and strong character development.',
+      top_3_strengths: ['Strong protagonist voice', 'Compelling opening hook', 'Effective dialogue rhythm'],
+      top_3_risks: ['Pacing stalls in middle act', 'Secondary characters underdeveloped', 'Ending feels rushed'],
+      top_strengths: ['Strong protagonist voice', 'Compelling opening hook'],
+      top_risks: ['Pacing stalls in middle act', 'Secondary characters underdeveloped'],
+      top_recommendations: ['Tighten middle act pacing', 'Deepen secondary character arcs'],
+      one_sentence_pitch: 'A barber discovers vanity costs more than money.',
+      one_paragraph_pitch: 'When a vain barber moves to Toronto, his obsessive grooming rituals spiral into a comedy of errors.',
+    },
+    metrics: {
+      manuscript: {
+        title: overrides.title,
+        word_count: overrides.wordCount,
+        genre: overrides.genre,
+        target_audience: 'Adult literary fiction readers',
+      },
+      readability: { grade_level: 8.5 },
+      dialogue_narrative_ratio: '35/65',
+    },
+    enrichment: {
+      premise: 'A man learns the true cost of vanity through a series of salon disasters.',
+      diagnosed_genre: overrides.genre,
+      genre_confidence: 'high' as const,
+      target_audience: 'Adult literary fiction readers',
+      target_audience_confidence: 'high' as const,
+      shelf: 'Literary Fiction',
+      shelf_confidence: 'high' as const,
+      one_sentence_pitch: 'A barber discovers vanity costs more than money.',
+      one_paragraph_pitch: 'When a vain barber moves to Toronto, his obsessive grooming rituals spiral.',
+    },
+    governance: {
+      canonical_entity_names: ['Marcus', 'Elaine'],
+    },
+    criteria: [
+      {
+        key: 'concept', score_0_10: 8, confidence_level: 'high' as const,
+        rationale: 'Strong thematic premise grounded in character-driven irony.',
+        scorability_status: 'scorable' as const,
+        recommendations: [{
+          action: 'Sharpen the central ironic reversal in the final scene.',
+          expected_impact: 'Stronger thematic resonance.',
+          anchor_snippet: 'His calamity was not completely without positivity though.',
+          symptom: 'Irony is implied rather than dramatized.',
+          mechanism: 'The reversal happens off-page.',
+          specific_fix: 'Add a scene where Marcus sees his reflection and laughs.',
+          reader_effect: 'Reader feels the ironic payoff directly.',
+          mistake_proofing: 'Ensure the reversal is shown, not told.',
+        }],
+      },
+      {
+        key: 'character', score_0_10: 7, confidence_level: 'high' as const,
+        rationale: 'Marcus is vivid; secondary characters need development.',
+        scorability_status: 'scorable' as const,
+        recommendations: [{
+          action: 'Give Elaine a scene of her own that reveals backstory.',
+          expected_impact: 'Elaine becomes a full character rather than a prop.',
+          anchor_snippet: 'He realized that he should not be judgmental.',
+          symptom: 'Elaine appears only through Marcus perspective.',
+          mechanism: 'No POV shift or dialogue-driven scene for Elaine.',
+          specific_fix: 'Insert a brief Elaine scene before the salon disaster.',
+          reader_effect: 'Reader invests in Elaine arc independently.',
+          mistake_proofing: 'Elaine scene must pass voice preservation gate.',
+        }],
+      },
+    ],
+    content_warnings: ['mild language'],
+    transparency: { privacy_notice: 'This evaluation is confidential.' },
+  };
+}
+
+describe('E2E Chain 11: Short-Form Renderer Parity — Webpage + PDF/DOCX/TXT', () => {
+  const SHORT_FORM_RESULT = makeEvalResult({
+    wordCount: 8_500,
+    genre: 'Literary Fiction',
+    title: 'The Price of Vanity',
+  });
+
+  it('FIPOC: short-form mode inferred from word count < 25k', () => {
+    expect(inferCanonicalEvaluationModeFromWordCount(8_500)).toBe('short_form_evaluation');
+    expect(inferCanonicalEvaluationModeFromWordCount(24_999)).toBe('short_form_evaluation');
+  });
+
+  it('FIPOC: template contract has short-form entry with required fields', () => {
+    const template = EVALUATION_TEMPLATE_CONTRACTS.short_form_evaluation;
+    expect(template.templateName).toBe('Short-Form Evaluation Template');
+    expect(template.reportType).toBe('Short-Form Evaluation');
+    expect(template.templatePath).toContain('short-form');
+  });
+
+  it('FIPOC: UED builds from short-form evaluation result', () => {
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'short_form_evaluation',
+      result: SHORT_FORM_RESULT,
+      displayTitle: 'The Price of Vanity',
+      dream: null,
+    });
+    expect(ued.templateMode).toBe('short_form_evaluation');
+    expect(ued.title).toBe('The Price of Vanity');
+    expect(ued.titleBlock.genre).toBeTruthy();
+    expect(ued.titleBlock.targetAudience).toBeTruthy();
+    expect(ued.executiveSummary).toBeTruthy();
+    expect(ued.criterionDetails.length).toBeGreaterThan(0);
+  });
+
+  it('FIPOC: render manifest declares all 4 surfaces with canonical consumption', () => {
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'short_form_evaluation',
+      result: SHORT_FORM_RESULT,
+      displayTitle: 'The Price of Vanity',
+      dream: null,
+    });
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-short-form-001',
+      unifiedDocument: ued,
+    });
+    expect(manifest.schema_version).toBe('report_render_manifest_v1');
+    expect(manifest.template.mode).toBe('short_form_evaluation');
+    expect(manifest.template.report_type).toBe('Short-Form Evaluation');
+
+    // All 4 surfaces declared
+    for (const surface of ['webpage', 'pdf', 'docx', 'txt'] as const) {
+      expect(manifest.surfaces[surface]).toBeDefined();
+      expect(manifest.surfaces[surface].consumed_fields.length).toBeGreaterThan(0);
+      expect(manifest.surfaces[surface].measurement_mode).toBe('declared_canonical_consumption');
+    }
+  });
+
+  it('FIPOC: parity check passes when all surfaces consume same UED', () => {
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'short_form_evaluation',
+      result: SHORT_FORM_RESULT,
+      displayTitle: 'The Price of Vanity',
+      dream: null,
+    });
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-short-form-002',
+      unifiedDocument: ued,
+    });
+    expect(manifest.parity.status).toBe('pass');
+    expect(manifest.parity.missing_required_fields).toHaveLength(0);
+    expect(manifest.parity.mismatched_fields).toHaveLength(0);
+    expect(manifest.parity.derived_canonical_fields).toHaveLength(0);
+  });
+
+  it('FIPOC: author exposure certification is certified when parity passes', () => {
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'short_form_evaluation',
+      result: SHORT_FORM_RESULT,
+      displayTitle: 'The Price of Vanity',
+      dream: null,
+    });
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-short-form-003',
+      unifiedDocument: ued,
+    });
+    const cert = buildAuthorExposureCertificationV1FromManifest(manifest);
+    expect(cert.schema_version).toBe('author_exposure_certification_v1');
+    expect(cert.decision).toBe('certified');
+    expect(cert.blocking_reasons).toHaveLength(0);
+    expect(cert.parity_results.overall.status).toBe('pass');
+    expect(cert.parity_results.webpage.status).toBe('pass');
+    expect(cert.parity_results.pdf.status).toBe('pass');
+    expect(cert.parity_results.docx.status).toBe('pass');
+    expect(cert.parity_results.txt.status).toBe('pass');
+  });
+
+  it('FIPOC: renderer consumption matrix has all 4 download surfaces + dream', () => {
+    const surfaces = RENDERER_CONSUMPTION_MATRIX.map((r) => r.surface);
+    expect(surfaces).toContain('webpage');
+    expect(surfaces).toContain('pdf');
+    expect(surfaces).toContain('docx');
+    expect(surfaces).toContain('txt');
+    expect(surfaces).toContain('dream');
+
+    for (const entry of RENDERER_CONSUMPTION_MATRIX) {
+      expect(entry.canonicalInput).toContain('UnifiedEvaluationDocument');
+      expect(entry.forbiddenInputs.length).toBeGreaterThan(0);
+      expect(entry.rendererMayDerive).toBe(false);
+    }
+  });
+
+  it('FIPOC: each surface has field parity with FIELD_REGISTRY', () => {
+    for (const surface of ['webpage', 'pdf', 'docx', 'txt'] as const) {
+      const fields = getRenderedFieldsForSurface(surface);
+      expect(fields.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('full chain: short-form eval → UED → render manifest → parity → certification', () => {
+    const mode = inferCanonicalEvaluationModeFromWordCount(SHORT_FORM_RESULT.metrics.manuscript.word_count);
+    expect(mode).toBe('short_form_evaluation');
+
+    const ued = buildUnifiedEvaluationDocument({
+      mode,
+      result: SHORT_FORM_RESULT,
+      displayTitle: 'The Price of Vanity',
+      dream: null,
+    });
+    expect(ued.templateMode).toBe('short_form_evaluation');
+
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-short-form-e2e',
+      unifiedDocument: ued,
+    });
+    expect(manifest.parity.status).toBe('pass');
+
+    const cert = buildAuthorExposureCertificationV1FromManifest(manifest);
+    expect(cert.decision).toBe('certified');
+    expect(cert.active_template_path).toContain('short-form');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 12: Long-Form Renderer Parity — Webpage + PDF/DOCX/TXT
+// SIPOC authority: FIPOC RENDERER_CONSUMPTION_MATRIX, reportRenderParity.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 12: Long-Form Renderer Parity — Webpage + PDF/DOCX/TXT', () => {
+  const LONG_FORM_RESULT = makeEvalResult({
+    wordCount: 85_000,
+    genre: 'Contemporary Romance',
+    title: 'The Architecture of Wanting',
+  });
+
+  it('FIPOC: long-form mode inferred from word count >= 25k', () => {
+    expect(inferCanonicalEvaluationModeFromWordCount(25_000)).toBe('long_form_evaluation');
+    expect(inferCanonicalEvaluationModeFromWordCount(74_999)).toBe('long_form_evaluation');
+  });
+
+  it('FIPOC: long-form multi-layer mode inferred from word count >= 75k', () => {
+    expect(inferCanonicalEvaluationModeFromWordCount(75_000)).toBe('long_form_multi_layer_evaluation');
+    expect(inferCanonicalEvaluationModeFromWordCount(150_000)).toBe('long_form_multi_layer_evaluation');
+  });
+
+  it('FIPOC: template contracts for all 3 modes', () => {
+    const modes: CanonicalEvaluationMode[] = [
+      'short_form_evaluation',
+      'long_form_evaluation',
+      'long_form_multi_layer_evaluation',
+    ];
+    for (const mode of modes) {
+      const template = EVALUATION_TEMPLATE_CONTRACTS[mode];
+      expect(template.templateName).toBeTruthy();
+      expect(template.reportType).toBeTruthy();
+      expect(template.templatePath).toBeTruthy();
+    }
+  });
+
+  it('FIPOC: UED builds from long-form multi-layer evaluation result', () => {
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'long_form_multi_layer_evaluation',
+      result: LONG_FORM_RESULT,
+      displayTitle: 'The Architecture of Wanting',
+      dream: null,
+    });
+    expect(ued.templateMode).toBe('long_form_multi_layer_evaluation');
+    expect(ued.title).toBe('The Architecture of Wanting');
+    expect(ued.titleBlock.genre).toBeTruthy();
+    expect(ued.modeSpecific).toBeDefined();
+  });
+
+  it('FIPOC: long-form render manifest parity passes', () => {
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'long_form_multi_layer_evaluation',
+      result: LONG_FORM_RESULT,
+      displayTitle: 'The Architecture of Wanting',
+      dream: null,
+    });
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-long-form-001',
+      unifiedDocument: ued,
+    });
+    expect(manifest.template.mode).toBe('long_form_multi_layer_evaluation');
+    expect(manifest.template.report_type).toBe('Long-Form Multi-Layer Evaluation');
+    expect(manifest.parity.status).toBe('pass');
+  });
+
+  it('FIPOC: long-form certification certified', () => {
+    const ued = buildUnifiedEvaluationDocument({
+      mode: 'long_form_multi_layer_evaluation',
+      result: LONG_FORM_RESULT,
+      displayTitle: 'The Architecture of Wanting',
+      dream: null,
+    });
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-long-form-002',
+      unifiedDocument: ued,
+    });
+    const cert = buildAuthorExposureCertificationV1FromManifest(manifest);
+    expect(cert.decision).toBe('certified');
+    expect(cert.active_template_path).toContain('long-form');
+  });
+
+  it('FIPOC: UED field hashes are deterministic', () => {
+    const ued1 = buildUnifiedEvaluationDocument({
+      mode: 'short_form_evaluation',
+      result: makeEvalResult({ wordCount: 8_000, genre: 'Thriller', title: 'Test A' }),
+      displayTitle: 'Test A',
+      dream: null,
+    });
+    const ued2 = buildUnifiedEvaluationDocument({
+      mode: 'short_form_evaluation',
+      result: makeEvalResult({ wordCount: 8_000, genre: 'Thriller', title: 'Test A' }),
+      displayTitle: 'Test A',
+      dream: null,
+    });
+    const manifest1 = buildReportRenderManifestV1({ jobId: 'job-hash-1', unifiedDocument: ued1 });
+    const manifest2 = buildReportRenderManifestV1({ jobId: 'job-hash-2', unifiedDocument: ued2 });
+    expect(manifest1.unified_document_hash).toBe(manifest2.unified_document_hash);
+    for (const field of Object.keys(manifest1.unified_document_field_hashes)) {
+      expect(manifest1.unified_document_field_hashes[field]).toBe(manifest2.unified_document_field_hashes[field]);
+    }
+  });
+
+  it('full chain: long-form eval → UED → manifest → parity → certification → revise opportunities', () => {
+    const mode = inferCanonicalEvaluationModeFromWordCount(85_000);
+    expect(mode).toBe('long_form_multi_layer_evaluation');
+
+    const ued = buildUnifiedEvaluationDocument({
+      mode,
+      result: LONG_FORM_RESULT,
+      displayTitle: 'The Architecture of Wanting',
+      dream: null,
+    });
+
+    const manifest = buildReportRenderManifestV1({
+      jobId: 'job-long-form-e2e',
+      unifiedDocument: ued,
+    });
+    expect(manifest.parity.status).toBe('pass');
+
+    const cert = buildAuthorExposureCertificationV1FromManifest(manifest);
+    expect(cert.decision).toBe('certified');
+
+    // Once certified, opportunities flow to revise queue
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 5 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+    expect(opportunities.length).toBeLessThanOrEqual(REVISE_QUEUE_LEDGER_LIMITS.longFormMaxOpportunities);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 13: Session State Machine Transition Governance
+// SIPOC authority: docs/SIPOC_REVISE_PROCESS.md, sessionTransitions.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 13: Session State Machine Transition Governance', () => {
+  it('SIPOC: happy path transitions (open → ... → applied)', () => {
+    const happyPath: Array<[string, string]> = [
+      ['open', 'findings_ready'],
+      ['findings_ready', 'synthesis_started'],
+      ['synthesis_started', 'proposals_ready'],
+      ['proposals_ready', 'applied'],
+    ];
+    for (const [from, to] of happyPath) {
+      expect(() => assertValidRevisionSessionTransition(
+        from as any, to as any,
+      )).not.toThrow();
+    }
+  });
+
+  it('SIPOC: any non-terminal state can transition to failed', () => {
+    const nonTerminal = ['open', 'findings_ready', 'synthesis_started', 'proposals_ready'];
+    for (const state of nonTerminal) {
+      expect(() => assertValidRevisionSessionTransition(
+        state as any, 'failed',
+      )).not.toThrow();
+    }
+  });
+
+  it('SIPOC: any non-terminal state can transition to failed_retryable', () => {
+    const nonTerminal = ['open', 'findings_ready', 'synthesis_started', 'proposals_ready'];
+    for (const state of nonTerminal) {
+      expect(() => assertValidRevisionSessionTransition(
+        state as any, 'failed_retryable',
+      )).not.toThrow();
+    }
+  });
+
+  it('SIPOC: terminal states cannot transition (applied, failed)', () => {
+    expect(() => assertValidRevisionSessionTransition('applied' as any, 'open' as any)).toThrow();
+    expect(() => assertValidRevisionSessionTransition('applied' as any, 'failed' as any)).toThrow();
+    expect(() => assertValidRevisionSessionTransition('failed' as any, 'open' as any)).toThrow();
+    expect(() => assertValidRevisionSessionTransition('failed' as any, 'failed_retryable' as any)).toThrow();
+  });
+
+  it('SIPOC: no-op transitions are forbidden', () => {
+    const allStates = ['open', 'findings_ready', 'synthesis_started', 'proposals_ready', 'applied', 'failed', 'failed_retryable'];
+    for (const state of allStates) {
+      expect(() => assertValidRevisionSessionTransition(
+        state as any, state as any,
+      )).toThrow(/no-op/);
+    }
+  });
+
+  it('SIPOC: failed_retryable can re-enter to open', () => {
+    expect(() => assertValidRevisionSessionTransition(
+      'failed_retryable' as any, 'open' as any,
+    )).not.toThrow();
+  });
+
+  it('SIPOC: failed_retryable can skip forward (findings_ready, synthesis_started)', () => {
+    expect(() => assertValidRevisionSessionTransition(
+      'failed_retryable' as any, 'findings_ready' as any,
+    )).not.toThrow();
+    expect(() => assertValidRevisionSessionTransition(
+      'failed_retryable' as any, 'synthesis_started' as any,
+    )).not.toThrow();
+  });
+
+  it('SIPOC: illegal backward transitions throw', () => {
+    expect(() => assertValidRevisionSessionTransition(
+      'proposals_ready' as any, 'open' as any,
+    )).toThrow();
+    expect(() => assertValidRevisionSessionTransition(
+      'synthesis_started' as any, 'findings_ready' as any,
+    )).toThrow();
+  });
+
+  it('SIPOC: buildRevisionSessionTransitionUpdate requires failure details for failed states', () => {
+    const session = {
+      id: 'session-001',
+      evaluation_run_id: 'eval-001',
+      source_version_id: 'v1',
+      result_version_id: null,
+      status: 'open' as const,
+      summary: {},
+      findings_count: 0,
+      actionable_findings_count: 0,
+      proposal_ready_actionable_findings_count: 0,
+      proposals_created_count: 0,
+      created_at: '2025-01-01T00:00:00Z',
+      completed_at: null,
+      last_transition_at: '2025-01-01T00:00:00Z',
+      failure_code: null,
+      failure_message: null,
+    };
+
+    // failed_retryable requires failure_code and failure_message
+    expect(() => buildRevisionSessionTransitionUpdate(session, {
+      nextStatus: 'failed_retryable',
+    })).toThrow();
+
+    // With proper failure details it succeeds
+    const update = buildRevisionSessionTransitionUpdate(session, {
+      nextStatus: 'failed_retryable',
+      failure_code: 'WORKBENCH_ANCHOR_UNRESOLVABLE',
+      failure_message: 'Anchor not found in manuscript',
+    });
+    expect(update.status).toBe('failed_retryable');
+    expect(update.failure_code).toBe('WORKBENCH_ANCHOR_UNRESOLVABLE');
+  });
+
+  it('SIPOC: applied requires result_version_id', () => {
+    const session = {
+      id: 'session-002',
+      evaluation_run_id: 'eval-002',
+      source_version_id: 'v1',
+      result_version_id: null,
+      status: 'proposals_ready' as const,
+      summary: {},
+      findings_count: 5,
+      actionable_findings_count: 3,
+      proposal_ready_actionable_findings_count: 3,
+      proposals_created_count: 3,
+      created_at: '2025-01-01T00:00:00Z',
+      completed_at: null,
+      last_transition_at: '2025-01-01T00:00:00Z',
+      failure_code: null,
+      failure_message: null,
+    };
+
+    // applied without result_version_id throws
+    expect(() => buildRevisionSessionTransitionUpdate(session, {
+      nextStatus: 'applied',
+    })).toThrow();
+
+    // With result_version_id it succeeds
+    const update = buildRevisionSessionTransitionUpdate(session, {
+      nextStatus: 'applied',
+      result_version_id: 'result-v2-abc123',
+    });
+    expect(update.status).toBe('applied');
+    expect(update.result_version_id).toBe('result-v2-abc123');
+    expect(update.completed_at).toBeTruthy();
+  });
+
+  it('full chain: session lifecycle — open → findings → synthesis → proposals → applied', () => {
+    let status = 'open';
+    const transitions = [
+      { nextStatus: 'findings_ready', findings_count: 10, actionable_findings_count: 5 },
+      { nextStatus: 'synthesis_started' },
+      { nextStatus: 'proposals_ready', proposals_created_count: 3, proposal_ready_actionable_findings_count: 3 },
+      { nextStatus: 'applied', result_version_id: 'result-v2-lifecycle-test' },
+    ];
+
+    for (const transition of transitions) {
+      expect(() => assertValidRevisionSessionTransition(
+        status as any, transition.nextStatus as any,
+      )).not.toThrow();
+      status = transition.nextStatus;
+    }
+    expect(status).toBe('applied');
+  });
+
+  it('full chain: failure + retry lifecycle — open → failed_retryable → open → applied', () => {
+    // First attempt fails retryably
+    expect(() => assertValidRevisionSessionTransition('open' as any, 'failed_retryable' as any)).not.toThrow();
+    // Re-entry
+    expect(() => assertValidRevisionSessionTransition('failed_retryable' as any, 'open' as any)).not.toThrow();
+    // Second attempt succeeds through full lifecycle
+    const retryPath = ['findings_ready', 'synthesis_started', 'proposals_ready', 'applied'];
+    let status = 'open';
+    for (const next of retryPath) {
+      expect(() => assertValidRevisionSessionTransition(status as any, next as any)).not.toThrow();
+      status = next;
+    }
+    expect(status).toBe('applied');
   });
 });
