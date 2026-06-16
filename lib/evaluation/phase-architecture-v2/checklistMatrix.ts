@@ -61,6 +61,9 @@ export const CHECKLIST_ARTIFACT_TYPES = [
   // Final Render (downstream — populated by renderer module)
   'report_render_manifest_v1',
   'job_checkpoint_manifest_v1',
+
+  // Failure Path — deterministic diagnosis written on job-failure finalization
+  'failure_diagnosis_v1',
 ] as const;
 
 export type ChecklistArtifactType = (typeof CHECKLIST_ARTIFACT_TYPES)[number];

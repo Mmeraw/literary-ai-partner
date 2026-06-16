@@ -3360,7 +3360,7 @@ describe('E2E Chain 25: Evidence Grounding Gate — Anchor Classification + Stam
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe('E2E Chain 26: Mode Routing — Short-Form vs Long-Form Gate Requirements', () => {
-  it('micro excerpt (200-999 words) → micro_excerpt_diagnostic, no review gate', () => {
+  it('micro excerpt (500-999 words) → micro_excerpt_diagnostic, no review gate', () => {
     const routing = resolveModeRouting(500);
     expect(routing.evaluationMode).toBe('micro_excerpt_diagnostic');
     expect(routing.isShortForm).toBe(true);
@@ -3407,7 +3407,7 @@ describe('E2E Chain 26: Mode Routing — Short-Form vs Long-Form Gate Requiremen
   });
 
   it('boundary values are correct per SIPOC', () => {
-    expect(MICRO_EXCERPT_MIN_WORDS).toBe(200);
+    expect(MICRO_EXCERPT_MIN_WORDS).toBe(500);
     expect(MICRO_EXCERPT_MAX_WORDS).toBe(999);
     expect(SHORT_EXCERPT_MAX_WORDS).toBe(3999);
     expect(SHORT_FORM_PATTERN_MAX_WORDS).toBe(7000);
@@ -3504,7 +3504,7 @@ describe('E2E Chain 27: Submission Scope Profile — Input Scale + Confidence Ca
   });
 
   it('full chain: manuscript → scope → mode → gate requirements → eval routing', () => {
-    const micro = classifySubmissionScope('word '.repeat(300), 1);
+    const micro = classifySubmissionScope('word '.repeat(600), 1);
     expect(micro.evaluationMode).toBe('micro_excerpt_diagnostic');
     expect(micro.requiresUserFacingReviewGate).toBe(false);
     expect(sparseEvidenceIsNotFailure(micro.wordCount)).toBe(true);

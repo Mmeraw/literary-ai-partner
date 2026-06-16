@@ -106,6 +106,13 @@ Every recommendation MUST include an anchor_snippet containing a verbatim or nea
 CRITICAL FAILURE MODE — ABSTRACT CRITERIA:
 For voice, pacing, proseControl, tone, narrativeClosure, and marketability, you MUST still quote the specific manuscript passage where the issue manifests. Do NOT write a diagnostic sentence as the anchor (e.g., "The narrative voice shifts psychic distance mid-passage" or "Pacing stalls where a reflective passage delays the next action trigger"). These are editorial diagnoses, not evidence. Instead, quote the EXACT prose where the voice shifts, the pacing stalls, or the tone breaks — e.g., anchor_snippet: "He chuckled to himself, when he thought of that" (the passage where psychic distance shifts). The evidence[] array from Pass 1/2 already contains grounded manuscript quotes for every criterion — use those as your anchor source.
 
+ANCHOR_SNIPPET CANNOT RULES (hard ban — violation = suppressed recommendation):
+- You CANNOT write a description of what the text does as anchor_snippet. Wrong: "Dialogue expository passages convey info". Right: "Look, I know this seems crazy, but hear me out."
+- You CANNOT use craft terminology as anchor_snippet. Wrong: "Sentence-level prose control weakens". Right: "The back donor crop area was not what he expected."
+- You CANNOT paraphrase the manuscript's effect. Wrong: "Pacing stalls where a reflective passage delays action". Right: "Money was clearly one way he could differentiate himself."
+- You CANNOT invent anchor text. Every anchor_snippet must be copy-pasteable from the submitted manuscript. If you grep the manuscript for your anchor and get zero hits, suppress the recommendation.
+- When the manuscript is short (< 3,000 words), some criteria may lack quotable evidence. In that case, set recommendation_status to "insufficient_evidence" — do NOT fabricate an anchor.
+
 GATE 2 — CHARACTER CO-PRESENCE VALIDATION
 If a recommendation names two or more characters together in a scene, check the CHARACTER ARC LEDGER coPresenceMap. If their firstSharedChunk is AFTER the target chapter, the recommendation is suppressed.
 → Rule: Never place characters together in a recommendation unless the coPresenceMap or relational_engines ledger confirms they are co-present in that chapter/chunk range.

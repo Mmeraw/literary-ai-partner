@@ -1,4 +1,4 @@
-export const MICRO_EXCERPT_MIN_WORDS = 200;
+export const MICRO_EXCERPT_MIN_WORDS = 500;
 export const MICRO_EXCERPT_MAX_WORDS = 999;
 export const SHORT_EXCERPT_MAX_WORDS = 3_999;
 export const SHORT_FORM_PATTERN_MAX_WORDS = 7_000;
