@@ -1679,7 +1679,7 @@ export function parsePass3Response(
     if (currentMeaningful >= minRecs) continue;
 
     const shortfall = minRecs - currentMeaningful;
-    const lastResortRecs = buildLastResortRecommendations(c.key, c.final_score_0_10, shortfall);
+    const lastResortRecs = buildLastResortRecommendations(c.key, c.final_score_0_10, shortfall, c);
     c.recommendations = [...c.recommendations, ...lastResortRecs];
 
     console.info(
@@ -2730,20 +2730,20 @@ function buildDensityRepairRecommendations(
   const rationaleSpans = extractQuotedRationaleSpans(c.final_rationale)
     .filter((s) => s.length >= 20);
 
-  // Last-resort: use a leading rationale excerpt as a pseudo-anchor so the
-  // rec is still grounded in the criterion's own diagnostic text.
-  const rationaleExcerpt = c.final_rationale.replace(/\s+/g, " ").trim().slice(0, 120);
+  // Anchors must be manuscript-grounded. Rationale excerpts and synthetic
+  // diagnostic text are NOT valid anchors — the evidence grounding gate
+  // (QG_EVIDENCE_FABRICATION) correctly rejects them as editorial_diagnosis.
+  // If no evidence snippets or quoted rationale spans are available, do not
+  // fabricate an anchor; return an empty array so the caller can let the gate
+  // report the defect honestly rather than injecting ungrounded text.
   const anchors: string[] = [
     ...evidenceSnippets,
     ...rationaleSpans,
-    ...(rationaleExcerpt.length >= 20 ? [rationaleExcerpt] : []),
   ];
 
   if (anchors.length === 0) {
-    // Deterministic fallback: use the criterion-aware specific fix as a synthetic anchor
-    // so density repair NEVER fails. Every criterion must meet the density floor.
-    const fallbackAnchor = `Evaluation identified a ${key} craft issue that affects reader experience at the current score level.`;
-    anchors.push(fallbackAnchor);
+    // No manuscript-grounded anchor available. Do not fabricate.
+    return [];
   }
 
   // Intent fragment for action template: prefer gap_summary over rationale sentence.
@@ -2931,19 +2931,40 @@ export function buildLastResortRecommendations(
   key: SynthesizedCriterion["key"],
   score: number,
   needed: number,
+  criterion?: SynthesizedCriterion,
 ): SynthesizedCriterion["recommendations"] {
   if (needed <= 0) return [];
 
   const template = LAST_RESORT_RECS[key];
   if (!template) return [];
 
+  // Use manuscript-grounded evidence from the criterion instead of the
+  // hardcoded editorial anchor_snippet in LAST_RESORT_RECS. The template
+  // anchors are diagnostic text that the evidence grounding gate correctly
+  // rejects as editorial_diagnosis → QG_EVIDENCE_FABRICATION.
+  const evidenceAnchors: string[] = (criterion?.evidence ?? [])
+    .map((e) => (typeof e.snippet === "string" ? e.snippet.trim() : ""))
+    .filter((s) => s.length >= 10);
+
+  // Also try quoted spans from the rationale (may contain manuscript quotes).
+  const rationaleQuotes = criterion?.final_rationale
+    ? extractQuotedRationaleSpans(criterion.final_rationale).filter((s) => s.length >= 10)
+    : [];
+
+  const groundedAnchors = [...evidenceAnchors, ...rationaleQuotes];
+
   const recs: SynthesizedCriterion["recommendations"] = [];
   for (let i = 0; i < needed; i++) {
+    // Prefer grounded anchor; fall back to template only if zero evidence exists.
+    const anchorSnippet = groundedAnchors.length > 0
+      ? groundedAnchors[i % groundedAnchors.length].slice(0, 200)
+      : template.anchor_snippet;
+
     recs.push({
       priority: score <= 6 ? "high" : score === 7 ? "medium" : "low",
       action: template.action,
       specific_fix: template.specific_fix,
-      anchor_snippet: template.anchor_snippet,
+      anchor_snippet: anchorSnippet,
       source_pass: 3,
       issue_family: CRITERION_ISSUE_FAMILY[key] ?? "exposition",
       strategic_lever: CRITERION_STRATEGIC_LEVER[key] ?? "scene_goal_clarity",
