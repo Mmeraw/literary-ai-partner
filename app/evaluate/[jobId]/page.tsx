@@ -114,12 +114,30 @@ export default async function EvaluationReportPage({ params }: PageProps) {
     );
   }
 
-  const isTerminal = job.status === "complete" || job.status === "failed";
   const isFailed = job.status === "failed";
 
-  // Redirect to the full report page when the evaluation completed successfully.
-  // This page only shows metadata; the actual criteria/scores render at /reports.
-  if (job.status === "complete") {
+  // Issue #1011 — Long-form report-ready hold.
+  // For long-form evaluations (≥25K words), hold the redirect until the DREAM
+  // worker has persisted the longform_document_v1 artifact. Short-form jobs
+  // redirect immediately because they have no DREAM phase.
+  const LONG_FORM_WORD_THRESHOLD = 25_000;
+  const isLongForm = typeof wordCount === "number" && wordCount >= LONG_FORM_WORD_THRESHOLD;
+  let dreamReady = true;
+  if (job.status === "complete" && isLongForm) {
+    const admin = createAdminClient();
+    const { count } = await admin
+      .from("evaluation_artifacts")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", jobId)
+      .eq("artifact_type", "longform_document_v1");
+    dreamReady = typeof count === "number" && count > 0;
+  }
+
+  const isTerminal = (job.status === "complete" && dreamReady) || job.status === "failed";
+
+  // Redirect to the full report page when the evaluation completed successfully
+  // AND all async post-completion artifacts (DREAM, Final External Audit) are ready.
+  if (job.status === "complete" && dreamReady) {
     redirect(`/reports/${jobId}`);
   }
 

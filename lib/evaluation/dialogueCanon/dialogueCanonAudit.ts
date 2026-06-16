@@ -67,11 +67,24 @@ export interface DialogueCanonAuditArtifact {
 
 // ── Detection Patterns ───────────────────────────────────────────────────
 
-/** Quoted dialogue lines */
-const DIALOGUE_LINE_PATTERN = /"([^"\n]{5,})"/g;
+/**
+ * Quoted dialogue lines — supports straight quotes ("), curly double quotes
+ * (\u201C...\u201D), and single quotes ('/\u2018/\u2019) for British fiction.
+ * Must be at least 5 characters of dialogue content to avoid matching
+ * emphasis markers or scare quotes.
+ */
+const DIALOGUE_LINE_PATTERN = /(?:"|\u201C)([^"\u201D\n]{5,})(?:"|\u201D)|(?:'|\u2018)([^'\u2019\n]{5,})(?:'|\u2019)/g;
 
-/** Attribution tags near dialogue */
-const ATTRIBUTION_NEAR_DIALOGUE = /(?:"|")\s*(?:,?\s*)\b(said|asked|replied|answered|responded|whispered|murmured|shouted|cried|exclaimed|declared|stated|called|continued|added|insisted|demanded|suggested|offered|agreed|protested|warned|explained|noted|remarked|observed|commented|muttered|growled|snapped|barked)\b\s+(\w+)/gi;
+/**
+ * Attribution tags near dialogue — matches after any closing quote variant.
+ * Handles both "verb + speaker" ("asked Sarah") and "speaker + verb" ("she said")
+ * patterns within a few words of the closing quote.
+ */
+const SPEECH_VERBS = 'said|asked|replied|answered|responded|whispered|murmured|shouted|cried|exclaimed|declared|stated|called|continued|added|insisted|demanded|suggested|offered|agreed|protested|warned|explained|noted|remarked|observed|commented|muttered|growled|snapped|barked';
+const ATTRIBUTION_NEAR_DIALOGUE = new RegExp(
+  `(?:"|\\u201D|'|\\u2019)\\s*(?:,?\\s*)(?:(\\w+)\\s+)?\\b(${SPEECH_VERBS})\\b(?:\\s+(\\w+))?`,
+  'gi',
+);
 
 /** Exposition leakage: dialogue containing explanatory/informational phrases */
 const EXPOSITION_LEAKAGE_PATTERNS = [
@@ -136,7 +149,7 @@ export function runDialogueCanonAudit(
   // Extract all dialogue lines
   DIALOGUE_LINE_PATTERN.lastIndex = 0;
   const dialogueMatches = [...manuscriptText.matchAll(DIALOGUE_LINE_PATTERN)];
-  const dialogueLines = dialogueMatches.map(m => m[1]);
+  const dialogueLines = dialogueMatches.map(m => m[1] || m[2]);
   const totalDialogueLines = dialogueLines.length;
 
   // Check attribution
@@ -146,9 +159,18 @@ export function runDialogueCanonAudit(
   const unattributedLines = Math.max(0, totalDialogueLines - attributedLines);
 
   // Unique speakers (from attribution matches)
+  // Group 1 = word before verb (e.g., "she" in "she said"), Group 3 = word after verb (e.g., "Sarah" in "asked Sarah")
+  const PRONOUNS = new Set(['she', 'he', 'i', 'they', 'we', 'it', 'the', 'a', 'an', 'his', 'her', 'my']);
   const speakers = new Set<string>();
   for (const m of attributionMatches) {
-    if (m[2]) speakers.add(m[2].toLowerCase());
+    const beforeVerb = m[1]?.toLowerCase();
+    const afterVerb = m[3]?.toLowerCase();
+    // Prefer the word that's a proper name (not a pronoun/article)
+    if (afterVerb && !PRONOUNS.has(afterVerb)) {
+      speakers.add(afterVerb);
+    } else if (beforeVerb && !PRONOUNS.has(beforeVerb)) {
+      speakers.add(beforeVerb);
+    }
   }
 
   // Average words per dialogue line

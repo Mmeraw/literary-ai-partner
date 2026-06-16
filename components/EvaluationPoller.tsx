@@ -98,6 +98,8 @@ export interface JobState {
   /** Monotonic ratchet — highest progress percentage ever reported. Bar never renders below this. */
   progress_high_water?: number | null;
   dashboard_status?: string | null;
+  /** Issue #1011 — true when DREAM artifact exists (or short-form). */
+  dream_ready?: boolean;
 }
 
 function isLongFormJob(job: Pick<JobState, 'manuscript_word_count'> | null): boolean {
@@ -197,13 +199,11 @@ export function EvaluationPoller({
   }, [jobId, reportNavigator]);
 
   // Completion sweep: animate displayProgress to 100 when the customer-facing
-  // report is complete. Long-form waits for Narrative Synthesis; short-form
+  // report is complete. Issue #1011: long-form waits for dream_ready; short-form
   // finishes at normal evaluation completion.
   useEffect(() => {
     if (!job || job.status !== 'complete') return;
-    const hasNarrativeSynthesisNow = !!job.pass3_completed_at;
-    const readyToComplete = !isLongFormJob(job) || hasNarrativeSynthesisNow;
-    if (!readyToComplete) return;
+    if (job.dream_ready === false) return;
     if (displayProgress >= 100) return;
 
     const interval = setInterval(() => {
@@ -239,16 +239,18 @@ export function EvaluationPoller({
   // Customer-facing completion handoff: once the bar has visibly reached 100%,
   // open the canonical report automatically. The button/link is only a fallback,
   // not a required second action.
+  // Issue #1011: for long-form, hold redirect until DREAM artifact is ready.
   useEffect(() => {
     if (
       job?.status === 'complete' &&
       displayProgress >= 100 &&
       redirectOnComplete &&
-      !redirectedRef.current
+      !redirectedRef.current &&
+      (job.dream_ready !== false)
     ) {
       navigateToReport();
     }
-  }, [displayProgress, job?.status, navigateToReport, redirectOnComplete]);
+  }, [displayProgress, job?.status, job?.dream_ready, navigateToReport, redirectOnComplete]);
 
   const getAdaptiveDelay = useCallback(
     (unchangedCount: number, networkErrorCount: number) => {
@@ -393,11 +395,9 @@ export function EvaluationPoller({
         }
 
         // Stop polling on terminal state. Long-form complete can be interim until
-        // Narrative Synthesis lands; short-form complete is already final.
-        const nextIsLongForm = isLongFormJob(nextJob);
-        const hasNarrativeSynthesisNow = !!nextJob.pass3_completed_at;
+        // DREAM synthesis lands (issue #1011); short-form complete is already final.
         const isTerminalComplete =
-          nextJob.status === 'complete' && (!nextIsLongForm || hasNarrativeSynthesisNow);
+          nextJob.status === 'complete' && (nextJob.dream_ready !== false);
 
         if (isTerminalComplete || nextJob.status === 'failed') {
           setIsPolling(false);
@@ -532,10 +532,10 @@ export function EvaluationPoller({
   }
 
   const isLongForm = isLongFormJob(job);
-  const hasNarrativeSynthesis = isLongForm && !!job.pass3_completed_at;
-  const isCompletingAnimation = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && displayProgress < 100;
-  const isInterimComplete = job.status === 'complete' && isLongForm && !hasNarrativeSynthesis && !isCompletingAnimation;
-  const isFinalComplete = job.status === 'complete' && (!isLongForm || hasNarrativeSynthesis) && !isCompletingAnimation;
+  const dreamIsReady = job.dream_ready !== false;
+  const isCompletingAnimation = job.status === 'complete' && dreamIsReady && displayProgress < 100;
+  const isInterimComplete = job.status === 'complete' && !dreamIsReady && !isCompletingAnimation;
+  const isFinalComplete = job.status === 'complete' && dreamIsReady && !isCompletingAnimation;
   const showCancelAction =
     (job.status === 'queued' || job.status === 'running') &&
     canShowCancelEvaluation({

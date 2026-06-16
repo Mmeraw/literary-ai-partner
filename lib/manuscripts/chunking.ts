@@ -228,11 +228,15 @@ function countSubstantiveFollowingChars(
     const ln = lines[k];
     if (ln.trim().length === 0) continue;
     const { chapter, scene, section } = isBoundaryLine(ln);
-    // Strictness: encountering another structural boundary line before any
-    // substantive prose means the prose belongs to the *next* boundary, not
-    // this one. Stop counting — this chapter line should not survive as a
-    // boundary unless we already accumulated enough prose.
-    if (chapter || scene || section) break;
+    // Only break on another CHAPTER heading before substantive prose —
+    // this prevents TOC-like sequences from qualifying. Scene/section
+    // markers (epigraphs, subtitles, scene breaks) within a chapter's
+    // opening are NOT terminal — they often appear between a chapter
+    // heading and its first paragraph of prose.
+    if (chapter && total === 0) break;
+    // Skip scene/section boundary lines — they don't contribute chars
+    // but don't terminate the search either.
+    if (chapter || scene || section) continue;
     total += stripPageTail(ln).length;
   }
   return total;

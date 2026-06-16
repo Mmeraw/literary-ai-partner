@@ -74,13 +74,14 @@ describe('EvaluationPoller complete handoff', () => {
     });
   });
 
-  it('does not open a long-form report before narrative synthesis is ready', async () => {
+  it('does not open a long-form report before DREAM synthesis is ready (issue #1011)', async () => {
     render(
       <EvaluationPoller
         jobId="024fd7d4-e5ef-4f32-9ad2-e63a237d7525"
         initialJob={makeCompleteJob({
           manuscript_word_count: 84007,
           pass3_completed_at: null,
+          dream_ready: false,
         })}
         redirectOnComplete
         reportNavigator={reportNavigator}
