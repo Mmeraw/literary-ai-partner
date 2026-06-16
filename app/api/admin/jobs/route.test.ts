@@ -9,6 +9,11 @@ jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: jest.fn(),
 }));
 
+jest.mock('@/lib/manuscripts/testRange', () => ({
+  isTestManuscript: jest.fn(() => false),
+  TEST_MANUSCRIPT_ID_MIN: 9000,
+}));
+
 const { createAdminClient } = require('@/lib/supabase/admin') as {
   createAdminClient: jest.Mock;
 };
@@ -33,7 +38,7 @@ describe('GET /api/admin/jobs', () => {
     jest.clearAllMocks();
   });
 
-  it('uses created_at ordering for all-status recent jobs so completed jobs are visible', async () => {
+  it('reads evaluation_jobs table directly with updated_at ordering', async () => {
     const query = makeQuery({
       data: [
         {
@@ -55,8 +60,7 @@ describe('GET /api/admin/jobs', () => {
       error: null,
     });
     const from = jest.fn().mockReturnValue(query);
-    const rpc = jest.fn();
-    createAdminClient.mockReturnValue({ from, rpc });
+    createAdminClient.mockReturnValue({ from });
 
     const req = new NextRequest('http://localhost/api/admin/jobs?limit=50');
     const response = await GET(req);
@@ -65,18 +69,20 @@ describe('GET /api/admin/jobs', () => {
     expect(response.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.jobs[0].id).toBe('recent-complete');
-    expect(json.filters.ordering).toBe('created_at_desc_all_statuses');
     expect(from).toHaveBeenCalledWith('evaluation_jobs');
-    expect(query.order).toHaveBeenCalledWith('created_at', { ascending: false });
-    expect(rpc).not.toHaveBeenCalled();
+    expect(query.order).toHaveBeenCalledWith('updated_at', { ascending: false });
   });
 
-  it('keeps filtered status queries on the admin_list_jobs RPC path', async () => {
-    const rpc = jest.fn().mockResolvedValue({
-      data: [{ id: 'failed-job', has_more: false, failed_at: '2026-06-14T00:00:00.000Z', created_at: '2026-06-14T00:00:00.000Z' }],
+  it('applies status filter client-side using semantic status matching', async () => {
+    const query = makeQuery({
+      data: [
+        { id: 'failed-job', manuscript_id: 100, status: 'failed', failed_at: '2026-06-14T00:00:00.000Z', created_at: '2026-06-14T00:00:00.000Z' },
+        { id: 'running-job', manuscript_id: 101, status: 'running', created_at: '2026-06-14T00:00:00.000Z' },
+      ],
       error: null,
     });
-    createAdminClient.mockReturnValue({ rpc });
+    const from = jest.fn().mockReturnValue(query);
+    createAdminClient.mockReturnValue({ from });
 
     const req = new NextRequest('http://localhost/api/admin/jobs?status=failed&limit=50');
     const response = await GET(req);
@@ -84,6 +90,8 @@ describe('GET /api/admin/jobs', () => {
 
     expect(response.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(rpc).toHaveBeenCalledWith('admin_list_jobs', expect.objectContaining({ p_status: 'failed' }));
+    expect(json.jobs.every((j: Record<string, unknown>) => j.status === 'failed')).toBe(true);
+    expect(json.filters.requestedStatus).toBe('failed');
+    expect(json.filters.source).toBe('evaluation_jobs');
   });
 });
