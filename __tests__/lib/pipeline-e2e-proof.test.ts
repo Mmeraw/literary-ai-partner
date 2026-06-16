@@ -42,7 +42,18 @@ import {
   buildCreatorApprovalV1,
   evaluateCreatorApprovalGate,
 } from '@/lib/agent-readiness/creatorApprovalGate';
-import { runQualityGateV2 } from '@/lib/evaluation/pipeline/qualityGate';
+import {
+  runQualityGateV2,
+  QG_MIN_REC_LENGTH,
+  QG_MAX_REC_LENGTH,
+  QG_MIN_RATIONALE_LENGTH,
+  QG_MIN_EVIDENCE_COVERED_CRITERIA,
+  QG_MIN_EVIDENCE_SNIPPET_LENGTH,
+  QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE,
+  QG_INDEPENDENCE_NGRAM_SIZE,
+  tokenizeForOverlap,
+  collectNgrams,
+} from '@/lib/evaluation/pipeline/qualityGate';
 import {
   summarizePropagationIntegrity,
   normalizeSummaryWithBottomWeaknesses,
@@ -94,6 +105,7 @@ import {
   REVISE_ARTIFACT_REGISTRY,
   REVISE_FIELD_REGISTRY,
   REVISE_CERTIFICATION_GATE_REGISTRY,
+  REVISE_AUTHORITY_SOURCE_REGISTRY,
 } from '@/lib/revision/reviseRegistry';
 import {
   EVALUATION_TEMPLATE_CONTRACTS,
@@ -113,6 +125,13 @@ import {
 import { runVoiceGate } from '@/lib/revision/voiceGate';
 import { runCanonGate } from '@/lib/revision/canonGate';
 import { REVISION_OPERATIONS } from '@/lib/revision/reviseCardContract';
+import {
+  isTrustedPathEligible,
+  hashContent,
+  isRepairCrossCheckEnabled,
+  type CrossCheckVerdict,
+} from '@/lib/revision/repairCrossCheck';
+import { evaluateCardCandidateQuality } from '@/lib/revision/candidateQuality';
 import {
   checkRecommendationIntegrity,
   meetsMinimumTier,
@@ -2788,5 +2807,419 @@ describe('E2E Chain 19: Unified End-to-End — Eval → All Gates → Revise →
     expect(surfaceKeys).toContain('pdf');
     expect(surfaceKeys).toContain('docx');
     expect(surfaceKeys).toContain('txt');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 20: Cross-Check Verdicts + TrustedPath Eligibility
+// SIPOC authority: repairCrossCheck.ts, REVISE_CERTIFICATION_GATE_REGISTRY
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 20: Cross-Check Verdicts + TrustedPath Eligibility', () => {
+  it('only approve verdict is TrustedPath eligible', () => {
+    expect(isTrustedPathEligible('approve')).toBe(true);
+  });
+
+  it('flag verdict requires manual review', () => {
+    expect(isTrustedPathEligible('flag')).toBe(false);
+  });
+
+  it('reject verdict requires manual review', () => {
+    expect(isTrustedPathEligible('reject')).toBe(false);
+  });
+
+  it('unavailable verdict requires manual review', () => {
+    expect(isTrustedPathEligible('unavailable')).toBe(false);
+  });
+
+  it('pending verdict requires manual review', () => {
+    expect(isTrustedPathEligible('pending')).toBe(false);
+  });
+
+  it('null/undefined verdict requires manual review', () => {
+    expect(isTrustedPathEligible(null)).toBe(false);
+    expect(isTrustedPathEligible(undefined)).toBe(false);
+  });
+
+  it('hashContent produces deterministic SHA-256 hashes', () => {
+    const hash1 = hashContent('The salon looked like a warehouse inside.');
+    const hash2 = hashContent('The salon looked like a warehouse inside.');
+    const hash3 = hashContent('A different passage entirely.');
+    expect(hash1).toBe(hash2);
+    expect(hash1).not.toBe(hash3);
+    expect(hash1).toHaveLength(64); // SHA-256 hex = 64 chars
+  });
+
+  it('isRepairCrossCheckEnabled reads feature flag', () => {
+    const original = process.env.REVISION_REPAIR_CROSSCHECK_ENABLED;
+    process.env.REVISION_REPAIR_CROSSCHECK_ENABLED = '1';
+    expect(isRepairCrossCheckEnabled()).toBe(true);
+    process.env.REVISION_REPAIR_CROSSCHECK_ENABLED = '0';
+    expect(isRepairCrossCheckEnabled()).toBe(false);
+    delete process.env.REVISION_REPAIR_CROSSCHECK_ENABLED;
+    expect(isRepairCrossCheckEnabled()).toBe(false);
+    if (original !== undefined) process.env.REVISION_REPAIR_CROSSCHECK_ENABLED = original;
+  });
+
+  it('full chain: cross-check verdict → TrustedPath gate → admission decision', () => {
+    // Approved verdict → trusted path
+    const approvedVerdict: CrossCheckVerdict = 'approve';
+    expect(isTrustedPathEligible(approvedVerdict)).toBe(true);
+
+    // Flagged verdict → manual review required
+    const flaggedVerdict: CrossCheckVerdict = 'flag';
+    expect(isTrustedPathEligible(flaggedVerdict)).toBe(false);
+
+    // TrustedPath certification gate exists in registry
+    const trustedPathGate = REVISE_CERTIFICATION_GATE_REGISTRY.find(
+      (g) => g.gateId.includes('TRUSTEDPATH') || g.gateId.includes('CROSSCHECK'),
+    );
+    expect(trustedPathGate).toBeDefined();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 21: Candidate Quality Gate — Admission-Level A/B/C Evaluation
+// SIPOC authority: candidateQuality.ts, reviseAdmissionGate.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 21: Candidate Quality Gate — Admission-Level A/B/C Evaluation', () => {
+  it('3 good candidates pass card quality', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'Marcus turned and felt the weight of it pressing against his chest like a hand. The plastic receiver was cold.' },
+      { key: 'B', text: 'The silence settled over the room, and he counted to three before speaking. Each number hung in the air like smoke.' },
+      { key: 'C', text: 'She noticed the shift in his posture, the way his shoulders dropped. The light from the window caught the grey.' },
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.passedCandidateCount).toBe(3);
+    expect(result.reasons).toHaveLength(0);
+  });
+
+  it('empty candidate triggers EMPTY_CANDIDATE', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: '' },
+      { key: 'B', text: 'The silence settled over the room, and he counted to three before speaking. Each number hung in the air.' },
+      { key: 'C', text: 'She noticed the shift in his posture, the way his shoulders dropped. The light from the window caught the grey.' },
+    ]);
+    expect(result.candidateResults[0].reasons).toContain('EMPTY_CANDIDATE');
+  });
+
+  it('too short candidate triggers TOO_SHORT', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'He paused.' },
+      { key: 'B', text: 'The silence settled over the room, and he counted to three before speaking. Each number hung in the air.' },
+      { key: 'C', text: 'She noticed the shift in his posture, the way his shoulders dropped. The light from the window caught the grey.' },
+    ]);
+    expect(result.candidateResults[0].reasons).toContain('TOO_SHORT');
+  });
+
+  it('commentary candidate triggers NON_EXECUTABLE_PROSE', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: 'This revision would improve the scene by making the character more active and engaged with the environment.' },
+      { key: 'B', text: 'The silence settled over the room, and he counted to three before speaking. Each number hung in the air.' },
+      { key: 'C', text: 'She noticed the shift in his posture, the way his shoulders dropped. The light from the window caught the grey.' },
+    ]);
+    expect(result.candidateResults[0].reasons).toContain('NON_EXECUTABLE_PROSE');
+  });
+
+  it('anchor echo triggers ANCHOR_ECHO when similarity > 0.82', () => {
+    const anchor = 'His calamity was not completely without positivity though. He chuckled to himself when he thought of that.';
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: anchor, anchor },
+      { key: 'B', text: 'The silence settled over the room, and he counted to three before speaking. Each number hung in the air.' },
+      { key: 'C', text: 'She noticed the shift in his posture, the way his shoulders dropped. The light from the window caught the grey.' },
+    ]);
+    expect(result.candidateResults[0].reasons).toContain('ANCHOR_ECHO');
+  });
+
+  it('unknown entity triggers UNSUPPORTED_FACT', () => {
+    const result = evaluateCardCandidateQuality([
+      {
+        key: 'A',
+        text: 'Sophia handed Marcus the envelope and watched him tear it open with trembling fingers.',
+        knownEntities: ['Marcus'],
+      },
+      { key: 'B', text: 'The silence settled over the room, and he counted to three before speaking. Each number hung in the air.' },
+      { key: 'C', text: 'She noticed the shift in his posture, the way his shoulders dropped. The light from the window caught the grey.' },
+    ]);
+    expect(result.candidateResults[0].reasons).toContain('UNSUPPORTED_FACT');
+  });
+
+  it('card requires at least 2 passing candidates', () => {
+    const result = evaluateCardCandidateQuality([
+      { key: 'A', text: '' },
+      { key: 'B', text: '' },
+      { key: 'C', text: 'She noticed the shift in his posture, the way his shoulders dropped. The light from the window caught the grey.' },
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.passedCandidateCount).toBe(1);
+    expect(result.reasons).toContain('REVISION_QUALITY_FAILED');
+  });
+
+  it('full chain: eval → opportunities → candidate quality → admission', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    for (const opp of opportunities.slice(0, 2)) {
+      const admissionInput = makeWorkbenchAdmissionInput(opp);
+      const admissionResult = runWorkbenchAdmissionGate(admissionInput);
+      expect(admissionResult.admission_status).toBeDefined();
+      // Candidate quality is checked inside admission
+      expect(Array.isArray(admissionResult.reasons)).toBe(true);
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 22: REVISE Registry Completeness + Cross-Registry Integrity
+// SIPOC authority: reviseRegistry.ts, REVISE_PROCESS_REGISTRY, REVISE_ARTIFACT_REGISTRY
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 22: REVISE Registry Completeness + Cross-Registry Integrity', () => {
+  it('all 10 revise stages present in REVISE_PROCESS_REGISTRY', () => {
+    const stageIds = REVISE_PROCESS_REGISTRY.map((p) => p.stageId);
+    expect(stageIds).toContain('RS01_LEDGER_ASSEMBLY');
+    expect(stageIds).toContain('RS02_QUEUE_ADMISSION');
+    expect(stageIds).toContain('RS03_QUEUE_PRIORITIZATION');
+    expect(stageIds).toContain('RS04_WORKBENCH_LOAD');
+    expect(stageIds).toContain('RS05_CANDIDATE_GENERATION');
+    expect(stageIds).toContain('RS06_AUTHOR_DECISION');
+    expect(stageIds).toContain('RS07_LEDGER_SYNC');
+    expect(stageIds).toContain('RS08_COMPLETION');
+    expect(stageIds).toContain('RS09_CROSSCHECK_VERIFICATION');
+    expect(stageIds).toContain('RS10_TRUSTEDPATH');
+  });
+
+  it('every REVISE_KICK_MATRIX entry references valid stages', () => {
+    const validStages = new Set(REVISE_PROCESS_REGISTRY.map((p) => p.stageId));
+    for (const kick of REVISE_KICK_MATRIX) {
+      expect(validStages.has(kick.triggeringStageId)).toBe(true);
+      // targetStageId may reference eval pipeline stages (e.g. S10b)
+      expect(typeof kick.targetStageId).toBe('string');
+      expect(kick.targetStageId.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('every REVISE_ARTIFACT_REGISTRY entry has a producer stage', () => {
+    const validStages = new Set(REVISE_PROCESS_REGISTRY.map((p) => p.stageId));
+    for (const artifact of REVISE_ARTIFACT_REGISTRY) {
+      expect(validStages.has(artifact.producerStageId)).toBe(true);
+    }
+  });
+
+  it('every REVISE_FIELD_REGISTRY entry references valid artifact', () => {
+    const validArtifacts = new Set(REVISE_ARTIFACT_REGISTRY.map((a) => a.artifact));
+    for (const field of REVISE_FIELD_REGISTRY) {
+      expect(validArtifacts.has(field.ownerArtifact)).toBe(true);
+    }
+  });
+
+  it('every REVISE_CERTIFICATION_GATE_REGISTRY entry references valid stage', () => {
+    const validStages = new Set(REVISE_PROCESS_REGISTRY.map((p) => p.stageId));
+    for (const gate of REVISE_CERTIFICATION_GATE_REGISTRY) {
+      expect(validStages.has(gate.stageId)).toBe(true);
+    }
+  });
+
+  it('REVISE_AUTHORITY_SOURCE_REGISTRY cross-references valid stages and artifacts', () => {
+    const validStages = new Set(REVISE_PROCESS_REGISTRY.map((p) => p.stageId));
+    const validArtifacts = new Set(REVISE_ARTIFACT_REGISTRY.map((a) => a.artifact));
+    for (const auth of REVISE_AUTHORITY_SOURCE_REGISTRY) {
+      for (const stageId of auth.appliesToStageIds) {
+        expect(validStages.has(stageId)).toBe(true);
+      }
+      for (const artifact of auth.appliesToArtifacts) {
+        expect(validArtifacts.has(artifact)).toBe(true);
+      }
+    }
+  });
+
+  it('revision_failure_record_v1 and candidate_hydration_failure_v1 in artifact registry', () => {
+    const artifactNames = REVISE_ARTIFACT_REGISTRY.map((a) => a.artifact);
+    expect(artifactNames).toContain('revision_failure_record_v1');
+    expect(artifactNames).toContain('candidate_hydration_failure_v1');
+  });
+
+  it('full chain: registry stages → kick matrix → artifacts → fields → gates', () => {
+    // Every stage has at least one artifact as producer
+    const stagesWithArtifacts = new Set(REVISE_ARTIFACT_REGISTRY.map((a) => a.producerStageId));
+    for (const stage of REVISE_PROCESS_REGISTRY) {
+      expect(stagesWithArtifacts.has(stage.stageId)).toBe(true);
+    }
+
+    // Most artifacts have at least one field (3 newer artifacts pending field registration)
+    const artifactsWithFields = new Set(REVISE_FIELD_REGISTRY.map((f) => f.ownerArtifact));
+    const artifactsMissingFields = REVISE_ARTIFACT_REGISTRY.filter((a) => !artifactsWithFields.has(a.artifact));
+    // Allow up to 3 artifacts missing fields (trustedpath_result_v1, revision_failure_record_v1, candidate_hydration_failure_v1)
+    expect(artifactsMissingFields.length).toBeLessThanOrEqual(3);
+
+    // Gate count matches expected
+    expect(REVISE_CERTIFICATION_GATE_REGISTRY.length).toBeGreaterThanOrEqual(7);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 23: Quality Gate V2 — Criteria Coverage + Artifact Gate
+// SIPOC authority: qualityGate.ts, fipocRegistry.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 23: Quality Gate V2 — Criteria Coverage + Artifact Gate', () => {
+  it('well-formed evaluation passes quality gate V2', () => {
+    const fixture = makeEvalFixture({});
+    const result = runQualityGateV2(fixture);
+    expect(result.pass).toBe(true);
+    expect(result.artifactGate.verdict).toBe('PASS');
+  });
+
+  it('evaluation with wrong criteria count fails V2', () => {
+    const fixture = makeEvalFixture({});
+    const truncated = { ...fixture, criteria: fixture.criteria.slice(0, 5) };
+    const result = runQualityGateV2(truncated);
+    expect(result.pass).toBe(false);
+    const failedIds = result.checks.filter((c) => !c.passed).map((c) => c.check_id);
+    expect(failedIds).toContain('v2_criteria_count');
+  });
+
+  it('evaluation with duplicate criteria keys fails V2', () => {
+    const fixture = makeEvalFixture({});
+    const duped = { ...fixture, criteria: [...fixture.criteria, fixture.criteria[0]] };
+    const result = runQualityGateV2(duped);
+    const uniqueCoverageCheck = result.checks.find((c) => c.check_id === 'v2_criteria_unique_coverage');
+    expect(uniqueCoverageCheck?.passed).toBe(false);
+  });
+
+  it('quality gate constants are properly bounded', () => {
+    expect(QG_MIN_REC_LENGTH).toBeGreaterThan(0);
+    expect(QG_MAX_REC_LENGTH).toBeGreaterThan(QG_MIN_REC_LENGTH);
+    expect(QG_MIN_RATIONALE_LENGTH).toBeGreaterThan(0);
+    expect(QG_MIN_EVIDENCE_COVERED_CRITERIA).toBeGreaterThanOrEqual(10);
+    expect(QG_MIN_EVIDENCE_SNIPPET_LENGTH).toBeGreaterThan(0);
+    expect(QG_MAX_HIGH_SCORE_WHEN_LOW_CONFIDENCE).toBeLessThanOrEqual(10);
+  });
+
+  it('tokenizeForOverlap and collectNgrams produce deterministic results', () => {
+    const tokens = tokenizeForOverlap('The salon looked like a warehouse inside.');
+    expect(tokens.length).toBeGreaterThan(0);
+    expect(tokens).toContain('salon');
+
+    const ngrams = collectNgrams('The salon looked like a warehouse inside with tall ceilings.', QG_INDEPENDENCE_NGRAM_SIZE);
+    expect(ngrams.length).toBeGreaterThan(0);
+  });
+
+  it('full chain: eval → quality gate V2 → pass/fail → opportunities → admission', () => {
+    const fixture = makeEvalFixture({ dialogue: 4, pacing: 3 });
+
+    // Quality gate V2
+    const qgResult = runQualityGateV2(fixture);
+    expect(qgResult.artifactGate.verdict).toBe('PASS');
+
+    // Quality gate passed → build opportunities
+    const opportunities = buildRevisionOpportunitiesFromEvaluationPayload(fixture);
+    expect(opportunities.length).toBeGreaterThan(0);
+
+    // Opportunities → admission
+    for (const opp of opportunities.slice(0, 2)) {
+      const admissionInput = makeWorkbenchAdmissionInput(opp);
+      const admissionResult = runWorkbenchAdmissionGate(admissionInput);
+      expect(admissionResult.admission_status).toBeDefined();
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2E CHAIN 24: Revise Session State Machine — Full Lifecycle Transitions
+// SIPOC authority: sessionTransitions.ts, types.ts
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('E2E Chain 24: Revise Session State Machine — Full Lifecycle Transitions', () => {
+  const HAPPY_PATH: string[] = ['open', 'findings_ready', 'synthesis_started', 'proposals_ready', 'applied'];
+
+  it('happy path: open → findings_ready → synthesis_started → proposals_ready → applied', () => {
+    let status = 'open';
+    for (const next of HAPPY_PATH.slice(1)) {
+      expect(() => assertValidRevisionSessionTransition(status as any, next as any)).not.toThrow();
+      status = next;
+    }
+    expect(status).toBe('applied');
+  });
+
+  it('failure path: non-terminal states → failed', () => {
+    const nonTerminal = ['open', 'findings_ready', 'synthesis_started', 'proposals_ready'];
+    for (const state of nonTerminal) {
+      expect(() => assertValidRevisionSessionTransition(state as any, 'failed' as any)).not.toThrow();
+    }
+  });
+
+  it('failure path: non-terminal states → failed_retryable', () => {
+    const nonTerminal = ['open', 'findings_ready', 'synthesis_started', 'proposals_ready'];
+    for (const state of nonTerminal) {
+      expect(() => assertValidRevisionSessionTransition(state as any, 'failed_retryable' as any)).not.toThrow();
+    }
+  });
+
+  it('retry path: failed_retryable → open', () => {
+    expect(() => assertValidRevisionSessionTransition('failed_retryable' as any, 'open' as any)).not.toThrow();
+  });
+
+  it('terminal: failed cannot transition to any active state', () => {
+    for (const state of HAPPY_PATH) {
+      expect(() => assertValidRevisionSessionTransition('failed' as any, state as any)).toThrow();
+    }
+  });
+
+  it('terminal: applied cannot go backward', () => {
+    for (const state of ['open', 'findings_ready', 'synthesis_started', 'proposals_ready']) {
+      expect(() => assertValidRevisionSessionTransition('applied' as any, state as any)).toThrow();
+    }
+  });
+
+  it('buildRevisionSessionTransitionUpdate produces valid update object', () => {
+    const mockSession = {
+      id: 'session-e2e',
+      evaluation_run_id: 'run-1',
+      source_version_id: 'v1',
+      result_version_id: null,
+      status: 'open' as const,
+      summary: {},
+      findings_count: 0,
+      actionable_findings_count: 0,
+      proposal_ready_actionable_findings_count: 0,
+      proposals_created_count: 0,
+      created_at: new Date().toISOString(),
+      completed_at: null,
+      last_transition_at: null,
+      failure_code: null,
+      failure_message: null,
+    };
+    const update = buildRevisionSessionTransitionUpdate(mockSession, {
+      nextStatus: 'findings_ready',
+      findings_count: 12,
+      actionable_findings_count: 8,
+    });
+    expect(update.status).toBe('findings_ready');
+    expect(update.last_transition_at).toBeDefined();
+  });
+
+  it('full chain: open → happy path → applied → failure recovery → retry → applied', () => {
+    // Happy path first
+    let status = 'open';
+    for (const next of HAPPY_PATH.slice(1)) {
+      expect(() => assertValidRevisionSessionTransition(status as any, next as any)).not.toThrow();
+      status = next;
+    }
+    expect(status).toBe('applied');
+
+    // New session: fail retryable then recover
+    status = 'open';
+    expect(() => assertValidRevisionSessionTransition('proposals_ready' as any, 'failed_retryable' as any)).not.toThrow();
+    status = 'failed_retryable';
+    expect(() => assertValidRevisionSessionTransition(status as any, 'open' as any)).not.toThrow();
+    status = 'open';
+    for (const next of HAPPY_PATH.slice(1)) {
+      expect(() => assertValidRevisionSessionTransition(status as any, next as any)).not.toThrow();
+      status = next;
+    }
+    expect(status).toBe('applied');
   });
 });
