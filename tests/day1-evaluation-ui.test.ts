@@ -277,7 +277,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const phaseInfo = getPhaseSpecificCopy("phase_1a", "processing");
       
       expect(phaseInfo.phase).toBe("phase_1a");
-      expect(phaseInfo.displayCopy).toBe("Building evidence ledger…");
+      expect(phaseInfo.displayCopy).toBe("Phase 1A Story Layer reading…");
       expect(phaseInfo.description).toContain("character continuity");
     });
 
@@ -285,7 +285,7 @@ describeOrSkip("Day-1 Evaluation UI Flow", () => {
       const phaseInfo = getPhaseSpecificCopy("phase_2", "processing");
       
       expect(phaseInfo.phase).toBe("phase_2");
-      expect(phaseInfo.displayCopy).toBe("Scoring and diagnosing craft…");
+      expect(phaseInfo.displayCopy).toBe("Phase 2 Criteria Analysis…");
       expect(phaseInfo.description).toContain("independent craft");
     });
 

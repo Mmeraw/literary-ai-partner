@@ -151,27 +151,30 @@ export function getJobDisplayInfo(job: Job): JobDisplayInfo {
     }
   }
 
-  // Phase detail — canonical 7-stage user-facing labels.
-  // Internal phase codes (phase_1a, phase_2, etc.) are NEVER shown to users.
+  // Phase detail — Phase Architecture v2 canonical labels (issue #736).
+  // Internal phase codes are mapped to user-facing labels per the progress ladder.
+  // Hard naming rules:
+  //   - Pass 3A is NEVER labeled as Phase 0
+  //   - Quality Gate is NEVER labeled as WAVE
+  //   - WAVE is NEVER labeled as Pass 4
   let phaseDisplay = "";
-  if (status === "queued" || phase === "phase_0") {
-    phaseDisplay = "Preparing evaluation";
+  if (status === "queued") {
+    phaseDisplay = "Queued";
+  } else if (phase === "phase_0") {
+    phaseDisplay = "Phase 0 calibrating";
   } else if (phase === "phase_1a") {
-    phaseDisplay = phase_status === "complete" ? "Analyzing writing — Complete" : "Analyzing writing";
+    phaseDisplay = phase_status === "complete" ? "Phase 1A Story Layer — Complete" : "Phase 1A Story Layer reading";
   } else if (phase === "review_gate") {
-    phaseDisplay = phase_status === "awaiting_approval" ? "Awaiting approval" : "Analyzing writing";
+    phaseDisplay = phase_status === "awaiting_approval" ? "Review Gate — Awaiting approval" : "Review Gate";
   } else if (phase === "phase_2") {
     const p2Status = phase_status === "complete" ? " — Complete" : phase_status === "failed" ? " — Failed" : "";
-    // Distinguish early phase_2 (building diagnosis) from running (reconciling passes)
-    phaseDisplay = phase_status === "running"
-      ? `Reconciling passes${p2Status}`
-      : `Building diagnosis${p2Status}`;
+    phaseDisplay = `Phase 2 Criteria Analysis${p2Status}`;
   } else if (phase === "phase_3") {
-    phaseDisplay = phase_status === "complete" ? "Finalizing report" : "Preparing report";
+    phaseDisplay = phase_status === "complete" ? "Phase 3B Synthesis — Complete" : "Phase 3B Synthesis";
   } else if (phase === "wave_revision") {
-    phaseDisplay = "Finalizing report";
+    phaseDisplay = "WAVE Revision";
   } else if (status === "complete") {
-    phaseDisplay = "Finalizing report";
+    phaseDisplay = "Complete";
   } else if (status === "failed") {
     phaseDisplay = "Failed";
   } else {
