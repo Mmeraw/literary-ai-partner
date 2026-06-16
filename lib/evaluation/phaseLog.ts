@@ -32,14 +32,34 @@ export interface PhaseLogEntry {
   at: string;
 }
 
-/** Canonical user-facing label for each internal phase key. */
+/** Canonical user-facing label for each internal phase key.
+ *  Phase Architecture v2 naming (issue #736):
+ *  - phase_0       → Phase 0 calibrating
+ *  - chunk_routing → Chunk routing / manuscript prep
+ *  - phase_1a      → Phase 1A Story Layer reading
+ *  - pass_3a_map   → Pass 3A MAP reading
+ *  - pass_3a_reduce→ Pass 3A REDUCE
+ *  - review_gate   → Review Gate
+ *  - phase_2       → Phase 2 Criteria Analysis
+ *  - phase_3       → Phase 3B Synthesis
+ *  - quality_gate  → Quality Gate
+ *  - wave_revision → WAVE Revision
+ *  - dream         → DREAM longform
+ */
 export const PHASE_STAGE_LABELS: Record<string, string> = {
-  phase_0:       "Preparing evaluation",
-  phase_1a:      "Analyzing writing",
-  review_gate:   "Story Layer Review",
-  phase_2:       "Reconciling passes",
-  phase_3:       "Preparing report",
-  wave_revision: "Finalizing report",
+  queued:          "Queued",
+  phase_0:         "Phase 0 calibrating",
+  chunk_routing:   "Chunk routing / manuscript prep",
+  phase_1a:        "Phase 1A Story Layer reading",
+  pass_3a_map:     "Pass 3A MAP reading",
+  pass_3a_reduce:  "Pass 3A REDUCE",
+  review_gate:     "Review Gate",
+  phase_2:         "Phase 2 Criteria Analysis",
+  phase_3:         "Phase 3B Synthesis",
+  quality_gate:    "Quality Gate",
+  wave_revision:   "WAVE Revision",
+  dream:           "DREAM longform",
+  complete:        "Complete",
 };
 
 export function getPhaseLabel(phase: string): string {
@@ -58,14 +78,44 @@ export const PHASE_DB_TIMESTAMP_MAP: Record<string, { entered: string; passed: s
   phase_3:      { entered: "phase3_started_at",        passed: "phase3_completed_at" },
 };
 
-/** Ordered pipeline stages for display — always shown in this sequence. */
+/** Ordered pipeline stages for display — always shown in this sequence.
+ *  Phase Architecture v2 canonical ordering (issue #736). */
 export const PIPELINE_STAGE_ORDER: string[] = [
+  "queued",
   "phase_0",
+  "chunk_routing",
   "phase_1a",
+  "pass_3a_map",
+  "pass_3a_reduce",
   "review_gate",
   "phase_2",
   "phase_3",
+  "quality_gate",
+  "wave_revision",
+  "dream",
+  "complete",
 ];
+
+/**
+ * Phase Architecture v2 progress ladder.
+ * Maps each pipeline stage to its canonical progress percentage.
+ * Used by UI to display deterministic progress without relying on unit counts.
+ */
+export const PHASE_PROGRESS_LADDER: Record<string, number> = {
+  queued:          2,
+  phase_0:         5,
+  chunk_routing:   10,
+  phase_1a:        15,
+  pass_3a_map:     30,
+  pass_3a_reduce:  42,
+  review_gate:     50,
+  phase_2:         60,
+  phase_3:         80,
+  quality_gate:    92,
+  wave_revision:   95,
+  dream:           99,
+  complete:        100,
+};
 
 /**
  * Appends a new entry to an existing phase_log array.

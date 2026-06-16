@@ -22,40 +22,56 @@ export function getPhaseSpecificCopy(
   if (!phase || !phaseStatus) {
     return {
       phase: null,
-      displayCopy: "Preparing evaluation…",
+      displayCopy: "Queued…",
       description: "Your writing is being queued for analysis",
+    };
+  }
+
+  if (phase === PHASES.PHASE_0) {
+    return {
+      phase: PHASES.PHASE_0,
+      displayCopy: "Phase 0 calibrating…",
+      description: "Calibrating evaluation parameters, routing chunks, and preparing manuscript",
     };
   }
 
   if (phase === PHASES.PHASE_1A) {
     return {
       phase: PHASES.PHASE_1A,
-      displayCopy: "Building evidence ledger…",
-      description: "Reading character continuity and preflight evidence before scoring begins",
+      displayCopy: "Phase 1A Story Layer reading…",
+      description: "Reading character continuity and building the preflight evidence ledger",
+    };
+  }
+
+  if (phase === PHASES.REVIEW_GATE) {
+    return {
+      phase: PHASES.REVIEW_GATE,
+      displayCopy: "Review Gate…",
+      description: "Story Layer quality review before scoring begins",
     };
   }
 
   if (phase === PHASES.PHASE_2) {
     return {
       phase: PHASES.PHASE_2,
-      displayCopy: "Scoring and diagnosing craft…",
-      description: "Running independent craft and editorial passes, then preparing the handoff",
+      displayCopy: "Phase 2 Criteria Analysis…",
+      description: "Running independent craft and editorial scoring across all 13 criteria",
     };
   }
 
   if (phase === PHASES.PHASE_3) {
     return {
       phase: PHASES.PHASE_3,
-      displayCopy: "Writing the final report…",
-      description: "Synthesizing the evaluation, running quality checks, and preparing report artifacts",
+      displayCopy: "Phase 3B Synthesis…",
+      description: "Synthesizing the final report, running quality gates, and preparing artifacts",
     };
   }
 
   if (phase === PHASES.WAVE_REVISION) {
     return {
       phase: PHASES.WAVE_REVISION,
-      displayCopy: "Preparing WAVE readiness plan…",
-      description: "Building the post-evaluation readiness and revision-planning analysis when the manuscript meets the long-form gate",
+      displayCopy: "WAVE Revision…",
+      description: "Building the post-evaluation readiness and revision-planning analysis",
     };
   }
 
