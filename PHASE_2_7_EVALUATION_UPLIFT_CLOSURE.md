@@ -61,8 +61,8 @@ All 13 criteria scored on both axes. Reconciliation logic merges scores with del
 | QG_DUPLICATE_REC | No duplicated recommendations across criteria |
 | QG_SHORT_REC | Every action ≥ 50 chars |
 | QG_LONG_REC | Every action ≤ 300 chars |
-| QG_LONG_EVIDENCE | Every evidence snippet ≤ 200 chars |
-| QG_LONG_OVERVIEW | Summary ≤ 500 chars |
+| QG_LONG_EVIDENCE | Every evidence snippet ≤ 300 chars (301-350 auto-trimmed, >350 hard fail) |
+| QG_LONG_OVERVIEW | Summary ≤ 750 chars (751-800 auto-repaired, >800 hard fail) |
 | QG_CRITERIA_MISSING | All 13 criteria present |
 | QG_SCORE_RANGE | All scores integer 0-10 |
 | Confidence minimum | Every criterion confidence ≥ 0.5 (warn, not reject) |

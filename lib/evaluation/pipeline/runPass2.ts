@@ -1137,7 +1137,7 @@ export function parsePass2Response(
       ? (c["evidence"] as unknown[]).map((e) => {
           const ev = e as Record<string, unknown>;
           return {
-            snippet: String(ev["snippet"] ?? "").substring(0, 200),
+            snippet: String(ev["snippet"] ?? "").substring(0, 300),
             char_start: typeof ev["char_start"] === "number" ? ev["char_start"] : undefined,
             char_end: typeof ev["char_end"] === "number" ? ev["char_end"] : undefined,
           };

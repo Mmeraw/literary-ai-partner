@@ -72,7 +72,7 @@ The evaluation still runs against a single text input (one chunk). Multi-chunk s
 **Constraints:**
 - Every recommendation MUST reference a specific `snippet` from the manuscript
 - No recommendation shorter than 50 chars (per Canon Reference: soft fail minimum)
-- No evidence excerpt longer than 200 chars (per Canon Reference)
+- No evidence excerpt longer than 300 chars soft / 350 chars hard ceiling (per Canon Reference)
 
 ---
 
@@ -112,7 +112,7 @@ Pass 2 receives only: the original manuscript text + the 13 criteria definitions
 **What it produces overall:**
 - `overall_score_0_100: number` — aggregate (computed per Vol II-A §WCS)
 - `verdict: "pass" | "revise" | "fail"` — based on eligibility thresholds
-- `one_paragraph_summary: string` — max 500 chars (per Canon Reference)
+- `one_paragraph_summary: string` — max 5 sentences / 750 chars soft limit, 800 hard ceiling (per Canon Reference)
 - `top_3_strengths: string[]`
 - `top_3_risks: string[]`
 
@@ -138,8 +138,8 @@ Pass 2 receives only: the original manuscript text + the 13 criteria definitions
 | No duplicated recommendations | Recommendations across criteria must not repeat the same action | Reject + error code `QG_DUPLICATE_REC` |
 | Recommendation minimum length | Every `action` field ≥ 50 chars | Reject + error code `QG_SHORT_REC` |
 | Recommendation maximum length | Every `action` field ≤ 300 chars | Reject + error code `QG_LONG_REC` |
-| Evidence excerpt length | Every evidence `snippet` ≤ 200 chars | Reject + error code `QG_LONG_EVIDENCE` |
-| Overview length | `one_paragraph_summary` ≤ 500 chars | Reject + error code `QG_LONG_OVERVIEW` |
+| Evidence excerpt length | Every evidence `snippet` ≤ 300 chars (301-350 auto-trimmed, >350 hard fail) | Reject + error code `QG_LONG_EVIDENCE` |
+| Overview length | `one_paragraph_summary` ≤ 750 chars (751-800 auto-repaired, > 800 hard fail) | Reject + error code `QG_LONG_OVERVIEW` |
 | All 13 criteria present | Output must contain exactly 13 criterion entries matching CRITERIA_KEYS | Reject + error code `QG_CRITERIA_MISSING` |
 | Score range | All scores 0-10 integer (no half-points per Canon) | Reject + error code `QG_SCORE_RANGE` |
 | Confidence minimum | Every criterion confidence ≥ 0.5 (per Canon soft fail) | Warn (do not reject) |
@@ -158,7 +158,7 @@ import type { CriterionKey } from "@/schemas/criteria-keys";
 
 // ── Evidence ──
 type EvidenceAnchor = {
-  snippet: string;          // ≤200 chars, from manuscript
+  snippet: string;          // ≤300 chars, from manuscript
   char_start?: number;
   char_end?: number;
   segment_id?: string;
@@ -309,9 +309,9 @@ The A6 credibility layer reads from persisted artifacts. As long as the artifact
 ### Quality Invariants
 6. Zero generic recommendations (every rec anchors to specific text)
 7. No duplicated recommendations across criteria
-8. Evidence excerpts ≤ 200 chars
+8. Evidence excerpts ≤ 300 chars (350 hard ceiling)
 9. Recommendations 50-300 chars
-10. Overview ≤ 500 chars
+10. Overview ≤ 750 chars (800 hard ceiling)
 
 ---
 

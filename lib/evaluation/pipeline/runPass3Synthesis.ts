@@ -1716,7 +1716,7 @@ export function parsePass3Response(
         const result = classifyAnchor(rec.anchor_snippet, manuscriptText!);
         if (result.anchor_type === "editorial_diagnosis") {
           // Replace with best grounded anchor from the verified pool.
-          rec.anchor_snippet = verifiedPool[enforcedCount % verifiedPool.length].slice(0, 200);
+          rec.anchor_snippet = verifiedPool[enforcedCount % verifiedPool.length].slice(0, 300);
           enforcedCount++;
         }
       }
@@ -1744,15 +1744,16 @@ export function parsePass3Response(
   const verdict: "pass" | "revise" | "fail" =
     rawVerdict === "pass" || rawVerdict === "fail" ? rawVerdict : "revise";
 
-  const rawSummary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 500);
+  const rawSummary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 750);
   const summary = enforceSummaryWeaknessPresence(rawSummary, criteria);
 
   // P1: Extract dedicated pitch fields (distinct from summary/premise).
+  // Generous limits — LLMs write better pitches with room to breathe.
   const rawOneSentencePitch = typeof rawOverall["one_sentence_pitch"] === "string"
-    ? rawOverall["one_sentence_pitch"].substring(0, 150).trim()
+    ? rawOverall["one_sentence_pitch"].substring(0, 250).trim()
     : undefined;
   const rawOneParagraphPitch = typeof rawOverall["one_paragraph_pitch"] === "string"
-    ? rawOverall["one_paragraph_pitch"].substring(0, 400).trim()
+    ? rawOverall["one_paragraph_pitch"].substring(0, 600).trim()
     : undefined;
 
   const strengths = Array.isArray(rawOverall["top_3_strengths"])
@@ -1784,6 +1785,13 @@ export function parsePass3Response(
   };
 
   const sanitizedOverall = sanitizeCMOSOverall(rawOverallObj as Record<string, unknown>) as typeof rawOverallObj;
+
+  // CMOS sanitization can expand abbreviations (e.g. "e.g." → "for example,").
+  // Hard cap at 750 to stay within QG_MAX_OVERVIEW_LENGTH.
+  if (typeof sanitizedOverall.one_paragraph_summary === "string" && sanitizedOverall.one_paragraph_summary.length > 750) {
+    (sanitizedOverall as Record<string, unknown>).one_paragraph_summary =
+      sanitizedOverall.one_paragraph_summary.substring(0, 747).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026";
+  }
 
   // Extract enrichment surfaces from LLM output.
   // These fields feed the final EvaluationResultV2 template-completeness gate;
@@ -2102,7 +2110,7 @@ function parseEvidenceArray(raw: unknown): EvidenceAnchor[] {
   return raw
     .filter((e): e is Record<string, unknown> => typeof e === "object" && e !== null)
     .map((e) => ({
-      snippet: String(e["snippet"] ?? "").substring(0, 200),
+      snippet: String(e["snippet"] ?? "").substring(0, 300),
       char_start: typeof e["char_start"] === "number" ? e["char_start"] : undefined,
       char_end: typeof e["char_end"] === "number" ? e["char_end"] : undefined,
     }));
@@ -3147,7 +3155,7 @@ function backfillEvidenceFromAxis(
   const p2Evidence = pass2.criteria.find((c) => c.key === key)?.evidence ?? [];
   const combined = [...p1Evidence, ...p2Evidence]
     .map((e) => ({
-      snippet: String(e.snippet ?? "").trim().substring(0, 200),
+      snippet: String(e.snippet ?? "").trim().substring(0, 300),
       char_start: typeof e.char_start === "number" ? e.char_start : undefined,
       char_end: typeof e.char_end === "number" ? e.char_end : undefined,
       segment_id: typeof e.segment_id === "string" ? e.segment_id : undefined,
@@ -3372,6 +3380,6 @@ function enforceSummaryWeaknessPresence(
   return normalizeSummaryWithBottomWeaknesses(
     trimmedSummary,
     bottomScoreCriteria,
-    500,
+    750,
   );
 }

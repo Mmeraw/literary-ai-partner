@@ -10,7 +10,7 @@
  *   QG_SHORT_REC          — action < 50 chars
  *   QG_LONG_REC           — recommendation action body > 1500 chars (pathological runaway)
  *   QG_LONG_EVIDENCE      — evidence snippet > 200 chars (keep concise for card display)
- *   QG_LONG_OVERVIEW      — one_paragraph_summary > 500 chars
+ *   QG_LONG_OVERVIEW      — one_paragraph_summary > 800 chars (751-800 auto-repaired)
  *   QG_CRITERIA_MISSING   — output does not contain all 13 criteria
  *   QG_SCORE_RANGE        — score not in integer 0-10
  *   QG_CONSEQUENCE_CONTRACT — missing pressure/decision/consequence contract fields
@@ -86,8 +86,11 @@ export const QG_MIN_REC_LENGTH = 50;
 /** Pathological runaway cap for the recommendation action body. Display teasers rendered from
  * this field should be truncated in the UI layer; the pipeline allows substantive editorial text. */
 export const QG_MAX_REC_LENGTH = 1500;
-export const QG_MAX_EVIDENCE_LENGTH = 200;
-export const QG_MAX_OVERVIEW_LENGTH = 500;
+export const QG_MAX_EVIDENCE_LENGTH = 300;
+export const QG_EVIDENCE_HARD_CEILING = 350;
+export const QG_MAX_OVERVIEW_LENGTH = 750;
+/** Hard ceiling: overview beyond this length is a true LLM runaway, not post-processing drift. */
+export const QG_OVERVIEW_HARD_CEILING = 800;
 export const QG_INDEPENDENCE_NGRAM_SIZE = 8;
 export const QG_INDEPENDENCE_MIN_OVERLAPS_PER_CRITERION = 6;
 export const QG_INDEPENDENCE_RATIONALE_PREVIEW_CHARS = 320;
@@ -534,10 +537,13 @@ export function runQualityGate(
   }
 
   // ── Check 5: Evidence excerpt length (≤200 chars) ────────────────────────
+  // Evidence: 301-350 auto-trim, >350 hard fail.
   const longEvidence: string[] = [];
   for (const c of synthesis.criteria) {
     for (const e of c.evidence) {
-      if (e.snippet.length > QG_MAX_EVIDENCE_LENGTH) {
+      if (e.snippet.length > QG_MAX_EVIDENCE_LENGTH && e.snippet.length <= QG_EVIDENCE_HARD_CEILING) {
+        e.snippet = e.snippet.substring(0, QG_MAX_EVIDENCE_LENGTH - 3).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026";
+      } else if (e.snippet.length > QG_EVIDENCE_HARD_CEILING) {
         longEvidence.push(`${c.key} (${e.snippet.length} chars)`);
       }
     }
@@ -548,17 +554,26 @@ export function runQualityGate(
     error_code: longEvidence.length > 0 ? "QG_LONG_EVIDENCE" : undefined,
     details:
       longEvidence.length > 0
-        ? `${longEvidence.length} evidence excerpt(s) exceed ${QG_MAX_EVIDENCE_LENGTH} chars`
+        ? `${longEvidence.length} evidence excerpt(s) exceed ${QG_EVIDENCE_HARD_CEILING} chars`
         : `All evidence excerpts ≤ ${QG_MAX_EVIDENCE_LENGTH} chars`,
   });
 
-  // ── Check 6: Overview length (≤500 chars) ────────────────────────────────
-  const overviewLen = synthesis.overall.one_paragraph_summary.length;
+  // ── Check 6: Overview length (≤750 target, 800 hard ceiling) ──────────────
+  // LLMs produce better summaries with generous limits. Users want richer content.
+  // 751-800: auto-repair by trimming at word boundary. >800: hard fail (true runaway).
+  let overviewLen = synthesis.overall.one_paragraph_summary.length;
+  if (overviewLen > QG_MAX_OVERVIEW_LENGTH && overviewLen <= QG_OVERVIEW_HARD_CEILING) {
+    synthesis.overall.one_paragraph_summary =
+      synthesis.overall.one_paragraph_summary.substring(0, QG_MAX_OVERVIEW_LENGTH - 3).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026";
+    overviewLen = synthesis.overall.one_paragraph_summary.length;
+  }
   checks.push({
     check_id: "overview_length",
-    passed: overviewLen <= QG_MAX_OVERVIEW_LENGTH,
-    error_code: overviewLen > QG_MAX_OVERVIEW_LENGTH ? "QG_LONG_OVERVIEW" : undefined,
-    details: `Overview: ${overviewLen} chars (max ${QG_MAX_OVERVIEW_LENGTH})`,
+    passed: overviewLen <= QG_OVERVIEW_HARD_CEILING,
+    error_code: overviewLen > QG_OVERVIEW_HARD_CEILING ? "QG_LONG_OVERVIEW" : undefined,
+    details: overviewLen <= QG_MAX_OVERVIEW_LENGTH
+      ? `Overview: ${overviewLen} chars (max ${QG_MAX_OVERVIEW_LENGTH})`
+      : `Overview: ${overviewLen} chars (auto-repaired from >${QG_MAX_OVERVIEW_LENGTH}, hard ceiling ${QG_OVERVIEW_HARD_CEILING})`,
   });
 
   // ── Check 6b: Pitch/Summary Identity Separation (P1) ──────────────────────

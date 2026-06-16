@@ -77,9 +77,9 @@ const WORD_LIMITS: Record<SectionType, number> = {
   query_letter: 450,
   what_makes_unique: 150,
   synopsis: 500,
-  query_pitch: 50,
+  query_pitch: 75,
   comparables: 200,
-  author_bio: 150,
+  author_bio: 200,
 };
 
 const WORD_MINIMUMS: Partial<Record<SectionType, number>> = {

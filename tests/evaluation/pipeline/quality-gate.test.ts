@@ -216,10 +216,9 @@ describe("runQualityGate", () => {
 
   // ── QG_LONG_EVIDENCE ────────────────────────────────────────────────────
 
-  it("rejects evidence snippet > 200 chars (QG_LONG_EVIDENCE)", () => {
-    const longSnippet =
-      "The river moved slowly through the valley, its dark waters reflecting the pale light of a moon that had risen only moments before and now hung low over the distant ridge as though uncertain whether to climb higher into the night sky or retreat into the mist.";
-    expect(longSnippet.length).toBeGreaterThan(200);
+  it("rejects evidence snippet > 350 chars hard ceiling (QG_LONG_EVIDENCE)", () => {
+    const longSnippet = "x".repeat(351);
+    expect(longSnippet.length).toBeGreaterThan(350);
     const synthesis = makeValidSynthesis([
       { evidence: [{ snippet: longSnippet }] },
     ]);
@@ -228,17 +227,53 @@ describe("runQualityGate", () => {
     expect(result.checks.find((c) => c.error_code === "QG_LONG_EVIDENCE")).toBeDefined();
   });
 
+  it("auto-repairs evidence snippet 301-350 chars instead of failing", () => {
+    const synthesis = makeValidSynthesis([
+      { evidence: [{ snippet: "a".repeat(320) }] },
+    ]);
+    const result = runQualityGate(synthesis);
+    expect(result.checks.find((c) => c.error_code === "QG_LONG_EVIDENCE")).toBeUndefined();
+    expect(synthesis.criteria[0].evidence[0].snippet.length).toBeLessThanOrEqual(300);
+  });
+
+  it("passes evidence snippet up to 300 chars without modification", () => {
+    const snippet = "a".repeat(290);
+    const synthesis = makeValidSynthesis([
+      { evidence: [{ snippet }] },
+    ]);
+    const result = runQualityGate(synthesis);
+    expect(result.checks.find((c) => c.error_code === "QG_LONG_EVIDENCE")).toBeUndefined();
+    expect(synthesis.criteria[0].evidence[0].snippet).toBe(snippet);
+  });
+
   // ── QG_LONG_OVERVIEW ────────────────────────────────────────────────────
 
-  it("rejects one_paragraph_summary > 500 chars (QG_LONG_OVERVIEW)", () => {
-    const longSummary =
-      "This manuscript demonstrates an impressive command of narrative structure while simultaneously revealing a number of areas where additional attention would result in meaningful improvement to the reading experience, particularly in the middle sections where the pacing slows and the thematic through-line becomes obscured by secondary plot threads that, though individually interesting, do not clearly serve the central story arc or the character development of the protagonist in ways that feel earned or satisfying to the reader upon reflection after completion of the full text.";
-    expect(longSummary.length).toBeGreaterThan(500);
+  it("rejects one_paragraph_summary > 800 chars (QG_LONG_OVERVIEW hard ceiling)", () => {
+    const longSummary = "x".repeat(801);
+    expect(longSummary.length).toBeGreaterThan(800);
     const synthesis = makeValidSynthesis();
     synthesis.overall.one_paragraph_summary = longSummary;
     const result = runQualityGate(synthesis);
     expect(result.pass).toBe(false);
     expect(result.checks.find((c) => c.error_code === "QG_LONG_OVERVIEW")).toBeDefined();
+  });
+
+  it("auto-repairs one_paragraph_summary 751-800 chars instead of failing", () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.overall.one_paragraph_summary = "a".repeat(780);
+    const result = runQualityGate(synthesis);
+    expect(result.pass).toBe(true);
+    expect(result.checks.find((c) => c.error_code === "QG_LONG_OVERVIEW")).toBeUndefined();
+    expect(synthesis.overall.one_paragraph_summary.length).toBeLessThanOrEqual(750);
+  });
+
+  it("passes one_paragraph_summary up to 750 chars without modification", () => {
+    const synthesis = makeValidSynthesis();
+    const summary = "a".repeat(740);
+    synthesis.overall.one_paragraph_summary = summary;
+    const result = runQualityGate(synthesis);
+    expect(result.pass).toBe(true);
+    expect(synthesis.overall.one_paragraph_summary).toBe(summary);
   });
 
   // ── QG_DUPLICATE_REC ────────────────────────────────────────────────────
@@ -571,7 +606,7 @@ describe("runQualityGate", () => {
   it("can report multiple failures simultaneously", () => {
     const synthesis = makeValidSynthesis();
     synthesis.criteria = synthesis.criteria.slice(0, 5); // QG_CRITERIA_MISSING
-    synthesis.overall.one_paragraph_summary = "x".repeat(600);          // QG_LONG_OVERVIEW
+    synthesis.overall.one_paragraph_summary = "x".repeat(850);          // QG_LONG_OVERVIEW (>800 hard ceiling)
     const result = runQualityGate(synthesis);
     expect(result.pass).toBe(false);
     const failedCodes = result.checks
