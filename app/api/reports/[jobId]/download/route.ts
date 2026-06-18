@@ -3298,9 +3298,9 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
     }
   }
 
-  // ── Dream / Narrative Synthesis ─────────────────────────────────
+  // ── Dream / Cross-Layer Synthesis ─────────────────────────────────
   if (dream) {
-    children.push(brandHeading('Narrative Synthesis', HeadingLevel.HEADING_2));
+    children.push(brandHeading(sectionTitle('cross_layer_synthesis'), HeadingLevel.HEADING_2));
     // Dream scores table
     const dreamScoreRow = new TableRow({
       children: ['Quality', 'Readiness', 'Commercial', 'Literary'].map((label, i) => {
@@ -3366,7 +3366,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
     // Expanded Criterion Analysis from dream document
     if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
-      children.push(brandHeading('Expanded Criterion Analysis', HeadingLevel.HEADING_2));
+      children.push(brandHeading(sectionTitle('expanded_criterion_analysis'), HeadingLevel.HEADING_2));
       dream.criterion_analyses.forEach((a) => {
         children.push(new Paragraph({
           spacing: { before: 160, after: 60 },
@@ -3415,7 +3415,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
     // Symbolic / Doctrine Audit
     if (dream.symbolic_audit) {
-      children.push(brandHeading('Symbolic / Doctrine Audit', HeadingLevel.HEADING_2));
+      children.push(brandHeading(sectionTitle('governed_ledgers'), HeadingLevel.HEADING_2));
       if (Array.isArray(dream.symbolic_audit.preserved_symbols) && dream.symbolic_audit.preserved_symbols.length > 0) {
         children.push(bodyPara('Preserved Symbols:', { bold: true }));
         dream.symbolic_audit.preserved_symbols.forEach((sym) => {
@@ -3437,9 +3437,9 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
       children.push(spacer());
     }
 
-    // Reader Experience
+    // Reader Experience (subsection under Cross-Layer Synthesis)
     if (dream.reader_experience) {
-      children.push(brandHeading('Reader Experience', HeadingLevel.HEADING_2));
+      children.push(bodyPara('Reader Experience', { bold: true, size: 22 }));
       const re = dream.reader_experience;
       if (re.first_act) {
         children.push(bodyPara('First Act:', { bold: true }));
@@ -3467,7 +3467,7 @@ async function buildDocx(result: ExportableResult, title: string | null, jobId: 
 
     // Releasability
     if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
-      children.push(brandHeading('Releasability', HeadingLevel.HEADING_2));
+      children.push(brandHeading(sectionTitle('readiness_posture'), HeadingLevel.HEADING_2));
       dream.releasability.forEach((dim) => {
         children.push(new Paragraph({
           spacing: { after: 60 },
