@@ -38,6 +38,7 @@ import {
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
+import { getLongFormMultiLayerSections } from '@/lib/evaluation/sharedLongFormMultiLayerSections';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
 import CriterionOpportunities from '@/components/reports/CriterionOpportunities';
 import DownloadReportButton from '@/components/reports/DownloadReportButton';
@@ -55,6 +56,14 @@ import LongformEvidenceDistributionGate from '@/components/reports/longform/Long
 // import WaveGovernanceSummary from '@/components/reports/WaveGovernanceSummary';
 // import CanonGovernanceSummary from '@/components/reports/CanonGovernanceSummary';
 // import { getAllCanonGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+
+// ── Shared section contract: single source of truth for §13–§21 headings ──
+const _webSectionContract = getLongFormMultiLayerSections();
+function webSectionTitle(id: string): string {
+  const sec = _webSectionContract.find(s => s.id === id);
+  if (!sec) throw new Error(`Unknown section id: ${id}`);
+  return sec.title;
+}
 
 // D1 Boundary: server-only. Service key must not leak to client.
 // Hybrid owner-gate: SSR client for auth identity, admin client for
@@ -864,377 +873,454 @@ export default async function ReportPage({
           )}
         </section>
 
-        {/* Narrative Synthesis (Pass 3b — async, long-form manuscripts only) */}
-        {isLongForm && (
+        {/* Loading state — shown while DREAM is generating */}
+        {isLongForm && !dreamDoc && (
           <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
             <h2 className="mb-1 flex items-center gap-2 font-serif text-2xl font-bold text-[#8B2E2E]">
-              {dreamDoc ? 'Narrative Synthesis' : 'Finalizing Your Report'}
-              {!dreamDoc && (
-                <span className="ml-2 inline-flex items-center border border-[#D9D0C3] bg-[#FFF6E8] px-2.5 py-0.5 text-xs font-semibold text-[#1C1814]">
-                  Part 2 generating…
-                </span>
-              )}
+              Finalizing Your Report
+              <span className="ml-2 inline-flex items-center border border-[#D9D0C3] bg-[#FFF6E8] px-2.5 py-0.5 text-xs font-semibold text-[#1C1814]">
+                Part 2 generating…
+              </span>
             </h2>
-            {!dreamDoc && (
-              <p className="mb-4 text-sm text-[#5C5549]">
-                Part 1 of 2 ready—scroll up to review scores and revision plan while Part 2 generates below
-              </p>
-            )}
-
-            {dreamDoc ? (
-              <div className="space-y-6">
-                {(['quality', 'readiness', 'commercial', 'literary'] as const).some((dim) => typeof dreamDoc.dream_scores?.[dim] === 'number') && (
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                    {(['quality', 'readiness', 'commercial', 'literary'] as const).map((dim) => {
-                      const value = dreamDoc.dream_scores?.[dim];
-                      if (typeof value !== 'number') return null;
-                      return (
-                        <div key={dim} className="border border-[#D9D0C3] bg-white p-3 text-center">
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#5C5549]">{dim}</p>
-                          <p className="font-serif text-2xl font-bold text-[#8B2E2E]">{getDisplayDreamScore(dreamDoc, dim)}</p>
-                          <p className="text-xs text-[#5C5549]">/100</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {hasMeaningfulText(dreamDoc.executive_verdict) && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Executive Verdict</h3>
-                    <div className="space-y-3">
-                      {splitIntoParagraphs(correctScopeLanguage(dreamExecutiveVerdict, isLongForm)).map((para, idx) => (
-                        <p key={idx} className="leading-relaxed text-[#1C1814]">{para}</p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(hasMeaningfulText(dreamDoc.market_shelf?.best_shelf) || hasMeaningfulText(dreamDoc.market_shelf?.marketable_hook) || hasMeaningfulText(dreamDoc.market_shelf?.market_danger) || dreamShelfNeighbors.length > 0 || dreamComparisonSpace.length > 0 || dreamAntiPatterns.length > 0) && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Market Shelf</h3>
-                    {hasMeaningfulText(dreamDoc.market_shelf?.best_shelf) ? (
-                      <p className="mb-1 text-sm text-[#5C5549]"><span className="font-medium">Best shelf:</span> {dreamBestShelf}</p>
-                    ) : null}
-                    {hasMeaningfulText(dreamDoc.market_shelf?.marketable_hook) ? (
-                      <p className="mb-1 text-sm text-[#5C5549]"><span className="font-medium">Marketable hook:</span> {dreamMarketableHook}</p>
-                    ) : null}
-                    {hasMeaningfulText(dreamDoc.market_shelf?.market_danger) ? (
-                      <p className="text-sm text-[#8B2E2E]"><span className="font-medium">Market danger:</span> {dreamMarketDanger}</p>
-                    ) : null}
-                    {dreamShelfNeighbors.length > 0 ? (
-                      <div className="mt-3">
-                        <h4 className="mb-1 text-sm font-semibold text-[#1C1814]">Shelf Neighbors</h4>
-                        <ul className="space-y-0.5 text-sm text-[#5C5549]">
-                          {dreamShelfNeighbors.map((title, idx) => (
-                            <li key={idx}>• {title}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {dreamComparisonSpace.length > 0 ? (
-                      <div className="mt-3">
-                        <h4 className="mb-1 text-sm font-semibold text-[#1C1814]">Comparison Space</h4>
-                        <ul className="space-y-0.5 text-sm text-[#5C5549]">
-                          {dreamComparisonSpace.map((comp, idx) => (
-                            <li key={idx}>• {comp}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {dreamAntiPatterns.length > 0 ? (
-                      <div className="mt-3">
-                        <h4 className="mb-1 text-sm font-semibold text-[#1C1814]">What Not to Become</h4>
-                        <ul className="space-y-0.5 text-sm text-[#5C5549]">
-                          {dreamAntiPatterns.map((item, idx) => (
-                            <li key={idx}>• {item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-
-                {(dreamStructuralStack.length > 0 || dreamArcMap.length > 0) && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Structural Architecture</h3>
-                    {dreamStructuralStack.length > 0 ? (
-                      <div className="space-y-2">
-                        {dreamStructuralStack.map((layer, idx) => (
-                          <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                            {hasMeaningfulText(layer.layer_name) ? <p><span className="font-medium">Layer:</span> {getDisplayText(layer.layer_name)}</p> : null}
-                            {hasMeaningfulText(layer.function) ? <p><span className="font-medium">Function:</span> {getDisplayText(layer.function)}</p> : null}
-                            {hasMeaningfulText(layer.status) ? <p><span className="font-medium">Status:</span> {getDisplayText(layer.status)}</p> : null}
-                            {hasMeaningfulText(layer.revision_note) ? <p><span className="font-medium">Revision note:</span> {getDisplayText(layer.revision_note)}</p> : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {dreamArcMap.length > 0 ? (
-                      <div className="mt-4">
-                        <h4 className="mb-2 text-sm font-semibold text-[#1C1814]">Arc Map</h4>
-                        <div className="space-y-2">
-                          {dreamArcMap.map((arc, idx) => (
-                            <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                              {hasMeaningfulText(arc.act_name) ? <p><span className="font-medium">Act:</span> {getDisplayText(arc.act_name)}</p> : null}
-                              {hasMeaningfulText(arc.chapter_range) ? <p><span className="font-medium">Chapter range:</span> {getDisplayText(arc.chapter_range)}</p> : null}
-                              {hasMeaningfulText(arc.primary_function) ? <p><span className="font-medium">Primary function:</span> {getDisplayText(arc.primary_function)}</p> : null}
-                              {hasMeaningfulText(arc.revision_priority) ? (
-                                <p>
-                                  <span className="font-medium">Revision priority:</span>{' '}
-                                  {getDisplayText(arc.revision_priority)}
-                                  {typeof arc.revision_rationale === 'string' && arc.revision_rationale.trim() ? (
-                                    <span className="text-gray-600"> — {arc.revision_rationale.trim()}</span>
-                                  ) : null}
-                                </p>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-
-                {dreamCriterionAnalyses.length > 0 && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Deep Criterion Analysis</h3>
-                    <div className="space-y-2">
-                      {dreamCriterionAnalyses.map((analysis, idx) => {
-                        const fitEvidence = filterAuthorFacingTextList(analysis.fit_evidence);
-                        const gapEvidence = filterAuthorFacingTextList(analysis.gap_evidence);
-                        const revisionQueue = filterAuthorFacingTextList(analysis.revision_queue);
-                        return (
-                          <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                            {hasMeaningfulText(analysis.key) ? <p><span className="font-medium">Criterion:</span> {getCriterionDisplayLabel(getDisplayText(analysis.key))}</p> : null}
-                            {hasMeaningfulText(analysis.score) ? <p><span className="font-medium">Score:</span> {typeof analysis.score === 'number' ? `${analysis.score} / 10` : getDisplayText(analysis.score)}</p> : null}
-                            {hasMeaningfulText(analysis.confidence) ? <p><span className="font-medium">Confidence:</span> {(() => { const c = getDisplayText(analysis.confidence); return c.charAt(0).toUpperCase() + c.slice(1); })()}</p> : null}
-                            <div className="mt-2 space-y-2">
-                              {fitEvidence.length > 0 ? (
-                                <div>
-                                  <p className="font-medium">What Is Working:</p>
-                                  <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
-                                    {fitEvidence.map((entry, i) => <li key={i}>{entry}</li>)}
-                                  </ol>
-                                </div>
-                              ) : null}
-                              {gapEvidence.length > 0 ? (
-                                <div>
-                                  <p className="font-medium">What Weakens Impact:</p>
-                                  <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
-                                    {gapEvidence.map((entry, i) => <li key={i}>{entry}</li>)}
-                                  </ol>
-                                </div>
-                              ) : null}
-                              {revisionQueue.length > 0 ? (
-                                <div>
-                                  <p className="font-medium">Revision Queue:</p>
-                                  <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
-                                    {revisionQueue.map((entry, i) => <li key={i}>{entry}</li>)}
-                                  </ol>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* §8–9: Layer analyses + Cross-layer integration — INTERNAL ONLY.
-                    Never rendered in author-facing reports. */}
-                {showTechnicalSections && (
-                <>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Layer Analyses <span className="text-xs text-amber-700">(internal)</span></h3>
-                  {dreamLayerAnalyses.length > 0 ? (
-                    <div className="space-y-2">
-                      {dreamLayerAnalyses.map((layer, idx) => (
-                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                          <p><span className="font-medium">Layer:</span> {getDisplayText(layer.layer_name)}</p>
-                          <p><span className="font-medium">Status:</span> {getDisplayText(layer.status)}</p>
-                          <p><span className="font-medium">Needed revision:</span> {getDisplayText(layer.needed_revision)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-700">—</p>
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Cross-Layer Integration <span className="text-xs text-amber-700">(internal)</span></h3>
-                  {dreamCrossLayerIntegration.length > 0 ? (
-                    <div className="space-y-2">
-                      {dreamCrossLayerIntegration.map((row, idx) => (
-                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                          <p><span className="font-medium">Motif:</span> {getDisplayText(row.motif)}</p>
-                          <p><span className="font-medium">Description:</span> {getDisplayText(row.description)}</p>
-                          <p><span className="font-medium">Integration quality:</span> {getDisplayText(row.integration_quality)}</p>
-                          <p><span className="font-medium">Revision note:</span> {getDisplayText(row.revision_note)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-700">—</p>
-                  )}
-                </div>
-                </>
-                )}
-
-                {(dreamPreservedSymbols.length > 0 || dreamDoctrineStrengths.length > 0 || dreamDoctrineRisks.length > 0 || hasMeaningfulText(dreamSymbolicAudit?.audit_conclusion)) && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Symbolic &amp; Doctrine Audit</h3>
-                    {dreamPreservedSymbols.length > 0 ? (
-                      <div className="space-y-2 mb-2">
-                        {dreamPreservedSymbols.map((symbol, idx) => (
-                          <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                            {hasMeaningfulText(symbol.symbol) ? <p><span className="font-medium">Symbol:</span> {getDisplayText(symbol.symbol)}</p> : null}
-                            {hasMeaningfulText(symbol.current_function) ? <p><span className="font-medium">Current function:</span> {getDisplayText(symbol.current_function)}</p> : null}
-                            {hasMeaningfulText(symbol.revision_instruction) ? <p><span className="font-medium">Revision instruction:</span> {getDisplayText(symbol.revision_instruction)}</p> : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {dreamDoctrineStrengths.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Doctrine strengths:</span> {dreamDoctrineStrengths.join('; ')}</p> : null}
-                    {dreamDoctrineRisks.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Doctrine risks:</span> {dreamDoctrineRisks.join('; ')}</p> : null}
-                    {hasMeaningfulText(dreamSymbolicAudit?.audit_conclusion) ? <p className="text-sm text-gray-700"><span className="font-medium">Audit conclusion:</span> {getDisplayText(dreamSymbolicAudit?.audit_conclusion)}</p> : null}
-                  </div>
-                )}
-
-                {(hasMeaningfulText(dreamReaderFirstAct?.reader_question) || hasMeaningfulText(dreamReaderFirstAct?.emotional_state) || hasMeaningfulText(dreamReaderFirstAct?.risk) || hasMeaningfulText(dreamReaderMiddle?.reader_question) || hasMeaningfulText(dreamReaderMiddle?.emotional_state) || hasMeaningfulText(dreamReaderMiddle?.risk) || hasMeaningfulText(dreamReaderFinalAct?.reader_question) || hasMeaningfulText(dreamReaderFinalAct?.emotional_state) || hasMeaningfulText(dreamReaderFinalAct?.risk) || hasMeaningfulText(dreamReaderExperience?.aftertaste)) && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Reader Experience</h3>
-                    <div className="grid gap-3 text-sm md:grid-cols-3">
-                      {hasMeaningfulText(dreamReaderFirstAct?.reader_question) || hasMeaningfulText(dreamReaderFirstAct?.emotional_state) || hasMeaningfulText(dreamReaderFirstAct?.risk) ? (
-                        <div className="rounded border border-gray-200 p-3">
-                          <p className="mb-1 font-medium text-gray-900">First Act</p>
-                          {hasMeaningfulText(dreamReaderFirstAct?.reader_question) ? <p>Reader question: {getDisplayText(dreamReaderFirstAct?.reader_question)}</p> : null}
-                          {hasMeaningfulText(dreamReaderFirstAct?.emotional_state) ? <p>Emotional state: {getDisplayText(dreamReaderFirstAct?.emotional_state)}</p> : null}
-                          {hasMeaningfulText(dreamReaderFirstAct?.risk) ? <p>Risk: {getDisplayText(dreamReaderFirstAct?.risk)}</p> : null}
-                        </div>
-                      ) : null}
-                      {hasMeaningfulText(dreamReaderMiddle?.reader_question) || hasMeaningfulText(dreamReaderMiddle?.emotional_state) || hasMeaningfulText(dreamReaderMiddle?.risk) ? (
-                        <div className="rounded border border-gray-200 p-3">
-                          <p className="mb-1 font-medium text-gray-900">Middle</p>
-                          {hasMeaningfulText(dreamReaderMiddle?.reader_question) ? <p>Reader question: {getDisplayText(dreamReaderMiddle?.reader_question)}</p> : null}
-                          {hasMeaningfulText(dreamReaderMiddle?.emotional_state) ? <p>Emotional state: {getDisplayText(dreamReaderMiddle?.emotional_state)}</p> : null}
-                          {hasMeaningfulText(dreamReaderMiddle?.risk) ? <p>Risk: {getDisplayText(dreamReaderMiddle?.risk)}</p> : null}
-                        </div>
-                      ) : null}
-                      {hasMeaningfulText(dreamReaderFinalAct?.reader_question) || hasMeaningfulText(dreamReaderFinalAct?.emotional_state) || hasMeaningfulText(dreamReaderFinalAct?.risk) ? (
-                        <div className="rounded border border-gray-200 p-3">
-                          <p className="mb-1 font-medium text-gray-900">Final Act</p>
-                          {hasMeaningfulText(dreamReaderFinalAct?.reader_question) ? <p>Reader question: {getDisplayText(dreamReaderFinalAct?.reader_question)}</p> : null}
-                          {hasMeaningfulText(dreamReaderFinalAct?.emotional_state) ? <p>Emotional state: {getDisplayText(dreamReaderFinalAct?.emotional_state)}</p> : null}
-                          {hasMeaningfulText(dreamReaderFinalAct?.risk) ? <p>Risk: {getDisplayText(dreamReaderFinalAct?.risk)}</p> : null}
-                        </div>
-                      ) : null}
-                    </div>
-                    {hasMeaningfulText(dreamReaderExperience?.aftertaste) ? <p className="mt-2 text-sm text-gray-700"><span className="font-medium">Aftertaste:</span> {getDisplayText(dreamReaderExperience?.aftertaste)}</p> : null}
-                  </div>
-                )}
-
-                {dreamRevisionPlan.length > 0 && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Revision Priority Plan</h3>
-                    <div className="space-y-2">
-                      {dreamRevisionPlan.map((planItem, idx) => (
-                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                          <p><span className="font-medium">Priority:</span> {planItem.displayPriority}</p>
-                          {hasMeaningfulText(planItem.title) ? <p><span className="font-medium">Title:</span> {getDisplayText(planItem.title)}</p> : null}
-                          {hasMeaningfulText(planItem.goal) ? <p><span className="font-medium">Goal:</span> {getDisplayText(planItem.goal)}</p> : null}
-                          {planItem.actions.length > 0 ? (
-                            <div>
-                              <p><span className="font-medium">Actions:</span></p>
-                              <ol className="mt-1 list-decimal list-inside space-y-0.5 text-gray-700">
-                                {planItem.actions.map((action, actionIdx) => (
-                                  <li key={actionIdx}>{action}</li>
-                                ))}
-                              </ol>
-                            </div>
-                          ) : null}
-                          {hasMeaningfulText(planItem.acceptance_check) ? <p><span className="font-medium">Acceptance check:</span> {getDisplayText(planItem.acceptance_check)}</p> : null}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {dreamReleasability.length > 0 && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Releasability Assessment</h3>
-                    <div className="space-y-2">
-                      {dreamReleasability.map((row, idx) => (
-                        <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
-                          {hasMeaningfulText(row.dimension) ? <p><span className="font-medium">Dimension:</span> {getDisplayText(row.dimension)}</p> : null}
-                          {hasMeaningfulText(row.current_status) ? <p><span className="font-medium">Current status:</span> {getDisplayText(row.current_status)}</p> : null}
-                          {hasMeaningfulText(row.verdict) ? <p><span className="font-medium">Verdict:</span> {getDisplayText(row.verdict)}</p> : null}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(dreamRequiredDetections.length > 0 || dreamFailureConditions.length > 0) && (
-                  <div>
-                    <h3 className="mb-2 font-serif text-lg font-semibold text-[#8B2E2E]">Review Gate</h3>
-                    {dreamRequiredDetections.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Required detection:</span> {dreamRequiredDetections.join('; ')}</p> : null}
-                    {dreamFailureConditions.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Failure conditions:</span> {dreamFailureConditions.join('; ')}</p> : null}
-                  </div>
-                )}
-
-                {/* §14–16: Acceptance checks, Calibration notes, Repo summary — INTERNAL ONLY.
-                    Never rendered in author-facing reports. Only visible to support staff
-                    with active author grant (showTechnicalSections). */}
-                {showTechnicalSections && (
-                <>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Acceptance Checks <span className="text-xs text-amber-700">(internal)</span></h3>
-                  <p className="text-sm text-gray-700"><span className="font-medium">Required detection:</span> {dreamRequiredDetections.join("; ") || "—"}</p>
-                  <p className="text-sm text-gray-700"><span className="font-medium">Failure conditions:</span> {dreamFailureConditions.join("; ") || "—"}</p>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Calibration Notes <span className="text-xs text-amber-700">(internal)</span></h3>
-                  {dreamCalibrationNotes.length > 0 ? (
-                    <ul className="list-disc list-inside space-y-1">
-                      {dreamCalibrationNotes.map((note, idx) => (
-                        <li key={idx} className="text-sm text-gray-700">{note}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-700">—</p>
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Repository Summary <span className="text-xs text-amber-700">(internal)</span></h3>
-                  <div className="rounded border border-gray-200 p-3 text-sm space-y-1">
-                    <p><span className="font-medium">Benchmark:</span> {getDisplayText(dreamRepoSummary?.benchmark_name)}</p>
-                    <p><span className="font-medium">Source:</span> {getDisplayText(dreamRepoSummary?.source)}</p>
-                    <p><span className="font-medium">Evaluation type:</span> {getDisplayText(dreamRepoSummary?.evaluation_type)}</p>
-                    <p><span className="font-medium">Overall score:</span> {getDisplayText(dreamRepoSummary?.overall_score)}</p>
-                    <p><span className="font-medium">Readiness score:</span> {getDisplayText(dreamRepoSummary?.readiness_score)}</p>
-                    <p><span className="font-medium">Primary strengths:</span> {getDisplayDreamList(dreamRepoSummary?.primary_strengths).join("; ") || "—"}</p>
-                    <p><span className="font-medium">Primary blockers:</span> {getDisplayText(dreamRepoSummary?.primary_blockers)}</p>
-                    <p><span className="font-medium">Gold standard requirement:</span> {getDisplayText(dreamRepoSummary?.gold_standard_requirement)}</p>
-                  </div>
-                </div>
-                </>
-                )}
-
-                {/* Pre-analysis integrity flags — prose block removed; LongformManuscriptIntegrityTable (Ledger E peer section) is canonical */}
-              </div>
-            ) : (
-              <SynthesisPoller
-                jobId={params.jobId}
-                wordCount={wordCount}
-                initialDreamDoc={null}
-              />
-            )}
+            <p className="mb-4 text-sm text-[#5C5549]">
+              Part 1 of 2 ready—scroll up to review scores and revision plan while Part 2 generates below
+            </p>
+            <SynthesisPoller
+              jobId={params.jobId}
+              wordCount={wordCount}
+              initialDreamDoc={null}
+            />
           </section>
         )}
 
-        {/* Character System — Peer Section (shown after Narrative Synthesis lands) */}
+        {/* ── §12a Expanded Criterion Analysis ── */}
+        {isLongForm && dreamDoc && dreamCriterionAnalyses.length > 0 && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('expanded_criterion_analysis')}</h2>
+            <div className="space-y-2">
+              {dreamCriterionAnalyses.map((analysis, idx) => {
+                const fitEvidence = filterAuthorFacingTextList(analysis.fit_evidence);
+                const gapEvidence = filterAuthorFacingTextList(analysis.gap_evidence);
+                const revisionQueue = filterAuthorFacingTextList(analysis.revision_queue);
+                return (
+                  <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                    {hasMeaningfulText(analysis.key) ? <p><span className="font-medium">Criterion:</span> {getCriterionDisplayLabel(getDisplayText(analysis.key))}</p> : null}
+                    {hasMeaningfulText(analysis.score) ? <p><span className="font-medium">Score:</span> {typeof analysis.score === 'number' ? `${analysis.score} / 10` : getDisplayText(analysis.score)}</p> : null}
+                    {hasMeaningfulText(analysis.confidence) ? <p><span className="font-medium">Confidence:</span> {(() => { const c = getDisplayText(analysis.confidence); return c.charAt(0).toUpperCase() + c.slice(1); })()}</p> : null}
+                    <div className="mt-2 space-y-2">
+                      {fitEvidence.length > 0 ? (
+                        <div>
+                          <p className="font-medium">What Is Working:</p>
+                          <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
+                            {fitEvidence.map((entry, i) => <li key={i}>{entry}</li>)}
+                          </ol>
+                        </div>
+                      ) : null}
+                      {gapEvidence.length > 0 ? (
+                        <div>
+                          <p className="font-medium">What Weakens Impact:</p>
+                          <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
+                            {gapEvidence.map((entry, i) => <li key={i}>{entry}</li>)}
+                          </ol>
+                        </div>
+                      ) : null}
+                      {revisionQueue.length > 0 ? (
+                        <div>
+                          <p className="font-medium">Revision Queue:</p>
+                          <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
+                            {revisionQueue.map((entry, i) => <li key={i}>{entry}</li>)}
+                          </ol>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── §13 Story Ledger or Layer-Aware Architecture Map ── */}
+        {isLongForm && dreamDoc && (dreamStructuralStack.length > 0 || dreamArcMap.length > 0 || dreamLayerAnalyses.length > 0) && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('story_ledger')}</h2>
+            {dreamStructuralStack.length > 0 ? (
+              <div className="mb-4">
+                <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Structural Architecture</h3>
+                <div className="space-y-2">
+                  {dreamStructuralStack.map((layer, idx) => (
+                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                      {hasMeaningfulText(layer.layer_name) ? <p><span className="font-medium">Layer:</span> {getDisplayText(layer.layer_name)}</p> : null}
+                      {hasMeaningfulText(layer.function) ? <p><span className="font-medium">Function:</span> {getDisplayText(layer.function)}</p> : null}
+                      {hasMeaningfulText(layer.status) ? <p><span className="font-medium">Status:</span> {getDisplayText(layer.status)}</p> : null}
+                      {hasMeaningfulText(layer.revision_note) ? <p><span className="font-medium">Revision note:</span> {getDisplayText(layer.revision_note)}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {dreamArcMap.length > 0 ? (
+              <div className="mb-4">
+                <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Arc Map</h3>
+                <div className="space-y-2">
+                  {dreamArcMap.map((arc, idx) => (
+                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                      {hasMeaningfulText(arc.act_name) ? <p><span className="font-medium">Act:</span> {getDisplayText(arc.act_name)}</p> : null}
+                      {hasMeaningfulText(arc.chapter_range) ? <p><span className="font-medium">Chapter range:</span> {getDisplayText(arc.chapter_range)}</p> : null}
+                      {hasMeaningfulText(arc.primary_function) ? <p><span className="font-medium">Primary function:</span> {getDisplayText(arc.primary_function)}</p> : null}
+                      {hasMeaningfulText(arc.revision_priority) ? (
+                        <p>
+                          <span className="font-medium">Revision priority:</span>{' '}
+                          {getDisplayText(arc.revision_priority)}
+                          {typeof arc.revision_rationale === 'string' && arc.revision_rationale.trim() ? (
+                            <span className="text-gray-600"> — {arc.revision_rationale.trim()}</span>
+                          ) : null}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {dreamLayerAnalyses.length > 0 ? (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Layer Analysis</h3>
+                <div className="space-y-2">
+                  {dreamLayerAnalyses.map((layer, idx) => (
+                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                      <p><span className="font-medium">Layer:</span> {getDisplayText(layer.layer_name)}</p>
+                      <p><span className="font-medium">Status:</span> {getDisplayText(layer.status)}</p>
+                      <p><span className="font-medium">Needed revision:</span> {getDisplayText(layer.needed_revision)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        )}
+
+        {/* ── §14 Review Gate Readiness Surface ── */}
+        {isLongForm && dreamDoc && (dreamRequiredDetections.length > 0 || dreamFailureConditions.length > 0) && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('review_gate')}</h2>
+            {dreamRequiredDetections.length > 0 ? (
+              <div className="mb-2">
+                <h3 className="mb-1 text-sm font-semibold text-[#1C1814]">Required Detection</h3>
+                <ul className="space-y-0.5 text-sm text-gray-700">
+                  {dreamRequiredDetections.map((item, idx) => <li key={idx}>• {item}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            {dreamFailureConditions.length > 0 ? (
+              <div>
+                <h3 className="mb-1 text-sm font-semibold text-[#1C1814]">Failure Conditions</h3>
+                <ul className="space-y-0.5 text-sm text-gray-700">
+                  {dreamFailureConditions.map((item, idx) => <li key={idx}>• {item}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        )}
+
+        {/* ── §15 Governed Ledgers or Compact Governed-Ledger Addenda ── */}
+        {isLongForm && dreamDoc && (dreamPreservedSymbols.length > 0 || dreamDoctrineStrengths.length > 0 || dreamDoctrineRisks.length > 0 || hasMeaningfulText(dreamSymbolicAudit?.audit_conclusion)) && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('governed_ledgers')}</h2>
+            <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Symbolic &amp; Doctrine Audit</h3>
+            {dreamPreservedSymbols.length > 0 ? (
+              <div className="space-y-2 mb-2">
+                {dreamPreservedSymbols.map((symbol, idx) => (
+                  <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                    {hasMeaningfulText(symbol.symbol) ? <p><span className="font-medium">Symbol:</span> {getDisplayText(symbol.symbol)}</p> : null}
+                    {hasMeaningfulText(symbol.current_function) ? <p><span className="font-medium">Current function:</span> {getDisplayText(symbol.current_function)}</p> : null}
+                    {hasMeaningfulText(symbol.revision_instruction) ? <p><span className="font-medium">Revision instruction:</span> {getDisplayText(symbol.revision_instruction)}</p> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {dreamDoctrineStrengths.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Doctrine strengths:</span> {dreamDoctrineStrengths.join('; ')}</p> : null}
+            {dreamDoctrineRisks.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Doctrine risks:</span> {dreamDoctrineRisks.join('; ')}</p> : null}
+            {hasMeaningfulText(dreamSymbolicAudit?.audit_conclusion) ? <p className="text-sm text-gray-700"><span className="font-medium">Audit conclusion:</span> {getDisplayText(dreamSymbolicAudit?.audit_conclusion)}</p> : null}
+          </section>
+        )}
+
+        {/* ── §16 Cross-Layer Synthesis ── */}
+        {isLongForm && dreamDoc && (
+          (['quality', 'readiness', 'commercial', 'literary'] as const).some((dim) => typeof dreamDoc.dream_scores?.[dim] === 'number') ||
+          hasMeaningfulText(dreamDoc.executive_verdict) ||
+          dreamCrossLayerIntegration.length > 0 ||
+          hasMeaningfulText(dreamReaderFirstAct?.reader_question) || hasMeaningfulText(dreamReaderFirstAct?.emotional_state) || hasMeaningfulText(dreamReaderFirstAct?.risk) ||
+          hasMeaningfulText(dreamReaderMiddle?.reader_question) || hasMeaningfulText(dreamReaderMiddle?.emotional_state) || hasMeaningfulText(dreamReaderMiddle?.risk) ||
+          hasMeaningfulText(dreamReaderFinalAct?.reader_question) || hasMeaningfulText(dreamReaderFinalAct?.emotional_state) || hasMeaningfulText(dreamReaderFinalAct?.risk) ||
+          hasMeaningfulText(dreamReaderExperience?.aftertaste)
+        ) && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('cross_layer_synthesis')}</h2>
+            <div className="space-y-6">
+              {(['quality', 'readiness', 'commercial', 'literary'] as const).some((dim) => typeof dreamDoc.dream_scores?.[dim] === 'number') && (
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {(['quality', 'readiness', 'commercial', 'literary'] as const).map((dim) => {
+                    const value = dreamDoc.dream_scores?.[dim];
+                    if (typeof value !== 'number') return null;
+                    return (
+                      <div key={dim} className="border border-[#D9D0C3] bg-white p-3 text-center">
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#5C5549]">{dim}</p>
+                        <p className="font-serif text-2xl font-bold text-[#8B2E2E]">{getDisplayDreamScore(dreamDoc, dim)}</p>
+                        <p className="text-xs text-[#5C5549]">/100</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {hasMeaningfulText(dreamDoc.executive_verdict) && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Executive Verdict</h3>
+                  <div className="space-y-3">
+                    {splitIntoParagraphs(correctScopeLanguage(dreamExecutiveVerdict, isLongForm)).map((para, idx) => (
+                      <p key={idx} className="leading-relaxed text-[#1C1814]">{para}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {dreamCrossLayerIntegration.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Cross-Layer Integration</h3>
+                  <div className="space-y-2">
+                    {dreamCrossLayerIntegration.map((row, idx) => (
+                      <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                        <p><span className="font-medium">Motif:</span> {getDisplayText(row.motif)}</p>
+                        <p><span className="font-medium">Description:</span> {getDisplayText(row.description)}</p>
+                        <p><span className="font-medium">Integration quality:</span> {getDisplayText(row.integration_quality)}</p>
+                        <p><span className="font-medium">Revision note:</span> {getDisplayText(row.revision_note)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(hasMeaningfulText(dreamReaderFirstAct?.reader_question) || hasMeaningfulText(dreamReaderFirstAct?.emotional_state) || hasMeaningfulText(dreamReaderFirstAct?.risk) || hasMeaningfulText(dreamReaderMiddle?.reader_question) || hasMeaningfulText(dreamReaderMiddle?.emotional_state) || hasMeaningfulText(dreamReaderMiddle?.risk) || hasMeaningfulText(dreamReaderFinalAct?.reader_question) || hasMeaningfulText(dreamReaderFinalAct?.emotional_state) || hasMeaningfulText(dreamReaderFinalAct?.risk) || hasMeaningfulText(dreamReaderExperience?.aftertaste)) && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Reader Experience</h3>
+                  <div className="grid gap-3 text-sm md:grid-cols-3">
+                    {hasMeaningfulText(dreamReaderFirstAct?.reader_question) || hasMeaningfulText(dreamReaderFirstAct?.emotional_state) || hasMeaningfulText(dreamReaderFirstAct?.risk) ? (
+                      <div className="rounded border border-gray-200 p-3">
+                        <p className="mb-1 font-medium text-gray-900">First Act</p>
+                        {hasMeaningfulText(dreamReaderFirstAct?.reader_question) ? <p>Reader question: {getDisplayText(dreamReaderFirstAct?.reader_question)}</p> : null}
+                        {hasMeaningfulText(dreamReaderFirstAct?.emotional_state) ? <p>Emotional state: {getDisplayText(dreamReaderFirstAct?.emotional_state)}</p> : null}
+                        {hasMeaningfulText(dreamReaderFirstAct?.risk) ? <p>Risk: {getDisplayText(dreamReaderFirstAct?.risk)}</p> : null}
+                      </div>
+                    ) : null}
+                    {hasMeaningfulText(dreamReaderMiddle?.reader_question) || hasMeaningfulText(dreamReaderMiddle?.emotional_state) || hasMeaningfulText(dreamReaderMiddle?.risk) ? (
+                      <div className="rounded border border-gray-200 p-3">
+                        <p className="mb-1 font-medium text-gray-900">Middle</p>
+                        {hasMeaningfulText(dreamReaderMiddle?.reader_question) ? <p>Reader question: {getDisplayText(dreamReaderMiddle?.reader_question)}</p> : null}
+                        {hasMeaningfulText(dreamReaderMiddle?.emotional_state) ? <p>Emotional state: {getDisplayText(dreamReaderMiddle?.emotional_state)}</p> : null}
+                        {hasMeaningfulText(dreamReaderMiddle?.risk) ? <p>Risk: {getDisplayText(dreamReaderMiddle?.risk)}</p> : null}
+                      </div>
+                    ) : null}
+                    {hasMeaningfulText(dreamReaderFinalAct?.reader_question) || hasMeaningfulText(dreamReaderFinalAct?.emotional_state) || hasMeaningfulText(dreamReaderFinalAct?.risk) ? (
+                      <div className="rounded border border-gray-200 p-3">
+                        <p className="mb-1 font-medium text-gray-900">Final Act</p>
+                        {hasMeaningfulText(dreamReaderFinalAct?.reader_question) ? <p>Reader question: {getDisplayText(dreamReaderFinalAct?.reader_question)}</p> : null}
+                        {hasMeaningfulText(dreamReaderFinalAct?.emotional_state) ? <p>Emotional state: {getDisplayText(dreamReaderFinalAct?.emotional_state)}</p> : null}
+                        {hasMeaningfulText(dreamReaderFinalAct?.risk) ? <p>Risk: {getDisplayText(dreamReaderFinalAct?.risk)}</p> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  {hasMeaningfulText(dreamReaderExperience?.aftertaste) ? <p className="mt-2 text-sm text-gray-700"><span className="font-medium">Aftertaste:</span> {getDisplayText(dreamReaderExperience?.aftertaste)}</p> : null}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ── §17 Layer-Aware Revision Sequencing ── */}
+        {isLongForm && dreamDoc && dreamRevisionPlan.length > 0 && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('revision_sequencing')}</h2>
+            <div className="space-y-2">
+              {dreamRevisionPlan.map((planItem, idx) => (
+                <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                  <p><span className="font-medium">Priority:</span> {planItem.displayPriority}</p>
+                  {hasMeaningfulText(planItem.title) ? <p><span className="font-medium">Title:</span> {getDisplayText(planItem.title)}</p> : null}
+                  {hasMeaningfulText(planItem.goal) ? <p><span className="font-medium">Goal:</span> {getDisplayText(planItem.goal)}</p> : null}
+                  {planItem.actions.length > 0 ? (
+                    <div>
+                      <p><span className="font-medium">Actions:</span></p>
+                      <ol className="mt-1 list-decimal list-inside space-y-0.5 text-gray-700">
+                        {planItem.actions.map((action, actionIdx) => (
+                          <li key={actionIdx}>{action}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+                  {hasMeaningfulText(planItem.acceptance_check) ? <p><span className="font-medium">Acceptance check:</span> {getDisplayText(planItem.acceptance_check)}</p> : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── §18 Long-Form Continuity and Coverage Proof ── */}
+        {isLongForm && dreamDoc && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('continuity_coverage')}</h2>
+            {(() => {
+              const continuityItems: string[] = [];
+              if (Array.isArray(dreamDoc.arc_map)) {
+                dreamDoc.arc_map.forEach((act) => {
+                  if (hasMeaningfulText(act.primary_function)) continuityItems.push(`${getDisplayText(act.act_name)}: ${getDisplayText(act.primary_function)}`);
+                });
+              }
+              if (Array.isArray(dreamDoc.layer_analyses)) {
+                dreamDoc.layer_analyses.forEach((layer) => {
+                  if (hasMeaningfulText(layer.needed_revision)) continuityItems.push(`${getDisplayText(layer.layer_name)}: ${getDisplayText(layer.needed_revision)}`);
+                });
+              }
+              if (Array.isArray(dreamDoc.cross_layer_integration)) {
+                dreamDoc.cross_layer_integration.forEach((item) => {
+                  if (hasMeaningfulText(item.revision_note)) continuityItems.push(`${getDisplayText(item.motif)}: ${getDisplayText(item.revision_note)}`);
+                });
+              }
+              return continuityItems.length > 0 ? (
+                <ul className="space-y-1 text-sm text-gray-700">
+                  {continuityItems.map((item, idx) => <li key={idx}>• {item}</li>)}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-600 italic">
+                  Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.
+                </p>
+              );
+            })()}
+          </section>
+        )}
+
+        {/* ── §19 Readiness / Releasability Posture ── */}
+        {isLongForm && dreamDoc && (dreamReleasability.length > 0 || hasMeaningfulText(dreamDoc.market_shelf?.best_shelf) || hasMeaningfulText(dreamDoc.market_shelf?.marketable_hook) || hasMeaningfulText(dreamDoc.market_shelf?.market_danger) || dreamShelfNeighbors.length > 0 || dreamComparisonSpace.length > 0 || dreamAntiPatterns.length > 0) && (
+          <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+            <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('readiness_posture')}</h2>
+            {dreamReleasability.length > 0 ? (
+              <div className="mb-4">
+                <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Releasability Assessment</h3>
+                <div className="space-y-2">
+                  {dreamReleasability.map((row, idx) => (
+                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                      {hasMeaningfulText(row.dimension) ? <p><span className="font-medium">Dimension:</span> {getDisplayText(row.dimension)}</p> : null}
+                      {hasMeaningfulText(row.current_status) ? <p><span className="font-medium">Current status:</span> {getDisplayText(row.current_status)}</p> : null}
+                      {hasMeaningfulText(row.verdict) ? <p><span className="font-medium">Verdict:</span> {getDisplayText(row.verdict)}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {(hasMeaningfulText(dreamDoc.market_shelf?.best_shelf) || hasMeaningfulText(dreamDoc.market_shelf?.marketable_hook) || hasMeaningfulText(dreamDoc.market_shelf?.market_danger) || dreamShelfNeighbors.length > 0 || dreamComparisonSpace.length > 0 || dreamAntiPatterns.length > 0) ? (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Market Shelf</h3>
+                {hasMeaningfulText(dreamDoc.market_shelf?.best_shelf) ? (
+                  <p className="mb-1 text-sm text-[#5C5549]"><span className="font-medium">Best shelf:</span> {dreamBestShelf}</p>
+                ) : null}
+                {hasMeaningfulText(dreamDoc.market_shelf?.marketable_hook) ? (
+                  <p className="mb-1 text-sm text-[#5C5549]"><span className="font-medium">Marketable hook:</span> {dreamMarketableHook}</p>
+                ) : null}
+                {hasMeaningfulText(dreamDoc.market_shelf?.market_danger) ? (
+                  <p className="text-sm text-[#8B2E2E]"><span className="font-medium">Market danger:</span> {dreamMarketDanger}</p>
+                ) : null}
+                {dreamShelfNeighbors.length > 0 ? (
+                  <div className="mt-3">
+                    <h4 className="mb-1 text-sm font-semibold text-[#1C1814]">Shelf Neighbors</h4>
+                    <ul className="space-y-0.5 text-sm text-[#5C5549]">
+                      {dreamShelfNeighbors.map((title, idx) => (
+                        <li key={idx}>• {title}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {dreamComparisonSpace.length > 0 ? (
+                  <div className="mt-3">
+                    <h4 className="mb-1 text-sm font-semibold text-[#1C1814]">Comparison Space</h4>
+                    <ul className="space-y-0.5 text-sm text-[#5C5549]">
+                      {dreamComparisonSpace.map((comp, idx) => (
+                        <li key={idx}>• {comp}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {dreamAntiPatterns.length > 0 ? (
+                  <div className="mt-3">
+                    <h4 className="mb-1 text-sm font-semibold text-[#1C1814]">What Not to Become</h4>
+                    <ul className="space-y-0.5 text-sm text-[#5C5549]">
+                      {dreamAntiPatterns.map((item, idx) => (
+                        <li key={idx}>• {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        )}
+
+        {/* ── Internal-only DREAM diagnostics (support staff only) ── */}
+        {isLongForm && dreamDoc && showTechnicalSections && (
+          <section className="mb-6 rounded-sm border border-amber-200 bg-amber-50/30 p-6 shadow-sm">
+            <h2 className="mb-3 text-lg font-semibold text-gray-900 flex items-center gap-2">
+              DREAM Diagnostics
+              <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
+            </h2>
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Layer Analyses <span className="text-xs text-amber-700">(internal)</span></h3>
+                {dreamLayerAnalyses.length > 0 ? (
+                  <div className="space-y-2">
+                    {dreamLayerAnalyses.map((layer, idx) => (
+                      <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                        <p><span className="font-medium">Layer:</span> {getDisplayText(layer.layer_name)}</p>
+                        <p><span className="font-medium">Status:</span> {getDisplayText(layer.status)}</p>
+                        <p><span className="font-medium">Needed revision:</span> {getDisplayText(layer.needed_revision)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-700">—</p>
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Acceptance Checks <span className="text-xs text-amber-700">(internal)</span></h3>
+                <p className="text-sm text-gray-700"><span className="font-medium">Required detection:</span> {dreamRequiredDetections.join("; ") || "—"}</p>
+                <p className="text-sm text-gray-700"><span className="font-medium">Failure conditions:</span> {dreamFailureConditions.join("; ") || "—"}</p>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Calibration Notes <span className="text-xs text-amber-700">(internal)</span></h3>
+                {dreamCalibrationNotes.length > 0 ? (
+                  <ul className="list-disc list-inside space-y-1">
+                    {dreamCalibrationNotes.map((note, idx) => (
+                      <li key={idx} className="text-sm text-gray-700">{note}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-700">—</p>
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Repository Summary <span className="text-xs text-amber-700">(internal)</span></h3>
+                <div className="rounded border border-gray-200 p-3 text-sm space-y-1">
+                  <p><span className="font-medium">Benchmark:</span> {getDisplayText(dreamRepoSummary?.benchmark_name)}</p>
+                  <p><span className="font-medium">Source:</span> {getDisplayText(dreamRepoSummary?.source)}</p>
+                  <p><span className="font-medium">Evaluation type:</span> {getDisplayText(dreamRepoSummary?.evaluation_type)}</p>
+                  <p><span className="font-medium">Overall score:</span> {getDisplayText(dreamRepoSummary?.overall_score)}</p>
+                  <p><span className="font-medium">Readiness score:</span> {getDisplayText(dreamRepoSummary?.readiness_score)}</p>
+                  <p><span className="font-medium">Primary strengths:</span> {getDisplayDreamList(dreamRepoSummary?.primary_strengths).join("; ") || "—"}</p>
+                  <p><span className="font-medium">Primary blockers:</span> {getDisplayText(dreamRepoSummary?.primary_blockers)}</p>
+                  <p><span className="font-medium">Gold standard requirement:</span> {getDisplayText(dreamRepoSummary?.gold_standard_requirement)}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Character System — Peer Section (shown after DREAM sections land) */}
         {isLongForm && dreamDoc && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-violet-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
@@ -1266,7 +1352,7 @@ export default async function ReportPage({
           </section>
         )}
 
-        {/* Craft Evidence — Peer Section (shown after Narrative Synthesis lands) */}
+        {/* Craft Evidence — Peer Section (shown after DREAM sections land) */}
         {isLongForm && dreamDoc && (
           <section className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-teal-100">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1 flex items-center gap-2">

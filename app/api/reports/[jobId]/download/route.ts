@@ -30,6 +30,18 @@ import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluati
 import { EVALUATION_TEMPLATE_CONTRACTS } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
+import {
+  getLongFormMultiLayerSections,
+  getRequiredSectionTitles,
+  getForbiddenTopLevelHeadings,
+  getForbiddenNearDuplicates,
+  validateRenderedHeadings,
+  validateCrossSurfaceParity,
+  extractHtmlH2Headings,
+  extractTxtHeadings,
+  extractDocxXmlHeadings,
+  validateDocxXmlStructure,
+} from '@/lib/evaluation/sharedLongFormMultiLayerSections';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
@@ -49,6 +61,18 @@ import {
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+// ── Shared section contract helpers ─────────────────────────────────────
+// All renderers derive §13–§21 headings from the single source of truth.
+const _sectionContract = getLongFormMultiLayerSections();
+function sectionTitle(id: string): string {
+  const sec = _sectionContract.find(s => s.id === id);
+  if (!sec) throw new Error(`Unknown section id: ${id}`);
+  return sec.title;
+}
+function sectionTitleUpper(id: string): string {
+  return sectionTitle(id).toUpperCase();
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LONG_FORM_WORD_THRESHOLD = 25000;
@@ -656,118 +680,14 @@ function buildMetadata(result: ExportableResult, title: string | null, dream: Lo
 }
 
 function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): void {
-  const sep = '='.repeat(72);
-  const sub = '-'.repeat(72);
+  const sub = '-'.repeat(TXT_WRAP_WIDTH);
   const push = (s: string) => lines.push(s);
 
-  push('');
-  push(sep);
-  push('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
-  push(sep);
-  push('');
-  if (dream.dream_scores?.quality != null) push(`Quality: ${scoreLabel(dream.dream_scores.quality, 100)}`);
-  if (dream.dream_scores?.readiness != null) push(`Readiness: ${scoreLabel(dream.dream_scores.readiness, 100)}`);
-  if (dream.dream_scores?.commercial != null) push(`Commercial: ${scoreLabel(dream.dream_scores.commercial, 100)}`);
-  if (dream.dream_scores?.literary != null) push(`Literary: ${scoreLabel(dream.dream_scores.literary, 100)}`);
-  if (hasMeaningfulText(dream.executive_verdict)) {
-    push('');
-    push('Executive Verdict:');
-    push('');
-    push(cleanReportText(dream.executive_verdict));
-  }
-
-  if (
-    dream.market_shelf && (
-      hasMeaningfulText(dream.market_shelf.best_shelf) ||
-      hasMeaningfulText(dream.market_shelf.marketable_hook) ||
-      hasMeaningfulText(dream.market_shelf.market_danger) ||
-      (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) ||
-      (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0)
-    )
-  ) {
-    push('');
-    push(sub);
-    push('MARKET SHELF');
-    push(sub);
-    push('');
-    if (hasMeaningfulText(dream.market_shelf.best_shelf)) push(`Best Shelf: ${cleanReportText(dream.market_shelf.best_shelf)}`);
-    if (hasMeaningfulText(dream.market_shelf.marketable_hook)) push(`Marketable Hook: ${cleanReportText(dream.market_shelf.marketable_hook)}`);
-    if (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) {
-      push('');
-      push('Shelf Neighbors:');
-      dream.market_shelf.shelf_neighbors.forEach((item) => push(`• ${cleanReportText(item)}`));
-    }
-    if (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0) {
-      push('');
-      push('Comparison Space:');
-      dream.market_shelf.comparison_space.forEach((item) => push(`• ${cleanReportText(item)}`));
-    }
-    if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
-      push('');
-      push('What Not to Become:');
-      dream.what_not_to_become.forEach((item) => push(`• ${cleanReportText(item)}`));
-    }
-    if (hasMeaningfulText(dream.market_shelf.market_danger)) {
-      push('');
-      push(`Market Danger: ${cleanReportText(dream.market_shelf.market_danger)}`);
-    }
-  }
-
-  if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
-    push('');
-    push(sub);
-    push('STRUCTURAL STACK');
-    push(sub);
-    dream.structural_stack.forEach((layer) => {
-      push('');
-      push(`${cleanReportText(layer.layer_name)} — ${layer.status}`);
-      if (hasMeaningfulText(layer.function)) push(`Function: ${cleanReportText(layer.function)}`);
-      if (hasMeaningfulText(layer.revision_note)) push(`Revision note: ${cleanReportText(layer.revision_note)}`);
-    });
-  }
-
-  if (Array.isArray(dream.arc_map) && dream.arc_map.length > 0) {
-    push('');
-    push(sub);
-    push('ARC MAP');
-    push(sub);
-    dream.arc_map.forEach((act) => {
-      push('');
-      push(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`);
-      if (hasMeaningfulText(act.primary_function)) push(`Function: ${cleanReportText(act.primary_function)}`);
-      if (hasMeaningfulText(act.revision_priority)) push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
-    });
-  }
-
-  if (Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0) {
-    push('');
-    push(sub);
-    push('LAYER ANALYSIS');
-    push(sub);
-    dream.layer_analyses.forEach((layer) => {
-      push('');
-      push(`${cleanReportText(layer.layer_name)} — ${cleanReportText(layer.status)}`);
-      if (hasMeaningfulText(layer.needed_revision)) push(`Needed revision: ${cleanReportText(layer.needed_revision)}`);
-    });
-  }
-
-  if (Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0) {
-    push('');
-    push(sub);
-    push('CROSS-LAYER INTEGRATION');
-    push(sub);
-    dream.cross_layer_integration.forEach((item) => {
-      push('');
-      push(`${cleanReportText(item.motif)} — ${cleanReportText(item.integration_quality)}`);
-      if (hasMeaningfulText(item.description)) push(`Description: ${cleanReportText(item.description)}`);
-      if (hasMeaningfulText(item.revision_note)) push(`Revision note: ${cleanReportText(item.revision_note)}`);
-    });
-  }
-
+  // ── §12a Expanded Criterion Analysis (subsection expanding §12) ────
   if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
     push('');
     push(sub);
-    push('EXPANDED CRITERION ANALYSIS');
+    push(sectionTitleUpper('expanded_criterion_analysis'));
     push(sub);
     dream.criterion_analyses.forEach((a) => {
       push('');
@@ -778,104 +698,54 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
     });
   }
 
-  const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
-  if (revisionPlan.length > 0) {
+  // ── §13 Story Ledger or Layer-Aware Architecture Map ───────────────
+  const hasStructural = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0;
+  const hasArcMap = Array.isArray(dream.arc_map) && dream.arc_map.length > 0;
+  const hasLayerAnalyses = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0;
+  if (hasStructural || hasArcMap || hasLayerAnalyses) {
     push('');
     push(sub);
-    push('REVISION PLAN');
+    push(sectionTitleUpper('story_ledger'));
     push(sub);
-    revisionPlan.forEach((item) => {
+    if (hasStructural) {
       push('');
-      push(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`);
-      push(`Goal: ${cleanReportText(item.goal)}`);
-      pushTxtListBlock(lines, 'Actions', item.actions, { ordered: true });
-      if (item.acceptance_check) push(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
-    });
-  }
-
-  // Symbolic / Doctrine Audit
-  if (dream.symbolic_audit) {
-    push('');
-    push(sub);
-    push('SYMBOLIC / DOCTRINE AUDIT');
-    push(sub);
-    if (Array.isArray(dream.symbolic_audit.preserved_symbols) && dream.symbolic_audit.preserved_symbols.length > 0) {
-      push('');
-      push('Preserved Symbols:');
-      dream.symbolic_audit.preserved_symbols.forEach((sym) => {
-        push(`• ${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`);
-        if (sym.revision_instruction) push(`    Revision: ${cleanReportText(sym.revision_instruction)}`);
+      push('Structural Architecture:');
+      dream.structural_stack.forEach((layer) => {
+        push('');
+        push(`${cleanReportText(layer.layer_name)} — ${layer.status}`);
+        if (hasMeaningfulText(layer.function)) push(`Function: ${cleanReportText(layer.function)}`);
+        if (hasMeaningfulText(layer.revision_note)) push(`Revision note: ${cleanReportText(layer.revision_note)}`);
       });
     }
-    if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
+    if (hasArcMap) {
       push('');
-      push('Doctrine Strengths:');
-      dream.symbolic_audit.doctrine_strengths.forEach((s) => push(`• ${cleanReportText(s)}`));
+      push('Arc Map:');
+      dream.arc_map.forEach((act) => {
+        push('');
+        push(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`);
+        if (hasMeaningfulText(act.primary_function)) push(`Function: ${cleanReportText(act.primary_function)}`);
+        if (hasMeaningfulText(act.revision_priority)) push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
+      });
     }
-    if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
+    if (hasLayerAnalyses) {
       push('');
-      push('Doctrine Risks:');
-      dream.symbolic_audit.doctrine_risks.forEach((r) => push(`• ${cleanReportText(r)}`));
-    }
-    if (dream.symbolic_audit.audit_conclusion) {
-      push('');
-      push(`Audit Conclusion: ${cleanReportText(dream.symbolic_audit.audit_conclusion)}`);
-    }
-  }
-
-  // Reader Experience
-  if (dream.reader_experience) {
-    push('');
-    push(sub);
-    push('READER EXPERIENCE');
-    push(sub);
-    const re = dream.reader_experience;
-    if (re.first_act) {
-      push('');
-      push('First Act:');
-      if (hasMeaningfulText(re.first_act.reader_question)) push(`  Reader question: ${cleanReportText(re.first_act.reader_question)}`);
-      if (hasMeaningfulText(re.first_act.emotional_state)) push(`  Emotional state: ${cleanReportText(re.first_act.emotional_state)}`);
-      if (hasMeaningfulText(re.first_act.risk)) push(`  Risk: ${cleanReportText(re.first_act.risk)}`);
-    }
-    if (re.middle) {
-      push('');
-      push('Middle:');
-      if (hasMeaningfulText(re.middle.reader_question)) push(`  Reader question: ${cleanReportText(re.middle.reader_question)}`);
-      if (hasMeaningfulText(re.middle.emotional_state)) push(`  Emotional state: ${cleanReportText(re.middle.emotional_state)}`);
-      if (hasMeaningfulText(re.middle.risk)) push(`  Risk: ${cleanReportText(re.middle.risk)}`);
-    }
-    if (re.final_act) {
-      push('');
-      push('Final Act:');
-      if (hasMeaningfulText(re.final_act.reader_question)) push(`  Reader question: ${cleanReportText(re.final_act.reader_question)}`);
-      if (hasMeaningfulText(re.final_act.emotional_state)) push(`  Emotional state: ${cleanReportText(re.final_act.emotional_state)}`);
-      if (hasMeaningfulText(re.final_act.risk)) push(`  Risk: ${cleanReportText(re.final_act.risk)}`);
-    }
-    if (hasMeaningfulText(re.aftertaste)) {
-      push('');
-      push(`Aftertaste: ${cleanReportText(re.aftertaste)}`);
+      push('Layer Analysis:');
+      dream.layer_analyses.forEach((layer) => {
+        push('');
+        push(`${cleanReportText(layer.layer_name)} — ${cleanReportText(layer.status)}`);
+        if (hasMeaningfulText(layer.needed_revision)) push(`Needed revision: ${cleanReportText(layer.needed_revision)}`);
+      });
     }
   }
 
-  // Releasability
-  if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
-    push('');
-    push(sub);
-    push('RELEASABILITY');
-    push(sub);
-    push('');
-    dream.releasability.forEach((dim) => {
-      push(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`);
-    });
-  }
-
+  // ── §14 Review Gate Readiness Surface ──────────────────────────────
   if (dream.acceptance_checks) {
     const required = filterAuthorFacingTextList(dream.acceptance_checks.required_detection);
     const failures = filterAuthorFacingTextList(dream.acceptance_checks.failure_conditions);
     if (required.length > 0 || failures.length > 0) {
       push('');
       push(sub);
-      push('REVIEW GATE');
+      push(sectionTitleUpper('review_gate'));
       push(sub);
       if (required.length > 0) {
         push('');
@@ -887,6 +757,187 @@ function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): 
         push('Failure Conditions:');
         failures.forEach((item) => push(`• ${cleanReportText(item)}`));
       }
+    }
+  }
+
+  // ── §15 Governed Ledgers or Compact Governed-Ledger Addenda ────────
+  if (dream.symbolic_audit) {
+    const sa = dream.symbolic_audit;
+    const hasAuditContent = (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0)
+      || (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0)
+      || (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0)
+      || hasMeaningfulText(sa.audit_conclusion);
+    if (hasAuditContent) {
+      push('');
+      push(sub);
+      push(sectionTitleUpper('governed_ledgers'));
+      push(sub);
+      if (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) {
+        push('');
+        push('Preserved Symbols:');
+        sa.preserved_symbols.forEach((sym) => {
+          push(`• ${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`);
+          if (sym.revision_instruction) push(`    Revision: ${cleanReportText(sym.revision_instruction)}`);
+        });
+      }
+      if (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) {
+        push('');
+        push('Doctrine Strengths:');
+        sa.doctrine_strengths.forEach((s) => push(`• ${cleanReportText(s)}`));
+      }
+      if (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) {
+        push('');
+        push('Doctrine Risks:');
+        sa.doctrine_risks.forEach((r) => push(`• ${cleanReportText(r)}`));
+      }
+      if (hasMeaningfulText(sa.audit_conclusion)) {
+        push('');
+        push(`Audit Conclusion: ${cleanReportText(sa.audit_conclusion)}`);
+      }
+    }
+  }
+
+  // ── §16 Cross-Layer Synthesis ──────────────────────────────────────
+  const hasDreamScores = dream.dream_scores && (dream.dream_scores.quality != null || dream.dream_scores.readiness != null || dream.dream_scores.commercial != null || dream.dream_scores.literary != null);
+  const hasVerdict = hasMeaningfulText(dream.executive_verdict);
+  const hasCrossLayer = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0;
+  const hasReaderExperience = dream.reader_experience && (dream.reader_experience.first_act || dream.reader_experience.middle || dream.reader_experience.final_act || hasMeaningfulText(dream.reader_experience.aftertaste));
+  if (hasDreamScores || hasVerdict || hasCrossLayer || hasReaderExperience) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('cross_layer_synthesis'));
+    push(sub);
+    push('');
+    if (hasDreamScores) {
+      if (dream.dream_scores?.quality != null) push(`Quality: ${scoreLabel(dream.dream_scores.quality, 100)}`);
+      if (dream.dream_scores?.readiness != null) push(`Readiness: ${scoreLabel(dream.dream_scores.readiness, 100)}`);
+      if (dream.dream_scores?.commercial != null) push(`Commercial: ${scoreLabel(dream.dream_scores.commercial, 100)}`);
+      if (dream.dream_scores?.literary != null) push(`Literary: ${scoreLabel(dream.dream_scores.literary, 100)}`);
+    }
+    if (hasVerdict) {
+      push('');
+      push('Executive Verdict:');
+      push('');
+      pushWrapped(lines, cleanReportText(dream.executive_verdict));
+    }
+    if (hasCrossLayer) {
+      push('');
+      push('Cross-Layer Integration:');
+      dream.cross_layer_integration.forEach((item) => {
+        push('');
+        push(`${cleanReportText(item.motif)} — ${cleanReportText(item.integration_quality)}`);
+        if (hasMeaningfulText(item.description)) pushWrapped(lines, `Description: ${cleanReportText(item.description)}`, { firstIndent: '  ', nextIndent: '  ' });
+        if (hasMeaningfulText(item.revision_note)) pushWrapped(lines, `Revision note: ${cleanReportText(item.revision_note)}`, { firstIndent: '  ', nextIndent: '  ' });
+      });
+    }
+    if (hasReaderExperience) {
+      const re = dream.reader_experience!;
+      push('');
+      push('Reader Experience:');
+      const addAct = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+        if (!act) return;
+        if (!hasMeaningfulText(act.reader_question) && !hasMeaningfulText(act.emotional_state) && !hasMeaningfulText(act.risk)) return;
+        push('');
+        push(`${title}:`);
+        if (hasMeaningfulText(act.reader_question)) push(`  Reader question: ${cleanReportText(act.reader_question)}`);
+        if (hasMeaningfulText(act.emotional_state)) push(`  Emotional state: ${cleanReportText(act.emotional_state)}`);
+        if (hasMeaningfulText(act.risk)) push(`  Risk: ${cleanReportText(act.risk)}`);
+      };
+      addAct('First Act', re.first_act);
+      addAct('Middle', re.middle);
+      addAct('Final Act', re.final_act);
+      if (hasMeaningfulText(re.aftertaste)) {
+        push('');
+        push(`Aftertaste: ${cleanReportText(re.aftertaste)}`);
+      }
+    }
+  }
+
+  // ── §17 Layer-Aware Revision Sequencing ────────────────────────────
+  const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+  if (revisionPlan.length > 0) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('revision_sequencing'));
+    push(sub);
+    revisionPlan.forEach((item) => {
+      push('');
+      push(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`);
+      push(`Goal: ${cleanReportText(item.goal)}`);
+      pushTxtListBlock(lines, 'Actions', item.actions, { ordered: true });
+      if (item.acceptance_check) push(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
+    });
+  }
+
+  // ── §18 Long-Form Continuity and Coverage Proof ────────────────────
+  const continuityItems: string[] = [];
+  if (Array.isArray(dream.arc_map)) {
+    dream.arc_map.forEach((act) => {
+      if (hasMeaningfulText(act.primary_function)) continuityItems.push(`${cleanReportText(act.act_name)}: ${cleanReportText(act.primary_function)}`);
+    });
+  }
+  if (Array.isArray(dream.layer_analyses)) {
+    dream.layer_analyses.forEach((layer) => {
+      if (hasMeaningfulText(layer.needed_revision)) continuityItems.push(`${cleanReportText(layer.layer_name)}: ${cleanReportText(layer.needed_revision)}`);
+    });
+  }
+  if (Array.isArray(dream.cross_layer_integration)) {
+    dream.cross_layer_integration.forEach((item) => {
+      if (hasMeaningfulText(item.revision_note)) continuityItems.push(`${cleanReportText(item.motif)}: ${cleanReportText(item.revision_note)}`);
+    });
+  }
+  push('');
+  push(sub);
+  push(sectionTitleUpper('continuity_coverage'));
+  push(sub);
+  push('');
+  if (continuityItems.length > 0) {
+    continuityItems.forEach((item) => {
+      pushWrapped(lines, cleanReportText(item), { firstIndent: '• ', nextIndent: '  ' });
+    });
+  } else {
+    pushWrapped(lines, 'Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.');
+  }
+
+  // ── §19 Readiness / Releasability Posture ──────────────────────────
+  const hasReleasability = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+  const hasMarketShelf = dream.market_shelf && (
+    hasMeaningfulText(dream.market_shelf.best_shelf) ||
+    hasMeaningfulText(dream.market_shelf.marketable_hook) ||
+    hasMeaningfulText(dream.market_shelf.market_danger) ||
+    (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) ||
+    (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0)
+  );
+  if (hasReleasability || hasMarketShelf) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('readiness_posture'));
+    push(sub);
+    push('');
+    if (hasReleasability) {
+      dream.releasability.forEach((dim) => {
+        push(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`);
+      });
+    }
+    if (hasMarketShelf) {
+      push('');
+      push('Market Shelf:');
+      const ms = dream.market_shelf!;
+      if (hasMeaningfulText(ms.best_shelf)) push(`  Best Shelf: ${cleanReportText(ms.best_shelf)}`);
+      if (hasMeaningfulText(ms.marketable_hook)) push(`  Marketable Hook: ${cleanReportText(ms.marketable_hook)}`);
+      if (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) {
+        push('  Shelf Neighbors:');
+        ms.shelf_neighbors.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      }
+      if (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) {
+        push('  Comparison Space:');
+        ms.comparison_space.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      }
+      if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+        push('  What Not to Become:');
+        dream.what_not_to_become.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      }
+      if (hasMeaningfulText(ms.market_danger)) push(`  Market Danger: ${cleanReportText(ms.market_danger)}`);
     }
   }
 }
@@ -1059,9 +1110,9 @@ function buildTxtReport(result: ExportableResult, title: string | null, jobId: s
     lines.push('');
   });
 
-  // ── Confidence Explanation (template section 13) ──
+  // ── Confidence Explanation (template section 20) ──
   lines.push(sub);
-  lines.push('CONFIDENCE EXPLANATION');
+  lines.push(sectionTitleUpper('confidence_explanation'));
   lines.push(sub);
   lines.push('');
   lines.push(CONFIDENCE_EXPLANATION.title);
@@ -1321,29 +1372,24 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, dream: Longfo
     }
   }
 
-  if (!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation')) {
-    lines.push(sub);
-    lines.push('');
-    doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => {
-      pushWrapped(lines, cleanReportText(item), { firstIndent: '• ', nextIndent: '  ' });
-    });
-    lines.push('');
-
-    lines.push(sub);
-    lines.push('REVISION PRIORITY PLAN');
-    lines.push(sub);
-    lines.push('');
-    doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
-      lines.push(`Priority ${item.priority}: ${cleanReportText(item.title)}`);
-      lines.push(`Location: ${cleanReportText(item.location)}`);
-      pushWrapped(lines, `Operation: ${cleanReportText(item.operation)}`);
-      pushWrapped(lines, `Recommendation: ${cleanReportText(item.recommendation)}`);
-      pushWrapped(lines, `Rationale: ${cleanReportText(item.rationale)}`);
+  // ── Sections 13–21: DREAM enriches, UED/template is rendering authority ─
+  // When DREAM is present it provides richer content for §13–§19; otherwise
+  // fall back to the compressed UED modeSpecific arrays.  Either way the
+  // template-authorized headings and section order are enforced here.
+  if (dream) {
+    appendDreamTxtSections(lines, dream);
+  } else if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
+    if (doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
+      lines.push(sub);
+      lines.push('MANUSCRIPT-SCALE CONTINUITY FINDINGS');
+      lines.push(sub);
       lines.push('');
-    });
-  }
+      doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => {
+        pushWrapped(lines, cleanReportText(item), { firstIndent: '• ', nextIndent: '  ' });
+      });
+      lines.push('');
+    }
 
-  if (!dream && doc.templateMode === 'long_form_multi_layer_evaluation') {
     const pushList = (heading: string, items: string[]) => {
       if (items.length === 0) return;
       lines.push(sub);
@@ -1356,36 +1402,47 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, dream: Longfo
       lines.push('');
     };
 
-    pushList('STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP', doc.modeSpecific.storyLedgerArchitectureMap);
-    pushList('REVIEW GATE READINESS SURFACE', doc.modeSpecific.reviewGateReadinessSurface);
-    pushList('GOVERNED LEDGERS OR COMPACT ADDENDA', doc.modeSpecific.governedLedgerAddenda);
-    pushList('CROSS-LAYER SYNTHESIS', doc.modeSpecific.crossLayerSynthesis);
-    pushList('LAYER-AWARE REVISION SEQUENCING', doc.modeSpecific.layerAwareRevisionSequencing);
-    pushList('LONG-FORM CONTINUITY AND COVERAGE PROOF', doc.modeSpecific.continuityCoverageProof);
+    pushList(sectionTitleUpper('story_ledger'), doc.modeSpecific.storyLedgerArchitectureMap);
+    pushList(sectionTitleUpper('review_gate'), doc.modeSpecific.reviewGateReadinessSurface);
+    pushList(sectionTitleUpper('governed_ledgers'), doc.modeSpecific.governedLedgerAddenda);
+    pushList(sectionTitleUpper('cross_layer_synthesis'), doc.modeSpecific.crossLayerSynthesis);
+    pushList(sectionTitleUpper('revision_sequencing'), doc.modeSpecific.layerAwareRevisionSequencing);
+    pushList(sectionTitleUpper('continuity_coverage'), doc.modeSpecific.continuityCoverageProof);
 
     if (doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
       lines.push(sub);
-      lines.push('READINESS / RELEASABILITY POSTURE');
+      lines.push(sectionTitleUpper('readiness_posture'));
       lines.push(sub);
       lines.push('');
       pushWrapped(lines, cleanReportText(doc.modeSpecific.readinessReleasabilityPosture));
       lines.push('');
     }
+
+    if (doc.modeSpecific.revisionPriorityPlan.length > 0) {
+      lines.push(sub);
+      lines.push(sectionTitleUpper('revision_sequencing'));
+      lines.push(sub);
+      lines.push('');
+      doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
+        lines.push(`Priority ${item.priority}: ${cleanReportText(item.title)}`);
+        lines.push(`Location: ${cleanReportText(item.location)}`);
+        pushWrapped(lines, `Operation: ${cleanReportText(item.operation)}`);
+        pushWrapped(lines, `Recommendation: ${cleanReportText(item.recommendation)}`);
+        pushWrapped(lines, `Rationale: ${cleanReportText(item.rationale)}`);
+        lines.push('');
+      });
+    }
   }
 
-  // When the DREAM artifact is available, render all template sections directly.
-  // Rule: THE TEMPLATE IS THE TRUTH — render from the source, not the compressed UED arrays.
-  if (dream) appendDreamTxtSections(lines, dream);
-
   lines.push(sub);
-  lines.push('CONFIDENCE EXPLANATION');
+  lines.push(sectionTitleUpper('confidence_explanation'));
   lines.push(sub);
   lines.push('');
   pushWrapped(lines, cleanReportText(doc.confidenceExplanation));
   lines.push('');
 
   lines.push(sub);
-  lines.push('AUTHOR-FACING DISCLAIMER');
+  lines.push(sectionTitleUpper('disclaimer'));
   lines.push(sub);
   lines.push('');
   pushWrapped(lines, cleanReportText(doc.disclaimer));
@@ -1433,74 +1490,12 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
     .join('');
 
   // ── Dream Template Sections ────────────────────────────────────────────────
-  // When the raw DREAM artifact is available, render all DREAM template sections
-  // directly from the source artifact. These replace the compressed UED modeSpecific
-  // string arrays (Story Ledger, Review Gate, Governed Ledgers, Cross-Layer Synthesis,
-  // Layer-Aware Revision Sequencing, Long-Form Continuity, Readiness Posture).
-  // Rule: THE TEMPLATE IS THE TRUTH — all renderers must follow the DREAM template.
+  // DREAM enriches §13–§19; UED/template is rendering authority.
+  // All sections use template-authorized headings in template-mandated order.
   const dreamSectionsHtml = dream ? (() => {
     const parts: string[] = [];
 
-    // §1 Narrative Synthesis (dream_scores + executive_verdict)
-    const ds = dream.dream_scores;
-    const scoreMetrics = ds ? [
-      ds.quality != null ? `<div class="metric"><strong>Quality</strong><div>${escapeHtml(scoreLabel(ds.quality, 100))}</div></div>` : '',
-      ds.readiness != null ? `<div class="metric"><strong>Readiness</strong><div>${escapeHtml(scoreLabel(ds.readiness, 100))}</div></div>` : '',
-      ds.commercial != null ? `<div class="metric"><strong>Commercial</strong><div>${escapeHtml(scoreLabel(ds.commercial, 100))}</div></div>` : '',
-      ds.literary != null ? `<div class="metric"><strong>Literary</strong><div>${escapeHtml(scoreLabel(ds.literary, 100))}</div></div>` : '',
-    ].filter(Boolean).join('') : '';
-    if (hasMeaningfulText(dream.executive_verdict) || scoreMetrics) {
-      parts.push(`<section><h2>Narrative Synthesis</h2>${scoreMetrics ? `<div class="grid" style="margin-bottom:14px">${scoreMetrics}</div>` : ''}${hasMeaningfulText(dream.executive_verdict) ? `<p style="font-size:10pt;line-height:1.6">${escapeHtml(cleanReportText(dream.executive_verdict))}</p>` : ''}</section>`);
-    }
-
-    // §2 Market Shelf + What Not to Become
-    if (dream.market_shelf) {
-      const ms = dream.market_shelf;
-      const bestShelfHtml = hasMeaningfulText(ms.best_shelf) ? `<p><strong>Best Shelf:</strong> ${escapeHtml(cleanReportText(ms.best_shelf))}</p>` : '';
-      const hookHtml = hasMeaningfulText(ms.marketable_hook) ? `<p><strong>Marketable Hook:</strong> ${escapeHtml(cleanReportText(ms.marketable_hook))}</p>` : '';
-      const dangerHtml = hasMeaningfulText(ms.market_danger) ? `<p><strong>Market Danger:</strong> ${escapeHtml(cleanReportText(ms.market_danger))}</p>` : '';
-      const neighborsHtml = Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0
-        ? `<p style="margin-top:10px"><strong>Shelf Neighbors:</strong></p>${list(ms.shelf_neighbors)}`
-        : '';
-      const compHtml = Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0
-        ? `<p style="margin-top:10px"><strong>Comparison Space:</strong></p>${list(ms.comparison_space)}`
-        : '';
-      const wntbHtml = Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0
-        ? `<p style="margin-top:10px"><strong>What Not to Become:</strong></p>${list(dream.what_not_to_become)}`
-        : '';
-      if (bestShelfHtml || hookHtml || dangerHtml || neighborsHtml || compHtml || wntbHtml) {
-        parts.push(`<section><h2>Market Shelf</h2><div class="card">${bestShelfHtml}${hookHtml}${dangerHtml}${neighborsHtml}${compHtml}${wntbHtml}</div></section>`);
-      }
-    }
-
-    // §4 Structural Architecture (structural_stack) + §5 Arc Map
-    const stackCards = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0
-      ? dream.structural_stack.map(layer => `<article class="card"><h3>${escapeHtml(cleanReportText(layer.layer_name))}</h3><p><strong>Function:</strong> ${escapeHtml(cleanReportText(layer.function))}</p><p><strong>Status:</strong> ${escapeHtml(layer.status)}</p>${layer.revision_note ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision note:</strong> ${escapeHtml(cleanReportText(layer.revision_note))}</p>` : ''}</article>`).join('')
-      : '';
-    const arcCards = Array.isArray(dream.arc_map) && dream.arc_map.length > 0
-      ? dream.arc_map.map(act => `<article class="card"><h3>${escapeHtml(cleanReportText(act.act_name))} <small>${escapeHtml(cleanReportText(act.chapter_range))}</small></h3><p>${escapeHtml(cleanReportText(act.primary_function))}</p>${act.revision_priority ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision priority:</strong> ${escapeHtml(cleanReportText(act.revision_priority))}</p>` : ''}</article>`).join('')
-      : '';
-    if (stackCards || arcCards) {
-      parts.push(`<section><h2>Structural Architecture</h2>${stackCards}${arcCards ? `<h3 style="margin-top:16px">Arc Map</h3>${arcCards}` : ''}</section>`);
-    }
-
-    // §8 Layer Analysis
-    const layerCards = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0
-      ? dream.layer_analyses.map(l => `<article class="card"><h3>${escapeHtml(cleanReportText(l.layer_name))} <small>${escapeHtml(l.status)}</small></h3><p>${escapeHtml(cleanReportText(l.needed_revision))}</p></article>`).join('')
-      : '';
-    if (layerCards) {
-      parts.push(`<section><h2>Layer Analysis</h2>${layerCards}</section>`);
-    }
-
-    // §9 Cross-Layer Integration
-    const crossCards = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0
-      ? dream.cross_layer_integration.map(c => `<article class="card"><h3>${escapeHtml(cleanReportText(c.motif))}</h3><p>${escapeHtml(cleanReportText(c.description))}</p>${c.revision_note ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(cleanReportText(c.revision_note))}</p>` : ''}</article>`).join('')
-      : '';
-    if (crossCards) {
-      parts.push(`<section><h2>Cross-Layer Integration</h2>${crossCards}</section>`);
-    }
-
-    // §7 Deep Criterion Analysis (expands the score grid with fit evidence, gap evidence, revision queue)
+    // §12a Expanded Criterion Analysis (subsection expanding §12)
     const deepCriterionCards = Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0
       ? dream.criterion_analyses.map(a => {
           const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
@@ -1518,10 +1513,38 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
         }).join('')
       : '';
     if (deepCriterionCards) {
-      parts.push(`<section><h2>Deep Criterion Analysis</h2>${deepCriterionCards}</section>`);
+      parts.push(`<section><h2>${sectionTitle('expanded_criterion_analysis')}</h2>${deepCriterionCards}</section>`);
     }
 
-    // §10 Symbolic & Doctrine Audit
+    // §13 Story Ledger or Layer-Aware Architecture Map
+    const stackCards = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0
+      ? dream.structural_stack.map(layer => `<article class="card"><h3>${escapeHtml(cleanReportText(layer.layer_name))}</h3><p><strong>Function:</strong> ${escapeHtml(cleanReportText(layer.function))}</p><p><strong>Status:</strong> ${escapeHtml(layer.status)}</p>${layer.revision_note ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision note:</strong> ${escapeHtml(cleanReportText(layer.revision_note))}</p>` : ''}</article>`).join('')
+      : '';
+    const arcCards = Array.isArray(dream.arc_map) && dream.arc_map.length > 0
+      ? dream.arc_map.map(act => `<article class="card"><h3>${escapeHtml(cleanReportText(act.act_name))} <small>${escapeHtml(cleanReportText(act.chapter_range))}</small></h3><p>${escapeHtml(cleanReportText(act.primary_function))}</p>${act.revision_priority ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision priority:</strong> ${escapeHtml(cleanReportText(act.revision_priority))}</p>` : ''}</article>`).join('')
+      : '';
+    const layerCards = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0
+      ? dream.layer_analyses.map(l => `<article class="card"><h3>${escapeHtml(cleanReportText(l.layer_name))} <small>${escapeHtml(l.status)}</small></h3><p>${escapeHtml(cleanReportText(l.needed_revision))}</p></article>`).join('')
+      : '';
+    if (stackCards || arcCards || layerCards) {
+      parts.push(`<section><h2>${sectionTitle('story_ledger')}</h2>${stackCards}${arcCards ? `<h3 style="margin-top:16px">Arc Map</h3>${arcCards}` : ''}${layerCards ? `<h3 style="margin-top:16px">Layer Analysis</h3>${layerCards}` : ''}</section>`);
+    }
+
+    // §14 Review Gate Readiness Surface
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const requiredHtml = Array.isArray(ac.required_detection) && ac.required_detection.length > 0
+        ? `<p><strong>Required Detection:</strong></p>${list(ac.required_detection)}`
+        : '';
+      const failureHtml = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0
+        ? `<p style="margin-top:10px"><strong>Failure Conditions:</strong></p>${list(ac.failure_conditions)}`
+        : '';
+      if (requiredHtml || failureHtml) {
+        parts.push(`<section><h2>${sectionTitle('review_gate')}</h2>${requiredHtml}${failureHtml}</section>`);
+      }
+    }
+
+    // §15 Governed Ledgers or Compact Governed-Ledger Addenda
     if (dream.symbolic_audit) {
       const sa = dream.symbolic_audit;
       const symbolsHtml = Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0
@@ -1535,12 +1558,23 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
         : '';
       const conclusionHtml = hasMeaningfulText(sa.audit_conclusion) ? `<p style="margin-top:10px">${escapeHtml(cleanReportText(sa.audit_conclusion))}</p>` : '';
       if (symbolsHtml || strengthsHtml || risksHtml || conclusionHtml) {
-        parts.push(`<section><h2>Symbolic &amp; Doctrine Audit</h2>${symbolsHtml}${strengthsHtml}${risksHtml}${conclusionHtml}</section>`);
+        parts.push(`<section><h2>${sectionTitle('governed_ledgers')}</h2>${symbolsHtml}${strengthsHtml}${risksHtml}${conclusionHtml}</section>`);
       }
     }
 
-    // §11 Reader Experience
-    if (dream.reader_experience) {
+    // §16 Cross-Layer Synthesis
+    const ds = dream.dream_scores;
+    const scoreMetrics = ds ? [
+      ds.quality != null ? `<div class="metric"><strong>Quality</strong><div>${escapeHtml(scoreLabel(ds.quality, 100))}</div></div>` : '',
+      ds.readiness != null ? `<div class="metric"><strong>Readiness</strong><div>${escapeHtml(scoreLabel(ds.readiness, 100))}</div></div>` : '',
+      ds.commercial != null ? `<div class="metric"><strong>Commercial</strong><div>${escapeHtml(scoreLabel(ds.commercial, 100))}</div></div>` : '',
+      ds.literary != null ? `<div class="metric"><strong>Literary</strong><div>${escapeHtml(scoreLabel(ds.literary, 100))}</div></div>` : '',
+    ].filter(Boolean).join('') : '';
+    const crossCards = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0
+      ? dream.cross_layer_integration.map(c => `<article class="card"><h3>${escapeHtml(cleanReportText(c.motif))}</h3><p>${escapeHtml(cleanReportText(c.description))}</p>${c.revision_note ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(cleanReportText(c.revision_note))}</p>` : ''}</article>`).join('')
+      : '';
+    const readerExpHtml = (() => {
+      if (!dream.reader_experience) return '';
       const re = dream.reader_experience;
       const actCard = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
         if (!act) return '';
@@ -1552,12 +1586,14 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
       };
       const aftertasteHtml = hasMeaningfulText(re.aftertaste) ? `<p style="margin-top:14px;font-size:10pt">${escapeHtml(cleanReportText(re.aftertaste))}</p>` : '';
       const actHtml = `${actCard('First Act', re.first_act)}${actCard('Middle', re.middle)}${actCard('Final Act', re.final_act)}`;
-      if (actHtml || aftertasteHtml) {
-        parts.push(`<section><h2>Reader Experience</h2>${actHtml}${aftertasteHtml}</section>`);
-      }
+      if (!actHtml && !aftertasteHtml) return '';
+      return `<h3 style="margin-top:16px">Reader Experience</h3>${actHtml}${aftertasteHtml}`;
+    })();
+    if (hasMeaningfulText(dream.executive_verdict) || scoreMetrics || crossCards || readerExpHtml) {
+      parts.push(`<section><h2>${sectionTitle('cross_layer_synthesis')}</h2>${scoreMetrics ? `<div class="grid" style="margin-bottom:14px">${scoreMetrics}</div>` : ''}${hasMeaningfulText(dream.executive_verdict) ? `<p style="font-size:10pt;line-height:1.6">${escapeHtml(cleanReportText(dream.executive_verdict))}</p>` : ''}${crossCards ? `<h3 style="margin-top:16px">Cross-Layer Integration</h3>${crossCards}` : ''}${readerExpHtml}</section>`);
     }
 
-    // §12 Revision Priority Plan (from DREAM — canonical, replaces the UED compressed version)
+    // §17 Layer-Aware Revision Sequencing
     const dreamRevisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
     if (dreamRevisionPlan.length > 0) {
       const planCards = dreamRevisionPlan.map(item => {
@@ -1567,30 +1603,42 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
         const acceptanceHtml = item.acceptance_check ? `<p style="margin-top:8px;font-size:9.5pt;color:#5C5549"><strong>Acceptance Check:</strong> ${escapeHtml(cleanReportText(item.acceptance_check))}</p>` : '';
         return `<article class="card"><h3>Priority ${item.displayPriority}: ${escapeHtml(cleanReportText(item.title))}</h3><p>${escapeHtml(cleanReportText(item.goal))}</p>${actionsHtml}${acceptanceHtml}</article>`;
       }).join('');
-      parts.push(`<section><h2>Revision Priority Plan</h2>${planCards}</section>`);
+      parts.push(`<section><h2>${sectionTitle('revision_sequencing')}</h2>${planCards}</section>`);
     }
 
-    // §13 Releasability
-    if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
+    // §18 Long-Form Continuity and Coverage Proof
+    const continuityItems: string[] = [];
+    if (Array.isArray(dream.arc_map)) {
+      dream.arc_map.forEach(act => { if (hasMeaningfulText(act.primary_function)) continuityItems.push(`${cleanReportText(act.act_name)}: ${cleanReportText(act.primary_function)}`); });
+    }
+    if (Array.isArray(dream.layer_analyses)) {
+      dream.layer_analyses.forEach(l => { if (hasMeaningfulText(l.needed_revision)) continuityItems.push(`${cleanReportText(l.layer_name)}: ${cleanReportText(l.needed_revision)}`); });
+    }
+    if (Array.isArray(dream.cross_layer_integration)) {
+      dream.cross_layer_integration.forEach(c => { if (hasMeaningfulText(c.revision_note)) continuityItems.push(`${cleanReportText(c.motif)}: ${cleanReportText(c.revision_note)}`); });
+    }
+    parts.push(`<section><h2>${sectionTitle('continuity_coverage')}</h2>${continuityItems.length > 0 ? list(continuityItems) : '<p>Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.</p>'}</section>`);
+
+    // §19 Readiness / Releasability Posture
+    const hasReleasability = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+    const hasMarketShelf = dream.market_shelf && (hasMeaningfulText(dream.market_shelf.best_shelf) || hasMeaningfulText(dream.market_shelf.marketable_hook) || hasMeaningfulText(dream.market_shelf.market_danger) || (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) || (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0));
+    if (hasReleasability || hasMarketShelf) {
       const verdictClass = (v: string) => v === 'Ready' ? 'score-strong' : (v === 'Revise' || v === 'Must fix') ? 'score-risk' : 'score-watch';
-      const releasabilityRows = dream.releasability.map(dim =>
+      const releasabilityRows = hasReleasability ? dream.releasability.map(dim =>
         `<tr><td>${escapeHtml(cleanReportText(dim.dimension))}</td><td>${escapeHtml(cleanReportText(dim.current_status))}</td><td class="${verdictClass(dim.verdict)}" style="font-weight:700;text-align:right">${escapeHtml(dim.verdict)}</td></tr>`
-      ).join('');
-      parts.push(`<section><h2>Releasability Assessment</h2><table class="score-grid-table"><thead><tr><th>Dimension</th><th>Status</th><th style="text-align:right">Verdict</th></tr></thead><tbody>${releasabilityRows}</tbody></table></section>`);
-    }
-
-    // §14 Review Gate (acceptance_checks)
-    if (dream.acceptance_checks) {
-      const ac = dream.acceptance_checks;
-      const requiredHtml = Array.isArray(ac.required_detection) && ac.required_detection.length > 0
-        ? `<p><strong>Required Detection:</strong></p>${list(ac.required_detection)}`
-        : '';
-      const failureHtml = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0
-        ? `<p style="margin-top:10px"><strong>Failure Conditions:</strong></p>${list(ac.failure_conditions)}`
-        : '';
-      if (requiredHtml || failureHtml) {
-        parts.push(`<section><h2>Review Gate</h2>${requiredHtml}${failureHtml}</section>`);
-      }
+      ).join('') : '';
+      const releasabilityTable = releasabilityRows ? `<table class="score-grid-table"><thead><tr><th>Dimension</th><th>Status</th><th style="text-align:right">Verdict</th></tr></thead><tbody>${releasabilityRows}</tbody></table>` : '';
+      const marketShelfHtml = hasMarketShelf ? (() => {
+        const ms = dream.market_shelf!;
+        const bestShelfHtml = hasMeaningfulText(ms.best_shelf) ? `<p><strong>Best Shelf:</strong> ${escapeHtml(cleanReportText(ms.best_shelf))}</p>` : '';
+        const hookHtml = hasMeaningfulText(ms.marketable_hook) ? `<p><strong>Marketable Hook:</strong> ${escapeHtml(cleanReportText(ms.marketable_hook))}</p>` : '';
+        const dangerHtml = hasMeaningfulText(ms.market_danger) ? `<p><strong>Market Danger:</strong> ${escapeHtml(cleanReportText(ms.market_danger))}</p>` : '';
+        const neighborsHtml = Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0 ? `<p style="margin-top:10px"><strong>Shelf Neighbors:</strong></p>${list(ms.shelf_neighbors)}` : '';
+        const compHtml = Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0 ? `<p style="margin-top:10px"><strong>Comparison Space:</strong></p>${list(ms.comparison_space)}` : '';
+        const wntbHtml = Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0 ? `<p style="margin-top:10px"><strong>What Not to Become:</strong></p>${list(dream.what_not_to_become)}` : '';
+        return `<h3 style="margin-top:16px">Market Shelf</h3><div class="card">${bestShelfHtml}${hookHtml}${dangerHtml}${neighborsHtml}${compHtml}${wntbHtml}</div>`;
+      })() : '';
+      parts.push(`<section><h2>${sectionTitle('readiness_posture')}</h2>${releasabilityTable}${marketShelfHtml}</section>`);
     }
 
     return parts.join('\n    ');
@@ -1674,19 +1722,20 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
     <section><h2>Top Recommendations</h2>${doc.topRecommendations.length > 0 ? list(doc.topRecommendations, { ordered: true }) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
     <section><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
     <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
-    ${(!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') && doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
-    ${(!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') && doc.modeSpecific.revisionPriorityPlan.length > 0) ? `<section><h2>Revision Priority Plan</h2>${doc.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(cleanReportText(item.title))}</h3><p><strong>Location:</strong> ${escapeHtml(cleanReportText(item.location))}</p><p><strong>Operation:</strong> ${escapeHtml(cleanReportText(item.operation))}</p><p><strong>Recommendation:</strong> ${escapeHtml(cleanReportText(item.recommendation))}</p><p><strong>Rationale:</strong> ${escapeHtml(cleanReportText(item.rationale))}</p></article>`).join('')}</section>` : ''}
-    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.storyLedgerArchitectureMap.length > 0) ? `<section><h2>Story Ledger or Layer-Aware Architecture Map</h2>${list(doc.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
-    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.reviewGateReadinessSurface.length > 0) ? `<section><h2>Review Gate Readiness Surface</h2>${list(doc.modeSpecific.reviewGateReadinessSurface)}</section>` : ''}
-    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.governedLedgerAddenda.length > 0) ? `<section><h2>Governed Ledgers or Compact Addenda</h2>${list(doc.modeSpecific.governedLedgerAddenda)}</section>` : ''}
-    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.crossLayerSynthesis.length > 0) ? `<section><h2>Cross-Layer Synthesis</h2>${list(doc.modeSpecific.crossLayerSynthesis)}</section>` : ''}
-    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.layerAwareRevisionSequencing.length > 0) ? `<section><h2>Layer-Aware Revision Sequencing</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
-    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.continuityCoverageProof.length > 0) ? `<section><h2>Long-Form Continuity and Coverage Proof</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
-    ${(!dream && doc.templateMode === 'long_form_multi_layer_evaluation' && doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) ? `<section><h2>Readiness / Releasability Posture</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
-    ${dreamSectionsHtml}
+    ${dream ? dreamSectionsHtml : ((doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `
+    ${doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0 ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
+    ${doc.modeSpecific.storyLedgerArchitectureMap.length > 0 ? `<section><h2>${sectionTitle('story_ledger')}</h2>${list(doc.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
+    ${doc.modeSpecific.reviewGateReadinessSurface.length > 0 ? `<section><h2>${sectionTitle('review_gate')}</h2>${list(doc.modeSpecific.reviewGateReadinessSurface)}</section>` : ''}
+    ${doc.modeSpecific.governedLedgerAddenda.length > 0 ? `<section><h2>${sectionTitle('governed_ledgers')}</h2>${list(doc.modeSpecific.governedLedgerAddenda)}</section>` : ''}
+    ${doc.modeSpecific.crossLayerSynthesis.length > 0 ? `<section><h2>${sectionTitle('cross_layer_synthesis')}</h2>${list(doc.modeSpecific.crossLayerSynthesis)}</section>` : ''}
+    ${doc.modeSpecific.layerAwareRevisionSequencing.length > 0 ? `<section><h2>${sectionTitle('revision_sequencing')}</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
+    ${doc.modeSpecific.revisionPriorityPlan.length > 0 ? `<section><h2>${sectionTitle('revision_sequencing')}</h2>${doc.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(cleanReportText(item.title))}</h3><p><strong>Location:</strong> ${escapeHtml(cleanReportText(item.location))}</p><p><strong>Operation:</strong> ${escapeHtml(cleanReportText(item.operation))}</p><p><strong>Recommendation:</strong> ${escapeHtml(cleanReportText(item.recommendation))}</p><p><strong>Rationale:</strong> ${escapeHtml(cleanReportText(item.rationale))}</p></article>`).join('')}</section>` : ''}
+    ${doc.modeSpecific.continuityCoverageProof.length > 0 ? `<section><h2>${sectionTitle('continuity_coverage')}</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
+    ${doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0 ? `<section><h2>${sectionTitle('readiness_posture')}</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
+    ` : '')}
     ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
-    <section><h2>Confidence Explanation</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
-    <section><h2>Author-Facing Disclaimer</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
+    <section><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
+    <section><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
 }
 
@@ -2128,125 +2177,13 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream:
     }
   }
 
-  if (!dream && (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation')) {
-    if (doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
-      children.push(makeHeading('Manuscript-Scale Continuity Findings'));
-      doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(docxListPara(item)));
-    }
-    if (doc.modeSpecific.revisionPriorityPlan.length > 0) {
-    children.push(makeHeading('Revision Priority Plan'));
-    doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
-      children.push(para(`Priority ${item.priority}: ${item.title}`));
-      children.push(para(`Location: ${item.location}`));
-      children.push(para(`Operation: ${item.operation}`));
-      children.push(para(`Recommendation: ${item.recommendation}`));
-      children.push(para(`Rationale: ${item.rationale}`));
-    });
-    }
-  }
-
-  if (!dream && doc.templateMode === 'long_form_multi_layer_evaluation') {
-    const appendHeadingList = (heading: string, items: string[]) => {
-      if (items.length === 0) return;
-      children.push(makeHeading(heading));
-      items.forEach((item) => children.push(docxListPara(item)));
-    };
-
-    appendHeadingList('Story Ledger or Layer-Aware Architecture Map', doc.modeSpecific.storyLedgerArchitectureMap);
-    appendHeadingList('Review Gate Readiness Surface', doc.modeSpecific.reviewGateReadinessSurface);
-    appendHeadingList('Governed Ledgers or Compact Addenda', doc.modeSpecific.governedLedgerAddenda);
-    appendHeadingList('Cross-Layer Synthesis', doc.modeSpecific.crossLayerSynthesis);
-    appendHeadingList('Layer-Aware Revision Sequencing', doc.modeSpecific.layerAwareRevisionSequencing);
-    appendHeadingList('Long-Form Continuity and Coverage Proof', doc.modeSpecific.continuityCoverageProof);
-    if (doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
-      children.push(makeHeading('Readiness / Releasability Posture'));
-      children.push(para(doc.modeSpecific.readinessReleasabilityPosture));
-    }
-  }
-
-  // When the DREAM artifact is available, render all template sections directly.
-  // Rule: THE TEMPLATE IS THE TRUTH — render from the source, not the compressed UED arrays.
+  // ── Sections 13–21: UED section authority + DREAM enrichment ────────────
+  // DREAM provides richer content; UED modeSpecific is fallback.
+  // Template-authorized headings and §13→§21 order enforced in all paths.
   if (dream) {
-    // §1 Narrative Synthesis (dream_scores + executive_verdict)
-    const ds = dream.dream_scores;
-    if (dream.executive_verdict || ds) {
-      children.push(makeHeading('Narrative Synthesis'));
-      if (ds) {
-        const scoreEntries: Array<[string, number | null | undefined]> = [
-          ['Quality', ds.quality], ['Readiness', ds.readiness],
-          ['Commercial', ds.commercial], ['Literary', ds.literary],
-        ];
-        scoreEntries.forEach(([label, val]) => {
-          if (val != null) children.push(para(`${label}: ${scoreLabel(val, 100)}`));
-        });
-      }
-      if (dream.executive_verdict) children.push(para(cleanReportText(dream.executive_verdict)));
-    }
-
-    // §2 Market Shelf + What Not to Become
-    if (dream.market_shelf) {
-      const ms = dream.market_shelf;
-      const hasShelfContent = hasMeaningfulText(ms.best_shelf) || hasMeaningfulText(ms.marketable_hook) || hasMeaningfulText(ms.market_danger) || (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) || (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) || (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0);
-      if (hasShelfContent) children.push(makeHeading('Market Shelf'));
-      if (hasMeaningfulText(ms.best_shelf)) children.push(para(`Best Shelf: ${cleanReportText(ms.best_shelf)}`));
-      if (hasMeaningfulText(ms.marketable_hook)) children.push(para(`Marketable Hook: ${cleanReportText(ms.marketable_hook)}`));
-      if (hasMeaningfulText(ms.market_danger)) children.push(para(`Market Danger: ${cleanReportText(ms.market_danger)}`));
-      if (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) {
-        children.push(para('Shelf Neighbors:', { bold: true }));
-        ms.shelf_neighbors.forEach(item => children.push(docxListPara(item)));
-      }
-      if (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) {
-        children.push(para('Comparison Space:', { bold: true }));
-        ms.comparison_space.forEach(item => children.push(docxListPara(item)));
-      }
-      if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
-        children.push(para('What Not to Become:', { bold: true }));
-        dream.what_not_to_become.forEach(item => children.push(docxListPara(item)));
-      }
-    }
-
-    // §4 Structural Architecture (structural_stack)
-    if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
-      children.push(makeHeading('Structural Architecture'));
-      dream.structural_stack.forEach(layer => {
-        children.push(para(`${cleanReportText(layer.layer_name)} — ${layer.status}`, { bold: true }));
-        children.push(para(`Function: ${cleanReportText(layer.function)}`));
-        if (layer.revision_note) children.push(para(`Revision note: ${cleanReportText(layer.revision_note)}`, { color: RG.textMuted }));
-      });
-    }
-
-    // §5 Arc Map
-    if (Array.isArray(dream.arc_map) && dream.arc_map.length > 0) {
-      children.push(makeHeading('Arc Map'));
-      dream.arc_map.forEach(act => {
-        children.push(para(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`, { bold: true }));
-        children.push(para(`Function: ${cleanReportText(act.primary_function)}`));
-        if (act.revision_priority) children.push(para(`Revision priority: ${cleanReportText(act.revision_priority)}`, { color: RG.textMuted }));
-      });
-    }
-
-    // §8 Layer Analysis
-    if (Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0) {
-      children.push(makeHeading('Layer Analysis'));
-      dream.layer_analyses.forEach(l => {
-        children.push(para(`${cleanReportText(l.layer_name)} — ${l.status}`, { bold: true }));
-        children.push(para(cleanReportText(l.needed_revision)));
-      });
-    }
-
-    // §9 Cross-Layer Integration
-    if (Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0) {
-      children.push(makeHeading('Cross-Layer Integration'));
-      dream.cross_layer_integration.forEach(c => {
-        children.push(para(cleanReportText(c.motif), { bold: true }));
-        children.push(para(cleanReportText(c.description)));
-        if (c.revision_note) children.push(para(`Revision note: ${cleanReportText(c.revision_note)}`, { color: RG.textMuted }));
-      });
-    }
-
-    // §7 Deep Criterion Analysis
+    // §12a Expanded Criterion Analysis (subsection expanding §12)
     if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
-      children.push(makeHeading('Deep Criterion Analysis'));
+      children.push(makeHeading(sectionTitle('expanded_criterion_analysis')));
       dream.criterion_analyses.forEach(a => {
         const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
         children.push(para(`${getCriterionDisplayLabel(a.key)} — ${score} (${formatConfidenceLabel(a.confidence)})`, { bold: true }));
@@ -2265,51 +2202,131 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream:
       });
     }
 
-    // §10 Symbolic & Doctrine Audit
+    // §13 Story Ledger or Layer-Aware Architecture Map
+    const hasStructuralDocx = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0;
+    const hasArcMapDocx = Array.isArray(dream.arc_map) && dream.arc_map.length > 0;
+    const hasLayerAnalysesDocx = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0;
+    if (hasStructuralDocx || hasArcMapDocx || hasLayerAnalysesDocx) {
+      children.push(makeHeading(sectionTitle('story_ledger')));
+      if (hasStructuralDocx) {
+        children.push(para('Structural Architecture:', { bold: true }));
+        dream.structural_stack.forEach(layer => {
+          children.push(para(`${cleanReportText(layer.layer_name)} — ${layer.status}`, { bold: true }));
+          children.push(para(`Function: ${cleanReportText(layer.function)}`));
+          if (layer.revision_note) children.push(para(`Revision note: ${cleanReportText(layer.revision_note)}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasArcMapDocx) {
+        children.push(para('Arc Map:', { bold: true }));
+        dream.arc_map.forEach(act => {
+          children.push(para(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`, { bold: true }));
+          children.push(para(`Function: ${cleanReportText(act.primary_function)}`));
+          if (act.revision_priority) children.push(para(`Revision priority: ${cleanReportText(act.revision_priority)}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasLayerAnalysesDocx) {
+        children.push(para('Layer Analysis:', { bold: true }));
+        dream.layer_analyses.forEach(l => {
+          children.push(para(`${cleanReportText(l.layer_name)} — ${l.status}`, { bold: true }));
+          children.push(para(cleanReportText(l.needed_revision)));
+        });
+      }
+    }
+
+    // §14 Review Gate Readiness Surface
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const hasRequired = Array.isArray(ac.required_detection) && ac.required_detection.length > 0;
+      const hasFailure = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0;
+      if (hasRequired || hasFailure) {
+        children.push(makeHeading(sectionTitle('review_gate')));
+        if (hasRequired) {
+          children.push(para('Required Detection:', { bold: true }));
+          ac.required_detection.forEach(item => children.push(docxListPara(item)));
+        }
+        if (hasFailure) {
+          children.push(para('Failure Conditions:', { bold: true }));
+          ac.failure_conditions.forEach(item => children.push(docxListPara(item)));
+        }
+      }
+    }
+
+    // §15 Governed Ledgers or Compact Governed-Ledger Addenda
     if (dream.symbolic_audit) {
       const sa = dream.symbolic_audit;
       const hasAuditContent = (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) || (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) || (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) || hasMeaningfulText(sa.audit_conclusion);
-      if (hasAuditContent) children.push(makeHeading('Symbolic & Doctrine Audit'));
-      if (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) {
-        children.push(para('Preserved Symbols:', { bold: true }));
-        sa.preserved_symbols.forEach(sym => {
-          children.push(para(`${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`, { bold: true }));
-          if (sym.revision_instruction) children.push(para(cleanReportText(sym.revision_instruction), { color: RG.textMuted }));
+      if (hasAuditContent) {
+        children.push(makeHeading(sectionTitle('governed_ledgers')));
+        if (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) {
+          children.push(para('Preserved Symbols:', { bold: true }));
+          sa.preserved_symbols.forEach(sym => {
+            children.push(para(`${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`));
+            if (sym.revision_instruction) children.push(para(`Revision: ${cleanReportText(sym.revision_instruction)}`, { color: RG.textMuted }));
+          });
+        }
+        if (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) {
+          children.push(para('Doctrine Strengths:', { bold: true }));
+          sa.doctrine_strengths.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) {
+          children.push(para('Doctrine Risks:', { bold: true }));
+          sa.doctrine_risks.forEach(item => children.push(docxListPara(item)));
+        }
+        if (hasMeaningfulText(sa.audit_conclusion)) children.push(para(cleanReportText(sa.audit_conclusion)));
+      }
+    }
+
+    // §16 Cross-Layer Synthesis
+    const hasDreamScoresDocx = dream.dream_scores && (dream.dream_scores.quality != null || dream.dream_scores.readiness != null || dream.dream_scores.commercial != null || dream.dream_scores.literary != null);
+    const hasVerdictDocx = hasMeaningfulText(dream.executive_verdict);
+    const hasCrossLayerDocx = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0;
+    const hasReaderExpDocx = dream.reader_experience && (dream.reader_experience.first_act || dream.reader_experience.middle || dream.reader_experience.final_act || hasMeaningfulText(dream.reader_experience.aftertaste));
+    if (hasDreamScoresDocx || hasVerdictDocx || hasCrossLayerDocx || hasReaderExpDocx) {
+      children.push(makeHeading(sectionTitle('cross_layer_synthesis')));
+      if (hasDreamScoresDocx) {
+        const ds = dream.dream_scores!;
+        const scoreEntries: Array<[string, number | null | undefined]> = [
+          ['Quality', ds.quality], ['Readiness', ds.readiness],
+          ['Commercial', ds.commercial], ['Literary', ds.literary],
+        ];
+        scoreEntries.forEach(([label, val]) => {
+          if (val != null) children.push(para(`${label}: ${scoreLabel(val, 100)}`));
         });
       }
-      if (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) {
-        children.push(para('Doctrine Strengths:', { bold: true }));
-        sa.doctrine_strengths.forEach(item => children.push(docxListPara(item)));
+      if (hasVerdictDocx) {
+        children.push(para('Executive Verdict:', { bold: true }));
+        children.push(para(cleanReportText(dream.executive_verdict)));
       }
-      if (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) {
-        children.push(para('Doctrine Risks:', { bold: true }));
-        sa.doctrine_risks.forEach(item => children.push(docxListPara(item)));
+      if (hasCrossLayerDocx) {
+        children.push(para('Cross-Layer Integration:', { bold: true }));
+        dream.cross_layer_integration.forEach(c => {
+          children.push(para(`${cleanReportText(c.motif)} — ${cleanReportText(c.integration_quality)}`));
+          children.push(para(cleanReportText(c.description)));
+          if (c.revision_note) children.push(para(`Revision note: ${cleanReportText(c.revision_note)}`, { color: RG.textMuted }));
+        });
       }
-      if (hasMeaningfulText(sa.audit_conclusion)) children.push(para(cleanReportText(sa.audit_conclusion)));
+      if (hasReaderExpDocx) {
+        const re = dream.reader_experience!;
+        children.push(para('Reader Experience:', { bold: true }));
+        const addAct = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+          if (!act) return;
+          if (!hasMeaningfulText(act.reader_question) && !hasMeaningfulText(act.emotional_state) && !hasMeaningfulText(act.risk)) return;
+          children.push(para(title, { bold: true }));
+          if (hasMeaningfulText(act.reader_question)) children.push(para(`Reader Question: ${cleanReportText(act.reader_question)}`));
+          if (hasMeaningfulText(act.emotional_state)) children.push(para(`Emotional State: ${cleanReportText(act.emotional_state)}`));
+          if (hasMeaningfulText(act.risk)) children.push(para(`Risk: ${cleanReportText(act.risk)}`));
+        };
+        addAct('First Act', re.first_act);
+        addAct('Middle', re.middle);
+        addAct('Final Act', re.final_act);
+        if (hasMeaningfulText(re.aftertaste)) children.push(para(`Aftertaste: ${cleanReportText(re.aftertaste)}`));
+      }
     }
 
-    // §11 Reader Experience
-    if (dream.reader_experience) {
-      const re = dream.reader_experience;
-      const addAct = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
-        if (!act) return;
-        if (!hasMeaningfulText(act.reader_question) && !hasMeaningfulText(act.emotional_state) && !hasMeaningfulText(act.risk)) return;
-        children.push(para(title, { bold: true }));
-        if (hasMeaningfulText(act.reader_question)) children.push(para(`Reader Question: ${cleanReportText(act.reader_question)}`));
-        if (hasMeaningfulText(act.emotional_state)) children.push(para(`Emotional State: ${cleanReportText(act.emotional_state)}`));
-        if (hasMeaningfulText(act.risk)) children.push(para(`Risk: ${cleanReportText(act.risk)}`));
-      };
-      if (re.first_act || re.middle || re.final_act || hasMeaningfulText(re.aftertaste)) children.push(makeHeading('Reader Experience'));
-      addAct('First Act', re.first_act);
-      addAct('Middle', re.middle);
-      addAct('Final Act', re.final_act);
-      if (hasMeaningfulText(re.aftertaste)) children.push(para(cleanReportText(re.aftertaste)));
-    }
-
-    // §12 Revision Priority Plan (from DREAM — canonical, replaces the UED compressed version)
+    // §17 Layer-Aware Revision Sequencing
     const dreamRevisionPlanDocx = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
     if (dreamRevisionPlanDocx.length > 0) {
-      children.push(makeHeading('Revision Priority Plan'));
+      children.push(makeHeading(sectionTitle('revision_sequencing')));
       dreamRevisionPlanDocx.forEach(item => {
         children.push(para(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`, { bold: true }));
         children.push(para(cleanReportText(item.goal)));
@@ -2321,36 +2338,100 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream:
       });
     }
 
-    // §13 Releasability
-    if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
-      children.push(makeHeading('Releasability Assessment'));
-      dream.releasability.forEach(dim => {
-        children.push(para(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`));
-      });
+    // §18 Long-Form Continuity and Coverage Proof
+    {
+      children.push(makeHeading(sectionTitle('continuity_coverage')));
+      const continuityItemsDocx: string[] = [];
+      if (Array.isArray(dream.arc_map)) {
+        dream.arc_map.forEach(act => { if (hasMeaningfulText(act.primary_function)) continuityItemsDocx.push(`${cleanReportText(act.act_name)}: ${cleanReportText(act.primary_function)}`); });
+      }
+      if (Array.isArray(dream.layer_analyses)) {
+        dream.layer_analyses.forEach(l => { if (hasMeaningfulText(l.needed_revision)) continuityItemsDocx.push(`${cleanReportText(l.layer_name)}: ${cleanReportText(l.needed_revision)}`); });
+      }
+      if (Array.isArray(dream.cross_layer_integration)) {
+        dream.cross_layer_integration.forEach(c => { if (hasMeaningfulText(c.revision_note)) continuityItemsDocx.push(`${cleanReportText(c.motif)}: ${cleanReportText(c.revision_note)}`); });
+      }
+      if (continuityItemsDocx.length > 0) {
+        continuityItemsDocx.forEach(item => children.push(docxListPara(item)));
+      } else {
+        children.push(para('Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.'));
+      }
     }
 
-    // §14 Review Gate (acceptance_checks)
-    if (dream.acceptance_checks) {
-      const ac = dream.acceptance_checks;
-      const hasRequired = Array.isArray(ac.required_detection) && ac.required_detection.length > 0;
-      const hasFailure = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0;
-      if (hasRequired || hasFailure) {
-        children.push(makeHeading('Review Gate'));
-        if (hasRequired) {
-          children.push(para('Required Detection:', { bold: true }));
-          ac.required_detection.forEach(item => children.push(docxListPara(item)));
+    // §19 Readiness / Releasability Posture
+    const hasReleasabilityDocx = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+    const hasMarketShelfDocx = dream.market_shelf && (
+      hasMeaningfulText(dream.market_shelf.best_shelf) ||
+      hasMeaningfulText(dream.market_shelf.marketable_hook) ||
+      hasMeaningfulText(dream.market_shelf.market_danger) ||
+      (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) ||
+      (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0)
+    );
+    if (hasReleasabilityDocx || hasMarketShelfDocx) {
+      children.push(makeHeading(sectionTitle('readiness_posture')));
+      if (hasReleasabilityDocx) {
+        dream.releasability.forEach(dim => {
+          children.push(para(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`));
+        });
+      }
+      if (hasMarketShelfDocx) {
+        const ms = dream.market_shelf!;
+        children.push(para('Market Shelf:', { bold: true }));
+        if (hasMeaningfulText(ms.best_shelf)) children.push(para(`Best Shelf: ${cleanReportText(ms.best_shelf)}`));
+        if (hasMeaningfulText(ms.marketable_hook)) children.push(para(`Marketable Hook: ${cleanReportText(ms.marketable_hook)}`));
+        if (hasMeaningfulText(ms.market_danger)) children.push(para(`Market Danger: ${cleanReportText(ms.market_danger)}`));
+        if (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) {
+          children.push(para('Shelf Neighbors:', { bold: true }));
+          ms.shelf_neighbors.forEach(item => children.push(docxListPara(item)));
         }
-        if (hasFailure) {
-          children.push(para('Failure Conditions:', { bold: true }));
-          ac.failure_conditions.forEach(item => children.push(docxListPara(item)));
+        if (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) {
+          children.push(para('Comparison Space:', { bold: true }));
+          ms.comparison_space.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+          children.push(para('What Not to Become:', { bold: true }));
+          dream.what_not_to_become.forEach(item => children.push(docxListPara(item)));
         }
       }
     }
+  } else if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
+    // UED fallback — no DREAM available
+    if (doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
+      children.push(makeHeading('Manuscript-Scale Continuity Findings'));
+      doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(docxListPara(item)));
+    }
+
+    const appendHeadingList = (heading: string, items: string[]) => {
+      if (items.length === 0) return;
+      children.push(makeHeading(heading));
+      items.forEach((item) => children.push(docxListPara(item)));
+    };
+
+    appendHeadingList(sectionTitle('story_ledger'), doc.modeSpecific.storyLedgerArchitectureMap);
+    appendHeadingList(sectionTitle('review_gate'), doc.modeSpecific.reviewGateReadinessSurface);
+    appendHeadingList(sectionTitle('governed_ledgers'), doc.modeSpecific.governedLedgerAddenda);
+    appendHeadingList(sectionTitle('cross_layer_synthesis'), doc.modeSpecific.crossLayerSynthesis);
+    appendHeadingList(sectionTitle('revision_sequencing'), doc.modeSpecific.layerAwareRevisionSequencing);
+    appendHeadingList(sectionTitle('continuity_coverage'), doc.modeSpecific.continuityCoverageProof);
+    if (doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
+      children.push(makeHeading(sectionTitle('readiness_posture')));
+      children.push(para(doc.modeSpecific.readinessReleasabilityPosture));
+    }
+    if (doc.modeSpecific.revisionPriorityPlan.length > 0) {
+      children.push(makeHeading(sectionTitle('revision_sequencing')));
+      doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
+        children.push(para(`Priority ${item.priority}: ${item.title}`, { bold: true }));
+        children.push(para(`Location: ${item.location}`));
+        children.push(para(`Operation: ${item.operation}`));
+        children.push(para(`Recommendation: ${item.recommendation}`));
+        children.push(para(`Rationale: ${item.rationale}`));
+      });
+    }
   }
-  children.push(makeHeading('Confidence Explanation'));
+  children.push(makeHeading(sectionTitle('confidence_explanation')));
   children.push(para(doc.confidenceExplanation));
 
-  children.push(makeHeading('Author-Facing Disclaimer'));
+  children.push(makeHeading(sectionTitle('disclaimer')));
   children.push(para(doc.disclaimer));
 
   const docxDoc = new Document({
@@ -2622,7 +2703,7 @@ function renderPremiumReportHtml(
   <section class="section"><h2>Top Recommendations</h2>${topRecommendations.length > 0 ? renderHtmlOrderedList(topRecommendations) : `<p>See per-criterion opportunities below for detailed revision guidance.</p>`}</section>
   <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
   <section class="allow-break"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${criteriaCards}</section>
-  <section class="section"><h2>Confidence Explanation</h2><p><strong>${escapeHtml(CONFIDENCE_EXPLANATION.title)}</strong></p><p>${escapeHtml(CONFIDENCE_EXPLANATION.intro)}</p><ul class="rg-bullet-list">${CONFIDENCE_EXPLANATION.levels.map((l) => `<li><span class="rg-list-marker">\u2022</span><span><strong>${escapeHtml(l.label)}:</strong> ${escapeHtml(l.description)}</span></li>`).join('')}</ul></section>
+  <section class="section"><h2>${sectionTitle('confidence_explanation')}</h2><p><strong>${escapeHtml(CONFIDENCE_EXPLANATION.title)}</strong></p><p>${escapeHtml(CONFIDENCE_EXPLANATION.intro)}</p><ul class="rg-bullet-list">${CONFIDENCE_EXPLANATION.levels.map((l) => `<li><span class="rg-list-marker">\u2022</span><span><strong>${escapeHtml(l.label)}:</strong> ${escapeHtml(l.description)}</span></li>`).join('')}</ul></section>
   ${dreamHtml}
   <section class="section" style="margin-top:0.5in;border:none;background:none;padding:0;">
     <p style="color:#5c5549;font-size:9.5pt;line-height:1.5;">${escapeHtml(EXPORT_DISCLAIMER)}</p>
