@@ -45,6 +45,11 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 
 ## Current Known Advisories
 
+### piscina
+- **Status**: KNOWN — transitive dependency
+- Vuln: `GHSA-x9g3-xrwr-cwfg` — Prototype Pollution Gadget → RCE via inherited options.filename
+- Accepted: piscina is a transitive dependency (via Next.js build toolchain); not directly instantiated with user-controlled options in production request paths. Fix available but requires upstream Next.js update.
+
 ### flatted
 - **Status**: KNOWN — transitive dependency
 - Accepted: Low risk in server-side context; no user-controlled input path

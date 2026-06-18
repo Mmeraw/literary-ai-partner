@@ -332,52 +332,45 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc, dream, 'job-template-truth');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
-    expect(txt).toContain('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
-    expect(txt).toContain('MARKET SHELF');
-    expect(txt).toContain('What Not to Become:');
-    expect(txt).toContain('A generic puzzle thriller that loses its emotional wound.');
-    expect(txt).toContain('LAYER ANALYSIS');
+    // §13-§21 template-authorized headings (from shared section contract)
+    expect(txt).toContain('STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP');
+    expect(txt).toContain('REVIEW GATE READINESS SURFACE');
+    expect(txt).toContain('CROSS-LAYER SYNTHESIS');
+    // Subsection content preserved under template-authorized parents
     expect(txt).toContain('Memory Layer');
-    expect(txt).toContain('CROSS-LAYER INTEGRATION');
     expect(txt).toContain('Red shoes');
-    expect(txt).toContain('REVIEW GATE');
     expect(txt).toContain('Detect that the memory layer changes the thriller spine.');
     expect(txt).toContain('Location: Midpoint | Operation: Tighten | Recommendation: Add consequence beat.');
     expect(txt).not.toContain('[LOCATION: Midpoint]');
-    expect(txt).not.toContain('STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP');
+    // Forbidden DREAM headings must not appear as top-level TXT divider sections
+    expect(txt).not.toContain('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
     expect(txt).not.toContain('UED fallback marker');
 
-    expect(html).toContain('Narrative Synthesis');
-    expect(html).toContain('Market Shelf');
-    expect(html).toContain('What Not to Become');
-    expect(html).toContain('A generic puzzle thriller that loses its emotional wound.');
-    expect(html).toContain('Layer Analysis');
+    // §13-§21 template-authorized headings in HTML
+    expect(html).toContain('Story Ledger or Layer-Aware Architecture Map');
+    expect(html).toContain('Review Gate Readiness Surface');
+    expect(html).toContain('Cross-Layer Synthesis');
+    // Subsection content preserved under template-authorized parents
     expect(html).toContain('Memory Layer');
-    expect(html).toContain('Cross-Layer Integration');
     expect(html).toContain('Red shoes');
-    expect(html).toContain('Review Gate');
     expect(html).toContain('Detect that the memory layer changes the thriller spine.');
     expect(html).toContain('Location: Midpoint | Operation: Tighten | Recommendation: Add consequence beat.');
     expect(html).not.toContain('[LOCATION: Midpoint]');
     expect(html).toContain('Dream-driven executive verdict appears in all adapters.');
-    expect(html).not.toContain('Story Ledger or Layer-Aware Architecture Map');
     expect(html).not.toContain('UED fallback marker');
     expect(html).not.toContain('<p>None supplied.</p>');
 
-    expect(docxText).toContain('Narrative Synthesis');
-    expect(docxText).toContain('Market Shelf');
-    expect(docxText).toContain('What Not to Become');
-    expect(docxText).toContain('A generic puzzle thriller that loses its emotional wound.');
-    expect(docxText).toContain('Layer Analysis');
+    // §13-§21 template-authorized headings in DOCX
+    expect(docxText).toContain('Story Ledger or Layer-Aware Architecture Map');
+    expect(docxText).toContain('Review Gate Readiness Surface');
+    expect(docxText).toContain('Cross-Layer Synthesis');
+    // Subsection content preserved under template-authorized parents
     expect(docxText).toContain('Memory Layer');
-    expect(docxText).toContain('Cross-Layer Integration');
     expect(docxText).toContain('Red shoes');
-    expect(docxText).toContain('Review Gate');
     expect(docxText).toContain('Detect that the memory layer changes the thriller spine.');
     expect(docxText).toContain('Location: Midpoint | Operation: Tighten | Recommendation: Add consequence beat.');
     expect(docxText).not.toContain('[LOCATION: Midpoint]');
     expect(docxText).toContain('Dream-driven executive verdict appears in all adapters.');
-    expect(docxText).not.toContain('Story Ledger or Layer-Aware Architecture Map');
     expect(docxText).not.toContain('UED fallback marker');
   });
 
