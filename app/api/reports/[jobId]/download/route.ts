@@ -2580,7 +2580,7 @@ function renderPremiumReportHtml(
   }).join('');
 
   const dreamHtml = dream ? `<section class="section page-break-before">
-    <h2>Narrative Synthesis</h2>
+    <h2>${sectionTitle('cross_layer_synthesis')}</h2>
     <div class="score-grid four">
       ${[
         ['Quality', dream.dream_scores?.quality],
