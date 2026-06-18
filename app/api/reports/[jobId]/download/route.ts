@@ -3730,8 +3730,35 @@ export async function GET(
 
   const canonicalDoc = persistedDocument.document;
 
+  // ── Runtime §13–§21 heading parity guard ──────────────────────────────
+  // For long-form multi-layer evaluations, validate that the generated content
+  // contains the exact template-authorized heading sequence before serving.
+  // This inspects actual rendered output, not just pre-render objects.
+  const isMultiLayerDownload = canonicalDoc.templateMode === 'long_form_multi_layer_evaluation';
+
   if (format === 'txt') {
     const body = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
+
+    if (isMultiLayerDownload) {
+      const txtHeadings = extractTxtHeadings(body);
+      const validation = validateRenderedHeadings(txtHeadings, 'txt');
+      if (!validation.valid) {
+        console.error('[report-download] §13–§21 heading parity FAILED for TXT', {
+          jobId,
+          errors: validation.errors,
+          extractedHeadings: txtHeadings,
+        });
+        return NextResponse.json(
+          {
+            error: 'Download temporarily blocked: section heading parity check failed. Our team has been notified.',
+            code: 'SECTION_PARITY_FAILED',
+            details: validation.errors,
+          },
+          { status: 422 },
+        );
+      }
+    }
+
     return new Response(body, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -3744,6 +3771,27 @@ export async function GET(
   if (format === 'pdf') {
     try {
       const html = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
+
+      if (isMultiLayerDownload) {
+        const htmlHeadings = extractHtmlH2Headings(html);
+        const validation = validateRenderedHeadings(htmlHeadings, 'pdf');
+        if (!validation.valid) {
+          console.error('[report-download] §13–§21 heading parity FAILED for PDF/HTML', {
+            jobId,
+            errors: validation.errors,
+            extractedHeadings: htmlHeadings,
+          });
+          return NextResponse.json(
+            {
+              error: 'Download temporarily blocked: section heading parity check failed. Our team has been notified.',
+              code: 'SECTION_PARITY_FAILED',
+              details: validation.errors,
+            },
+            { status: 422 },
+          );
+        }
+      }
+
       const buffer = await buildChromiumPdf(html);
       if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
         throw new Error('Generated artifact does not contain valid PDF header bytes');
@@ -3773,8 +3821,45 @@ export async function GET(
     }
   }
 
-  const buffer = await buildCanonicalTemplateDocx(canonicalDoc, dream, jobId);
-  return new Response(new Uint8Array(buffer), {
+  const docxBuffer = await buildCanonicalTemplateDocx(canonicalDoc, dream, jobId);
+
+  if (isMultiLayerDownload) {
+    // Unzip the DOCX and inspect word/document.xml for heading parity
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(docxBuffer);
+      const documentXml = await zip.file('word/document.xml')?.async('string');
+      if (documentXml) {
+        const docxHeadings = extractDocxXmlHeadings(documentXml);
+        const validation = validateRenderedHeadings(docxHeadings, 'docx');
+        const structureErrors = validateDocxXmlStructure(documentXml);
+
+        const allErrors = [...validation.errors, ...structureErrors];
+        if (allErrors.length > 0) {
+          console.error('[report-download] §13–§21 heading parity FAILED for DOCX', {
+            jobId,
+            errors: allErrors,
+            extractedHeadings: docxHeadings,
+          });
+          return NextResponse.json(
+            {
+              error: 'Download temporarily blocked: section heading parity check failed. Our team has been notified.',
+              code: 'SECTION_PARITY_FAILED',
+              details: allErrors,
+            },
+            { status: 422 },
+          );
+        }
+      }
+    } catch (zipErr) {
+      console.error('[report-download] DOCX XML inspection failed (non-blocking)', {
+        jobId,
+        error: zipErr instanceof Error ? zipErr.message : String(zipErr),
+      });
+    }
+  }
+
+  return new Response(new Uint8Array(docxBuffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'docx')}"`,
