@@ -144,11 +144,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(txt).toContain('Reader effect: Sustains reader engagement and enhances narrative urgency.');
     expect(txt).toContain('Mistake-proofing: Check each scene break for forward-pull sentence.');
 
-    // TXT must include Action Items
-    expect(txt).toContain('ACTION ITEMS');
-    expect(txt).toContain('Strategic Revisions:');
-    expect(txt).toContain('Increase the stakes surrounding the missing man.');
-    expect(txt).toContain('Location: narrativeDrive:recommendation');
+    // TXT must NOT include Action Items (short-form per Revision Surface Ownership Contract)
+    expect(txt).not.toContain('ACTION ITEMS');
+    expect(txt).not.toContain('Strategic Revisions:');
 
     // HTML/PDF must include all 6 diagnostic fields
     expect(html).not.toContain('class="score-box"');
@@ -167,11 +165,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(html).toContain('Sustains reader engagement and enhances narrative urgency.');
     expect(html).toContain('Check each scene break for forward-pull sentence.');
 
-    // HTML/PDF must include Action Items
-    expect(html).toContain('Action Items');
-    expect(html).toContain('Strategic Revisions');
-    expect(html).toContain('Increase the stakes surrounding the missing man.');
-    expect(html).toContain('narrativeDrive:recommendation');
+    // HTML/PDF must NOT include Action Items (short-form per Revision Surface Ownership Contract)
+    expect(html).not.toContain('<h2>Action Items</h2>');
+    expect(html).not.toContain('<h3>Strategic Revisions</h3>');
 
     // DOCX must include all 6 diagnostic fields
     const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
@@ -183,10 +179,8 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(docxText).toContain('Sustains reader engagement and enhances narrative urgency.');
     expect(docxText).toContain('Check each scene break for forward-pull sentence.');
 
-    // DOCX must include Action Items
-    expect(docxText).toContain('Action Items');
-    expect(docxText).toContain('Increase the stakes surrounding the missing man.');
-    expect(docxText).toContain('narrativeDrive:recommendation');
+    // DOCX must NOT include Action Items (short-form per Revision Surface Ownership Contract)
+    expect(docxText).not.toContain('Action Items');
   });
 
   test('renders DREAM template sections and suppresses UED multi-layer fallback sections when dream is present', async () => {

@@ -42,6 +42,7 @@ import {
   extractDocxXmlHeadings,
   validateDocxXmlStructure,
 } from '@/lib/evaluation/sharedLongFormMultiLayerSections';
+import { runRevisionSurfaceOwnershipGate, buildRevisionSurfaceFailureDiagnosis } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
@@ -2774,7 +2775,20 @@ function docxScoreColor(score: number | null | undefined): string {
 const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
 
+/**
+ * @deprecated LEGACY — this function is dead code. The production path uses
+ * buildCanonicalTemplateDocx exclusively. This remains temporarily for reference
+ * only and is hard-guarded against accidental production invocation.
+ * TODO: Remove entirely once all references are cleared.
+ */
 async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
+  // HARD GUARD: This legacy function must never execute in production.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
+    throw new Error(
+      '[REVISION_SURFACE_OWNERSHIP_GATE] Legacy buildDocx called in production. ' +
+      'This is a release-blocking defect. Use buildCanonicalTemplateDocx instead.',
+    );
+  }
   const metadata = buildMetadata(result, title, dream, enrichment);
   const summaryFallback = buildSummaryFallback(result);
   const pitches = buildReportPitches({
@@ -3735,6 +3749,41 @@ export async function GET(
   // contains the exact template-authorized heading sequence before serving.
   // This inspects actual rendered output, not just pre-render objects.
   const isMultiLayerDownload = canonicalDoc.templateMode === 'long_form_multi_layer_evaluation';
+
+  // ── REVISION_SURFACE_OWNERSHIP_GATE ─────────────────────────────────
+  // Validates rendered output does not contain forbidden sections per mode.
+  // Must execute before Phase 5 Author Exposure (serving any download).
+  // A violation is a release-blocking defect, not advisory.
+  {
+    const txtForGate = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
+    const htmlForGate = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
+    const gateResult = runRevisionSurfaceOwnershipGate({
+      templateMode: canonicalDoc.templateMode ?? 'short_form_evaluation',
+      surfaces: [
+        { surface: 'html', content: htmlForGate },
+        { surface: 'txt', content: txtForGate },
+      ],
+    });
+    if (!gateResult.passed) {
+      const diagnosis = buildRevisionSurfaceFailureDiagnosis(jobId, gateResult.failures);
+      console.error('[REVISION_SURFACE_OWNERSHIP_GATE] BLOCKED — forbidden revision surface detected', {
+        jobId,
+        format,
+        templateMode: canonicalDoc.templateMode,
+        failures: gateResult.failures,
+      });
+      return NextResponse.json(
+        {
+          error:
+            'This download is temporarily blocked: revision surface ownership violation detected. ' +
+            'Our team has been notified and is investigating.',
+          code: 'REVISION_SURFACE_OWNERSHIP_VIOLATION',
+          failure_diagnosis_v1: diagnosis,
+        },
+        { status: 422 },
+      );
+    }
+  }
 
   if (format === 'txt') {
     const body = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
