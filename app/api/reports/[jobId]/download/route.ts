@@ -45,6 +45,7 @@ import {
 import { runRevisionSurfaceOwnershipGate, buildRevisionSurfaceFailureDiagnosis } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
+import { getForbiddenShortFormSections } from '@/lib/evaluation/shortFormSectionContract';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
 import {
@@ -2783,6 +2784,7 @@ const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left:
  */
 async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
   // HARD GUARD: This legacy function must never execute in production.
+  // The canonical path is buildCanonicalTemplateDocx via UnifiedEvaluationDocument.
   if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
     throw new Error(
       '[REVISION_SURFACE_OWNERSHIP_GATE] Legacy buildDocx called in production. ' +
@@ -3750,35 +3752,39 @@ export async function GET(
   // This inspects actual rendered output, not just pre-render objects.
   const isMultiLayerDownload = canonicalDoc.templateMode === 'long_form_multi_layer_evaluation';
 
-  // ── REVISION_SURFACE_OWNERSHIP_GATE ─────────────────────────────────
+  // ── REVISION_SURFACE_OWNERSHIP_GATE — block author exposure if violations exist ──
   // Validates rendered output does not contain forbidden sections per mode.
   // Must execute before Phase 5 Author Exposure (serving any download).
   // A violation is a release-blocking defect, not advisory.
   {
-    const txtForGate = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
-    const htmlForGate = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
+    const gateTxt = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
+    const gateHtml = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
     const gateResult = runRevisionSurfaceOwnershipGate({
-      templateMode: canonicalDoc.templateMode ?? 'short_form_evaluation',
+      templateMode: canonicalDoc.templateMode,
       surfaces: [
-        { surface: 'html', content: htmlForGate },
-        { surface: 'txt', content: txtForGate },
+        { surface: 'html', content: gateHtml },
+        { surface: 'txt', content: gateTxt },
       ],
     });
+
     if (!gateResult.passed) {
       const diagnosis = buildRevisionSurfaceFailureDiagnosis(jobId, gateResult.failures);
-      console.error('[REVISION_SURFACE_OWNERSHIP_GATE] BLOCKED — forbidden revision surface detected', {
+      console.error('[report-download] REVISION_SURFACE_OWNERSHIP_GATE FAILED — blocking author exposure', {
         jobId,
         format,
         templateMode: canonicalDoc.templateMode,
-        failures: gateResult.failures,
+        failureCount: gateResult.failures.length,
+        failures: gateResult.failures.slice(0, 5),
+        diagnosis,
       });
       return NextResponse.json(
         {
           error:
-            'This download is temporarily blocked: revision surface ownership violation detected. ' +
-            'Our team has been notified and is investigating.',
-          code: 'REVISION_SURFACE_OWNERSHIP_VIOLATION',
+            'This download is temporarily unavailable. Our content quality checks identified a formatting issue ' +
+            'that needs to be resolved before this report can be served. Our team has been notified.',
+          code: 'REVISION_SURFACE_OWNERSHIP_GATE_FAILED',
           failure_diagnosis_v1: diagnosis,
+          failure_count: gateResult.failures.length,
         },
         { status: 422 },
       );
