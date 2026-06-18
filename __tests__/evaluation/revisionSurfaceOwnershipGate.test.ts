@@ -401,14 +401,56 @@ describe('Opportunity Count Validation', () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('REVISION_SURFACE_OWNERSHIP_GATE', () => {
-  test('passes for non-short-form template modes', () => {
+  test('passes for unknown template modes (gate only applies to known evaluation modes)', () => {
     const result = runRevisionSurfaceOwnershipGate({
-      templateMode: 'long_form_multi_layer_evaluation',
+      templateMode: 'custom_unknown_mode',
       surfaces: [
         { surface: 'html', content: '<h2>Action Items</h2><h2>Review Gate</h2>' },
       ],
     });
     expect(result.passed).toBe(true);
+  });
+
+  test('passes for long-form multi-layer with allowed sections', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_multi_layer_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Cross-Layer Synthesis</h2><h2>Layer-Aware Revision Sequencing</h2><h2>Review Gate Readiness Surface</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  test('fails for long-form multi-layer with forbidden Action Items', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_multi_layer_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Action Items</h2><h2>Cross-Layer Synthesis</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures.some(f => f.section === 'Action Items')).toBe(true);
+  });
+
+  test('passes for long-form with Revision Priority Plan (allowed)', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Revision Priority Plan</h2><h2>Manuscript-Scale Continuity Findings</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  test('fails for long-form with forbidden Deep Criterion Analysis', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Deep Criterion Analysis</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures.some(f => f.section === 'Deep Criterion Analysis')).toBe(true);
   });
 
   test('fails when short-form HTML has Action Items', () => {
