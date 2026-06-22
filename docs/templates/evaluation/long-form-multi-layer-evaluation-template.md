@@ -289,6 +289,296 @@ A manuscript should not be routed to Multi-Layer merely because it is long, ambi
 
 ---
 
+## Revision Surface Ownership Contract
+
+### Purpose
+
+This contract establishes ownership boundaries for revision advice, recommendation generation, prioritization, sequencing, and author-facing repair guidance in the Long-Form Multi-Layer Evaluation Template.
+
+Its purpose is to eliminate:
+
+- duplicated recommendations;
+- competing revision inventories;
+- recommendation inflation;
+- multiple sections presenting the same repair under different names;
+- renderer-generated action lists;
+- author confusion regarding revision priorities.
+
+### Canonical Revision Authority
+
+The sole authoritative revision inventory is:
+
+```text
+revision_opportunity_ledger_v1
+```
+
+Every author-facing repair recommendation must originate from this ledger.
+
+No renderer, template section, synthesis layer, readiness surface, review surface, prioritization surface, sequencing surface, or governed-ledger surface may independently generate new revision tasks.
+
+### Opportunity Volume Authority
+
+Opportunity density and opportunity volume are governed by this template.
+
+The authoritative limits remain:
+
+- Score 5/10 or lower: 5–10 recommendations
+- Score 6–7/10: 4–8 recommendations
+- Score 8/10: 2–5 recommendations
+- Score 9–10/10: fit statement only
+
+Total report cap:
+
+```text
+100 revision opportunities
+```
+
+No downstream surface may create opportunities beyond these limits.
+
+### Revision Surface Ownership
+
+#### 1. Revision Opportunity Summary
+
+**Purpose:** Aggregate counts only.
+
+**Allowed:**
+
+- Total Revision Opportunities
+- Recommended
+- Optional
+- Consider
+
+**Forbidden:**
+
+- recommendation text
+- repair instructions
+- action lists
+- strategic advice
+
+#### 2. Top Recommendations
+
+**Purpose:** Executive synthesis.
+
+**Allowed:**
+
+- summary-level recommendations
+- grouped themes
+- strategic priorities
+- max 5 recommendations
+
+**Forbidden:**
+
+- new recommendations
+- new opportunities
+- duplicate action lists
+
+Top Recommendations must summarize canonical opportunities. They must never create additional opportunities.
+
+#### 3. Criterion Rationales & Surfaced Opportunities
+
+**Purpose:** Canonical author-facing diagnostic surface.
+
+**Ownership:** This section owns all detailed revision opportunities shown in the report.
+
+Each opportunity must map internally to `revision_opportunity_ledger_v1`.
+
+**Required Opportunity Structure** (when evidence supports it):
+
+1. **Evidence:** where in the manuscript the issue appears.
+2. **Symptom:** the observable problem or underperformance.
+3. **Cause:** the mechanism producing the symptom.
+4. **Fix Direction:** the bounded repair direction.
+5. **Reader Effect:** what changes for the reader if repaired.
+6. **Mistake-Proofing:** what must not be damaged during repair.
+
+**Forbidden:**
+
+- duplicate the same opportunity under multiple criteria
+- clone opportunities with slightly different wording
+- create separate revision queues inside each criterion
+
+#### 4. Layer-Aware Revision Sequencing
+
+**Purpose:** Sequencing canonical opportunities in layer-safe order only.
+
+**Allowed:**
+
+- priority ordering of existing canonical opportunities
+- layer-safe sequencing rationale
+- professional editorial headers (Priority, Layer / Location, Operation, Recommendation, Rationale)
+
+**Forbidden:**
+
+- new recommendations not in `revision_opportunity_ledger_v1`
+- new action items
+- new strategic revisions
+- independent repair generation
+
+#### 5. Cross-Layer Synthesis
+
+**Purpose:** Diagnostic synthesis only.
+
+**Allowed:**
+
+- layer interaction findings
+- reinforcement and competition patterns
+- architecture-level observations
+- reader-experience synthesis
+
+**Forbidden:**
+
+- new revision tasks
+- new action items
+- new recommendations
+- independent repair generation
+
+#### 6. Long-Form Continuity and Coverage Proof
+
+**Purpose:** Proof and coverage only.
+
+**Allowed:**
+
+- promise/payoff findings
+- character arc drift observations
+- timeline contradiction findings
+- continuity gaps
+- coverage confidence limitations
+
+**Forbidden:**
+
+- new revision tasks
+- new action items
+- new recommendations
+- independent repair generation
+
+#### 7. Readiness / Releasability Posture
+
+**Purpose:** Posture summary only.
+
+**Allowed:**
+
+- readiness assessment (max 4–6 dimensions)
+- professional positioning assessment
+- submission readiness indicators
+
+**Forbidden:**
+
+- repeating all 13 criteria as dimensions
+- new revision tasks
+- new action items
+- new recommendations
+
+Readiness / Releasability Posture must not recreate the 13 criteria scorecard. It must synthesize readiness at a higher level than individual criteria.
+
+#### 8. Review Gate Readiness Surface
+
+**Purpose:** Preservation and checklist only.
+
+**Allowed:**
+
+- manuscript-preservation checklist
+- "Preserve" / "Do not" / "Recheck" guidance
+- protection instructions for canonical opportunities
+
+**Forbidden:**
+
+- new recommendations
+- new revision tasks
+- new action items
+- independent repair generation
+
+Review Gate is a protection checklist, not a recommendation list.
+
+### Cross-Criterion Opportunity Rendering
+
+When one repair affects multiple criteria, render the opportunity once.
+
+Display:
+
+```text
+Also Affects:
+- Pacing & Structural Balance
+- Dialogue Authenticity & Subtext
+```
+
+The opportunity remains owned by a single primary criterion. Duplicate opportunities must not be created for secondary criteria.
+
+### Severity Authority
+
+Severity assignment is determined by the canonical evaluation-generation pipeline.
+
+Allowed values:
+
+- Recommended
+- Optional
+- Consider
+
+Renderers, templates, and report surfaces may display severity. They may not recalculate, promote, downgrade, or reinterpret severity. The canonical report document is the sole authority.
+
+### Opportunity Traceability
+
+Every surfaced opportunity must retain a canonical opportunity identifier.
+
+Author-facing surfaces must not display identifiers.
+
+Renderers may expose identifiers through:
+
+- hidden metadata
+- HTML data attributes
+- admin/debug surfaces
+
+Example:
+
+```html
+<div data-opportunity-id="OPP-00124">
+```
+
+Identifiers exist for traceability, auditability, de-duplication, and Revise Queue handoff.
+
+### Print-Friendly Surface
+
+Print-friendly view refers to browser-generated print output derived from the canonical report document. It is not an independent report type. It must satisfy the same content, section order, revision ownership rules, and parity requirements as web, PDF, DOCX, and TXT surfaces.
+
+### Prohibited Top-Level Revision Sections
+
+Long-form multi-layer reports must never contain the following as separate top-level author-facing sections:
+
+- **Action Items**
+- **Strategic Revisions**
+- **Revision Queue** (printed as a report section)
+- **Deep Criterion Analysis** (with its own Revision Queue)
+- **Expanded Criterion Analysis**
+- **Releasability Assessment** (if it repeats all 13 criteria as dimensions)
+- **Review Gate** (if it introduces new tasks rather than protection guidance)
+- **Additional Recommendations**
+- **Suggested Revisions**
+- **Strategic Revision Plan**
+- **Editorial Action Plan**
+
+### Runtime Enforcement: REVISION_SURFACE_OWNERSHIP_GATE
+
+This gate runs before Phase 5 Author Exposure. The gate must fail certification if:
+
+1. More than one top-level revision inventory exists.
+2. Recommendation text appears in multiple sections.
+3. Semantically duplicate recommendations exist.
+4. Unauthorized revision sections appear.
+5. Renderers generate new recommendations.
+6. Recommendations cannot be traced to `revision_opportunity_ledger_v1`.
+7. Opportunity volume exceeds canonical limits.
+8. Severity is modified downstream.
+9. Revision surfaces violate ownership boundaries.
+
+### Phase 5 Author Exposure Rule
+
+A report that violates Revision Surface Ownership **MUST NOT** be shown to the author. This is a release-blocking defect. Not advisory. Not informational. Not a warning.
+
+### Failure Diagnosis
+
+If the gate fails, persist `failure_diagnosis_v1` with: failure_code, renderer, section, field, expected_behavior, actual_behavior, canonical_opportunity_id, remediation_hint.
+
+---
+
 ## Required 13 Criteria
 
 Long-form multi-layer evaluation still uses the canonical 13 story criteria. Story Ledger / DREAM depth does not replace the 13 criteria.
