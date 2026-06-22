@@ -39,6 +39,16 @@ When a submission exceeds 25,000 words, it must route to `long_form_multi_layer_
 
 ---
 
+## Core Principle
+
+A RevisionGrade report must tell the author something **once**.
+
+It may summarize, prioritize, sequence, or explain a recommendation.
+
+It may **not** create multiple competing versions of the same recommendation.
+
+---
+
 ## Required Report Shape
 
 ### Title Block
@@ -83,6 +93,8 @@ Date Generated: [Month Day, Year]
 
 PDF, DOCX, TXT, web, and print-friendly views must preserve this content and order.
 
+No additional top-level revision inventory may appear.
+
 ---
 
 ## Title Block Metadata Contract
@@ -103,10 +115,347 @@ The Title Block fields above are required for every completed short-form evaluat
 	- `light_chapter` / `short_excerpt_evaluation`: 1,000–3,999 words. Genre Confidence should normally be **Low Confidence** unless the excerpt contains unusually explicit genre evidence.
 	- `standard_chapter` / `short_form_pattern_read`: 4,000–7,000 words. Genre Confidence may rise when enough premise, scene pattern, audience signal, and prose register are visible.
 	- `multi_chapter`, `novelette`, or `full_short_form_evaluation`: 7,001–24,999 words. Genre Confidence may be moderate or high when repeated signals support the classification.
-- When confidence is low because of scope, the Confidence Explanation should say so plainly, for example: “Genre signal is provisional because the submitted text is a micro excerpt / short excerpt and does not provide enough breadth for a confident shelf-level classification.”
+- When confidence is low because of scope, the Confidence Explanation should say so plainly, for example: "Genre signal is provisional because the submitted text is a micro excerpt / short excerpt and does not provide enough breadth for a confident shelf-level classification."
 - **Reading Grade Level** is Title Block metadata only for short-form evaluation.
 - **Dialogue/Narrative Ratio** is Title Block metadata only for short-form evaluation.
 - Renderers must not create standalone Reading Grade Level or Dialogue/Narrative Ratio sections unless this template is explicitly revised to authorize them.
+
+---
+
+## Canonical Revision Authority
+
+The sole authoritative revision inventory is:
+
+```text
+revision_opportunity_ledger_v1
+```
+
+Every author-facing repair recommendation must originate from this ledger.
+
+No renderer, template section, synthesis layer, score explanation, readiness assessment, review gate, action list, or revision plan may independently generate new revision tasks.
+
+---
+
+## Revision Surface Ownership
+
+The report contains several surfaces that may discuss revision. Each surface has a different purpose.
+
+Those purposes must not overlap.
+
+---
+
+## 1. Revision Opportunity Summary
+
+### Purpose
+
+Provide aggregate counts only.
+
+### Allowed Fields
+
+```text
+Total Revision Opportunities: [XX]
+Recommended: [X]
+Optional: [X]
+Consider: [X]
+```
+
+### Allowed Behavior
+
+- Display the count of canonical opportunities.
+- Display severity/tier totals.
+- Use the exact severity labels: **Recommended**, **Optional**, and **Consider**.
+
+### Forbidden Behavior
+
+This section must not include:
+
+- recommendation text;
+- repair instructions;
+- action lists;
+- strategic advice;
+- duplicate opportunity summaries;
+- suggested rewrites;
+- Revise Queue contents.
+
+This section is informational only.
+
+---
+
+## 2. Top Recommendations
+
+### Purpose
+
+Executive synthesis of the highest-impact revision themes.
+
+### Audience
+
+Authors who want the most important takeaways immediately.
+
+### Allowed Behavior
+
+Top Recommendations may:
+
+- summarize canonical opportunities;
+- group related opportunities;
+- paraphrase the highest-impact repair themes;
+- identify the most important author actions at executive level;
+- reference canonical opportunity IDs internally.
+
+### Forbidden Behavior
+
+Top Recommendations must not:
+
+- create new recommendations;
+- create new revision opportunities;
+- create new counts;
+- duplicate full opportunity text;
+- become an action-item list;
+- include A/B/C rewrite proposals;
+- repeat the same recommendation already shown under a criterion.
+
+### Maximum Count
+
+```text
+5 Top Recommendations
+```
+
+### Traceability Requirement
+
+Each Top Recommendation must reference one or more canonical opportunity IDs internally.
+
+Those IDs must be hidden from author-facing output unless an admin/debug surface explicitly requires them.
+
+---
+
+## 3. Criterion Rationales & Surfaced Opportunities
+
+### Purpose
+
+Canonical author-facing diagnostic surface.
+
+### Ownership
+
+This section owns all detailed revision opportunities shown in the short-form report.
+
+Each surfaced opportunity must map internally to:
+
+```text
+revision_opportunity_ledger_v1
+```
+
+### Required Opportunity Structure
+
+Each opportunity should use the six-part diagnostic structure when evidence supports it:
+
+1. **Evidence:** where in the submitted text the issue appears.
+2. **Symptom:** the observable problem or underperformance.
+3. **Cause:** the mechanism producing the symptom.
+4. **Fix Direction:** the bounded repair direction.
+5. **Reader Effect:** what changes for the reader if repaired.
+6. **Mistake-Proofing:** what must not be damaged during repair.
+
+### Allowed Behavior
+
+This section may:
+
+- display surfaced opportunities;
+- show zero to three opportunities per criterion;
+- show fit statements for strong criteria;
+- mark affected criteria internally;
+- display "Also affects" when one opportunity touches multiple criteria.
+
+### Forbidden Behavior
+
+This section must not:
+
+- duplicate the same opportunity under multiple criteria;
+- clone opportunities with slightly different wording;
+- inflate opportunity counts by criterion-local repetition;
+- invent opportunities for criteria already performing well;
+- create separate revision queues inside each criterion.
+
+### Cross-Criterion Rule
+
+If the same repair applies to multiple criteria, render it **once** and list affected criteria internally or as **Also Affects**.
+
+Do not duplicate the recommendation.
+
+---
+
+## 4. Revise Queue Boundary
+
+### Purpose
+
+Repair execution and author-controlled workflow.
+
+### Ownership
+
+The **Revise Queue** owns the deeper author-controlled repair workflow outside the evaluation report.
+
+### Allowed Behavior in Evaluation Report
+
+The evaluation report may reference Revise Queue availability.
+
+### Forbidden Behavior in Evaluation Report
+
+The evaluation report must not render Revise Queue contents as a second recommendation inventory.
+
+The evaluation report must not imply that repairs have been applied.
+
+---
+
+## Anti-Duplication Rules
+
+A recommendation may appear:
+
+```text
+1 time
+```
+
+as a canonical opportunity.
+
+It may then be:
+
+- summarized;
+- prioritized;
+- sequenced;
+- cross-referenced;
+- grouped.
+
+It may never be recreated as a new action item, strategic revision, queue item, or separate recommendation.
+
+---
+
+## Duplicate Recommendation Prohibition
+
+The following are considered duplicates:
+
+- identical recommendation text;
+- semantically equivalent recommendation text;
+- identical repair mechanism;
+- identical underlying author action;
+- identical strategic objective;
+- identical manuscript location and fix direction;
+- identical cause and reader effect, even if wording differs.
+
+### Example
+
+These are duplicates:
+
+```text
+Increase scene tension before the confrontation.
+```
+
+```text
+Raise suspense leading into the confrontation.
+```
+
+Only one canonical opportunity may exist.
+
+---
+
+## Prohibited Top-Level Sections in Short-Form Reports
+
+Short-form reports must never contain the following as separate top-level author-facing sections:
+
+- **Action Items**
+- **Strategic Revisions**
+- **Revision Queue**
+- **Revision Priority Plan**
+- **Deep Criterion Analysis**
+- **Expanded Criterion Analysis**
+- **Releasability Assessment**
+- **Review Gate**
+- **Additional Recommendations**
+- **Suggested Revisions**
+- **Strategic Revision Plan**
+- **Priority Revision Plan**
+- **Repair Plan**
+- **Editorial Action Plan**
+
+These concepts belong to longer-form products, Revise Queue, admin/debug surfaces, or internal governance.
+
+They are not authorized as top-level short-form report sections.
+
+---
+
+## Deep Analysis Restriction
+
+Short-form evaluation is diagnostic.
+
+It is not a manuscript-management product.
+
+The report may explain:
+
+```text
+Why a score exists.
+```
+
+It must not create:
+
+```text
+A second recommendation inventory.
+```
+
+Any deeper analysis must remain inside the criterion rationale and must not become a new top-level action surface.
+
+---
+
+## Readiness Assessment Restriction
+
+Short-form reports may include:
+
+```text
+Market Readiness
+```
+
+in the Title Block.
+
+They must not include:
+
+```text
+Releasability Assessment
+```
+
+as a standalone section.
+
+Reason:
+
+The thirteen story criteria and Market Readiness already evaluate professional readiness for the submitted text.
+
+A second readiness scorecard is redundant and creates conflicting interpretive surfaces.
+
+---
+
+## Review Gate Restriction
+
+Review Gate is an internal governance and validation concept.
+
+Short-form reports must not expose **Review Gate** as a standalone author-facing section.
+
+If Review Gate logic is used internally, its findings must be normalized into:
+
+- criterion confidence;
+- report-completeness status;
+- author-exposure certification;
+- failure diagnosis;
+- admin/debug surfaces.
+
+It must not appear as a separate author-facing recommendation section.
+
+---
+
+## Action Item Restriction
+
+**Action Items** are prohibited as a top-level short-form report section.
+
+Their function is already performed by:
+
+- **Top Recommendations**
+- **Criterion Rationales & Surfaced Opportunities**
+- **Revise Queue** outside the evaluation report
+
+Action Items create duplicate revision inventories and are not authorized.
 
 ---
 
@@ -166,24 +515,33 @@ Consider including content warnings in book marketing or front matter.
 
 ---
 
-## Revision Opportunity Summary
+## Terminology Contract
 
-Every completed report must include aggregate revision-opportunity counts:
+### Canonical Author-Facing Terms
 
-```text
-## Revision Opportunity Summary
+Use only these terms in short-form author-facing reports:
 
-Total Revision Opportunities: [XX]
-Recommended: [X]
-Optional: [X]
-Consider: [X]
-```
+- **Revision Opportunities**
+- **Top Recommendations**
+- **Criterion Rationales & Surfaced Opportunities**
+- **Recommended**
+- **Optional**
+- **Consider**
 
-Recommendation tiers indicate the suggested urgency of each revision opportunity:
+### Forbidden Synonyms as Inventory Labels
 
-- **Recommended**: High-priority revisions that will meaningfully improve the manuscript.
-- **Optional**: Medium-priority revisions that strengthen craft but are not essential.
-- **Consider**: Lower-priority refinements the author may choose to adopt or defer.
+Do not use the following as separate inventory labels:
+
+- Actions
+- Action Items
+- Strategic Revisions
+- Revision Tasks
+- Revision Queue
+- Revision Priority Plan
+- Repair Plan
+- Deep Recommendations
+- Expanded Recommendations
+- Suggested Revisions
 
 ---
 
@@ -253,23 +611,6 @@ They must:
 
 ---
 
-## Criterion Rationales & Surfaced Opportunities Contract
-
-Each criterion may show zero to three surfaced opportunities in the report surface. The full set of generated recommendations, up to the mode cap, is available in the Revise Queue. Do not invent opportunities when a criterion is already performing well.
-
-Each surfaced opportunity should use this six-part diagnostic structure when evidence supports it:
-
-1. **Evidence:** where in the submitted text the issue appears.
-2. **Symptom:** the observable problem or underperformance.
-3. **Cause:** the mechanism producing the symptom.
-4. **Fix Direction:** the bounded repair direction.
-5. **Reader Effect:** what changes for the reader if repaired.
-6. **Mistake-Proofing:** what must not be damaged during repair.
-
-Online report rendering should be compact: one primary opportunity visible by default, with additional surfaced opportunities behind a click. Print and downloads should show all surfaced opportunities and diagnostic details.
-
----
-
 ## Recommendation Density & Total Cap
 
 Recommendation density floors for criteria scoring 8/10 or lower:
@@ -280,6 +621,49 @@ Recommendation density floors for criteria scoring 8/10 or lower:
 - Score 9-10/10: no recommendations; fit statement only
 
 **Total cap:** 50 revision opportunities across all criteria combined for short-form evaluations.
+
+Recommendation density should reflect manuscript need, not mechanical quota filling. Do not flood a strong manuscript with low-value recommendations merely to fill a cap.
+
+---
+
+## Severity Tier Contract
+
+Short-form reports use exactly three severity tiers:
+
+1. **Recommended**
+2. **Optional**
+3. **Consider**
+
+### Recommended
+
+High-priority revisions that will meaningfully improve the submitted text.
+
+### Optional
+
+Medium-priority revisions that strengthen craft but are not essential.
+
+### Consider
+
+Lower-priority refinements the author may choose to adopt or defer.
+
+### Renderer Rule
+
+Renderers must not rename these tiers.
+
+Forbidden tier aliases include:
+
+- Critical
+- High
+- Medium
+- Low
+- Must Fix
+- Should Fix
+- Nice to Have
+- Priority 1
+- Priority 2
+- Priority 3
+
+unless those labels are internal-only and never author-facing.
 
 ---
 
@@ -320,6 +704,64 @@ Dialogue/Narrative Ratio is Title Block metadata only for short-form evaluation.
 Contextual guidance:
 
 Dialogue balance is measured only within the submitted text. Excerpts, chapters, and partial manuscripts may not reflect the dialogue balance of the complete work. Genre expectations vary.
+
+---
+
+## Renderer Restrictions
+
+Renderers may:
+
+- format;
+- style;
+- paginate;
+- collapse;
+- expand;
+- wrap;
+- apply typography.
+
+Renderers may not:
+
+- generate recommendations;
+- summarize recommendations independently;
+- create action items;
+- create revision plans;
+- create readiness assessments;
+- create additional inventories;
+- rename sections;
+- reorder sections;
+- suppress canonical opportunities;
+- recalculate counts;
+- reinterpret severity tiers.
+
+---
+
+## UnifiedEvaluationDocument Requirements
+
+`UnifiedEvaluationDocument` must expose:
+
+```text
+revision_opportunity_ledger_v1
+```
+
+as the sole revision authority.
+
+Every surfaced opportunity must contain:
+
+```text
+opportunity_id
+criterion
+severity
+evidence
+symptom
+cause
+fix_direction
+reader_effect
+mistake_proofing
+```
+
+All downstream sections must reference these opportunities.
+
+No downstream section may create additional opportunities.
 
 ---
 
@@ -376,6 +818,64 @@ The canonical report document is the sole authority.
 
 ---
 
+## Required Runtime Enforcement
+
+Introduce or extend:
+
+```text
+REVISION_SURFACE_OWNERSHIP_GATE
+```
+
+This gate runs before Phase 5 Author Exposure.
+
+---
+
+## Gate Failure Conditions
+
+The gate must fail certification if any of the following occur.
+
+### 1. Multiple Revision Inventories
+
+More than one top-level revision inventory exists.
+
+### 2. Duplicate Recommendations
+
+Recommendation text appears in multiple sections.
+
+### 3. Semantic Duplicates
+
+Recommendations are materially identical despite wording changes.
+
+### 4. Unauthorized Sections
+
+Any prohibited top-level section appears.
+
+### 5. Renderer-Generated Advice
+
+A renderer introduces new recommendations.
+
+### 6. Opportunity Traceability Failure
+
+A recommendation cannot be traced to:
+
+```text
+revision_opportunity_ledger_v1
+```
+
+### 7. Count Mismatch
+
+The Revision Opportunity Summary count does not match the canonical counted ledger.
+
+### 8. Tier Mismatch
+
+Recommended, Optional, or Consider counts differ across surfaces.
+
+### 9. Surface Parity Failure
+
+Web, PDF, DOCX, TXT, or print-friendly views differ in author-facing revision content.
+
+---
+
 ## Phase 5 Author-Exposure Gate
 
 No short-form report may be exposed to the author unless `author_exposure_certification_v1` passes.
@@ -383,6 +883,169 @@ No short-form report may be exposed to the author unless `author_exposure_certif
 Phase 5 certification must verify that the report was assembled from the Short-Form Evaluation Template contract through `UnifiedEvaluationDocument`, that all required Title Block fields and confidence labels are present, and that web, PDF, DOCX, TXT, and print-friendly views preserve the same author-facing content and order.
 
 Renderer parity violations, missing required fields, noncanonical confidence labels, or unauthorized standalone sections block author exposure. They must not be treated as advisory warnings.
+
+A report that violates Revision Surface Ownership:
+
+```text
+MUST NOT
+```
+
+be shown to the author.
+
+This is a release-blocking defect.
+
+It is not:
+
+- advisory;
+- informational;
+- a warning;
+- acceptable with degraded status;
+- acceptable if tests pass elsewhere.
+
+---
+
+## Failure Diagnosis Requirements
+
+If the gate fails, persist:
+
+```text
+failure_diagnosis_v1
+```
+
+with:
+
+```text
+failure_code
+renderer
+section
+field
+expected_behavior
+actual_behavior
+canonical_opportunity_id
+remediation_hint
+```
+
+The admin dashboard must show the failure reason.
+
+The author-facing page must not show the defective report.
+
+---
+
+## Machine-Checkable Template Requirements
+
+The short-form template must be represented as executable contract data.
+
+At minimum, the contract must define:
+
+```text
+section_id
+section_title
+section_order
+required
+allowed_revision_surface_role
+may_contain_full_opportunities
+may_contain_revision_counts
+may_contain_recommendation_text
+must_reference_revision_opportunity_ledger
+forbidden_section_aliases
+renderer_visibility
+```
+
+---
+
+## Required Section Roles
+
+### Title Block
+
+Role: metadata.
+
+May contain revision recommendations: **No**.
+
+---
+
+### Revision Opportunity Summary
+
+Role: count summary.
+
+May contain revision recommendations: **No**.
+
+May contain counts: **Yes**.
+
+---
+
+### Top Recommendations
+
+Role: executive synthesis.
+
+May contain revision recommendations: **Summary only**.
+
+May create new opportunities: **No**.
+
+Must reference ledger: **Yes**.
+
+---
+
+### Criterion Rationales & Surfaced Opportunities
+
+Role: canonical diagnostic opportunity surface.
+
+May contain full opportunities: **Yes**.
+
+May create new opportunities outside ledger: **No**.
+
+Must reference ledger: **Yes**.
+
+---
+
+### Confidence Explanation
+
+Role: diagnostic confidence explanation.
+
+May contain revision recommendations: **No**.
+
+---
+
+### Author-Facing Disclaimer
+
+Role: legal/product boundary.
+
+May contain revision recommendations: **No**.
+
+---
+
+## Forbidden Rendered Headings
+
+Fail if any of the following appear as top-level headings in a short-form report:
+
+```text
+Action Items
+Strategic Revisions
+Revision Queue
+Revision Priority Plan
+Deep Criterion Analysis
+Expanded Criterion Analysis
+Releasability Assessment
+Review Gate
+Additional Recommendations
+Suggested Revisions
+Strategic Revision Plan
+Priority Revision Plan
+Repair Plan
+Editorial Action Plan
+```
+
+---
+
+## Renderer Output Validation
+
+Before author exposure, validate the actual rendered output for:
+
+- Web visible headings;
+- PDF/HTML headings;
+- DOCX heading paragraphs;
+- TXT section headings.
+
+The validation must inspect rendered output, not just source code.
 
 ---
 
@@ -451,3 +1114,22 @@ Renderers may change layout, typography, spacing, and page flow. Renderers may n
 Short-form evaluation may identify repair targets. It does not apply repairs. A/B/C repair proposals, author controls, TrustedPath, and manuscript-change application belong to Revise Queue.
 
 When revision opportunities are produced, the required handoff artifact is `revision_opportunity_ledger_v1`. The report may surface summary counts and selected opportunities, but Revise Queue owns the deeper inventory and any author-controlled repair workflow.
+
+---
+
+## Product Philosophy
+
+The author should never finish a report wondering:
+
+```text
+Which recommendation list should I follow?
+```
+
+The report must provide:
+
+- one source of truth;
+- one recommendation inventory;
+- one prioritization strategy;
+- one repair path.
+
+Everything else exists to explain that path, not duplicate it.
