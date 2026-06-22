@@ -42,7 +42,7 @@ import {
   extractDocxXmlHeadings,
   validateDocxXmlStructure,
 } from '@/lib/evaluation/sharedLongFormMultiLayerSections';
-import { runRevisionSurfaceOwnershipGate, buildRevisionSurfaceFailureDiagnosis } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
+import { runRevisionSurfaceOwnershipGate, runRenderedOutputOwnershipGate, buildRevisionSurfaceOwnershipDiagnosis } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import { getForbiddenShortFormSections } from '@/lib/evaluation/shortFormSectionContract';
@@ -3760,16 +3760,13 @@ export async function GET(
   {
     const gateTxt = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
     const gateHtml = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
-    const gateResult = runRevisionSurfaceOwnershipGate({
-      templateMode: canonicalDoc.templateMode,
-      surfaces: [
-        { surface: 'html', content: gateHtml },
-        { surface: 'txt', content: gateTxt },
-      ],
-    });
+    const uedGateResult = runRevisionSurfaceOwnershipGate(canonicalDoc);
+    const renderedGateResult = runRenderedOutputOwnershipGate({ html: gateHtml, txt: gateTxt });
+    const allFailures = [...uedGateResult.failures, ...renderedGateResult.failures];
+    const gateResult = { status: allFailures.length === 0 ? 'pass' : 'fail', failures: allFailures };
 
-    if (!gateResult.passed) {
-      const diagnosis = buildRevisionSurfaceFailureDiagnosis(jobId, gateResult.failures);
+    if (gateResult.status === 'fail') {
+      const diagnosis = buildRevisionSurfaceOwnershipDiagnosis(uedGateResult, jobId);
       console.error('[report-download] REVISION_SURFACE_OWNERSHIP_GATE FAILED — blocking author exposure', {
         jobId,
         format,
