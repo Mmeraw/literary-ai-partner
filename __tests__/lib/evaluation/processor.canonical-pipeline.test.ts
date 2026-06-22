@@ -58,7 +58,33 @@ jest.mock("@/lib/evaluation/reportRenderParity", () => ({
   inferCanonicalEvaluationModeFromWordCount: () => "short_form_evaluation",
   buildUnifiedDocumentForParityFromEvaluationResult: () => ({
     schema_version: "unified_evaluation_document_v1",
+    templateMode: "short_form_evaluation",
     sections: [],
+    criterionDetails: [
+      {
+        label: "concept",
+        score: 7,
+        confidence: "MEDIUM",
+        rationaleText: "Concept is well-supported by manuscript evidence.",
+        recommendations: [
+          { action: "Sharpen scene transitions for momentum.", opportunity_id: "opp-001", severity: "high" },
+        ],
+      },
+      {
+        label: "narrativeDrive",
+        score: 7,
+        confidence: "MEDIUM",
+        rationaleText: "Narrative drive is consistent.",
+        recommendations: [
+          { action: "Strengthen secondary character arc continuity.", opportunity_id: "opp-002", severity: "medium" },
+        ],
+      },
+    ],
+    revisionOpportunitySummary: { total: 2, high: 1, medium: 1, low: 0 },
+    topRecommendations: [
+      "Prioritize scene transition clarity for better momentum.",
+      "Develop secondary character arcs for emotional payoff.",
+    ],
   }),
   buildReportRenderManifestV1: () => ({
     schema_version: "report_render_manifest_v1",

@@ -100,7 +100,7 @@ function checkForbiddenSectionsInUED(
   }
 
   // Check if criterionDetails contain forbidden heading labels as rationale prefixes
-  for (const detail of document.criterionDetails) {
+  for (const detail of (document.criterionDetails ?? [])) {
     const rationale = (detail.rationaleText ?? '').toLowerCase();
     for (const heading of FORBIDDEN_RENDERED_HEADINGS) {
       if (rationale.startsWith(`## ${heading.toLowerCase()}`) || rationale.startsWith(`# ${heading.toLowerCase()}`)) {
@@ -130,7 +130,7 @@ function checkOpportunityTraceability(
 ): RevisionSurfaceOwnershipFailure[] {
   const failures: RevisionSurfaceOwnershipFailure[] = [];
 
-  for (const detail of document.criterionDetails) {
+  for (const detail of (document.criterionDetails ?? [])) {
     if (!detail.recommendations || detail.recommendations.length === 0) continue;
 
     for (let i = 0; i < detail.recommendations.length; i++) {
@@ -170,7 +170,7 @@ function checkCountParity(
 
   // Count actual surfaced opportunities across all criteria
   let actualTotal = 0;
-  for (const detail of document.criterionDetails) {
+  for (const detail of (document.criterionDetails ?? [])) {
     actualTotal += (detail.recommendations?.length ?? 0);
   }
 
@@ -250,7 +250,7 @@ function checkTopRecommendationDuplication(
 
   // Collect all criterion recommendation text for comparison
   const criterionTexts: string[] = [];
-  for (const detail of document.criterionDetails) {
+  for (const detail of (document.criterionDetails ?? [])) {
     if (!detail.recommendations) continue;
     for (const rec of detail.recommendations) {
       const recRecord = rec as Record<string, unknown>;
@@ -327,13 +327,35 @@ export function checkRenderedOutputForbiddenHeadings(
 export function runRevisionSurfaceOwnershipGate(
   document: UnifiedEvaluationDocument,
 ): RevisionSurfaceOwnershipGateResult {
-  const failures: RevisionSurfaceOwnershipFailure[] = [
+  const failures: RevisionSurfaceOwnershipFailure[] = [];
+
+  // Structural completeness check: if templateMode is set, this is a real
+  // completed UED from production evaluation. criterionDetails MUST exist.
+  // A missing criterionDetails on a real UED means the UED builder is broken
+  // or data was lost — this must block author exposure, not silently pass.
+  if (document.templateMode && !Array.isArray(document.criterionDetails)) {
+    failures.push({
+      failure_code: 'UED_STRUCTURE_INVALID',
+      section: 'criterionDetails',
+      field: 'criterionDetails',
+      expected_behavior: 'A completed UED with templateMode set must contain criterionDetails array',
+      actual_behavior: `criterionDetails is ${typeof document.criterionDetails} (templateMode="${document.templateMode}")`,
+      remediation_hint: 'Ensure buildUnifiedDocumentForParityFromEvaluationResult populates criterionDetails before the gate runs.',
+    });
+    return {
+      status: 'fail',
+      failures,
+      checked_at: new Date().toISOString(),
+    };
+  }
+
+  failures.push(
     ...checkForbiddenSectionsInUED(document),
     ...checkOpportunityTraceability(document),
     ...checkCountParity(document),
     ...checkTierParity(document),
     ...checkTopRecommendationDuplication(document),
-  ];
+  );
 
   return {
     status: failures.length === 0 ? 'pass' : 'fail',
