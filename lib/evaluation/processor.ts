@@ -228,6 +228,10 @@ import {
   inferCanonicalEvaluationModeFromWordCount,
 } from '@/lib/evaluation/reportRenderParity';
 import { persistFailureDiagnosisArtifact } from '@/lib/evaluation/failureDiagnosis';
+import {
+  runRevisionSurfaceOwnershipGate,
+  buildRevisionSurfaceOwnershipDiagnosis,
+} from '@/lib/evaluation/revisionSurfaceOwnershipGate';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WAVE Phase 3 constants
@@ -11338,6 +11342,28 @@ export async function processEvaluationJob(
         displayTitle: parityDisplayTitle,
         mode: parityMode,
       });
+
+      // ── REVISION_SURFACE_OWNERSHIP_GATE (pre-certification) ──────────────
+      // Validates UED against the template's revision surface ownership contract.
+      // Blocks author exposure if forbidden headings, missing opportunity_ids,
+      // count/tier mismatches, or duplicate recommendations are detected.
+      const ownershipGateResult = runRevisionSurfaceOwnershipGate(unifiedDocumentV1);
+      if (ownershipGateResult.status === 'fail') {
+        const diagnosis = buildRevisionSurfaceOwnershipDiagnosis(ownershipGateResult, String(job.id));
+        await persistFailureDiagnosisArtifact({
+          supabase,
+          jobId: String(job.id),
+          manuscriptId: job.manuscript_id,
+          createdAt: new Date().toISOString(),
+          phase: 'phase_5',
+          phaseStatus: 'failed',
+          failureCode: diagnosis.failure_code,
+          errorMessage: diagnosis.admin_summary,
+        });
+        throw new Error(
+          `REVISION_SURFACE_OWNERSHIP_GATE_FAILED: ${diagnosis.blocking_reasons.join(',') || 'unknown'}`,
+        );
+      }
 
       const renderManifestV1 = buildReportRenderManifestV1({
         jobId: String(job.id),
