@@ -6,7 +6,7 @@ import {
   opportunityToActionItem,
   opportunityToCriterionRecommendation,
 } from '@/lib/evaluation/canonicalOpportunityLedger';
-import { buildReportPitches, summarizeRevisionOpportunities, type RevisionOpportunitySummary } from '@/lib/evaluation/reportTemplateContract';
+import { buildReportPitches, type RevisionOpportunitySummary } from '@/lib/evaluation/reportTemplateContract';
 import { getCriterionRationalePresentation, getCriterionSupportLabel, type RenderableCriterion } from '@/lib/evaluation/reportCriterionDisplay';
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
 import {
@@ -437,9 +437,16 @@ export function buildShortFormEvaluationDocument(input: {
     one_sentence_pitch: (result.overview as Record<string, unknown> | undefined)?.one_sentence_pitch as string | undefined,
     one_paragraph_pitch: (result.overview as Record<string, unknown> | undefined)?.one_paragraph_pitch as string | undefined,
   });
-  const opportunitySummary = summarizeRevisionOpportunities(orderedCriteria);
   const canonicalOpportunityLedger = buildCanonicalOpportunityLedger(result);
   const renderedOpportunities = canonicalOpportunityLedger.rendered_opportunities;
+  // Derive opportunity summary from the canonical ledger — not raw criteria.
+  // This ensures revisionOpportunitySummary.total matches actual surfaced opportunities.
+  const opportunitySummary: RevisionOpportunitySummary = {
+    total: renderedOpportunities.length,
+    high: renderedOpportunities.filter((item) => item.severity === 'high').length,
+    medium: renderedOpportunities.filter((item) => item.severity === 'medium').length,
+    low: renderedOpportunities.filter((item) => item.severity === 'low').length,
+  };
   const topRecommendations = buildTopRecommendations(result as never, 5);
   const canonicalTopRecommendations = renderedOpportunities
     .filter((item) => item.issue_type !== 'mechanics_typo')
@@ -497,11 +504,10 @@ export function buildShortFormEvaluationDocument(input: {
       supportLabel: getCriterionSupportLabel(renderable),
       rationaleLabel: rationalePresentation?.label,
       rationaleText: detailText,
-      recommendations: canonicalRecommendations.length > 0
-        ? canonicalRecommendations
-        : Array.isArray(criterion.recommendations)
-          ? criterion.recommendations.slice(0, 1).map(normalizeCriterionRecommendation)
-          : [],
+      // Only canonical ledger-sourced recommendations cross the UED boundary.
+      // No fallback to raw criterion.recommendations — if the ledger rejected
+      // them, they are not valid surfaced opportunities.
+      recommendations: canonicalRecommendations,
     };
   });
 

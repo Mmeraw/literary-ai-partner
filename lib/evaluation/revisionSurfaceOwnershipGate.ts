@@ -157,8 +157,10 @@ function checkOpportunityTraceability(
 /**
  * Check 3: Validate count parity.
  *
- * The revisionOpportunitySummary counts must match the actual number of
- * opportunities in the canonical opportunity ledger / criterion details.
+ * The revisionOpportunitySummary.total must match the number of UNIQUE
+ * opportunities surfaced across criterionDetails. An opportunity may appear
+ * under multiple criteria (primary + related) for diagnostic display, but
+ * the count reflects distinct opportunity_ids — not raw entry count.
  */
 function checkCountParity(
   document: UnifiedEvaluationDocument,
@@ -168,29 +170,28 @@ function checkCountParity(
   const summary = document.revisionOpportunitySummary;
   if (!summary) return failures;
 
-  // Count actual surfaced opportunities across all criteria
-  let actualTotal = 0;
+  // Count UNIQUE opportunity_ids across all criteria.
+  // A single opportunity may appear under multiple criteria (primary + related)
+  // but must only be counted once for parity with the canonical ledger.
+  const uniqueOpportunityIds = new Set<string>();
   for (const detail of (document.criterionDetails ?? [])) {
-    actualTotal += (detail.recommendations?.length ?? 0);
+    for (const rec of (detail.recommendations ?? [])) {
+      const recRecord = rec as Record<string, unknown>;
+      const oppId = recRecord.opportunity_id as string | undefined;
+      if (oppId) uniqueOpportunityIds.add(oppId);
+    }
   }
 
-  // Also count from actionItems if present (quickWins + strategicRevisions)
-  const actionItemTotal =
-    (document.actionItems?.quickWins?.length ?? 0) +
-    (document.actionItems?.strategicRevisions?.length ?? 0);
-
-  // Use whichever is larger as the actual opportunity count
-  const effectiveCount = Math.max(actualTotal, actionItemTotal);
-
+  const actualUniqueCount = uniqueOpportunityIds.size;
   const declaredTotal = summary.total ?? 0;
 
-  if (declaredTotal !== effectiveCount && effectiveCount > 0) {
+  if (declaredTotal !== actualUniqueCount && actualUniqueCount > 0) {
     failures.push({
       failure_code: 'COUNT_MISMATCH',
       section: 'revisionOpportunitySummary',
       field: 'revisionOpportunitySummary.total',
-      expected_behavior: `Summary total (${declaredTotal}) must match actual opportunity count (${effectiveCount})`,
-      actual_behavior: `Declared total=${declaredTotal}, actual surfaced opportunities=${effectiveCount}`,
+      expected_behavior: `Summary total (${declaredTotal}) must match unique opportunity count (${actualUniqueCount})`,
+      actual_behavior: `Declared total=${declaredTotal}, unique surfaced opportunities=${actualUniqueCount}`,
       remediation_hint: 'Recalculate revisionOpportunitySummary.total from the canonical opportunity ledger before UED assembly.',
     });
   }

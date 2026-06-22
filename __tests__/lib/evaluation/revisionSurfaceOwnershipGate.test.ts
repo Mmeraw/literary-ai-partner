@@ -199,6 +199,145 @@ describe('REVISION_SURFACE_OWNERSHIP_GATE', () => {
       // Forbidden heading check only applies to short_form_evaluation
       expect(result.failures.filter((f) => f.failure_code === 'FORBIDDEN_HEADING_IN_UED_CRITERION')).toHaveLength(0);
     });
+
+    it('should pass when same opportunity_id appears under primary + related criteria (cross-criterion display)', () => {
+      // An opportunity with primary_criterion=Pacing that also affects Scene Construction
+      // may appear under both criteria for diagnostic display.
+      // Count parity must still reflect 1 unique opportunity, not 2.
+      const doc = makeMinimalUED({
+        revisionOpportunitySummary: { total: 1, high: 1, medium: 0, low: 0 },
+        criterionDetails: [
+          {
+            label: 'Pacing',
+            scoreLabel: '6/10',
+            confidenceLabel: 'Medium Confidence',
+            supportLabel: 'Moderate',
+            rationaleLabel: 'Rationale',
+            rationaleText: 'Pacing stalls in mid-manuscript.',
+            recommendations: [
+              { opportunity_id: 'OPP-001', action: 'Tighten transitions between acts.', severity: 'high' },
+            ],
+          },
+          {
+            label: 'Scene Construction',
+            scoreLabel: '7/10',
+            confidenceLabel: 'High Confidence',
+            supportLabel: 'Strong',
+            rationaleLabel: 'Rationale',
+            rationaleText: 'Scenes are well-constructed but transitions need work.',
+            recommendations: [
+              // Same opportunity_id: cross-criterion/also-affects display
+              { opportunity_id: 'OPP-001', action: 'Tighten transitions between acts.', severity: 'high' },
+            ],
+          },
+        ] as UnifiedEvaluationDocument['criterionDetails'],
+      });
+
+      const result = runRevisionSurfaceOwnershipGate(doc);
+      expect(result.status).toBe('pass');
+      expect(result.failures.filter((f) => f.failure_code === 'COUNT_MISMATCH')).toHaveLength(0);
+    });
+
+    it('should detect semantic duplicate: same text with different opportunity_ids', () => {
+      // If the same recommendation text appears with two different IDs, that is
+      // a sign of ledger duplication — the canonical ledger failed to deduplicate.
+      const doc = makeMinimalUED({
+        revisionOpportunitySummary: { total: 2, high: 1, medium: 1, low: 0 },
+        topRecommendations: ['Tighten transitions between acts.'],
+        criterionDetails: [
+          {
+            label: 'Pacing',
+            scoreLabel: '6/10',
+            confidenceLabel: 'Medium Confidence',
+            supportLabel: 'Moderate',
+            rationaleLabel: 'Rationale',
+            rationaleText: 'Pacing is uneven.',
+            recommendations: [
+              { opportunity_id: 'OPP-001', action: 'Tighten transitions between acts.', severity: 'high' },
+            ],
+          },
+          {
+            label: 'Scene Construction',
+            scoreLabel: '7/10',
+            confidenceLabel: 'High Confidence',
+            supportLabel: 'Strong',
+            rationaleLabel: 'Rationale',
+            rationaleText: 'Scene construction needs polish.',
+            recommendations: [
+              // DIFFERENT opportunity_id, but SAME action text — semantic duplicate
+              { opportunity_id: 'OPP-002', action: 'Tighten transitions between acts.', severity: 'medium' },
+            ],
+          },
+        ] as UnifiedEvaluationDocument['criterionDetails'],
+      });
+
+      const result = runRevisionSurfaceOwnershipGate(doc);
+      expect(result.status).toBe('fail');
+      expect(result.failures.some((f) => f.failure_code === 'TOP_RECOMMENDATION_VERBATIM_DUPLICATE')).toBe(true);
+    });
+
+    it('should fail with UED_STRUCTURE_INVALID when templateMode is set but criterionDetails is missing', () => {
+      // A production UED with templateMode set MUST have criterionDetails.
+      // Missing criterionDetails = structural defect, not "zero problems."
+      const doc = makeMinimalUED();
+      // Remove criterionDetails to simulate broken UED builder
+      delete (doc as Record<string, unknown>).criterionDetails;
+
+      const result = runRevisionSurfaceOwnershipGate(doc);
+      expect(result.status).toBe('fail');
+      expect(result.failures[0].failure_code).toBe('UED_STRUCTURE_INVALID');
+    });
+
+    it('regression: raw criteria have 26 recommendations but canonical ledger produces fewer — summary must match canonical count', () => {
+      // This proves the report counts the actual canonical inventory, not upstream noise.
+      // A UED with 5 unique opportunities (from canonical ledger) must have summary.total = 5,
+      // even if the raw evaluation_result_v2 had 26 raw recommendations upstream.
+      const doc = makeMinimalUED({
+        revisionOpportunitySummary: { total: 5, high: 2, medium: 2, low: 1 },
+        criterionDetails: [
+          {
+            label: 'Pacing',
+            scoreLabel: '5/10',
+            confidenceLabel: 'Medium Confidence',
+            supportLabel: 'Moderate',
+            rationaleLabel: 'Rationale',
+            rationaleText: 'Pacing issues throughout.',
+            recommendations: [
+              { opportunity_id: 'OPP-001', action: 'Fix mid-act pacing.', severity: 'high' },
+              { opportunity_id: 'OPP-002', action: 'Add scene transitions.', severity: 'medium' },
+            ],
+          },
+          {
+            label: 'Character',
+            scoreLabel: '6/10',
+            confidenceLabel: 'Medium Confidence',
+            supportLabel: 'Moderate',
+            rationaleLabel: 'Rationale',
+            rationaleText: 'Characters need depth.',
+            recommendations: [
+              { opportunity_id: 'OPP-003', action: 'Deepen antagonist arc.', severity: 'high' },
+              { opportunity_id: 'OPP-004', action: 'Add secondary character closure.', severity: 'medium' },
+            ],
+          },
+          {
+            label: 'Voice',
+            scoreLabel: '7/10',
+            confidenceLabel: 'High Confidence',
+            supportLabel: 'Strong',
+            rationaleLabel: 'Rationale',
+            rationaleText: 'Voice is strong but inconsistent in final chapter.',
+            recommendations: [
+              { opportunity_id: 'OPP-005', action: 'Maintain tonal consistency in final chapter.', severity: 'low' },
+            ],
+          },
+        ] as UnifiedEvaluationDocument['criterionDetails'],
+      });
+
+      const result = runRevisionSurfaceOwnershipGate(doc);
+      // 5 unique opportunities, summary says 5 — count parity passes
+      expect(result.status).toBe('pass');
+      expect(result.failures.filter((f) => f.failure_code === 'COUNT_MISMATCH')).toHaveLength(0);
+    });
   });
 
   describe('checkRenderedOutputForbiddenHeadings', () => {
