@@ -3,10 +3,11 @@
 **Canonical mode:** `long_form_multi_layer_evaluation`  
 **Route:** `LONG_FORM`  
 **Output mode:** `multi_layer_long_form`  
-**Typical scope:** 25,000+ word manuscript with multi-layer, multi-voice, symbolic, documentary, canon/doctrine, research-heavy, paratextual, or structurally complex architecture  
+**Typical scope:** 25,000+ word manuscript — adaptive depth for both straightforward novels and manuscripts with multi-layer, multi-voice, symbolic, documentary, canon/doctrine, research-heavy, paratextual, or structurally complex architecture  
 **Authority:** `docs/governance/evaluation-output-mode-contract.md`  
 **Rendering authority:** `docs/templates/evaluation/evaluation-rendering-contract.md`  
 **Style authority:** The Chicago Manual of Style governs formatting, grammar, spelling, punctuation, capitalization, heading style, number style, table presentation, and author-facing editorial prose.  
+**Product boundary:** This is one of RevisionGrade's two evaluation products. All submissions of 25,000+ words route here. There is no intermediate long-form mode. The retired `long_form_evaluation` mode exists only for historical artifact rendering.  
 **Related authority:** Existing DREAM long-form specifications and DREAM governed-ledger templates remain authoritative for completeness details.  
 **Runtime impact:** Authoritative rendering contract for web, PDF, DOCX, TXT, and print-friendly views.
 
@@ -14,13 +15,30 @@
 
 ## Product Promise
 
-A long-form multi-layer evaluation is the deepest RevisionGrade evaluation mode. It diagnoses a manuscript at manuscript scale while preserving architecture that would be flattened by a standard long-form report: multiple timelines, multiple voice lanes, symbolic systems, canon/doctrine layers, identity systems, research-heavy ambiguity, paratext, documentary structures, nested narratives, human/animal/nature/object personification systems, mythic or metaphysical planes, or other layered structures.
+A long-form multi-layer evaluation is RevisionGrade's novel-scale evaluation product. It diagnoses manuscripts of 25,000+ words at full manuscript scale, adapting its depth to the manuscript's architecture.
+
+For straightforward novels (single timeline, single POV, linear structure), it produces a complete manuscript-scale evaluation with continuity analysis, revision sequencing, and readiness posture.
+
+For manuscripts with complex architecture (multiple timelines, multiple voice lanes, symbolic systems, canon/doctrine layers, identity systems, research-heavy ambiguity, paratext, documentary structures, nested narratives, mythic or metaphysical planes, or other layered structures), it additionally preserves and evaluates the layer architecture that simpler reports would flatten.
 
 It evaluates the full 13 story criteria while also accounting for continuity, promises, payoff, character/relationship movement, pacing architecture, layer integrity, evidence distribution, governed-ledger completeness where applicable, and readiness risk across the submitted manuscript.
 
 This template does not replace existing DREAM templates. It defines the product-facing output mode that uses DREAM, Story Ledger, Review Gate, and governed-ledger depth where applicable.
 
 Long-form multi-layer evaluation is a depth mode. It is not a quality tier, premium badge, publication promise, Storygate acceptance promise, or substitute for Revise Queue.
+
+### Adaptive Depth Principle
+
+This template serves ALL 25,000+ word manuscripts. Sections marked `where applicable` are populated only when the manuscript's architecture materially benefits from them. A 60,000-word linear thriller will naturally produce fewer layer-specific sections than a 200,000-word multi-timeline fantasy. This is correct behavior — not a deficiency.
+
+The pipeline must not:
+
+- generate decorative placeholder sections to fill bulk;
+- force layer analysis where no meaningful layers exist;
+- inflate sections to match a complex manuscript's output shape;
+- reduce evaluation depth merely because a manuscript is architecturally simple.
+
+Every populated section must earn its presence through manuscript evidence.
 
 ---
 
@@ -53,6 +71,8 @@ Date Generated: [Month Day, Year]
 
 ### Required Shared Sections
 
+**Core sections (always produced):**
+
 1. Title Block
 2. One-Paragraph Pitch
 3. One-Sentence Pitch
@@ -64,20 +84,35 @@ Date Generated: [Month Day, Year]
 9. Top Risks
 10. Top Recommendations
 11. 13 Criteria Score Grid
-12. Criterion Rationales & Surfaced Opportunities
-13. Story Ledger or layer-aware architecture map, where applicable
-14. Review Gate readiness surface, where applicable
-15. Governed ledgers or compact governed-ledger addenda, where applicable
-16. Cross-Layer Synthesis
-17. Layer-Aware Revision Sequencing
-18. Long-Form Continuity and Coverage Proof
-19. Readiness / Releasability Posture
-20. Confidence Explanation
-21. Author-Facing Disclaimer
+12. Criterion Rationales & Surfaced Opportunities (expanded format: What Is Working / What Weakens Impact / Revision Queue per criterion)
+
+**Mode-specific sections (always produced for all 25k+ manuscripts):**
+
+13. Narrative Synthesis (holistic craft sub-scores + executive verdict)
+14. Market Shelf (professional positioning analysis)
+15. Layer-Aware Revision Sequencing
+16. Long-Form Continuity and Coverage Proof
+17. Readiness / Releasability Posture
+
+**Mode-specific sections (where applicable — produced when manuscript architecture requires):**
+
+18. Structural Stack or layer-aware architecture map
+19. Arc Map
+20. Layer-by-Layer Analysis
+21. Cross-Layer Integration
+22. Review Gate readiness surface
+23. Governed ledgers or compact governed-ledger addenda
+
+**Closing sections (always produced):**
+
+24. Confidence Explanation
+25. Author-Facing Disclaimer
 
 PDF, DOCX, TXT, web, and print-friendly views must preserve this content and order. Downloads must expand surfaced criterion opportunities and diagnostic details.
 
 Renderers must not independently add, remove, rename, reorder, summarize, suppress, recalculate, or reinterpret author-facing report content.
+
+Sections marked `where applicable` are omitted entirely when the canonical report document does not include them. Renderers must not synthesize placeholders or decorative stubs for omitted optional sections.
 
 ---
 
@@ -262,11 +297,31 @@ Story Ledger content must be rendered in author-facing editorial language. It mu
 
 ---
 
-## Multi-Layer Eligibility Boundary
+## Multi-Layer Eligibility and Adaptive Behavior
 
-Long-Form Multi-Layer Evaluation is reserved for manuscripts whose architecture materially benefits from layer-aware analysis.
+All manuscripts of 25,000+ words route to this template. There is no separate standard long-form mode for new submissions.
 
-Examples include:
+The template adapts its depth based on manuscript architecture:
+
+**Always produced (all 25k+ manuscripts):**
+
+- Full 13 criteria evaluation with expanded criterion analysis
+- Narrative Synthesis with holistic sub-scores
+- Market Shelf positioning
+- Continuity and Coverage Proof
+- Layer-Aware Revision Sequencing
+- Readiness / Releasability Posture
+
+**Produced where applicable (complex manuscripts only):**
+
+- Structural Stack / Architecture Map (when multiple operating layers exist)
+- Arc Map (when act-level decomposition aids revision)
+- Layer-by-layer analysis (when distinct layers require independent assessment)
+- Cross-Layer Integration (when layer interaction creates diagnostic value)
+- Governed-ledger addenda (when symbol/doctrine/character systems need continuity proof)
+- Review Gate readiness surface (when readiness artifacts support it)
+
+**Signals that trigger expanded layer analysis:**
 
 - multiple timelines;
 - multiple voice lanes;
@@ -281,11 +336,299 @@ Examples include:
 - world/canon systems that affect plot logic;
 - layered historical, speculative, mythic, or institutional structures.
 
-Manuscripts that do not materially require layer-aware evaluation should be routed to Standard Long-Form Evaluation instead.
-
 Multi-Layer Evaluation is a depth mode, not a quality tier.
 
-A manuscript should not be routed to Multi-Layer merely because it is long, ambitious, literary, experimental, or difficult. The layered architecture must be relevant to evaluation accuracy.
+A manuscript does not receive layer sections merely because it is long, ambitious, literary, experimental, or difficult. The layered architecture must be relevant to evaluation accuracy. Simpler manuscripts receive the full core evaluation without forced layer sections.
+
+---
+
+## Revision Surface Ownership Contract
+
+### Purpose
+
+This contract establishes ownership boundaries for revision advice, recommendation generation, prioritization, sequencing, and author-facing repair guidance in the Long-Form Multi-Layer Evaluation Template.
+
+Its purpose is to eliminate:
+
+- duplicated recommendations;
+- competing revision inventories;
+- recommendation inflation;
+- multiple sections presenting the same repair under different names;
+- renderer-generated action lists;
+- author confusion regarding revision priorities.
+
+### Canonical Revision Authority
+
+The sole authoritative revision inventory is:
+
+```text
+revision_opportunity_ledger_v1
+```
+
+Every author-facing repair recommendation must originate from this ledger.
+
+No renderer, template section, synthesis layer, readiness surface, review surface, prioritization surface, sequencing surface, or governed-ledger surface may independently generate new revision tasks.
+
+### Opportunity Volume Authority
+
+Opportunity density and opportunity volume are governed by this template.
+
+The authoritative limits remain:
+
+- Score 5/10 or lower: 5–10 recommendations
+- Score 6–7/10: 4–8 recommendations
+- Score 8/10: 2–5 recommendations
+- Score 9–10/10: fit statement only
+
+Total report cap:
+
+```text
+100 revision opportunities
+```
+
+No downstream surface may create opportunities beyond these limits.
+
+### Revision Surface Ownership
+
+#### 1. Revision Opportunity Summary
+
+**Purpose:** Aggregate counts only.
+
+**Allowed:**
+
+- Total Revision Opportunities
+- Recommended
+- Optional
+- Consider
+
+**Forbidden:**
+
+- recommendation text
+- repair instructions
+- action lists
+- strategic advice
+
+#### 2. Top Recommendations
+
+**Purpose:** Executive synthesis.
+
+**Allowed:**
+
+- summary-level recommendations
+- grouped themes
+- strategic priorities
+- max 5 recommendations
+
+**Forbidden:**
+
+- new recommendations
+- new opportunities
+- duplicate action lists
+
+Top Recommendations must summarize canonical opportunities. They must never create additional opportunities.
+
+#### 3. Criterion Rationales & Surfaced Opportunities
+
+**Purpose:** Canonical author-facing diagnostic surface.
+
+**Ownership:** This section owns all detailed revision opportunities shown in the report.
+
+Each opportunity must map internally to `revision_opportunity_ledger_v1`.
+
+**Required Opportunity Structure** (when evidence supports it):
+
+1. **Evidence:** where in the manuscript the issue appears.
+2. **Symptom:** the observable problem or underperformance.
+3. **Cause:** the mechanism producing the symptom.
+4. **Fix Direction:** the bounded repair direction.
+5. **Reader Effect:** what changes for the reader if repaired.
+6. **Mistake-Proofing:** what must not be damaged during repair.
+
+**Forbidden:**
+
+- duplicate the same opportunity under multiple criteria
+- clone opportunities with slightly different wording
+- create separate revision queues inside each criterion
+
+#### 4. Layer-Aware Revision Sequencing
+
+**Purpose:** Sequencing canonical opportunities in layer-safe order only.
+
+**Allowed:**
+
+- priority ordering of existing canonical opportunities
+- layer-safe sequencing rationale
+- professional editorial headers (Priority, Layer / Location, Operation, Recommendation, Rationale)
+
+**Forbidden:**
+
+- new recommendations not in `revision_opportunity_ledger_v1`
+- new action items
+- new strategic revisions
+- independent repair generation
+
+#### 5. Cross-Layer Synthesis
+
+**Purpose:** Diagnostic synthesis only.
+
+**Allowed:**
+
+- layer interaction findings
+- reinforcement and competition patterns
+- architecture-level observations
+- reader-experience synthesis
+
+**Forbidden:**
+
+- new revision tasks
+- new action items
+- new recommendations
+- independent repair generation
+
+#### 6. Long-Form Continuity and Coverage Proof
+
+**Purpose:** Proof and coverage only.
+
+**Allowed:**
+
+- promise/payoff findings
+- character arc drift observations
+- timeline contradiction findings
+- continuity gaps
+- coverage confidence limitations
+
+**Forbidden:**
+
+- new revision tasks
+- new action items
+- new recommendations
+- independent repair generation
+
+#### 7. Readiness / Releasability Posture
+
+**Purpose:** Posture summary only.
+
+**Allowed:**
+
+- readiness assessment (max 4–6 dimensions)
+- professional positioning assessment
+- submission readiness indicators
+
+**Forbidden:**
+
+- repeating all 13 criteria as dimensions
+- new revision tasks
+- new action items
+- new recommendations
+
+Readiness / Releasability Posture must not recreate the 13 criteria scorecard. It must synthesize readiness at a higher level than individual criteria.
+
+#### 8. Review Gate Readiness Surface
+
+**Purpose:** Preservation and checklist only.
+
+**Allowed:**
+
+- manuscript-preservation checklist
+- "Preserve" / "Do not" / "Recheck" guidance
+- protection instructions for canonical opportunities
+
+**Forbidden:**
+
+- new recommendations
+- new revision tasks
+- new action items
+- independent repair generation
+
+Review Gate is a protection checklist, not a recommendation list.
+
+### Cross-Criterion Opportunity Rendering
+
+When one repair affects multiple criteria, render the opportunity once.
+
+Display:
+
+```text
+Also Affects:
+- Pacing & Structural Balance
+- Dialogue Authenticity & Subtext
+```
+
+The opportunity remains owned by a single primary criterion. Duplicate opportunities must not be created for secondary criteria.
+
+### Severity Authority
+
+Severity assignment is determined by the canonical evaluation-generation pipeline.
+
+Allowed values:
+
+- Recommended
+- Optional
+- Consider
+
+Renderers, templates, and report surfaces may display severity. They may not recalculate, promote, downgrade, or reinterpret severity. The canonical report document is the sole authority.
+
+### Opportunity Traceability
+
+Every surfaced opportunity must retain a canonical opportunity identifier.
+
+Author-facing surfaces must not display identifiers.
+
+Renderers may expose identifiers through:
+
+- hidden metadata
+- HTML data attributes
+- admin/debug surfaces
+
+Example:
+
+```html
+<div data-opportunity-id="OPP-00124">
+```
+
+Identifiers exist for traceability, auditability, de-duplication, and Revise Queue handoff.
+
+### Print-Friendly Surface
+
+Print-friendly view refers to browser-generated print output derived from the canonical report document. It is not an independent report type. It must satisfy the same content, section order, revision ownership rules, and parity requirements as web, PDF, DOCX, and TXT surfaces.
+
+### Prohibited Top-Level Revision Sections
+
+Long-form multi-layer reports must never contain the following as separate top-level author-facing sections:
+
+- **Action Items**
+- **Strategic Revisions**
+- **Revision Queue** (printed as a report section)
+- **Deep Criterion Analysis** (with its own Revision Queue)
+- **Expanded Criterion Analysis**
+- **Releasability Assessment** (if it repeats all 13 criteria as dimensions)
+- **Review Gate** (if it introduces new tasks rather than protection guidance)
+- **Additional Recommendations**
+- **Suggested Revisions**
+- **Strategic Revision Plan**
+- **Editorial Action Plan**
+
+### Runtime Enforcement: REVISION_SURFACE_OWNERSHIP_GATE
+
+This gate runs before Phase 5 Author Exposure. The gate must fail certification if:
+
+1. More than one top-level revision inventory exists.
+2. Recommendation text appears in multiple sections.
+3. Semantically duplicate recommendations exist.
+4. Unauthorized revision sections appear.
+5. Renderers generate new recommendations.
+6. Recommendations cannot be traced to `revision_opportunity_ledger_v1`.
+7. Opportunity volume exceeds canonical limits.
+8. Severity is modified downstream.
+9. Revision surfaces violate ownership boundaries.
+
+### Phase 5 Author Exposure Rule
+
+A report that violates Revision Surface Ownership **MUST NOT** be shown to the author. This is a release-blocking defect. Not advisory. Not informational. Not a warning.
+
+### Failure Diagnosis
+
+If the gate fails, persist `failure_diagnosis_v1` with: failure_code, renderer, section, field, expected_behavior, actual_behavior, canonical_opportunity_id, remediation_hint.
 
 ---
 
@@ -374,9 +717,36 @@ Top Recommendations should prioritize manuscript-level leverage over isolated li
 
 ## Criterion Rationales & Surfaced Opportunities Contract
 
-Each criterion may show zero to three surfaced opportunities. The full opportunity inventory belongs in Revise Queue.
+Long-form multi-layer evaluation uses an expanded criterion analysis format. For each of the 13 criteria, the report must include:
 
-Each surfaced opportunity should use this six-part diagnostic structure when evidence supports it:
+### Per-Criterion Expanded Format
+
+```text
+## [Criterion Name] — [X]/10 ([Confidence Label])
+
+### What Is Working
+
+• [Evidence-grounded observation of what the manuscript does well for this criterion.]
+• [Additional working observation, with textual evidence.]
+• [2–4 total observations, each citing manuscript evidence.]
+
+### What Weakens Impact
+
+• [Evidence-grounded observation of underperformance.]
+• [Additional weakness observation, with textual evidence.]
+• [2–4 total observations, each citing manuscript evidence.]
+
+### Revision Queue
+
+1. Location: [Chapter/Section] | Operation: [Add/Edit/Compress/Replace/Clarify] | Recommendation: [Specific editorial guidance] | Acceptance: [Condition that proves the fix worked without damage.]
+2. [Additional prioritized revision recommendations, 2–5 per criterion for scores ≤8.]
+```
+
+For criteria scoring 9–10/10, use a fit statement in place of What Weakens Impact and Revision Queue. Do not invent problems for criteria that are performing well.
+
+### Surfaced Opportunities
+
+The report must also surface the highest-priority opportunities in the six-part diagnostic structure:
 
 1. **Evidence:** where in the manuscript or layer the issue appears.
 2. **Symptom:** the observable problem or underperformance.
@@ -385,7 +755,9 @@ Each surfaced opportunity should use this six-part diagnostic structure when evi
 5. **Reader Effect:** what changes for the reader if repaired.
 6. **Mistake-Proofing:** what must not be damaged during repair.
 
-Online report rendering should be compact: one primary opportunity visible by default, with additional surfaced opportunities behind a click. Print and downloads should show all surfaced opportunities and diagnostic details.
+Each criterion may show zero to three surfaced opportunities in the compact report surface. The full opportunity inventory belongs in Revise Queue.
+
+Online report rendering should be compact: one primary opportunity visible by default, with additional surfaced opportunities and the expanded analysis (What Is Working / What Weakens Impact / Revision Queue) behind a click or in a collapsible panel. Print and downloads must show all expanded analysis and diagnostic details.
 
 Do not invent opportunities for criteria that are already performing well. For strong criteria, use a fit statement rather than unnecessary repair work.
 
@@ -403,6 +775,162 @@ Recommendation density floors for criteria scoring 8/10 or lower:
 **Total cap:** 100 revision opportunities across all criteria combined for long-form multi-layer evaluations.
 
 Recommendation density should reflect manuscript need, not mechanical quota filling. Do not flood a strong manuscript with low-value recommendations merely to fill a cap.
+
+---
+
+## Narrative Synthesis Contract
+
+Narrative Synthesis is a required section for all long-form multi-layer evaluations. It provides a holistic craft assessment that synthesizes across the 13 criteria and any layer-specific findings into a unified editorial verdict.
+
+### Required Sub-Scores
+
+```text
+## Narrative Synthesis
+
+Quality Score: [X]/10 — [One-sentence craft quality summary]
+Readiness Score: [X]/10 — [One-sentence professional readiness summary]
+Commercial Score: [X]/10 — [One-sentence market viability summary]
+Literary Score: [X]/10 — [One-sentence literary distinction summary]
+
+### Executive Verdict
+
+[2–4 paragraph editorial verdict synthesizing the manuscript's overall position.
+Must address: what the manuscript achieves, where it falls short, the relationship
+between craft quality and market readiness, and the highest-leverage next step for
+the author.]
+```
+
+### Sub-Score Definitions
+
+- **Quality Score:** Overall craft execution across all 13 criteria. Reflects prose control, structural coherence, character depth, and technical skill.
+- **Readiness Score:** How close the manuscript is to professional submission. Reflects completeness, consistency, market formatting, and agent/editor expectations.
+- **Commercial Score:** Market viability within the diagnosed genre and shelf. Reflects hook clarity, audience targeting, genre conventions, and competitive positioning.
+- **Literary Score:** Artistic distinction and lasting reader impact. Reflects thematic depth, originality, voice authority, and literary ambition beyond genre formula.
+
+### Relationship to Other Sections
+
+Narrative Synthesis must not repeat the 13 criteria verbatim. It must synthesize across them.
+
+Narrative Synthesis sub-scores may differ from Overall Score. Overall Score is a weighted composite; Narrative Synthesis sub-scores are distinct diagnostic lenses. A manuscript may score high on Quality and Literary but low on Commercial.
+
+The Executive Verdict must be original editorial prose, not a concatenation of criterion rationales.
+
+### UED Field Mapping
+
+Narrative Synthesis maps to `modeSpecific.crossLayerSynthesis` in the UnifiedEvaluationDocument. The normalizer must resolve dream-derived sub-scores and executive verdict into the EvaluationReportViewModel's modeSections.
+
+---
+
+## Market Shelf Contract
+
+Market Shelf is a required section for all long-form multi-layer evaluations. It provides professional positioning analysis for the manuscript within the diagnosed genre ecosystem.
+
+### Required Fields
+
+```text
+## Market Shelf
+
+Best Shelf: [Primary genre/sub-genre shelf placement]
+Marketable Hook: [1–2 sentence pitch-ready hook for agents/publishers]
+
+### Shelf Neighbors
+• [Comparable title 1] — [Why comparable: shared element]
+• [Comparable title 2] — [Why comparable: shared element]
+• [Comparable title 3] — [Why comparable: shared element]
+• [3–5 comparable titles total]
+
+### Comparison Space
+• [Market positioning statement 1: where this manuscript sits relative to current market]
+• [Market positioning statement 2: audience overlap or gap]
+• [2–4 positioning observations]
+
+### What Not to Become
+• [Anti-comparison 1: what this manuscript should avoid being mistaken for]
+• [Anti-comparison 2: market trap or false genre signal]
+
+### Market Danger
+[1–2 sentences identifying the primary market risk — e.g., overcrowded shelf, unclear audience,
+genre-blending confusion, or positioning that undercuts the manuscript's strengths.]
+```
+
+### Relationship to Title Block
+
+Market Shelf expands on the Title Block's `Shelf` field. The Title Block provides the one-line shelf label; this section provides the full positioning analysis.
+
+### Non-Promises
+
+Market Shelf must not promise:
+
+- agent interest;
+- publisher acquisition;
+- commercial success;
+- bestseller potential;
+- specific advance ranges;
+- film/TV adaptation interest.
+
+Market Shelf identifies professional positioning. It does not guarantee market outcomes.
+
+### UED Field Mapping
+
+Market Shelf maps to `modeSpecific.readinessReleasabilityPosture` in the UnifiedEvaluationDocument. The normalizer must resolve market_shelf dream data (best_shelf, marketable_hook, shelf_neighbors, comparison_space, market_danger) into the EvaluationReportViewModel's modeSections.
+
+---
+
+## Structural Stack Contract
+
+Structural Stack is produced where applicable — when the manuscript has identifiable operating layers that benefit from architectural inventory.
+
+### Format
+
+```text
+## Structural Stack
+
+| Layer | Function | Status | Revision Note |
+| :--- | :--- | :--- | :--- |
+| [Layer name] | [What this layer does for the manuscript] | [Functioning / Underdeveloped / Contradictory / Decorative] | [Brief editorial note or "None needed"] |
+| [Layer name] | [Function] | [Status] | [Note] |
+```
+
+### Rules
+
+- Each layer must be a genuinely identifiable operating system in the manuscript (not a synthetic category).
+- Status must use one of four canonical values: Functioning, Underdeveloped, Contradictory, Decorative.
+- Layer names must be author-facing (e.g., "Timeline: Present Day", "Voice: Narrator", "Symbol System: Water/Drowning") — not internal pipeline labels.
+- The Structural Stack must not grow beyond what the manuscript's architecture supports.
+
+### UED Field Mapping
+
+Structural Stack maps to `modeSpecific.storyLedgerArchitectureMap` in the UnifiedEvaluationDocument.
+
+---
+
+## Arc Map Contract
+
+Arc Map is produced where applicable — when act-level structural decomposition provides editorial value for revision planning.
+
+### Format
+
+```text
+## Arc Map
+
+| Act | Chapters | Primary Function | Revision Priority |
+| :--- | :--- | :--- | :--- |
+| Act I | [Chapter range] | [Setup / Inciting / Escalation / etc.] | [High / Medium / Low / None] |
+| Act II | [Chapter range] | [Function] | [Priority] |
+| Act III | [Chapter range] | [Function] | [Priority] |
+```
+
+### Rules
+
+- Act decomposition must reflect the manuscript's actual structure (not a forced three-act template).
+- Chapter ranges must be accurate to the submitted text.
+- Primary Function must be a plain-language editorial descriptor.
+- Revision Priority identifies which acts need the most attention.
+- Arc Map must not be produced for manuscripts where act-level thinking adds no editorial value (e.g., short linear narratives that happen to exceed 25k words).
+
+### UED Field Mapping
+
+Arc Map is carried within `modeSpecific.storyLedgerArchitectureMap` in the UnifiedEvaluationDocument.
 
 ---
 

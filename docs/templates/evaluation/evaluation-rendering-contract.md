@@ -81,11 +81,12 @@ The canonical handoff artifact for deeper revision inventory is `revision_opport
 
 ## Canonical Renderer Input
 
-The three evaluation templates are the authoritative product contracts:
+The two active evaluation templates are the authoritative product contracts (Level 1 Golden Records):
 
-- `docs/templates/evaluation/short-form-evaluation-template.md`
-- `docs/templates/evaluation/long-form-evaluation-template.md`
-- `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`
+- `docs/templates/evaluation/short-form-evaluation-template.md` — submissions under 25,000 words
+- `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md` — submissions of 25,000+ words
+
+The retired `long_form_evaluation` template (`docs/templates/evaluation/long-form-evaluation-template.md`) exists only for historical artifact rendering. No new evaluations may route to it.
 
 `UnifiedEvaluationDocument` is the mandatory renderer adapter for web, PDF, DOCX, TXT, and print-friendly views. It is not a competing product template. It exists to carry the active template's canonical fields to every renderer without local recalculation.
 
