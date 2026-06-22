@@ -54,6 +54,10 @@ jest.mock("@/lib/evaluation/artifactConsistencyGate", () => ({
   evaluateArtifactConsistencyGateV1: (...args: any[]) => evaluateArtifactConsistencyGateV1Mock(...args),
 }));
 
+// Contract-compliant UED fixture: proves one canonical ledger → one report → all renderers.
+// Every opportunity has all 9 required fields per revision_opportunity_ledger_v1.
+// No legacy strategic_revisions or quick_wins as independent inventories.
+// Top Recommendations summarize/paraphrase — they do not duplicate opportunity text verbatim.
 jest.mock("@/lib/evaluation/reportRenderParity", () => ({
   inferCanonicalEvaluationModeFromWordCount: () => "short_form_evaluation",
   buildUnifiedDocumentForParityFromEvaluationResult: () => ({
@@ -62,28 +66,50 @@ jest.mock("@/lib/evaluation/reportRenderParity", () => ({
     sections: [],
     criterionDetails: [
       {
-        label: "concept",
+        label: "Narrative Drive & Momentum",
         score: 7,
         confidence: "MEDIUM",
-        rationaleText: "Concept is well-supported by manuscript evidence.",
+        rationaleText: "The manuscript maintains consistent forward momentum through the first two acts, with scene transitions that reliably escalate tension.",
         recommendations: [
-          { action: "Sharpen scene transitions for momentum.", opportunity_id: "opp-001", severity: "high" },
+          {
+            opportunity_id: "opp-001",
+            criterion: "Narrative Drive & Momentum",
+            severity: "high",
+            evidence: "Chapters 12–14 contain three consecutive scenes without rising tension or new information.",
+            symptom: "Reader momentum stalls in the mid-manuscript transition between acts.",
+            cause: "Scene transitions rely on geographic movement rather than escalating stakes.",
+            fix_direction: "Introduce a micro-complication or unanswered question at each scene boundary.",
+            reader_effect: "Reader will feel continuous forward pull rather than a mid-book plateau.",
+            mistake_proofing: "Each scene exit must raise a question the next scene partially answers.",
+            action: "Sharpen scene transitions in chapters 12–14 to escalate tension at each boundary.",
+          },
         ],
       },
       {
-        label: "narrativeDrive",
-        score: 7,
+        label: "Character Depth & Psychological Coherence",
+        score: 6,
         confidence: "MEDIUM",
-        rationaleText: "Narrative drive is consistent.",
+        rationaleText: "Primary character arc is well-developed; secondary arcs lack continuity in the final third.",
         recommendations: [
-          { action: "Strengthen secondary character arc continuity.", opportunity_id: "opp-002", severity: "medium" },
+          {
+            opportunity_id: "opp-002",
+            criterion: "Character Depth & Psychological Coherence",
+            severity: "medium",
+            evidence: "Marcus's subplot disappears between chapters 18–22 with no narrative acknowledgment.",
+            symptom: "Secondary character arc feels abandoned rather than resolved.",
+            cause: "Subplot threads were not tracked across the final act outline.",
+            fix_direction: "Add at least one beat per secondary character in the final act that closes or transforms their arc.",
+            reader_effect: "Reader will perceive a complete ensemble rather than a protagonist-only story.",
+            mistake_proofing: "Character continuity checklist: every named subplot must have a final-act resolution or explicit deferral.",
+            action: "Strengthen secondary character arc continuity in the final third.",
+          },
         ],
       },
     ],
     revisionOpportunitySummary: { total: 2, high: 1, medium: 1, low: 0 },
     topRecommendations: [
-      "Prioritize scene transition clarity for better momentum.",
-      "Develop secondary character arcs for emotional payoff.",
+      "Prioritize scene-boundary tension to maintain mid-manuscript momentum.",
+      "Ensure secondary character arcs receive final-act closure.",
     ],
   }),
   buildReportRenderManifestV1: () => ({
