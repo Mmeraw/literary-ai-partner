@@ -7,7 +7,8 @@
 **Authority:** `docs/governance/evaluation-output-mode-contract.md`  
 **Rendering authority:** `docs/templates/evaluation/evaluation-rendering-contract.md`  
 **Style authority:** The Chicago Manual of Style governs formatting, grammar, spelling, punctuation, capitalization, heading style, number style, table presentation, and author-facing editorial prose.  
-**Related authority:** Short-form reports evaluate only the submitted text against the canonical 13 story criteria. Runtime may use lightweight internal seed, scaffold, or ledger-support artifacts to preserve context, but short-form reports do not expose or claim Golden Spine, WAVE-level continuity proof, full Story Ledger authority, governed-ledger completeness, or whole-manuscript promise/payoff validation unless explicitly routed into a longer evaluation mode.
+**Product boundary:** This is one of RevisionGrade's two evaluation products. Submissions of 25,000+ words route to `long_form_multi_layer_evaluation`. There is no intermediate long-form mode.  
+**Related authority:** Short-form reports evaluate only the submitted text against the canonical 13 story criteria. Runtime may use lightweight internal seed, scaffold, or ledger-support artifacts to preserve context, but short-form reports do not expose or claim Golden Spine, WAVE-level continuity proof, full Story Ledger authority, governed-ledger completeness, or whole-manuscript promise/payoff validation.  
 **Runtime impact:** Authoritative rendering contract for web, PDF, DOCX, TXT, and print-friendly views.
 
 ---
@@ -25,11 +26,16 @@ It does **not** claim:
 - WAVE-level long-form continuity coverage;
 - Story Ledger completeness;
 - whole-manuscript promise/payoff validation;
-- DREAM governed-ledger completeness.
+- DREAM governed-ledger completeness;
+- Structural Stack, Arc Map, Layer Analysis, or Cross-Layer Integration;
+- Narrative Synthesis sub-scores;
+- Market Shelf positioning analysis.
 
 The runtime may create lightweight internal seed or ledger-support artifacts for context preservation, quality control, or downstream handoff. Those artifacts are not author-facing Story Ledger certification and must not be rendered as full Story Ledger authority in a short-form report.
 
 When a short-form submission is part of a larger manuscript, findings are local to the submitted text unless the complete manuscript has been supplied.
+
+When a submission exceeds 25,000 words, it must route to `long_form_multi_layer_evaluation`. No code path may generate a short-form evaluation for a 25,000+ word submission.
 
 ---
 
@@ -390,7 +396,12 @@ Short-form evaluation must not promise:
 - full Story Ledger extraction;
 - whole-manuscript promise/payoff proof;
 - Revise Queue execution;
-- A/B/C rewrite proposals.
+- A/B/C rewrite proposals;
+- Structural Stack, Arc Map, or Layer Analysis;
+- Cross-Layer Integration or Expanded Criterion Analysis;
+- Narrative Synthesis sub-scores;
+- Market Shelf positioning analysis;
+- publication, agent representation, commercial success, or bestseller status.
 
 If a short-form submission contains a local structural or continuity issue, the report may name it only as local to the submitted text unless the full manuscript was provided.
 
@@ -411,6 +422,27 @@ If a short-form submission contains a local structural or continuity issue, the 
 - **Canonical Authority:** The canonical report document is the sole content authority. Renderers may format content but may not independently generate, summarize, suppress, rename, reorder, reinterpret, or recalculate report content.
 - **Renderer Authority:** Renderers may not independently add, remove, rename, reorder, summarize, or recalculate author-facing report content.
 - **Release Blocking:** Renderer violations, field omissions, or parity failures block Phase 5 author exposure.
+
+---
+
+## Surface Parity Contract
+
+PDF, DOCX, TXT, web, and print-friendly views must preserve:
+
+- the same author-facing sections;
+- the same section order;
+- the same score values;
+- the same confidence labels;
+- the same Genre and Target Audience values;
+- the same Genre Confidence and Target Audience Confidence labels;
+- the same Market Readiness label;
+- the same Market Readiness Confidence label;
+- the same revision opportunity counts;
+- the same Top Strengths, Top Risks, and Top Recommendations;
+- the same surfaced criterion opportunities;
+- the same readiness posture.
+
+Renderers may change layout, typography, spacing, and page flow. Renderers may not change substance.
 
 ---
 
