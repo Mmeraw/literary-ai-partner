@@ -30,7 +30,6 @@ import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
   safeTruncateToWordBoundary,
-  mistakeProofText,
   getCriterionDisplayLabel,
   splitIntoParagraphs,
   correctScopeLanguage,
@@ -94,23 +93,9 @@ function hasMeaningfulText(value: unknown): boolean {
   return typeof value === 'string' ? value.trim().length > 0 : typeof value === 'number';
 }
 
-function sanitizeAuthorFacingDisplayValue<T>(value: T, isLongForm: boolean): T {
-  if (typeof value === 'string') {
-    return correctScopeLanguage(mistakeProofText(value), isLongForm) as T;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeAuthorFacingDisplayValue(item, isLongForm)) as T;
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, sanitizeAuthorFacingDisplayValue(entry, isLongForm)]),
-    ) as T;
-  }
-
-  return value;
-}
+// sanitizeAuthorFacingDisplayValue REMOVED — the ViewModel now owns all
+// sanitization (mistakeProofText + correctScopeLanguage). Renderers must not
+// apply their own correction layer on VM-owned fields.
 
 function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
   label: string;
@@ -360,9 +345,10 @@ export default async function ReportPage({
     notFound();
   }
 
-  const canonicalDoc = sanitizeAuthorFacingDisplayValue(persistedDocument.document, isLongForm);
-  // ── ViewModel: single source of truth for all high-risk rendered fields ──
-  // Renderers must use vm.* for these fields — no additional sanitization or business logic.
+  // ── ViewModel: single source of truth for all rendered fields ──
+  // The VM applies all sanitization (mistakeProofText, correctScopeLanguage) internally.
+  // Renderers must use vm.* directly — no additional sanitization or business logic.
+  // Do NOT re-wrap in sanitizeAuthorFacingDisplayValue; double-sanitization is a bug.
   const vm = normalizeEvaluationReportViewModel(persistedDocument.document);
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
@@ -777,105 +763,11 @@ export default async function ReportPage({
           </div>
         </section>
 
-        <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
-          <h2 className="mb-6 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Action Items</h2>
-          {/* Quick Wins */}
-          {canonicalDoc.actionItems.quickWins.length > 0 && (
-            <div className="mb-6">
-              <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
-                Quick Wins
-              </h3>
-              <div className="space-y-3">
-                {canonicalDoc.actionItems.quickWins.map((qw, idx) => (
-                  <div key={idx} className="border-l-4 border-[#8B2E2E] pl-4 py-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-[#1C1814]">{qw.action}</p>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#5C5549]">
-                        {qw.effort} effort
-                      </span>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#1C1814] font-medium">
-                        {qw.impact} impact
-                      </span>
-                    </div>
-                    {qw.anchor_snippet && (
-                      <p className={`text-sm text-[#5C5549] mt-1 ${(qw as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-[#D9D0C3] pl-2`}>
-                        <span className="font-medium not-italic text-[#1C1814]">
-                          {(qw as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
-                        </span>{" "}
-                        {(qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? qw.anchor_snippet : <>&ldquo;{qw.anchor_snippet}&rdquo;</>}
-                      </p>
-                    )}
-                    {qw.candidate_text_a && (
-                      <p className="text-sm text-[#3A6B2A] mt-1 italic border-l-2 border-[#A8C5A0] pl-2">
-                        <span className="font-medium not-italic">Suggested Revision:</span>{" "}
-                        &ldquo;{qw.candidate_text_a}&rdquo;
-                      </p>
-                    )}
-                    {qw.reader_effect && (
-                      <p className="text-xs text-[#5C5549] mt-1">
-                        <span className="font-medium">Reader Effect:</span> {qw.reader_effect}
-                      </p>
-                    )}
-                    <p className="text-sm text-[#1C1814] leading-relaxed">{qw.why}</p>
-                    {qw.manuscript_coordinates && (
-                      <p className="text-xs text-[#9A9087] mt-1">
-                        <span className="font-medium">Location:</span> {qw.manuscript_coordinates}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* Strategic Revisions */}
-          {canonicalDoc.actionItems.strategicRevisions.length > 0 && (
-            <div>
-              <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
-                Strategic Revisions
-              </h3>
-              <div className="space-y-3">
-                {canonicalDoc.actionItems.strategicRevisions.map((sr, idx) => (
-                  <div key={idx} className="border-l-4 border-[#C8A96E] pl-4 py-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-[#1C1814]">{sr.action}</p>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#5C5549]">
-                        {sr.effort} effort
-                      </span>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#1C1814] font-medium">
-                        {sr.impact} impact
-                      </span>
-                    </div>
-                    {sr.anchor_snippet && (
-                      <p className={`text-sm text-[#5C5549] mt-1 ${(sr as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-[#D9D0C3] pl-2`}>
-                        <span className="font-medium not-italic text-[#1C1814]">
-                          {(sr as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
-                        </span>{" "}
-                        {(sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? sr.anchor_snippet : <>&ldquo;{sr.anchor_snippet}&rdquo;</>}
-                      </p>
-                    )}
-                    {sr.candidate_text_a && (
-                      <p className="text-sm text-[#3A6B2A] mt-1 italic border-l-2 border-[#A8C5A0] pl-2">
-                        <span className="font-medium not-italic">Suggested Revision:</span>{" "}
-                        &ldquo;{sr.candidate_text_a}&rdquo;
-                      </p>
-                    )}
-                    {sr.reader_effect && (
-                      <p className="text-xs text-[#5C5549] mt-1">
-                        <span className="font-medium">Reader Effect:</span> {sr.reader_effect}
-                      </p>
-                    )}
-                    <p className="text-sm text-[#1C1814] leading-relaxed">{sr.why}</p>
-                    {sr.manuscript_coordinates && (
-                      <p className="text-xs text-[#9A9087] mt-1">
-                        <span className="font-medium">Location:</span> {sr.manuscript_coordinates}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
+        {/* Action Items / Quick Wins / Strategic Revisions REMOVED:
+           These are not contract-approved sections for short-form evaluation.
+           The canonical revision inventory lives in Criterion Rationales & Surfaced
+           Opportunities above. Renderers must not create duplicate recommendation
+           inventories outside the ViewModel. */}
 
         {/* Loading state — shown while DREAM is generating */}
         {isLongForm && !dreamDoc && (

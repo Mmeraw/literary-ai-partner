@@ -198,45 +198,7 @@ describe('normalizeEvaluationReportViewModel', () => {
     });
   });
 
-  describe('Web/Download parity: VM produces identical values for both surfaces', () => {
-    const ued = buildMinimalUed();
-    const vm1 = normalizeEvaluationReportViewModel(ued);
-    const vm2 = normalizeEvaluationReportViewModel(ued);
 
-    it('score value is stable across reads (no recomputation)', () => {
-      expect(vm1.titleBlock.overallScoreLabel).toBe(vm2.titleBlock.overallScoreLabel);
-      expect(vm1.titleBlock.overallScorePalette).toBe(vm2.titleBlock.overallScorePalette);
-    });
-
-    it('report type is stable across reads', () => {
-      expect(vm1.titleBlock.reportType).toBe(vm2.titleBlock.reportType);
-    });
-
-    it('genre is stable across reads', () => {
-      expect(vm1.titleBlock.genre).toBe(vm2.titleBlock.genre);
-    });
-
-    it('target audience is stable across reads', () => {
-      expect(vm1.titleBlock.targetAudience).toBe(vm2.titleBlock.targetAudience);
-    });
-
-    it('market readiness is stable across reads', () => {
-      expect(vm1.titleBlock.marketReadiness).toBe(vm2.titleBlock.marketReadiness);
-      expect(vm1.titleBlock.marketReadinessPalette).toBe(vm2.titleBlock.marketReadinessPalette);
-    });
-
-    it('opportunity counts are stable across reads', () => {
-      expect(vm1.revisionOpportunitySummary).toEqual(vm2.revisionOpportunitySummary);
-    });
-
-    it('top recommendations are stable across reads', () => {
-      expect(vm1.topRecommendations).toEqual(vm2.topRecommendations);
-    });
-
-    it('criteria grid is stable across reads', () => {
-      expect(vm1.criteriaScoreGrid).toEqual(vm2.criteriaScoreGrid);
-    });
-  });
 
   describe('long-form mode', () => {
     it('marks long-form multi-layer contract as partial', () => {
@@ -257,6 +219,97 @@ describe('normalizeEvaluationReportViewModel', () => {
       const vm = normalizeEvaluationReportViewModel(buildMinimalUed());
       expect(vm.disclaimer).toContain('RevisionGrade');
       expect(vm.disclaimer).toContain('does not guarantee publication');
+    });
+  });
+
+  describe('short-form mode contract: forbidden top-level sections', () => {
+    const ued = buildMinimalUed({ templateMode: 'short_form_evaluation' });
+    const vm = normalizeEvaluationReportViewModel(ued);
+
+    it('VM does not expose actionItems / quickWins / strategicRevisions', () => {
+      // The ViewModel must not carry these fields — they are not contract-approved
+      // for any mode as top-level report sections. Revision inventory lives in
+      // criterionDetails[].recommendations only.
+      expect(vm).not.toHaveProperty('actionItems');
+      expect(vm).not.toHaveProperty('quickWins');
+      expect(vm).not.toHaveProperty('strategicRevisions');
+    });
+
+    it('all rendered fields trace to contract-approved sections only', () => {
+      // The VM shape must match the rendering contract section order:
+      // titleBlock, pitches, premise, warnings, revisionOpportunitySummary,
+      // executiveSummary, topStrengths, topRisks, topRecommendations,
+      // criteriaScoreGrid, criterionDetails, confidenceExplanation, disclaimer
+      const vmKeys = Object.keys(vm);
+      const forbiddenKeys = ['actionItems', 'quickWins', 'strategicRevisions', 'revisionQueue', 'reviewGate'];
+      for (const key of forbiddenKeys) {
+        expect(vmKeys).not.toContain(key);
+      }
+    });
+
+    it('revision opportunities exist only inside criterionDetails, not as a separate inventory', () => {
+      // Recommendations must trace through criterion → opportunities path
+      const allRecs = vm.criterionDetails.flatMap(d => d.recommendations);
+      expect(allRecs.length).toBeGreaterThan(0);
+      // Every recommendation has an opportunity_id (traces to ledger)
+      for (const rec of allRecs) {
+        expect(rec.opportunity_id).toBeDefined();
+      }
+    });
+  });
+
+  describe('Web/Download parity: both surfaces consume identical VM fields', () => {
+    // This test proves that if both web and download route call
+    // normalizeEvaluationReportViewModel(ued), they get the SAME field values.
+    // This is stronger than "deterministic" — it simulates two independent consumers.
+    const rawUed = buildMinimalUed();
+
+    // Simulate web surface consumer
+    const webVm = normalizeEvaluationReportViewModel(rawUed);
+
+    // Simulate download route consumer (same UED, independent call)
+    const downloadVm = normalizeEvaluationReportViewModel(rawUed);
+
+    it('score: web and download see identical value and palette', () => {
+      expect(webVm.titleBlock.overallScoreLabel).toBe(downloadVm.titleBlock.overallScoreLabel);
+      expect(webVm.titleBlock.overallScorePalette).toBe(downloadVm.titleBlock.overallScorePalette);
+    });
+
+    it('report type: web and download see identical value', () => {
+      expect(webVm.titleBlock.reportType).toBe(downloadVm.titleBlock.reportType);
+    });
+
+    it('genre: web and download see identical value', () => {
+      expect(webVm.titleBlock.genre).toBe(downloadVm.titleBlock.genre);
+    });
+
+    it('target audience: web and download see identical value', () => {
+      expect(webVm.titleBlock.targetAudience).toBe(downloadVm.titleBlock.targetAudience);
+    });
+
+    it('market readiness: web and download see identical value and palette', () => {
+      expect(webVm.titleBlock.marketReadiness).toBe(downloadVm.titleBlock.marketReadiness);
+      expect(webVm.titleBlock.marketReadinessPalette).toBe(downloadVm.titleBlock.marketReadinessPalette);
+    });
+
+    it('opportunity counts: web and download see identical totals', () => {
+      expect(webVm.revisionOpportunitySummary).toEqual(downloadVm.revisionOpportunitySummary);
+    });
+
+    it('top recommendations: web and download see identical list', () => {
+      expect(webVm.topRecommendations).toEqual(downloadVm.topRecommendations);
+    });
+
+    it('criteria grid: web and download see identical rows with palettes', () => {
+      expect(webVm.criteriaScoreGrid).toEqual(downloadVm.criteriaScoreGrid);
+    });
+
+    it('executive summary: web and download see identical sanitized text', () => {
+      expect(webVm.executiveSummary).toBe(downloadVm.executiveSummary);
+    });
+
+    it('entire VM is deeply equal across independent consumers', () => {
+      expect(webVm).toEqual(downloadVm);
     });
   });
 });
