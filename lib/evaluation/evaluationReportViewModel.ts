@@ -1,12 +1,20 @@
 /**
  * Evaluation Report ViewModel
  *
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * THIS IS THE ONE AND ONLY AUTHOR-FACING TEXT SANITIZATION BOUNDARY.
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
  * Single normalization layer between UnifiedEvaluationDocument and all renderers.
- * Applies all business logic (sanitization, scope correction, confidence formatting)
- * so renderers only format/display — no business decisions.
+ * Applies all sanitization (mistakeProofText, correctScopeLanguage) and business
+ * logic (palette derivation, confidence formatting) once, so renderers only
+ * format/display — no business decisions, no re-sanitization.
  *
  * Architecture:
- *   UED (canonical data) → normalizeEvaluationReportViewModel() → ViewModel → renderers
+ *   Certified UED → normalizeEvaluationReportViewModel() → ViewModel → renderers
+ *
+ * Ownership:
+ *   Template (Golden Record) → Contract Registry → UED → THIS VM → renderers
  *
  * Renderers (web, PDF, DOCX, TXT) consume this ViewModel and MUST NOT:
  *   - recompute score
@@ -14,7 +22,15 @@
  *   - create recommendations
  *   - rename sections
  *   - re-count opportunities from raw criteria
- *   - apply their own sanitization or scope correction
+ *   - apply their own sanitization (mistakeProofText, correctScopeLanguage)
+ *   - call sanitizeAuthorFacingDisplayValue on VM-owned fields
+ *   - render shadow inventories (actionItems, quickWins, strategicRevisions)
+ *
+ * The Revise Queue is a SEPARATE product surface consuming
+ * revision_opportunity_ledger_v1 directly. It does NOT go through this VM.
+ * The report page may LINK to Revise but must not render Revise Queue contents.
+ *
+ * Enforced by: __tests__/lib/evaluation/viewModelBoundaryGate.test.ts
  */
 
 import type { UnifiedEvaluationDocument, CanonicalEvaluationMode } from '@/lib/evaluation/unifiedEvaluationDocument';
