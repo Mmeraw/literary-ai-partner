@@ -30,12 +30,12 @@ import {
   filterAuthorFacingTextList,
   getRenumberedAuthorFacingRevisionPlan,
   safeTruncateToWordBoundary,
-  mistakeProofText,
   getCriterionDisplayLabel,
   splitIntoParagraphs,
   correctScopeLanguage,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
+import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { getLongFormMultiLayerSections } from '@/lib/evaluation/sharedLongFormMultiLayerSections';
@@ -93,23 +93,9 @@ function hasMeaningfulText(value: unknown): boolean {
   return typeof value === 'string' ? value.trim().length > 0 : typeof value === 'number';
 }
 
-function sanitizeAuthorFacingDisplayValue<T>(value: T, isLongForm: boolean): T {
-  if (typeof value === 'string') {
-    return correctScopeLanguage(mistakeProofText(value), isLongForm) as T;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeAuthorFacingDisplayValue(item, isLongForm)) as T;
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, sanitizeAuthorFacingDisplayValue(entry, isLongForm)]),
-    ) as T;
-  }
-
-  return value;
-}
+// sanitizeAuthorFacingDisplayValue REMOVED — the ViewModel now owns all
+// sanitization (mistakeProofText + correctScopeLanguage). Renderers must not
+// apply their own correction layer on VM-owned fields.
 
 function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
   label: string;
@@ -359,7 +345,29 @@ export default async function ReportPage({
     notFound();
   }
 
-  const canonicalDoc = sanitizeAuthorFacingDisplayValue(persistedDocument.document, isLongForm);
+  // ── ViewModel: single source of truth for all rendered fields ──
+  // The VM applies all sanitization (mistakeProofText, correctScopeLanguage) internally.
+  // Renderers must use vm.* directly — no additional sanitization or business logic.
+  // Do NOT re-wrap in sanitizeAuthorFacingDisplayValue; double-sanitization is a bug.
+  //
+  // TEMPORARY_DREAM_RENDERER_EXCEPTION
+  // These helper calls are allowed ONLY for non-VM DREAM fields that have not
+  // yet migrated into normalizeEvaluationReportViewModel(). They are technical
+  // debt and must not be copied to vm.* rendering paths.
+  //
+  // Allowed temporarily:
+  //   correctScopeLanguage(dream...)
+  //   getDisplayDream*(dream...)
+  //   filterAuthorFacingTextList(dream...)
+  //   getRenumberedAuthorFacingRevisionPlan(dream...)
+  //
+  // Forbidden (CI-gated in viewModelBoundaryGate.test.ts):
+  //   correctScopeLanguage(vm...)
+  //   mistakeProofText(vm...)
+  //   getDisplayDream*(vm...)
+  //   filterAuthorFacingTextList(vm...)
+  //   getRenumberedAuthorFacingRevisionPlan(vm...)
+  const vm = normalizeEvaluationReportViewModel(persistedDocument.document);
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");
   const dreamBestShelf = getDisplayDreamMarketField(dreamDoc, "best_shelf");
@@ -497,12 +505,12 @@ export default async function ReportPage({
             {/* Title column */}
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-3xl font-bold leading-tight text-[#1C1814] sm:text-4xl">{displayTitle}</h1>
-              <p className="mt-2 text-sm font-medium uppercase tracking-[0.08em] text-[#5C5549]">{canonicalDoc.titleBlock.reportType}</p>
+              <p className="mt-2 text-sm font-medium uppercase tracking-[0.08em] text-[#5C5549]">{vm.titleBlock.reportType}</p>
               {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
                 <p className="mt-1 text-sm text-[#5C5549]">{manuscriptTitle}</p>
               )}
               <p className="mt-3 text-xs leading-relaxed text-[#9A9087]">
-                Generated {canonicalDoc.titleBlock.dateGenerated}
+                Generated {vm.titleBlock.dateGenerated}
                 {' · '}
                 <span className="font-mono break-all">{params.jobId.slice(0, 8)}</span>
                 <CopyReferenceIdButton
@@ -514,25 +522,25 @@ export default async function ReportPage({
 
             {/* Score card — always visible without scrolling */}
             <aside className={`w-full rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
-              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('market ready') ? 'border-[#9DC79D] bg-[#EEF7EF]' :
-              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('near market ready') ? 'border-[#D9A441] bg-[#FFF6E8]' :
-              canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('not market ready') ? 'border-[#C97A7A] bg-[#FDEEEE]' :
+              vm.titleBlock.marketReadinessPalette === 'ready' ? 'border-[#9DC79D] bg-[#EEF7EF]' :
+              vm.titleBlock.marketReadinessPalette === 'near' ? 'border-[#D9A441] bg-[#FFF6E8]' :
+              vm.titleBlock.marketReadinessPalette === 'not_ready' ? 'border-[#C97A7A] bg-[#FDEEEE]' :
               'border-[#D9D0C3] bg-[#FAF7F2]'
             }`}>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Overall Score</p>
               <p className="mt-1 font-serif text-4xl font-bold leading-none text-[#1A1A1A]">
-                {canonicalDoc.titleBlock.overallScoreLabel}
+                {vm.titleBlock.overallScoreLabel}
               </p>
-              {canonicalDoc.titleBlock.overallScoreConfidenceLabel && (
-                <p className="mt-1 text-[10px] text-[#5C5549]">{canonicalDoc.titleBlock.overallScoreConfidenceLabel}</p>
+              {vm.titleBlock.overallScoreConfidenceLabel && (
+                <p className="mt-1 text-[10px] text-[#5C5549]">{vm.titleBlock.overallScoreConfidenceLabel}</p>
               )}
               <div className="mt-3 border-t border-[#D9D0C3] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Market Readiness</p>
                 <p className="mt-1 text-sm font-bold uppercase text-[#1A1A1A]">
-                  {canonicalDoc.titleBlock.marketReadiness}
+                  {vm.titleBlock.marketReadiness}
                 </p>
-                {canonicalDoc.titleBlock.marketReadinessConfidenceLabel && (
-                  <p className="mt-0.5 text-[10px] text-[#5C5549]">{canonicalDoc.titleBlock.marketReadinessConfidenceLabel}</p>
+                {vm.titleBlock.marketReadinessConfidenceLabel && (
+                  <p className="mt-0.5 text-[10px] text-[#5C5549]">{vm.titleBlock.marketReadinessConfidenceLabel}</p>
                 )}
               </div>
             </aside>
@@ -540,14 +548,14 @@ export default async function ReportPage({
 
           {/* ── Metadata grid (secondary — below the hero) ── */}
           <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden border border-[#D9D0C3] bg-[#D9D0C3] text-sm sm:grid-cols-3 lg:grid-cols-4">
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.genre}{canonicalDoc.titleBlock.genreConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.genreConfidenceLabel})</span> : null}</dd></div>
-            <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{canonicalDoc.titleBlock.audienceTentative ? 'Tentative: ' : ''}{canonicalDoc.titleBlock.targetAudience}{canonicalDoc.titleBlock.audienceConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.audienceConfidenceLabel})</span> : null}</dd></div>
-            {canonicalDoc.titleBlock.shelf ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.shelf}{canonicalDoc.titleBlock.shelfConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({canonicalDoc.titleBlock.shelfConfidenceLabel})</span> : null}</dd></div> : null}
-            {canonicalDoc.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.submittedWordCount}</dd></div> : null}
-            {canonicalDoc.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.estimatedPages}</dd></div> : null}
-            {canonicalDoc.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.readingGradeLevel}</dd></div> : null}
-            {canonicalDoc.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Dialogue/Narrative Ratio</dt><dd className="mt-1 font-semibold text-[#1C1814]">{canonicalDoc.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
-            {canonicalDoc.titleBlock.genreExpectationContract ? <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre Expectations</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{canonicalDoc.titleBlock.genreExpectationContract.contractSummary}{canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 ? <><br /><span className="text-xs font-normal text-[#5C5549]">Reader emphasis: {canonicalDoc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}</span></> : null}</dd></div> : null}
+            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.genre}{vm.titleBlock.genreConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.genreConfidenceLabel})</span> : null}</dd></div>
+            <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}{vm.titleBlock.targetAudience}{vm.titleBlock.audienceConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.audienceConfidenceLabel})</span> : null}</dd></div>
+            {vm.titleBlock.shelf ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.shelf}{vm.titleBlock.shelfConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.shelfConfidenceLabel})</span> : null}</dd></div> : null}
+            {vm.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.submittedWordCount}</dd></div> : null}
+            {vm.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.estimatedPages}</dd></div> : null}
+            {vm.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.readingGradeLevel}</dd></div> : null}
+            {vm.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Dialogue/Narrative Ratio</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
+            {vm.titleBlock.genreExpectationSummary ? <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre Expectations</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genreExpectationSummary}{vm.titleBlock.genreExpectationProfileLabels.length > 0 ? <><br /><span className="text-xs font-normal text-[#5C5549]">Reader emphasis: {vm.titleBlock.genreExpectationProfileLabels.join(', ')}</span></> : null}</dd></div> : null}
             <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Confidentiality</dt><dd className="mt-1 font-semibold text-[#1C1814]">Prepared for author/editorial use.</dd></div>
           </dl>
         </header>
@@ -580,25 +588,25 @@ export default async function ReportPage({
         {/* ── One-Paragraph Pitch (template section 2) + One-Sentence Pitch (template section 3) ── */}
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
           <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">One-Paragraph Pitch</h2>
-          <p className="leading-relaxed text-[#1C1814]">{canonicalDoc.oneParagraphPitch}</p>
+          <p className="leading-relaxed text-[#1C1814]">{vm.oneParagraphPitch}</p>
         </section>
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
           <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">One-Sentence Pitch</h2>
-          <p className="font-medium leading-relaxed text-[#1C1814]">{canonicalDoc.oneSentencePitch}</p>
+          <p className="font-medium leading-relaxed text-[#1C1814]">{vm.oneSentencePitch}</p>
         </section>
 
         {/* ── Premise (template section 4) + Content Warnings (template section 5) ── */}
-        {canonicalDoc.premise && (
+        {vm.premise && (
           <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
             <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Premise</h2>
-            <p className="leading-relaxed text-[#1C1814]">{canonicalDoc.premise}</p>
+            <p className="leading-relaxed text-[#1C1814]">{vm.premise}</p>
           </section>
         )}
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFF6E8] p-6 shadow-sm">
           <h2 className="mb-3 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Content Warnings</h2>
-          {canonicalDoc.contentWarnings.length > 0 ? (
+          {vm.contentWarnings.length > 0 ? (
             <ul className="space-y-2 text-[#1C1814]">
-              {canonicalDoc.contentWarnings.map((warning, i) => (
+              {vm.contentWarnings.map((warning, i) => (
                 <li key={i} className="flex gap-2 items-start">
                   <span className="shrink-0 mt-0.5 text-[#8B2E2E]">•</span>
                   <span>{warning}</span>
@@ -619,19 +627,19 @@ export default async function ReportPage({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="border border-[#D9D0C3] bg-white p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Total</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.total}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.total}</p>
             </div>
             <div className="border border-[#D9D0C3] bg-[#EEF7EF] p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Recommended</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.high}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.recommended}</p>
             </div>
             <div className="border border-[#D9D0C3] bg-[#EEF3F8] p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Optional</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.medium}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.optional}</p>
             </div>
             <div className="border border-[#D9D0C3] bg-[#FFF6E8] p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Consider</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{canonicalDoc.revisionOpportunitySummary.low}</p>
+              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.consider}</p>
             </div>
           </div>
           <p className="mt-3 text-xs text-[#5C5549]">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
@@ -643,19 +651,19 @@ export default async function ReportPage({
               <h2 className="font-serif text-2xl font-bold text-[#8B2E2E]">Executive Summary</h2>
               <div className="flex items-center gap-4">
                 <span className={`border px-4 py-2 text-sm font-semibold ${
-                  canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('market ready') ? 'border-[#D9D0C3] bg-[#EEF7EF] text-[#1C1814]' :
-                  canonicalDoc.titleBlock.marketReadiness.toLowerCase().startsWith('near market ready') ? 'border-[#D9D0C3] bg-[#FFF6E8] text-[#1C1814]' :
+                  vm.titleBlock.marketReadinessPalette === 'ready' ? 'border-[#D9D0C3] bg-[#EEF7EF] text-[#1C1814]' :
+                  vm.titleBlock.marketReadinessPalette === 'near' ? 'border-[#D9D0C3] bg-[#FFF6E8] text-[#1C1814]' :
                   'border-[#D9D0C3] bg-[#F9E8E8] text-[#1C1814]'
                 }`}>
-                  {canonicalDoc.titleBlock.marketReadiness.toUpperCase()}
+                  {vm.titleBlock.marketReadiness.toUpperCase()}
                 </span>
                 <span className="font-serif text-3xl font-bold text-[#8B2E2E]">
-                  {canonicalDoc.titleBlock.overallScoreLabel}
+                  {vm.titleBlock.overallScoreLabel}
                 </span>
               </div>
             </div>
             <p className="mb-6 leading-relaxed text-[#1C1814]">
-              {correctScopeLanguage(canonicalDoc.executiveSummary, isLongForm)}
+              {vm.executiveSummary}
             </p>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -664,7 +672,7 @@ export default async function ReportPage({
                   Top Strengths
                 </h3>
                 <ul className="space-y-2">
-                  {canonicalDoc.topStrengths.map((strength, idx) => (
+                  {vm.topStrengths.map((strength, idx) => (
                     <li key={idx} className="border-l-2 border-[#8B2E2E] pl-4 text-[#1C1814]">
                       {strength}
                     </li>
@@ -677,7 +685,7 @@ export default async function ReportPage({
                   Top Risks
                 </h3>
                 <ul className="space-y-2">
-                  {canonicalDoc.topRisks.map((risk, idx) => (
+                  {vm.topRisks.map((risk, idx) => (
                     <li key={idx} className="border-l-2 border-[#C8A96E] pl-4 text-[#1C1814]">
                       {risk}
                     </li>
@@ -690,9 +698,9 @@ export default async function ReportPage({
         {/* ── Top Recommendations (template section 10) ── */}
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
           <h2 className="mb-4 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Top Recommendations</h2>
-          {canonicalDoc.topRecommendations.length > 0 ? (
+          {vm.topRecommendations.length > 0 ? (
             <ol className="space-y-3 text-[#1C1814]">
-              {canonicalDoc.topRecommendations.map((recommendation, idx) => (
+              {vm.topRecommendations.map((recommendation, idx) => (
                 <li key={idx} className="flex items-start gap-3 leading-relaxed">
                   <span className="shrink-0 font-semibold text-[#8B2E2E]">{idx + 1}.</span>
                   <span>{recommendation}</span>
@@ -718,7 +726,7 @@ export default async function ReportPage({
                 </tr>
               </thead>
               <tbody>
-                {canonicalDoc.criteriaScoreGrid.map((row, idx) => (
+                {vm.criteriaScoreGrid.map((row, idx) => (
                   <tr key={`${row.label}-${idx}`} className="border-b border-[#E6DED2]">
                     <td className="px-3 py-2 text-[#1C1814]">{row.label}</td>
                     <td className="px-3 py-2 text-right font-semibold text-[#1C1814] whitespace-nowrap">{row.scoreLabel}</td>
@@ -735,7 +743,7 @@ export default async function ReportPage({
             Criterion Rationales &amp; Surfaced Opportunities
           </h2>
           <div className="space-y-4">
-            {canonicalDoc.criterionDetails.map((detail, idx) => (
+            {vm.criterionDetails.map((detail, idx) => (
               <article key={`${detail.label}-${idx}`} className="overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#FFFCF7] shadow-[0_1px_0_rgba(28,24,20,0.04)]">
                 <div className="rg-report-criterion-header flex items-center justify-between gap-4 border-b border-[#D9D0C3] bg-[#F7F1E6] px-4 py-3 [color-scheme:light]">
                   <h3 className="font-serif text-base font-bold leading-snug !text-[#8B2E2E]">{detail.label}</h3>
@@ -773,105 +781,11 @@ export default async function ReportPage({
           </div>
         </section>
 
-        <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
-          <h2 className="mb-6 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Action Items</h2>
-          {/* Quick Wins */}
-          {canonicalDoc.actionItems.quickWins.length > 0 && (
-            <div className="mb-6">
-              <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
-                Quick Wins
-              </h3>
-              <div className="space-y-3">
-                {canonicalDoc.actionItems.quickWins.map((qw, idx) => (
-                  <div key={idx} className="border-l-4 border-[#8B2E2E] pl-4 py-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-[#1C1814]">{qw.action}</p>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#5C5549]">
-                        {qw.effort} effort
-                      </span>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#1C1814] font-medium">
-                        {qw.impact} impact
-                      </span>
-                    </div>
-                    {qw.anchor_snippet && (
-                      <p className={`text-sm text-[#5C5549] mt-1 ${(qw as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-[#D9D0C3] pl-2`}>
-                        <span className="font-medium not-italic text-[#1C1814]">
-                          {(qw as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
-                        </span>{" "}
-                        {(qw as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? qw.anchor_snippet : <>&ldquo;{qw.anchor_snippet}&rdquo;</>}
-                      </p>
-                    )}
-                    {qw.candidate_text_a && (
-                      <p className="text-sm text-[#3A6B2A] mt-1 italic border-l-2 border-[#A8C5A0] pl-2">
-                        <span className="font-medium not-italic">Suggested Revision:</span>{" "}
-                        &ldquo;{qw.candidate_text_a}&rdquo;
-                      </p>
-                    )}
-                    {qw.reader_effect && (
-                      <p className="text-xs text-[#5C5549] mt-1">
-                        <span className="font-medium">Reader Effect:</span> {qw.reader_effect}
-                      </p>
-                    )}
-                    <p className="text-sm text-[#1C1814] leading-relaxed">{qw.why}</p>
-                    {qw.manuscript_coordinates && (
-                      <p className="text-xs text-[#9A9087] mt-1">
-                        <span className="font-medium">Location:</span> {qw.manuscript_coordinates}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* Strategic Revisions */}
-          {canonicalDoc.actionItems.strategicRevisions.length > 0 && (
-            <div>
-              <h3 className="mb-4 flex items-center gap-2 font-serif text-lg font-semibold text-[#1C1814]">
-                Strategic Revisions
-              </h3>
-              <div className="space-y-3">
-                {canonicalDoc.actionItems.strategicRevisions.map((sr, idx) => (
-                  <div key={idx} className="border-l-4 border-[#C8A96E] pl-4 py-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-[#1C1814]">{sr.action}</p>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#5C5549]">
-                        {sr.effort} effort
-                      </span>
-                      <span className="text-xs px-2 py-1 bg-[#FAF7F2] text-[#1C1814] font-medium">
-                        {sr.impact} impact
-                      </span>
-                    </div>
-                    {sr.anchor_snippet && (
-                      <p className={`text-sm text-[#5C5549] mt-1 ${(sr as Record<string, unknown>).anchor_type !== 'editorial_diagnosis' ? 'italic' : ''} border-l-2 border-[#D9D0C3] pl-2`}>
-                        <span className="font-medium not-italic text-[#1C1814]">
-                          {(sr as Record<string, unknown>).anchor_type === 'paraphrased_observation' ? 'Observation' : (sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage'}:
-                        </span>{" "}
-                        {(sr as Record<string, unknown>).anchor_type === 'editorial_diagnosis' ? sr.anchor_snippet : <>&ldquo;{sr.anchor_snippet}&rdquo;</>}
-                      </p>
-                    )}
-                    {sr.candidate_text_a && (
-                      <p className="text-sm text-[#3A6B2A] mt-1 italic border-l-2 border-[#A8C5A0] pl-2">
-                        <span className="font-medium not-italic">Suggested Revision:</span>{" "}
-                        &ldquo;{sr.candidate_text_a}&rdquo;
-                      </p>
-                    )}
-                    {sr.reader_effect && (
-                      <p className="text-xs text-[#5C5549] mt-1">
-                        <span className="font-medium">Reader Effect:</span> {sr.reader_effect}
-                      </p>
-                    )}
-                    <p className="text-sm text-[#1C1814] leading-relaxed">{sr.why}</p>
-                    {sr.manuscript_coordinates && (
-                      <p className="text-xs text-[#9A9087] mt-1">
-                        <span className="font-medium">Location:</span> {sr.manuscript_coordinates}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
+        {/* Action Items / Quick Wins / Strategic Revisions REMOVED:
+           These are not contract-approved sections for short-form evaluation.
+           The canonical revision inventory lives in Criterion Rationales & Surfaced
+           Opportunities above. Renderers must not create duplicate recommendation
+           inventories outside the ViewModel. */}
 
         {/* Loading state — shown while DREAM is generating */}
         {isLongForm && !dreamDoc && (
@@ -1392,13 +1306,13 @@ export default async function ReportPage({
         {/* ── Confidence Explanation (template section 13) ── */}
         <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-3">Confidence Explanation</h2>
-          <p className="text-gray-700 whitespace-pre-line">{canonicalDoc.confidenceExplanation}</p>
+          <p className="text-gray-700 whitespace-pre-line">{vm.confidenceExplanation}</p>
         </section>
 
         {/* ── Author-Facing Disclaimer ── */}
         <section className="border border-gray-200 rounded-lg p-5 mb-6 bg-gray-50">
           <p className="text-xs text-gray-500 leading-relaxed">
-            {canonicalDoc.disclaimer}
+            {vm.disclaimer}
           </p>
           <p className="mt-3 text-xs text-gray-400 leading-relaxed">
             Generated by RevisionGrade™. Author retains ownership of manuscript content. This report is an editorial diagnostic and does not guarantee publication, representation, or commercial outcome.
