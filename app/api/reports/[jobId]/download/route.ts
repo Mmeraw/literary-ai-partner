@@ -42,8 +42,10 @@ import {
   extractDocxXmlHeadings,
   validateDocxXmlStructure,
 } from '@/lib/evaluation/sharedLongFormMultiLayerSections';
+import { runRevisionSurfaceOwnershipGate, buildRevisionSurfaceFailureDiagnosis } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
+import { getForbiddenShortFormSections } from '@/lib/evaluation/shortFormSectionContract';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
 import {
@@ -1324,8 +1326,9 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, dream: Longfo
     }
   });
 
-  // ── Action Items ───────────────────────────────────────────────────
-  if (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) {
+  // ── Action Items (suppressed for short-form per Revision Surface Ownership Contract) ──
+  const isShortFormTxt = doc.templateMode === 'short_form_evaluation';
+  if (!isShortFormTxt && (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0)) {
     lines.push(sub);
     lines.push('ACTION ITEMS');
     lines.push(sub);
@@ -1733,7 +1736,7 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
     ${doc.modeSpecific.continuityCoverageProof.length > 0 ? `<section><h2>${sectionTitle('continuity_coverage')}</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0 ? `<section><h2>${sectionTitle('readiness_posture')}</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
     ` : '')}
-    ${(doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
+    ${(doc.templateMode !== 'short_form_evaluation' && (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0)) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
     <section><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     <section><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
   </body></html>`;
@@ -2064,8 +2067,8 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream:
     }
   });
 
-  // ── Action Items ────────────────────────────────────────────────────
-  if (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0) {
+  // ── Action Items (suppressed for short-form per Revision Surface Ownership Contract) ──
+  if (doc.templateMode !== 'short_form_evaluation' && (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0)) {
     children.push(makeHeading('Action Items'));
     if (doc.actionItems.quickWins.length > 0) {
       children.push(new Paragraph({
@@ -2774,7 +2777,21 @@ function docxScoreColor(score: number | null | undefined): string {
 const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
 
+/**
+ * @deprecated LEGACY — this function is dead code. The production path uses
+ * buildCanonicalTemplateDocx exclusively. This remains temporarily for reference
+ * only and is hard-guarded against accidental production invocation.
+ * TODO: Remove entirely once all references are cleared.
+ */
 async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
+  // HARD GUARD: This legacy function must never execute in production.
+  // The canonical path is buildCanonicalTemplateDocx via UnifiedEvaluationDocument.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
+    throw new Error(
+      '[REVISION_SURFACE_OWNERSHIP_GATE] Legacy buildDocx called in production. ' +
+      'This is a release-blocking defect. Use buildCanonicalTemplateDocx instead.',
+    );
+  }
   const metadata = buildMetadata(result, title, dream, enrichment);
   const summaryFallback = buildSummaryFallback(result);
   const pitches = buildReportPitches({
@@ -3735,6 +3752,45 @@ export async function GET(
   // contains the exact template-authorized heading sequence before serving.
   // This inspects actual rendered output, not just pre-render objects.
   const isMultiLayerDownload = canonicalDoc.templateMode === 'long_form_multi_layer_evaluation';
+
+  // ── REVISION_SURFACE_OWNERSHIP_GATE — block author exposure if violations exist ──
+  // Validates rendered output does not contain forbidden sections per mode.
+  // Must execute before Phase 5 Author Exposure (serving any download).
+  // A violation is a release-blocking defect, not advisory.
+  {
+    const gateTxt = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
+    const gateHtml = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
+    const gateResult = runRevisionSurfaceOwnershipGate({
+      templateMode: canonicalDoc.templateMode,
+      surfaces: [
+        { surface: 'html', content: gateHtml },
+        { surface: 'txt', content: gateTxt },
+      ],
+    });
+
+    if (!gateResult.passed) {
+      const diagnosis = buildRevisionSurfaceFailureDiagnosis(jobId, gateResult.failures);
+      console.error('[report-download] REVISION_SURFACE_OWNERSHIP_GATE FAILED — blocking author exposure', {
+        jobId,
+        format,
+        templateMode: canonicalDoc.templateMode,
+        failureCount: gateResult.failures.length,
+        failures: gateResult.failures.slice(0, 5),
+        diagnosis,
+      });
+      return NextResponse.json(
+        {
+          error:
+            'This download is temporarily unavailable. Our content quality checks identified a formatting issue ' +
+            'that needs to be resolved before this report can be served. Our team has been notified.',
+          code: 'REVISION_SURFACE_OWNERSHIP_GATE_FAILED',
+          failure_diagnosis_v1: diagnosis,
+          failure_count: gateResult.failures.length,
+        },
+        { status: 422 },
+      );
+    }
+  }
 
   if (format === 'txt') {
     const body = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);

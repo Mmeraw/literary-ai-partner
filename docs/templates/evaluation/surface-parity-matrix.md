@@ -2,8 +2,9 @@
 
 **Purpose:** Permanent QA artifact mapping every template-required field to its renderer in each of the five evaluation surfaces. Any cell marked ❌ is a parity violation that must be fixed before merge.
 
-**Authority:** `docs/templates/evaluation/short-form-evaluation-template.md`  
-**Runtime enforcement:** `lib/evaluation/pipeline/templateCompletenessGate.ts` (pre-persist) and `validateDownloadParity()` in the download route (pre-serve).
+**Authority:** `docs/templates/evaluation/short-form-evaluation-template.md`, `docs/templates/evaluation/long-form-evaluation-template.md`, `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`  
+**Rendering authority:** `docs/templates/evaluation/evaluation-rendering-contract.md`  
+**Runtime enforcement:** `lib/evaluation/pipeline/templateCompletenessGate.ts` (pre-persist), `validateDownloadParity()` in the download route (pre-serve), and `REVISION_SURFACE_OWNERSHIP_GATE` in `lib/evaluation/revisionSurfaceOwnershipGate.ts` (pre-exposure).
 
 ---
 
@@ -66,13 +67,45 @@
 | Reader Effect | Impact if repaired | ✅ | ✅ | ✅ | ✅ |
 | Mistake-Proofing | Must not damage | ✅ | ✅ | ✅ | ✅ |
 
+## Mode-Specific Sections
+
+### Long-Form Evaluation (16 sections)
+
+| # | Section | Template Authority |
+|---|---------|-------------------|
+| 1–12 | Same as shared sections above | `long-form-evaluation-template.md` |
+| 13 | Manuscript-Scale Continuity Findings | §Manuscript-Scale Continuity Findings |
+| 14 | Revision Priority Plan | §Revision Priority Plan |
+| 15 | Confidence Explanation | §Confidence Explanation |
+| 16 | Author-Facing Disclaimer | §Explicit Non-Promises |
+
+### Long-Form Multi-Layer Evaluation (21 sections)
+
+| # | Section | Template Authority |
+|---|---------|-------------------|
+| 1–12 | Same as shared sections above | `long-form-multi-layer-evaluation-template.md` |
+| 13 | Story Ledger or layer-aware architecture map | §Story Ledger (where applicable) |
+| 14 | Review Gate readiness surface | §Review Gate (where applicable) |
+| 15 | Governed ledgers or compact addenda | §Governed-Ledger (where applicable) |
+| 16 | Cross-Layer Synthesis | §Cross-Layer Synthesis |
+| 17 | Layer-Aware Revision Sequencing | §Layer-Aware Revision Sequencing |
+| 18 | Long-Form Continuity and Coverage Proof | §Long-Form Continuity |
+| 19 | Readiness / Releasability Posture | §Readiness / Releasability Posture |
+| 20 | Confidence Explanation | §Confidence Explanation |
+| 21 | Author-Facing Disclaimer | §Explicit Non-Promises |
+
 ## Enforcement Gates
 
 | Gate | Location | When | What It Checks |
 |------|----------|------|----------------|
-| Template Completeness | `templateCompletenessGate.ts` | Before artifact persistence | All 14 sections present, 13 criteria exact, density floors, meaningful content (not placeholders), genre not a format word, confidence levels valid |
+| Template Completeness | `templateCompletenessGate.ts` | Before artifact persistence | All required sections present, 13 criteria exact, density floors, meaningful content (not placeholders), genre not a format word, confidence levels valid |
 | Download Parity | `download/route.ts` `validateDownloadParity()` | Before serving any download | Artifact completeness verified before generating PDF/DOCX/TXT |
 | Canonical View Model | `buildMetadata()` in `download/route.ts` | All download builders | Single metadata extraction function shared by PDF, DOCX, TXT builders — ensures identical field values |
+| Revision Surface Ownership | `revisionSurfaceOwnershipGate.ts` | Before Phase 5 author exposure (download route) | Mode-specific forbidden section validation, duplicate inventory detection, opportunity count parity, cross-surface parity — blocks all three template modes |
+| Short-Form Section Contract | `shortFormSectionContract.ts` | Runtime validation | 14 authorized sections, forbidden heading detection, rendered-output validation |
+| Long-Form Section Contract | `longFormSectionContract.ts` | Runtime validation | Forbidden heading detection for long-form mode (allows Revision Priority Plan, Manuscript-Scale Continuity) |
+| Long-Form Multi-Layer Section Contract | `longFormMultiLayerSectionContract.ts` | Runtime validation | Forbidden heading detection for multi-layer mode (allows Layer-Aware Sequencing, Cross-Layer Synthesis, Readiness Posture, Review Gate Readiness Surface) |
+| Legacy buildDocx Hard Guard | `download/route.ts` (`buildDocx` function) | Production invocation attempt | Throws in production/Vercel — prevents legacy dead code from accidentally serving forbidden headings |
 
 ## How to Use This Matrix
 
@@ -83,4 +116,4 @@
 
 ---
 
-*Last updated: PR #1007 — surface parity enforcement*
+*Last updated: PR #1171 — Revision Surface Consolidation, long-form/multi-layer template updates*
