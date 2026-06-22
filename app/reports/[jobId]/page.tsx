@@ -349,6 +349,24 @@ export default async function ReportPage({
   // The VM applies all sanitization (mistakeProofText, correctScopeLanguage) internally.
   // Renderers must use vm.* directly — no additional sanitization or business logic.
   // Do NOT re-wrap in sanitizeAuthorFacingDisplayValue; double-sanitization is a bug.
+  //
+  // TEMPORARY_DREAM_RENDERER_EXCEPTION
+  // These helper calls are allowed ONLY for non-VM DREAM fields that have not
+  // yet migrated into normalizeEvaluationReportViewModel(). They are technical
+  // debt and must not be copied to vm.* rendering paths.
+  //
+  // Allowed temporarily:
+  //   correctScopeLanguage(dream...)
+  //   getDisplayDream*(dream...)
+  //   filterAuthorFacingTextList(dream...)
+  //   getRenumberedAuthorFacingRevisionPlan(dream...)
+  //
+  // Forbidden (CI-gated in viewModelBoundaryGate.test.ts):
+  //   correctScopeLanguage(vm...)
+  //   mistakeProofText(vm...)
+  //   getDisplayDream*(vm...)
+  //   filterAuthorFacingTextList(vm...)
+  //   getRenumberedAuthorFacingRevisionPlan(vm...)
   const vm = normalizeEvaluationReportViewModel(persistedDocument.document);
   // Canon governance data intentionally NOT fetched — internal-only, never rendered.
   const dreamExecutiveVerdict = getDisplayText(dreamDoc?.executive_verdict, "No executive verdict available.");

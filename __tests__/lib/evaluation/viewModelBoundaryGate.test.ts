@@ -108,27 +108,48 @@ function buildMinimalUed(): UnifiedEvaluationDocument {
 
 describe('VM Boundary Gate: Static Guard', () => {
   const source = readPageTsx();
+  const sourceNoComments = source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '');
+
+  it('documents TEMPORARY_DREAM_RENDERER_EXCEPTION for non-VM DREAM helpers', () => {
+    expect(source).toMatch(/TEMPORARY_DREAM_RENDERER_EXCEPTION/);
+  });
 
   it('page.tsx must NOT import mistakeProofText (VM owns all sanitization)', () => {
     // mistakeProofText is internal to the VM — renderers must never call it directly
-    const importMatch = source.match(/import\s*\{[^}]*mistakeProofText[^}]*\}/s);
+    const importMatch = sourceNoComments.match(/import\s*\{[^}]*mistakeProofText[^}]*\}/s);
     expect(importMatch).toBeNull();
   });
 
   it('page.tsx must NOT define or reference sanitizeAuthorFacingDisplayValue', () => {
     // This function was the legacy double-sanitization layer — completely banned
-    expect(source).not.toMatch(/sanitizeAuthorFacingDisplayValue\s*[(<]/);
-    expect(source).not.toMatch(/function\s+sanitizeAuthorFacingDisplayValue/);
+    expect(sourceNoComments).not.toMatch(/sanitizeAuthorFacingDisplayValue\s*[(<]/);
+    expect(sourceNoComments).not.toMatch(/function\s+sanitizeAuthorFacingDisplayValue/);
   });
 
   it('page.tsx must NOT call correctScopeLanguage or mistakeProofText on vm.* fields', () => {
     // Pattern: correctScopeLanguage(vm. or mistakeProofText(vm.
-    expect(source).not.toMatch(/correctScopeLanguage\s*\(\s*vm\./);
-    expect(source).not.toMatch(/mistakeProofText\s*\(\s*vm\./);
+    expect(sourceNoComments).not.toMatch(/correctScopeLanguage\s*\(\s*vm\./);
+    expect(sourceNoComments).not.toMatch(/mistakeProofText\s*\(\s*vm\./);
+  });
+
+  it('page.tsx must NOT call DREAM helper family on vm.* fields', () => {
+    // Non-VM DREAM field exceptions are allowed temporarily, but vm.* is forbidden.
+    expect(sourceNoComments).not.toMatch(/getDisplayDream\w*\s*\(\s*vm\./);
+    expect(sourceNoComments).not.toMatch(/filterAuthorFacingTextList\s*\(\s*vm\./);
+    expect(sourceNoComments).not.toMatch(/getRenumberedAuthorFacingRevisionPlan\s*\(\s*vm\./);
+  });
+
+  it('page.tsx may temporarily call DREAM helpers for dream.* fields only', () => {
+    // Temporary technical-debt exception marker must remain visible.
+    expect(sourceNoComments).toMatch(/correctScopeLanguage\s*\(\s*dream/);
+    expect(sourceNoComments).toMatch(/getDisplayDream\w*\s*\(\s*dream/);
+    expect(sourceNoComments).toMatch(/filterAuthorFacingTextList\s*\(\s*analysis\./);
   });
 
   it('page.tsx must NOT reference canonicalDoc.actionItems', () => {
-    expect(source).not.toMatch(/canonicalDoc\.actionItems/);
+    expect(sourceNoComments).not.toMatch(/canonicalDoc\.actionItems/);
   });
 
   it('page.tsx must NOT render canonicalDoc for VM-owned fields', () => {
@@ -153,7 +174,7 @@ describe('VM Boundary Gate: Static Guard', () => {
       /canonicalDoc\.contentWarnings/,
     ];
     for (const pattern of vmOwnedPatterns) {
-      expect(source).not.toMatch(pattern);
+      expect(sourceNoComments).not.toMatch(pattern);
     }
   });
 });
