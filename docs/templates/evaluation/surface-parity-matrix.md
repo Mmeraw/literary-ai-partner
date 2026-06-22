@@ -14,7 +14,7 @@
 |---|-------|----------|---------|-----|------|-----|
 | 1 | Manuscript Title | Required | `page.tsx` title block | Cover page heading | Title paragraph | Line 1 header |
 | 2 | Reference ID | Required | `page.tsx` title block | Title block line | Title paragraph | Header line |
-| 3 | Report Type | `Short-Form Evaluation` / `Long-Form Evaluation` / `Long-Form Multi-Layer Evaluation` | Title block badge | Cover grid `renderMetric` | `metaRow` | Header line |
+| 3 | Report Type | `Short-Form Evaluation` / `Long-Form Multi-Layer Evaluation` (historical: `Long-Form Evaluation`) | Title block badge | Cover grid `renderMetric` | `metaRow` | Header line |
 | 4 | Overall Score | `[XX]/100` | Score circle + label | Cover grid `renderMetric` | `metaRow` | Header line |
 | 5 | Market Readiness | `Market Ready / Near Market Ready / Not Market Ready` | Badge via canonical title block | Cover badge + canonical title block | `metaRow` verdict | `Market Readiness:` line |
 | 6 | Genre | Required (AI-diagnosed) | Title block `genre` | Cover grid `renderMetric` | `metaRow` | Header line |

@@ -3,14 +3,14 @@ import path from 'node:path';
 
 const TEMPLATE_ROOT = path.join(process.cwd(), 'docs/templates/evaluation');
 
-const evaluationTemplates = [
+/**
+ * Active evaluation templates — these are the Level 1 Golden Records.
+ * All product contract assertions apply to these templates.
+ */
+const activeEvaluationTemplates = [
   {
     name: 'Short-Form Evaluation Template',
     path: 'short-form-evaluation-template.md',
-  },
-  {
-    name: 'Long-Form Evaluation Template',
-    path: 'long-form-evaluation-template.md',
   },
   {
     name: 'Long-Form Multi-Layer Evaluation Template',
@@ -18,14 +18,27 @@ const evaluationTemplates = [
   },
 ];
 
-const allContractDocs = [...evaluationTemplates, { name: 'Evaluation Rendering Contract', path: 'evaluation-rendering-contract.md' }];
+/**
+ * Retired templates — kept for historical artifact rendering only.
+ * They must declare retirement and point to the replacement.
+ */
+const retiredEvaluationTemplates = [
+  {
+    name: 'Long-Form Evaluation Template',
+    path: 'long-form-evaluation-template.md',
+  },
+];
+
+const allEvaluationTemplates = [...activeEvaluationTemplates, ...retiredEvaluationTemplates];
+
+const allContractDocs = [...activeEvaluationTemplates, { name: 'Evaluation Rendering Contract', path: 'evaluation-rendering-contract.md' }];
 
 function readTemplate(relativePath: string): string {
   return fs.readFileSync(path.join(TEMPLATE_ROOT, relativePath), 'utf8');
 }
 
 describe('evaluation template contract documents', () => {
-  test.each(evaluationTemplates)('$name exists and declares its exact template heading', ({ name, path: relativePath }) => {
+  test.each(allEvaluationTemplates)('$name exists and declares its exact template heading', ({ name, path: relativePath }) => {
     const template = readTemplate(relativePath);
 
     expect(template).toContain(`# ${name}`);
@@ -46,7 +59,7 @@ describe('evaluation template contract documents', () => {
     },
   );
 
-  test.each(evaluationTemplates)('$name requires five canonical confidence labels everywhere', ({ path: relativePath }) => {
+  test.each(activeEvaluationTemplates)('$name requires five canonical confidence labels everywhere', ({ path: relativePath }) => {
     const template = readTemplate(relativePath);
 
     expect(template).toContain('Very High Confidence');
@@ -76,10 +89,10 @@ describe('evaluation template contract documents', () => {
     },
   );
 
-  test('shared rendering contract names all three authoritative evaluation templates', () => {
+  test('shared rendering contract names all evaluation templates (active and retired)', () => {
     const renderingContract = readTemplate('evaluation-rendering-contract.md');
 
-    for (const { path: relativePath } of evaluationTemplates) {
+    for (const { path: relativePath } of allEvaluationTemplates) {
       expect(renderingContract).toContain(`docs/templates/evaluation/${relativePath}`);
     }
   });
@@ -91,13 +104,19 @@ describe('evaluation template contract documents', () => {
     expect(shortForm).toContain('must not be rendered as full Story Ledger authority');
   });
 
-  test.each(['long-form-evaluation-template.md', 'long-form-multi-layer-evaluation-template.md'])(
-    '%s hard-gates WAVE, Gate 15, Dialogue Canon, and Final External Audit defects',
-    (relativePath) => {
+  test('long-form multi-layer template hard-gates WAVE, Gate 15, Dialogue Canon, and Final External Audit defects', () => {
+    const template = readTemplate('long-form-multi-layer-evaluation-template.md');
+
+    expect(template).toContain('WAVE, Gate 15 / Canon Governance, Dialogue Canon, and Final External Audit defects');
+    expect(template).toContain('must block Phase 5 author exposure');
+  });
+
+  describe('retired templates', () => {
+    test.each(retiredEvaluationTemplates)('$name declares retirement and points to replacement', ({ path: relativePath }) => {
       const template = readTemplate(relativePath);
 
-      expect(template).toContain('WAVE, Gate 15 / Canon Governance, Dialogue Canon, and Final External Audit defects');
-      expect(template).toContain('must block Phase 5 author exposure');
-    },
-  );
+      expect(template).toContain('RETIRED');
+      expect(template).toContain('long_form_multi_layer_evaluation');
+    });
+  });
 });

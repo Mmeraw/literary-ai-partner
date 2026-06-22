@@ -39,14 +39,21 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(loadDreamTemplate('long_form_multi_layer')).toContain('long_form_multi_layer_evaluation');
   });
 
-  it('keeps canonical confidence fields in the full templates', () => {
-    const templates = CANONICAL_TEMPLATE_PATHS.map(readTemplate);
+  it('keeps canonical confidence fields in the active templates', () => {
+    const shortForm = readTemplate('short-form-evaluation-template.md');
+    const multiLayer = readTemplate('long-form-multi-layer-evaluation-template.md');
 
-    for (const template of templates) {
+    // Active templates must contain canonical confidence fields
+    for (const template of [shortForm, multiLayer]) {
       expect(template).toContain('Genre Confidence');
       expect(template).toContain('Market Readiness Confidence');
     }
-    expect(templates[2]).toContain('Shelf Confidence');
+    expect(multiLayer).toContain('Shelf Confidence');
+
+    // Retired long-form template is a stub — verify it declares retirement
+    const retired = readTemplate('long-form-evaluation-template.md');
+    expect(retired).toContain('RETIRED');
+    expect(retired).toContain('long_form_multi_layer_evaluation');
   });
 
   it('documents short-form Genre Confidence by canonical scope band', () => {
