@@ -31,6 +31,7 @@ import { EVALUATION_TEMPLATE_CONTRACTS } from '@/lib/evaluation/unifiedEvaluatio
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import type { EvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
+import type { CanonicalConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import {
   getLongFormMultiLayerSections,
@@ -597,7 +598,7 @@ function applyViewModelToDocument(
       marketReadiness: vm.titleBlock.marketReadiness,
       genre: vm.titleBlock.genre,
       targetAudience: vm.titleBlock.targetAudience,
-      audienceConfidenceLabel: vm.titleBlock.audienceConfidenceLabel,
+      audienceConfidenceLabel: vm.titleBlock.audienceConfidenceLabel as CanonicalConfidenceLabel,
       audienceTentative: vm.titleBlock.audienceTentative,
     },
     // Pitches — VM sanitizes text
@@ -626,7 +627,7 @@ function applyViewModelToDocument(
         ...detail.recommendations[j],
         ...vmRec,
       })) ?? detail.recommendations,
-    })),
+    })) as typeof source.criterionDetails,
   };
 }
 
