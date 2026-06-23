@@ -63,7 +63,7 @@ export type CompleteEvaluationSeedV1 = {
   reporting_template_path: {
     selected_template: string;
     short_form_template: 'docs/templates/evaluation/short-form-evaluation-template.md';
-    long_form_template: 'docs/templates/evaluation/long-form-evaluation-template.md';
+    long_form_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
     long_form_multilayer_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
   };
   criterion_scaffolds: Array<{
@@ -221,7 +221,7 @@ export function buildCompleteEvaluationSeedV1(args: { wordCount: number; workTyp
   const selected_template = evaluationMode === 'short_form_evaluation'
     ? 'docs/templates/evaluation/short-form-evaluation-template.md'
     : evaluationMode === 'long_form_evaluation'
-      ? 'docs/templates/evaluation/long-form-evaluation-template.md'
+      ? 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md'
       : 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
 
   return {
@@ -242,7 +242,7 @@ export function buildCompleteEvaluationSeedV1(args: { wordCount: number; workTyp
     reporting_template_path: {
       selected_template,
       short_form_template: 'docs/templates/evaluation/short-form-evaluation-template.md',
-      long_form_template: 'docs/templates/evaluation/long-form-evaluation-template.md',
+      long_form_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
       long_form_multilayer_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
     },
     criterion_scaffolds: CRITERIA_KEYS.map((criterion_key) => ({

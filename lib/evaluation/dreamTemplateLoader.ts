@@ -38,7 +38,7 @@ const STORY_LEDGER_TEMPLATE_PATH = join(
 
 const FILE_MAP: Record<DreamTemplateKey, string> = {
   short_form: "short-form-evaluation-template.md",
-  long_form: "long-form-evaluation-template.md",
+  long_form: "long-form-multi-layer-evaluation-template.md",
   long_form_multi_layer: "long-form-multi-layer-evaluation-template.md",
 };
 

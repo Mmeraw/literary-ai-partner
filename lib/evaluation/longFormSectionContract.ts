@@ -1,7 +1,7 @@
 /**
  * Machine-checkable Long-Form Evaluation Section Contract.
  *
- * Authority: docs/templates/evaluation/long-form-evaluation-template.md (Revision Surface Ownership Contract section)
+ * Authority: docs/templates/evaluation/long-form-multi-layer-evaluation-template.md (Revision Surface Ownership Contract section)
  *
  * This module defines long-form section definitions, revision surface ownership
  * rules, and forbidden sections. All renderers (web, PDF, DOCX, TXT) must import

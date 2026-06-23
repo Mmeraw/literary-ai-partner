@@ -2,7 +2,7 @@
 
 **Purpose:** Permanent QA artifact mapping every template-required field to its renderer in each of the five evaluation surfaces. Any cell marked ❌ is a parity violation that must be fixed before merge.
 
-**Authority:** `docs/templates/evaluation/short-form-evaluation-template.md`, `docs/templates/evaluation/long-form-evaluation-template.md`, `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`  
+**Authority:** `docs/templates/evaluation/short-form-evaluation-template.md`, `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`  
 **Rendering authority:** `docs/templates/evaluation/evaluation-rendering-contract.md`  
 **Runtime enforcement:** `lib/evaluation/pipeline/templateCompletenessGate.ts` (pre-persist), `validateDownloadParity()` in the download route (pre-serve), and `REVISION_SURFACE_OWNERSHIP_GATE` in `lib/evaluation/revisionSurfaceOwnershipGate.ts` (pre-exposure).
 
@@ -73,7 +73,7 @@
 
 | # | Section | Template Authority |
 |---|---------|-------------------|
-| 1–12 | Same as shared sections above | `long-form-evaluation-template.md` |
+| 1–12 | Same as shared sections above | `long-form-multi-layer-evaluation-template.md` |
 | 13 | Manuscript-Scale Continuity Findings | §Manuscript-Scale Continuity Findings |
 | 14 | Revision Priority Plan | §Revision Priority Plan |
 | 15 | Confidence Explanation | §Confidence Explanation |

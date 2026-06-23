@@ -20,7 +20,6 @@ This contract binds seed behavior to the existing canonical output-mode system s
 Seed-phase processing must classify and remain aligned to one of the existing canonical modes:
 
 - `short_form_evaluation`
-- `long_form_evaluation`
 - `long_form_multi_layer_evaluation`
 
 Seed phase must not introduce alternative mode names or aliases.
@@ -32,7 +31,6 @@ Seed phase must not introduce alternative mode names or aliases.
 Seed-phase scaffold outputs must align to the canonical template authorities:
 
 - `docs/templates/evaluation/short-form-evaluation-template.md`
-- `docs/templates/evaluation/long-form-evaluation-template.md`
 - `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`
 
 Alignment means seed hypotheses and routing hints may reference template sections conceptually, but seed must not claim template completion as verified truth.

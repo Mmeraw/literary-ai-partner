@@ -15,7 +15,6 @@ ownership boundaries, opportunity structure, and parity rules.
 | Document | Path | Governs |
 |----------|------|---------|
 | Short-Form Evaluation Template | `docs/templates/evaluation/short-form-evaluation-template.md` | Short-form report content, sections, ordering, forbidden headings, opportunity structure, anti-duplication rules, gate conditions |
-| Long-Form Evaluation Template | `docs/templates/evaluation/long-form-evaluation-template.md` | Standard long-form report content and renderer parity |
 | Long-Form Multi-Layer Evaluation Template | `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md` | DREAM-backed multi-layer report content, Story Ledger, Review Gate, cross-layer surfaces |
 | Evaluation Rendering Contract | `docs/templates/evaluation/evaluation-rendering-contract.md` | Shared renderer restrictions for Web, PDF, DOCX, TXT, and print-friendly views |
 | Surface Parity Matrix | `docs/templates/evaluation/surface-parity-matrix.md` | Field parity requirements across all four renderer surfaces |
@@ -37,9 +36,8 @@ These translate human-readable template contracts into code that the runtime obe
 | Component | Path | Derives From |
 |-----------|------|--------------|
 | Short-Form Contract | `lib/evaluation/contracts/shortFormContract.ts` | Short-Form Evaluation Template |
-| Long-Form Contract | `lib/evaluation/contracts/longFormContract.ts` | Long-Form Evaluation Template |
 | Long-Form Multi-Layer Contract | `lib/evaluation/contracts/longFormMultiLayerContract.ts` | Long-Form Multi-Layer Evaluation Template |
-| Evaluation Template Contracts (current) | `lib/evaluation/reportTemplateContract.ts` | All three templates |
+| Evaluation Template Contracts (current) | `lib/evaluation/reportTemplateContract.ts` | Active templates |
 | FIPOC Registry | `lib/evaluation/fipocRegistry.ts` | Authority Source Registry + Templates |
 
 ### Rules

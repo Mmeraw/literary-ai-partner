@@ -37,7 +37,7 @@ wave-applied: true
 | Work | Preserved manual benchmark | V2 governed-ledger addendum | Evaluation mode | Output mode | Tier | Notes |
 |---|---|---|---|---|---|---|
 | *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | [`froggin-noggin-dream-v2-governed-ledger-addendum.md`](./froggin-noggin-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Original body remains the manual reference; V2 addendum is the binding governed-ledger compliance layer. |
-| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | [`cartel-babies-dream-v2-governed-ledger-addendum.md`](./cartel-babies-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Original body remains preserved; V2 addendum supersedes unqualified integrity/coverage findings where DREAM v2 requires more precise classification. |
+| *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md) | Archived: [`archive/cartel-babies-dream.md`](./archive/cartel-babies-dream.md), [`archive/cartel-babies-dream-v2-governed-ledger-addendum.md`](./archive/cartel-babies-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified canonical benchmark. Legacy benchmark and addendum are archived for historical traceability. |
 | *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Calibration | Calibration-tier governed-ledger example for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
 
 ## Public-domain calibration standards
@@ -106,7 +106,7 @@ Top Recommendations remain summary-level and should not be verbatim copies of cr
 `cartel-babies-dream-longform-evaluation.md` is a legacy/alternate Cartel Babies path. The canonical repo-facing benchmark path is:
 
 ```text
-docs/benchmarks/cartel-babies-dream.md
+docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 ```
 
 Future edits should prefer the canonical path unless there is a deliberate migration or deletion task.

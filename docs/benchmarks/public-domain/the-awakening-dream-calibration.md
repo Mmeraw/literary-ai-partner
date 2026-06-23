@@ -24,7 +24,7 @@ source-text: corpus/public-domain/clean/the-awakening.txt
 
 This file is a public-domain calibration benchmark, not a RevisionGrade-native runtime authority file.
 
-Its purpose is to teach RevisionGrade how to evaluate a compact literary novel whose primary engine is interior pressure, social constraint, symbolic environment, and irreversible character change. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md`, `cartel-babies-dream.md`, or `let-the-river-decide-dream.md`.
+Its purpose is to teach RevisionGrade how to evaluate a compact literary novel whose primary engine is interior pressure, social constraint, symbolic environment, and irreversible character change. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md`, `cartel-babies-dream-longform-multilayer-gold-standard.md`, or `let-the-river-decide-dream.md`.
 
 Governing mode contract:
 
@@ -35,7 +35,7 @@ docs/governance/evaluation-output-mode-contract.md
 Product-facing template:
 
 ```text
-docs/templates/evaluation/long-form-evaluation-template.md
+docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
 ```
 
 ---

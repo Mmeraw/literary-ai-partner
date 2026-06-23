@@ -37,8 +37,7 @@ docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
 ## Manuscript benchmark sets
 
 ```text
-docs/benchmarks/cartel-babies-dream.md
-docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 
 docs/benchmarks/froggin-noggin-dream.md
 docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md

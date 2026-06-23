@@ -13,7 +13,7 @@
  *   docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
  *   docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
  *   docs/benchmarks/froggin-noggin-dream.md
- *   docs/benchmarks/cartel-babies-dream.md
+ *   docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
  *   docs/benchmarks/let-the-river-decide-dream.md (calibration)
  *
  * Temperature: 0.3   Max tokens: 16000 (default; see runPass3bLongform getPass3bMaxTokens)
@@ -52,7 +52,7 @@ This output format is defined by:
 - Benchmark index: docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
 
 Gold-standard benchmarks (all long_form_multi_layer_evaluation / multi_layer_long_form):
-- Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream.md) — primary required-gold product exemplar
+- Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md) — primary required-gold product exemplar
 - Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream.md) — required-gold benchmark
 - Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream.md, calibration-tier)
 

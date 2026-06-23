@@ -32,7 +32,7 @@ This spec inherits from, and must not contradict:
 - `docs/canon/registered/volumes/VOLUME-II-STORY-EVALUATION-CRITERIA.md`
 - `docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md`
 - `docs/benchmarks/froggin-noggin-dream.md`
-- `docs/benchmarks/cartel-babies-dream.md`
+- `docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md`
 - `docs/benchmarks/let-the-river-decide-dream.md`
 - `lib/evaluation/pipeline/prompts/pass3b-longform.ts`
 
@@ -537,7 +537,7 @@ A result is releasable only when the report contains the required mode-specific 
 The required RevisionGrade-native gold standards are:
 
 - `docs/benchmarks/froggin-noggin-dream.md`
-- `docs/benchmarks/cartel-babies-dream.md`
+- `docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md`
 
 These define house style, depth, and report architecture.
 

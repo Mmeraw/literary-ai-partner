@@ -224,7 +224,7 @@ function buildLongFormContract(): EvaluationContract {
 
   return {
     mode: 'long_form_evaluation',
-    templatePath: 'docs/templates/evaluation/long-form-evaluation-template.md',
+    templatePath: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
     authorityLevel: 'executable_contract',
     implementationStatus: 'partial',
     missingExecutableRules: [
@@ -251,7 +251,7 @@ function buildLongFormContract(): EvaluationContract {
     },
 
     authorityChain: {
-      goldenRecordPath: 'docs/templates/evaluation/long-form-evaluation-template.md',
+      goldenRecordPath: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
       contractRegistryPath: 'lib/evaluation/contracts/evaluationContractRegistry.ts',
       governanceDocPath: GOVERNANCE_DOC_PATH,
     },

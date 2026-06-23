@@ -246,7 +246,7 @@ describe('executable FIPOC registry', () => {
       'docs/VERIFICATION_GOLD_STANDARD.md',
       'docs/canon/intake/_md/Normalized Gold Standard CANONICAL ACCEPTANCE COMPARATOR v1.md',
       'docs/templates/evaluation/short-form-evaluation-template.md',
-      'docs/templates/evaluation/long-form-evaluation-template.md',
+      'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
       'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
       'docs/templates/evaluation/evaluation-rendering-contract.md',
       'docs/templates/evaluation/surface-parity-matrix.md',
