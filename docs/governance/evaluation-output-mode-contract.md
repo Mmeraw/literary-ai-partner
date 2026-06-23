@@ -48,9 +48,9 @@ Sparse submissions are valid. RevisionGrade permits submissions at 200 words and
 
 ### `long_form_evaluation`
 
-Used for manuscripts at or above the long-form threshold where manuscript-scale logic is appropriate.
+Legacy compatibility mode only.
 
-Long-form evaluation may use story-scale continuity and broader manuscript structure, but the output still must distinguish evidence-backed findings from cautions, unknowns, and author-review items.
+New evaluations must not route to this mode. Historical persisted artifacts may retain this value and are rendered via active multi-layer template authority.
 
 ### `long_form_multi_layer_evaluation`
 
@@ -69,8 +69,7 @@ Native benchmark families include:
 ```text
 docs/benchmarks/froggin-noggin-dream.md
 docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
-docs/benchmarks/cartel-babies-dream.md
-docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 docs/benchmarks/let-the-river-decide-dream.md
 docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md
 ```
@@ -87,7 +86,6 @@ The canonical product-output templates live in:
 
 ```text
 docs/templates/evaluation/short-form-evaluation-template.md
-docs/templates/evaluation/long-form-evaluation-template.md
 docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
 ```
 

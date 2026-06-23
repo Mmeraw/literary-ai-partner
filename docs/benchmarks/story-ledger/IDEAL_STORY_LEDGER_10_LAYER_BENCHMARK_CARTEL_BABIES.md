@@ -12,8 +12,7 @@ generated-for: seed-phase-and-phase-1a-baseline
 created: 2026-05-31T01:22:25Z
 revised: 2026-05-31T03:56:00Z
 source-benchmarks:
-  - docs/benchmarks/cartel-babies-dream.md
-  - docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md
+  - docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 ---
 
 # Cartel Babies — Ideal Story Ledger 10-Layer Benchmark

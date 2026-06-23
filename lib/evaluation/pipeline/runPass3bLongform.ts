@@ -14,7 +14,7 @@
  *   docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
  *   docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
  *   docs/benchmarks/froggin-noggin-dream.md
- *   docs/benchmarks/cartel-babies-dream.md
+ *   docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
  *
  * Temperature: 0.3   Default max tokens: 12000 (override via EVAL_PASS3B_MAX_TOKENS)
  *

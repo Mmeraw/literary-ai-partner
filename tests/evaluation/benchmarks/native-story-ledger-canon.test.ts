@@ -26,8 +26,7 @@ describe('Native Story Ledger canon — Cartel Babies primary example', () => {
     expect(ledger).toContain('benchmark-schema: ideal-story-ledger-10-layer-v1');
     expect(ledger).toContain('benchmark-tier: required-gold');
     expect(ledger).toContain('revised: 2026-05-31T03:56:00Z');
-    expect(ledger).toContain('docs/benchmarks/cartel-babies-dream.md');
-    expect(ledger).toContain('docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md');
+    expect(ledger).toContain('docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md');
   });
 
   it('guards the Cartel Babies completion standard and ten-layer doctrine', () => {
@@ -52,7 +51,7 @@ describe('Native Story Ledger canon — Cartel Babies primary example', () => {
   it('keeps DREAM index authority aligned with native Story Ledger tiers', () => {
     const index = read(INDEX_PATH);
 
-    expect(index).toContain('| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md)');
+    expect(index).toContain('| *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md)');
     expect(index).toContain('| Required gold |');
     expect(index).toContain('| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md)');
     expect(index).toContain('| Calibration |');

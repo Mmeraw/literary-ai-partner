@@ -7,7 +7,6 @@ RevisionGrade now distinguishes three product-facing evaluation modes:
 | Mode | Route / output mode | Template |
 |---|---|---|
 | `short_form_evaluation` | `SHORT_FORM` | [`short-form-evaluation-template.md`](../templates/evaluation/short-form-evaluation-template.md) |
-| `long_form_evaluation` | `LONG_FORM` / `standard_long_form` | [`long-form-evaluation-template.md`](../templates/evaluation/long-form-evaluation-template.md) |
 | `long_form_multi_layer_evaluation` | `LONG_FORM` / `multi_layer_long_form` | [`long-form-multi-layer-evaluation-template.md`](../templates/evaluation/long-form-multi-layer-evaluation-template.md) |
 
 The controlling mode contract is:
@@ -30,7 +29,7 @@ That index declares the three current RevisionGrade-native prose gold standards 
 |---|---|---|---|---|
 | *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Manual DREAM long-form multi-layer gold standard |
 | *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Manual DREAM long-form multi-layer calibration standard |
-| *Cartel Babies* | [`cartel-babies-dream.md`](./cartel-babies-dream.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Manual DREAM long-form multi-layer gold standard |
+| *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Unified canonical DREAM long-form multi-layer gold standard |
 
 These files belong to the DREAM governed-ledger benchmark family in substance even where older markdown headers differ. Future edits should normalize headers or addenda without weakening the underlying evaluation body.
 
@@ -46,7 +45,7 @@ The active native Story Ledger / DREAM benchmark authorities are the three entri
 
 ## The Gold Standard
 
-**[`cartel-babies-dream.md`](./cartel-babies-dream.md)** + **[`story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md`](./story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md)** — *Cartel Babies* (Michael J. Meraw). Required-gold long-form multi-layer benchmark plus revised ten-layer Story Ledger answer key. Use this as the primary product exemplar for seed / Phase 1A Story Ledger testing because it combines dual-protagonist tracking, narrator attribution, identity transition, institutional rescue/protection, symbolic object lifecycles, cartel pressure systems, and explicit completion/failure conditions.
+**[`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md)** + **[`story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md`](./story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md)** — *Cartel Babies* (Michael J. Meraw). Required-gold long-form multi-layer benchmark plus revised ten-layer Story Ledger answer key. Use this as the primary product exemplar for seed / Phase 1A Story Ledger testing because it combines dual-protagonist tracking, narrator attribution, identity transition, institutional rescue/protection, symbolic object lifecycles, cartel pressure systems, and explicit completion/failure conditions.
 
 `Froggin Noggin` remains a required-gold DREAM benchmark, and `Let the River Decide` remains calibration-tier. When a single code or test example is needed, prefer `Cartel Babies`.
 
@@ -91,20 +90,6 @@ criteria-spine: canonical-13
 route: SHORT_FORM
 output-mode: short_form_evaluation
 wave-applied: false
----
-```
-
-For standard long-form benchmarks:
-
-```yaml
----
-benchmark-schema: long-form-evaluation-v1
-evaluation-mode: long_form_evaluation
-benchmark-role: gold-standard-long-form
-criteria-spine: canonical-13
-route: LONG_FORM
-output-mode: standard_long_form
-wave-applied: true
 ---
 ```
 

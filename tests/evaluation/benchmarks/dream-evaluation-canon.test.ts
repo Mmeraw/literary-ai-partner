@@ -9,8 +9,8 @@ const TEMPLATE_DIR = join(REPO_ROOT, 'docs/templates/evaluation');
 
 const CANONICAL_TEMPLATE_PATHS = [
   'short-form-evaluation-template.md',
-  'long-form-evaluation-template.md',
   'long-form-multi-layer-evaluation-template.md',
+  'archive/long-form-evaluation-template.md',
 ] as const;
 
 function readTemplate(fileName: string): string {
@@ -25,8 +25,8 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
 
     const templates = CANONICAL_TEMPLATE_PATHS.map(readTemplate);
     expect(templates[0]).toContain('short_form_evaluation');
-    expect(templates[1]).toContain('long_form_evaluation');
-    expect(templates[2]).toContain('long_form_multi_layer_evaluation');
+    expect(templates[1]).toContain('long_form_multi_layer_evaluation');
+    expect(templates[2]).toContain('ARCHIVED');
   });
 
   it('routes loader keys by short, standard long, and explicit multi-layer mode', () => {
@@ -35,7 +35,7 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(resolveTemplateKey(75_000, true)).toBe('long_form_multi_layer');
 
     expect(loadDreamTemplate('short_form')).toContain('short_form_evaluation');
-    expect(loadDreamTemplate('long_form')).toContain('long_form_evaluation');
+    expect(loadDreamTemplate('long_form')).toContain('long_form_multi_layer_evaluation');
     expect(loadDreamTemplate('long_form_multi_layer')).toContain('long_form_multi_layer_evaluation');
   });
 
@@ -50,8 +50,8 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     }
     expect(multiLayer).toContain('Shelf Confidence');
 
-    // Retired long-form template is a stub — verify it declares retirement
-    const retired = readTemplate('long-form-evaluation-template.md');
+    // Retired long-form template is archived — verify it declares retirement
+    const retired = readTemplate('archive/long-form-evaluation-template.md');
     expect(retired).toContain('RETIRED');
     expect(retired).toContain('long_form_multi_layer_evaluation');
   });
@@ -88,14 +88,14 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(shortSeed.reporting_template_path.selected_template).toBe('docs/templates/evaluation/short-form-evaluation-template.md');
 
     expect(longSeed.manuscript_profile.evaluation_mode).toBe('long_form_evaluation');
-    expect(longSeed.reporting_template_path.selected_template).toBe('docs/templates/evaluation/long-form-evaluation-template.md');
+    expect(longSeed.reporting_template_path.selected_template).toBe('docs/templates/evaluation/long-form-multi-layer-evaluation-template.md');
 
     expect(multiSeed.manuscript_profile.evaluation_mode).toBe('long_form_multi_layer_evaluation');
     expect(multiSeed.reporting_template_path.selected_template).toBe('docs/templates/evaluation/long-form-multi-layer-evaluation-template.md');
   });
 
   it('uses native DREAM benchmarks with Cartel Babies as primary Pass 3B exemplar', () => {
-    expect(PASS3B_SYSTEM_PROMPT).toContain('Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream.md) — primary required-gold product exemplar');
+    expect(PASS3B_SYSTEM_PROMPT).toContain('Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md) — primary required-gold product exemplar');
     expect(PASS3B_SYSTEM_PROMPT).toContain('Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream.md) — required-gold benchmark');
     expect(PASS3B_SYSTEM_PROMPT).toContain('Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream.md, calibration-tier)');
   });

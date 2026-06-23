@@ -25,7 +25,7 @@ source-text: corpus/public-domain/clean/dracula.txt
 
 This file is a public-domain DREAM calibration benchmark, not a RevisionGrade-native runtime authority file.
 
-Its purpose is to teach DREAM evaluators what world-class long-form literary architecture looks like in an external public-domain text. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md` or `cartel-babies-dream.md`.
+Its purpose is to teach DREAM evaluators what world-class long-form literary architecture looks like in an external public-domain text. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md` or `cartel-babies-dream-longform-multilayer-gold-standard.md`.
 
 Governing spec:
 

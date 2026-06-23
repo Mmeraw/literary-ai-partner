@@ -58,7 +58,7 @@ function completeEvaluationSeed() {
     reporting_template_path: {
       selected_template: 'docs/templates/evaluation/short-form-evaluation-template.md',
       short_form_template: 'docs/templates/evaluation/short-form-evaluation-template.md',
-      long_form_template: 'docs/templates/evaluation/long-form-evaluation-template.md',
+      long_form_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
       long_form_multilayer_template: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
     },
     criterion_scaffolds: CRITERIA_KEYS.map((criterion_key) => ({

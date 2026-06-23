@@ -292,7 +292,7 @@ export function validateEvaluationSeedCompleteness(seed: unknown): SeedFitGap[] 
     const selected = templates?.selected_template as string;
     const expectedTemplateSubstrings: Record<string, string> = {
       'short_form_evaluation': 'short-form-evaluation-template',
-      'long_form_evaluation': 'long-form-evaluation-template',
+      'long_form_evaluation': 'long-form-multi-layer-evaluation-template',
       'long_form_multi_layer_evaluation': 'long-form-multi-layer-evaluation-template',
     };
     const expectedSub = expectedTemplateSubstrings[mode];

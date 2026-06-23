@@ -27,7 +27,7 @@ source-text: corpus/public-domain/clean/pride-and-prejudice.txt
 
 This file is a public-domain DREAM calibration benchmark, not a RevisionGrade-native runtime authority file.
 
-Its purpose is to teach DREAM evaluators how to detect social perception as plot architecture, free-indirect comic intelligence, marriage-market economics, property law pressure, reputation mechanics, letter-driven revelation, estate/place symbolism, and the difference between low-external-action social comedy and actual narrative stasis. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md` or `cartel-babies-dream.md`.
+Its purpose is to teach DREAM evaluators how to detect social perception as plot architecture, free-indirect comic intelligence, marriage-market economics, property law pressure, reputation mechanics, letter-driven revelation, estate/place symbolism, and the difference between low-external-action social comedy and actual narrative stasis. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md` or `cartel-babies-dream-longform-multilayer-gold-standard.md`.
 
 Governing spec:
 

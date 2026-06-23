@@ -13,13 +13,13 @@ export const REVISE_QUEUE_WARMUP_FILES = [
   'docs/canon/STORY_LEDGER_SEMANTIC_INTEGRITY_CONTRACT.md',
   'docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md',
   'docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md',
-  'docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md',
+  'docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md',
 ] as const
 
 export const REVISE_QUEUE_BENCHMARK_FILES = [
   'docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md',
   'docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md',
-  'docs/benchmarks/cartel-babies-dream-v2-governed-ledger-addendum.md',
+  'docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md',
 ] as const
 
 export type ReviseQueueWarmupFileProof = {

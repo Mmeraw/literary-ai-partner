@@ -25,7 +25,7 @@ const activeEvaluationTemplates = [
 const retiredEvaluationTemplates = [
   {
     name: 'Long-Form Evaluation Template',
-    path: 'long-form-evaluation-template.md',
+    path: 'archive/long-form-evaluation-template.md',
   },
 ];
 

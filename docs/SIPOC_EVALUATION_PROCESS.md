@@ -49,7 +49,7 @@ Primary runtime surfaces are read from:
 
 The following governance families are runtime-relevant authority sources and must surface in SIPOC UI, forensic views, registry exports, and execution planning. They are not background references.
 
-- **Evaluation templates:** `docs/templates/evaluation/short-form-evaluation-template.md`, `docs/templates/evaluation/long-form-evaluation-template.md`, `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`
+- **Evaluation templates:** `docs/templates/evaluation/short-form-evaluation-template.md`, `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`
 - **Rendering contract:** `docs/templates/evaluation/evaluation-rendering-contract.md`
 - **Governance specifications:** `docs/governance/DREAM_OUTPUT_SPEC.md`, `docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md`, `docs/governance/DREAM_STATE_LONGFORM_CANON.md`, `docs/governance/seed-phase-template-alignment-contract.md`, `docs/governance/phase-2-calibration-template.md`
 - **Benchmark authorities:** `docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md`, `docs/canon/registered/control/BENCHMARK-CHARTER.md`

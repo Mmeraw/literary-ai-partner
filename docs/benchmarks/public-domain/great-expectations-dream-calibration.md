@@ -26,7 +26,7 @@ source-text: corpus/public-domain/clean/great-expectations.txt
 
 This file is a public-domain DREAM calibration benchmark, not a RevisionGrade-native runtime authority file.
 
-Its purpose is to teach DREAM evaluators how to detect moral-psychological arc, social shame architecture, serial revelation structure, voice irony, class aspiration, and sentimentality/payoff control in an external public-domain long novel. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md` or `cartel-babies-dream.md`.
+Its purpose is to teach DREAM evaluators how to detect moral-psychological arc, social shame architecture, serial revelation structure, voice irony, class aspiration, and sentimentality/payoff control in an external public-domain long novel. It must not replace RevisionGrade-native required gold standards such as `froggin-noggin-dream.md` or `cartel-babies-dream-longform-multilayer-gold-standard.md`.
 
 Governing spec:
 

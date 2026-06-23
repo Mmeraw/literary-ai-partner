@@ -135,14 +135,14 @@ export const AUTHORITY_SOURCE_REGISTRY: AuthoritySourceRegistryEntry[] = [
   {
     authorityId: 'EVALUATION_TEMPLATE_LONG_FORM',
     family: 'template',
-    title: 'Long-Form Evaluation Template',
-    path: 'docs/templates/evaluation/long-form-evaluation-template.md',
+    title: 'Long-Form Evaluation Template (Legacy mode mapped to multi-layer template authority)',
+    path: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
     appliesToStageIds: ['S10b_PHASE5_AUTHOR_EXPOSURE_GATE', 'S11a_RENDERER_WEBPAGE', 'S11b_DOWNLOAD_PIPELINE', 'ADJACENT_DREAM'],
     appliesToArtifacts: ['evaluation_template_contract_v1', 'unified_evaluation_document_v1', 'longform_document_v1', 'report_render_manifest_v1'],
     runtimeBinding: 'template',
     surfacedInSipocUi: true,
-    executionUse: 'Authoritative product contract for standard long-form report content and renderer parity.',
-    notes: 'Long-form WAVE/Gate 15/Dialogue Canon defects that affect author-facing truth block Phase 5.',
+    executionUse: 'Legacy long_form_evaluation compatibility path using the active long-form multi-layer template authority.',
+    notes: 'Historical mode compatibility only; active long-form authority is the multi-layer template.',
   },
   {
     authorityId: 'EVALUATION_TEMPLATE_LONG_FORM_MULTI_LAYER',

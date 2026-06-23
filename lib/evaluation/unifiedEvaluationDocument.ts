@@ -21,7 +21,7 @@ export const EVALUATION_TEMPLATE_CONTRACTS: Record<CanonicalEvaluationMode, {
   long_form_evaluation: {
     templateName: 'Long-Form Evaluation Template',
     reportType: 'Long-Form Evaluation',
-    templatePath: 'docs/templates/evaluation/long-form-evaluation-template.md',
+    templatePath: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
   },
   long_form_multi_layer_evaluation: {
     templateName: 'Long-Form Multi-Layer Evaluation Template',
