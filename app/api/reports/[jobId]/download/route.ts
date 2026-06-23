@@ -29,6 +29,8 @@ import {
 import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { EVALUATION_TEMPLATE_CONTRACTS } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
+import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
+import type { EvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import {
   getLongFormMultiLayerSections,
@@ -568,6 +570,64 @@ function cleanReportText(text: unknown, fallback = '—', _options: { blockTrunc
   // Mistake-proofing: ALL text now goes through the full quality gate
   // regardless of blockTruncation flag (previously only some paths were covered).
   return mistakeProofText(text, fallback);
+}
+
+// ── Phase 4b: VM → Render Adapter ────────────────────────────────────────────
+// TRANSITIONAL CONTRACT (Phase 4b PR-1):
+//   - canonicalDocForRender is an ephemeral render adapter ONLY.
+//   - It is NEVER persisted, NEVER used for source-truth gates.
+//   - Source-truth gates (revisionSurfaceOwnershipGate, etc.) use certified canonicalDoc.
+//   - TXT/PDF/DOCX builders consume canonicalDocForRender.
+//
+// TODO (Phase 4b PR-2): Replace this adapter with direct VM render builders:
+//   VM → renderTxtFromViewModel(vm)
+//   VM → renderHtmlFromViewModel(vm)
+//   VM → renderDocxFromViewModel(vm)
+// Then remove applyViewModelToDocument entirely.
+function applyViewModelToDocument(
+  source: UnifiedEvaluationDocument,
+  vm: EvaluationReportViewModel,
+): UnifiedEvaluationDocument {
+  return {
+    ...source,
+    // Title Block — VM owns sanitized/normalized values
+    titleBlock: {
+      ...source.titleBlock,
+      overallScoreLabel: vm.titleBlock.overallScoreLabel,
+      marketReadiness: vm.titleBlock.marketReadiness,
+      genre: vm.titleBlock.genre,
+      targetAudience: vm.titleBlock.targetAudience,
+      audienceConfidenceLabel: vm.titleBlock.audienceConfidenceLabel,
+      audienceTentative: vm.titleBlock.audienceTentative,
+    },
+    // Pitches — VM sanitizes text
+    oneParagraphPitch: vm.oneParagraphPitch,
+    oneSentencePitch: vm.oneSentencePitch,
+    premise: vm.premise ?? source.premise,
+    contentWarnings: vm.contentWarnings,
+    // Revision Opportunity Summary — VM maps high/medium/low to recommended/optional/consider
+    revisionOpportunitySummary: {
+      ...source.revisionOpportunitySummary,
+      total: vm.revisionOpportunitySummary.total,
+      high: vm.revisionOpportunitySummary.recommended,
+      medium: vm.revisionOpportunitySummary.optional,
+      low: vm.revisionOpportunitySummary.consider,
+    },
+    // Executive synthesis — VM sanitizes
+    executiveSummary: vm.executiveSummary,
+    topStrengths: vm.topStrengths,
+    topRisks: vm.topRisks,
+    topRecommendations: vm.topRecommendations,
+    // Criterion details — VM preserves opportunity_id + sanitizes rationale
+    criterionDetails: source.criterionDetails.map((detail, i) => ({
+      ...detail,
+      rationaleText: vm.criterionDetails[i]?.rationaleText ?? detail.rationaleText,
+      recommendations: vm.criterionDetails[i]?.recommendations.map((vmRec, j) => ({
+        ...detail.recommendations[j],
+        ...vmRec,
+      })) ?? detail.recommendations,
+    })),
+  };
 }
 
 function hasMeaningfulText(value: unknown): boolean {
@@ -3747,6 +3807,13 @@ export async function GET(
 
   const canonicalDoc = persistedDocument.document;
 
+  // ── ViewModel: single source of truth for all rendered fields ──────────
+  // The VM applies all sanitization (mistakeProofText, correctScopeLanguage) internally.
+  // canonicalDocForRender is an EPHEMERAL render adapter — never persisted, never source-truth.
+  // Source-truth gates below use certified canonicalDoc only.
+  const vm = normalizeEvaluationReportViewModel(canonicalDoc);
+  const canonicalDocForRender = applyViewModelToDocument(canonicalDoc, vm);
+
   // ── Runtime §13–§21 heading parity guard ──────────────────────────────
   // For long-form multi-layer evaluations, validate that the generated content
   // contains the exact template-authorized heading sequence before serving.
@@ -3758,8 +3825,8 @@ export async function GET(
   // Must execute before Phase 5 Author Exposure (serving any download).
   // A violation is a release-blocking defect, not advisory.
   {
-    const gateTxt = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
-    const gateHtml = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
+    const gateTxt = buildCanonicalTemplateTxt(canonicalDocForRender, dream, jobId);
+    const gateHtml = renderCanonicalTemplateHtml(canonicalDocForRender, dream, jobId);
     const uedGateResult = runRevisionSurfaceOwnershipGate(canonicalDoc);
     const renderedGateResult = runRenderedOutputOwnershipGate({ html: gateHtml, txt: gateTxt });
     const allFailures = [...uedGateResult.failures, ...renderedGateResult.failures];
@@ -3790,7 +3857,7 @@ export async function GET(
   }
 
   if (format === 'txt') {
-    const body = buildCanonicalTemplateTxt(canonicalDoc, dream, jobId);
+    const body = buildCanonicalTemplateTxt(canonicalDocForRender, dream, jobId);
 
     if (isMultiLayerDownload) {
       const txtHeadings = extractTxtHeadings(body);
@@ -3823,7 +3890,7 @@ export async function GET(
 
   if (format === 'pdf') {
     try {
-      const html = renderCanonicalTemplateHtml(canonicalDoc, dream, jobId);
+      const html = renderCanonicalTemplateHtml(canonicalDocForRender, dream, jobId);
 
       if (isMultiLayerDownload) {
         const htmlHeadings = extractHtmlH2Headings(html);
@@ -3874,7 +3941,7 @@ export async function GET(
     }
   }
 
-  const docxBuffer = await buildCanonicalTemplateDocx(canonicalDoc, dream, jobId);
+  const docxBuffer = await buildCanonicalTemplateDocx(canonicalDocForRender, dream, jobId);
 
   if (isMultiLayerDownload) {
     // Unzip the DOCX and inspect word/document.xml for heading parity
@@ -3925,6 +3992,7 @@ export const __testingDownload = {
   buildCanonicalTemplateTxt,
   renderCanonicalTemplateHtml,
   buildCanonicalTemplateDocx,
+  applyViewModelToDocument,
   loadCertifiedUnifiedEvaluationDocumentArtifact,
   renderPremiumReportHtml,
 };
