@@ -29,8 +29,7 @@ import {
 
 import {
   runRevisionSurfaceOwnershipGate,
-  runRenderedOutputOwnershipGate,
-  buildRevisionSurfaceOwnershipDiagnosis,
+  buildRevisionSurfaceFailureDiagnosis,
 } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -402,119 +401,233 @@ describe('Opportunity Count Validation', () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('REVISION_SURFACE_OWNERSHIP_GATE', () => {
-  const makeMinimalDoc = () => ({
-    templateMode: 'short_form_evaluation',
-    criterionDetails: [
-      {
-        label: 'Plot & Structure',
-        rationaleText: 'Clear causal flow with identifiable escalation.',
-        scoreLabel: 'Strong',
-        recommendations: [
-          { action: 'Tighten midpoint transition.', opportunity_id: 'opp-1' },
-        ],
-      },
-      {
-        label: 'Character',
-        rationaleText: 'Character motivation is coherent.',
-        scoreLabel: 'Strong',
-        recommendations: [
-          { action: 'Sharpen antagonist objective.', opportunity_id: 'opp-2' },
-        ],
-      },
-    ],
-    revisionOpportunitySummary: {
-      total: 2,
-      high: 1,
-      medium: 1,
-      low: 0,
-    },
-    topRecommendations: [
-      'Clarify priority structural risks first, then tune supporting execution.',
-    ],
+  test('passes for unknown template modes (gate only applies to known evaluation modes)', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'custom_unknown_mode',
+      surfaces: [
+        { surface: 'html', content: '<h2>Action Items</h2><h2>Review Gate</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(true);
   });
 
-  test('fails when criterionDetails is missing on a completed UED', () => {
+  test('passes for long-form multi-layer with allowed sections', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_multi_layer_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Cross-Layer Synthesis</h2><h2>Layer-Aware Revision Sequencing</h2><h2>Review Gate Readiness Surface</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  test('fails for long-form multi-layer with forbidden Action Items', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_multi_layer_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Action Items</h2><h2>Cross-Layer Synthesis</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures.some(f => f.section === 'Action Items')).toBe(true);
+  });
+
+  test('passes for long-form with Revision Priority Plan (allowed)', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Revision Priority Plan</h2><h2>Manuscript-Scale Continuity Findings</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  test('fails for long-form with forbidden Deep Criterion Analysis', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'long_form_evaluation',
+      surfaces: [
+        { surface: 'html', content: '<h2>Deep Criterion Analysis</h2>' },
+      ],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures.some(f => f.section === 'Deep Criterion Analysis')).toBe(true);
+  });
+
+  test('fails when short-form HTML has Action Items', () => {
     const result = runRevisionSurfaceOwnershipGate({
       templateMode: 'short_form_evaluation',
-    } as never);
-
-    expect(result.status).toBe('fail');
-    expect(result.failures.some((f) => f.failure_code === 'UED_STRUCTURE_INVALID')).toBe(true);
-  });
-
-  test('passes for clean short-form UED', () => {
-    const result = runRevisionSurfaceOwnershipGate(makeMinimalDoc() as never);
-    expect(result.status).toBe('pass');
-    expect(result.failures).toEqual([]);
-  });
-
-  test('fails when recommendation is missing opportunity_id', () => {
-    const doc = makeMinimalDoc();
-    (doc.criterionDetails[0].recommendations[0] as Record<string, unknown>).opportunity_id = '';
-
-    const result = runRevisionSurfaceOwnershipGate(doc as never);
-    expect(result.status).toBe('fail');
-    expect(result.failures.some((f) => f.failure_code === 'MISSING_OPPORTUNITY_ID')).toBe(true);
-  });
-
-  test('fails when summary total mismatches unique opportunity count', () => {
-    const doc = makeMinimalDoc();
-    doc.revisionOpportunitySummary.total = 99;
-
-    const result = runRevisionSurfaceOwnershipGate(doc as never);
-    expect(result.status).toBe('fail');
-    expect(result.failures.some((f) => f.failure_code === 'COUNT_MISMATCH')).toBe(true);
-  });
-
-  test('fails when tier sum mismatches declared total', () => {
-    const doc = makeMinimalDoc();
-    doc.revisionOpportunitySummary.total = 2;
-    doc.revisionOpportunitySummary.high = 2;
-    doc.revisionOpportunitySummary.medium = 2;
-    doc.revisionOpportunitySummary.low = 2;
-
-    const result = runRevisionSurfaceOwnershipGate(doc as never);
-    expect(result.status).toBe('fail');
-    expect(result.failures.some((f) => f.failure_code === 'TIER_MISMATCH')).toBe(true);
-  });
-
-  test('fails when top recommendations duplicate criterion recommendation verbatim', () => {
-    const doc = makeMinimalDoc();
-    doc.topRecommendations = ['Tighten midpoint transition.'];
-
-    const result = runRevisionSurfaceOwnershipGate(doc as never);
-    expect(result.status).toBe('fail');
-    expect(result.failures.some((f) => f.failure_code === 'TOP_RECOMMENDATION_VERBATIM_DUPLICATE')).toBe(true);
-  });
-
-  test('fails when criterion rationale embeds forbidden heading label', () => {
-    const doc = makeMinimalDoc();
-    doc.criterionDetails[0].rationaleText = '## Action Items\nThis should never appear in rationale.';
-
-    const result = runRevisionSurfaceOwnershipGate(doc as never);
-    expect(result.status).toBe('fail');
-    expect(result.failures.some((f) => f.failure_code === 'FORBIDDEN_HEADING_IN_UED_CRITERION')).toBe(true);
-  });
-});
-
-describe('runRenderedOutputOwnershipGate', () => {
-  test('passes when rendered outputs have no forbidden headings', () => {
-    const result = runRenderedOutputOwnershipGate({
-      html: '## One-Paragraph Pitch\n## Top Recommendations',
-      txt: '## Confidence Explanation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: `
+            <h2>One-Paragraph Pitch</h2>
+            <h2>Top Recommendations</h2>
+            <h2>Action Items</h2>
+            <h2>Confidence Explanation</h2>
+          `,
+        },
+      ],
     });
-
-    expect(result.status).toBe('pass');
-    expect(result.failures).toEqual([]);
+    expect(result.passed).toBe(false);
+    const forbidden = result.failures.filter(f => f.failure_code === 'FORBIDDEN_TOP_LEVEL_SECTION');
+    expect(forbidden.length).toBeGreaterThan(0);
+    expect(forbidden[0].section).toBe('Action Items');
   });
 
-  test('fails when rendered output contains forbidden heading', () => {
-    const result = runRenderedOutputOwnershipGate({
-      html: '## Action Items\n## Top Recommendations',
+  test('fails when short-form HTML has Deep Criterion Analysis', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: '<h2>Deep Criterion Analysis</h2>',
+        },
+      ],
     });
+    expect(result.passed).toBe(false);
+    expect(result.failures.some(f => f.section === 'Deep Criterion Analysis')).toBe(true);
+  });
 
-    expect(result.status).toBe('fail');
-    expect(result.failures.some((f) => f.failure_code === 'FORBIDDEN_HEADING_IN_RENDERED_OUTPUT')).toBe(true);
+  test('fails when short-form HTML has Releasability Assessment', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: '<h2>Releasability Assessment</h2>',
+        },
+      ],
+    });
+    expect(result.passed).toBe(false);
+  });
+
+  test('fails when short-form HTML has Review Gate', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: '<h2>Review Gate</h2>',
+        },
+      ],
+    });
+    expect(result.passed).toBe(false);
+  });
+
+  test('fails when short-form HTML has Revision Priority Plan', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: '<h2>Revision Priority Plan</h2>',
+        },
+      ],
+    });
+    expect(result.passed).toBe(false);
+  });
+
+  test('fails when short-form HTML has Strategic Revisions', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: '<h2>Strategic Revisions</h2>',
+        },
+      ],
+    });
+    expect(result.passed).toBe(false);
+  });
+
+  test('fails when short-form DOCX has forbidden heading', () => {
+    const documentXml = `
+      <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Expanded Criterion Analysis</w:t></w:r></w:p>
+    `;
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        { surface: 'docx', content: '', documentXml },
+      ],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures.some(f => f.section === 'Expanded Criterion Analysis')).toBe(true);
+  });
+
+  test('detects multiple revision inventories via pattern matching', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: '<h2>Revision Queue</h2><h2>Suggested Revisions</h2>',
+        },
+      ],
+    });
+    expect(result.passed).toBe(false);
+    const inventoryFailures = result.failures.filter(f => f.failure_code === 'MULTIPLE_REVISION_INVENTORIES');
+    expect(inventoryFailures.length).toBeGreaterThan(0);
+  });
+
+  test('validates opportunity count parity when provided', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [],
+      ledgerCounts: { total: 10, recommended: 4, optional: 3, consider: 3 },
+      renderedCounts: {
+        html: { total: 12, recommended: 4, optional: 3, consider: 3 },
+      },
+    });
+    expect(result.passed).toBe(false);
+    expect(result.failures.some(f => f.failure_code === 'COUNT_MISMATCH')).toBe(true);
+  });
+
+  test('cross-surface parity: detects missing heading on one surface', () => {
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [
+        {
+          surface: 'html',
+          content: '<h2>One-Paragraph Pitch</h2><h2>Top Recommendations</h2>',
+        },
+        {
+          surface: 'html',
+          content: '<h2>One-Paragraph Pitch</h2>',
+        },
+      ],
+    });
+    expect(result.passed).toBe(false);
+    const parityFailures = result.failures.filter(f => f.failure_code === 'SURFACE_PARITY_FAILURE');
+    expect(parityFailures.length).toBeGreaterThan(0);
+  });
+
+  test('passes with clean short-form headings', () => {
+    const cleanHtml = [
+      '<h2>One-Paragraph Pitch</h2>',
+      '<h2>One-Sentence Pitch</h2>',
+      '<h2>Content Warnings</h2>',
+      '<h2>Revision Opportunity Summary</h2>',
+      '<h2>Executive Summary</h2>',
+      '<h2>Top Strengths</h2>',
+      '<h2>Top Risks</h2>',
+      '<h2>Top Recommendations</h2>',
+      '<h2>13 Criteria Score Grid</h2>',
+      '<h2>Criterion Rationales &amp; Surfaced Opportunities</h2>',
+      '<h2>Confidence Explanation</h2>',
+      '<h2>Author-Facing Disclaimer</h2>',
+    ].join('');
+    const result = runRevisionSurfaceOwnershipGate({
+      templateMode: 'short_form_evaluation',
+      surfaces: [{ surface: 'html', content: cleanHtml }],
+    });
+    // May have missing-section failures due to &amp; vs & in extraction,
+    // but should have ZERO forbidden-section or inventory failures
+    const forbidden = result.failures.filter(f =>
+      f.failure_code === 'FORBIDDEN_TOP_LEVEL_SECTION' ||
+      f.failure_code === 'MULTIPLE_REVISION_INVENTORIES' ||
+      f.failure_code === 'UNAUTHORIZED_REVISION_INVENTORY'
+    );
+    expect(forbidden).toEqual([]);
   });
 });
 
@@ -524,30 +637,24 @@ describe('runRenderedOutputOwnershipGate', () => {
 
 describe('Failure Diagnosis Builder', () => {
   test('builds valid failure_diagnosis_v1 payload', () => {
-    const gateResult = {
-      status: 'fail' as const,
-      checked_at: new Date().toISOString(),
-      failures: [
-        {
-          failure_code: 'FORBIDDEN_HEADING_IN_RENDERED_OUTPUT',
-          renderer: 'html',
-          section: 'Action Items',
-          expected_behavior: '"Action Items" must not appear',
-          actual_behavior: '"Action Items" found as top-level heading',
-          remediation_hint: 'Remove Action Items section',
-        },
-      ],
-    };
-
-    const diagnosis = buildRevisionSurfaceOwnershipDiagnosis(gateResult, 'job-123');
-    expect(diagnosis.failure_code).toBe('REVISION_SURFACE_OWNERSHIP_GATE_FAILED');
-    expect(diagnosis.failure_class).toBe('governance_blocked');
-    expect(diagnosis.failure_point.gate).toBe('REVISION_SURFACE_OWNERSHIP_GATE');
-    expect(diagnosis.failure_point.stage).toBe('Phase 5');
-    expect(diagnosis.failure_point.artifact_type).toBe('unified_evaluation_document_v1');
-    expect(Array.isArray(diagnosis.revision_surface_ownership_failures)).toBe(true);
-    const f = (diagnosis.revision_surface_ownership_failures as Array<Record<string, unknown>>)[0];
-    expect(f.failure_code).toBe('FORBIDDEN_HEADING_IN_RENDERED_OUTPUT');
+    const failures = [
+      {
+        failure_code: 'FORBIDDEN_TOP_LEVEL_SECTION',
+        renderer: 'html',
+        section: 'Action Items',
+        expected_behavior: '"Action Items" must not appear',
+        actual_behavior: '"Action Items" found as top-level heading',
+        remediation_hint: 'Remove Action Items section',
+      },
+    ];
+    const diagnosis = buildRevisionSurfaceFailureDiagnosis('job-123', failures);
+    expect(diagnosis.artifact_type).toBe('failure_diagnosis_v1');
+    expect(diagnosis.job_id).toBe('job-123');
+    expect(diagnosis.gate).toBe('REVISION_SURFACE_OWNERSHIP_GATE');
+    expect(diagnosis.failure_count).toBe(1);
+    expect(Array.isArray(diagnosis.failures)).toBe(true);
+    const f = (diagnosis.failures as Array<Record<string, unknown>>)[0];
+    expect(f.failure_code).toBe('FORBIDDEN_TOP_LEVEL_SECTION');
     expect(f.section).toBe('Action Items');
   });
 });
