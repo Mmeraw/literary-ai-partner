@@ -38,7 +38,7 @@ wave-applied: true
 |---|---|---|---|---|---|---|
 | *Froggin Noggin* | [`froggin-noggin-dream-longform-multilayer-gold-standard.md`](./froggin-noggin-dream-longform-multilayer-gold-standard.md) | Source files retained pending archive: [`froggin-noggin-dream.md`](./froggin-noggin-dream.md), [`froggin-noggin-dream-v2-governed-ledger-addendum.md`](./froggin-noggin-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified required-gold benchmark marker. Legacy benchmark and addendum remain source/audit until full-body expansion and archive cleanup. |
 | *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md) | Archived: [`archive/cartel-babies-dream.md`](./archive/cartel-babies-dream.md), [`archive/cartel-babies-dream-v2-governed-ledger-addendum.md`](./archive/cartel-babies-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified canonical benchmark. Legacy benchmark and addendum are archived for historical traceability. |
-| *Let the River Decide* | [`let-the-river-decide-dream-longform-multilayer-gold-standard.md`](./let-the-river-decide-dream-longform-multilayer-gold-standard.md) | Source files retained pending archive: [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md), [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Calibration | Unified calibration-tier benchmark candidate for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
+| *Let the River Decide* | [`let-the-river-decide-dream-longform-multilayer-gold-standard.md`](./let-the-river-decide-dream-longform-multilayer-gold-standard.md) | [`let-the-river-decide-expedition-wilderness-architecture-addendum.md`](./let-the-river-decide-expedition-wilderness-architecture-addendum.md). Source files retained pending archive: [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md), [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Calibration | Unified calibration-tier benchmark plus expedition/wilderness extension for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
 
 ## Public-domain calibration standards
 
@@ -127,6 +127,12 @@ The canonical repo-facing Let the River Decide benchmark path is:
 
 ```text
 docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
+```
+
+The Let the River Decide expedition/wilderness architecture extension is:
+
+```text
+docs/benchmarks/let-the-river-decide-expedition-wilderness-architecture-addendum.md
 ```
 
 ## Required DREAM long-form multi-layer surfaces
