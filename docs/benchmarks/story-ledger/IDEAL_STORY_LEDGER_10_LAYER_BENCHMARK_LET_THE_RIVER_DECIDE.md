@@ -11,8 +11,7 @@ benchmark-tier: calibration
 generated-for: seed-phase-and-phase-1a-baseline
 created: 2026-05-31T01:22:25Z
 source-benchmarks:
-  - docs/benchmarks/let-the-river-decide-dream.md
-  - docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md
+  - docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
 ---
 
 # Let the River Decide — Ideal Story Ledger 10-Layer Benchmark
@@ -178,32 +177,3 @@ Do not classify dogs as objects or river only as place.
 | Location / timeline system | Function |
 |---|---|
 | Road-trip route | Movement, witness frame, travel-family pressure |
-| Bralorne/BC origin and route north where evidenced | Starting world/geographic specificity |
-| River corridors/banks/crossings | Threat, agency, memory, sensory evidence |
-| Smokehouse Camp | Protocol, hospitality, cultural custody, outsider limits |
-| Missing-person / sign / black-truck locations | Pattern recognition, dread, investigation |
-| Corporate/Verdant/OCEA layer | External causal pressure/institutional language |
-| Ending/epilogue/family inheritance | Closure, Plunkett/lineage, witness burden |
-
-Mark location accuracy as needs manual verification unless route evidence confirms.
-
----
-
-# Layer 9 — Threat / Pressure / Ending
-
-## Ideal status
-
-`complete_environmental_social_pressure_map`
-
-| Pressure type | Required content |
-|---|---|
-| Environmental/symbolic | River as witness, archive, possible judge |
-| Animal-sensory | Dogs’ refusals/alerts as embodied warning |
-| Road/investigation | Missing signs, black truck, route dread |
-| Cultural/protocol | Smokehouse Camp, outsider limits, story custody |
-| Corporate/institutional | Leanna / Verdant / OCEA causal system |
-| Research-proof | Witness ambiguity vs over-explanation |
-| Family/aging | Mike/Cliff stepfamily bond, aging/vulnerability |
-| Closure | Ending/epilogue/inheritance, river accountability, restraint |
-
-Ending must account for Mike’s witness responsibility, Cliff’s aging competence, dogs’ sentinel logic, Smokehouse Camp protocol, river agency, Leanna/Verdant/OCEA pressure, research ambiguity, and Plunkett/lineage only if integrated.
