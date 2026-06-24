@@ -36,7 +36,7 @@ wave-applied: true
 
 | Work | Preserved manual benchmark | V2 governed-ledger addendum | Evaluation mode | Output mode | Tier | Notes |
 |---|---|---|---|---|---|---|
-| *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | [`froggin-noggin-dream-v2-governed-ledger-addendum.md`](./froggin-noggin-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Original body remains the manual reference; V2 addendum is the binding governed-ledger compliance layer. |
+| *Froggin Noggin* | [`froggin-noggin-dream-longform-multilayer-gold-standard.md`](./froggin-noggin-dream-longform-multilayer-gold-standard.md) | Source files retained pending archive: [`froggin-noggin-dream.md`](./froggin-noggin-dream.md), [`froggin-noggin-dream-v2-governed-ledger-addendum.md`](./froggin-noggin-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified required-gold benchmark marker. Legacy benchmark and addendum remain source/audit until full-body expansion and archive cleanup. |
 | *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md) | Archived: [`archive/cartel-babies-dream.md`](./archive/cartel-babies-dream.md), [`archive/cartel-babies-dream-v2-governed-ledger-addendum.md`](./archive/cartel-babies-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified canonical benchmark. Legacy benchmark and addendum are archived for historical traceability. |
 | *Let the River Decide* | [`let-the-river-decide-dream-longform-multilayer-gold-standard.md`](./let-the-river-decide-dream-longform-multilayer-gold-standard.md) | Source files retained pending archive: [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md), [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Calibration | Unified calibration-tier benchmark candidate for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
 
@@ -110,6 +110,12 @@ docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 ```
 
 Future edits should prefer the canonical path unless there is a deliberate migration or deletion task.
+
+The canonical repo-facing Froggin Noggin benchmark path is:
+
+```text
+docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md
+```
 
 The canonical repo-facing Let the River Decide benchmark path is:
 
