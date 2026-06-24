@@ -15,28 +15,13 @@
       "form": "long_novel",
       "evaluation_mode": "long_form_multi_layer_evaluation",
       "output_mode": "multi_layer_long_form",
-      "calibration_axes": [
-        "social_realism",
-        "dialogue",
-        "character_pressure",
-        "irony",
-        "long_form_arc"
-      ],
+      "calibration_axes": ["social_realism", "dialogue", "character_pressure", "irony", "long_form_arc"],
       "raw_text_path": "corpus/public-domain/raw/pride-and-prejudice.txt",
       "clean_text_path": "corpus/public-domain/clean/pride-and-prejudice.txt",
       "calibration_doc_path": "docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md",
       "calibration_addendum_path": "docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration-multilayer-addendum.md",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_longform_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     },
     {
@@ -51,26 +36,11 @@
       "form": "short_fiction",
       "evaluation_mode": "short_form_evaluation",
       "output_mode": "short_form_evaluation",
-      "calibration_axes": [
-        "psychological_horror",
-        "unreliable_voice",
-        "compression",
-        "first_person_pressure"
-      ],
+      "calibration_axes": ["psychological_horror", "unreliable_voice", "compression", "first_person_pressure"],
       "raw_text_path": "corpus/public-domain/raw/tell-tale-heart.txt",
       "clean_text_path": "corpus/public-domain/clean/tell-tale-heart.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_smoke_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "broken-collection",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false,
-        "notes": "File contains Poe Collected Works Vol II, not a standalone Tell-Tale Heart. Story is present but requires extraction. Replace with a standalone Gutenberg source before using as a calibration fixture."
-      },
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "broken-collection", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false, "notes": "File contains Poe Collected Works Vol II, not a standalone Tell-Tale Heart. Story is present but requires extraction. Replace with a standalone Gutenberg source before using as a calibration fixture." },
       "requires_extraction": true,
       "registry_status": "excluded-pending-replacement"
     },
@@ -86,26 +56,11 @@
       "form": "long_novel",
       "evaluation_mode": "long_form_multi_layer_evaluation",
       "output_mode": "multi_layer_long_form",
-      "calibration_axes": [
-        "bildungsroman",
-        "serial_structure",
-        "character_arc",
-        "pacing_drag_risk",
-        "long_form_arc"
-      ],
+      "calibration_axes": ["bildungsroman", "serial_structure", "character_arc", "pacing_drag_risk", "long_form_arc"],
       "raw_text_path": "corpus/public-domain/raw/great-expectations.txt",
       "clean_text_path": "corpus/public-domain/clean/great-expectations.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_longform_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     },
     {
@@ -120,26 +75,11 @@
       "form": "novella",
       "evaluation_mode": "long_form_multi_layer_evaluation",
       "output_mode": "multi_layer_long_form",
-      "calibration_axes": [
-        "gothic",
-        "mystery_reveal",
-        "moral_duality",
-        "novella_structure",
-        "suspense"
-      ],
+      "calibration_axes": ["gothic", "mystery_reveal", "moral_duality", "novella_structure", "suspense"],
       "raw_text_path": "corpus/public-domain/raw/strange-case-of-dr-jekyll-and-mr-hyde.txt",
       "clean_text_path": "corpus/public-domain/clean/strange-case-of-dr-jekyll-and-mr-hyde.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_smoke_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     },
     {
@@ -154,26 +94,11 @@
       "form": "short_fiction",
       "evaluation_mode": "short_form_evaluation",
       "output_mode": "short_form_evaluation",
-      "calibration_axes": [
-        "psychological_interior",
-        "feminist_literature",
-        "confinement_pov",
-        "voice_destabilization",
-        "theme"
-      ],
+      "calibration_axes": ["psychological_interior", "feminist_literature", "confinement_pov", "voice_destabilization", "theme"],
       "raw_text_path": "corpus/public-domain/raw/the-yellow-wallpaper.txt",
       "clean_text_path": "corpus/public-domain/clean/the-yellow-wallpaper.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_smoke_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     },
     {
@@ -188,29 +113,13 @@
       "form": "novel",
       "evaluation_mode": "long_form_multi_layer_evaluation",
       "output_mode": "multi_layer_long_form",
-      "calibration_axes": [
-        "interiority",
-        "social_constraint",
-        "gendered_pressure",
-        "symbolic_environment",
-        "ambiguous_closure"
-      ],
+      "calibration_axes": ["interiority", "social_constraint", "gendered_pressure", "symbolic_environment", "ambiguous_closure"],
       "raw_text_path": "corpus/public-domain/raw/the-awakening.txt",
       "clean_text_path": "corpus/public-domain/clean/the-awakening.txt",
       "calibration_doc_path": "docs/benchmarks/public-domain/the-awakening-dream-calibration.md",
       "calibration_addendum_path": "docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_longform_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false,
-        "notes": "Standalone The Awakening clean text is canonical. The Story of an Hour fixture was removed because Gutenberg #160 is The Awakening and Selected Short Stories, not a standalone Story of an Hour source."
-      },
+      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false, "notes": "Standalone The Awakening clean text is canonical. The Story of an Hour fixture was removed because Gutenberg #160 is The Awakening and Selected Short Stories, not a standalone Story of an Hour source." },
       "requires_extraction": false
     },
     {
@@ -225,26 +134,11 @@
       "form": "novella",
       "evaluation_mode": "long_form_evaluation",
       "output_mode": "standard_long_form",
-      "calibration_axes": [
-        "science_fiction",
-        "speculative_concept",
-        "worldbuilding",
-        "theme",
-        "framing_device"
-      ],
+      "calibration_axes": ["science_fiction", "speculative_concept", "worldbuilding", "theme", "framing_device"],
       "raw_text_path": "corpus/public-domain/raw/the-time-machine.txt",
       "clean_text_path": "corpus/public-domain/clean/the-time-machine.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_smoke_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     },
     {
@@ -259,26 +153,11 @@
       "form": "long_novel",
       "evaluation_mode": "long_form_multi_layer_evaluation",
       "output_mode": "multi_layer_long_form",
-      "calibration_axes": [
-        "gothic_horror",
-        "epistolary_structure",
-        "atmosphere",
-        "long_form_evidence_coverage",
-        "pacing_variance"
-      ],
+      "calibration_axes": ["gothic_horror", "epistolary_structure", "atmosphere", "long_form_evidence_coverage", "pacing_variance"],
       "raw_text_path": "corpus/public-domain/raw/dracula.txt",
       "clean_text_path": "corpus/public-domain/clean/dracula.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_longform_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "allowed_uses": ["manifest_seed", "future_longform_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     },
     {
@@ -293,27 +172,12 @@
       "form": "novel",
       "evaluation_mode": "long_form_multi_layer_evaluation",
       "output_mode": "multi_layer_long_form",
-      "calibration_axes": [
-        "childrens_fantasy",
-        "quest_structure",
-        "worldbuilding",
-        "tone_control",
-        "episodic_adventure"
-      ],
+      "calibration_axes": ["childrens_fantasy", "quest_structure", "worldbuilding", "tone_control", "episodic_adventure"],
       "raw_text_path": "corpus/public-domain/raw/the-wonderful-wizard-of-oz.txt",
       "clean_text_path": "corpus/public-domain/clean/the-wonderful-wizard-of-oz.txt",
       "calibration_doc_path": "docs/benchmarks/public-domain/the-wonderful-wizard-of-oz-dream-calibration.md",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_smoke_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     },
     {
@@ -326,28 +190,14 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/58866.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novel",
-      "evaluation_mode": "long_form_evaluation",
-      "output_mode": "standard_long_form",
-      "calibration_axes": [
-        "detective_fiction",
-        "clue_logic",
-        "plot_mechanics",
-        "marketability",
-        "reveal_sequence"
-      ],
+      "evaluation_mode": "long_form_multi_layer_evaluation",
+      "output_mode": "multi_layer_long_form",
+      "calibration_axes": ["detective_fiction", "clue_logic", "plot_mechanics", "marketability", "reveal_sequence", "red_herrings", "sleuthing"],
       "raw_text_path": "corpus/public-domain/raw/the-murder-on-the-links.txt",
       "clean_text_path": "corpus/public-domain/clean/the-murder-on-the-links.txt",
-      "allowed_uses": [
-        "manifest_seed",
-        "future_smoke_fixture",
-        "future_calibration_fixture"
-      ],
-      "cleaning": {
-        "status": "cleaned",
-        "headers_removed": true,
-        "footers_removed": true,
-        "modern_editorial_material_removed": false
-      },
+      "calibration_doc_path": "docs/benchmarks/public-domain/the-murder-on-the-links-dream-calibration-multilayer-addendum.md",
+      "allowed_uses": ["manifest_seed", "future_smoke_fixture", "future_calibration_fixture"],
+      "cleaning": { "status": "cleaned", "headers_removed": true, "footers_removed": true, "modern_editorial_material_removed": false },
       "requires_extraction": false
     }
   ],
