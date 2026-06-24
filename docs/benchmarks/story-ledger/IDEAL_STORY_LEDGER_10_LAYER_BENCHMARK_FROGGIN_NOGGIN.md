@@ -11,8 +11,7 @@ benchmark-tier: required-gold
 generated-for: seed-phase-and-phase-1a-baseline
 created: 2026-05-31T01:22:25Z
 source-benchmarks:
-  - docs/benchmarks/froggin-noggin-dream.md
-  - docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
+  - docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md
 ---
 
 # Froggin Noggin — Ideal Story Ledger 10-Layer Benchmark
@@ -218,5 +217,3 @@ Required sequence: opening human damage/frog-polity setup; middle shard/toadston
 | Symbolic/metaphysical | Gorf, Maalik, Dominatus, New World |
 | Relational | Rana/Newton tenderness under cross-species danger |
 | Closure | Payoff ledger for shard, toadstone, Gorf, Dominatus, New World |
-
-Ending must account for Hyla, Zimeon, Thorander, Chey, Rana, Newton, human damage, and New World. Fails if pressure collapses to a single villain or ending is mood only.
