@@ -39,6 +39,7 @@ wave-applied: true
 | *Froggin Noggin* | [`froggin-noggin-dream-longform-multilayer-gold-standard.md`](./froggin-noggin-dream-longform-multilayer-gold-standard.md) | Source files retained pending archive: [`froggin-noggin-dream.md`](./froggin-noggin-dream.md), [`froggin-noggin-dream-v2-governed-ledger-addendum.md`](./froggin-noggin-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified required-gold benchmark marker. Legacy benchmark and addendum remain source/audit until full-body expansion and archive cleanup. |
 | *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md) | Archived: [`archive/cartel-babies-dream.md`](./archive/cartel-babies-dream.md), [`archive/cartel-babies-dream-v2-governed-ledger-addendum.md`](./archive/cartel-babies-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified canonical benchmark. Legacy benchmark and addendum are archived for historical traceability. |
 | *Let the River Decide* | [`let-the-river-decide-dream-longform-multilayer-gold-standard.md`](./let-the-river-decide-dream-longform-multilayer-gold-standard.md) | [`let-the-river-decide-expedition-wilderness-architecture-addendum.md`](./let-the-river-decide-expedition-wilderness-architecture-addendum.md). Source files retained pending archive: [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md), [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Calibration | Unified calibration-tier benchmark plus expedition/wilderness extension for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
+| *The Lost World of MythOAmphibia / DOMINATUS I* | [`lost-world-of-mythoamphibia-dream-longform-multilayer-gold-standard.md`](./lost-world-of-mythoamphibia-dream-longform-multilayer-gold-standard.md) | Supersedes seed: [`lost-world-of-mythoamphibia-multilayer-architecture-benchmark-seed.md`](./lost-world-of-mythoamphibia-multilayer-architecture-benchmark-seed.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold candidate | Flagship multi-species mythic eco-fantasy benchmark for frog/human civilization, object POV, relic memory, distributed consciousness, ecological collapse, divine/glyphic doctrine, and transmedia codex architecture. |
 
 ## Public-domain calibration standards
 
@@ -135,6 +136,12 @@ The Let the River Decide expedition/wilderness architecture extension is:
 docs/benchmarks/let-the-river-decide-expedition-wilderness-architecture-addendum.md
 ```
 
+The canonical repo-facing MythOAmphibia benchmark path is:
+
+```text
+docs/benchmarks/lost-world-of-mythoamphibia-dream-longform-multilayer-gold-standard.md
+```
+
 ## Required DREAM long-form multi-layer surfaces
 
 A DREAM long-form multi-layer gold-standard benchmark should expose, at minimum:
@@ -158,7 +165,7 @@ A DREAM long-form multi-layer gold-standard benchmark should expose, at minimum:
 
 ## Normalization rule
 
-The three native prose gold standards belong to the same DREAM long-form multi-layer benchmark family even if their historical markdown headers differ.
+The native prose gold standards belong to the same DREAM long-form multi-layer benchmark family even if their historical markdown headers differ.
 
 When any of the large benchmark bodies are edited, add or preserve this front matter at the top:
 
