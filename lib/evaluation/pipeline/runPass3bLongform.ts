@@ -130,6 +130,7 @@ const PASS3B_INTERNAL_DIAGNOSTIC_PATTERNS: RegExp[] = [
   /ending\s+taxonomy/i,
   /location\s*\/?\s*timeline/i,
   /object\s*\/?\s*symbol/i,
+  /symbol\s*\/?\s*object/i,
   /extraction\s+diagnostic/i,
   /degraded_extraction|hard_fail/i,
   /layer\s+contamination/i,
