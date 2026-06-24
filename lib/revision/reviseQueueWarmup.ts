@@ -8,18 +8,47 @@ export const REVISE_QUEUE_WARMUP_FILES = [
   'docs/canon/revise-queue-six-part-diagnostic.md',
   'docs/gold-standards/revise-queue-rendering-exemplars.md',
   'docs/gold-standards/revise-queue-invalid-examples.md',
-  // Ten-layer benchmarked story ledgers and governing contracts used during warmup calibration.
+  // Story ledger and semantic integrity contracts used during warmup calibration.
   'docs/STORY_LEDGER_QUALITY_GATE.md',
   'docs/canon/STORY_LEDGER_SEMANTIC_INTEGRITY_CONTRACT.md',
+  // Shared runtime benchmark authority map — single source for benchmark path coverage.
+  'docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md',
+  // Native long-form multi-layer benchmark family.
+  'docs/benchmarks/return-to-the-source-dream-longform-multilayer-gold-standard.md',
+  'docs/benchmarks/lost-world-of-mythoamphibia-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md',
+  'docs/benchmarks/let-the-river-decide-expedition-wilderness-architecture-addendum.md',
   'docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md',
+  'docs/benchmarks/cartel-babies-criminal-network-suspense-architecture-addendum.md',
+  // Public-domain calibration exemplars used for opportunity shape and genre/form calibration.
+  'docs/benchmarks/public-domain/dracula-dream-calibration.md',
+  'docs/benchmarks/public-domain/great-expectations-dream-calibration.md',
+  'docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md',
+  'docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration-multilayer-addendum.md',
+  'docs/benchmarks/public-domain/the-awakening-dream-calibration.md',
+  'docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md',
+  'docs/benchmarks/public-domain/the-wonderful-wizard-of-oz-dream-calibration.md',
+  'docs/benchmarks/public-domain/the-murder-on-the-links-dream-calibration-multilayer-addendum.md',
 ] as const
 
 export const REVISE_QUEUE_BENCHMARK_FILES = [
+  'docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md',
+  'docs/benchmarks/return-to-the-source-dream-longform-multilayer-gold-standard.md',
+  'docs/benchmarks/lost-world-of-mythoamphibia-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md',
+  'docs/benchmarks/let-the-river-decide-expedition-wilderness-architecture-addendum.md',
   'docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md',
+  'docs/benchmarks/cartel-babies-criminal-network-suspense-architecture-addendum.md',
+  'docs/benchmarks/public-domain/dracula-dream-calibration.md',
+  'docs/benchmarks/public-domain/great-expectations-dream-calibration.md',
+  'docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md',
+  'docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration-multilayer-addendum.md',
+  'docs/benchmarks/public-domain/the-awakening-dream-calibration.md',
+  'docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md',
+  'docs/benchmarks/public-domain/the-wonderful-wizard-of-oz-dream-calibration.md',
+  'docs/benchmarks/public-domain/the-murder-on-the-links-dream-calibration-multilayer-addendum.md',
 ] as const
 
 export type ReviseQueueWarmupFileProof = {
