@@ -42,8 +42,7 @@ docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 docs/benchmarks/froggin-noggin-dream.md
 docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
 
-docs/benchmarks/let-the-river-decide-dream.md
-docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
 ```
 
 ## Public-domain calibration benchmarks
