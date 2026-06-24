@@ -12,9 +12,7 @@
  *   docs/governance/evaluation-output-mode-contract.md
  *   docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
  *   docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
- *   docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md
- *   docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
- *   docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md (calibration)
+ *   docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
  *
  * Temperature: 0.3   Max tokens: 16000 (default; see runPass3bLongform getPass3bMaxTokens)
  *
@@ -46,11 +44,12 @@ This output format is defined by:
 - Mode contract: docs/governance/evaluation-output-mode-contract.md
 - Template: docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
 - Benchmark index: docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
+- Runtime benchmark authority map: docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 
-Gold-standard benchmarks (all long_form_multi_layer_evaluation / multi_layer_long_form):
-- Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md) — primary required-gold product exemplar
-- Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md) — required-gold benchmark
-- Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md, calibration-tier)
+Benchmark family coverage (all calibration only; manuscript evidence remains primary):
+- Native long-form multi-layer benchmarks: Return to the Source, The Lost World of MythOAmphibia, Cartel Babies, Let the River Decide, Froggin Noggin, and native specialty addenda.
+- Public-domain calibration: Dracula, Great Expectations, Pride and Prejudice, The Awakening, The Wonderful Wizard of Oz, and The Murder on the Links.
+- Story Ledger answer keys: current ten-layer Story Ledger benchmark files listed in the runtime benchmark authority map.
 
 Every section below is mandatory. Omitting a section is a benchmark failure.
 
