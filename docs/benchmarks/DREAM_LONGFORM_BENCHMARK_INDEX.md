@@ -38,7 +38,7 @@ wave-applied: true
 |---|---|---|---|---|---|---|
 | *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | [`froggin-noggin-dream-v2-governed-ledger-addendum.md`](./froggin-noggin-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Original body remains the manual reference; V2 addendum is the binding governed-ledger compliance layer. |
 | *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md) | Archived: [`archive/cartel-babies-dream.md`](./archive/cartel-babies-dream.md), [`archive/cartel-babies-dream-v2-governed-ledger-addendum.md`](./archive/cartel-babies-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Required gold | Unified canonical benchmark. Legacy benchmark and addendum are archived for historical traceability. |
-| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md) | [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Calibration | Calibration-tier governed-ledger example for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
+| *Let the River Decide* | [`let-the-river-decide-dream-longform-multilayer-gold-standard.md`](./let-the-river-decide-dream-longform-multilayer-gold-standard.md) | Source files retained pending archive: [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md), [`let-the-river-decide-dream-v2-governed-ledger-addendum.md`](./let-the-river-decide-dream-v2-governed-ledger-addendum.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Calibration | Unified calibration-tier benchmark candidate for eco-thriller / memoir-witness / cultural-protocol / research-heavy ambiguity behavior. |
 
 ## Public-domain calibration standards
 
@@ -61,13 +61,13 @@ Public-domain calibration files are teaching benchmarks only. They are useful fo
 
 ## V2 governance rule
 
-The preserved benchmark body and its V2 addendum must be read together:
+The preserved benchmark body and its V2 addendum must be read together unless a benchmark has been unified into a canonical long-form multi-layer file:
 
 ```text
 preserved manual benchmark body + V2 governed-ledger addendum = current DREAM benchmark contract
 ```
 
-Do not rewrite the original benchmark bodies merely to conform to V2 or to the new product-facing mode labels. The addenda are the normalization layer. They preserve historical/manual editorial judgment while making the benchmark comply with the current DREAM governed-ledger template.
+Do not weaken the original benchmark judgments merely to conform to V2 or to the new product-facing mode labels. Addenda or unified canonical files are the normalization layer. They preserve historical/manual editorial judgment while making the benchmark comply with the current DREAM governed-ledger template.
 
 Public-domain calibration follows the same governed-ledger shape where applicable but must remain `runtime-authority: false` unless explicitly promoted through a later governance decision. *The Awakening* now has a governed-ledger addendum for calibration interpretation, but remains `runtime-authority: false`.
 
@@ -110,6 +110,12 @@ docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 ```
 
 Future edits should prefer the canonical path unless there is a deliberate migration or deletion task.
+
+The canonical repo-facing Let the River Decide benchmark path is:
+
+```text
+docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
+```
 
 ## Required DREAM long-form multi-layer surfaces
 
@@ -156,4 +162,4 @@ wave-applied: true
 ---
 ```
 
-Do not weaken the underlying evaluation body while normalizing headers. Header normalization is metadata only. Addenda are the preferred V2 compliance layer for large manual benchmark bodies.
+Do not weaken the underlying evaluation body while normalizing headers. Header normalization is metadata only. Addenda or unified canonical benchmark files are the preferred V2 compliance layer for large manual benchmark bodies.
