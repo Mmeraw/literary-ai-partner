@@ -10,6 +10,7 @@
  *   4. Structural validation criteria
  *   5. The DREAM evaluation template for the manuscript's route (long-form or short-form)
  *   6. A completed benchmark exemplar showing what gold-standard output looks like
+ *   7. A compact map of the current native/public calibration family
  *
  * The context is kept compact to fit within model budgets
  * while providing enough grounding to prevent common extraction failures.
@@ -56,6 +57,30 @@ export function inferWorkTypeFromWordCount(wordCount: number): string {
 // The loader reads the canonical .md files, caches them, and produces compact
 // prompt-ready blocks. Hardcoded summaries replaced with runtime file reads.
 
+// ── Runtime Benchmark Family Coverage (compact) ─────────────────────────────
+
+const BENCHMARK_FAMILY_CONTEXT = `
+CURRENT BENCHMARK FAMILY COVERAGE — use as calibration context, never as manuscript evidence:
+
+Native long-form multi-layer benchmarks:
+- Return to the Source: cosmological-origin fiction; Neanderthal/Homo sapiens species conflict; bone-memory law; divine-family governance; Anima; Aeon; multiverse design; imperfection/free-will/creation recursion.
+- The Lost World of MythOAmphibia: multi-species mythic eco-fantasy; frog/human civilization; object POV; relic memory; ecological collapse; distributed consciousness; glyphic/transmedia codex logic.
+- Cartel Babies: criminal network suspense; coercion; abduction/captivity; survival logic; institutional corruption; inherited violence; cartel-system pressure.
+- Let the River Decide: expedition/wilderness structure; witness credibility; environmental threat; journey as plot; cultural protocol; evidence of absence; leadership under uncertainty.
+- Froggin Noggin: long-form children's fantasy; quest/wonder architecture; age-appropriate clarity; simplicity without shallowness.
+
+Public-domain calibration benchmarks:
+- Dracula: epistolary form-as-plot, multi-voice evidence, Gothic atmosphere, symbolic contagion, procedural pacing drag.
+- Great Expectations: moral psychology, shame as plot architecture, social breadth, reversal/revelation, earned closure.
+- Pride and Prejudice: dialogue-as-action, social-pressure plotting, reputation stakes, delayed-revelation romance, comedy of manners.
+- The Awakening: interiority as plot pressure, social constraint, symbolic environment, ambiguous closure.
+- The Wonderful Wizard of Oz: quest structure, child-accessible clarity, ensemble archetypes, episodic fantasy worldbuilding.
+- The Murder on the Links: fair-play mystery, clues/red herrings, suspect pressure, sleuth competence, reveal sequencing.
+
+Runtime map path: docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
+Hard rule: benchmarks define target quality and structural expectations; manuscript evidence remains primary.
+`.trim();
+
 // ── Completed Benchmark Exemplar (compact) ──────────────────────────────────
 
 const BENCHMARK_EXEMPLAR_CARTEL_BABIES = `
@@ -92,11 +117,14 @@ export function buildSeedBenchmarkContext(route?: SeedRoute): string {
     'Your output will be validated against these standards.',
     'The DREAM evaluation template below is what your seed prepares the manuscript to be evaluated against.',
     'The completed benchmark exemplar shows what gold-standard output looks like.',
+    'The benchmark family map shows what structural patterns the system must recognize across genres and forms.',
     'Your seed output becomes GOLDEN GROUND TRUTH — downstream phases need hard evidence to override anything you establish here.',
     '',
     buildCompactStoryLedgerBlock(),
     '',
     dreamTemplate,
+    '',
+    BENCHMARK_FAMILY_CONTEXT,
     '',
     exemplar,
   ].join('\n');
