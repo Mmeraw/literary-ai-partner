@@ -1,0 +1,67 @@
+name: RG One-Shot River Froggin Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/rg-one-shot-river-froggin-validation.yml'
+      - 'lib/evaluation/pipeline/runPass3bLongform.ts'
+      - 'lib/evaluation/pipeline/prompts/pass3b-longform.ts'
+      - 'docs/benchmarks/**'
+      - 'docs/governance/**'
+      - 'docs/phase-0-warmup/**'
+      - 'docs/architecture/phase-0-5b-revise-opportunity-seed.md'
+      - 'lib/revision/reviseQueueWarmup.ts'
+      - 'tests/evaluation/pipeline/**'
+      - 'tests/evaluation/benchmarks/**'
+      - '__tests__/lib/revision/workbenchQueue.test.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-river-froggin:
+    name: Validate River/Froggin benchmark migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit --pretty false
+
+      - name: Pass 3B targeted tests
+        run: |
+          npx jest --runInBand --runTestsByPath \
+            tests/evaluation/pipeline/pass3b.revisionPlanGuardrail.test.ts \
+            tests/evaluation/pipeline/truthfulFallback.pass3b.test.ts
+
+      - name: Benchmark canon targeted tests
+        run: |
+          npx jest --runInBand --runTestsByPath \
+            tests/evaluation/benchmarks/dream-evaluation-canon.test.ts \
+            tests/evaluation/benchmarks/native-story-ledger-canon.test.ts \
+            tests/benchmarks/froggin-noggin-dream.test.ts \
+            __tests__/lib/revision/workbenchQueue.test.ts
+
+      - name: Old active benchmark path sweep
+        run: |
+          set -euo pipefail
+          echo 'Checking remaining old active authority references...'
+          git grep -n 'docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md' -- ':!docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md' ':!docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md' ':!docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md' ':!.github/pr-bodies/**' && exit 1 || true
+          git grep -n 'docs/benchmarks/froggin-noggin-dream.md' -- ':!docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md' ':!docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md' ':!docs/benchmarks/froggin-noggin-dream.md' ':!docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md' ':!.github/pr-bodies/**' && exit 1 || true
+          git grep -n 'docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md' -- ':!docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md' ':!docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md' ':!docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md' ':!.github/pr-bodies/**' && exit 1 || true
+          git grep -n 'docs/benchmarks/let-the-river-decide-dream.md' -- ':!docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md' ':!docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md' ':!docs/benchmarks/let-the-river-decide-dream.md' ':!docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md' ':!.github/pr-bodies/**' && exit 1 || true
+          echo 'Old active benchmark path sweep passed.'
