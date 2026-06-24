@@ -1,7 +1,7 @@
 # Phase 0 Warmup Benchmark Manifest
 
-Status: canonical warmup packet v1  
-Audience: Phase 0, SEED generation, Phase 1A, Story Layer Quality Gate, Review Gate  
+Status: canonical warmup packet v1.1  
+Audience: Phase 0, SEED generation, Phase 0.5A, Phase 0.5B, Phase 1A, Story Layer Quality Gate, Review Gate, Pass 3, WAVE, Revise Queue, Revise Workbench  
 Runtime role: compact manifest only. Do not mine GitHub PR history during evaluation runtime.
 
 ## Purpose
@@ -10,11 +10,9 @@ Phase 0 must load a compact, deterministic set of benchmark and governance refer
 
 ## Runtime loading rule
 
-Load only the current canonical files listed here, by path and version/hash where available. Do not load hundreds of PRs, review comments, old branch notes, or stale implementation discussions during evaluation runtime.
+Load only the current canonical files listed here, plus `docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md`. Do not load hundreds of PRs, review comments, old branch notes, or stale implementation discussions during evaluation runtime.
 
 ## Required Phase 0 warmup packet
-
-These files form the compact Phase 0 control packet:
 
 ```text
 docs/phase-0-warmup/PHASE_0_WARMUP_BENCHMARK_MANIFEST.md
@@ -28,6 +26,7 @@ docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md
 ## Core long-form benchmark canon
 
 ```text
+docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
 docs/benchmarks/README.md
 docs/benchmarks/templates/dream-longform-layered-template.md
@@ -36,52 +35,46 @@ docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
 
 ## Manuscript benchmark sets
 
+The canonical native benchmark list lives in:
+
 ```text
-docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
-
-docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md
-
-docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
+docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 ```
+
+This includes Return to the Source, MythOAmphibia, Cartel Babies, Let the River Decide, Froggin Noggin, and native specialty addenda.
 
 ## Public-domain calibration benchmarks
 
+The canonical public-domain calibration list lives in:
+
 ```text
-docs/benchmarks/public-domain/dracula-dream-calibration.md
-docs/benchmarks/public-domain/great-expectations-dream-calibration.md
-docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md
-docs/benchmarks/public-domain/the-awakening-dream-calibration.md
-docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md
+docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 ```
+
+This includes Dracula, Great Expectations, Pride and Prejudice, The Awakening, Wizard of Oz, Murder on the Links, and required addenda.
 
 ## Story Ledger benchmark answer keys
 
-These files define benchmark-quality ten-layer Story Ledger targets and should be used for SEED quality, Phase 1A Story Ledger extraction expectations, fit-gap reporting, and regression targets.
+These files define benchmark-quality ten-layer Story Ledger targets and should be used for SEED quality, Phase 1A Story Ledger extraction expectations, fit-gap reporting, and regression targets. The canonical list lives in:
 
 ```text
-docs/benchmarks/story-ledger/README.md
-docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md
-
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
-
-docs/benchmarks/story-ledger/FROGGIN_NOGGIN_10_LAYER_OPTIMIZATION_ADDENDUM.md
-docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_10_LAYER_OPTIMIZATION_ADDENDUM.md
+docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 ```
 
 Note: The template (`STORY_LEDGER_10_LAYER_TEMPLATE.md`) defines the blank structure that seeds MUST populate. The benchmark files are filled gold-standard examples showing what good output looks like. The template structure is compiled into the seed generator prompts at runtime via `lib/evaluation/seed/benchmarkContextBuilder.ts`.
 
 ## Retired benchmark references — not current warmup authority
 
-Retired benchmark references must not be used as current Story Ledger benchmark gates. Current warmup authority is the ten-layer Story Ledger file set in this manifest, with `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md` as the primary product exemplar when a single example is needed.
+Retired benchmark references must not be used as current Story Ledger benchmark gates. Current warmup authority is the runtime benchmark authority map, with `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md` as the primary product exemplar when a single compact example is needed.
 
 ## Runtime hierarchy
 
 ```text
 Phase 0 warmup packet
   ↓
-story_map_seed_v1 + evaluation_seed_v1
+Runtime Benchmark Authority Map
+  ↓
+story_map_seed_v1 + evaluation_seed_v1 + revise_opportunity_seed_v1
   ↓
 Seed Completeness Gate
   ↓
@@ -95,7 +88,7 @@ Review Gate
   ↓
 accepted_story_ledger_v1
   ↓
-Phase 2 evaluation
+Phase 2 / Phase 3 / Pass 3 / WAVE / Revise Queue / Revise Workbench
 ```
 
 ## Authority hierarchy
@@ -106,7 +99,7 @@ SEED proposes baseline scaffolds.
 Phase 1A verifies against manuscript evidence.
 Story Layer Quality Gate classifies layer health.
 Author Review Gate authorizes accepted_story_ledger_v1.
-accepted_story_ledger_v1 governs Phase 2.
+accepted_story_ledger_v1 governs evaluation and revise surfaces.
 ```
 
 ## Prohibited runtime behavior
@@ -121,6 +114,7 @@ accepted_story_ledger_v1 governs Phase 2.
 ## Required runtime behavior
 
 - Load compact warmup files only.
+- Load `docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md` as the current benchmark path authority.
 - Use benchmark files as quality targets, not manuscript evidence.
 - Record missing benchmark-required elements as fit-gaps.
 - Suppress/degrade/block substandard Story Ledger layers before Review Gate.
