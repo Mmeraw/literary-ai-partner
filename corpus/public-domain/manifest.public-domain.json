@@ -13,8 +13,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/1342.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "long_novel",
-      "evaluation_mode": "long_form_evaluation",
-      "output_mode": "standard_long_form",
+      "evaluation_mode": "long_form_multi_layer_evaluation",
+      "output_mode": "multi_layer_long_form",
       "calibration_axes": [
         "social_realism",
         "dialogue",
@@ -24,6 +24,8 @@
       ],
       "raw_text_path": "corpus/public-domain/raw/pride-and-prejudice.txt",
       "clean_text_path": "corpus/public-domain/clean/pride-and-prejudice.txt",
+      "calibration_doc_path": "docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md",
+      "calibration_addendum_path": "docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration-multilayer-addendum.md",
       "allowed_uses": [
         "manifest_seed",
         "future_longform_fixture",
@@ -184,8 +186,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/160.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novel",
-      "evaluation_mode": "long_form_evaluation",
-      "output_mode": "standard_long_form",
+      "evaluation_mode": "long_form_multi_layer_evaluation",
+      "output_mode": "multi_layer_long_form",
       "calibration_axes": [
         "interiority",
         "social_constraint",
@@ -196,6 +198,7 @@
       "raw_text_path": "corpus/public-domain/raw/the-awakening.txt",
       "clean_text_path": "corpus/public-domain/clean/the-awakening.txt",
       "calibration_doc_path": "docs/benchmarks/public-domain/the-awakening-dream-calibration.md",
+      "calibration_addendum_path": "docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md",
       "allowed_uses": [
         "manifest_seed",
         "future_longform_fixture",
@@ -288,8 +291,8 @@
       "source_download_url": "https://www.gutenberg.org/ebooks/55.txt.utf-8",
       "jurisdiction_basis": "U.S. public domain source; verify local jurisdiction before redistribution outside the U.S.",
       "form": "novel",
-      "evaluation_mode": "long_form_evaluation",
-      "output_mode": "standard_long_form",
+      "evaluation_mode": "long_form_multi_layer_evaluation",
+      "output_mode": "multi_layer_long_form",
       "calibration_axes": [
         "childrens_fantasy",
         "quest_structure",
@@ -299,6 +302,7 @@
       ],
       "raw_text_path": "corpus/public-domain/raw/the-wonderful-wizard-of-oz.txt",
       "clean_text_path": "corpus/public-domain/clean/the-wonderful-wizard-of-oz.txt",
+      "calibration_doc_path": "docs/benchmarks/public-domain/the-wonderful-wizard-of-oz-dream-calibration.md",
       "allowed_uses": [
         "manifest_seed",
         "future_smoke_fixture",
