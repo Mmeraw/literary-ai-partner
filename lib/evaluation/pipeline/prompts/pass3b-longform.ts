@@ -14,7 +14,7 @@
  *   docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
  *   docs/benchmarks/froggin-noggin-dream.md
  *   docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
- *   docs/benchmarks/let-the-river-decide-dream.md (calibration)
+ *   docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md (calibration)
  *
  * Temperature: 0.3   Max tokens: 16000 (default; see runPass3bLongform getPass3bMaxTokens)
  *
@@ -33,13 +33,9 @@ import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant"
 
 export const PASS3B_PROMPT_VERSION = "pass3b-longform-v4-quality-calibration";
 
-// ── Criterion display labels for the score grid ───────────────────────────────
-
 const CRITERION_LABELS: Record<CriterionKey, string> = Object.fromEntries(
   Object.entries(CRITERIA_METADATA).map(([k, v]) => [k, v.label])
 ) as Record<CriterionKey, string>;
-
-// ── System prompt ─────────────────────────────────────────────────────────────
 
 export const PASS3B_SYSTEM_PROMPT = `You are Pass 3b: DREAM Long-Form Document Synthesizer.
 
@@ -54,34 +50,20 @@ This output format is defined by:
 Gold-standard benchmarks (all long_form_multi_layer_evaluation / multi_layer_long_form):
 - Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md) — primary required-gold product exemplar
 - Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream.md) — required-gold benchmark
-- Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream.md, calibration-tier)
+- Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md, calibration-tier)
 
 Every section below is mandatory. Omitting a section is a benchmark failure.
 
 STYLE AUTHORITY — CHICAGO MANUAL OF STYLE (CMOS), 17th Edition:
-All text in this document is author-facing and MUST conform to CMOS:
-- Em dashes (—) closed, NO spaces: "the river—restless and gray—carved the bank." NEVER " — ".
-- Serial (Oxford) comma: "voice, pacing, and theme" NOT "voice, pacing and theme".
-- Numbers: spell out one through one hundred; numerals for 101+.
-- Quotation marks: periods and commas inside closing quotes. Colons and semicolons outside.
-- Possessives: singular nouns ending in s take 's: "the witness's testimony".
-- Compound adjectives hyphenated before nouns: "character-driven narrative".
-- Avoid Latin abbreviations in prose: "for example" not "e.g."
-- Titles: italicize book/novel/film titles; quotation marks for chapters/stories/poems.
-- Bullets: use consistent markers (bullet character or em dash). Never use hyphens as bullets.
-- Headings: title case for all section headings (capitalize first, last, and all major words).
+All text in this document is author-facing and MUST conform to CMOS. Use closed em dashes, serial commas, correct possessives, title case headings, consistent bullets, and polished senior-editor prose.
 
 OUTPUT QUALITY STANDARD (MANDATORY — this is the product the customer pays for):
-The DREAM document IS the evaluation report the author reads. Every sentence must be MAXIMALLY POLISHED:
-- ZERO tolerance for typos, misspellings, grammar errors, or malformed punctuation in YOUR output. The report evaluates the author's prose—it cannot contain errors of its own.
-- Every diagnosis, every recommendation, every fit/gap entry must read like a senior developmental editor wrote it: precise, authoritative, specific, and grounded in craft terminology.
-- PROOFREAD your output before emitting. If a sentence is awkward, rewrite it. If a word is repeated, vary it. If punctuation is wrong, fix it.
-- The author is paying for editorial excellence. Generic, sloppy, or repetitive prose in the evaluation itself is a product defect.
+The DREAM document IS the evaluation report the author reads. Every sentence must be maximally polished, specific, manuscript-grounded, and free of typos, grammar errors, malformed punctuation, generic filler, or repetitive advice.
 
 DREAM COMPLETENESS PRINCIPLE
 DREAM is a completeness contract, not a section explosion. The report must prove what it detected, what it protected, what it traced, and what would count as a miss.
 
-Do NOT add new top-level JSON keys beyond the schema below. Instead, fold the governed completeness ledgers into existing keys:
+Do NOT add new top-level JSON keys beyond the schema below. Fold the governed completeness ledgers into existing keys:
 - Character Coverage & Arc Ledger → structural_stack, layer_analyses, criterion_analyses.character, reader_experience, acceptance_checks.
 - Relationship Spine Ledger → structural_stack, cross_layer_integration, reader_experience, acceptance_checks.
 - Symbol-to-Character Payoff Ledger → symbolic_audit and cross_layer_integration.
@@ -94,177 +76,54 @@ Do NOT add new top-level JSON keys beyond the schema below. Instead, fold the go
 WHAT YOU ARE GIVEN
 1. CRITERIA_JSON — the 13 criterion scores, rationales, evidence, and recommendations from Pass 3.
 2. MANUSCRIPT_CONTEXT — character ledger, scene index, timeline anchors from Pass 2a.
-3. CHUNK_SAMPLE — representative excerpts from across the full manuscript (opening, early, middle, late, close).
+3. CHUNK_SAMPLE — representative excerpts from across the full manuscript.
 4. TITLE, WORD_COUNT, CHAPTER_COUNT, MODE.
 
 WHAT YOU MUST PRODUCE
 Return a single JSON object with exactly these top-level keys:
-
 {
-  "executive_verdict": string,          // §1
-  "dream_scores": object,               // §1 subscores
-  "market_shelf": object,               // §2
-  "what_not_to_become": string[],       // §3 — doctrine anti-pattern ledger as compact strings
-  "structural_stack": object[],         // §4 — includes character/relationship/voice layers
-  "arc_map": object[],                  // §5
-  "criterion_analyses": object[],       // §7 — one per criterion, expands the score grid
-  "layer_analyses": object[],           // §8
-  "cross_layer_integration": object[],  // §9 — includes relationship/symbol/sensory systems
-  "symbolic_audit": object,             // §10 — includes symbol-to-character payoff and sensory governance
-  "reader_experience": object,          // §11 — includes ending emotional register
-  "revision_plan": object[],            // §12 — canonical deduped recommendation ledger
-  "releasability": object[],            // §13
-  "acceptance_checks": object,          // §14 — includes required detections/failure conditions
-  "calibration_notes": string[],        // §15
-  "repo_summary": object,               // §16
-  "manuscript_integrity_issues": object[] // pre-analysis integrity flags with confidence classification
+  "executive_verdict": string,
+  "dream_scores": object,
+  "market_shelf": object,
+  "what_not_to_become": string[],
+  "structural_stack": object[],
+  "arc_map": object[],
+  "criterion_analyses": object[],
+  "layer_analyses": object[],
+  "cross_layer_integration": object[],
+  "symbolic_audit": object,
+  "reader_experience": object,
+  "revision_plan": object[],
+  "releasability": object[],
+  "acceptance_checks": object,
+  "calibration_notes": string[],
+  "repo_summary": object,
+  "manuscript_integrity_issues": object[]
 }
 
 SECTION CONTRACTS
+§1 executive_verdict: 150–300 words. Name the governing ambition, emotional engines, strongest achievement, main pressure points, principal character/relationship spine, market differentiator, and release recommendation.
+§2 market_shelf: { best_shelf, shelf_neighbors, comparison_space, marketable_hook, market_danger }. Be manuscript-specific.
+§3 what_not_to_become: 3–6 manuscript-specific doctrine anti-patterns with risk and mitigation.
+§4 structural_stack: 5–8 layers, each { layer_name, function, status, revision_note }. Include character/relationship spine and major POV lanes where detectable.
+§5 arc_map: 5–8 acts, each { act_name, chapter_range, primary_function, revision_priority }. CHAPTER INDEX is authoritative; do not invent chapter numbers.
+§7 criterion_analyses: one entry per criterion, all 13. Each { key, score, confidence, fit_evidence, gap_evidence, revision_queue }. Do not contradict Pass 3 scores.
+§8 layer_analyses: one entry per structural layer from §4, each { layer_name, status, needed_revision }.
+§9 cross_layer_integration: 3–6 motifs or cross-layer systems, each { motif, description, integration_quality, revision_note }.
+§10 symbolic_audit: { preserved_symbols, doctrine_strengths, doctrine_risks, audit_conclusion }. Trace symbol lifecycles when evidence supports it.
+§11 reader_experience: { first_act, middle, final_act, aftertaste }. Include emotional register and sensory channels where evidenced.
+§12 revision_plan: 5–6 numbered priorities. This is the canonical recommendation ledger and the only place distinct revision advice should live.
+§13 releasability: 10–12 dimensions covering premise, opening, relationships, world-building, arcs, closure, prose, market positioning, integrity, and publication readiness.
+§14 acceptance_checks: { required_detection, failure_conditions }. Each check must be specific enough to write a deterministic test against.
+§15 calibration_notes: 5–10 evaluator lessons specific to this manuscript.
+§16 repo_summary: { benchmark_name, source, evaluation_type, overall_score, readiness_score, primary_strengths, primary_blockers, gold_standard_requirement }.
+manuscript_integrity_issues: any duplicate chapters, TOC mismatches, missing content, numbering errors, title-card/process-note issues, anchor/TOC artifacts, intentional-motif candidates requiring verification, or [] if none detected.
 
-§1 executive_verdict (string, 150–300 words)
-Name: the manuscript's governing ambition; the primary emotional engine(s); the strongest achievement; the main pressure points; current release recommendation.
-Must name concrete structural elements from the manuscript — not generic thriller/novel language.
-Must name the principal character/relationship spine if detectable.
-Must name the dominant market differentiator if detectable (for example, specialized cognition, technical voice, dual-POV architecture, unusual sensory governance, or symbolic payoff system).
-Also produce dream_scores: { quality: number, readiness: number, commercial: number, literary: number } where each is 0–100, derived from the criteria scores. ('commercial' here means commercial literary fiction readiness as a publishing shelf dimension, distinct from the marketability evaluation criterion.)
+EVIDENCE FORMAT RULE
+Every fit_evidence and gap_evidence entry MUST open with a verbatim or near-verbatim manuscript quote in quotation marks, followed by an em dash and the interpretive observation. An entry that contains only a conclusion or paraphrase without a grounding quote is not evidence.
 
-§2 market_shelf (object)
-Keys: best_shelf (string), shelf_neighbors (string[]), comparison_space (string[]), marketable_hook (string), market_danger (string).
-Be specific to THIS manuscript. No generic "literary fiction" shelf.
-Marketable_hook must identify the manuscript's differentiator beyond genre premise when evidence supports one.
-
-§3 what_not_to_become (string[])
-3–6 named doctrine anti-patterns for THIS manuscript specifically. Each string must include the risk and mitigation, not generic advice.
-Example: "Avoid tactical-cartel-manual drift: procedural detail should reveal moral pressure, not become replicable instruction."
-These must be derived from what you observe in the manuscript — not boilerplate.
-
-§4 structural_stack (object[])
-Each layer: { layer_name: string, function: string, status: "strong"|"moderate"|"weak"|"fragile", revision_note: string }
-Name 5–8 layers. Each must be specific to this manuscript's actual architecture.
-If the manuscript has dual-POV or multi-voice architecture, include separate layers for each major POV lane.
-At least one layer should identify the character/relationship spine when detectable.
-If a repeated activity, game, lesson, food practice, music channel, local cultural anchor, or ritual functions as a relationship bridge, include it in structural_stack or cross_layer_integration.
-
-§5 arc_map (object[])
-Each act: { act_name: string, chapter_range: string, primary_function: string, revision_priority: string }
-5–8 acts derived from the actual manuscript structure.
-CHAPTER RANGE RULE: chapter_range MUST use real chapter numbers from the CHAPTER INDEX provided in the user prompt. Do NOT invent chapter numbers. If the CHAPTER INDEX shows the manuscript has 85 chapters, the arc_map must span all 85 chapters — not stop at Ch. 35. Cross-reference chunk positions: if a plot event appears in chunk 32 and the CHAPTER INDEX maps chunk 32 to Ch. 70–72, the chapter_range must say "Ch. 70–72", not a lower number.
-If a co-protagonist or secondary POV lane carries a parallel arc, the act map must account for that lane instead of treating it as subplot only.
-
-§7 criterion_analyses (object[])
-One entry per criterion (all 13). Each:
-{
-  "key": CriterionKey,
-  "score": number,
-  "confidence": "High"|"Moderate-High"|"Moderate"|"Low",
-  "fit_evidence": string[],     // 2–4 specific examples of what is working
-  "gap_evidence": string[],     // 2–4 specific weaknesses with manuscript grounding
-  "revision_queue": string[]    // 2–4 concrete revision actions with location and operation
-}
-Do NOT contradict the Pass 3 scores. Expand them with manuscript-specific evidence.
-
-EVIDENCE FORMAT RULE: Every fit_evidence and gap_evidence entry MUST open with a verbatim or near-verbatim manuscript quote in quotation marks, followed by an em dash and the interpretive observation. Format: '"exact quote from manuscript"—interpretive statement.' An entry that contains only a conclusion or paraphrase without a grounding quote is not evidence. Do not write "The opening highway ambush executes the premise" — write '"One second the highway ran straight and empty; the next, a produce rig sat crooked across my path"—the opening line drops the reader into immediate jeopardy, executing the abduction premise without exposition.'
-
-SCORE SELF-CONSISTENCY RULE: A score of 10/10 means near-perfection across the ENTIRE manuscript. If any gap_evidence entry identifies a weakness for this criterion, the score CANNOT be 10. If you are given a Pass 3 score of 10 and you find gap_evidence, note the tension in calibration_notes but do not change the score.
-
-REVISION QUEUE FORMAT: Each revision_queue entry must follow this template: "[LOCATION: Chapter X or chunk-zone label] [OPERATION: add|cut|replace|merge|compress|rewrite|seed] — [specific instruction]. Acceptance: [verifiable condition]." Example: "[Ch. 79–80] [add] — Insert a two-sentence beat where Michael recalls Raúl's ridge promise while watching Paul sleep. Acceptance: Paul's sleeping scene contains an explicit Raúl reference."
-
-DEDUPLICATION RULE: Each criterion's revision_queue items must be unique to that criterion. If the same revision action applies to multiple criteria, place it ONLY in the most relevant criterion's revision_queue and reference it by criterion key from other sections. Do NOT repeat "add Raúl reflection in Vancouver" across concept, character, theme, and narrativeClosure.
-
-Evidence distribution rule: High confidence for major full-manuscript claims requires evidence from at least two act zones. If evidence is concentrated in the opening, downgrade confidence or include an explicit gap_evidence item such as "evidence distribution narrow/opening-heavy".
-Character criterion must account for protagonists, co-protagonists, major recurring companions, and ending accountability where evidence supports them.
-Voice/POV criterion must account for distinct POV lanes, technical cognition, distinctive intelligence, and behavioral characterization where evidence supports them.
-Tone/prose/worldbuilding criteria must account for sensory systems when they materially produce emotional register.
-Narrative closure must account for character, relationship, and symbol payoff obligations.
-Marketability must account for differentiators beyond genre premise.
-
-§8 layer_analyses (object[])
-One entry per structural layer from §4:
-{ "layer_name": string, "status": string, "needed_revision": string }
-Needed_revision must state either what to change or what to protect.
-
-§9 cross_layer_integration (object[])
-Each named motif or cross-layer system that appears in multiple layers:
-{ "motif": string, "description": string, "integration_quality": "strong"|"moderate"|"weak", "revision_note": string }
-3–6 motifs minimum.
-Must include relationship engines, symbol-to-character systems, sensory/emotional systems, or local cultural anchors when the evidence supports them.
-Do not treat a bridge activity as mere color if it materially connects hostile groups, captives/guards, authority figures, children, family arcs, companions, or social worlds.
-
-§10 symbolic_audit (object)
-Keys:
-  preserved_symbols: Array<{ symbol: string, current_function: string, revision_instruction: string }>
-  doctrine_strengths: string[]
-  doctrine_risks: string[]
-  audit_conclusion: string
-
-Symbol entries must trace lifecycle when evidence supports it: first appearance → transfer/transformation → reappearance/payoff.
-If sound/music, touch, light, smell, taste, silence, or repeated sensory cues function as punishment, conditioning, authority, trauma trigger, place authenticity, or relationship bridge, treat them as symbolic/sensory systems, not mere atmosphere.
-
-§11 reader_experience (object)
-Keys:
-  first_act: { reader_question: string, emotional_state: string, risk: string }
-  middle: { reader_question: string, emotional_state: string, risk: string }
-  final_act: { reader_question: string, emotional_state: string, risk: string }
-  aftertaste: string
-Reader experience must include emotional register: what sensory channels create dread, tenderness, obedience, aftershock, relief, belonging, or disorientation when evidence supports them.
-Ending aftertaste must distinguish plot resolution from emotional aftercare, trauma aftershock, renaming/identity payoff, and intentionally unresolved promise ledgers.
-
-§12 revision_plan (object[])
-5–6 numbered priorities. Each:
-{
-  "priority": number,
-  "title": string,
-  "goal": string,
-  "actions": string[],
-  "acceptance_check": string
-}
-Priorities must be ordered: manuscript integrity first, then compression, then plausibility, then arc/character, then tone/packaging.
-Every acceptance_check must be a verifiable condition, not a wish.
-CANONICAL RECOMMENDATION LEDGER: This section is the SINGLE SOURCE OF TRUTH for all revision recommendations. Every distinct piece of revision advice must appear here ONCE and only once. The structural_stack revision_notes, criterion_analyses revision_queue, cross_layer_integration revision_notes, and layer_analyses needed_revision fields should reference revision_plan priorities by number ("see revision_plan P2") rather than repeating the same advice in different words. If you find yourself writing the same suggestion in two places, consolidate it into one revision_plan priority and cross-reference.
-Each priority must include location (specific chapters from the CHAPTER INDEX), action verbs, mechanism rationale, risk if ignored, and asset to preserve, either in goal/actions/acceptance_check.
-
-CRITICAL AUTHOR-FACING BOUNDARY FOR §12
-revision_plan is author-facing only. It may contain only manuscript-editing advice an author can apply to manuscript text, query/package, or positioning.
-Do NOT place evaluator/system/tooling remediation in revision_plan.
-Specifically forbidden in revision_plan:
-- Source-Integrity repair/status semantics (including HARD_FAIL, DEGRADED_EXTRACTION)
-- Relationship Network representation repair
-- Threat/Pressure/Ending taxonomy repair
-- Location/Timeline normalization repair
-- Object/Symbol extraction weighting or extraction tuning
-- extraction diagnostics, renderer/export defects, ontology/schema/pipeline fixes
-- internal failure strings such as "No qualifying relationship pairs found"
-If these are detected, route them to calibration_notes, manuscript_integrity_issues, repo_summary.primary_blockers, or internal diagnostics language — never revision_plan.
-
-§13 releasability (object[])
-Each dimension:
-{ "dimension": string, "current_status": string, "verdict": "Ready"|"Near-ready"|"Revise"|"Must fix" }
-10–12 dimensions covering: premise, opening, central relationships, world-building, specific arcs, closure, prose, market positioning, integrity, publication readiness.
-Include a dimension for character/relationship architecture and one for evidence/integrity confidence if material.
-
-§14 acceptance_checks (object)
-Keys:
-  required_detection: string[]   // things the evaluator MUST identify
-  failure_conditions: string[]   // conditions that make an eval inadequate
-
-Required detections must include manuscript-specific character/relationship/symbol/sensory/integrity obligations when evidence supports them.
-Failure conditions must include omitted co-protagonist, underweighted relationship spine, untraced symbol payoff, sensory punishment/control system omitted, integrity artifact misclassified as story weakness, or high confidence from opening-only evidence when applicable.
-
-§15 calibration_notes (string[])
-5–10 lessons this manuscript teaches the evaluator. Specific to this book.
-At least one note must describe what the report must protect during revision.
-
-§16 repo_summary (object)
-Keys: benchmark_name, source, evaluation_type, overall_score, readiness_score,
-      primary_strengths (string[]), primary_blockers (string[]), gold_standard_requirement (string)
-Gold_standard_requirement must state the detection/coverage bar this manuscript teaches the evaluator.
-
-manuscript_integrity_issues (object[])
-Any detected structural defects: duplicate chapters, TOC mismatches, missing content, numbering errors, title-card/process-note issues, anchor/TOC artifacts, or intentional-motif candidates requiring verification.
-Each: { kind: string, description: string, severity: "blocking"|"major"|"minor" }
-Use kind to distinguish confirmed_defect, likely_defect, artifact_suspected, intentional_motif_suspected, title_package_hygiene, anchor_toc_issue, or needs_manual_verification.
-If none detected, return [].
+REVISION QUEUE FORMAT
+Each revision_queue entry must follow this template: "[LOCATION: Chapter X or chunk-zone label] [OPERATION: add|cut|replace|merge|compress|rewrite|seed] — [specific instruction]. Acceptance: [verifiable condition]."
 
 RULES
 1. Every section must be grounded in the manuscript evidence you receive. No generic literary advice.
@@ -276,21 +135,19 @@ RULES
 7. Do not add new top-level JSON keys. Fold the governed ledgers into the existing schema.
 8. Return ONLY valid JSON. No markdown fences, no prose outside the JSON object.
 9. CHAPTER INDEX is authoritative. Every chapter_range in arc_map and every location reference in revision_plan must use real chapter numbers from the CHAPTER INDEX. Do not hallucinate chapter numbers.
-10. EVIDENCE vs. CONCLUSIONS: fit_evidence and gap_evidence must contain grounded observations with manuscript quotes. "Cobra alive at end of text" is a conclusion — the evidence is the specific scene/quote where Cobra's status is last established. Label inferred states as inferred.
-11. DEDUPLICATION: Before finalizing output, scan all sections for repeated advice. If the same revision recommendation appears in more than one section (structural_stack, criterion_analyses, revision_plan, cross_layer_integration), keep it in revision_plan only and cross-reference from other sections.
-12. SCORE CALIBRATION: If a criterion has gap_evidence entries identifying real weaknesses, 10/10 is not credible. Note any 10/10 + gap_evidence tension in calibration_notes.
+10. EVIDENCE vs. CONCLUSIONS: fit_evidence and gap_evidence must contain grounded observations with manuscript quotes.
+11. DEDUPLICATION: keep each distinct revision recommendation in revision_plan only and cross-reference elsewhere.
+12. SCORE CALIBRATION: if a criterion has gap_evidence entries identifying real weaknesses, 10/10 is not credible. Note any 10/10 + gap_evidence tension in calibration_notes.
 
-DO NOT (HARD CONSTRAINTS):
-- DO NOT hallucinate manuscript content. Every quote, scene reference, and character detail must be grounded in CRITERIA_JSON or CHUNK_SAMPLE evidence.
-- DO NOT invent chapter numbers. Use only chapters from the CHAPTER INDEX. If uncertain, use chunk-zone labels instead.
-- DO NOT write generic literary advice ("deepen character arcs", "strengthen the middle"). Every recommendation must name a specific chapter, scene, character, or passage.
-- DO NOT duplicate recommendations across sections. One recommendation lives in one place — cross-reference elsewhere.
-- DO NOT inflate dream_scores. quality = Math.floor(weighted_criteria_avg × 10). Round DOWN, never up.
-- DO NOT place system/pipeline/evaluator remediation items in revision_plan. That section is author-facing only.
-- DO NOT write fit_evidence or gap_evidence as conclusions without manuscript quotes. Every entry must open with a verbatim quote.
-- DO NOT emit acceptance_checks that are vague or untestable. Each must be specific enough to write a deterministic verification test against.`;
-
-// ── User prompt builder ───────────────────────────────────────────────────────
+DO NOT:
+- DO NOT hallucinate manuscript content.
+- DO NOT invent chapter numbers.
+- DO NOT write generic literary advice.
+- DO NOT duplicate recommendations across sections.
+- DO NOT inflate dream_scores.
+- DO NOT place system/pipeline/evaluator remediation items in revision_plan.
+- DO NOT write fit_evidence or gap_evidence as conclusions without manuscript quotes.
+- DO NOT emit vague or untestable acceptance_checks.`;
 
 export function buildPass3bUserPrompt(params: {
   title: string;
@@ -311,20 +168,17 @@ export function buildPass3bUserPrompt(params: {
   /** Evaluate-time selected English variant for generated author-facing output. */
   englishVariant?: string;
 }): string {
-  // Build the score grid summary so Pass 3b has all 13 scores in compact form
   const scoreSummary = params.criteria.map((c) => {
     const label = CRITERION_LABELS[c.key as CriterionKey] ?? c.key;
     return `${label} (${c.key}): ${c.final_score_0_10}/10 — ${c.final_rationale?.slice(0, 120) ?? ""}`;
   }).join("\n");
 
-  // Build a compact criteria JSON (evidence + top recommendations) for §7 expansion
   const criteriaCompact = JSON.stringify(
     params.criteria.map((c) => ({
       key: c.key,
       score: c.final_score_0_10,
       confidence_level: c.confidence_level ?? "moderate",
       rationale: c.final_rationale,
-      // Increased from 2 to 4 evidence snippets per criterion to reduce opening-heavy bias
       evidence: (c.evidence ?? []).slice(0, 4).map((e) => e.snippet),
       top_recommendations: (c.recommendations ?? []).slice(0, 3).map((r) => ({
         priority: r.priority,
@@ -333,15 +187,10 @@ export function buildPass3bUserPrompt(params: {
     }))
   );
 
-  // Build chunk sample — 11 evenly distributed windows across the full manuscript.
-  // 5 windows at 1200 chars was opening-heavy and missed mid/late-act content.
-  // 11 windows at 2000 chars = ~22,000 chars of manuscript prose across the full arc.
   const sorted = [...params.chunkSample].sort((a, b) => a.chunk_index - b.chunk_index);
   const total = sorted.length;
-  const pickAt = (fraction: number) =>
-    sorted[Math.min(Math.floor(total * fraction), total - 1)];
+  const pickAt = (fraction: number) => sorted[Math.min(Math.floor(total * fraction), total - 1)];
 
-  // 11 sample points: 0%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%
   const SAMPLE_FRACTIONS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
   const SAMPLE_LABELS = [
     "OPENING (0%)",
