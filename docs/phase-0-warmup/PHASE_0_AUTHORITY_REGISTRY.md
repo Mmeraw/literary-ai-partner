@@ -1,14 +1,14 @@
 # Phase 0 Authority Registry
 
-Status: canonical authority registry v1  
-Audience: Phase 0, Phase 0.5A, Phase 0.5B, Phase 1A, Pass 3A, Semantic Gate, Phase 2, Phase 3, WAVE, Revise Admission  
-Runtime role: exact authority map for warmup/canon/governance loading. Do not mine GitHub PR history during evaluation runtime.
+Status: canonical authority registry v1.1  
+Audience: Phase 0, Phase 0.5A, Phase 0.5B, Phase 1A, Pass 3A, Semantic Gate, Phase 2, Phase 3, WAVE, Revise Admission, Revise Queue, Revise Workbench  
+Runtime role: exact authority map for warmup/canon/governance/benchmark loading. Do not mine GitHub PR history during evaluation runtime.
 
 ## Purpose
 
 This registry defines the exact repository paths that constitute RevisionGrade Phase 0 authority.
 
-Phase 0.5A and Phase 0.5B must not use vague references such as “warmup material,” “canon,” or “governance docs” without resolving them to this registry or a successor version of this registry.
+Phase 0.5A and Phase 0.5B must not use vague references such as “warmup material,” “canon,” “benchmarks,” “calibration docs,” or “governance docs” without resolving them to this registry, `docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md`, or a successor version.
 
 The registry exists so seeded artifacts are not best-guess editorial outputs. They are governed outputs produced after loading the current canonical authority set.
 
@@ -17,11 +17,12 @@ The registry exists so seeded artifacts are not best-guess editorial outputs. Th
 The runtime must:
 
 1. Load this registry.
-2. Resolve every required path.
-3. Hash/checksum each loaded authority file.
-4. Persist `phase0_authority_proof_v1`.
-5. Pass `phase0_authority_proof_v1` into Phase 0.5A and Phase 0.5B.
-6. Block or degrade seed generation if required authority is missing.
+2. Load `docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md`.
+3. Resolve every required path.
+4. Hash/checksum each loaded authority file.
+5. Persist `phase0_authority_proof_v1`.
+6. Pass `phase0_authority_proof_v1` into Phase 0.5A and Phase 0.5B.
+7. Block or degrade seed generation if required authority is missing.
 
 ## Required artifact produced from this registry
 
@@ -37,6 +38,8 @@ Required fields:
 - `manuscript_version_id`
 - `registry_path = "docs/phase-0-warmup/PHASE_0_AUTHORITY_REGISTRY.md"`
 - `registry_checksum`
+- `runtime_benchmark_authority_map_path = "docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md"`
+- `runtime_benchmark_authority_map_checksum`
 - `loaded_authority_paths[]`
 - `missing_authority_paths[]`
 - `authority_checksums{}`
@@ -48,8 +51,6 @@ Required fields:
 ## Authority categories
 
 ### A. Compact Phase 0 warmup packet — required
-
-These files form the compact Phase 0 control packet and must be loaded first:
 
 ```text
 docs/phase-0-warmup/PHASE_0_WARMUP_BENCHMARK_MANIFEST.md
@@ -63,46 +64,24 @@ docs/phase-0-warmup/SEED_AND_PHASE_1A_GOVERNANCE.md
 ### B. Core long-form benchmark canon — required for long-form runs
 
 ```text
+docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
 docs/benchmarks/README.md
 docs/benchmarks/templates/dream-longform-layered-template.md
 docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
 ```
 
-### C. Native manuscript benchmark sets — required as quality exemplars
+### C. Native manuscript benchmarks, public calibration benchmarks, and Story Ledger answer keys
+
+The canonical runtime list lives in:
 
 ```text
-docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
-docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md
-docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
+docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 ```
 
-### D. Public-domain calibration benchmarks — required as external calibration exemplars
+This indirection prevents stale path drift when new native or public calibration benchmarks are added.
 
-```text
-docs/benchmarks/public-domain/dracula-dream-calibration.md
-docs/benchmarks/public-domain/great-expectations-dream-calibration.md
-docs/benchmarks/public-domain/pride-and-prejudice-dream-calibration.md
-docs/benchmarks/public-domain/the-awakening-dream-calibration.md
-docs/benchmarks/public-domain/the-awakening-dream-calibration-v2-governed-ledger-addendum.md
-```
-
-### E. Story Ledger benchmark answer keys — required for 0.5A story-map seed quality
-
-```text
-docs/benchmarks/story-ledger/README.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_FROGGIN_NOGGIN.md
-docs/benchmarks/story-ledger/IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_LET_THE_RIVER_DECIDE.md
-docs/benchmarks/story-ledger/FROGGIN_NOGGIN_10_LAYER_OPTIMIZATION_ADDENDUM.md
-docs/benchmarks/story-ledger/LET_THE_RIVER_DECIDE_10_LAYER_OPTIMIZATION_ADDENDUM.md
-```
-
-### F. Retired benchmark references — not current Story Ledger authority
-
-Retired benchmark references have been removed from the active authority set and must not be treated as current warmup authority, benchmark gate, release gate, or Story Ledger exemplar. Use the ten-layer Story Ledger benchmark set above; when a single product example is required, use `IDEAL_STORY_LEDGER_10_LAYER_BENCHMARK_CARTEL_BABIES.md`.
-
-### G. Registered canon and governance — required for 0.5A/0.5B authority grounding
+### D. Registered canon and governance — required for 0.5A/0.5B authority grounding
 
 ```text
 docs/canon/intake/_md/VOLUME II — STORY EVALUATION CRITERIA & ANALYTICAL FRAMEWORK (V2.0).md
@@ -118,17 +97,18 @@ docs/canon/intake/_md/RevisionGrade System Overview  - The Governed Narrative Ev
 
 ### Phase 0
 
-Phase 0 loads this registry and produces `phase0_authority_proof_v1`.
+Phase 0 loads this registry, the runtime benchmark authority map, and required files, then produces `phase0_authority_proof_v1`.
 
 ### Phase 0.5A
 
-Phase 0.5A must consume `phase0_authority_proof_v1` before producing `story_map_seed_v1`.
+Phase 0.5A must consume `phase0_authority_proof_v1` before producing `story_map_seed_v1` or `full_context_story_ledger_v1`.
 
-`story_map_seed_v1` must record:
+`story_map_seed_v1` and `full_context_story_ledger_v1` must record:
 
 - `phase0_authority_proof_id`
 - `loaded_authority_paths[]`
 - `authority_checksums{}`
+- `runtime_benchmark_authority_map_path`
 - `canon_sources_missing[]`
 - `authority_path_basis[]` where applicable
 
@@ -141,8 +121,25 @@ Phase 0.5B must consume `phase0_authority_proof_v1` before producing `revise_opp
 - `phase0_authority_proof_id`
 - `loaded_authority_paths[]`
 - `authority_checksums{}`
+- `runtime_benchmark_authority_map_path`
 - `canon_sources_missing[]`
 - `authority_path_basis[]` for each opportunity where applicable
+
+### Pass 1 / Pass 2
+
+Pass 1 and Pass 2 may use benchmark authority as calibration context only. Manuscript evidence remains primary.
+
+### Pass 3A / Pass 3B
+
+Pass 3A and Pass 3B must use the runtime benchmark authority map to enforce DREAM long-form multi-layer structure, governed ledgers, evidence distribution, cross-layer synthesis, and report completeness.
+
+### Quality Gate / Semantic Gate
+
+Gates must treat missing benchmark-required surfaces as completeness or fit-gap findings, not as manuscript facts.
+
+### WAVE / Revise Queue / Revise Workbench
+
+WAVE, Revise Queue, and Revise Workbench must use benchmark authority for opportunity shape, layer-completeness standards, and repair quality patterns, while never treating benchmark prose as evidence about a submitted manuscript.
 
 ## Missing authority behavior
 
@@ -167,6 +164,8 @@ Forbidden outcomes:
 ```text
 Phase 0 Authority Registry
   ↓
+Runtime Benchmark Authority Map
+  ↓
 phase0_authority_proof_v1
   ↓
 story_map_seed_v1 + evaluation_seed_v1 + revise_opportunity_seed_v1
@@ -177,7 +176,7 @@ Pass 3A verified story handoff
   ↓
 Semantic Gate
   ↓
-Phase 2 / Phase 3 / WAVE / Revise Admission
+Phase 2 / Phase 3 / WAVE / Revise Admission / Revise Queue / Revise Workbench
 ```
 
 ## Runtime prohibition
