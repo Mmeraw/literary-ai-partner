@@ -67,8 +67,7 @@ RevisionGrade-native benchmark families are allowed to define the quality bar fo
 Native benchmark families include:
 
 ```text
-docs/benchmarks/froggin-noggin-dream.md
-docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md
 docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
 docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
 ```
