@@ -1,5 +1,6 @@
 name: RG One-Shot River Froggin Validation
 
+# Retriggered by connector to force validation after workflow creation.
 on:
   push:
     branches:
