@@ -11,13 +11,13 @@ export const REVISE_QUEUE_WARMUP_FILES = [
   // Ten-layer benchmarked story ledgers and governing contracts used during warmup calibration.
   'docs/STORY_LEDGER_QUALITY_GATE.md',
   'docs/canon/STORY_LEDGER_SEMANTIC_INTEGRITY_CONTRACT.md',
-  'docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md',
+  'docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md',
 ] as const
 
 export const REVISE_QUEUE_BENCHMARK_FILES = [
-  'docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md',
+  'docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md',
   'docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md',
 ] as const
