@@ -27,7 +27,7 @@ That index declares the three current RevisionGrade-native prose gold standards 
 
 | Work | File | Evaluation mode | Output mode | Role |
 |---|---|---|---|---|
-| *Froggin Noggin* | [`froggin-noggin-dream.md`](./froggin-noggin-dream.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Manual DREAM long-form multi-layer gold standard |
+| *Froggin Noggin* | [`froggin-noggin-dream-longform-multilayer-gold-standard.md`](./froggin-noggin-dream-longform-multilayer-gold-standard.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Unified DREAM long-form multi-layer required-gold standard |
 | *Let the River Decide* | [`let-the-river-decide-dream-longform-multilayer-gold-standard.md`](./let-the-river-decide-dream-longform-multilayer-gold-standard.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Unified DREAM long-form multi-layer calibration standard |
 | *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md) | `long_form_multi_layer_evaluation` | `multi_layer_long_form` | Unified canonical DREAM long-form multi-layer gold standard |
 
