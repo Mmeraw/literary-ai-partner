@@ -247,6 +247,107 @@ A DREAM evaluation of *Great Expectations* fails if it does not detect:
 
 ---
 
+## Long-Form Multi-Layer Calibration Layers
+
+This section normalizes *Great Expectations* to the long-form multi-layer calibration family. It preserves `runtime-authority: false` while making the calibration lessons explicit for multi-layer evaluation behavior.
+
+### Layer 1 — Narrative Arc Calibration
+
+| Arc segment | Function | Calibration rule |
+|---|---|---|
+| Marsh origin and convict encounter | Establishes fear, guilt, theft, class vulnerability, and symbolic geography. | Opening trauma may seed the entire long-form moral architecture. |
+| Forge / Joe / early shame | Builds ethical ground and Pip's first class dissatisfaction. | Quiet domestic loyalty can be a stronger structural engine than spectacle. |
+| Satis House initiation | Humiliation, desire, frozen time, Miss Havisham, and Estella reshape Pip's self-story. | Romance pressure must be read as class injury and miseducation. |
+| Expectations and London education | Converts fantasy into social performance, debt, manners, and moral drift. | Serial social breadth can enrich world and still carry pacing cost. |
+| Magwitch revelation and river return | Collapses false causality and forces Pip into compassion, obligation, and danger. | Revelation must be judged by how it reinterprets prior arcs. |
+| Joe/Biddy/Estella closure | Resolves moral sight, gratitude, forgiveness, and scarred recognition. | Closure is moral recovery first, romantic outcome second. |
+
+### Layer 2 — Character Arc Calibration
+
+| Character | Initial state | Transformation | Final calibration obligation |
+|---|---|---|---|
+| Pip | Frightened orphan with shame and hunger for status | False gentility collapses into remorse, compassion, and moral repair | Track shame as plot engine, not merely personality flaw. |
+| Joe Gargery | Loyal laboring father-figure | Remains ethical ground despite Pip's betrayal | Treat constancy as structural force, not passivity. |
+| Abel Magwitch | Terrifying convict | Hidden benefactor and surrogate father whose gift reverses Pip's fantasy | Track fear → shame → obligation → compassion. |
+| Miss Havisham | Betrayed bride frozen in injury | Miseducator whose revenge system produces remorse and reckoning | Read Satis House as wound-system and symbolic environment. |
+| Estella | Trained instrument of emotional coldness | Damaged survivor capable of recognition depending edition | Do not flatten her into prize, villain, or simple love interest. |
+| Biddy | Moral clarity and practical intelligence | Becomes the truth Pip failed to value | Treat her as ethical calibration, not consolation option. |
+
+### Layer 3 — Theme Layer Calibration
+
+Required thematic detection includes shame, class aspiration, money, gentility as illusion, labor as moral ground, justice and criminality, gratitude, forgiveness, desire as humiliation, and moral education through disillusionment.
+
+Calibration rule: theme is embedded in plot reversals, places, names, social speech, debt, gifts, and tactile objects. Do not require direct thematic statement.
+
+### Layer 4 — Symbol Layer Calibration
+
+| Symbol system | Narrative function | Calibration rule |
+|---|---|---|
+| File and food | Begins Pip's guilt ledger and hidden bond with Magwitch | Small objects can carry long-form causal payoff. |
+| Marsh / river / hulks | Fear, crime, concealment, and return of origin | Geography is moral memory, not only setting. |
+| Forge / fire | Honest labor, warmth, punishment, and Satis reckoning | Fire must be tracked as both ethical warmth and destructive reckoning. |
+| Satis House / stopped clocks | Preserved wound, class theater, emotional arrest | Place can be character-system and wound-system. |
+| Money / expectations | Social fantasy, poison, obligation, and moral test | Gift source matters more than gift amount. |
+| Hands / touch | Labor, class, punishment, care, shame, forgiveness | Tactile register is moral register. |
+
+### Layer 5 — Relationship Layer Calibration
+
+Relationship pressure is carried by shame, loyalty, misrecognition, debt, forgiveness, false romance, and substituted parentage. Required relationships include Pip/Joe, Pip/Magwitch, Pip/Estella, Miss Havisham/Estella, Pip/Biddy, Pip/Herbert, Jaggers/Wemmick, and Magwitch/Compeyson.
+
+Calibration rule: a relationship can be structurally central even if it is quiet, unequal, withheld, or mediated by shame rather than direct confrontation.
+
+### Layer 6 — POV Layer Calibration
+
+*Great Expectations* uses retrospective first-person narration: adult Pip narrates the child and young man he once was with irony, pain, tenderness, and self-accusation.
+
+Calibration rules:
+
+- Adult/child double vision is a strength.
+- Self-indicting narration is character architecture.
+- Retrospective irony should not be mistaken for inconsistent voice.
+- Moral interpretation may arrive after the event being narrated.
+
+### Layer 7 — World Layer Calibration
+
+Primary world systems include the marsh, forge, Satis House, London rooms, legal offices, Newgate/criminal justice, river pursuit, domestic interiors, class manners, debt economy, and social speech codes.
+
+Calibration rule: Dickensian worldbuilding can operate through social rooms, comic figures, repeated class interactions, and symbolic places. Breadth is not automatically bloat, though it can create drag.
+
+### Layer 8 — Reader Experience Layer Calibration
+
+Expected reader progression: fear → shame → aspiration → humiliation → social drift → revelation shock → moral revulsion → compassion → remorse → scarred recognition.
+
+Calibration rule: the reader's emotional journey is moral education. Narrative drive may come from the collapse of Pip's false self-story rather than from external action density.
+
+### Layer 9 — Market Layer Calibration
+
+Modern shelf: literary bildungsroman, social-moral novel, classic coming-of-age, class/identity novel, moral psychological fiction.
+
+Calibration rule: do not impose modern thriller pacing or romance-closure expectations. The correct calibration question is whether the novel converts class aspiration into moral revelation and repair.
+
+### Layer 10 — Story Ledger Layer Calibration
+
+Required story-ledger extraction must identify: Pip's origin wound, Joe as ethical ground, Satis House as wound-system, Estella as miseducation, false-benefactor causality, Magwitch inversion, symbolic place lifecycle, tactile morality, serial breadth/pacing cost, and moral closure.
+
+Failure condition: any ledger that treats the novel as only social mobility, only romance, or only a benefactor twist is incomplete.
+
+### Layer 11 — Calibration Notes Layer
+
+RevisionGrade must recognize the following as valid craft choices in this calibration family:
+
+- Retrospective first-person narration with adult/child double vision.
+- Moral psychology as plot architecture.
+- Quiet ethical characters as load-bearing structural centers.
+- Serial breadth that enriches social world while still requiring pacing diagnosis.
+- Symbolic places as active story systems.
+- Revelation that reinterprets earlier causality.
+- Sentimentality that earns payoff through prior moral action.
+- Ambiguous or softened closure that remains thematically defensible.
+
+RevisionGrade should not recommend modernization solely because a classic uses serial expansion, retrospective moral narration, dialect, social-room breadth, or moral closure instead of contemporary plot velocity.
+
+---
+
 ## Repo summary
 
 ```yaml
