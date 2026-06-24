@@ -53,7 +53,7 @@ describe('Native Story Ledger canon — Cartel Babies primary example', () => {
 
     expect(index).toContain('| *Cartel Babies* | [`cartel-babies-dream-longform-multilayer-gold-standard.md`](./cartel-babies-dream-longform-multilayer-gold-standard.md)');
     expect(index).toContain('| Required gold |');
-    expect(index).toContain('| *Let the River Decide* | [`let-the-river-decide-dream.md`](./let-the-river-decide-dream.md)');
+    expect(index).toContain('| *Let the River Decide* | [`let-the-river-decide-dream-longform-multilayer-gold-standard.md`](./let-the-river-decide-dream-longform-multilayer-gold-standard.md)');
     expect(index).toContain('| Calibration |');
   });
 
