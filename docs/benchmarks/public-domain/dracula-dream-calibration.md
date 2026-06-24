@@ -235,6 +235,104 @@ A DREAM evaluation of *Dracula* fails if it does not detect:
 
 ---
 
+## Long-Form Multi-Layer Calibration Layers
+
+This section normalizes *Dracula* to the long-form multi-layer calibration family. It does not convert the file into RevisionGrade-native runtime authority; it preserves `runtime-authority: false` while making the calibration lessons explicit for multi-layer evaluation behavior.
+
+### Layer 1 — Narrative Arc Calibration
+
+| Arc segment | Function | Calibration rule |
+|---|---|---|
+| Harker's journey and castle imprisonment | Establishes foreignness, hospitality-as-control, locked-space dread, and rule discovery. | Slow opening travel is acceptable when it steadily converts curiosity into dread. |
+| Lucy illness and contamination | Transforms social/courtship material into blood, sleep, diagnosis, transfusion, and vampiric inversion. | Illness sequences may carry plot through bodily change rather than overt action. |
+| Evidence assembly | Turns journals, letters, phonograph diaries, memoranda, and typed transcripts into collective proof. | Documentary accumulation is plot, not packaging. |
+| Earth-box pursuit | Converts supernatural danger into property, logistics, shipping, maps, and timing pressure. | Procedural repetition may be a controlled strength but can still create drag. |
+| Mina contamination and Transylvania return | Personalizes the threat and binds pursuit, infection, faith, and time pressure. | Final pursuit must be judged by promise/payoff, not by modern action density. |
+
+### Layer 2 — Character Arc Calibration
+
+| Character | Initial state | Transformation | Final calibration obligation |
+|---|---|---|---|
+| Jonathan Harker | Rational professional observer | Captivity survivor and witness | Track trauma, evidence, and witness function, not only plot presence. |
+| Mina Murray/Harker | Intelligent correspondent and organizer | Evidence architect, moral center, contaminated target | Treat organizational intelligence as structural agency. |
+| Lucy Westenra | Socially desired innocent | Illness, contamination, vampiric inversion, ritual release | Track victim arc as symbolic and structural, not merely sentimental. |
+| Van Helsing | External expert | Bridge between science, faith, folklore, and action | Do not flatten him into exposition; he is epistemic mediator. |
+| Dracula | Distant aristocratic predator | Expanding contaminating force | Evaluate as force/system/predator logic, not modern psychological villain. |
+
+### Layer 3 — Theme Layer Calibration
+
+Required thematic detection includes civilization versus predation, modernity versus ancient knowledge, science and faith as forced collaborators, contamination of innocence, gendered protection and agency, imperial/foreignness anxieties, blood as kinship and infection, and evidence as moral responsibility.
+
+Calibration rule: theme may be distributed across documents, symbols, disease logic, social ritual, and pursuit mechanics. Do not demand a single protagonist monologue or modern thematic self-awareness.
+
+### Layer 4 — Symbol Layer Calibration
+
+| Symbol system | Narrative function | Calibration rule |
+|---|---|---|
+| Blood | Life-force, kinship, sexuality, transfusion, contamination, salvation risk | Must be lifecycle-traced across Lucy, Mina, Dracula, and the group. |
+| Documents / records | Converts scattered testimony into collective intelligence | Treat documents as engine, not ornament. |
+| Thresholds | Governs invitation, imprisonment, access, violation, and safety | Track thresholds as rules and symbolic boundaries. |
+| Sacred objects | Crucifix, host, garlic, and ritual defense become physical constraints | Do not treat faith-elements as decorative atmosphere. |
+| Night / sleep / dawn | Structures vulnerability, predation, and time pressure | Time-of-day logic is plot governance. |
+
+### Layer 5 — Relationship Layer Calibration
+
+Relationship pressure in *Dracula* is carried by protection, contamination, loyalty, diagnosis, grief, rescue, and shared evidence rather than contemporary romance beats. Required relationships include Jonathan/Mina, Mina/group, Lucy/suitors/Van Helsing, Dracula/Harker, Dracula/Mina, Seward/Renfield, and Van Helsing/modern men.
+
+Calibration rule: the evaluator must detect relational function even when scenes are mediated through documents instead of direct dialogue.
+
+### Layer 6 — POV Layer Calibration
+
+*Dracula* is a multi-document, multi-voice narrative. Journals, letters, newspaper extracts, telegrams, memoranda, phonograph records, and typed compilations are part of the POV structure.
+
+Calibration rules:
+
+- Multiple viewpoint shifts are acceptable.
+- Fragmentary documentary presentation is acceptable.
+- Repeated recounting can be a proof mechanism.
+- The evaluator must distinguish productive documentary repetition from momentum drag.
+
+### Layer 7 — World Layer Calibration
+
+Primary world systems include Transylvanian folklore landscape, Victorian England, rail/shipping/property logistics, medical institutions, asylum observation, religious ritual, gender/social codes, and early recording technologies.
+
+Calibration rule: worldbuilding can emerge through evidence, objects, documents, places, and rule discovery. It does not need modern fantasy-style exposition.
+
+### Layer 8 — Reader Experience Layer Calibration
+
+Expected reader progression: curiosity → unease → captivity dread → contamination anxiety → investigative urgency → procedural pursuit → final relief/restoration.
+
+Calibration rule: atmosphere can be the primary emotional engine. Slow dread is not the same as weak narrative drive when each document deepens threat comprehension.
+
+### Layer 9 — Market Layer Calibration
+
+Modern shelf: Gothic horror, literary horror, classic horror, epistolary supernatural thriller.
+
+Calibration rule: contemporary commercial thriller pacing must not be imposed. The correct calibration question is whether the novel converts dread into evidence, symbolic pressure, and escalating pursuit.
+
+### Layer 10 — Story Ledger Layer Calibration
+
+Required story-ledger extraction must identify: threat introduction, rule discovery, contamination system, evidence assembly, relationship stakes, symbolic lifecycle, pursuit logic, Mina's structural role, middle procedural drag, and closure/payoff.
+
+Failure condition: any ledger that treats Dracula only as a monster plot, ignores Mina's evidence function, or misses the dossier structure is incomplete.
+
+### Layer 11 — Calibration Notes Layer
+
+RevisionGrade must recognize the following as valid craft choices in this calibration family:
+
+- Long exposition when it builds dread and rule discovery.
+- Multiple narrators and documentary handoffs.
+- Journal, letter, clipping, and memorandum form.
+- Atmospheric pacing.
+- Delayed confrontation.
+- Indirect thematic delivery.
+- Evidence accumulation as action.
+- Period prose and historical medical/religious logic.
+
+RevisionGrade should not recommend modernization solely because a classic uses slower pacing, epistolary structure, Victorian syntax, or distributed narrative authority.
+
+---
+
 ## Repo summary
 
 ```yaml
