@@ -70,8 +70,7 @@ Native benchmark families include:
 docs/benchmarks/froggin-noggin-dream.md
 docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
 docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md
-docs/benchmarks/let-the-river-decide-dream.md
-docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md
 ```
 
 Public-domain calibration artifacts remain `runtime-authority: false` unless explicitly promoted through a later governance decision. They may teach calibration behavior, but they must not replace RevisionGrade-native gold standards.
