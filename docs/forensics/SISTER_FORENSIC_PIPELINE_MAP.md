@@ -374,18 +374,17 @@
 | **Canon ref** | SIPOC `S11_RENDERER` (same stage ID — **canon doesn't distinguish download from webpage**) |
 | **Runtime code** | `app/api/reports/[jobId]/download/route.ts` |
 | **Input** | Persisted artifact from `evaluation_artifacts` |
-| **Output** | PDF (via Chromium), DOCX (docx library), TXT (template builder) |
-| **Processing chain** | `artifact` → `sanitizeResultForDownload()` → `validateDownloadParity()` → `buildUnifiedEvaluationDocument()` → format-specific renderer |
-| **Quality gates** | Download parity gate (`validateDownloadParity`) — checks for forbidden patterns post-sanitization |
-| **Mutation points** | Read-time sanitizer modifies editorial fields; CMOS sanitizer normalizes style |
+| **Output** | PDF (via Chromium HTML), DOCX (docx library), TXT (VM renderer) |
+| **Processing chain** | `artifact` → `buildUnifiedEvaluationDocument()` → `normalizeEvaluationReportViewModel()` → `renderTxtFromViewModel()` / `renderHtmlFromViewModel()` / `renderDocxFromViewModel()` |
+| **Quality gates** | Render parity gate — checks field presence across VM-rendered outputs |
+| **Mutation points** | ViewModel boundary normalizes author-facing editorial text; renderers format only |
 | **Ownership boundary** | Same as webpage — author text preserved, editorial text sanitized |
 
 ### What the download pipeline does
-1. `sanitizeResultForDownload()` — cleans forbidden patterns (shared registry from PR #1046)
-2. `validateDownloadParity()` — rejects if contamination remains after sanitization
-3. `sanitizeCMOS()` — normalizes editorial style
-4. `buildUnifiedEvaluationDocument()` — builds canonical model (SAME function as webpage)
-5. Format-specific renderer: `buildCanonicalTemplateTxt()`, `renderCanonicalTemplateHtml()`, `buildCanonicalTemplateDocx()`
+1. `buildUnifiedEvaluationDocument()` — builds the Certified UED (same persistence artifact family as webpage)
+2. `normalizeEvaluationReportViewModel()` — owns author-facing presentation text and scope-language normalization
+3. Format-specific renderer: `renderTxtFromViewModel()`, `renderHtmlFromViewModel()` → PDF, `renderDocxFromViewModel()`
+4. Render parity verification confirms required field presence across PDF/DOCX/TXT.
 
 ### Canon gaps — THIS IS THE BIGGEST CANON GAP
 - **SIPOC does not mention the download pipeline at all**
@@ -395,10 +394,9 @@
 - No read-time sanitizer mentioned in canon
 - **Canon update needed:** Split `S11_RENDERER` into `S11a_WEBPAGE_RENDERER` and `S11b_DOWNLOAD_RENDERER`, or add download-specific acceptance metrics
 
-### ~1000 lines of dead legacy renderers
-- `buildTxtReport`, `renderPremiumReportHtml`, `buildPdfReport`, `buildDocx` — all defined in route.ts but never called
-- These are the old "premium renderers" from the engineering brief
-- **Cleanup PR needed** (separate from any feature work)
+### Legacy renderer cleanup status
+- Legacy UED-consuming canonical-template renderers and the old DOCX dead-code block were removed in PR #1183.
+- `renderPremiumReportHtml` remains only as a separate premium report helper/test surface, not as the S11b VM download renderer.
 
 ---
 

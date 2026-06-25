@@ -892,12 +892,14 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
   - requested format is supported
   - release gate passed (author exposure certification valid)
 - **Process / runtime code surface:**
-  - `lib/evaluation/evaluationReportViewModel.ts` (ViewModel source — all sanitization already applied)
-  - `lib/evaluation/downloadParityGate.ts` (cross-format parity validation)
-  - `app/api/evaluations/[jobId]/route.ts` (format-specific renderers: `buildCanonicalTemplateTxt`, `renderCanonicalTemplateHtml` → PDF, `buildCanonicalTemplateDocx`)
+  - `lib/evaluation/unifiedEvaluationDocument.ts` (Certified UED assembly)
+  - `lib/evaluation/evaluationReportViewModel.ts` (single author-facing presentation/sanitization boundary — all sanitization already applied)
+  - `lib/evaluation/reportRenderParity.ts` (post-render parity validation)
+  - `app/api/reports/[jobId]/download/route.ts` (format-specific VM renderers: `renderTxtFromViewModel`, `renderHtmlFromViewModel` → PDF, `renderDocxFromViewModel`)
 - **Output:** PDF, DOCX, or TXT file delivered to the user
 - **Output acceptance metrics:**
   - ViewModel consumed directly — no additional sanitization applied by renderers
+  - ViewModel boundary passes: no forbidden patterns remain in VM-owned editorial text
   - Parity gate passes: all formats produce identical logical content from the same ViewModel
   - **Evidence ownership preserved:** `anchor_snippet` and `evidence_snippets[*].snippet` are byte-for-byte identical to source (Runtime Doctrine #12)
   - Format-specific renderer completes without error
@@ -906,9 +908,12 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Gates / invariants:**
   - Renderers consume `evaluation_report_view_model_v1` and perform formatting only — no business logic, no sanitization, no score derivation
   - All sanitization (mistakeProofText, correctScopeLanguage) has already been applied by the ViewModel Boundary Gate — renderers MUST NOT re-sanitize
+  - ViewModel sanitizer must NOT mutate manuscript evidence or quotations (author-owned content)
   - Manuscript evidence and quotations (author-owned content) are preserved byte-for-byte from UED through ViewModel through renderers
   - **RENDER_PARITY_GATE:** Cross-format parity validation confirms all renderers produce identical logical content from the same ViewModel
-  - Download rejected if parity gate fails
+  - Render parity gate validates output before format rendering proceeds
+  - Download rejected if contamination remains after VM normalization
+  - Download rejected if render parity gate fails
 - **Failure codes:** `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
 - **Required telemetry:** sanitizer pass/fail + patterns cleaned, parity gate pass/fail, format render timing
 - **Required evidence artifact:** pre-sanitization snapshot + post-sanitization diff + parity gate diagnostic

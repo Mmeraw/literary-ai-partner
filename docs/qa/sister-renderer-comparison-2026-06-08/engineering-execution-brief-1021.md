@@ -9,8 +9,8 @@ This is not primarily a visual-design defect.
 It is a **product contract defect**:
 
 1. UI/download copy promises premium/matching exports.
-2. Active download route serves canonical simplified renderers.
-3. Legacy premium renderer functions still exist in code but are not the active GET path.
+2. Active download route serves direct ViewModel renderers.
+3. Legacy UED-consuming canonical renderers and the old DOCX dead-code block have been removed; premium helper surfaces are not the S11b download authority.
 4. Users receive outputs that do not match promised presentation quality/consistency.
 
 ## Code evidence (line-level)
@@ -24,18 +24,15 @@ It is a **product contract defect**:
 
 ### Active delivery layer
 
-- `app/api/reports/[jobId]/download/route.ts:2660`
-  - TXT path uses `buildCanonicalTemplateTxt(canonicalDoc)`
-- `app/api/reports/[jobId]/download/route.ts:2672`
-  - PDF path uses `renderCanonicalTemplateHtml(canonicalDoc)`
-- `app/api/reports/[jobId]/download/route.ts:2702`
-  - DOCX path uses `buildCanonicalTemplateDocx(canonicalDoc)`
+- `app/api/reports/[jobId]/download/route.ts`
+   - TXT path uses `renderTxtFromViewModel(vm)`
+   - PDF path uses `renderHtmlFromViewModel(vm)`
+   - DOCX path uses `renderDocxFromViewModel(vm)`
 
-### Legacy premium code present (not active GET path)
+### Legacy premium code status
 
-- `app/api/reports/[jobId]/download/route.ts:1557` (`renderPremiumReportHtml`)
-- `app/api/reports/[jobId]/download/route.ts:1782` (`buildPdfReport`)
-- `app/api/reports/[jobId]/download/route.ts:1806` (`buildDocx`)
+- `renderPremiumReportHtml` remains a separate helper/test surface.
+- The old PDF/DOCX dead-code renderer path is no longer the active S11b download authority.
 
 ---
 
@@ -54,7 +51,7 @@ Do not begin with CSS refinement.
 
 ### Decision lock (non-negotiable)
 
-- **Option A is mandatory**: canonical template model (`canonicalDoc`) + premium adapter styling.
+- **Current authority is mandatory**: Certified UED → `EvaluationReportViewModel` → direct format renderer.
 - **No hybrid Option A/B path is permitted.**
 - Engineering must not begin export styling work until this decision is implemented in code paths and tests.
 

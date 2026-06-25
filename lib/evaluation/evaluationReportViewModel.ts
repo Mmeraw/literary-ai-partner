@@ -141,6 +141,9 @@ export type EvaluationReportViewModel = {
   // Mode-specific (long-form / multi-layer)
   modeSpecific: {
     manuscriptScaleContinuityFindings: string[];
+    storyLedgerArchitectureMap: string[];
+    reviewGateReadinessSurface: string[];
+    governedLedgerAddenda: string[];
     revisionPriorityPlan: Array<{
       priority: number;
       title: string;
@@ -259,28 +262,25 @@ export function normalizeEvaluationReportViewModel(
     scoreLabel: detail.scoreLabel,
     scorePalette: deriveScorePalette(detail.scoreLabel),
     confidenceLabel: detail.confidenceLabel ?? null,
-    supportLabel: detail.supportLabel ?? null,
+    supportLabel: detail.supportLabel ? sanitizeText(detail.supportLabel, isLongForm) : null,
     rationaleLabel: detail.rationaleLabel,
     rationaleText: sanitizeText(detail.rationaleText, isLongForm),
     recommendations: (detail.recommendations ?? []).map(rec => ({
       opportunity_id: rec.opportunity_id,
       priority: rec.priority,
-      anchor_snippet: rec.anchor_snippet,
+      anchor_snippet: rec.anchor_snippet ? sanitizeText(rec.anchor_snippet, isLongForm) : undefined,
       anchor_type: rec.anchor_type,
-      symptom: rec.symptom,
-      mechanism: rec.mechanism,
-      specific_fix: rec.specific_fix,
-      reader_effect: rec.reader_effect,
-      mistake_proofing: rec.mistake_proofing,
+      symptom: rec.symptom ? sanitizeText(rec.symptom, isLongForm) : undefined,
+      mechanism: rec.mechanism ? sanitizeText(rec.mechanism, isLongForm) : undefined,
+      specific_fix: rec.specific_fix ? sanitizeText(rec.specific_fix, isLongForm) : undefined,
+      reader_effect: rec.reader_effect ? sanitizeText(rec.reader_effect, isLongForm) : undefined,
+      mistake_proofing: rec.mistake_proofing ? sanitizeText(rec.mistake_proofing, isLongForm) : undefined,
       collapsed_from_criteria: rec.collapsed_from_criteria,
     })),
   }));
 
   const confidenceExplanation = sanitizeText(
-    ued.criterionDetails
-      .filter(d => d.confidenceLabel)
-      .map(d => `${d.label}: ${d.confidenceLabel}`)
-      .join('. ') || 'Confidence levels are derived from evidence density and diagnostic coverage.',
+    ued.confidenceExplanation,
     isLongForm,
   );
 
@@ -307,14 +307,17 @@ export function normalizeEvaluationReportViewModel(
 
     confidenceExplanation,
 
-    modeSpecific: {
+    modeSpecific: ued.modeSpecific ? {
       manuscriptScaleContinuityFindings: sanitizeList(ued.modeSpecific.manuscriptScaleContinuityFindings, isLongForm),
+      storyLedgerArchitectureMap: sanitizeList(ued.modeSpecific.storyLedgerArchitectureMap, isLongForm),
+      reviewGateReadinessSurface: sanitizeList(ued.modeSpecific.reviewGateReadinessSurface, isLongForm),
+      governedLedgerAddenda: sanitizeList(ued.modeSpecific.governedLedgerAddenda, isLongForm),
       revisionPriorityPlan: ued.modeSpecific.revisionPriorityPlan,
       crossLayerSynthesis: sanitizeList(ued.modeSpecific.crossLayerSynthesis, isLongForm),
       layerAwareRevisionSequencing: sanitizeList(ued.modeSpecific.layerAwareRevisionSequencing, isLongForm),
       continuityCoverageProof: sanitizeList(ued.modeSpecific.continuityCoverageProof, isLongForm),
       readinessReleasabilityPosture: sanitizeText(ued.modeSpecific.readinessReleasabilityPosture, isLongForm),
-    },
+    } : undefined,
 
     disclaimer: DISCLAIMER,
   };
