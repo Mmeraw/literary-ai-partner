@@ -26,12 +26,49 @@ EVALUATION FACTORY   (docs/SIPOC_EVALUATION_PROCESS.md)
         ↓
   revision_opportunity_ledger_v1
         ↓
+  REVISE_ADMISSION_GATE
+        ↓
+  REVISE_LEDGER_TRACEABILITY_GATE
+        ↓
+  workbench_queue_v1
+        ↓
 REVISE FACTORY   (← this document)
+        ↓
+  author_decision_v1
         ↓
   revision_completion_record_v1
         ↓
-AGENT READINESS FACTORY   (future)
+AGENT READINESS FACTORY   (docs/SIPOC_AGENT_READINESS_PROCESS.md)
 ```
+
+### Artifact Pipeline (explicit)
+
+```
+Certified UED
+    ↓
+revision_opportunity_ledger_v1   (bridge from Evaluation)
+    ↓
+REVISE_ADMISSION_GATE            (validates ledger backing, card contract, evidence anchors)
+    ↓
+REVISE_LEDGER_TRACEABILITY_GATE  (every queue item traceable: opportunity_id + source_criterion + source_ued_hash)
+    ↓
+workbench_queue_v1               (classified, prioritized queue: ready_for_revise | needs_targeting)
+    ↓
+author_decision_v1               (canonical decision per opportunity: accept/reject/defer/custom)
+    ↓
+revision_completion_record_v1    (certified record of all decisions + sync status)
+```
+
+### Traceability Contract
+
+Every queue item in `workbench_queue_v1` MUST contain:
+- `opportunity_id` — stable identifier from `revision_opportunity_ledger_v1`
+- `source_criterion` — the canonical criterion key this opportunity traces to
+- `source_ued_hash` — hash of the source `UnifiedEvaluationDocument` that produced this opportunity
+- `finding_id` — stable finding identifier from diagnostic_findings_v1
+- `evaluation_job_id` — the evaluation job that produced the evidence
+
+No queue item may exist without ledger provenance. This is enforced by `REVISE_LEDGER_TRACEABILITY_GATE`.
 
 ---
 
@@ -59,18 +96,19 @@ AGENT READINESS FACTORY   (future)
 ```
 Revision Opportunity Ledger Assembly (RS01)
   → Queue Admission Gate (RS02)
-    → Queue Prioritization and Assembly (RS03)
-      → Workbench Evidence Load (RS04)
-        → A/B/C Candidate Generation (RS05)  [if candidates absent]
-          ↓
-        Author Decision Capture (RS06)
-          → Ledger Sync (RS07)
-            → [when all ready items decided]
-            Completion Certification (RS08)  [active]
-              → end state
-        ↑ async/feature-flagged ↑
-        Repair Cross-Check Verification (RS09)
-          → TrustedPath Auto-Apply (RS10)    [if verdict=approve]
+    → Ledger Traceability Gate (RS02b)  [REVISE_LEDGER_TRACEABILITY_GATE]
+      → Queue Prioritization and Assembly (RS03)
+        → Workbench Evidence Load (RS04)
+          → A/B/C Candidate Generation (RS05)  [if candidates absent]
+            ↓
+          Author Decision Capture (RS06)
+            → Ledger Sync (RS07)
+              → [when all ready items decided]
+              Completion Certification (RS08)  [active]
+                → end state
+          ↑ async/feature-flagged ↑
+          Repair Cross-Check Verification (RS09)
+            → TrustedPath Auto-Apply (RS10)    [if verdict=approve]
 ```
 
 **Highest-risk seam:**
@@ -88,6 +126,7 @@ violation.
 |---|---|---|---|---|
 | Ledger Assembly | RS01 | Ledger Assembly | active | partial |
 | Queue Admission | RS02 | Queue Admission | active | partial |
+| Ledger Traceability Gate | RS02b | Queue Admission | active | emerging |
 | Queue Prioritization | RS03 | Queue Management | active | emerging |
 | Workbench Evidence Load | RS04 | Workbench | active | emerging |
 | A/B/C Candidate Generation | RS05 | Workbench | active | partial |
@@ -96,6 +135,61 @@ violation.
 | Completion Certification | RS08 | Completion | active | certified |
 | Cross-Check Verification | RS09 | Cross-Check | active | partial |
 | TrustedPath Auto-Apply | RS10 | TrustedPath | active | partial |
+
+---
+
+## Stage Contract: `RS02b_REVISE_LEDGER_TRACEABILITY_GATE`
+
+### Purpose
+
+Validates that every admitted queue item has full traceability back to the evaluation that produced it. This is the enforcement point for the "no queue item without ledger provenance" doctrine.
+
+### Input
+
+- Admitted queue items from `RS02_QUEUE_ADMISSION`
+- `revision_opportunity_ledger_v1` (source ledger)
+
+### Input Acceptance Metrics
+
+| Metric | Threshold | Failure Mode |
+|---|---|---|
+| `opportunity_id` present | 100% of items | item rejected (not deleted — moved to `needs_targeting`) |
+| `source_criterion` resolves to canonical criterion key | 100% of items | item flagged for manual review |
+| `source_ued_hash` matches a persisted UED | 100% of items | item rejected |
+| `finding_id` traces to `diagnostic_findings_v1` | ≥95% of items (allows ledger-only opportunities from enrichment) | items below threshold flagged, not blocked |
+| `evaluation_job_id` resolves to a completed job | 100% of items | item rejected |
+
+### Process
+
+Validate traceability fields → verify UED hash against persisted artifacts → confirm finding lineage → emit `workbench_queue_v1` with traceability metadata attached.
+
+### Output
+
+- `workbench_queue_v1` — classified, prioritized revision queue with verified traceability
+
+### Output Acceptance Metrics
+
+| Metric | Threshold | Notes |
+|---|---|---|
+| Traceability coverage | 100% of `ready_for_revise` items have all five traceability fields | `needs_targeting` items may have partial traceability |
+| Queue item count | ≥1 item admitted | Empty queue after traceability = `REVISE_QUEUE_EMPTY` (evaluation likely too clean to revise) |
+| Ready/NeedsTargeting ratio | No minimum — passive observability | Informational; does not block |
+| Ledger-to-queue loss rate | ≤20% of admitted items rejected by traceability | If >20% rejected, emit diagnostic warning (likely upstream ledger assembly issue) |
+
+### Gates / Invariants
+
+- **REVISE_LEDGER_TRACEABILITY_GATE:** No `ready_for_revise` item may enter workbench without all five traceability fields verified
+- Items that fail traceability are not deleted — they move to `needs_targeting` with reason `traceability_incomplete`
+- This gate does NOT re-evaluate or re-score — it validates provenance only
+- Passive: does not alter opportunity content, severity, or classification
+
+### Failure Codes
+
+- `REVISE_TRACEABILITY_MISSING_OPPORTUNITY_ID`
+- `REVISE_TRACEABILITY_INVALID_CRITERION`
+- `REVISE_TRACEABILITY_UED_HASH_MISMATCH`
+- `REVISE_TRACEABILITY_FINDING_NOT_FOUND`
+- `REVISE_TRACEABILITY_JOB_NOT_FOUND`
 
 ---
 
@@ -154,9 +248,11 @@ Illegal transitions must throw and must not write to the database.
 | Family | Title | Path |
 |---|---|---|
 | governance | AI Governance | `AI_GOVERNANCE.md` |
+| governance | Artifact Authority Chain | `docs/SIPOC_ARTIFACT_AUTHORITY_CHAIN.md` |
 | contract | Revise Card Contract | `lib/revision/reviseCardContract.ts` |
 | contract | Revise Queue Ledger Contract | `lib/revision/reviseQueueLedgerContract.ts` |
 | contract | Revise Admission Gate | `lib/revision/reviseAdmissionGate.ts` |
+| contract | Revise Ledger Traceability Gate | `lib/revision/reviseAdmissionGate.ts` (traceability validation) |
 | contract | Revision Mode Contract | `lib/revision/modeContract.ts` |
 | contract | TrustedPath Contract | `lib/revision/trustedPath.ts` |
 | contract | Repair Cross-Check Contract | `lib/revision/repairCrossCheck.ts` |
@@ -226,16 +322,23 @@ Generated by `npm run fipoc:export` from `lib/revision/reviseRegistry.ts`.
 
 ## Metric Contract
 
-| Metric | Description | Governing Stage |
-|---|---|---|
-| `ledger_backing_coverage` | % of queue items sourced from `revision_opportunity_ledger_v1`; must be 100% | RS02, RS03 |
-| `ready_rate` | `ready_for_revise / total_opportunities`; passive observability only | RS02 |
-| `synced_decision_count` | Must equal `author_decision_count` before completion | RS07, RS08 |
-| `anchor_coverage` | % of items with resolved anchor in source manuscript | RS04 |
-| `finding_id_coverage` | % of ledger opportunities with stable `finding_id`; Ready rows must be traceable | RS01, RS02 |
-| `candidate_option_coverage` | % of opportunities with exact A/B/C manuscript-ready candidates; Ready rows require all three | RS02, RS04, RS05 |
-| `needs_targeting_count` | Count of evidence-backed but incomplete rows withheld from author acceptance | RS02, RS04 |
-| `trustedpath_apply_rate` | `appliedCount / total_eligible`; passive | RS10 |
-| `queue_cap_utilization` | `queue_length / hard_cap`; short-form=50, long-form=100 | RS03 |
+| Metric | Description | Governing Stage | Threshold |
+|---|---|---|---|
+| `ledger_backing_coverage` | % of queue items sourced from `revision_opportunity_ledger_v1` | RS02, RS02b, RS03 | 100% (enforced) |
+| `traceability_coverage` | % of `ready_for_revise` items with all 5 traceability fields | RS02b | 100% (enforced) |
+| `traceability_loss_rate` | % of admitted items rejected by traceability gate | RS02b | ≤20% (warning above) |
+| `ready_rate` | `ready_for_revise / total_opportunities` | RS02 | No minimum (passive) |
+| `synced_decision_count` | Must equal `author_decision_count` before completion | RS07, RS08 | equality (enforced) |
+| `anchor_coverage` | % of items with resolved anchor in source manuscript | RS04 | ≥90% (ready items) |
+| `finding_id_coverage` | % of ledger opportunities with stable `finding_id` | RS01, RS02 | ≥95% (ready items) |
+| `candidate_option_coverage` | % of opportunities with exact A/B/C manuscript-ready candidates | RS02, RS04, RS05 | 100% of ready items (enforced) |
+| `needs_targeting_count` | Count of evidence-backed but incomplete rows withheld from author acceptance | RS02, RS04 | No maximum (passive) |
+| `trustedpath_apply_rate` | `appliedCount / total_eligible` | RS10 | No minimum (passive) |
+| `queue_cap_utilization` | `queue_length / hard_cap`; short-form=50, long-form=100 | RS03 | ≤100% (enforced) |
+| `decision_canonical_rate` | % of author decisions using `RevisionLedgerDecision` enum values | RS06 | 100% (enforced) |
+| `ued_source_freshness` | source UED was produced by the most recent completed evaluation job | RS01 | informational (passive) |
 
-All metrics are passive observability. They must not alter control flow.
+**Metric enforcement levels:**
+- **Enforced** — violation blocks the pipeline (gate fails, item rejected or moved to needs_targeting)
+- **Warning** — violation emits diagnostic telemetry; does not block
+- **Passive** — observability only; must not alter control flow

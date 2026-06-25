@@ -153,9 +153,15 @@ Empty state handling:
 
 ### Runtime Spine (S01–S12) + Post-Evaluation Long-Form Stages
 
-`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> [WAVE -> Canon Governance -> DREAM -> Final External Audit] -> Phase 5 Author Exposure Gate -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
+`Intake -> Queue -> Claim -> Routing/Chunking -> Pass 1 -> Pass 2 -> Pass 1/2 Handoff Gate -> Pass 3 -> EvaluationResultV2 normalization -> QualityGateV2 -> Persistence -> [WAVE -> Canon Governance -> DREAM -> Final External Audit] -> Phase 5 Author Exposure Gate -> ViewModel Boundary Gate -> Renderer (Webpage) -> Download Pipeline (PDF/DOCX/TXT)`
 
-Post-evaluation stages (in brackets) are long-form only (≥25K words). Short-form manuscripts proceed Persistence → Phase 5 Author Exposure Gate → Renderer, skipping the bracketed long-form stages.
+Post-evaluation stages (in brackets) are long-form only (≥25K words). Short-form manuscripts proceed Persistence → Phase 5 Author Exposure Gate → ViewModel Boundary Gate → Renderer, skipping the bracketed long-form stages.
+
+**ViewModel boundary (explicit):**
+
+`Certified UED → normalizeEvaluationReportViewModel() → evaluation_report_view_model_v1 → Renderers (Web/PDF/DOCX/TXT)`
+
+Purpose: all author-facing text sanitization, business logic (palette derivation, confidence formatting), and opportunity counting happens exactly once in the ViewModel transformation. Renderers consume the ViewModel and format only — no calculations, no re-sanitization, no recommendation creation, no recounting.
 
 **Highest-risk seam (explicit):**
 
@@ -212,9 +218,10 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 | EvaluationResultV2 normalization | `S08_ER2_NORMALIZATION` | Pipeline adapter / observability normalization | `S09_QUALITYGATEV2` | High-risk |
 | QualityGateV2 | `S09_QUALITYGATEV2` | Deterministic gate engine | `S10_PERSISTENCE` | Partial |
 | Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Partial |
-| Phase 5 Author Exposure Gate | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Evaluation templates + `UnifiedEvaluationDocument` + renderer manifest + audits | `S11a_RENDERER_WEBPAGE`, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISION_LEDGER` | Missing Critical |
-| Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | Phase 5-certified `UnifiedEvaluationDocument` | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Partial |
-| Download Pipeline | `S11b_DOWNLOAD_PIPELINE` | Read-time sanitizer + parity gate + format renderers (PDF/DOCX/TXT) | End user (downloaded files) | Emerging |
+| Phase 5 Author Exposure Gate | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Evaluation templates + `UnifiedEvaluationDocument` + renderer manifest + audits | `S10c_VIEWMODEL_BOUNDARY_GATE`, `ADJACENT_REVISION_LEDGER` | Missing Critical |
+| ViewModel Boundary Gate | `S10c_VIEWMODEL_BOUNDARY_GATE` | Phase 5-certified `UnifiedEvaluationDocument` + Contract Registry | `S11a_RENDERER_WEBPAGE`, `S11b_DOWNLOAD_PIPELINE` | Active |
+| Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | `evaluation_report_view_model_v1` (from ViewModel Boundary Gate) | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Partial |
+| Download Pipeline | `S11b_DOWNLOAD_PIPELINE` | `evaluation_report_view_model_v1` + format renderers (PDF/DOCX/TXT) | End user (downloaded files) | Emerging |
 | WAVE Revision Planning | `ADJACENT_WAVE` | Pass 3 synthesis + evaluation_result_v2 | Canon Governance, DREAM, Revise | Active — Partial |
 | Canon Governance Runner | `ADJACENT_CANON_GOVERNANCE` | Manuscript + evaluation_result_v2 criteria | DREAM, Final Audit | Active — Partial |
 | DREAM Long-Form Synthesis | `ADJACENT_DREAM` | Manuscript chunks + evaluation_result_v2 | Final External Audit, End user | Active — Partial |
@@ -245,6 +252,7 @@ The following stage IDs are canonical runtime certification identifiers and are 
 - `S09_QUALITYGATEV2`
 - `S10_PERSISTENCE`
 - `S10b_PHASE5_AUTHOR_EXPOSURE_GATE`
+- `S10c_VIEWMODEL_BOUNDARY_GATE`
 - `S11a_RENDERER_WEBPAGE`
 - `S11b_DOWNLOAD_PIPELINE`
 
@@ -800,25 +808,72 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Authority priority:** Evaluation Templates > SIPOC > Spec > Runtime > Telemetry
 - **Certification status:** Missing Critical
 
+### `S10c_VIEWMODEL_BOUNDARY_GATE` — ViewModel Boundary Gate
+
+- **Supplier:** Phase 5-certified `UnifiedEvaluationDocument` + Contract Registry
+- **Input:** `unified_evaluation_document_v1` (Phase 5-certified) + active `EvaluationContract` from registry
+- **Input acceptance metrics:**
+  - `UnifiedEvaluationDocument` present and Phase 5-certified
+  - Active evaluation contract resolved from registry
+  - Template path confirmed (short-form or long-form multi-layer)
+- **Process / runtime code surface:**
+  - `lib/evaluation/evaluationReportViewModel.ts` (`normalizeEvaluationReportViewModel`)
+  - `lib/evaluation/contracts/evaluationContractRegistry.ts` (contract resolution)
+  - `lib/evaluation/reportRenderSafety.ts` (`mistakeProofText`, `correctScopeLanguage`)
+  - `__tests__/lib/evaluation/viewModelBoundaryGate.test.ts` (boundary enforcement tests)
+- **Process:** Resolve active contract → apply all author-facing text sanitization (mistakeProofText, correctScopeLanguage) → derive score palettes → format confidence labels → count opportunities → produce `evaluation_report_view_model_v1`
+- **Output:** `evaluation_report_view_model_v1`
+- **Output acceptance metrics:**
+  - All author-facing text sanitized exactly once (no double-sanitization)
+  - Score palettes derived (strong/watch/risk/muted)
+  - Confidence labels formatted
+  - Opportunity counts computed from criteria (not re-derived by renderers)
+  - Section ordering matches active template contract
+  - No raw UED fields leak to renderers unsanitized
+- **Customer / downstream stage:** `S11a_RENDERER_WEBPAGE`, `S11b_DOWNLOAD_PIPELINE`
+- **Gates / invariants:**
+  - **VIEWMODEL_BOUNDARY_GATE:** Renderers MUST NOT perform any of the following — they consume the ViewModel and format only:
+    - recompute scores
+    - infer genre/audience
+    - create recommendations
+    - rename sections
+    - re-count opportunities from raw criteria
+    - apply sanitization (mistakeProofText, correctScopeLanguage)
+    - call sanitizeAuthorFacingDisplayValue on VM-owned fields
+    - render shadow inventories (actionItems, quickWins, strategicRevisions)
+  - **RENDER_PARITY_GATE:** All renderers (Web, PDF, DOCX, TXT) must produce identical logical content from the same ViewModel — scores, recommendation counts, executive summary, section order, and confidence labels must match across all output formats
+  - The Revise Queue is a SEPARATE product surface consuming `revision_opportunity_ledger_v1` directly — it does NOT go through this ViewModel
+- **Failure codes:** `VIEWMODEL_BOUNDARY_VIOLATION`, `VIEWMODEL_CONTRACT_RESOLUTION_FAILED`, `VIEWMODEL_SANITIZATION_FAILED`, `RENDER_PARITY_FAILED`
+- **Required telemetry:** ViewModel generation timing, contract version used, sanitization pass count, opportunity count, parity validation result
+- **Required evidence artifact:** `evaluation_report_view_model_v1` with contract version linkage and sanitization audit trail
+- **Canon refs:** Runtime Doctrine #14 (one canonical template-backed view model → all surfaces)
+- **Spec refs:** `docs/templates/evaluation/surface-parity-matrix.md`
+- **Runtime refs:** `lib/evaluation/evaluationReportViewModel.ts`, `lib/evaluation/contracts/evaluationContractRegistry.ts`
+- **Authority sources:** evaluation templates, evaluation rendering contract, surface parity matrix
+- **Authority priority:** Evaluation Templates > SIPOC > Spec > Runtime > Telemetry
+- **Certification status:** Active
+
 ### `S11a_RENDERER_WEBPAGE` — Renderer (Webpage)
 
-- **Supplier:** Phase 5-certified `UnifiedEvaluationDocument`
-- **Input:** `author_exposure_certification_v1` + `report_render_manifest_v1` + `unified_evaluation_document_v1`
+- **Supplier:** `evaluation_report_view_model_v1` (from ViewModel Boundary Gate)
+- **Input:** `evaluation_report_view_model_v1` + `author_exposure_certification_v1` + `report_render_manifest_v1`
 - **Input acceptance metrics:**
+  - ViewModel present and structurally valid
   - ownership/auth check passes
   - release gate passes
 - **Process / runtime code surface:**
   - `app/api/evaluations/[jobId]/route.ts`
   - `app/evaluate/[jobId]/page.tsx`
   - `app/reports/[jobId]/page.tsx`
-  - `lib/evaluation/unifiedEvaluationDocument.ts`
+  - `lib/evaluation/evaluationReportViewModel.ts` (ViewModel source)
 - **Output:** user/admin visible evaluation webpage
 - **Output acceptance metrics:**
-  - source identified as Phase 5-certified `UnifiedEvaluationDocument`
+  - source identified as `evaluation_report_view_model_v1` (derived from Phase 5-certified UED)
   - no fabricated progress
-  - scores, recommendations, and sections match the active evaluation template and render manifest
+  - scores, recommendations, and sections consumed from ViewModel — no recalculation
+  - renderer performs formatting only (HTML structure, CSS, layout)
 - **Customer / downstream stage:** End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE`
-- **Gates / invariants:** UI/API reads persisted state only. Webpage must consume the same `UnifiedEvaluationDocument` model as downloads and may format only.
+- **Gates / invariants:** UI/API reads persisted state only. Webpage consumes `evaluation_report_view_model_v1` and may format only — no business logic, no sanitization, no score derivation. Must produce identical logical content as PDF/DOCX/TXT renderers (RENDER_PARITY_GATE).
 - **Failure codes:** `401`, `404`, `409`, `500`
 - **Required telemetry:** read path access and release decision events
 - **Required evidence artifact:** response payload audit + source marker
@@ -830,27 +885,32 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 
 ### `S11b_DOWNLOAD_PIPELINE` — Download Pipeline (PDF/DOCX/TXT)
 
-- **Supplier:** persisted artifacts (same source as webpage renderer)
-- **Input:** completed artifact + download format request (PDF, DOCX, or TXT)
+- **Supplier:** `evaluation_report_view_model_v1` (from ViewModel Boundary Gate)
+- **Input:** `evaluation_report_view_model_v1` + download format request (PDF, DOCX, or TXT)
 - **Input acceptance metrics:**
-  - artifact exists and is releasable
+  - ViewModel present and structurally valid
   - requested format is supported
+  - release gate passed (author exposure certification valid)
 - **Process / runtime code surface:**
   - `lib/evaluation/unifiedEvaluationDocument.ts` (Certified UED assembly)
-  - `lib/evaluation/evaluationReportViewModel.ts` (single author-facing presentation/sanitization boundary)
+  - `lib/evaluation/evaluationReportViewModel.ts` (single author-facing presentation/sanitization boundary — all sanitization already applied)
   - `lib/evaluation/reportRenderParity.ts` (post-render parity validation)
   - `app/api/reports/[jobId]/download/route.ts` (format-specific VM renderers: `renderTxtFromViewModel`, `renderHtmlFromViewModel` → PDF, `renderDocxFromViewModel`)
 - **Output:** PDF, DOCX, or TXT file delivered to the user
 - **Output acceptance metrics:**
+  - ViewModel consumed directly — no additional sanitization applied by renderers
   - ViewModel boundary passes: no forbidden patterns remain in VM-owned editorial text
-  - Render parity gate passes: output preserves data integrity across PDF/DOCX/TXT
+  - Parity gate passes: all formats produce identical logical content from the same ViewModel
   - **Evidence ownership preserved:** `anchor_snippet` and `evidence_snippets[*].snippet` are byte-for-byte identical to source (Runtime Doctrine #12)
   - Format-specific renderer completes without error
-  - Output sections match webpage: same report type, overall score, confidence labels, market readiness, criteria scores, recommendation counts, executive summary, and active template order
+  - Output sections match webpage: same report type, overall score, confidence labels, market readiness, criteria scores, recommendation counts, executive summary, and active template order (all derived from shared ViewModel)
 - **Customer / downstream stage:** End user (downloaded file)
 - **Gates / invariants:**
+  - Renderers consume `evaluation_report_view_model_v1` and perform formatting only — no business logic, no sanitization, no score derivation
+  - All sanitization (mistakeProofText, correctScopeLanguage) has already been applied by the ViewModel Boundary Gate — renderers MUST NOT re-sanitize
   - ViewModel sanitizer must NOT mutate manuscript evidence or quotations (author-owned content)
-  - Renderers may format VM fields only; they must not re-derive or re-sanitize VM-owned data
+  - Manuscript evidence and quotations (author-owned content) are preserved byte-for-byte from UED through ViewModel through renderers
+  - **RENDER_PARITY_GATE:** Cross-format parity validation confirms all renderers produce identical logical content from the same ViewModel
   - Render parity gate validates output before format rendering proceeds
   - Download rejected if contamination remains after VM normalization
   - Download rejected if render parity gate fails
@@ -888,7 +948,10 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 | Score-10 recommendation suppression | criteria with score 10/10 must have 0 recommendations (or at most 1 "Consider" tier) | ADJACENT_DREAM, S11a |
 | Final audit temporal ordering | Final external audit must run AFTER DREAM persistence, not before or concurrently | ADJACENT_FINAL_EXTERNAL_AUDIT |
 | Final audit required artifact list | Only `evaluation_result_v2` + `longform_document_v1` are hard-required; `revision_opportunity_ledger_v1` is Revise-phase only | ADJACENT_FINAL_EXTERNAL_AUDIT |
-| Cross-medium template-backed source of truth | All renderers (webpage, PDF, DOCX, TXT) must consume Phase 5-certified `UnifiedEvaluationDocument`; `evaluation_result_v2` remains canonical artifact input, but templates govern author-facing report shape | S10b, S11a, S11b, ADJACENT_DREAM |
+| ViewModel boundary enforcement | All renderers (webpage, PDF, DOCX, TXT) consume `evaluation_report_view_model_v1` — no renderer performs sanitization, score derivation, opportunity counting, or recommendation creation | S10c, S11a, S11b |
+| ViewModel single-sanitization | Author-facing text sanitization (mistakeProofText, correctScopeLanguage) applied exactly once in ViewModel transformation — never in renderers | S10c |
+| Render parity from shared ViewModel | All output formats produce identical logical content (scores, rec counts, executive summary, section order, confidence) from the same `evaluation_report_view_model_v1` | S10c, S11a, S11b |
+| Cross-medium template-backed source of truth | All renderers (webpage, PDF, DOCX, TXT) must consume `evaluation_report_view_model_v1` derived from Phase 5-certified `UnifiedEvaluationDocument`; `evaluation_result_v2` remains canonical artifact input, but templates govern author-facing report shape | S10b, S10c, S11a, S11b, ADJACENT_DREAM |
 | Authority source surfacing | Canon, governance, reference, benchmark, template, DREAM, GOLD standard, exemplar, SIPOC, and registry authority docs must appear in executable registry and SIPOC UI | ADJACENT_PHASE_0, ADJACENT_DREAM, S10b, S11a, S11b, ADJACENT_REVISION_LEDGER, ADJACENT_REVISE |
 | Phase 5 template contract | Active template path, `UnifiedEvaluationDocument` hash, renderer parity, and author exposure decision must be certified before release | S10b |
 | Recommendation prose quality | every author-facing recommendation has: complete sentences, evidence anchor, actionable specificity | S06b, S07 |
@@ -918,6 +981,7 @@ This registry indexes active runtime families used along the evaluation certific
 - Revision ledger failures: `REVISION_LEDGER_ASSEMBLY_FAILED`, `REVISION_LEDGER_EVIDENCE_MISSING`, `REVISION_LEDGER_EMPTY`
 - Revise admission failures: `REVISE_ADMISSION_FAILED`, `REVISE_QUEUE_EMPTY`, `REVISE_EVIDENCE_MISSING`, `REVISE_ABC_NOT_PROSE`, `REVISE_AUTHOR_DECISION_NOT_PERSISTED`
 - Handoff gate failures: `HANDOFF_SCAFFOLD_RESIDUE`, `HANDOFF_INCOMPLETE_SENTENCE`, `HANDOFF_BROKEN_MODAL`, `HANDOFF_GENERIC_LANGUAGE`, `HANDOFF_MISSING_EVIDENCE_ANCHOR`
+- ViewModel boundary failures: `VIEWMODEL_BOUNDARY_VIOLATION`, `VIEWMODEL_CONTRACT_RESOLUTION_FAILED`, `VIEWMODEL_SANITIZATION_FAILED`, `RENDER_PARITY_FAILED`
 - Download pipeline failures: `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
 - Recommendation integrity failures: `REC_INTEGRITY_MALFORMED`, `REC_INTEGRITY_GENERIC`, `REC_INTEGRITY_NO_EVIDENCE`
 - WAVE failures: `WAVE_DERIVATION_EMPTY`, `WAVE_EXECUTION_TIMEOUT`, `WAVE_PLAN_FAILED`
@@ -985,8 +1049,9 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
 | `S08_ER2_NORMALIZATION` | High-risk | Boundary semantics and score/null integrity critical |
 | `S09_QUALITYGATEV2` | Partial | Deterministic gate active; statistical certification pending |
 | `S10_PERSISTENCE` | Partial | Atomic enforcement present; seam risk remains |
-| `S11a_RENDERER_WEBPAGE` | Partial | Releasability/read-path contract active; UnifiedEvaluationDocument model proven |
-| `S11b_DOWNLOAD_PIPELINE` | Emerging | Sanitizer + parity gate active (PRs #1046/#1047); evidence ownership enforced |
+| `S10c_VIEWMODEL_BOUNDARY_GATE` | Active | ViewModel normalization active; boundary enforcement tests passing; all renderers consume VM |
+| `S11a_RENDERER_WEBPAGE` | Partial | Consumes `evaluation_report_view_model_v1`; format-only rendering active |
+| `S11b_DOWNLOAD_PIPELINE` | Emerging | Consumes `evaluation_report_view_model_v1`; cross-format parity gate active; evidence ownership enforced |
 | `ADJACENT_PHASE_0` | Emerging | Authority proof generation active; fixture coverage pending |
 | `ADJACENT_PHASE_0_5A` | Emerging | Seed generation active; two-pass validation implemented; format conformance guard active |
 | `ADJACENT_PHASE_0_5B` | Emerging | Revise opportunity seed generation active; candidate-prose contract defined |
