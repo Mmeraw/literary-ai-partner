@@ -30,7 +30,7 @@ import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluati
 import { EVALUATION_TEMPLATE_CONTRACTS } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
-import type { EvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
+import type { EvaluationReportViewModel, CriterionDetailViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import type { CanonicalConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import {
@@ -1510,6 +1510,288 @@ function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, dream: Longfo
   lines.push(sub);
   lines.push('');
   pushWrapped(lines, cleanReportText(doc.disclaimer));
+
+  return lines.join('\n');
+}
+
+// ── Phase 4b: VM-aware opportunity formatter (no cleanReportText — VM owns sanitization) ──
+function vmOpportunityRows(rec: CriterionDetailViewModel['recommendations'][number]): Array<[string, string]> {
+  const candidates: Array<[string, string | undefined]> = [
+    [evidenceLabel(rec.anchor_type), rec.anchor_snippet],
+    ['Symptom', rec.symptom],
+    ['Cause', rec.mechanism],
+    ['Fix direction', rec.specific_fix],
+    ['Reader effect', rec.reader_effect],
+    ['Mistake-proofing', rec.mistake_proofing],
+  ];
+
+  const rows = candidates.flatMap(([label, value]) => {
+    if (typeof value !== 'string' || value.trim().length === 0) return [];
+    return [[label, value] as [string, string]];
+  });
+  if (rec.collapsed_from_criteria && rec.collapsed_from_criteria.length > 0) {
+    const criteriaNames = rec.collapsed_from_criteria.map(k => k.replace(/([A-Z])/g, ' $1').trim()).join(', ');
+    rows.push(['Also affects', criteriaNames]);
+  }
+  return rows;
+}
+
+// ── Phase 4b: Direct ViewModel TXT renderer ─────────────────────────────
+// Consumes EvaluationReportViewModel directly — no bridge adapter, no
+// cleanReportText (VM is the single sanitization boundary).
+function renderTxtFromViewModel(vm: EvaluationReportViewModel, dream: LongformDreamDocument | null = null, jobId = ''): string {
+  const lines: string[] = [];
+  const sep = '='.repeat(TXT_WRAP_WIDTH);
+  const sub = '-'.repeat(TXT_WRAP_WIDTH);
+
+  lines.push(sep);
+  lines.push('REVISIONGRADE™ EVALUATION REPORT');
+  lines.push(sep);
+  lines.push(`Manuscript Title: ${vm.titleBlock.displayTitle}`);
+  if (jobId) lines.push(`Reference ID: ${jobId}`);
+  lines.push(`Report Type: ${vm.titleBlock.reportType}`);
+  const genreConf = vm.titleBlock.genreConfidenceLabel ? ` (${vm.titleBlock.genreConfidenceLabel})` : '';
+  lines.push(`Genre: ${vm.titleBlock.genre}${genreConf}`);
+  if (vm.titleBlock.genreExpectationSummary) {
+    pushWrapped(lines, `Genre Expectations: ${vm.titleBlock.genreExpectationSummary}`);
+    if (vm.titleBlock.genreExpectationProfileLabels.length > 0) {
+      lines.push(`Reader Emphasis: ${vm.titleBlock.genreExpectationProfileLabels.join(', ')}`);
+    }
+  }
+  const audiencePrefix = vm.titleBlock.audienceTentative ? 'Tentative: ' : '';
+  pushWrapped(lines, `Target Audience: ${audiencePrefix}${vm.titleBlock.targetAudience} (${vm.titleBlock.audienceConfidenceLabel})`);
+  if (vm.titleBlock.shelf) {
+    const shelfConf = vm.titleBlock.shelfConfidenceLabel ? ` (${vm.titleBlock.shelfConfidenceLabel})` : '';
+    lines.push(`Shelf: ${vm.titleBlock.shelf}${shelfConf}`);
+  }
+  lines.push(`Submitted Word Count: ${vm.titleBlock.submittedWordCount}`);
+  lines.push(`Estimated Manuscript Pages: ${vm.titleBlock.estimatedPages}`);
+  lines.push(`Reading Grade Level: ${vm.titleBlock.readingGradeLevel}`);
+  lines.push(`Dialogue/Narrative Ratio: ${vm.titleBlock.dialogueNarrativeRatio}`);
+  lines.push(`Date Generated: ${vm.titleBlock.dateGenerated}`);
+  const overallScoreConf = vm.titleBlock.overallScoreConfidenceLabel ? ` (${vm.titleBlock.overallScoreConfidenceLabel})` : '';
+  lines.push(`Overall Score: ${vm.titleBlock.overallScoreLabel}${overallScoreConf}`);
+  const marketConf = vm.titleBlock.marketReadinessConfidenceLabel ? ` (${vm.titleBlock.marketReadinessConfidenceLabel})` : '';
+  lines.push(`Market Readiness: ${vm.titleBlock.marketReadiness}${marketConf}`);
+  lines.push('Confidentiality: Prepared for author/editorial use.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-PARAGRAPH PITCH');
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, vm.oneParagraphPitch);
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-SENTENCE PITCH');
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, vm.oneSentencePitch);
+  lines.push('');
+
+  if (vm.premise) {
+    lines.push(sub);
+    lines.push('PREMISE');
+    lines.push(sub);
+    lines.push('');
+    pushWrapped(lines, vm.premise);
+    lines.push('');
+  }
+
+  lines.push(sub);
+  lines.push('CONTENT WARNINGS');
+  lines.push(sub);
+  lines.push('');
+  vm.contentWarnings.forEach((warning) => {
+    pushWrapped(lines, warning, { firstIndent: '• ', nextIndent: '  ' });
+  });
+  lines.push('');
+  lines.push('Consider including content warnings in book marketing or front matter.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('REVISION OPPORTUNITY SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  lines.push(`Total Revision Opportunities: ${vm.revisionOpportunitySummary.total}`);
+  lines.push(`Recommended: ${vm.revisionOpportunitySummary.recommended}`);
+  lines.push(`Optional: ${vm.revisionOpportunitySummary.optional}`);
+  lines.push(`Consider: ${vm.revisionOpportunitySummary.consider}`);
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('EXECUTIVE SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, vm.executiveSummary);
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP STRENGTHS');
+  lines.push(sub);
+  lines.push('');
+  vm.topStrengths.forEach((item, i) => {
+    const marker = `${i + 1}. `;
+    pushWrapped(lines, item, { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP RISKS');
+  lines.push(sub);
+  lines.push('');
+  vm.topRisks.forEach((item, i) => {
+    const marker = `${i + 1}. `;
+    pushWrapped(lines, item, { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP RECOMMENDATIONS');
+  lines.push(sub);
+  lines.push('');
+  if (vm.topRecommendations.length > 0) {
+    vm.topRecommendations.forEach((item, i) => {
+      const marker = `${i + 1}. `;
+      pushWrapped(lines, item, { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+    });
+  } else {
+    lines.push('See per-criterion opportunities below for detailed revision guidance.');
+  }
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('13 CRITERIA SCORE GRID');
+  lines.push(sub);
+  lines.push('');
+  const separatorWidth = 6;
+  const scoreWidth = Math.min(
+    10,
+    Math.max(Math.max(...vm.criteriaScoreGrid.map((r) => r.scoreLabel.length), 'Score'.length), 5),
+  );
+  let confidenceWidth = Math.min(
+    22,
+    Math.max(Math.max(...vm.criteriaScoreGrid.map((r) => (r.confidenceLabel ?? '').length), 'Confidence'.length), 10),
+  );
+  let labelWidth = TXT_WRAP_WIDTH - scoreWidth - confidenceWidth - separatorWidth;
+  if (labelWidth < 20) {
+    const needed = 20 - labelWidth;
+    confidenceWidth = Math.max(10, confidenceWidth - needed);
+    labelWidth = TXT_WRAP_WIDTH - scoreWidth - confidenceWidth - separatorWidth;
+  }
+
+  lines.push(`${fitToWidth('Criterion', labelWidth).padEnd(labelWidth)}   ${fitToWidth('Score', scoreWidth).padEnd(scoreWidth)}   ${fitToWidth('Confidence', confidenceWidth).padEnd(confidenceWidth)}`);
+  lines.push(`${'\u2500'.repeat(labelWidth)}   ${'\u2500'.repeat(scoreWidth)}   ${'\u2500'.repeat(confidenceWidth)}`);
+  vm.criteriaScoreGrid.forEach((row) => {
+    lines.push(`${fitToWidth(row.label, labelWidth).padEnd(labelWidth)}   ${fitToWidth(row.scoreLabel, scoreWidth).padEnd(scoreWidth)}   ${fitToWidth(row.confidenceLabel ?? '', confidenceWidth).padEnd(confidenceWidth)}`);
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('CRITERION RATIONALES & SURFACED OPPORTUNITIES');
+  lines.push(sub);
+  vm.criterionDetails.forEach((detail, idx) => {
+    lines.push('');
+    if (idx > 0) lines.push('  · · ·');
+    lines.push('');
+    lines.push(`${detail.label} — ${detail.scoreLabel} (${detail.confidenceLabel ?? ''})`);
+    if (detail.supportLabel) pushWrapped(lines, `Status: ${detail.supportLabel}`);
+    lines.push('');
+    if (detail.rationaleLabel) lines.push(`${detail.rationaleLabel}:`);
+    pushWrapped(lines, detail.rationaleText);
+
+    if (detail.recommendations.length > 0) {
+      lines.push('');
+      lines.push(`  OPPORTUNITIES (${detail.recommendations.length})`);
+      detail.recommendations.forEach((rec, index) => {
+        lines.push(`  ${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`);
+        const detailRows = vmOpportunityRows(rec);
+        if (detailRows.length > 0) {
+          detailRows.forEach(([label, value]) => {
+            if (label === 'Evidence') {
+              pushWrapped(lines, `${label}: \u201c${value}\u201d`, { firstIndent: '    ', nextIndent: '    ' });
+            } else if (label === 'Observation' || label === 'Diagnostic Basis') {
+              pushWrapped(lines, `${label}: ${value}`, { firstIndent: '    ', nextIndent: '    ' });
+            } else {
+              pushWrapped(lines, `${label}: ${value}`, { firstIndent: '    ', nextIndent: '    ' });
+            }
+          });
+        } else {
+          pushWrapped(lines, rec.specific_fix ?? 'No action provided.', { firstIndent: '    ', nextIndent: '    ' });
+        }
+      });
+    }
+  });
+
+  // ── Sections 13–21: DREAM enriches, VM modeSpecific is the fallback ──
+  if (dream) {
+    appendDreamTxtSections(lines, dream);
+  } else if (vm.templateMode === 'long_form_evaluation' || vm.templateMode === 'long_form_multi_layer_evaluation') {
+    if (vm.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
+      lines.push(sub);
+      lines.push('MANUSCRIPT-SCALE CONTINUITY FINDINGS');
+      lines.push(sub);
+      lines.push('');
+      vm.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => {
+        pushWrapped(lines, item, { firstIndent: '• ', nextIndent: '  ' });
+      });
+      lines.push('');
+    }
+
+    const pushList = (heading: string, items: string[]) => {
+      if (items.length === 0) return;
+      lines.push(sub);
+      lines.push(heading);
+      lines.push(sub);
+      lines.push('');
+      items.forEach((item) => {
+        pushWrapped(lines, item, { firstIndent: '• ', nextIndent: '  ' });
+      });
+      lines.push('');
+    };
+
+    pushList(sectionTitleUpper('cross_layer_synthesis'), vm.modeSpecific.crossLayerSynthesis);
+    pushList(sectionTitleUpper('revision_sequencing'), vm.modeSpecific.layerAwareRevisionSequencing);
+    pushList(sectionTitleUpper('continuity_coverage'), vm.modeSpecific.continuityCoverageProof);
+
+    if (vm.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
+      lines.push(sub);
+      lines.push(sectionTitleUpper('readiness_posture'));
+      lines.push(sub);
+      lines.push('');
+      pushWrapped(lines, vm.modeSpecific.readinessReleasabilityPosture);
+      lines.push('');
+    }
+
+    if (vm.modeSpecific.revisionPriorityPlan.length > 0) {
+      lines.push(sub);
+      lines.push(sectionTitleUpper('revision_sequencing'));
+      lines.push(sub);
+      lines.push('');
+      vm.modeSpecific.revisionPriorityPlan.forEach((item) => {
+        lines.push(`Priority ${item.priority}: ${item.title}`);
+        lines.push(`Location: ${item.location}`);
+        pushWrapped(lines, `Operation: ${item.operation}`);
+        pushWrapped(lines, `Recommendation: ${item.recommendation}`);
+        pushWrapped(lines, `Rationale: ${item.rationale}`);
+        lines.push('');
+      });
+    }
+  }
+
+  lines.push(sub);
+  lines.push(sectionTitleUpper('confidence_explanation'));
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, vm.confidenceExplanation);
+  lines.push('');
+
+  lines.push(sub);
+  lines.push(sectionTitleUpper('disclaimer'));
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, vm.disclaimer);
 
   return lines.join('\n');
 }
