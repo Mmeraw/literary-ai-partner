@@ -3104,6 +3104,621 @@ async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream:
   return await Packer.toBuffer(docxDoc);
 }
 
+// ── Phase 4b: Direct ViewModel DOCX renderer ────────────────────────────
+// Consumes EvaluationReportViewModel directly — no bridge adapter, no
+// cleanReportText on VM-owned fields (VM is the single sanitization boundary).
+// actionItems are NOT rendered (not ViewModel-owned author-facing output).
+async function renderDocxFromViewModel(vm: EvaluationReportViewModel, dream: LongformDreamDocument | null = null, jobId = ''): Promise<Buffer> {
+  const makeHeading = (text: string) =>
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 260, after: 90 },
+      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 30, font: 'Georgia' })],
+    });
+
+  const makeDivider = () =>
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.goldMid) },
+              children: [new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: ' ', size: 4 })] })],
+            }),
+          ],
+        }),
+      ],
+    });
+
+  // VM-aware paragraph helper — no cleanReportText (VM already sanitized)
+  const vmPara = (text: string, opts: { bold?: boolean; color?: string; italics?: boolean } = {}) =>
+    new Paragraph({
+      spacing: { after: 115, line: 310 },
+      children: [
+        new TextRun({
+          text,
+          size: 22,
+          font: 'Calibri',
+          bold: opts.bold,
+          italics: opts.italics,
+          color: docxHex(opts.color ?? RG.textPrimary),
+        }),
+      ],
+    });
+
+  const makeCallout = (heading: string, body: string, color: string = RG.surfaceAlt) =>
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(color) },
+              children: [
+                new Paragraph({
+                  spacing: { after: 70 },
+                  children: [new TextRun({ text: heading, bold: true, size: 21, color: docxHex(RG.oxblood), font: 'Georgia' })],
+                }),
+                new Paragraph({
+                  spacing: { after: 60, line: 300 },
+                  children: [new TextRun({ text: body, size: 21, color: docxHex(RG.textPrimary), font: 'Calibri' })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+  const metadataTableRows: TableRow[] = [
+    ...(jobId ? [['Reference ID', jobId] as [string, string]] : []),
+    ['Report Type', vm.titleBlock.reportType],
+    ['Overall Score', `${vm.titleBlock.overallScoreLabel}${vm.titleBlock.overallScoreConfidenceLabel ? ` (${vm.titleBlock.overallScoreConfidenceLabel})` : ''}`],
+    ['Market Readiness', `${vm.titleBlock.marketReadiness}${vm.titleBlock.marketReadinessConfidenceLabel ? ` (${vm.titleBlock.marketReadinessConfidenceLabel})` : ''}`],
+    ['Genre', `${vm.titleBlock.genre}${vm.titleBlock.genreConfidenceLabel ? ` (${vm.titleBlock.genreConfidenceLabel})` : ''}`],
+    ['Target Audience', `${vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}${vm.titleBlock.targetAudience} (${vm.titleBlock.audienceConfidenceLabel})`],
+    ...(vm.titleBlock.shelf ? [['Shelf', `${vm.titleBlock.shelf}${vm.titleBlock.shelfConfidenceLabel ? ` (${vm.titleBlock.shelfConfidenceLabel})` : ''}`] as [string, string]] : []),
+    ['Submitted Word Count', vm.titleBlock.submittedWordCount],
+    ['Estimated Pages', vm.titleBlock.estimatedPages],
+    ['Reading Grade Level', vm.titleBlock.readingGradeLevel],
+    ['Dialogue/Narrative Ratio', vm.titleBlock.dialogueNarrativeRatio],
+    ['Date Generated', vm.titleBlock.dateGenerated],
+    ['Confidentiality', 'Prepared for author/editorial use.'],
+  ].map(
+    ([label, value]) =>
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 36, type: WidthType.PERCENTAGE },
+            borders: DOCX_NO_BORDERS,
+            shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+            children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+          }),
+          new TableCell({
+            width: { size: 64, type: WidthType.PERCENTAGE },
+            borders: DOCX_NO_BORDERS,
+            children: [new Paragraph({ children: [new TextRun({ text: value, size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })],
+          }),
+        ],
+      }),
+  );
+
+  const children: (Paragraph | Table)[] = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      heading: HeadingLevel.TITLE,
+      spacing: { before: 220, after: 80 },
+      children: [new TextRun({ text: 'RevisionGrade\u2122', bold: true, size: 48, color: docxHex(RG.oxblood), font: 'Georgia' })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 220 },
+      children: [new TextRun({ text: 'Editorial Readiness Assessment', size: 22, color: docxHex(RG.textMuted), font: 'Calibri', allCaps: true })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      children: [new TextRun({ text: vm.titleBlock.displayTitle, bold: true, size: 40, color: docxHex(RG.textPrimary), font: 'Georgia' })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 260 },
+      children: [new TextRun({ text: vm.titleBlock.reportType, size: 22, color: docxHex(RG.textMuted), font: 'Calibri' })],
+    }),
+    makeDivider(),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              children: [
+                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Overall Score', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: vm.titleBlock.overallScoreLabel, bold: true, size: 34, color: docxHex(scorePaletteColorFromLabel(vm.titleBlock.overallScoreLabel)), font: 'Georgia' })],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              children: [
+                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Market Readiness', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: vm.titleBlock.marketReadiness, bold: true, size: 30, color: docxHex(readinessPaletteColor(vm.titleBlock.marketReadiness)), font: 'Georgia' })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }),
+    new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: ' ' })] }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: metadataTableRows,
+    }),
+    ...(vm.titleBlock.genreExpectationSummary
+      ? [vmPara(`Genre Expectations: ${vm.titleBlock.genreExpectationSummary}${vm.titleBlock.genreExpectationProfileLabels.length > 0 ? ` \u2014 Reader emphasis: ${vm.titleBlock.genreExpectationProfileLabels.join(', ')}` : ''}`, { color: RG.textMuted })]
+      : []),
+    new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: EXPORT_DISCLAIMER, size: 18, color: docxHex(RG.textMuted), italics: true })] }),
+    makeDivider(),
+    makeHeading('One-Paragraph Pitch'),
+    makeCallout('Author-Facing Pitch', vm.oneParagraphPitch, RG.surfaceAlt),
+    makeHeading('One-Sentence Pitch'),
+    makeCallout('Single-Sentence Hook', vm.oneSentencePitch, RG.surface),
+  ];
+
+  if (vm.premise) {
+    children.push(makeHeading('Premise'));
+    children.push(vmPara(vm.premise));
+  }
+
+  children.push(makeHeading('Content Warnings'));
+  vm.contentWarnings.forEach((item) => children.push(docxListPara(item)));
+  children.push(vmPara('Consider including content warnings in book marketing or front matter.'));
+
+  children.push(makeHeading('Revision Opportunity Summary'));
+  children.push(new Paragraph({
+    spacing: { after: 115, line: 310 },
+    children: [new TextRun({ text: `Total: ${vm.revisionOpportunitySummary.total}`, size: 22, font: 'Calibri', bold: true, color: docxHex(RG.textPrimary) })],
+  }));
+  children.push(new Paragraph({
+    spacing: { after: 115, line: 310 },
+    children: [new TextRun({ text: `Recommended: ${vm.revisionOpportunitySummary.recommended}  |  Optional: ${vm.revisionOpportunitySummary.optional}  |  Consider: ${vm.revisionOpportunitySummary.consider}`, size: 22, font: 'Calibri', color: docxHex(RG.textPrimary) })],
+  }));
+  children.push(makeHeading('Executive Summary'));
+  children.push(makeCallout('Executive Editorial Assessment', vm.executiveSummary, RG.surfaceAlt));
+  children.push(makeHeading('Top Strengths'));
+  vm.topStrengths.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
+  children.push(makeHeading('Top Risks'));
+  vm.topRisks.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
+  children.push(makeHeading('Top Recommendations'));
+  if (vm.topRecommendations.length > 0) {
+    vm.topRecommendations.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
+  } else {
+    children.push(vmPara('See per-criterion opportunities below for detailed revision guidance.'));
+  }
+
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 260, after: 90 },
+      pageBreakBefore: true,
+      children: [new TextRun({ text: '13 Criteria Score Grid', bold: true, color: docxHex(RG.oxblood), size: 28 })],
+    }),
+  );
+  children.push(
+    new Table({
+      rows: [
+        new TableRow({
+          tableHeader: true,
+          children: [
+            new TableCell({
+              width: { size: 55, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Criterion', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+            }),
+            new TableCell({
+              width: { size: 15, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Score', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+            }),
+            new TableCell({
+              width: { size: 30, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Confidence', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+            }),
+          ],
+        }),
+        ...vm.criteriaScoreGrid.map(
+          (row) =>
+            new TableRow({
+              children: [
+                new TableCell({ borders: DOCX_NO_BORDERS, shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) }, children: [new Paragraph({ children: [new TextRun({ text: row.label, size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] }),
+                new TableCell({
+                  borders: DOCX_NO_BORDERS,
+                  shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.RIGHT,
+                      children: [new TextRun({ text: row.scoreLabel, bold: true, size: 20, color: docxHex(scorePaletteColorFromLabel(row.scoreLabel)), font: 'Calibri' })],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  borders: DOCX_NO_BORDERS,
+                  shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.RIGHT,
+                      children: [new TextRun({ text: row.confidenceLabel ?? '', bold: true, size: 20, color: docxHex(confidencePaletteColor(row.confidenceLabel ?? '')), font: 'Calibri' })],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+        ),
+      ],
+      width: { size: 100, type: WidthType.PERCENTAGE },
+    }),
+  );
+
+  children.push(makeDivider());
+  children.push(makeHeading('Criterion Rationales & Surfaced Opportunities'));
+  vm.criterionDetails.forEach((detail, detailIdx) => {
+    if (detailIdx > 0) {
+      children.push(new Paragraph({ spacing: { before: 160, after: 0 }, children: [new TextRun({ text: '' })] }));
+    }
+    children.push(
+      new Paragraph({
+        spacing: { before: 100, after: 90 },
+        shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+        border: { left: { style: BorderStyle.SINGLE, size: 12, color: docxHex(RG.oxblood) } },
+        children: [
+          new TextRun({ text: `${detail.label}  `, bold: true, size: 24, color: docxHex(RG.textPrimary), font: 'Georgia' }),
+          new TextRun({ text: detail.scoreLabel, bold: true, size: 23, color: docxHex(scorePaletteColorFromLabel(detail.scoreLabel)), font: 'Calibri' }),
+          new TextRun({ text: '  |  ', size: 21, color: docxHex(RG.textMuted), font: 'Calibri' }),
+          new TextRun({ text: detail.confidenceLabel ?? '', bold: true, size: 21, color: docxHex(confidencePaletteColor(detail.confidenceLabel ?? '')), font: 'Calibri' }),
+        ],
+      }),
+    );
+    if (detail.supportLabel) children.push(vmPara(`Status: ${detail.supportLabel}`));
+    if (detail.rationaleLabel) children.push(vmPara(`${detail.rationaleLabel}:`));
+    children.push(vmPara(detail.rationaleText));
+    if (detail.recommendations.length > 0) {
+      children.push(new Paragraph({
+        spacing: { before: 120, after: 60 },
+        children: [new TextRun({ text: `OPPORTUNITIES (${detail.recommendations.length})`, bold: true, size: 18, color: docxHex(RG.textMuted) })],
+      }));
+      detail.recommendations.forEach((rec, index) => {
+        const rows = vmOpportunityRows(rec);
+        children.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: [new TableCell({
+                borders: DOCX_NO_BORDERS,
+                shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+                children: [new Paragraph({ children: [new TextRun({ text: `${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood), font: 'Calibri' })] })],
+              })],
+            }),
+            ...(rows.length > 0 ? rows.map(([label, value]) => {
+            if (label === 'Evidence') {
+              return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: `\u201c${value}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })] })] });
+            }
+            if (label === 'Observation' || label === 'Diagnostic Basis') {
+              return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: value, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })] })] });
+            }
+            return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: value, size: 19, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] })] });
+          }) : [new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: rec.specific_fix ?? 'No action provided.', size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] })] })]),
+          ],
+        }));
+      });
+    }
+  });
+
+  // ── Sections 13–21: DREAM enriches, VM modeSpecific is fallback ──
+  if (dream) {
+    // §12a Expanded Criterion Analysis
+    if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
+      children.push(makeHeading(sectionTitle('expanded_criterion_analysis')));
+      dream.criterion_analyses.forEach(a => {
+        const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
+        children.push(vmPara(`${getCriterionDisplayLabel(a.key)} \u2014 ${score} (${formatConfidenceLabel(a.confidence)})`, { bold: true }));
+        if (Array.isArray(a.fit_evidence) && a.fit_evidence.length > 0) {
+          children.push(vmPara('What Is Working:', { bold: true }));
+          a.fit_evidence.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(a.gap_evidence) && a.gap_evidence.length > 0) {
+          children.push(vmPara('What Weakens Impact:', { bold: true }));
+          a.gap_evidence.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(a.revision_queue) && a.revision_queue.length > 0) {
+          children.push(vmPara('Revision Queue:', { bold: true }));
+          a.revision_queue.forEach((item, i) => children.push(docxListPara(formatRevisionQueueItem(item), `${i + 1}.`)));
+        }
+      });
+    }
+
+    // §13 Story Ledger
+    const hasStructuralDocx = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0;
+    const hasArcMapDocx = Array.isArray(dream.arc_map) && dream.arc_map.length > 0;
+    const hasLayerAnalysesDocx = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0;
+    if (hasStructuralDocx || hasArcMapDocx || hasLayerAnalysesDocx) {
+      children.push(makeHeading(sectionTitle('story_ledger')));
+      if (hasStructuralDocx) {
+        children.push(vmPara('Structural Architecture:', { bold: true }));
+        dream.structural_stack.forEach(layer => {
+          children.push(vmPara(`${layer.layer_name} \u2014 ${layer.status}`, { bold: true }));
+          children.push(vmPara(`Function: ${layer.function}`));
+          if (layer.revision_note) children.push(vmPara(`Revision note: ${layer.revision_note}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasArcMapDocx) {
+        children.push(vmPara('Arc Map:', { bold: true }));
+        dream.arc_map.forEach(act => {
+          children.push(vmPara(`${act.act_name} (${act.chapter_range})`, { bold: true }));
+          children.push(vmPara(`Function: ${act.primary_function}`));
+          if (act.revision_priority) children.push(vmPara(`Revision priority: ${act.revision_priority}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasLayerAnalysesDocx) {
+        children.push(vmPara('Layer Analysis:', { bold: true }));
+        dream.layer_analyses.forEach(l => {
+          children.push(vmPara(`${l.layer_name} \u2014 ${l.status}`, { bold: true }));
+          children.push(vmPara(l.needed_revision));
+        });
+      }
+    }
+
+    // §14 Review Gate Readiness Surface
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const hasRequired = Array.isArray(ac.required_detection) && ac.required_detection.length > 0;
+      const hasFailure = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0;
+      if (hasRequired || hasFailure) {
+        children.push(makeHeading(sectionTitle('review_gate')));
+        if (hasRequired) {
+          children.push(vmPara('Required Detection:', { bold: true }));
+          ac.required_detection.forEach(item => children.push(docxListPara(item)));
+        }
+        if (hasFailure) {
+          children.push(vmPara('Failure Conditions:', { bold: true }));
+          ac.failure_conditions.forEach(item => children.push(docxListPara(item)));
+        }
+      }
+    }
+
+    // §15 Governed Ledgers
+    if (dream.symbolic_audit) {
+      const sa = dream.symbolic_audit;
+      const hasAuditContent = (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) || (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) || (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) || hasMeaningfulText(sa.audit_conclusion);
+      if (hasAuditContent) {
+        children.push(makeHeading(sectionTitle('governed_ledgers')));
+        if (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) {
+          children.push(vmPara('Preserved Symbols:', { bold: true }));
+          sa.preserved_symbols.forEach(sym => {
+            children.push(vmPara(`${sym.symbol} \u2014 ${sym.current_function}`));
+            if (sym.revision_instruction) children.push(vmPara(`Revision: ${sym.revision_instruction}`, { color: RG.textMuted }));
+          });
+        }
+        if (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) {
+          children.push(vmPara('Doctrine Strengths:', { bold: true }));
+          sa.doctrine_strengths.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) {
+          children.push(vmPara('Doctrine Risks:', { bold: true }));
+          sa.doctrine_risks.forEach(item => children.push(docxListPara(item)));
+        }
+        if (hasMeaningfulText(sa.audit_conclusion)) children.push(vmPara(sa.audit_conclusion));
+      }
+    }
+
+    // §16 Cross-Layer Synthesis
+    const hasDreamScoresDocx = dream.dream_scores && (dream.dream_scores.quality != null || dream.dream_scores.readiness != null || dream.dream_scores.commercial != null || dream.dream_scores.literary != null);
+    const hasVerdictDocx = hasMeaningfulText(dream.executive_verdict);
+    const hasCrossLayerDocx = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0;
+    const hasReaderExpDocx = dream.reader_experience && (dream.reader_experience.first_act || dream.reader_experience.middle || dream.reader_experience.final_act || hasMeaningfulText(dream.reader_experience.aftertaste));
+    if (hasDreamScoresDocx || hasVerdictDocx || hasCrossLayerDocx || hasReaderExpDocx) {
+      children.push(makeHeading(sectionTitle('cross_layer_synthesis')));
+      if (hasDreamScoresDocx) {
+        const ds = dream.dream_scores!;
+        const scoreEntries: Array<[string, number | null | undefined]> = [
+          ['Quality', ds.quality], ['Readiness', ds.readiness],
+          ['Commercial', ds.commercial], ['Literary', ds.literary],
+        ];
+        scoreEntries.forEach(([label, val]) => {
+          if (val != null) children.push(vmPara(`${label}: ${scoreLabel(val, 100)}`));
+        });
+      }
+      if (hasVerdictDocx) {
+        children.push(vmPara('Executive Verdict:', { bold: true }));
+        children.push(vmPara(dream.executive_verdict));
+      }
+      if (hasCrossLayerDocx) {
+        children.push(vmPara('Cross-Layer Integration:', { bold: true }));
+        dream.cross_layer_integration.forEach(c => {
+          children.push(vmPara(`${c.motif} \u2014 ${c.integration_quality}`));
+          children.push(vmPara(c.description));
+          if (c.revision_note) children.push(vmPara(`Revision note: ${c.revision_note}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasReaderExpDocx) {
+        const re = dream.reader_experience!;
+        children.push(vmPara('Reader Experience:', { bold: true }));
+        const addAct = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+          if (!act) return;
+          if (!hasMeaningfulText(act.reader_question) && !hasMeaningfulText(act.emotional_state) && !hasMeaningfulText(act.risk)) return;
+          children.push(vmPara(title, { bold: true }));
+          if (hasMeaningfulText(act.reader_question)) children.push(vmPara(`Reader Question: ${act.reader_question}`));
+          if (hasMeaningfulText(act.emotional_state)) children.push(vmPara(`Emotional State: ${act.emotional_state}`));
+          if (hasMeaningfulText(act.risk)) children.push(vmPara(`Risk: ${act.risk}`));
+        };
+        addAct('First Act', re.first_act);
+        addAct('Middle', re.middle);
+        addAct('Final Act', re.final_act);
+        if (hasMeaningfulText(re.aftertaste)) children.push(vmPara(`Aftertaste: ${re.aftertaste}`));
+      }
+    }
+
+    // §17 Layer-Aware Revision Sequencing
+    const dreamRevisionPlanDocx = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (dreamRevisionPlanDocx.length > 0) {
+      children.push(makeHeading(sectionTitle('revision_sequencing')));
+      dreamRevisionPlanDocx.forEach(item => {
+        children.push(vmPara(`Priority ${item.displayPriority}: ${item.title}`, { bold: true }));
+        children.push(vmPara(item.goal));
+        if (Array.isArray(item.actions) && item.actions.length > 0) {
+          children.push(vmPara('Actions:', { bold: true }));
+          item.actions.forEach((action, i) => children.push(docxListPara(action, `${i + 1}.`)));
+        }
+        if (item.acceptance_check) children.push(vmPara(`Acceptance Check: ${item.acceptance_check}`, { color: RG.textMuted }));
+      });
+    }
+
+    // §18 Long-Form Continuity and Coverage Proof
+    {
+      children.push(makeHeading(sectionTitle('continuity_coverage')));
+      const continuityItemsDocx: string[] = [];
+      if (Array.isArray(dream.arc_map)) {
+        dream.arc_map.forEach(act => { if (hasMeaningfulText(act.primary_function)) continuityItemsDocx.push(`${act.act_name}: ${act.primary_function}`); });
+      }
+      if (Array.isArray(dream.layer_analyses)) {
+        dream.layer_analyses.forEach(l => { if (hasMeaningfulText(l.needed_revision)) continuityItemsDocx.push(`${l.layer_name}: ${l.needed_revision}`); });
+      }
+      if (Array.isArray(dream.cross_layer_integration)) {
+        dream.cross_layer_integration.forEach(c => { if (hasMeaningfulText(c.revision_note)) continuityItemsDocx.push(`${c.motif}: ${c.revision_note}`); });
+      }
+      if (continuityItemsDocx.length > 0) {
+        continuityItemsDocx.forEach(item => children.push(docxListPara(item)));
+      } else {
+        children.push(vmPara('Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.'));
+      }
+    }
+
+    // §19 Readiness / Releasability Posture
+    const hasReleasabilityDocx = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+    const hasMarketShelfDocx = dream.market_shelf && (
+      hasMeaningfulText(dream.market_shelf.best_shelf) ||
+      hasMeaningfulText(dream.market_shelf.marketable_hook) ||
+      hasMeaningfulText(dream.market_shelf.market_danger) ||
+      (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) ||
+      (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0)
+    );
+    if (hasReleasabilityDocx || hasMarketShelfDocx) {
+      children.push(makeHeading(sectionTitle('readiness_posture')));
+      if (hasReleasabilityDocx) {
+        dream.releasability.forEach(dim => {
+          children.push(vmPara(`${dim.dimension}: ${dim.current_status} [${dim.verdict}]`));
+        });
+      }
+      if (hasMarketShelfDocx) {
+        const ms = dream.market_shelf!;
+        children.push(vmPara('Market Shelf:', { bold: true }));
+        if (hasMeaningfulText(ms.best_shelf)) children.push(vmPara(`Best Shelf: ${ms.best_shelf}`));
+        if (hasMeaningfulText(ms.marketable_hook)) children.push(vmPara(`Marketable Hook: ${ms.marketable_hook}`));
+        if (hasMeaningfulText(ms.market_danger)) children.push(vmPara(`Market Danger: ${ms.market_danger}`));
+        if (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) {
+          children.push(vmPara('Shelf Neighbors:', { bold: true }));
+          ms.shelf_neighbors.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) {
+          children.push(vmPara('Comparison Space:', { bold: true }));
+          ms.comparison_space.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+          children.push(vmPara('What Not to Become:', { bold: true }));
+          dream.what_not_to_become.forEach(item => children.push(docxListPara(item)));
+        }
+      }
+    }
+  } else if (vm.templateMode === 'long_form_evaluation' || vm.templateMode === 'long_form_multi_layer_evaluation') {
+    // VM fallback — no DREAM available
+    if (vm.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
+      children.push(makeHeading('Manuscript-Scale Continuity Findings'));
+      vm.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(docxListPara(item)));
+    }
+
+    const appendHeadingList = (heading: string, items: string[]) => {
+      if (items.length === 0) return;
+      children.push(makeHeading(heading));
+      items.forEach((item) => children.push(docxListPara(item)));
+    };
+
+    appendHeadingList(sectionTitle('story_ledger'), vm.modeSpecific.storyLedgerArchitectureMap);
+    appendHeadingList(sectionTitle('review_gate'), vm.modeSpecific.reviewGateReadinessSurface);
+    appendHeadingList(sectionTitle('governed_ledgers'), vm.modeSpecific.governedLedgerAddenda);
+    appendHeadingList(sectionTitle('cross_layer_synthesis'), vm.modeSpecific.crossLayerSynthesis);
+    appendHeadingList(sectionTitle('revision_sequencing'), vm.modeSpecific.layerAwareRevisionSequencing);
+    appendHeadingList(sectionTitle('continuity_coverage'), vm.modeSpecific.continuityCoverageProof);
+    if (vm.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
+      children.push(makeHeading(sectionTitle('readiness_posture')));
+      children.push(vmPara(vm.modeSpecific.readinessReleasabilityPosture));
+    }
+    if (vm.modeSpecific.revisionPriorityPlan.length > 0) {
+      children.push(makeHeading(sectionTitle('revision_sequencing')));
+      vm.modeSpecific.revisionPriorityPlan.forEach((item) => {
+        children.push(vmPara(`Priority ${item.priority}: ${item.title}`, { bold: true }));
+        children.push(vmPara(`Location: ${item.location}`));
+        children.push(vmPara(`Operation: ${item.operation}`));
+        children.push(vmPara(`Recommendation: ${item.recommendation}`));
+        children.push(vmPara(`Rationale: ${item.rationale}`));
+      });
+    }
+  }
+  children.push(makeHeading(sectionTitle('confidence_explanation')));
+  children.push(vmPara(vm.confidenceExplanation));
+
+  children.push(makeHeading(sectionTitle('disclaimer')));
+  children.push(vmPara(vm.disclaimer));
+
+  const docxDoc = new Document({
+    sections: [
+      {
+        headers: {
+          default: new Header({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [new TextRun({ text: `RevisionGrade\u2122 Evaluation Report | ${vm.titleBlock.displayTitle}`, size: 16, color: docxHex(RG.textFaint), font: 'Calibri' })],
+              }),
+            ],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({ text: `${FOOTER_LINE}  |  Page `, size: 16, color: docxHex(RG.textFaint) }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 16, color: docxHex(RG.textFaint) }),
+                ],
+              }),
+            ],
+          }),
+        },
+        children,
+      },
+    ],
+  });
+
+  return await Packer.toBuffer(docxDoc);
+}
+
 function scoreBarColor(score: number | null | undefined): string {
   if (typeof score !== 'number') return RG.textFaint;
   if (score >= 8) return RG.success;
