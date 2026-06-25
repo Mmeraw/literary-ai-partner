@@ -100,19 +100,19 @@
 |------|----------|------|----------------|
 | Template Completeness | `templateCompletenessGate.ts` | Before artifact persistence | All required sections present, 13 criteria exact, density floors, meaningful content (not placeholders), genre not a format word, confidence levels valid |
 | Download Parity | `download/route.ts` `validateDownloadParity()` | Before serving any download | Artifact completeness verified before generating PDF/DOCX/TXT |
-| Canonical View Model | `buildMetadata()` in `download/route.ts` | All download builders | Single metadata extraction function shared by PDF, DOCX, TXT builders — ensures identical field values |
+| Canonical View Model | `normalizeEvaluationReportViewModel()` + VM renderers in `download/route.ts` | All download builders | Single presentation model shared by PDF, DOCX, TXT builders — ensures identical field values |
 | Revision Surface Ownership | `revisionSurfaceOwnershipGate.ts` | Before Phase 5 author exposure (download route) | Mode-specific forbidden section validation, duplicate inventory detection, opportunity count parity, cross-surface parity — blocks all three template modes |
 | Short-Form Section Contract | `shortFormSectionContract.ts` | Runtime validation | 14 authorized sections, forbidden heading detection, rendered-output validation |
 | Long-Form Section Contract | `longFormSectionContract.ts` | Runtime validation | Forbidden heading detection for long-form mode (allows Revision Priority Plan, Manuscript-Scale Continuity) |
 | Long-Form Multi-Layer Section Contract | `longFormMultiLayerSectionContract.ts` | Runtime validation | Forbidden heading detection for multi-layer mode (allows Layer-Aware Sequencing, Cross-Layer Synthesis, Readiness Posture, Review Gate Readiness Surface) |
-| Legacy buildDocx Hard Guard | `download/route.ts` (`buildDocx` function) | Production invocation attempt | Throws in production/Vercel — prevents legacy dead code from accidentally serving forbidden headings |
+| Legacy Renderer Absence Guard | `download/route.ts` static tests | Build/test time | Confirms deleted UED bridge/canonical renderers are not reintroduced |
 
 ## How to Use This Matrix
 
 1. **Before merging any PR that touches evaluation rendering:** Re-verify this matrix against the changed surfaces. Every cell must be ✅.
 2. **When adding a new template field:** Add it to this matrix FIRST, then implement in all 5 surfaces, then verify.
 3. **When investigating a parity bug:** Use this matrix to identify which surface is missing the field.
-4. **CI enforcement:** The `templateCompletenessGate.ts` enforces the pipeline-side contract. The `validateDownloadParity()` gate enforces the download-side contract.
+4. **CI enforcement:** The `templateCompletenessGate.ts` enforces the pipeline-side contract. Render parity tests enforce the download-side ViewModel renderer contract.
 
 ---
 

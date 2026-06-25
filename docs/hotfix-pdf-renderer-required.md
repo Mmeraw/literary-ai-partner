@@ -2,7 +2,7 @@
 
 The browser report CSS fix does not affect the generated PDF download path.
 
-Required next patch: app/api/reports/[jobId]/download/route.ts, inside renderCanonicalTemplateHtml:
+Required next patch: app/api/reports/[jobId]/download/route.ts, inside renderHtmlFromViewModel:
 
 - Replace the dark score-box with a light readiness card.
 - Readiness palette:

@@ -573,8 +573,8 @@ function cleanReportText(text: unknown, fallback = '—', _options: { blockTrunc
   return mistakeProofText(text, fallback);
 }
 
-// ── Phase 4b: Bridge adapter REMOVED ─────────────────────────────────────────
-// applyViewModelToDocument has been eliminated. All renderers now consume
+// ── Phase 4b: UED-shaped render bridge REMOVED ──────────────────────────────
+// The former UED-shaped render bridge has been eliminated. All renderers now consume
 // EvaluationReportViewModel directly:
 //   VM → renderTxtFromViewModel(vm)
 //   VM → renderHtmlFromViewModel(vm)
