@@ -2,12 +2,22 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { createHash } from 'crypto'
 
+export const REVISE_QUEUE_GOLD_STANDARD_FIXTURES = [
+  'docs/gold-standards/revise/README.md',
+  'docs/gold-standards/revise/cartel-babies-revise-gold-standard.md',
+  'docs/gold-standards/revise/let-the-river-decide-revise-gold-standard.md',
+  'docs/gold-standards/revise/mythoamphibia-revise-gold-standard.md',
+  'docs/gold-standards/revise/return-to-the-source-revise-gold-standard.md',
+] as const
+
 export const REVISE_QUEUE_WARMUP_FILES = [
   'docs/prompts/phase-0-revise-queue-warmup.md',
   'docs/canon/revise-queue-v2-contract.md',
   'docs/canon/revise-queue-six-part-diagnostic.md',
   'docs/gold-standards/revise-queue-rendering-exemplars.md',
   'docs/gold-standards/revise-queue-invalid-examples.md',
+  // Revise-specific gold-standard fixtures: concrete A/B/C repair and card-quality examples.
+  ...REVISE_QUEUE_GOLD_STANDARD_FIXTURES,
   // Story ledger and semantic integrity contracts used during warmup calibration.
   'docs/STORY_LEDGER_QUALITY_GATE.md',
   'docs/canon/STORY_LEDGER_SEMANTIC_INTEGRITY_CONTRACT.md',
@@ -62,6 +72,8 @@ export type ReviseQueueWarmupProof = {
   fileCount: number
   benchmarkCount: number
   benchmarkFilesLoaded: string[]
+  reviseFixtureCount: number
+  reviseFixturesLoaded: string[]
   perFile: Record<(typeof REVISE_QUEUE_WARMUP_FILES)[number], ReviseQueueWarmupFileProof>
 }
 
@@ -108,6 +120,11 @@ export async function loadReviseQueueWarmupCorpus(): Promise<ReviseQueueWarmupCo
         throw new Error(`Revise Queue warmup missing benchmark authorities: ${missingBenchmarks.join(', ')}`)
       }
 
+      const missingFixtures = REVISE_QUEUE_GOLD_STANDARD_FIXTURES.filter((file) => !REVISE_QUEUE_WARMUP_FILES.includes(file))
+      if (missingFixtures.length > 0) {
+        throw new Error(`Revise Queue warmup missing gold-standard fixtures: ${missingFixtures.join(', ')}`)
+      }
+
       const combinedText = REVISE_QUEUE_WARMUP_FILES.map((file) => `## ${file}\n\n${files[file]}`).join('\n\n---\n\n')
 
       return {
@@ -120,6 +137,8 @@ export async function loadReviseQueueWarmupCorpus(): Promise<ReviseQueueWarmupCo
           fileCount: REVISE_QUEUE_WARMUP_FILES.length,
           benchmarkCount: REVISE_QUEUE_BENCHMARK_FILES.length,
           benchmarkFilesLoaded: [...REVISE_QUEUE_BENCHMARK_FILES],
+          reviseFixtureCount: REVISE_QUEUE_GOLD_STANDARD_FIXTURES.length,
+          reviseFixturesLoaded: [...REVISE_QUEUE_GOLD_STANDARD_FIXTURES],
           perFile,
         },
       }
