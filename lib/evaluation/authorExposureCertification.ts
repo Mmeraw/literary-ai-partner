@@ -91,6 +91,14 @@ function parityHasFailure(value: unknown): boolean {
   return false;
 }
 
+function blockForFinalExternalAudit(): AuthorExposureDecision {
+  return {
+    exposable: false,
+    reason: 'final_external_audit_failed',
+    details: 'final_external_audit_v1 is missing, malformed, or blocking',
+  };
+}
+
 export function evaluateAuthorExposureCertification(content: unknown): AuthorExposureDecision {
   const certification = asCertificationShape(content);
   if (!certification) {
@@ -131,11 +139,7 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
   // Backward-compatible Phase 4B enforcement: older certifications may not yet
   // embed final_external_audit_v1, but once supplied it must allow exposure.
   if (certification.final_external_audit != null && !finalExternalAuditAllowsAuthorExposure(certification.final_external_audit)) {
-    return {
-      exposable: false,
-      reason: 'final_external_audit_failed',
-      details: 'final_external_audit_v1 is missing, malformed, or blocking',
-    };
+    return blockForFinalExternalAudit();
   }
 
   const certifiedAt = typeof certification.certified_at === 'string' ? certification.certified_at : null;
@@ -143,6 +147,28 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
     exposable: true,
     certifiedAt,
   };
+}
+
+/**
+ * Stricter Phase 5 helper for routes that have fetched author_exposure_certification_v1
+ * and final_external_audit_v1 as separate persisted artifacts.
+ *
+ * Unlike evaluateAuthorExposureCertification(), this helper requires the Phase 4B
+ * artifact to be supplied and exposure-allowing. Use it when the final audit has
+ * been promoted from embedded certification metadata to its own persisted artifact.
+ */
+export function evaluateAuthorExposureCertificationWithFinalExternalAudit(
+  certificationContent: unknown,
+  finalExternalAuditContent: unknown,
+): AuthorExposureDecision {
+  const baseDecision = evaluateAuthorExposureCertification(certificationContent);
+  if (!baseDecision.exposable) return baseDecision;
+
+  if (!finalExternalAuditAllowsAuthorExposure(finalExternalAuditContent)) {
+    return blockForFinalExternalAudit();
+  }
+
+  return baseDecision;
 }
 
 type AdminClient = ReturnType<typeof createClient>;
