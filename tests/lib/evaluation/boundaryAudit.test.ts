@@ -86,53 +86,54 @@ function checkPresence(output: string, value: unknown, path: string): { pass: bo
   return { pass: missing.length === 0, missing };
 }
 
-it('boundary audit: field-lineage report', async () => {
-  const result = {
-    generated_at: '2026-01-01T00:00:00Z',
-    overview: {
-      overall_score_0_100: 82, verdict: 'revise',
-      one_paragraph_summary: 'Measured parity summary appears in every renderer output.',
-      top_3_strengths: ['Measured voice strength', 'Clean scene intent', 'Useful premise'],
-      top_3_risks: ['Measured pacing risk', 'Thin midpoint pressure', 'Soft closing turn'],
-    },
-    metrics: { manuscript: { title: 'Measured Parity Manuscript', word_count: 5200, genre: 'thriller', target_audience: 'Adult thriller readers' } },
-    enrichment: { premise: 'A forensic editor validates renderer parity.', trigger_warnings: ['violence'], reading_grade_level: 9, dialogue_percentage: 35, narrative_percentage: 65 },
-    governance: { warnings: [], limitations: [] },
-    criteria: [{
-      key: 'narrativeDrive', score_0_10: 8, confidence_level: 'high',
-      rationale: 'The measured rationale must survive all renderer adapters.',
-      recommendations: [{
-        priority: 'high', action: 'Increase pressure around the midpoint reversal.',
-        anchor_snippet: 'The corridor fell silent before the alarm began.',
-        symptom: 'Tension softens before the decision point.',
-        mechanism: 'Delayed consequence signaling.',
-        specific_fix: 'Move the consequence beat one paragraph earlier.',
-        reader_effect: 'Keeps the reader oriented toward danger.',
-        mistake_proofing: 'Check each scene exit for a forward-pull sentence.',
-      }],
-    }],
-    recommendations: {
-      quick_wins: [{ action: 'Clarify the opening image.', why: 'Reader orientation improves.', effort: 'low', impact: 'medium' }],
-      strategic_revisions: [{ action: 'Rebalance the midpoint sequence.', why: 'Central tension should peak sooner.', effort: 'medium', impact: 'high' }],
-    },
-  } as unknown as EvaluationResultV2;
+// Mode-specific fields to check for long-form multi-layer
+const LONG_FORM_MODE_SPECIFIC_FIELDS = [
+  'modeSpecific.manuscriptScaleContinuityFindings',
+  'modeSpecific.storyLedgerArchitectureMap',
+  'modeSpecific.reviewGateReadinessSurface',
+  'modeSpecific.governedLedgerAddenda',
+  'modeSpecific.crossLayerSynthesis',
+  'modeSpecific.layerAwareRevisionSequencing',
+  'modeSpecific.continuityCoverageProof',
+  'modeSpecific.readinessReleasabilityPosture',
+  'modeSpecific.revisionPriorityPlan',
+];
 
-  const doc = buildUnifiedDocumentForParityFromEvaluationResult({ evaluationResult: result, displayTitle: 'Measured Parity Manuscript', mode: 'short_form_evaluation' });
+type AuditResult = {
+  failures: Array<{ field: string; cls: string; missing: string[] }>;
+  total: number;
+  passing: number;
+};
+
+async function runFieldLineageAudit(params: {
+  mode: 'short_form_evaluation' | 'long_form_multi_layer_evaluation';
+  result: EvaluationResultV2;
+  displayTitle: string;
+}): Promise<AuditResult> {
+  const doc = buildUnifiedDocumentForParityFromEvaluationResult({
+    evaluationResult: params.result,
+    displayTitle: params.displayTitle,
+    mode: params.mode,
+  });
   const vm = normalizeEvaluationReportViewModel(doc);
-  const txt = testing.renderTxtFromViewModel(vm, null, 'job-measured');
-  const html = testing.renderHtmlFromViewModel(vm, null, 'job-measured');
-  const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-measured');
+  const txt = testing.renderTxtFromViewModel(vm, null, 'job-audit');
+  const html = testing.renderHtmlFromViewModel(vm, null, 'job-audit');
+  const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-audit');
   const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
-  console.log('\n=== FIELD-LINEAGE REPORT ===');
+  const fieldsToCheck = [
+    ...REQUIRED_FIELDS,
+    ...(params.mode !== 'short_form_evaluation' ? LONG_FORM_MODE_SPECIFIC_FIELDS : []),
+  ];
+
+  console.log(`\n=== FIELD-LINEAGE REPORT [${params.mode}] ===`);
   console.log('field | UED? | VM? | VM=UED? | Web | DOCX | TXT | class');
   console.log('--- | --- | --- | --- | --- | --- | --- | ---');
 
   const failures: Array<{ field: string; cls: string; missing: string[] }> = [];
 
-  for (const field of REQUIRED_FIELDS) {
+  for (const field of fieldsToCheck) {
     const uedVal = readPath(doc, field);
-    // VM stores 'title' at 'titleBlock.displayTitle' (architectural rename)
     const vmPath = field === 'title' ? 'titleBlock.displayTitle' : field;
     const vmVal = readPath(vm, vmPath);
     const uedPresent = !isEmpty(uedVal) ? 'Y' : 'N';
@@ -145,13 +146,16 @@ it('boundary audit: field-lineage report', async () => {
       vmSameAsUed = JSON.stringify(uedVal) === JSON.stringify(vmVal) ? 'Y' : '?';
     }
 
-    const webCheck = checkPresence(html, uedVal, field);
-    const docxCheck = checkPresence(docxText, uedVal, field);
-    const txtCheck = checkPresence(txt, uedVal, field);
+    // Renderers consume VM, not UED — check VM fragments against renderer output.
+    // UED fragments may differ from VM when correctScopeLanguage applies (expected).
+    const checkVal = vmPresent === 'Y' ? vmVal : uedVal;
+    const webCheck = checkPresence(html, checkVal, field);
+    const docxCheck = checkPresence(docxText, checkVal, field);
+    const txtCheck = checkPresence(txt, checkVal, field);
 
     let cls = 'PASS';
     if (uedPresent === 'N') cls = 'A';
-    else if (vmPresent === 'N' || vmSameAsUed === 'N') cls = 'B';
+    else if (vmPresent === 'N') cls = 'B';
     else if (!webCheck.pass || !docxCheck.pass || !txtCheck.pass) cls = 'C';
 
     console.log(`${field} | ${uedPresent} | ${vmPresent} | ${vmSameAsUed} | ${webCheck.pass?'Y':'N'} | ${docxCheck.pass?'Y':'N'} | ${txtCheck.pass?'Y':'N'} | ${cls}`);
@@ -163,63 +167,111 @@ it('boundary audit: field-lineage report', async () => {
     }
   }
 
+  // correctScopeLanguage verification for long-form
+  if (params.mode !== 'short_form_evaluation') {
+    console.log('\n=== correctScopeLanguage VERIFICATION ===');
+    const chapterInUed = JSON.stringify(doc).match(/\bthis chapter\b/gi)?.length ?? 0;
+    const chapterInVm = JSON.stringify(vm).match(/\bthis chapter\b/gi)?.length ?? 0;
+    const manuscriptInVm = JSON.stringify(vm).match(/\bthis manuscript\b/gi)?.length ?? 0;
+    console.log(`UED "this chapter" occurrences: ${chapterInUed}`);
+    console.log(`VM "this chapter" occurrences: ${chapterInVm} (should be 0 for long-form)`);
+    console.log(`VM "this manuscript" occurrences: ${manuscriptInVm}`);
+    if (chapterInVm > 0) {
+      console.log('WARNING: correctScopeLanguage did not replace all "this chapter" in VM');
+    }
+  }
+
   // Authority answers
   console.log('\n=== AUTHORITY: confidenceExplanation ===');
   console.log('UED:', JSON.stringify((doc as Record<string, unknown>).confidenceExplanation).slice(0, 150));
   console.log('VM:', JSON.stringify((vm as Record<string, unknown>).confidenceExplanation).slice(0, 150));
 
-  console.log('\n=== AUTHORITY: criterionDetails ===');
-  const uedDetails = (doc as Record<string, unknown>).criterionDetails as Array<Record<string, unknown>>;
-  const vmDetails = (vm as Record<string, unknown>).criterionDetails as Array<Record<string, unknown>>;
-  console.log(`UED criterionDetails count: ${uedDetails?.length ?? 0}`);
-  console.log(`VM criterionDetails count: ${vmDetails?.length ?? 0}`);
-  // Show first and last detail entries (first has score, last likely stub)
-  if (uedDetails?.length > 0) {
-    const first = uedDetails[0];
-    console.log(`UED[0]: key=${first.key}, scoreLabel=${first.scoreLabel}, supportLabel=${first.supportLabel}`);
-    const last = uedDetails[uedDetails.length - 1];
-    console.log(`UED[last]: key=${last.key}, scoreLabel=${last.scoreLabel}, supportLabel=${last.supportLabel}`);
-    const firstRecs = Array.isArray(first.recommendations) ? first.recommendations : [];
-    if (firstRecs.length > 0) {
-      const r = firstRecs[0] as Record<string, unknown>;
-      console.log(`UED[0].rec[0] keys: ${Object.keys(r).join(', ')}`);
-      console.log(`  action: ${r.action}`);
-      console.log(`  specific_fix: ${r.specific_fix}`);
-    }
-  }
-  if (vmDetails?.length > 0) {
-    const first = vmDetails[0];
-    console.log(`VM[0]: key=${(first as Record<string, unknown>).key}, scoreLabel=${(first as Record<string, unknown>).scoreLabel}, supportLabel=${(first as Record<string, unknown>).supportLabel}`);
-    const last = vmDetails[vmDetails.length - 1];
-    console.log(`VM[last]: key=${(last as Record<string, unknown>).key}, scoreLabel=${(last as Record<string, unknown>).scoreLabel}, supportLabel=${(last as Record<string, unknown>).supportLabel}`);
-  }
-  
-  // Check if supportLabel text appears in outputs
-  const testFragment = 'score omitted';
-  const normTxtOut = normText(txt);
-  const normDocxOut = normText(docxText);
-  console.log(`\n"${testFragment}" in TXT: ${normTxtOut.includes(testFragment)}`);
-  console.log(`"${testFragment}" in DOCX: ${normDocxOut.includes(testFragment)}`);
-  // Show what the parity checker actually looks for
-  const stubLabel = "Score omitted — insufficient confidence in what the submitted text presented for this criterion";
-  const normalizedStub = normText(mistakeProofText(stubLabel, ''));
-  console.log(`Parity expects fragment: "${normalizedStub.slice(0, 80)}..."`);
-  console.log(`In TXT: ${normTxtOut.includes(normalizedStub)}`);
-  console.log(`In DOCX: ${normDocxOut.includes(normalizedStub)}`);
-
-  // Show small samples of TXT/DOCX output for debugging
-  console.log('\n=== TXT SAMPLE (first 500 chars) ===');
-  console.log(txt.slice(0, 500));
-  console.log('\n=== DOCX TEXT SAMPLE (first 500 chars) ===');
-  console.log(docxText.slice(0, 500));
-
-  // Print overall summary
-  console.log('\n=== SUMMARY ===');
-  console.log(`Total fields: ${REQUIRED_FIELDS.length}`);
-  console.log(`Passing: ${REQUIRED_FIELDS.length - failures.length}`);
-  console.log(`Failing: ${failures.length}`);
+  const total = fieldsToCheck.length;
+  const passing = total - failures.length;
+  console.log(`\n=== SUMMARY [${params.mode}] ===`);
+  console.log(`Total fields: ${total} | Passing: ${passing} | Failing: ${failures.length}`);
   failures.forEach(f => console.log(`  ${f.cls}: ${f.field}`));
 
-  // Don't assert — this is an audit tool
+  return { failures, total, passing };
+}
+
+const SHORT_FORM_FIXTURE = {
+  generated_at: '2026-01-01T00:00:00Z',
+  overview: {
+    overall_score_0_100: 82, verdict: 'revise',
+    one_paragraph_summary: 'Measured parity summary appears in every renderer output.',
+    top_3_strengths: ['Measured voice strength', 'Clean scene intent', 'Useful premise'],
+    top_3_risks: ['Measured pacing risk', 'Thin midpoint pressure', 'Soft closing turn'],
+  },
+  metrics: { manuscript: { title: 'Measured Parity Manuscript', word_count: 5200, genre: 'thriller', target_audience: 'Adult thriller readers' } },
+  enrichment: { premise: 'A forensic editor validates renderer parity.', trigger_warnings: ['violence'], reading_grade_level: 9, dialogue_percentage: 35, narrative_percentage: 65 },
+  governance: { warnings: [], limitations: [] },
+  criteria: [{
+    key: 'narrativeDrive', score_0_10: 8, confidence_level: 'high',
+    rationale: 'The measured rationale must survive all renderer adapters.',
+    recommendations: [{
+      priority: 'high', action: 'Increase pressure around the midpoint reversal.',
+      anchor_snippet: 'The corridor fell silent before the alarm began.',
+      symptom: 'Tension softens before the decision point.',
+      mechanism: 'Delayed consequence signaling.',
+      specific_fix: 'Move the consequence beat one paragraph earlier.',
+      reader_effect: 'Keeps the reader oriented toward danger.',
+      mistake_proofing: 'Check each scene exit for a forward-pull sentence.',
+    }],
+  }],
+  recommendations: {
+    quick_wins: [{ action: 'Clarify the opening image.', why: 'Reader orientation improves.', effort: 'low', impact: 'medium' }],
+    strategic_revisions: [{ action: 'Rebalance the midpoint sequence.', why: 'Central tension should peak sooner.', effort: 'medium', impact: 'high' }],
+  },
+} as unknown as EvaluationResultV2;
+
+// Long-form multi-layer fixture: includes "chapter" references to exercise correctScopeLanguage
+const LONG_FORM_FIXTURE = {
+  generated_at: '2026-01-01T00:00:00Z',
+  overview: {
+    overall_score_0_100: 74, verdict: 'revise',
+    one_paragraph_summary: 'This chapter demonstrates strong voice but the chapter needs tighter pacing at the midpoint.',
+    top_3_strengths: ['Layered character psychology across this chapter', 'Strong thematic resonance per chapter', 'Clean arc structure'],
+    top_3_risks: ['Pacing sags in the chapter midpoint', 'Subplot integration is chapter-level only', 'The chapter closing lacks forward pull'],
+  },
+  metrics: { manuscript: { title: 'Long Form Audit Novel', word_count: 85000, genre: 'literary fiction', target_audience: 'Adult literary fiction readers' } },
+  enrichment: { premise: 'A multi-layer audit validates scope language correction.', trigger_warnings: ['violence', 'substance use'], reading_grade_level: 12, dialogue_percentage: 25, narrative_percentage: 75 },
+  governance: { warnings: [], limitations: [] },
+  criteria: [{
+    key: 'narrativeDrive', score_0_10: 7, confidence_level: 'moderate',
+    rationale: 'This chapter builds tension effectively but the chapter loses momentum before the climax.',
+    recommendations: [{
+      priority: 'high', action: 'Tighten the chapter midpoint reversal.',
+      anchor_snippet: 'The hallway stretched longer than memory allowed.',
+      symptom: 'This chapter softens before the decision point.',
+      mechanism: 'The chapter delays consequence signaling.',
+      specific_fix: 'Move the chapter consequence beat one scene earlier.',
+      reader_effect: 'Keeps the reader oriented toward the chapter climax.',
+      mistake_proofing: 'Check each chapter exit for a forward-pull sentence.',
+    }],
+  }],
+  recommendations: {
+    quick_wins: [{ action: 'Clarify the chapter opening image.', why: 'Reader orientation improves.', effort: 'low', impact: 'medium' }],
+    strategic_revisions: [{ action: 'Rebalance the chapter midpoint sequence.', why: 'Central tension should peak sooner.', effort: 'medium', impact: 'high' }],
+  },
+} as unknown as EvaluationResultV2;
+
+it('boundary audit: short_form_evaluation field-lineage report', async () => {
+  const audit = await runFieldLineageAudit({
+    mode: 'short_form_evaluation',
+    result: SHORT_FORM_FIXTURE,
+    displayTitle: 'Measured Parity Manuscript',
+  });
+  console.log(`\nShort-form audit: ${audit.passing}/${audit.total} fields passing`);
+  expect(true).toBe(true);
+});
+
+it('boundary audit: long_form_multi_layer_evaluation field-lineage report', async () => {
+  const audit = await runFieldLineageAudit({
+    mode: 'long_form_multi_layer_evaluation',
+    result: LONG_FORM_FIXTURE,
+    displayTitle: 'Long Form Audit Novel',
+  });
+  console.log(`\nLong-form multi-layer audit: ${audit.passing}/${audit.total} fields passing`);
   expect(true).toBe(true);
 });
