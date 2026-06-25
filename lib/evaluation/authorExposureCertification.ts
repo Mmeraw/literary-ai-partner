@@ -44,13 +44,8 @@ function asCertificationShape(content: unknown): CertificationShape | null {
   return direct;
 }
 
-/**
- * Returns true only when blocking_reasons is a present, well-formed array
- * containing no real entries. Any other shape (undefined, null, string, object,
- * non-empty array) is treated as a blocking signal — fail closed.
- */
 function blockingReasonsAreClean(value: unknown): boolean {
-  if (!Array.isArray(value)) return false; // missing, wrong type → block
+  if (!Array.isArray(value)) return false;
   return !value.some((entry) => {
     if (typeof entry === 'string') return entry.trim().length > 0;
     if (entry && typeof entry === 'object') return Object.keys(entry as Record<string, unknown>).length > 0;
@@ -68,22 +63,15 @@ function parityHasFailure(value: unknown): boolean {
     return normalized === 'fail' || normalized === 'failed' || normalized === 'block' || normalized === 'blocked';
   }
 
-  if (Array.isArray(value)) {
-    return value.some((entry) => parityHasFailure(entry));
-  }
+  if (Array.isArray(value)) return value.some((entry) => parityHasFailure(entry));
 
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>;
-
     const status = typeof record.status === 'string' ? record.status.trim().toLowerCase() : null;
-    if (status && (status === 'fail' || status === 'failed' || status === 'block' || status === 'blocked')) {
-      return true;
-    }
+    if (status && (status === 'fail' || status === 'failed' || status === 'block' || status === 'blocked')) return true;
 
     const verdict = typeof record.verdict === 'string' ? record.verdict.trim().toLowerCase() : null;
-    if (verdict && (verdict === 'fail' || verdict === 'failed' || verdict === 'block' || verdict === 'blocked')) {
-      return true;
-    }
+    if (verdict && (verdict === 'fail' || verdict === 'failed' || verdict === 'block' || verdict === 'blocked')) return true;
 
     return Object.values(record).some((entry) => parityHasFailure(entry));
   }
@@ -136,27 +124,14 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
     };
   }
 
-  // Backward-compatible Phase 4B enforcement: older certifications may not yet
-  // embed final_external_audit_v1, but once supplied it must allow exposure.
   if (certification.final_external_audit != null && !finalExternalAuditAllowsAuthorExposure(certification.final_external_audit)) {
     return blockForFinalExternalAudit();
   }
 
   const certifiedAt = typeof certification.certified_at === 'string' ? certification.certified_at : null;
-  return {
-    exposable: true,
-    certifiedAt,
-  };
+  return { exposable: true, certifiedAt };
 }
 
-/**
- * Stricter Phase 5 helper for routes that have fetched author_exposure_certification_v1
- * and final_external_audit_v1 as separate persisted artifacts.
- *
- * Unlike evaluateAuthorExposureCertification(), this helper requires the Phase 4B
- * artifact to be supplied and exposure-allowing. Use it when the final audit has
- * been promoted from embedded certification metadata to its own persisted artifact.
- */
 export function evaluateAuthorExposureCertificationWithFinalExternalAudit(
   certificationContent: unknown,
   finalExternalAuditContent: unknown,
@@ -164,47 +139,45 @@ export function evaluateAuthorExposureCertificationWithFinalExternalAudit(
   const baseDecision = evaluateAuthorExposureCertification(certificationContent);
   if (!baseDecision.exposable) return baseDecision;
 
-  if (!finalExternalAuditAllowsAuthorExposure(finalExternalAuditContent)) {
-    return blockForFinalExternalAudit();
-  }
+  if (!finalExternalAuditAllowsAuthorExposure(finalExternalAuditContent)) return blockForFinalExternalAudit();
 
   return baseDecision;
 }
 
 type AdminClient = ReturnType<typeof createClient>;
 
-export async function getAuthorExposureDecision(
+async function readLatestArtifactContent(
   admin: Pick<AdminClient, 'from'>,
   jobId: string,
-): Promise<AuthorExposureDecision> {
+  artifactType: string,
+): Promise<{ content: unknown | null; errorMessage: string | null }> {
   const { data, error } = await admin
     .from('evaluation_artifacts')
     .select('content')
     .eq('job_id', jobId)
-    .eq('artifact_type', 'author_exposure_certification_v1')
+    .eq('artifact_type', artifactType)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (error) {
-    return {
-      exposable: false,
-      reason: 'db_error',
-      details: error.message,
-    };
-  }
-
-  if (data == null) {
-    return {
-      exposable: false,
-      reason: 'missing_certification',
-      details: 'author_exposure_certification_v1 artifact missing',
-    };
-  }
+  if (error) return { content: null, errorMessage: error.message };
+  if (data == null) return { content: null, errorMessage: null };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const content = (data as any).content as unknown;
-  if (!content) {
+  return { content: (data as any).content as unknown, errorMessage: null };
+}
+
+export async function getAuthorExposureDecision(
+  admin: Pick<AdminClient, 'from'>,
+  jobId: string,
+): Promise<AuthorExposureDecision> {
+  const certification = await readLatestArtifactContent(admin, jobId, 'author_exposure_certification_v1');
+
+  if (certification.errorMessage) {
+    return { exposable: false, reason: 'db_error', details: certification.errorMessage };
+  }
+
+  if (!certification.content) {
     return {
       exposable: false,
       reason: 'missing_certification',
@@ -212,5 +185,29 @@ export async function getAuthorExposureDecision(
     };
   }
 
-  return evaluateAuthorExposureCertification(content);
+  return evaluateAuthorExposureCertification(certification.content);
+}
+
+export async function getAuthorExposureDecisionWithFinalExternalAudit(
+  admin: Pick<AdminClient, 'from'>,
+  jobId: string,
+): Promise<AuthorExposureDecision> {
+  const certification = await readLatestArtifactContent(admin, jobId, 'author_exposure_certification_v1');
+  if (certification.errorMessage) {
+    return { exposable: false, reason: 'db_error', details: certification.errorMessage };
+  }
+  if (!certification.content) {
+    return {
+      exposable: false,
+      reason: 'missing_certification',
+      details: 'author_exposure_certification_v1 artifact missing',
+    };
+  }
+
+  const finalAudit = await readLatestArtifactContent(admin, jobId, 'final_external_audit_v1');
+  if (finalAudit.errorMessage) {
+    return { exposable: false, reason: 'db_error', details: finalAudit.errorMessage };
+  }
+
+  return evaluateAuthorExposureCertificationWithFinalExternalAudit(certification.content, finalAudit.content);
 }
