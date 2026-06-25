@@ -1,4 +1,5 @@
 import type { createClient } from '@supabase/supabase-js';
+import { finalExternalAuditAllowsAuthorExposure } from '@/lib/evaluation/finalExternalAudit';
 
 export type AuthorExposureBlockReason =
   | 'missing_certification'
@@ -6,6 +7,7 @@ export type AuthorExposureBlockReason =
   | 'decision_not_certified'
   | 'blocking_reasons_present'
   | 'parity_check_failed'
+  | 'final_external_audit_failed'
   | 'db_error';
 
 export type AuthorExposureDecision =
@@ -24,6 +26,7 @@ type CertificationShape = {
   certified_at?: unknown;
   blocking_reasons?: unknown;
   parity_results?: unknown;
+  final_external_audit?: unknown;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -122,6 +125,16 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
       exposable: false,
       reason: 'parity_check_failed',
       details: 'parity_results contains blocking/failure signal',
+    };
+  }
+
+  // Backward-compatible Phase 4B enforcement: older certifications may not yet
+  // embed final_external_audit_v1, but once supplied it must allow exposure.
+  if (certification.final_external_audit != null && !finalExternalAuditAllowsAuthorExposure(certification.final_external_audit)) {
+    return {
+      exposable: false,
+      reason: 'final_external_audit_failed',
+      details: 'final_external_audit_v1 is missing, malformed, or blocking',
     };
   }
 
