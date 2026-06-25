@@ -141,6 +141,9 @@ export type EvaluationReportViewModel = {
   // Mode-specific (long-form / multi-layer)
   modeSpecific: {
     manuscriptScaleContinuityFindings: string[];
+    storyLedgerArchitectureMap: string[];
+    reviewGateReadinessSurface: string[];
+    governedLedgerAddenda: string[];
     revisionPriorityPlan: Array<{
       priority: number;
       title: string;
@@ -309,6 +312,9 @@ export function normalizeEvaluationReportViewModel(
 
     modeSpecific: {
       manuscriptScaleContinuityFindings: sanitizeList(ued.modeSpecific.manuscriptScaleContinuityFindings, isLongForm),
+      storyLedgerArchitectureMap: sanitizeList(ued.modeSpecific.storyLedgerArchitectureMap, isLongForm),
+      reviewGateReadinessSurface: sanitizeList(ued.modeSpecific.reviewGateReadinessSurface, isLongForm),
+      governedLedgerAddenda: sanitizeList(ued.modeSpecific.governedLedgerAddenda, isLongForm),
       revisionPriorityPlan: ued.modeSpecific.revisionPriorityPlan,
       crossLayerSynthesis: sanitizeList(ued.modeSpecific.crossLayerSynthesis, isLongForm),
       layerAwareRevisionSequencing: sanitizeList(ued.modeSpecific.layerAwareRevisionSequencing, isLongForm),

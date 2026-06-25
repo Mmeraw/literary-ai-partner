@@ -1751,6 +1751,9 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, dream: LongformDr
       lines.push('');
     };
 
+    pushList(sectionTitleUpper('story_ledger'), vm.modeSpecific.storyLedgerArchitectureMap);
+    pushList(sectionTitleUpper('review_gate'), vm.modeSpecific.reviewGateReadinessSurface);
+    pushList(sectionTitleUpper('governed_ledgers'), vm.modeSpecific.governedLedgerAddenda);
     pushList(sectionTitleUpper('cross_layer_synthesis'), vm.modeSpecific.crossLayerSynthesis);
     pushList(sectionTitleUpper('revision_sequencing'), vm.modeSpecific.layerAwareRevisionSequencing);
     pushList(sectionTitleUpper('continuity_coverage'), vm.modeSpecific.continuityCoverageProof);
@@ -2082,6 +2085,293 @@ function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: Long
     ${(doc.templateMode !== 'short_form_evaluation' && (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0)) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
     <section><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
     <section><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
+  </body></html>`;
+}
+
+// ── Phase 4b: Direct ViewModel HTML renderer ────────────────────────────
+// Consumes EvaluationReportViewModel directly — no bridge adapter, no
+// cleanReportText on VM-owned fields (VM is the single sanitization boundary).
+// actionItems are NOT rendered (not ViewModel-owned author-facing output).
+function renderHtmlFromViewModel(vm: EvaluationReportViewModel, dream: LongformDreamDocument | null = null, jobId = ''): string {
+  const list = (items: string[], options: { ordered?: boolean } = {}) =>
+    items.length > 0
+      ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(item)}</span></li>`).join('')}</ul>`
+      : '<p>None supplied.</p>';
+
+  const renderOpportunityFields = (rows: Array<[string, string]>) => rows
+    .map(([label, value]) => {
+      const valHtml = label === 'Evidence' ? `\u201c${escapeHtml(value)}\u201d` : escapeHtml(value);
+      return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="opp-val">${valHtml}</div></div>`;
+    })
+    .join('');
+
+  const criteriaRows = vm.criteriaScoreGrid
+    .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td class="score-cell ${scorePaletteClassFromLabel(row.scoreLabel)}">${escapeHtml(row.scoreLabel)}</td><td><span class="confidence-pill ${confidencePaletteClass(row.confidenceLabel)}">${escapeHtml(row.confidenceLabel ?? '')}</span></td></tr>`)
+    .join('');
+
+  const detailCards = vm.criterionDetails
+    .map((detail) => {
+      const recHtml = detail.recommendations.length > 0
+        ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
+            const rows = vmOpportunityRows(r);
+            const detailHtml = rows.length > 0
+              ? renderOpportunityFields(rows)
+              : `<p class="opp-row">${escapeHtml(r.specific_fix ?? 'No action provided.')}</p>`;
+            return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
+          }).join('')}</div>`
+        : '';
+      return `
+      <article class="card">
+        <h3>${escapeHtml(detail.label)} <small><span class="criterion-score ${scorePaletteClassFromLabel(detail.scoreLabel)}">${escapeHtml(detail.scoreLabel)}</span> · <span class="confidence-text ${confidencePaletteClass(detail.confidenceLabel)}">${escapeHtml(detail.confidenceLabel ?? '')}</span></small></h3>
+        ${detail.supportLabel ? `<p style="font-size:9.5pt"><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
+        ${detail.rationaleLabel ? `<p style="margin-bottom:4px"><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
+        <p style="font-size:10pt;line-height:1.5">${escapeHtml(detail.rationaleText)}</p>
+        ${recHtml}
+      </article>`;
+    })
+    .join('');
+
+  // ── Dream Template Sections ────────────────────────────────────────────────
+  const dreamSectionsHtml = dream ? (() => {
+    const parts: string[] = [];
+
+    // §12a Expanded Criterion Analysis
+    const deepCriterionCards = Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0
+      ? dream.criterion_analyses.map(a => {
+          const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
+          const confLabel = formatConfidenceLabel(a.confidence);
+          const fitHtml = Array.isArray(a.fit_evidence) && a.fit_evidence.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>What Is Working:</strong></p>${list(a.fit_evidence)}`
+            : '';
+          const gapHtml = Array.isArray(a.gap_evidence) && a.gap_evidence.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>What Weakens Impact:</strong></p>${list(a.gap_evidence)}`
+            : '';
+          const queueHtml = Array.isArray(a.revision_queue) && a.revision_queue.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>Revision Queue:</strong></p>${list(a.revision_queue.map(formatRevisionQueueItem), { ordered: true })}`
+            : '';
+          return `<article class="card"><h3>${escapeHtml(getCriterionDisplayLabel(a.key))} <small><span class="criterion-score ${scorePaletteClassFromLabel(score)}">${escapeHtml(score)}</span> · <span class="confidence-text ${confidencePaletteClass(confLabel)}">${escapeHtml(confLabel)}</span></small></h3>${fitHtml}${gapHtml}${queueHtml}</article>`;
+        }).join('')
+      : '';
+    if (deepCriterionCards) {
+      parts.push(`<section><h2>${sectionTitle('expanded_criterion_analysis')}</h2>${deepCriterionCards}</section>`);
+    }
+
+    // §13 Story Ledger or Layer-Aware Architecture Map
+    const stackCards = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0
+      ? dream.structural_stack.map(layer => `<article class="card"><h3>${escapeHtml(layer.layer_name)}</h3><p><strong>Function:</strong> ${escapeHtml(layer.function)}</p><p><strong>Status:</strong> ${escapeHtml(layer.status)}</p>${layer.revision_note ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision note:</strong> ${escapeHtml(layer.revision_note)}</p>` : ''}</article>`).join('')
+      : '';
+    const arcCards = Array.isArray(dream.arc_map) && dream.arc_map.length > 0
+      ? dream.arc_map.map(act => `<article class="card"><h3>${escapeHtml(act.act_name)} <small>${escapeHtml(act.chapter_range)}</small></h3><p>${escapeHtml(act.primary_function)}</p>${act.revision_priority ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision priority:</strong> ${escapeHtml(act.revision_priority)}</p>` : ''}</article>`).join('')
+      : '';
+    const layerCards = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0
+      ? dream.layer_analyses.map(l => `<article class="card"><h3>${escapeHtml(l.layer_name)} <small>${escapeHtml(l.status)}</small></h3><p>${escapeHtml(l.needed_revision)}</p></article>`).join('')
+      : '';
+    if (stackCards || arcCards || layerCards) {
+      parts.push(`<section><h2>${sectionTitle('story_ledger')}</h2>${stackCards}${arcCards ? `<h3 style="margin-top:16px">Arc Map</h3>${arcCards}` : ''}${layerCards ? `<h3 style="margin-top:16px">Layer Analysis</h3>${layerCards}` : ''}</section>`);
+    }
+
+    // §14 Review Gate Readiness Surface
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const requiredHtml = Array.isArray(ac.required_detection) && ac.required_detection.length > 0
+        ? `<p><strong>Required Detection:</strong></p>${list(ac.required_detection)}`
+        : '';
+      const failureHtml = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0
+        ? `<p style="margin-top:10px"><strong>Failure Conditions:</strong></p>${list(ac.failure_conditions)}`
+        : '';
+      if (requiredHtml || failureHtml) {
+        parts.push(`<section><h2>${sectionTitle('review_gate')}</h2>${requiredHtml}${failureHtml}</section>`);
+      }
+    }
+
+    // §15 Governed Ledgers
+    if (dream.symbolic_audit) {
+      const sa = dream.symbolic_audit;
+      const symbolsHtml = Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0
+        ? `<h3 style="margin-bottom:8px">Preserved Symbols</h3>${sa.preserved_symbols.map(sym => `<div class="card"><p><strong>${escapeHtml(sym.symbol)}</strong> — ${escapeHtml(sym.current_function)}</p>${sym.revision_instruction ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(sym.revision_instruction)}</p>` : ''}</div>`).join('')}`
+        : '';
+      const strengthsHtml = Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0
+        ? `<p style="margin-top:10px"><strong>Doctrine Strengths:</strong></p>${list(sa.doctrine_strengths)}`
+        : '';
+      const risksHtml = Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0
+        ? `<p style="margin-top:10px"><strong>Doctrine Risks:</strong></p>${list(sa.doctrine_risks)}`
+        : '';
+      const conclusionHtml = hasMeaningfulText(sa.audit_conclusion) ? `<p style="margin-top:10px">${escapeHtml(sa.audit_conclusion)}</p>` : '';
+      if (symbolsHtml || strengthsHtml || risksHtml || conclusionHtml) {
+        parts.push(`<section><h2>${sectionTitle('governed_ledgers')}</h2>${symbolsHtml}${strengthsHtml}${risksHtml}${conclusionHtml}</section>`);
+      }
+    }
+
+    // §16 Cross-Layer Synthesis
+    const ds = dream.dream_scores;
+    const scoreMetrics = ds ? [
+      ds.quality != null ? `<div class="metric"><strong>Quality</strong><div>${escapeHtml(scoreLabel(ds.quality, 100))}</div></div>` : '',
+      ds.readiness != null ? `<div class="metric"><strong>Readiness</strong><div>${escapeHtml(scoreLabel(ds.readiness, 100))}</div></div>` : '',
+      ds.commercial != null ? `<div class="metric"><strong>Commercial</strong><div>${escapeHtml(scoreLabel(ds.commercial, 100))}</div></div>` : '',
+      ds.literary != null ? `<div class="metric"><strong>Literary</strong><div>${escapeHtml(scoreLabel(ds.literary, 100))}</div></div>` : '',
+    ].filter(Boolean).join('') : '';
+    const crossCards = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0
+      ? dream.cross_layer_integration.map(c => `<article class="card"><h3>${escapeHtml(c.motif)}</h3><p>${escapeHtml(c.description)}</p>${c.revision_note ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(c.revision_note)}</p>` : ''}</article>`).join('')
+      : '';
+    const readerExpHtml = (() => {
+      if (!dream.reader_experience) return '';
+      const re = dream.reader_experience;
+      const actCard = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+        if (!act) return '';
+        const questionHtml = hasMeaningfulText(act.reader_question) ? `<p><strong>Reader Question:</strong> ${escapeHtml(act.reader_question)}</p>` : '';
+        const emotionHtml = hasMeaningfulText(act.emotional_state) ? `<p><strong>Emotional State:</strong> ${escapeHtml(act.emotional_state)}</p>` : '';
+        const riskHtml = hasMeaningfulText(act.risk) ? `<p><strong>Risk:</strong> ${escapeHtml(act.risk)}</p>` : '';
+        if (!questionHtml && !emotionHtml && !riskHtml) return '';
+        return `<article class="card"><h3>${escapeHtml(title)}</h3>${questionHtml}${emotionHtml}${riskHtml}</article>`;
+      };
+      const aftertasteHtml = hasMeaningfulText(re.aftertaste) ? `<p style="margin-top:14px;font-size:10pt">${escapeHtml(re.aftertaste)}</p>` : '';
+      const actHtml = `${actCard('First Act', re.first_act)}${actCard('Middle', re.middle)}${actCard('Final Act', re.final_act)}`;
+      if (!actHtml && !aftertasteHtml) return '';
+      return `<h3 style="margin-top:16px">Reader Experience</h3>${actHtml}${aftertasteHtml}`;
+    })();
+    if (hasMeaningfulText(dream.executive_verdict) || scoreMetrics || crossCards || readerExpHtml) {
+      parts.push(`<section><h2>${sectionTitle('cross_layer_synthesis')}</h2>${scoreMetrics ? `<div class="grid" style="margin-bottom:14px">${scoreMetrics}</div>` : ''}${hasMeaningfulText(dream.executive_verdict) ? `<p style="font-size:10pt;line-height:1.6">${escapeHtml(dream.executive_verdict)}</p>` : ''}${crossCards ? `<h3 style="margin-top:16px">Cross-Layer Integration</h3>${crossCards}` : ''}${readerExpHtml}</section>`);
+    }
+
+    // §17 Layer-Aware Revision Sequencing
+    const dreamRevisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (dreamRevisionPlan.length > 0) {
+      const planCards = dreamRevisionPlan.map(item => {
+        const actionsHtml = Array.isArray(item.actions) && item.actions.length > 0
+          ? `<p style="margin-top:8px"><strong>Actions:</strong></p>${list(item.actions, { ordered: true })}`
+          : '';
+        const acceptanceHtml = item.acceptance_check ? `<p style="margin-top:8px;font-size:9.5pt;color:#5C5549"><strong>Acceptance Check:</strong> ${escapeHtml(item.acceptance_check)}</p>` : '';
+        return `<article class="card"><h3>Priority ${item.displayPriority}: ${escapeHtml(item.title)}</h3><p>${escapeHtml(item.goal)}</p>${actionsHtml}${acceptanceHtml}</article>`;
+      }).join('');
+      parts.push(`<section><h2>${sectionTitle('revision_sequencing')}</h2>${planCards}</section>`);
+    }
+
+    // §18 Long-Form Continuity and Coverage Proof
+    const continuityItems: string[] = [];
+    if (Array.isArray(dream.arc_map)) {
+      dream.arc_map.forEach(act => { if (hasMeaningfulText(act.primary_function)) continuityItems.push(`${act.act_name}: ${act.primary_function}`); });
+    }
+    if (Array.isArray(dream.layer_analyses)) {
+      dream.layer_analyses.forEach(l => { if (hasMeaningfulText(l.needed_revision)) continuityItems.push(`${l.layer_name}: ${l.needed_revision}`); });
+    }
+    if (Array.isArray(dream.cross_layer_integration)) {
+      dream.cross_layer_integration.forEach(c => { if (hasMeaningfulText(c.revision_note)) continuityItems.push(`${c.motif}: ${c.revision_note}`); });
+    }
+    parts.push(`<section><h2>${sectionTitle('continuity_coverage')}</h2>${continuityItems.length > 0 ? list(continuityItems) : '<p>Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.</p>'}</section>`);
+
+    // §19 Readiness / Releasability Posture
+    const hasReleasability = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+    const hasMarketShelf = dream.market_shelf && (hasMeaningfulText(dream.market_shelf.best_shelf) || hasMeaningfulText(dream.market_shelf.marketable_hook) || hasMeaningfulText(dream.market_shelf.market_danger) || (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) || (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0));
+    if (hasReleasability || hasMarketShelf) {
+      const verdictClass = (v: string) => v === 'Ready' ? 'score-strong' : (v === 'Revise' || v === 'Must fix') ? 'score-risk' : 'score-watch';
+      const releasabilityRows = hasReleasability ? dream.releasability.map(dim =>
+        `<tr><td>${escapeHtml(dim.dimension)}</td><td>${escapeHtml(dim.current_status)}</td><td class="${verdictClass(dim.verdict)}" style="font-weight:700;text-align:right">${escapeHtml(dim.verdict)}</td></tr>`
+      ).join('') : '';
+      const releasabilityTable = releasabilityRows ? `<table class="score-grid-table"><thead><tr><th>Dimension</th><th>Status</th><th style="text-align:right">Verdict</th></tr></thead><tbody>${releasabilityRows}</tbody></table>` : '';
+      const marketShelfHtml = hasMarketShelf ? (() => {
+        const ms = dream.market_shelf!;
+        const bestShelfHtml = hasMeaningfulText(ms.best_shelf) ? `<p><strong>Best Shelf:</strong> ${escapeHtml(ms.best_shelf)}</p>` : '';
+        const hookHtml = hasMeaningfulText(ms.marketable_hook) ? `<p><strong>Marketable Hook:</strong> ${escapeHtml(ms.marketable_hook)}</p>` : '';
+        const dangerHtml = hasMeaningfulText(ms.market_danger) ? `<p><strong>Market Danger:</strong> ${escapeHtml(ms.market_danger)}</p>` : '';
+        const neighborsHtml = Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0 ? `<p style="margin-top:10px"><strong>Shelf Neighbors:</strong></p>${list(ms.shelf_neighbors)}` : '';
+        const compHtml = Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0 ? `<p style="margin-top:10px"><strong>Comparison Space:</strong></p>${list(ms.comparison_space)}` : '';
+        const wntbHtml = Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0 ? `<p style="margin-top:10px"><strong>What Not to Become:</strong></p>${list(dream.what_not_to_become)}` : '';
+        return `<h3 style="margin-top:16px">Market Shelf</h3><div class="card">${bestShelfHtml}${hookHtml}${dangerHtml}${neighborsHtml}${compHtml}${wntbHtml}</div>`;
+      })() : '';
+      parts.push(`<section><h2>${sectionTitle('readiness_posture')}</h2>${releasabilityTable}${marketShelfHtml}</section>`);
+    }
+
+    return parts.join('\n    ');
+  })() : '';
+
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(vm.titleBlock.displayTitle)} - RevisionGrade Report</title><style>
+    @page{size:Letter;margin:0.66in 0.68in 0.78in;@bottom-center{content:'RevisionGrade\u2122 | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
+    *{box-sizing:border-box;min-width:0}
+    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.5;font-size:10.3pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page}
+    .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
+    .brand{font-family:Georgia,'Times New Roman',serif;font-size:24pt;font-weight:700;color:#8B2E2E;letter-spacing:.01em}
+    .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#5C5549;margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
+    .hero{display:grid;grid-template-columns:minmax(0,1fr) 2.35in;gap:0.28in;margin-top:0.38in;align-items:start}
+    .title{font-size:31pt;line-height:1.08;color:#1C1814;margin:0 0 10px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:12pt;margin:0;text-transform:uppercase;letter-spacing:.05em}
+    .readiness-card{border:2px solid #D9D0C3;border-radius:10px;padding:0.22in 0.18in;color:#1A1A1A;text-align:center;box-shadow:0 8px 18px rgba(111,29,27,.06);break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
+    .readiness-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D;color:#1A1A1A}.readiness-card.readiness-watch{background:#FFF6E8;border-color:#D9A441;color:#1A1A1A}.readiness-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A;color:#1A1A1A}.readiness-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3;color:#1A1A1A}
+    .readiness-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}.readiness-card .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px;color:#1A1A1A}.readiness-card .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#1A1A1A;letter-spacing:.04em}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
+    .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+    .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
+    section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:18px 21px;margin:0 0 14px;break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
+    h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:16pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11pt} small{font-weight:normal;color:#5C5549}
+    ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
+    table{width:100%;border-collapse:collapse}.score-grid-table{table-layout:fixed}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:7px 8px;text-align:left;vertical-align:top}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%}
+    .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
+    .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:7px;color:#1C1814}
+    .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
+    .opp-block{margin-top:10px;background:#FFFDF9;border:1px solid #E6DED2;border-left:3px solid #C8A96E;padding:12px 14px;border-radius:8px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
+    .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8B2E2E;margin-bottom:6px}
+    .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
+    .opp-row strong{color:#5C5549}
+    .opp-row em{color:#6B5E52;font-style:normal}.opp-field{margin-top:8px;padding-top:6px;border-top:1px solid #EDE7DE;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;margin-bottom:2px}.opp-val{display:block;width:100%;font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#1C1814;line-height:1.45;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
+    .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
+    .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
+  </style></head><body>
+    <header class="cover">
+      <div class="brand">RevisionGrade\u2122 Evaluation Report</div>
+      <div class="tag">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
+      <div class="hero">
+        <div>
+          <h1 class="title">${escapeHtml(vm.titleBlock.displayTitle)}</h1>
+          <p class="subtitle">${escapeHtml(vm.titleBlock.reportType)}</p>
+          ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
+        </div>
+        <aside class="readiness-card ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">
+          <div class="label">Overall Score</div>
+          <div class="value ${scorePaletteClassFromLabel(vm.titleBlock.overallScoreLabel)}">${escapeHtml(vm.titleBlock.overallScoreLabel)}</div>
+          ${vm.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
+          <div class="verdict ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">${escapeHtml(vm.titleBlock.marketReadiness)}</div>
+          ${vm.titleBlock.marketReadinessConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
+        </aside>
+      </div>
+      <div class="grid">
+        <div class="metric"><strong>Genre</strong><div>${escapeHtml(vm.titleBlock.genre)}${vm.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.genreConfidenceLabel)}">${escapeHtml(vm.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
+        <div class="metric"><strong>Target Audience</strong><div>${vm.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(vm.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.audienceConfidenceLabel)}">${escapeHtml(vm.titleBlock.audienceConfidenceLabel)}</span></div></div>
+        <div class="metric"><strong>Submitted Word Count</strong><div>${escapeHtml(vm.titleBlock.submittedWordCount)}</div></div>
+        <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(vm.titleBlock.estimatedPages)}</div></div>
+        <div class="metric"><strong>Reading Grade Level</strong><div>${escapeHtml(vm.titleBlock.readingGradeLevel)}</div></div>
+        <div class="metric"><strong>Dialogue/Narrative Ratio</strong><div>${escapeHtml(vm.titleBlock.dialogueNarrativeRatio)}</div></div>
+        <div class="metric"><strong>Date Generated</strong><div>${escapeHtml(vm.titleBlock.dateGenerated)}</div></div>
+        <div class="metric"><strong>Confidentiality</strong><div>Prepared for author/editorial use.</div></div>
+        ${vm.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(vm.titleBlock.shelf)}${vm.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.shelfConfidenceLabel)}">${escapeHtml(vm.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
+        ${vm.titleBlock.genreExpectationSummary ? `<div class="metric"><strong>Genre Expectations</strong><div>${escapeHtml(vm.titleBlock.genreExpectationSummary)}${vm.titleBlock.genreExpectationProfileLabels.length > 0 ? `<br /><small>Reader emphasis: ${escapeHtml(vm.titleBlock.genreExpectationProfileLabels.join(', '))}</small>` : ''}</div></div>` : ''}
+      </div>
+      <p class="footnote">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+    </header>
+    <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(vm.oneParagraphPitch)}</p></section>
+    <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(vm.oneSentencePitch)}</p></section>
+    ${vm.premise ? `<section><h2>Premise</h2><p>${escapeHtml(vm.premise)}</p></section>` : ''}
+    <section><h2>Content Warnings</h2>${list(vm.contentWarnings)}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
+    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric"><strong>Total</strong><div>${vm.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${vm.revisionOpportunitySummary.recommended}</div></div><div class="metric"><strong>Optional</strong><div>${vm.revisionOpportunitySummary.optional}</div></div><div class="metric"><strong>Consider</strong><div>${vm.revisionOpportunitySummary.consider}</div></div></div></section>
+    <section><h2>Executive Summary</h2><p>${escapeHtml(vm.executiveSummary)}</p></section>
+    <section><h2>Top Strengths</h2>${list(vm.topStrengths, { ordered: true })}</section>
+    <section><h2>Top Risks</h2>${list(vm.topRisks, { ordered: true })}</section>
+    <section><h2>Top Recommendations</h2>${vm.topRecommendations.length > 0 ? list(vm.topRecommendations, { ordered: true }) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
+    <section><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+    <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
+    ${dream ? dreamSectionsHtml : ((vm.templateMode === 'long_form_evaluation' || vm.templateMode === 'long_form_multi_layer_evaluation') ? `
+    ${vm.modeSpecific.manuscriptScaleContinuityFindings.length > 0 ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(vm.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
+    ${vm.modeSpecific.storyLedgerArchitectureMap.length > 0 ? `<section><h2>${sectionTitle('story_ledger')}</h2>${list(vm.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
+    ${vm.modeSpecific.reviewGateReadinessSurface.length > 0 ? `<section><h2>${sectionTitle('review_gate')}</h2>${list(vm.modeSpecific.reviewGateReadinessSurface)}</section>` : ''}
+    ${vm.modeSpecific.governedLedgerAddenda.length > 0 ? `<section><h2>${sectionTitle('governed_ledgers')}</h2>${list(vm.modeSpecific.governedLedgerAddenda)}</section>` : ''}
+    ${vm.modeSpecific.crossLayerSynthesis.length > 0 ? `<section><h2>${sectionTitle('cross_layer_synthesis')}</h2>${list(vm.modeSpecific.crossLayerSynthesis)}</section>` : ''}
+    ${vm.modeSpecific.layerAwareRevisionSequencing.length > 0 ? `<section><h2>${sectionTitle('revision_sequencing')}</h2>${list(vm.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
+    ${vm.modeSpecific.revisionPriorityPlan.length > 0 ? `<section><h2>${sectionTitle('revision_sequencing')}</h2>${vm.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(item.title)}</h3><p><strong>Location:</strong> ${escapeHtml(item.location)}</p><p><strong>Operation:</strong> ${escapeHtml(item.operation)}</p><p><strong>Recommendation:</strong> ${escapeHtml(item.recommendation)}</p><p><strong>Rationale:</strong> ${escapeHtml(item.rationale)}</p></article>`).join('')}</section>` : ''}
+    ${vm.modeSpecific.continuityCoverageProof.length > 0 ? `<section><h2>${sectionTitle('continuity_coverage')}</h2>${list(vm.modeSpecific.continuityCoverageProof)}</section>` : ''}
+    ${vm.modeSpecific.readinessReleasabilityPosture.trim().length > 0 ? `<section><h2>${sectionTitle('readiness_posture')}</h2><p>${escapeHtml(vm.modeSpecific.readinessReleasabilityPosture)}</p></section>` : ''}
+    ` : '')}
+    <section><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(vm.confidenceExplanation)}</p></section>
+    <section><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(vm.disclaimer)}</p></section>
   </body></html>`;
 }
 
