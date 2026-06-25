@@ -5,6 +5,7 @@ import {
   buildUnifiedDocumentForParityFromEvaluationResult,
   inferCanonicalEvaluationModeFromWordCount,
 } from '@/lib/evaluation/reportRenderParity';
+import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import mammoth from 'mammoth';
 
@@ -250,9 +251,10 @@ describe('report render parity manifest builder', () => {
       displayTitle: 'Measured Parity Manuscript',
       mode,
     });
-    const txt = testing.buildCanonicalTemplateTxt(doc, null, 'job-measured');
-    const html = testing.renderCanonicalTemplateHtml(doc, null, 'job-measured');
-    const docxBuffer = await testing.buildCanonicalTemplateDocx(doc, null, 'job-measured');
+    const vm = normalizeEvaluationReportViewModel(doc);
+    const txt = testing.renderTxtFromViewModel(vm, null, 'job-measured');
+    const html = testing.renderHtmlFromViewModel(vm, null, 'job-measured');
+    const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-measured');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
     const manifest = buildReportRenderManifestV1({
