@@ -1,25 +1,3999 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: { jobId: string } | Promise<{ jobId: string }> },
-) {
-  const resolved = await Promise.resolve(params);
-  console.error('[report-download] download route temporarily disabled pending route restoration', {
-    jobId: resolved?.jobId ?? null,
-    code: 'DOWNLOAD_ROUTE_RESTORE_REQUIRED',
-  });
+import { createAdminClient } from '@/lib/supabase/admin';
+import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
+import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
+import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
+import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
+import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
+// Governance types retained as comments — internal-only, never exported to users.
+// import type { WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
+// import type { Gate15AuditArtifact } from '@/lib/evaluation/gate15/gate15_orchestrator';
+// import type { GoldenSpineArtifact } from '@/lib/evaluation/goldenSpine/goldenSpineAudit';
+// import type { DialogueCanonAuditArtifact } from '@/lib/evaluation/dialogueCanon/dialogueCanonAudit';
+// import type { RevisionCanonMetadata } from '@/lib/evaluation/revisionCanonMetadata';
+import {
+  filterAuthorFacingTextList,
+  getRenumberedAuthorFacingRevisionPlan,
+  getCriterionDisplayLabel,
+  mistakeProofText,
+} from '@/lib/evaluation/reportRenderSafety';
+import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations';
+import {
+  buildReportPitches,
+  summarizeRevisionOpportunities,
+} from '@/lib/evaluation/reportTemplateContract';
+import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { EVALUATION_TEMPLATE_CONTRACTS } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
+import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
+import type { EvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
+import type { CanonicalConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
+import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
+import {
+  getLongFormMultiLayerSections,
+  getRequiredSectionTitles,
+  getForbiddenTopLevelHeadings,
+  getForbiddenNearDuplicates,
+  validateRenderedHeadings,
+  validateCrossSurfaceParity,
+  extractHtmlH2Headings,
+  extractTxtHeadings,
+  extractDocxXmlHeadings,
+  validateDocxXmlStructure,
+} from '@/lib/evaluation/sharedLongFormMultiLayerSections';
+import { runRevisionSurfaceOwnershipGate, runRenderedOutputOwnershipGate, buildRevisionSurfaceOwnershipDiagnosis } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
+import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
+import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
+import { getForbiddenShortFormSections } from '@/lib/evaluation/shortFormSectionContract';
+import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
+import { requireUser } from '@/lib/security/apiGuards';
+import {
+  formatConfidenceLabelForExport as formatConfidenceLabel,
+  getConfidenceExportPaletteClass as confidencePaletteClass,
+  getConfidenceExportPaletteColor as confidencePaletteColor,
+} from '@/lib/evaluation/confidenceFieldPolicy';
+import { formatScoreForDisplay, formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
+import {
+  Document, Packer, Paragraph, TextRun, HeadingLevel,
+  Table, TableRow, TableCell, WidthType, BorderStyle,
+  AlignmentType, ShadingType, Header, Footer,
+  PageNumber,
+} from 'docx';
 
-  return NextResponse.json(
-    {
-      error: 'Downloads are temporarily unavailable while we restore the report export route.',
-      code: 'DOWNLOAD_ROUTE_RESTORE_REQUIRED',
-    },
-    { status: 503 },
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+// ── Shared section contract helpers ─────────────────────────────────────
+// All renderers derive §13–§21 headings from the single source of truth.
+const _sectionContract = getLongFormMultiLayerSections();
+function sectionTitle(id: string): string {
+  const sec = _sectionContract.find(s => s.id === id);
+  if (!sec) throw new Error(`Unknown section id: ${id}`);
+  return sec.title;
+}
+function sectionTitleUpper(id: string): string {
+  return sectionTitle(id).toUpperCase();
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LONG_FORM_WORD_THRESHOLD = 25000;
+const WORDS_PER_MANUSCRIPT_PAGE = 250;
+const TXT_WRAP_WIDTH = 78;
+const EXPORT_DISCLAIMER =
+  'Generated by RevisionGrade™. Author retains ownership of manuscript content. This report is an editorial diagnostic and does not guarantee publication, representation, or commercial outcome.';
+
+/** Format words that are not valid genre names — mirrors shortFormReportDocument.FORMAT_WORDS. */
+const GENRE_FORMAT_WORDS = new Set([
+  'book', 'chapter', 'excerpt', 'fiction', 'manuscript', 'novel', 'novella',
+  'nonfiction', 'poem', 'screenplay', 'short fiction', 'short story', 'story',
+]);
+
+/** Title-case a genre value — mirrors shortFormReportDocument.titleCaseGenre. */
+function titleCaseGenreValue(value: string): string {
+  return value
+    .split(/(\s+|\/|\+)/)
+    .map((part) => {
+      if (/^\s+$|^\/|^\+$/.test(part)) return part;
+      const trimmed = part.trim();
+      if (!trimmed) return part;
+      if (/^[A-Z]{2,}$/.test(trimmed)) return trimmed;
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    })
+    .join('')
+    .replace(/\bAnd\b/g, 'and')
+    .replace(/\bOr\b/g, 'or')
+    .replace(/\bThe\b/g, 'the')
+    .replace(/\bOf\b/g, 'of');
+}
+
+// ── RevisionGrade brand palette ──────────────────────────────────────
+const RG = {
+  gold:       '#B8922A',
+  goldLight:  '#F5E9C8',
+  goldMid:    '#C8A96E',
+  oxblood:    '#8B2E2E',
+  ink:        '#1C1814',
+  ink2:       '#2A2520',
+  cream:      '#F5EFE0',
+  cream2:     '#C8BEA8',
+  surface:    '#FAF7F2',
+  surfaceAlt: '#FFFDF9',
+  border:     '#D9D0C3',
+  borderLight:'#E6DED2',
+  textPrimary:'#1C1814',
+  textMuted:  '#5C5549',
+  textFaint:  '#9A9087',
+  success:    '#3A6B2A',
+  successBg:  '#EBF4E6',
+  warning:    '#8B5E1A',
+  warningBg:  '#FBF1DC',
+  error:      '#8B2020',
+  errorBg:    '#F9E8E8',
+} as const;
+
+function docxHex(color: string): string {
+  return color.replace('#', '');
+}
+
+function parseScoreLabel(label: string): { score: number; denominator: 10 | 100 } | null {
+  const match = label.match(/(\d+(?:\.\d+)?)\s*\/\s*(10|100)/);
+  if (!match) return null;
+  const score = Number(match[1]);
+  const denominator = Number(match[2]) as 10 | 100;
+  return Number.isFinite(score) ? { score, denominator } : null;
+}
+
+function scorePaletteColorFromLabel(label: string): string {
+  const parsed = parseScoreLabel(label);
+  if (!parsed) return RG.textFaint;
+
+  if (parsed.denominator === 100) {
+    if (parsed.score >= 90) return RG.success;
+    if (parsed.score >= 80) return RG.warning;
+    return RG.error;
+  }
+
+  if (parsed.score >= 8) return RG.success;
+  if (parsed.score >= 6) return RG.warning;
+  return RG.error;
+}
+
+function scorePaletteClassFromLabel(label: string): string {
+  const parsed = parseScoreLabel(label);
+  if (!parsed) return 'score-muted';
+
+  if (parsed.denominator === 100) {
+    if (parsed.score >= 90) return 'score-strong';
+    if (parsed.score >= 80) return 'score-watch';
+    return 'score-risk';
+  }
+
+  if (parsed.score >= 8) return 'score-strong';
+  if (parsed.score >= 6) return 'score-watch';
+  return 'score-risk';
+}
+
+function readinessPaletteColor(label: string): string {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.startsWith('near market ready')) return RG.warning;
+  if (normalized.startsWith('market ready')) return RG.success;
+  if (normalized.startsWith('not market ready')) return RG.error;
+  return RG.textMuted;
+}
+
+function readinessPaletteClass(label: string): string {
+  const normalized = label.trim().toLowerCase();
+  if (normalized.startsWith('near market ready')) return 'readiness-watch';
+  if (normalized.startsWith('market ready')) return 'readiness-strong';
+  if (normalized.startsWith('not market ready')) return 'readiness-risk';
+  return 'readiness-muted';
+}
+
+const FOOTER_LINE = 'RevisionGrade\u2122  |  Manuscript diagnosis, author-controlled revision, and professional submission preparation.';
+
+type ExportFormat = 'pdf' | 'docx' | 'txt';
+type ExportableResult = EvaluationResultV1 | EvaluationResultV2;
+
+type EnrichmentData = {
+  diagnosed_genre?: string | null;
+  target_audience?: string | null;
+  reading_grade_level?: number | null;
+  dialogue_percentage?: number | null;
+  narrative_percentage?: number | null;
+  premise?: string | null;
+  trigger_warnings?: string[] | null;
+} | null;
+
+type ExportableResultShape = {
+  generated_at?: unknown;
+  schema_version?: unknown;
+  metrics?: { manuscript?: { title?: unknown; word_count?: unknown; genre?: unknown; target_audience?: unknown } };
+  overview?: {
+    verdict?: unknown;
+    overall_score_0_100?: unknown;
+    one_paragraph_summary?: unknown;
+    top_3_strengths?: unknown;
+    top_3_risks?: unknown;
+  };
+  criteria?: unknown;
+  recommendations?: {
+    quick_wins?: unknown;
+    strategic_revisions?: unknown;
+  };
+  governance?: {
+    transparency?: {
+      genre_expectation_context?: unknown;
+    };
+  };
+};
+
+type ReportMetadata = {
+  displayTitle: string;
+  generatedAt: string;
+  score: string;
+  verdict: string;
+  wordCount: number | null;
+  estimatedPages: number | null;
+  reportType: string;
+  shelf: string | null;
+  genre: string | null;
+  targetAudience: string | null;
+};
+
+type LedgerTotals = {
+  must: number;
+  should: number;
+  could: number;
+};
+
+type RevisionLedgerSummary = {
+  totalItems: number;
+  ledgerTotals: LedgerTotals | null;
+};
+
+type ExportRecommendation = {
+  priority?: 'high' | 'medium' | 'low';
+  action?: string;
+  expected_impact?: string;
+  anchor_snippet?: string;
+  anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
+  symptom?: string;
+  mechanism?: string;
+  specific_fix?: string;
+  reader_effect?: string;
+  mistake_proofing?: string;
+  collapsed_from_criteria?: string[];
+};
+
+function exportSeverity(priority?: string): string {
+  if (priority === 'high') return 'RECOMMENDED';
+  if (priority === 'medium') return 'OPTIONAL';
+  return 'CONSIDER';
+}
+
+const SEVERITY_SORT_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+function getCriterionOpportunities(c: { recommendations?: unknown }): ExportRecommendation[] {
+  if (!Array.isArray(c.recommendations)) return [];
+  return c.recommendations
+    .filter((r): r is ExportRecommendation => typeof r === 'object' && r !== null)
+    .sort((a, b) => (SEVERITY_SORT_ORDER[a.priority ?? 'low'] ?? 2) - (SEVERITY_SORT_ORDER[b.priority ?? 'low'] ?? 2))
+    .slice(0, 3);
+}
+
+function evidenceLabel(anchorType?: string): string {
+  switch (anchorType) {
+    case 'verbatim_quote': return 'Evidence';
+    case 'paraphrased_observation': return 'Observation';
+    case 'editorial_diagnosis': return 'Diagnostic Basis';
+    default: return 'Evidence';
+  }
+}
+
+function opportunityRows(r: ExportRecommendation): Array<[string, string]> {
+  const candidates: Array<[string, string | undefined]> = [
+    [evidenceLabel(r.anchor_type), r.anchor_snippet],
+    ['Symptom', r.symptom],
+    ['Cause', r.mechanism],
+    ['Fix direction', r.specific_fix || r.action],
+    ['Reader effect', r.reader_effect || r.expected_impact],
+    ['Mistake-proofing', r.mistake_proofing],
+  ];
+
+  const rows = candidates.flatMap(([label, value]) => {
+    if (typeof value !== 'string' || value.trim().length === 0) return [];
+    return [[label, cleanReportText(value)] as [string, string]];
+  });
+  // P4: Cross-criterion dedup — show which other criteria this recommendation also addresses
+  if (r.collapsed_from_criteria && r.collapsed_from_criteria.length > 0) {
+    const criteriaNames = r.collapsed_from_criteria.map(k => k.replace(/([A-Z])/g, ' $1').trim()).join(', ');
+    rows.push(['Also affects', criteriaNames]);
+  }
+  return rows;
+}
+
+function formatRevisionQueueItem(raw: string): string {
+  const locationMatch = raw.match(/\[LOCATION:\s*([^\]]*)\]/i);
+  const operationMatch = raw.match(/\[OPERATION:\s*([^\]]*)\]/i);
+  if (!locationMatch && !operationMatch) return cleanReportText(raw, '');
+
+  const location = locationMatch ? locationMatch[1].trim() : null;
+  const operation = operationMatch ? operationMatch[1].trim() : null;
+  const remainder = cleanReportText(raw, '');
+
+  const parts: string[] = [];
+  if (location) parts.push(`Location: ${location}`);
+  if (operation) parts.push(`Operation: ${operation.charAt(0).toUpperCase()}${operation.slice(1)}`);
+  if (remainder) parts.push(`Recommendation: ${remainder}`);
+  return parts.join(' | ');
+}
+
+function pushTxtListBlock(lines: string[], label: string, values: unknown, options: { ordered?: boolean; isRevisionQueue?: boolean } = {}): void {
+  const items = filterAuthorFacingTextList(values);
+  const cleaned = items
+    .map((item) => options.isRevisionQueue ? formatRevisionQueueItem(item) : cleanReportText(item, ''))
+    .filter((item) => item.length > 0);
+  if (cleaned.length === 0) return;
+
+  lines.push('');
+  lines.push(`${label}:`);
+  cleaned.forEach((item, idx) => {
+    if (options.ordered) {
+      lines.push(`${idx + 1}. ${item}`);
+      return;
+    }
+    lines.push(`• ${item}`);
+  });
+}
+
+function docxListPara(text: string, marker = '\u2022'): Paragraph {
+  return new Paragraph({
+    indent: { left: 0, hanging: 0 },
+    spacing: { after: 90 },
+    children: [
+      new TextRun({ text: `${marker} `, size: 21, color: docxHex(RG.textMuted), font: 'Calibri' }),
+      new TextRun({ text: cleanReportText(text), size: 21, color: docxHex(RG.textPrimary), font: 'Calibri' }),
+    ],
+  });
+}
+
+// ── Confidence Explanation (template section 13) ────────────────────
+const CONFIDENCE_EXPLANATION = {
+  title: 'What Does Confidence Mean?',
+  intro: 'Confidence reflects how strongly each diagnosis is supported by direct evidence in your writing.',
+  levels: [
+    { label: 'High', description: 'Strong textual evidence supports this diagnosis.' },
+    { label: 'Moderate', description: 'Enough evidence to identify the issue, but some ambiguity remains.' },
+    { label: 'Low', description: 'Limited or conflicting evidence—treat as a prompt for review, not a final judgment.' },
+  ],
+} as const;
+
+// Merge inline criteria recommendation counts with master ledger totals.
+// Ledger totals are authoritative when available; inline counts are fallback.
+function effectiveOpportunitySummary(
+  inlineSummary: { total: number; high: number; medium: number; low: number },
+  ledger: RevisionLedgerSummary,
+): { total: number; high: number; medium: number; low: number } {
+  if (ledger.totalItems > 0 && ledger.ledgerTotals) {
+    return {
+      total: ledger.totalItems,
+      high: ledger.ledgerTotals.must,
+      medium: ledger.ledgerTotals.should,
+      low: ledger.ledgerTotals.could,
+    };
+  }
+  if (ledger.totalItems > 0) {
+    return { ...inlineSummary, total: Math.max(inlineSummary.total, ledger.totalItems) };
+  }
+  return inlineSummary;
+}
+
+function isExportableResultCandidate(value: unknown): value is ExportableResult {
+  if (isEvaluationResultV1(value) || isEvaluationResultV2(value)) return true;
+
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as ExportableResultShape;
+  return (
+    typeof candidate.generated_at === 'string' &&
+    typeof candidate.overview?.verdict === 'string' &&
+    typeof candidate.overview?.one_paragraph_summary === 'string' &&
+    Array.isArray(candidate.overview?.top_3_strengths) &&
+    Array.isArray(candidate.overview?.top_3_risks) &&
+    Array.isArray(candidate.criteria) &&
+    Array.isArray(candidate.recommendations?.quick_wins) &&
+    Array.isArray(candidate.recommendations?.strategic_revisions)
   );
 }
+
+function safeFilename(title: string | null, jobId: string, ext: string): string {
+  const base = title ? title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 40) : jobId.slice(0, 8);
+  return `revision-grade-${base}.${ext}`;
+}
+
+function extractManuscriptTitle(manuscripts: unknown): string | null {
+  const relation = Array.isArray(manuscripts) ? manuscripts[0] : manuscripts;
+  const title =
+    typeof relation === 'object' && relation && 'title' in relation
+      ? (relation as { title?: unknown }).title
+      : null;
+  return typeof title === 'string' && title.trim().length > 0 ? title.trim() : null;
+}
+
+function asText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function scoreLabel(score: number | null | undefined, denominator: number): string {
+  return formatScoreFractionForDisplay(score, denominator);
+}
+
+function estimatePages(wordCount: number | null): number | null {
+  if (typeof wordCount !== 'number' || !Number.isFinite(wordCount) || wordCount <= 0) return null;
+  return Math.max(1, Math.ceil(wordCount / WORDS_PER_MANUSCRIPT_PAGE));
+}
+
+function inferReportType(wordCount: number | null): string {
+  if (typeof wordCount !== 'number' || !Number.isFinite(wordCount)) return EVALUATION_TEMPLATE_CONTRACTS.short_form_evaluation.reportType;
+  return wordCount >= LONG_FORM_WORD_THRESHOLD
+    ? EVALUATION_TEMPLATE_CONTRACTS.long_form_evaluation.reportType
+    : EVALUATION_TEMPLATE_CONTRACTS.short_form_evaluation.reportType;
+}
+
+function formatGeneratedDate(isoDate: string): string {
+  try {
+    const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return isoDate;
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch {
+    return isoDate;
+  }
+}
+
+function readinessLabel(score: unknown): string {
+  if (typeof score !== 'number' || !Number.isFinite(score)) return '';
+  if (score >= 90) return ' — Market Ready';
+  if (score >= 80) return ' — Near Market Ready';
+  return ' — Not Market Ready';
+}
+
+function overallVerdictLabel(score: unknown, fallbackVerdict?: unknown): string {
+  if (typeof score === 'number' && Number.isFinite(score)) {
+    if (score >= 90) return 'MARKET READY';
+    if (score >= 80) return 'NEAR MARKET READY';
+    return 'NOT MARKET READY';
+  }
+
+  const fallback = typeof fallbackVerdict === 'string' ? fallbackVerdict.trim() : '';
+  return fallback.length > 0 ? fallback.toUpperCase() : 'NOT MARKET READY';
+}
+
+function stripMachineResidue(text: string): string {
+  return text
+    .replace(/\bindirect_speech\b/g, 'indirect speech')
+    .replace(/\breported_speech\b/g, 'reported speech')
+    .replace(/\btagged_speech\b/g, 'tagged speech')
+    .replace(/\baction_beat_attribution\b/g, 'action-beat attribution')
+    .replace(/\bHARD_FAIL\b/g, '')
+    .replace(/\bDEGRADED_EXTRACTION\b/g, '')
+    .replace(/\bSOURCE_INTEGRITY_REVIEW_REQUIRED\b/g, '')
+    .replace(/\bPass\s*[0-9][A-Za-z]?\b/g, '')
+    .replace(/\bWAVE\s*(I{1,4}|[1-4])\b/g, '')
+    .replace(/\bpipeline\s+(failure|error|status|diagnostic)\b/gi, '')
+    .replace(/\bextraction\s+semantics?\b/gi, '')
+    .replace(/\bschema\s+validation\b/gi, '')
+    .replace(/\bgate[-_]?identifier\b/gi, '')
+    .replace(/\bdoctrine[-_]?id\b/gi, '')
+    .replace(/\bvalidator[-_]?name\b/gi, '')
+    .replace(/\bprompt[-_]?mechanic\w*/gi, '')
+    .replace(/\bgovernance[-_]?machinery\b/gi, '')
+    .replace(/\[LOCATION:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[OPERATION:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[PRIORITY:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[SEVERITY:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\[CONFIDENCE:\s*[^\]]*\]\s*/gi, '')
+    .replace(/\bsee\s+revision_plan\s+P(\d+)/gi, (_m, n) => `see Priority ${n}`)
+    .replace(/\brevision_plan\s+P(\d+)/gi, (_m, n) => `Priority ${n}`)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function looksTruncated(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  if (/\blean on extend\.?$/i.test(trimmed)) return true;
+  if (/\b(?:and|or|but|while|because|although|through|with|to|from|into|across|between|including|against)$/i.test(trimmed)) return true;
+  return trimmed.length > 120 && !/[.!?”’)]$/.test(trimmed);
+}
+
+function buildSummaryFallback(result: ExportableResult): string {
+  const strengths = result.overview.top_3_strengths.map(stripMachineResidue).filter(Boolean);
+  const risks = result.overview.top_3_risks.map(stripMachineResidue).filter(Boolean);
+  const strengthSentence = strengths.length
+    ? `The strongest areas are: ${strengths.slice(0, 2).join('; ')}.`
+    : 'The strongest areas are detailed in the criteria analysis.';
+  const riskSentence = risks.length
+    ? `The primary risks are: ${risks.slice(0, 2).join('; ')}.`
+    : 'The primary risks are detailed in the criteria analysis.';
+  return `${strengthSentence} ${riskSentence}`;
+}
+
+function safeTruncateText(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  if (/[.!?"')\]]\s*$/.test(trimmed)) return trimmed;
+
+  // Find the last complete sentence by locating the last sentence-ending punctuation
+  const lastSentenceEnd = Math.max(
+    trimmed.lastIndexOf('. '),
+    trimmed.lastIndexOf('.' + '\n'),
+    trimmed.lastIndexOf('? '),
+    trimmed.lastIndexOf('! '),
+  );
+  // Also check if the text ends with sentence punctuation (possibly followed by close-quote)
+  const endsWithSentence = /[.!?]["')\]]*$/.test(trimmed);
+  if (endsWithSentence) return trimmed;
+
+  if (lastSentenceEnd > trimmed.length * 0.3) {
+    // Cut to the last complete sentence
+    return trimmed.slice(0, lastSentenceEnd + 1).trim();
+  }
+
+  // Fallback: strip dangling conjunctions and incomplete words
+  const DANGLING = /\s+(and|or|but|the|a|an|in|on|at|to|of|for|with|by|than|from|into|as|that|which|who|whose|where|when|while|although|because|before|after|during|between|among|through|about|like|more|less|over|under|also|yet|so|if|whether|not|nor)\s*$/i;
+  let result = trimmed;
+  while (DANGLING.test(result)) {
+    result = result.replace(DANGLING, '');
+  }
+  // Strip trailing partial words (anything after last space that doesn't look complete)
+  const lastSpace = result.lastIndexOf(' ');
+  if (lastSpace > 0) {
+    const lastWord = result.slice(lastSpace + 1);
+    // If the last word ends with a dash, em-dash, or looks like a fragment, strip it
+    if (/[—\-]$/.test(lastWord) || (lastWord.length <= 2 && !/^[AI]$/.test(lastWord))) {
+      result = result.slice(0, lastSpace).trim();
+    }
+  }
+  result = result.replace(/[,;:\s—\-]+$/, '');
+  if (result.length < trimmed.length) return result + '...';
+  return result;
+}
+
+function cleanReportText(text: unknown, fallback = '—', _options: { blockTruncation?: boolean } = {}): string {
+  // Mistake-proofing: ALL text now goes through the full quality gate
+  // regardless of blockTruncation flag (previously only some paths were covered).
+  return mistakeProofText(text, fallback);
+}
+
+// ── Phase 4b: VM → Render Adapter ────────────────────────────────────────────
+// TRANSITIONAL CONTRACT (Phase 4b PR-1):
+//   - canonicalDocForRender is an ephemeral render adapter ONLY.
+//   - It is NEVER persisted, NEVER used for source-truth gates.
+//   - Source-truth gates (revisionSurfaceOwnershipGate, etc.) use certified canonicalDoc.
+//   - TXT/PDF/DOCX builders consume canonicalDocForRender.
+//
+// TODO (Phase 4b PR-2): Replace this adapter with direct VM render builders:
+//   VM → renderTxtFromViewModel(vm)
+//   VM → renderHtmlFromViewModel(vm)
+//   VM → renderDocxFromViewModel(vm)
+// Then remove applyViewModelToDocument entirely.
+function applyViewModelToDocument(
+  source: UnifiedEvaluationDocument,
+  vm: EvaluationReportViewModel,
+): UnifiedEvaluationDocument {
+  return {
+    ...source,
+    // Title Block — VM owns sanitized/normalized values
+    titleBlock: {
+      ...source.titleBlock,
+      overallScoreLabel: vm.titleBlock.overallScoreLabel,
+      marketReadiness: vm.titleBlock.marketReadiness,
+      genre: vm.titleBlock.genre,
+      targetAudience: vm.titleBlock.targetAudience,
+      audienceConfidenceLabel: vm.titleBlock.audienceConfidenceLabel as CanonicalConfidenceLabel,
+      audienceTentative: vm.titleBlock.audienceTentative,
+    },
+    // Pitches — VM sanitizes text
+    oneParagraphPitch: vm.oneParagraphPitch,
+    oneSentencePitch: vm.oneSentencePitch,
+    premise: vm.premise ?? source.premise,
+    contentWarnings: vm.contentWarnings,
+    // Revision Opportunity Summary — VM maps high/medium/low to recommended/optional/consider
+    revisionOpportunitySummary: {
+      ...source.revisionOpportunitySummary,
+      total: vm.revisionOpportunitySummary.total,
+      high: vm.revisionOpportunitySummary.recommended,
+      medium: vm.revisionOpportunitySummary.optional,
+      low: vm.revisionOpportunitySummary.consider,
+    },
+    // Executive synthesis — VM sanitizes
+    executiveSummary: vm.executiveSummary,
+    topStrengths: vm.topStrengths,
+    topRisks: vm.topRisks,
+    topRecommendations: vm.topRecommendations,
+    // Criterion details — VM preserves opportunity_id + sanitizes rationale
+    criterionDetails: source.criterionDetails.map((detail, i) => ({
+      ...detail,
+      rationaleText: vm.criterionDetails[i]?.rationaleText ?? detail.rationaleText,
+      recommendations: vm.criterionDetails[i]?.recommendations.map((vmRec, j) => ({
+        ...detail.recommendations[j],
+        ...vmRec,
+      })) ?? detail.recommendations,
+    })) as typeof source.criterionDetails,
+  };
+}
+
+function hasMeaningfulText(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'number') return Number.isFinite(value);
+  return false;
+}
+
+/** Word-wrap a string to `width` columns, preserving existing line breaks. */
+function wrapText(text: string, width = TXT_WRAP_WIDTH): string {
+  return wrapIndentedLines(text, { width }).join('\n');
+}
+
+function wrapIndentedLines(
+  text: string,
+  options: { width?: number; firstIndent?: string; nextIndent?: string } = {},
+): string[] {
+  const width = options.width ?? TXT_WRAP_WIDTH;
+  const firstIndent = options.firstIndent ?? '';
+  const nextIndent = options.nextIndent ?? firstIndent;
+
+  return text
+    .split('\n')
+    .flatMap((paragraph) => {
+      const normalized = paragraph.replace(/\s+/g, ' ').trim();
+      if (!normalized) return [''];
+
+      const words = normalized.split(' ');
+      const lines: string[] = [];
+      let current = firstIndent;
+      let isFirstLine = true;
+
+      for (const word of words) {
+        const indent = isFirstLine ? firstIndent : nextIndent;
+        if (current.trim().length === 0) {
+          current = `${indent}${word}`;
+          continue;
+        }
+
+        const candidate = `${current.trimEnd()} ${word}`;
+        if (candidate.length <= width) {
+          current = candidate;
+          continue;
+        }
+
+        lines.push(current);
+        current = `${nextIndent}${word}`;
+        isFirstLine = false;
+      }
+
+      if (current.trim().length > 0) lines.push(current);
+      return lines;
+    });
+}
+
+function pushWrapped(
+  lines: string[],
+  text: string,
+  options: { width?: number; firstIndent?: string; nextIndent?: string } = {},
+): void {
+  lines.push(...wrapIndentedLines(text, options));
+}
+
+function fitToWidth(value: string, maxWidth: number): string {
+  if (value.length <= maxWidth) return value;
+  if (maxWidth <= 1) return value.slice(0, maxWidth);
+  return `${value.slice(0, maxWidth - 1)}…`;
+}
+
+function toPdfSafeText(value: unknown, fallback = '-'): string {
+  return cleanReportText(value, fallback)
+    .normalize('NFKC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/[\u00A0\xA0]/g, ' ')
+    // Preserve smart typography for WinAnsiEncoding-compatible chars:
+    // \u2018/\u2019 = curly single quotes, \u201C/\u201D = curly double quotes,
+    // \u2013 = en-dash, \u2014 = em-dash, \u2122 = ™, \u00AE = ®, \u00A9 = ©
+    // Only strip truly unsupported chars (above Latin Extended-B / outside WinAnsi)
+    .replace(/[\u201A\u201B]/g, '\u2018')
+    .replace(/[\u201E\u201F]/g, '\u201C')
+    .replace(/\u2212/g, '\u2013')
+    .trim();
+}
+
+function buildMetadata(result: ExportableResult, title: string | null, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null): ReportMetadata {
+  const wordCount = typeof result.metrics?.manuscript?.word_count === 'number' ? result.metrics.manuscript.word_count : null;
+  const displayTitle = title ?? result.metrics?.manuscript?.title ?? 'Untitled Manuscript';
+  const shelf = dream?.market_shelf?.best_shelf ?? null;
+  const pipelineGenre = result.metrics?.manuscript?.genre ?? null;
+  const diagnosedGenre = enrichment?.diagnosed_genre ?? null;
+  // Prefer AI-diagnosed genre; fall back to pipeline genre — filter format-only words
+  // to match canonical path (shortFormReportDocument.sanitizeGenre + titleCaseGenre)
+  const rawGenre = diagnosedGenre ?? pipelineGenre;
+  const genre = rawGenre && !GENRE_FORMAT_WORDS.has(rawGenre.trim().toLowerCase().replace(/[\s\-_/]+/g, ' ').trim())
+    ? titleCaseGenreValue(rawGenre.trim())
+    : null;
+  const targetAudience = enrichment?.target_audience ?? (typeof result.metrics?.manuscript?.target_audience === 'string' && result.metrics.manuscript.target_audience.trim() ? result.metrics.manuscript.target_audience.trim() : null);
+  const overallScore = result.overview.overall_score_0_100;
+
+  return {
+    displayTitle,
+    generatedAt: formatGeneratedDate(result.generated_at),
+    score: `${scoreLabel(overallScore, 100)}${readinessLabel(overallScore)}`,
+    verdict: overallVerdictLabel(overallScore, result.overview.verdict),
+    wordCount,
+    estimatedPages: estimatePages(wordCount),
+    reportType: inferReportType(wordCount),
+    shelf,
+    genre,
+    targetAudience,
+  };
+}
+
+function appendDreamTxtSections(lines: string[], dream: LongformDreamDocument): void {
+  const sub = '-'.repeat(TXT_WRAP_WIDTH);
+  const push = (s: string) => lines.push(s);
+
+  // ── §12a Expanded Criterion Analysis (subsection expanding §12) ────
+  if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('expanded_criterion_analysis'));
+    push(sub);
+    dream.criterion_analyses.forEach((a) => {
+      push('');
+      push(`${getCriterionDisplayLabel(a.key)} — ${scoreLabel(a.score, 10)} (${formatConfidenceLabel(a.confidence)})`);
+      pushTxtListBlock(lines, 'What Is Working', a.fit_evidence);
+      pushTxtListBlock(lines, 'What Weakens Impact', a.gap_evidence);
+      pushTxtListBlock(lines, 'Revision Queue', a.revision_queue, { ordered: true, isRevisionQueue: true });
+    });
+  }
+
+  // ── §13 Story Ledger or Layer-Aware Architecture Map ───────────────
+  const hasStructural = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0;
+  const hasArcMap = Array.isArray(dream.arc_map) && dream.arc_map.length > 0;
+  const hasLayerAnalyses = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0;
+  if (hasStructural || hasArcMap || hasLayerAnalyses) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('story_ledger'));
+    push(sub);
+    if (hasStructural) {
+      push('');
+      push('Structural Architecture:');
+      dream.structural_stack.forEach((layer) => {
+        push('');
+        push(`${cleanReportText(layer.layer_name)} — ${layer.status}`);
+        if (hasMeaningfulText(layer.function)) push(`Function: ${cleanReportText(layer.function)}`);
+        if (hasMeaningfulText(layer.revision_note)) push(`Revision note: ${cleanReportText(layer.revision_note)}`);
+      });
+    }
+    if (hasArcMap) {
+      push('');
+      push('Arc Map:');
+      dream.arc_map.forEach((act) => {
+        push('');
+        push(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`);
+        if (hasMeaningfulText(act.primary_function)) push(`Function: ${cleanReportText(act.primary_function)}`);
+        if (hasMeaningfulText(act.revision_priority)) push(`Revision priority: ${cleanReportText(act.revision_priority)}`);
+      });
+    }
+    if (hasLayerAnalyses) {
+      push('');
+      push('Layer Analysis:');
+      dream.layer_analyses.forEach((layer) => {
+        push('');
+        push(`${cleanReportText(layer.layer_name)} — ${cleanReportText(layer.status)}`);
+        if (hasMeaningfulText(layer.needed_revision)) push(`Needed revision: ${cleanReportText(layer.needed_revision)}`);
+      });
+    }
+  }
+
+  // ── §14 Review Gate Readiness Surface ──────────────────────────────
+  if (dream.acceptance_checks) {
+    const required = filterAuthorFacingTextList(dream.acceptance_checks.required_detection);
+    const failures = filterAuthorFacingTextList(dream.acceptance_checks.failure_conditions);
+    if (required.length > 0 || failures.length > 0) {
+      push('');
+      push(sub);
+      push(sectionTitleUpper('review_gate'));
+      push(sub);
+      if (required.length > 0) {
+        push('');
+        push('Required Detection:');
+        required.forEach((item) => push(`• ${cleanReportText(item)}`));
+      }
+      if (failures.length > 0) {
+        push('');
+        push('Failure Conditions:');
+        failures.forEach((item) => push(`• ${cleanReportText(item)}`));
+      }
+    }
+  }
+
+  // ── §15 Governed Ledgers or Compact Governed-Ledger Addenda ────────
+  if (dream.symbolic_audit) {
+    const sa = dream.symbolic_audit;
+    const hasAuditContent = (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0)
+      || (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0)
+      || (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0)
+      || hasMeaningfulText(sa.audit_conclusion);
+    if (hasAuditContent) {
+      push('');
+      push(sub);
+      push(sectionTitleUpper('governed_ledgers'));
+      push(sub);
+      if (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) {
+        push('');
+        push('Preserved Symbols:');
+        sa.preserved_symbols.forEach((sym) => {
+          push(`• ${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`);
+          if (sym.revision_instruction) push(`    Revision: ${cleanReportText(sym.revision_instruction)}`);
+        });
+      }
+      if (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) {
+        push('');
+        push('Doctrine Strengths:');
+        sa.doctrine_strengths.forEach((s) => push(`• ${cleanReportText(s)}`));
+      }
+      if (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) {
+        push('');
+        push('Doctrine Risks:');
+        sa.doctrine_risks.forEach((r) => push(`• ${cleanReportText(r)}`));
+      }
+      if (hasMeaningfulText(sa.audit_conclusion)) {
+        push('');
+        push(`Audit Conclusion: ${cleanReportText(sa.audit_conclusion)}`);
+      }
+    }
+  }
+
+  // ── §16 Cross-Layer Synthesis ──────────────────────────────────────
+  const hasDreamScores = dream.dream_scores && (dream.dream_scores.quality != null || dream.dream_scores.readiness != null || dream.dream_scores.commercial != null || dream.dream_scores.literary != null);
+  const hasVerdict = hasMeaningfulText(dream.executive_verdict);
+  const hasCrossLayer = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0;
+  const hasReaderExperience = dream.reader_experience && (dream.reader_experience.first_act || dream.reader_experience.middle || dream.reader_experience.final_act || hasMeaningfulText(dream.reader_experience.aftertaste));
+  if (hasDreamScores || hasVerdict || hasCrossLayer || hasReaderExperience) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('cross_layer_synthesis'));
+    push(sub);
+    push('');
+    if (hasDreamScores) {
+      if (dream.dream_scores?.quality != null) push(`Quality: ${scoreLabel(dream.dream_scores.quality, 100)}`);
+      if (dream.dream_scores?.readiness != null) push(`Readiness: ${scoreLabel(dream.dream_scores.readiness, 100)}`);
+      if (dream.dream_scores?.commercial != null) push(`Commercial: ${scoreLabel(dream.dream_scores.commercial, 100)}`);
+      if (dream.dream_scores?.literary != null) push(`Literary: ${scoreLabel(dream.dream_scores.literary, 100)}`);
+    }
+    if (hasVerdict) {
+      push('');
+      push('Executive Verdict:');
+      push('');
+      pushWrapped(lines, cleanReportText(dream.executive_verdict));
+    }
+    if (hasCrossLayer) {
+      push('');
+      push('Cross-Layer Integration:');
+      dream.cross_layer_integration.forEach((item) => {
+        push('');
+        push(`${cleanReportText(item.motif)} — ${cleanReportText(item.integration_quality)}`);
+        if (hasMeaningfulText(item.description)) pushWrapped(lines, `Description: ${cleanReportText(item.description)}`, { firstIndent: '  ', nextIndent: '  ' });
+        if (hasMeaningfulText(item.revision_note)) pushWrapped(lines, `Revision note: ${cleanReportText(item.revision_note)}`, { firstIndent: '  ', nextIndent: '  ' });
+      });
+    }
+    if (hasReaderExperience) {
+      const re = dream.reader_experience!;
+      push('');
+      push('Reader Experience:');
+      const addAct = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+        if (!act) return;
+        if (!hasMeaningfulText(act.reader_question) && !hasMeaningfulText(act.emotional_state) && !hasMeaningfulText(act.risk)) return;
+        push('');
+        push(`${title}:`);
+        if (hasMeaningfulText(act.reader_question)) push(`  Reader question: ${cleanReportText(act.reader_question)}`);
+        if (hasMeaningfulText(act.emotional_state)) push(`  Emotional state: ${cleanReportText(act.emotional_state)}`);
+        if (hasMeaningfulText(act.risk)) push(`  Risk: ${cleanReportText(act.risk)}`);
+      };
+      addAct('First Act', re.first_act);
+      addAct('Middle', re.middle);
+      addAct('Final Act', re.final_act);
+      if (hasMeaningfulText(re.aftertaste)) {
+        push('');
+        push(`Aftertaste: ${cleanReportText(re.aftertaste)}`);
+      }
+    }
+  }
+
+  // ── §17 Layer-Aware Revision Sequencing ────────────────────────────
+  const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+  if (revisionPlan.length > 0) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('revision_sequencing'));
+    push(sub);
+    revisionPlan.forEach((item) => {
+      push('');
+      push(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`);
+      push(`Goal: ${cleanReportText(item.goal)}`);
+      pushTxtListBlock(lines, 'Actions', item.actions, { ordered: true });
+      if (item.acceptance_check) push(`Acceptance check: ${cleanReportText(item.acceptance_check)}`);
+    });
+  }
+
+  // ── §18 Long-Form Continuity and Coverage Proof ────────────────────
+  const continuityItems: string[] = [];
+  if (Array.isArray(dream.arc_map)) {
+    dream.arc_map.forEach((act) => {
+      if (hasMeaningfulText(act.primary_function)) continuityItems.push(`${cleanReportText(act.act_name)}: ${cleanReportText(act.primary_function)}`);
+    });
+  }
+  if (Array.isArray(dream.layer_analyses)) {
+    dream.layer_analyses.forEach((layer) => {
+      if (hasMeaningfulText(layer.needed_revision)) continuityItems.push(`${cleanReportText(layer.layer_name)}: ${cleanReportText(layer.needed_revision)}`);
+    });
+  }
+  if (Array.isArray(dream.cross_layer_integration)) {
+    dream.cross_layer_integration.forEach((item) => {
+      if (hasMeaningfulText(item.revision_note)) continuityItems.push(`${cleanReportText(item.motif)}: ${cleanReportText(item.revision_note)}`);
+    });
+  }
+  push('');
+  push(sub);
+  push(sectionTitleUpper('continuity_coverage'));
+  push(sub);
+  push('');
+  if (continuityItems.length > 0) {
+    continuityItems.forEach((item) => {
+      pushWrapped(lines, cleanReportText(item), { firstIndent: '• ', nextIndent: '  ' });
+    });
+  } else {
+    pushWrapped(lines, 'Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.');
+  }
+
+  // ── §19 Readiness / Releasability Posture ──────────────────────────
+  const hasReleasability = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+  const hasMarketShelf = dream.market_shelf && (
+    hasMeaningfulText(dream.market_shelf.best_shelf) ||
+    hasMeaningfulText(dream.market_shelf.marketable_hook) ||
+    hasMeaningfulText(dream.market_shelf.market_danger) ||
+    (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) ||
+    (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0)
+  );
+  if (hasReleasability || hasMarketShelf) {
+    push('');
+    push(sub);
+    push(sectionTitleUpper('readiness_posture'));
+    push(sub);
+    push('');
+    if (hasReleasability) {
+      dream.releasability.forEach((dim) => {
+        push(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`);
+      });
+    }
+    if (hasMarketShelf) {
+      push('');
+      push('Market Shelf:');
+      const ms = dream.market_shelf!;
+      if (hasMeaningfulText(ms.best_shelf)) push(`  Best Shelf: ${cleanReportText(ms.best_shelf)}`);
+      if (hasMeaningfulText(ms.marketable_hook)) push(`  Marketable Hook: ${cleanReportText(ms.marketable_hook)}`);
+      if (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) {
+        push('  Shelf Neighbors:');
+        ms.shelf_neighbors.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      }
+      if (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) {
+        push('  Comparison Space:');
+        ms.comparison_space.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      }
+      if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+        push('  What Not to Become:');
+        dream.what_not_to_become.forEach((item) => push(`  • ${cleanReportText(item)}`));
+      }
+      if (hasMeaningfulText(ms.market_danger)) push(`  Market Danger: ${cleanReportText(ms.market_danger)}`);
+    }
+  }
+}
+
+function buildTxtReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): string {
+  const lines: string[] = [];
+  const sep = '='.repeat(72);
+  const sub = '-'.repeat(72);
+  const metadata = buildMetadata(result, title, dream, enrichment);
+  const summaryFallback = buildSummaryFallback(result);
+  const pitches = buildReportPitches({
+    premise: enrichment?.premise,
+    summary: result.overview.one_paragraph_summary,
+    title: metadata.displayTitle,
+    one_sentence_pitch: (result.overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (result.overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
+  });
+  const inlineSummary = summarizeRevisionOpportunities(result.criteria);
+  const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
+  const topRecommendations = buildTopRecommendations(result, 5);
+
+  lines.push(sep);
+  lines.push('REVISIONGRADE™ EVALUATION REPORT');
+  lines.push(sep);
+  lines.push(`Manuscript Title: ${metadata.displayTitle}`);
+  lines.push(`Reference ID: ${jobId}`);
+  lines.push(`Report Type: ${metadata.reportType}`);
+  if (metadata.genre) lines.push(`Genre: ${metadata.genre}`);
+  if (metadata.targetAudience) lines.push(wrapText(`Target Audience: ${metadata.targetAudience}`));
+  if (metadata.shelf) lines.push(`Shelf: ${metadata.shelf}`);
+  if (metadata.wordCount) lines.push(`Submitted Word Count: ${metadata.wordCount.toLocaleString()}`);
+  if (metadata.estimatedPages) lines.push(`Estimated Manuscript Pages: ${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page`);
+  if (enrichment?.reading_grade_level != null) lines.push(`Reading Grade Level: ${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)`);
+  if (enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null) lines.push(`Dialogue/Narrative Ratio: ${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage)}% narrative`);
+  lines.push(`Generated: ${metadata.generatedAt}`);
+  lines.push(`Overall Score: ${metadata.score}`);
+  lines.push(`Market Readiness: ${metadata.verdict}`);
+  // Market Readiness (when the criterion exists in the evaluation)
+  const txtReadinessCriterion = result.criteria.find((criterion) => {
+    const key = criterion.key.toLowerCase();
+    const label = getCriterionDisplayLabel(criterion.key).toLowerCase();
+    return key.includes('readiness') || key.includes('market') || label.includes('readiness') || label.includes('market');
+  });
+  if (txtReadinessCriterion) {
+    const rScore = typeof txtReadinessCriterion.score_0_10 === 'number' ? scoreLabel(txtReadinessCriterion.score_0_10, 10) : 'Not scored';
+    const rConf = txtReadinessCriterion.confidence_level ? ` (${formatConfidenceLabel(txtReadinessCriterion.confidence_level)})` : '';
+    lines.push(`Market Readiness: ${rScore}${rConf}`);
+  }
+  if (ledger.totalItems > 0) lines.push(`Revision Queue Items: ${ledger.totalItems}`);
+  lines.push('Confidentiality: Prepared for author/editorial use.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-PARAGRAPH PITCH');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(pitches.oneParagraphPitch));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-SENTENCE PITCH');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(pitches.oneSentencePitch));
+  lines.push('');
+
+  if (enrichment?.premise) {
+    lines.push(sub);
+    lines.push('PREMISE');
+    lines.push(sub);
+    lines.push('');
+    lines.push(cleanReportText(enrichment.premise));
+    lines.push('');
+  }
+
+  lines.push(sub);
+  lines.push('CONTENT WARNINGS');
+  lines.push(sub);
+  lines.push('');
+  if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
+    enrichment.trigger_warnings.forEach((w) => lines.push(`• ${cleanReportText(w)}`));
+  } else {
+    lines.push('No content warnings identified.');
+  }
+  lines.push('');
+  lines.push('Consider including content warnings in book marketing or front matter.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('REVISION OPPORTUNITY SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  lines.push(`Total Revision Opportunities: ${opportunitySummary.total}`);
+  lines.push(`Recommended: ${opportunitySummary.high}`);
+  lines.push(`Optional: ${opportunitySummary.medium}`);
+  lines.push(`Consider: ${opportunitySummary.low}`);
+  lines.push('');
+  lines.push('Recommendation tiers indicate the suggested urgency of each revision opportunity.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('EXECUTIVE SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  lines.push(cleanReportText(result.overview.one_paragraph_summary, summaryFallback, { blockTruncation: true }));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP STRENGTHS');
+  lines.push(sub);
+  lines.push('');
+  result.overview.top_3_strengths.forEach((s, i) => lines.push(`${i + 1}. ${cleanReportText(s)}`));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP RISKS');
+  lines.push(sub);
+  lines.push('');
+  result.overview.top_3_risks.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP RECOMMENDATIONS');
+  lines.push(sub);
+  lines.push('');
+  if (topRecommendations.length > 0) {
+    topRecommendations.forEach((r, i) => lines.push(`${i + 1}. ${cleanReportText(r)}`));
+  } else {
+    lines.push('See per-criterion opportunities below for detailed revision guidance.');
+  }
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('13 CRITERIA SCORE GRID');
+  lines.push(sub);
+  lines.push('');
+  result.criteria.forEach((c) => {
+    lines.push(`${getCriterionDisplayLabel(c.key)} | ${scoreLabel(c.score_0_10, 10)} | ${c.confidence_level ? formatConfidenceLabel(c.confidence_level) : '—'}`);
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('CRITERION RATIONALES & SURFACED OPPORTUNITIES');
+  lines.push(sub);
+  lines.push('');
+  result.criteria.forEach((c) => {
+    const criterionRecord = c as Record<string, unknown>;
+    lines.push(`${getCriterionDisplayLabel(c.key)} — ${scoreLabel(c.score_0_10, 10)}${c.confidence_level ? ` (${formatConfidenceLabel(c.confidence_level)})` : ''}`);
+    if (c.rationale) lines.push(`Rationale: ${cleanReportText(c.rationale)}`);
+
+    if (typeof criterionRecord.fit_summary === 'string' && criterionRecord.fit_summary.trim()) {
+      lines.push(`What's Working: ${cleanReportText(criterionRecord.fit_summary)}`);
+    }
+    if (typeof criterionRecord.gap_summary === 'string' && criterionRecord.gap_summary.trim()) {
+      lines.push(`Gap to Close: ${cleanReportText(criterionRecord.gap_summary)}`);
+    }
+
+    const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+    if (opportunities.length > 0) {
+      lines.push('');
+      lines.push('Opportunities:');
+      opportunities.forEach((opportunity, idx) => {
+        lines.push(`  ${idx + 1}. [${exportSeverity(opportunity.priority)}]`);
+        opportunityRows(opportunity).forEach(([label, value]) => {
+          lines.push(`     ${label}: ${value}`);
+        });
+      });
+    }
+
+    lines.push('');
+  });
+
+  // ── Confidence Explanation (template section 20) ──
+  lines.push(sub);
+  lines.push(sectionTitleUpper('confidence_explanation'));
+  lines.push(sub);
+  lines.push('');
+  lines.push(CONFIDENCE_EXPLANATION.title);
+  lines.push('');
+  lines.push(CONFIDENCE_EXPLANATION.intro);
+  lines.push('');
+  for (const level of CONFIDENCE_EXPLANATION.levels) {
+    lines.push(`  ${level.label}: ${level.description}`);
+  }
+  lines.push('');
+
+  if (dream) appendDreamTxtSections(lines, dream);
+
+  // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
+  // Revision Canon) is intentionally omitted from customer-facing downloads.
+  // It remains accessible via the admin support view only.
+
+  lines.push('');
+  lines.push(sep);
+  lines.push(EXPORT_DISCLAIMER);
+  return lines.join('\n');
+}
+
+function buildCanonicalTemplateTxt(doc: UnifiedEvaluationDocument, dream: LongformDreamDocument | null = null, jobId = ''): string {
+  const lines: string[] = [];
+  const sep = '='.repeat(TXT_WRAP_WIDTH);
+  const sub = '-'.repeat(TXT_WRAP_WIDTH);
+
+  lines.push(sep);
+  lines.push('REVISIONGRADE™ EVALUATION REPORT');
+  lines.push(sep);
+  lines.push(`Manuscript Title: ${doc.title}`);
+  if (jobId) lines.push(`Reference ID: ${jobId}`);
+  lines.push(`Report Type: ${doc.titleBlock.reportType}`);
+  const genreConf = doc.titleBlock.genreConfidenceLabel ? ` (${doc.titleBlock.genreConfidenceLabel})` : '';
+  lines.push(`Genre: ${doc.titleBlock.genre}${genreConf}`);
+  if (doc.titleBlock.genreExpectationContract) {
+    pushWrapped(lines, `Genre Expectations: ${doc.titleBlock.genreExpectationContract.contractSummary}`);
+    if (doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0) {
+      lines.push(`Reader Emphasis: ${doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}`);
+    }
+  }
+  const audiencePrefix = doc.titleBlock.audienceTentative ? 'Tentative: ' : '';
+  pushWrapped(lines, `Target Audience: ${audiencePrefix}${doc.titleBlock.targetAudience} (${doc.titleBlock.audienceConfidenceLabel})`);
+  if (doc.titleBlock.shelf) {
+    const shelfConf = doc.titleBlock.shelfConfidenceLabel ? ` (${doc.titleBlock.shelfConfidenceLabel})` : '';
+    lines.push(`Shelf: ${doc.titleBlock.shelf}${shelfConf}`);
+  }
+  lines.push(`Submitted Word Count: ${doc.titleBlock.submittedWordCount}`);
+  lines.push(`Estimated Manuscript Pages: ${doc.titleBlock.estimatedPages}`);
+  lines.push(`Reading Grade Level: ${doc.titleBlock.readingGradeLevel}`);
+  lines.push(`Dialogue/Narrative Ratio: ${doc.titleBlock.dialogueNarrativeRatio}`);
+  lines.push(`Date Generated: ${doc.titleBlock.dateGenerated}`);
+  const overallScoreConf = doc.titleBlock.overallScoreConfidenceLabel ? ` (${doc.titleBlock.overallScoreConfidenceLabel})` : '';
+  lines.push(`Overall Score: ${doc.titleBlock.overallScoreLabel}${overallScoreConf}`);
+  const marketConf = doc.titleBlock.marketReadinessConfidenceLabel ? ` (${doc.titleBlock.marketReadinessConfidenceLabel})` : '';
+  lines.push(`Market Readiness: ${doc.titleBlock.marketReadiness}${marketConf}`);
+  lines.push('Confidentiality: Prepared for author/editorial use.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-PARAGRAPH PITCH');
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, cleanReportText(doc.oneParagraphPitch));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('ONE-SENTENCE PITCH');
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, cleanReportText(doc.oneSentencePitch));
+  lines.push('');
+
+  if (doc.premise) {
+    lines.push(sub);
+    lines.push('PREMISE');
+    lines.push(sub);
+    lines.push('');
+    pushWrapped(lines, cleanReportText(doc.premise));
+    lines.push('');
+  }
+
+  lines.push(sub);
+  lines.push('CONTENT WARNINGS');
+  lines.push(sub);
+  lines.push('');
+  doc.contentWarnings.forEach((warning) => {
+    pushWrapped(lines, cleanReportText(warning), { firstIndent: '• ', nextIndent: '  ' });
+  });
+  lines.push('');
+  lines.push('Consider including content warnings in book marketing or front matter.');
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('REVISION OPPORTUNITY SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  lines.push(`Total Revision Opportunities: ${doc.revisionOpportunitySummary.total}`);
+  lines.push(`Recommended: ${doc.revisionOpportunitySummary.high}`);
+  lines.push(`Optional: ${doc.revisionOpportunitySummary.medium}`);
+  lines.push(`Consider: ${doc.revisionOpportunitySummary.low}`);
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('EXECUTIVE SUMMARY');
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, cleanReportText(doc.executiveSummary));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP STRENGTHS');
+  lines.push(sub);
+  lines.push('');
+  doc.topStrengths.forEach((item, i) => {
+    const marker = `${i + 1}. `;
+    pushWrapped(lines, cleanReportText(item), { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP RISKS');
+  lines.push(sub);
+  lines.push('');
+  doc.topRisks.forEach((item, i) => {
+    const marker = `${i + 1}. `;
+    pushWrapped(lines, cleanReportText(item), { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('TOP RECOMMENDATIONS');
+  lines.push(sub);
+  lines.push('');
+  if (doc.topRecommendations.length > 0) {
+    doc.topRecommendations.forEach((item, i) => {
+      const marker = `${i + 1}. `;
+      pushWrapped(lines, cleanReportText(item), { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+    });
+  } else {
+    lines.push('See per-criterion opportunities below for detailed revision guidance.');
+  }
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('13 CRITERIA SCORE GRID');
+  lines.push(sub);
+  lines.push('');
+  // Compute column widths for aligned table that never exceeds TXT_WRAP_WIDTH
+  const separatorWidth = 6;
+  const scoreWidth = Math.min(
+    10,
+    Math.max(Math.max(...doc.criteriaScoreGrid.map((r) => r.scoreLabel.length), 'Score'.length), 5),
+  );
+  let confidenceWidth = Math.min(
+    22,
+    Math.max(Math.max(...doc.criteriaScoreGrid.map((r) => r.confidenceLabel.length), 'Confidence'.length), 10),
+  );
+  let labelWidth = TXT_WRAP_WIDTH - scoreWidth - confidenceWidth - separatorWidth;
+  if (labelWidth < 20) {
+    const needed = 20 - labelWidth;
+    confidenceWidth = Math.max(10, confidenceWidth - needed);
+    labelWidth = TXT_WRAP_WIDTH - scoreWidth - confidenceWidth - separatorWidth;
+  }
+
+  lines.push(`${fitToWidth('Criterion', labelWidth).padEnd(labelWidth)}   ${fitToWidth('Score', scoreWidth).padEnd(scoreWidth)}   ${fitToWidth('Confidence', confidenceWidth).padEnd(confidenceWidth)}`);
+  lines.push(`${'\u2500'.repeat(labelWidth)}   ${'\u2500'.repeat(scoreWidth)}   ${'─'.repeat(confidenceWidth)}`);
+  doc.criteriaScoreGrid.forEach((row) => {
+    lines.push(`${fitToWidth(row.label, labelWidth).padEnd(labelWidth)}   ${fitToWidth(row.scoreLabel, scoreWidth).padEnd(scoreWidth)}   ${fitToWidth(row.confidenceLabel, confidenceWidth).padEnd(confidenceWidth)}`);
+  });
+  lines.push('');
+
+  lines.push(sub);
+  lines.push('CRITERION RATIONALES & SURFACED OPPORTUNITIES');
+  lines.push(sub);
+  doc.criterionDetails.forEach((detail, idx) => {
+    lines.push('');
+    if (idx > 0) lines.push('  · · ·');
+    lines.push('');
+    lines.push(`${detail.label} — ${detail.scoreLabel} (${detail.confidenceLabel})`);
+    if (detail.supportLabel) pushWrapped(lines, `Status: ${cleanReportText(detail.supportLabel)}`);
+    lines.push('');
+    if (detail.rationaleLabel) lines.push(`${detail.rationaleLabel}:`);
+    pushWrapped(lines, cleanReportText(detail.rationaleText));
+
+    if (detail.recommendations.length > 0) {
+      lines.push('');
+      lines.push(`  OPPORTUNITIES (${detail.recommendations.length})`);
+      detail.recommendations.forEach((recommendation, index) => {
+        lines.push(`  ${exportSeverity(recommendation.priority).toUpperCase()} #${index + 1}`);
+        const detailRows = opportunityRows(recommendation as ExportRecommendation);
+        if (detailRows.length > 0) {
+          detailRows.forEach(([label, value]) => {
+            if (label === 'Evidence') {
+              // Verbatim quotes get quotation marks; observations/diagnoses do not
+              pushWrapped(lines, `${label}: \u201c${value}\u201d`, { firstIndent: '    ', nextIndent: '    ' });
+            } else if (label === 'Observation' || label === 'Diagnostic Basis') {
+              // Non-verbatim evidence: no quotation marks
+              pushWrapped(lines, `${label}: ${value}`, { firstIndent: '    ', nextIndent: '    ' });
+            } else {
+              pushWrapped(lines, `${label}: ${value}`, { firstIndent: '    ', nextIndent: '    ' });
+            }
+          });
+        } else {
+          pushWrapped(lines, cleanReportText(recommendation.action, 'No action provided.'), { firstIndent: '    ', nextIndent: '    ' });
+        }
+      });
+    }
+  });
+
+  // ── Action Items (suppressed for short-form per Revision Surface Ownership Contract) ──
+  const isShortFormTxt = doc.templateMode === 'short_form_evaluation';
+  if (!isShortFormTxt && (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0)) {
+    lines.push(sub);
+    lines.push('ACTION ITEMS');
+    lines.push(sub);
+    lines.push('');
+
+    if (doc.actionItems.quickWins.length > 0) {
+      lines.push('Quick Wins:');
+      doc.actionItems.quickWins.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        const marker = `  ${i + 1}. `;
+        pushWrapped(lines, `${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`, { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = evidenceLabel(aType);
+          const quoted = aType === 'verbatim_quote' || !aType;
+          pushWrapped(lines, `${aLabel}: ${quoted ? '"' : ''}${cleanReportText(item.anchor_snippet)}${quoted ? '"' : ''}`, { firstIndent: '     ', nextIndent: '     ' });
+        }
+        if (item.candidate_text_a) pushWrapped(lines, `Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`, { firstIndent: '     ', nextIndent: '     ' });
+        if (item.reader_effect) pushWrapped(lines, `Reader Effect: ${cleanReportText(item.reader_effect)}`, { firstIndent: '     ', nextIndent: '     ' });
+        if (item.why) pushWrapped(lines, `Why: ${cleanReportText(item.why)}`, { firstIndent: '     ', nextIndent: '     ' });
+        if (item.manuscript_coordinates) pushWrapped(lines, `Location: ${cleanReportText(item.manuscript_coordinates)}`, { firstIndent: '     ', nextIndent: '     ' });
+      });
+      lines.push('');
+    }
+
+    if (doc.actionItems.strategicRevisions.length > 0) {
+      lines.push('Strategic Revisions:');
+      doc.actionItems.strategicRevisions.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        const marker = `  ${i + 1}. `;
+        pushWrapped(lines, `${cleanReportText(item.action)}${tags ? ` [${tags}]` : ''}`, { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = evidenceLabel(aType);
+          const quoted = aType === 'verbatim_quote' || !aType;
+          pushWrapped(lines, `${aLabel}: ${quoted ? '"' : ''}${cleanReportText(item.anchor_snippet)}${quoted ? '"' : ''}`, { firstIndent: '     ', nextIndent: '     ' });
+        }
+        if (item.candidate_text_a) pushWrapped(lines, `Suggested Revision: "${cleanReportText(item.candidate_text_a)}"`, { firstIndent: '     ', nextIndent: '     ' });
+        if (item.reader_effect) pushWrapped(lines, `Reader Effect: ${cleanReportText(item.reader_effect)}`, { firstIndent: '     ', nextIndent: '     ' });
+        if (item.why) pushWrapped(lines, `Why: ${cleanReportText(item.why)}`, { firstIndent: '     ', nextIndent: '     ' });
+        if (item.manuscript_coordinates) pushWrapped(lines, `Location: ${cleanReportText(item.manuscript_coordinates)}`, { firstIndent: '     ', nextIndent: '     ' });
+      });
+      lines.push('');
+    }
+  }
+
+  // ── Sections 13–21: DREAM enriches, UED/template is rendering authority ─
+  // When DREAM is present it provides richer content for §13–§19; otherwise
+  // fall back to the compressed UED modeSpecific arrays.  Either way the
+  // template-authorized headings and section order are enforced here.
+  if (dream) {
+    appendDreamTxtSections(lines, dream);
+  } else if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
+    if (doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
+      lines.push(sub);
+      lines.push('MANUSCRIPT-SCALE CONTINUITY FINDINGS');
+      lines.push(sub);
+      lines.push('');
+      doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => {
+        pushWrapped(lines, cleanReportText(item), { firstIndent: '• ', nextIndent: '  ' });
+      });
+      lines.push('');
+    }
+
+    const pushList = (heading: string, items: string[]) => {
+      if (items.length === 0) return;
+      lines.push(sub);
+      lines.push(heading);
+      lines.push(sub);
+      lines.push('');
+      items.forEach((item) => {
+        pushWrapped(lines, cleanReportText(item), { firstIndent: '• ', nextIndent: '  ' });
+      });
+      lines.push('');
+    };
+
+    pushList(sectionTitleUpper('story_ledger'), doc.modeSpecific.storyLedgerArchitectureMap);
+    pushList(sectionTitleUpper('review_gate'), doc.modeSpecific.reviewGateReadinessSurface);
+    pushList(sectionTitleUpper('governed_ledgers'), doc.modeSpecific.governedLedgerAddenda);
+    pushList(sectionTitleUpper('cross_layer_synthesis'), doc.modeSpecific.crossLayerSynthesis);
+    pushList(sectionTitleUpper('revision_sequencing'), doc.modeSpecific.layerAwareRevisionSequencing);
+    pushList(sectionTitleUpper('continuity_coverage'), doc.modeSpecific.continuityCoverageProof);
+
+    if (doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
+      lines.push(sub);
+      lines.push(sectionTitleUpper('readiness_posture'));
+      lines.push(sub);
+      lines.push('');
+      pushWrapped(lines, cleanReportText(doc.modeSpecific.readinessReleasabilityPosture));
+      lines.push('');
+    }
+
+    if (doc.modeSpecific.revisionPriorityPlan.length > 0) {
+      lines.push(sub);
+      lines.push(sectionTitleUpper('revision_sequencing'));
+      lines.push(sub);
+      lines.push('');
+      doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
+        lines.push(`Priority ${item.priority}: ${cleanReportText(item.title)}`);
+        lines.push(`Location: ${cleanReportText(item.location)}`);
+        pushWrapped(lines, `Operation: ${cleanReportText(item.operation)}`);
+        pushWrapped(lines, `Recommendation: ${cleanReportText(item.recommendation)}`);
+        pushWrapped(lines, `Rationale: ${cleanReportText(item.rationale)}`);
+        lines.push('');
+      });
+    }
+  }
+
+  lines.push(sub);
+  lines.push(sectionTitleUpper('confidence_explanation'));
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, cleanReportText(doc.confidenceExplanation));
+  lines.push('');
+
+  lines.push(sub);
+  lines.push(sectionTitleUpper('disclaimer'));
+  lines.push(sub);
+  lines.push('');
+  pushWrapped(lines, cleanReportText(doc.disclaimer));
+
+  return lines.join('\n');
+}
+
+function renderCanonicalTemplateHtml(doc: UnifiedEvaluationDocument, dream: LongformDreamDocument | null = null, jobId = ''): string {
+  const list = (items: string[], options: { ordered?: boolean } = {}) =>
+    items.length > 0
+      ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(cleanReportText(item))}</span></li>`).join('')}</ul>`
+      : '<p>None supplied.</p>';
+
+  const renderOpportunityFields = (rows: Array<[string, string]>) => rows
+    .map(([label, value]) => {
+      const valHtml = label === 'Evidence' ? `\u201c${escapeHtml(value)}\u201d` : escapeHtml(value);
+      return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="opp-val">${valHtml}</div></div>`;
+    })
+    .join('');
+
+  const criteriaRows = doc.criteriaScoreGrid
+    .map((row) => `<tr><td>${escapeHtml(row.label)}</td><td class="score-cell ${scorePaletteClassFromLabel(row.scoreLabel)}">${escapeHtml(row.scoreLabel)}</td><td><span class="confidence-pill ${confidencePaletteClass(row.confidenceLabel)}">${escapeHtml(row.confidenceLabel)}</span></td></tr>`)
+    .join('');
+
+  const detailCards = doc.criterionDetails
+    .map((detail) => {
+      const recHtml = detail.recommendations.length > 0
+        ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
+            const rows = opportunityRows(r as ExportRecommendation);
+            const detailHtml = rows.length > 0
+              ? renderOpportunityFields(rows)
+              : `<p class="opp-row">${escapeHtml(cleanReportText(r.action, 'No action provided.'))}</p>`;
+            return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
+          }).join('')}</div>`
+        : '';
+      return `
+      <article class="card">
+        <h3>${escapeHtml(detail.label)} <small><span class="criterion-score ${scorePaletteClassFromLabel(detail.scoreLabel)}">${escapeHtml(detail.scoreLabel)}</span> · <span class="confidence-text ${confidencePaletteClass(detail.confidenceLabel)}">${escapeHtml(detail.confidenceLabel)}</span></small></h3>
+        ${detail.supportLabel ? `<p style="font-size:9.5pt"><strong>Status:</strong> ${escapeHtml(detail.supportLabel)}</p>` : ''}
+        ${detail.rationaleLabel ? `<p style="margin-bottom:4px"><strong>${escapeHtml(detail.rationaleLabel)}:</strong></p>` : ''}
+        <p style="font-size:10pt;line-height:1.5">${escapeHtml(cleanReportText(detail.rationaleText))}</p>
+        ${recHtml}
+      </article>`;
+    })
+    .join('');
+
+  // ── Dream Template Sections ────────────────────────────────────────────────
+  // DREAM enriches §13–§19; UED/template is rendering authority.
+  // All sections use template-authorized headings in template-mandated order.
+  const dreamSectionsHtml = dream ? (() => {
+    const parts: string[] = [];
+
+    // §12a Expanded Criterion Analysis (subsection expanding §12)
+    const deepCriterionCards = Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0
+      ? dream.criterion_analyses.map(a => {
+          const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
+          const confLabel = formatConfidenceLabel(a.confidence);
+          const fitHtml = Array.isArray(a.fit_evidence) && a.fit_evidence.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>What Is Working:</strong></p>${list(a.fit_evidence)}`
+            : '';
+          const gapHtml = Array.isArray(a.gap_evidence) && a.gap_evidence.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>What Weakens Impact:</strong></p>${list(a.gap_evidence)}`
+            : '';
+          const queueHtml = Array.isArray(a.revision_queue) && a.revision_queue.length > 0
+            ? `<p style="margin:10px 0 4px"><strong>Revision Queue:</strong></p>${list(a.revision_queue.map(formatRevisionQueueItem), { ordered: true })}`
+            : '';
+          return `<article class="card"><h3>${escapeHtml(getCriterionDisplayLabel(a.key))} <small><span class="criterion-score ${scorePaletteClassFromLabel(score)}">${escapeHtml(score)}</span> · <span class="confidence-text ${confidencePaletteClass(confLabel)}">${escapeHtml(confLabel)}</span></small></h3>${fitHtml}${gapHtml}${queueHtml}</article>`;
+        }).join('')
+      : '';
+    if (deepCriterionCards) {
+      parts.push(`<section><h2>${sectionTitle('expanded_criterion_analysis')}</h2>${deepCriterionCards}</section>`);
+    }
+
+    // §13 Story Ledger or Layer-Aware Architecture Map
+    const stackCards = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0
+      ? dream.structural_stack.map(layer => `<article class="card"><h3>${escapeHtml(cleanReportText(layer.layer_name))}</h3><p><strong>Function:</strong> ${escapeHtml(cleanReportText(layer.function))}</p><p><strong>Status:</strong> ${escapeHtml(layer.status)}</p>${layer.revision_note ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision note:</strong> ${escapeHtml(cleanReportText(layer.revision_note))}</p>` : ''}</article>`).join('')
+      : '';
+    const arcCards = Array.isArray(dream.arc_map) && dream.arc_map.length > 0
+      ? dream.arc_map.map(act => `<article class="card"><h3>${escapeHtml(cleanReportText(act.act_name))} <small>${escapeHtml(cleanReportText(act.chapter_range))}</small></h3><p>${escapeHtml(cleanReportText(act.primary_function))}</p>${act.revision_priority ? `<p style="font-size:9.5pt;color:#5C5549"><strong>Revision priority:</strong> ${escapeHtml(cleanReportText(act.revision_priority))}</p>` : ''}</article>`).join('')
+      : '';
+    const layerCards = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0
+      ? dream.layer_analyses.map(l => `<article class="card"><h3>${escapeHtml(cleanReportText(l.layer_name))} <small>${escapeHtml(l.status)}</small></h3><p>${escapeHtml(cleanReportText(l.needed_revision))}</p></article>`).join('')
+      : '';
+    if (stackCards || arcCards || layerCards) {
+      parts.push(`<section><h2>${sectionTitle('story_ledger')}</h2>${stackCards}${arcCards ? `<h3 style="margin-top:16px">Arc Map</h3>${arcCards}` : ''}${layerCards ? `<h3 style="margin-top:16px">Layer Analysis</h3>${layerCards}` : ''}</section>`);
+    }
+
+    // §14 Review Gate Readiness Surface
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const requiredHtml = Array.isArray(ac.required_detection) && ac.required_detection.length > 0
+        ? `<p><strong>Required Detection:</strong></p>${list(ac.required_detection)}`
+        : '';
+      const failureHtml = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0
+        ? `<p style="margin-top:10px"><strong>Failure Conditions:</strong></p>${list(ac.failure_conditions)}`
+        : '';
+      if (requiredHtml || failureHtml) {
+        parts.push(`<section><h2>${sectionTitle('review_gate')}</h2>${requiredHtml}${failureHtml}</section>`);
+      }
+    }
+
+    // §15 Governed Ledgers or Compact Governed-Ledger Addenda
+    if (dream.symbolic_audit) {
+      const sa = dream.symbolic_audit;
+      const symbolsHtml = Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0
+        ? `<h3 style="margin-bottom:8px">Preserved Symbols</h3>${sa.preserved_symbols.map(sym => `<div class="card"><p><strong>${escapeHtml(cleanReportText(sym.symbol))}</strong> — ${escapeHtml(cleanReportText(sym.current_function))}</p>${sym.revision_instruction ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(cleanReportText(sym.revision_instruction))}</p>` : ''}</div>`).join('')}`
+        : '';
+      const strengthsHtml = Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0
+        ? `<p style="margin-top:10px"><strong>Doctrine Strengths:</strong></p>${list(sa.doctrine_strengths)}`
+        : '';
+      const risksHtml = Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0
+        ? `<p style="margin-top:10px"><strong>Doctrine Risks:</strong></p>${list(sa.doctrine_risks)}`
+        : '';
+      const conclusionHtml = hasMeaningfulText(sa.audit_conclusion) ? `<p style="margin-top:10px">${escapeHtml(cleanReportText(sa.audit_conclusion))}</p>` : '';
+      if (symbolsHtml || strengthsHtml || risksHtml || conclusionHtml) {
+        parts.push(`<section><h2>${sectionTitle('governed_ledgers')}</h2>${symbolsHtml}${strengthsHtml}${risksHtml}${conclusionHtml}</section>`);
+      }
+    }
+
+    // §16 Cross-Layer Synthesis
+    const ds = dream.dream_scores;
+    const scoreMetrics = ds ? [
+      ds.quality != null ? `<div class="metric"><strong>Quality</strong><div>${escapeHtml(scoreLabel(ds.quality, 100))}</div></div>` : '',
+      ds.readiness != null ? `<div class="metric"><strong>Readiness</strong><div>${escapeHtml(scoreLabel(ds.readiness, 100))}</div></div>` : '',
+      ds.commercial != null ? `<div class="metric"><strong>Commercial</strong><div>${escapeHtml(scoreLabel(ds.commercial, 100))}</div></div>` : '',
+      ds.literary != null ? `<div class="metric"><strong>Literary</strong><div>${escapeHtml(scoreLabel(ds.literary, 100))}</div></div>` : '',
+    ].filter(Boolean).join('') : '';
+    const crossCards = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0
+      ? dream.cross_layer_integration.map(c => `<article class="card"><h3>${escapeHtml(cleanReportText(c.motif))}</h3><p>${escapeHtml(cleanReportText(c.description))}</p>${c.revision_note ? `<p style="font-size:9.5pt;color:#5C5549">${escapeHtml(cleanReportText(c.revision_note))}</p>` : ''}</article>`).join('')
+      : '';
+    const readerExpHtml = (() => {
+      if (!dream.reader_experience) return '';
+      const re = dream.reader_experience;
+      const actCard = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+        if (!act) return '';
+        const questionHtml = hasMeaningfulText(act.reader_question) ? `<p><strong>Reader Question:</strong> ${escapeHtml(cleanReportText(act.reader_question))}</p>` : '';
+        const emotionHtml = hasMeaningfulText(act.emotional_state) ? `<p><strong>Emotional State:</strong> ${escapeHtml(cleanReportText(act.emotional_state))}</p>` : '';
+        const riskHtml = hasMeaningfulText(act.risk) ? `<p><strong>Risk:</strong> ${escapeHtml(cleanReportText(act.risk))}</p>` : '';
+        if (!questionHtml && !emotionHtml && !riskHtml) return '';
+        return `<article class="card"><h3>${escapeHtml(title)}</h3>${questionHtml}${emotionHtml}${riskHtml}</article>`;
+      };
+      const aftertasteHtml = hasMeaningfulText(re.aftertaste) ? `<p style="margin-top:14px;font-size:10pt">${escapeHtml(cleanReportText(re.aftertaste))}</p>` : '';
+      const actHtml = `${actCard('First Act', re.first_act)}${actCard('Middle', re.middle)}${actCard('Final Act', re.final_act)}`;
+      if (!actHtml && !aftertasteHtml) return '';
+      return `<h3 style="margin-top:16px">Reader Experience</h3>${actHtml}${aftertasteHtml}`;
+    })();
+    if (hasMeaningfulText(dream.executive_verdict) || scoreMetrics || crossCards || readerExpHtml) {
+      parts.push(`<section><h2>${sectionTitle('cross_layer_synthesis')}</h2>${scoreMetrics ? `<div class="grid" style="margin-bottom:14px">${scoreMetrics}</div>` : ''}${hasMeaningfulText(dream.executive_verdict) ? `<p style="font-size:10pt;line-height:1.6">${escapeHtml(cleanReportText(dream.executive_verdict))}</p>` : ''}${crossCards ? `<h3 style="margin-top:16px">Cross-Layer Integration</h3>${crossCards}` : ''}${readerExpHtml}</section>`);
+    }
+
+    // §17 Layer-Aware Revision Sequencing
+    const dreamRevisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (dreamRevisionPlan.length > 0) {
+      const planCards = dreamRevisionPlan.map(item => {
+        const actionsHtml = Array.isArray(item.actions) && item.actions.length > 0
+          ? `<p style="margin-top:8px"><strong>Actions:</strong></p>${list(item.actions, { ordered: true })}`
+          : '';
+        const acceptanceHtml = item.acceptance_check ? `<p style="margin-top:8px;font-size:9.5pt;color:#5C5549"><strong>Acceptance Check:</strong> ${escapeHtml(cleanReportText(item.acceptance_check))}</p>` : '';
+        return `<article class="card"><h3>Priority ${item.displayPriority}: ${escapeHtml(cleanReportText(item.title))}</h3><p>${escapeHtml(cleanReportText(item.goal))}</p>${actionsHtml}${acceptanceHtml}</article>`;
+      }).join('');
+      parts.push(`<section><h2>${sectionTitle('revision_sequencing')}</h2>${planCards}</section>`);
+    }
+
+    // §18 Long-Form Continuity and Coverage Proof
+    const continuityItems: string[] = [];
+    if (Array.isArray(dream.arc_map)) {
+      dream.arc_map.forEach(act => { if (hasMeaningfulText(act.primary_function)) continuityItems.push(`${cleanReportText(act.act_name)}: ${cleanReportText(act.primary_function)}`); });
+    }
+    if (Array.isArray(dream.layer_analyses)) {
+      dream.layer_analyses.forEach(l => { if (hasMeaningfulText(l.needed_revision)) continuityItems.push(`${cleanReportText(l.layer_name)}: ${cleanReportText(l.needed_revision)}`); });
+    }
+    if (Array.isArray(dream.cross_layer_integration)) {
+      dream.cross_layer_integration.forEach(c => { if (hasMeaningfulText(c.revision_note)) continuityItems.push(`${cleanReportText(c.motif)}: ${cleanReportText(c.revision_note)}`); });
+    }
+    parts.push(`<section><h2>${sectionTitle('continuity_coverage')}</h2>${continuityItems.length > 0 ? list(continuityItems) : '<p>Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.</p>'}</section>`);
+
+    // §19 Readiness / Releasability Posture
+    const hasReleasability = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+    const hasMarketShelf = dream.market_shelf && (hasMeaningfulText(dream.market_shelf.best_shelf) || hasMeaningfulText(dream.market_shelf.marketable_hook) || hasMeaningfulText(dream.market_shelf.market_danger) || (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) || (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0));
+    if (hasReleasability || hasMarketShelf) {
+      const verdictClass = (v: string) => v === 'Ready' ? 'score-strong' : (v === 'Revise' || v === 'Must fix') ? 'score-risk' : 'score-watch';
+      const releasabilityRows = hasReleasability ? dream.releasability.map(dim =>
+        `<tr><td>${escapeHtml(cleanReportText(dim.dimension))}</td><td>${escapeHtml(cleanReportText(dim.current_status))}</td><td class="${verdictClass(dim.verdict)}" style="font-weight:700;text-align:right">${escapeHtml(dim.verdict)}</td></tr>`
+      ).join('') : '';
+      const releasabilityTable = releasabilityRows ? `<table class="score-grid-table"><thead><tr><th>Dimension</th><th>Status</th><th style="text-align:right">Verdict</th></tr></thead><tbody>${releasabilityRows}</tbody></table>` : '';
+      const marketShelfHtml = hasMarketShelf ? (() => {
+        const ms = dream.market_shelf!;
+        const bestShelfHtml = hasMeaningfulText(ms.best_shelf) ? `<p><strong>Best Shelf:</strong> ${escapeHtml(cleanReportText(ms.best_shelf))}</p>` : '';
+        const hookHtml = hasMeaningfulText(ms.marketable_hook) ? `<p><strong>Marketable Hook:</strong> ${escapeHtml(cleanReportText(ms.marketable_hook))}</p>` : '';
+        const dangerHtml = hasMeaningfulText(ms.market_danger) ? `<p><strong>Market Danger:</strong> ${escapeHtml(cleanReportText(ms.market_danger))}</p>` : '';
+        const neighborsHtml = Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0 ? `<p style="margin-top:10px"><strong>Shelf Neighbors:</strong></p>${list(ms.shelf_neighbors)}` : '';
+        const compHtml = Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0 ? `<p style="margin-top:10px"><strong>Comparison Space:</strong></p>${list(ms.comparison_space)}` : '';
+        const wntbHtml = Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0 ? `<p style="margin-top:10px"><strong>What Not to Become:</strong></p>${list(dream.what_not_to_become)}` : '';
+        return `<h3 style="margin-top:16px">Market Shelf</h3><div class="card">${bestShelfHtml}${hookHtml}${dangerHtml}${neighborsHtml}${compHtml}${wntbHtml}</div>`;
+      })() : '';
+      parts.push(`<section><h2>${sectionTitle('readiness_posture')}</h2>${releasabilityTable}${marketShelfHtml}</section>`);
+    }
+
+    return parts.join('\n    ');
+  })() : '';
+
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(doc.title)} - RevisionGrade Report</title><style>
+    @page{size:Letter;margin:0.66in 0.68in 0.78in;@bottom-center{content:'RevisionGrade™ | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
+    *{box-sizing:border-box;min-width:0}
+    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.5;font-size:10.3pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page}
+    .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
+    .brand{font-family:Georgia,'Times New Roman',serif;font-size:24pt;font-weight:700;color:#8B2E2E;letter-spacing:.01em}
+    .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#5C5549;margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
+    .hero{display:grid;grid-template-columns:minmax(0,1fr) 2.35in;gap:0.28in;margin-top:0.38in;align-items:start}
+    .title{font-size:31pt;line-height:1.08;color:#1C1814;margin:0 0 10px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:12pt;margin:0;text-transform:uppercase;letter-spacing:.05em}
+    .readiness-card{border:2px solid #D9D0C3;border-radius:10px;padding:0.22in 0.18in;color:#1A1A1A;text-align:center;box-shadow:0 8px 18px rgba(111,29,27,.06);break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
+    .readiness-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D;color:#1A1A1A}.readiness-card.readiness-watch{background:#FFF6E8;border-color:#D9A441;color:#1A1A1A}.readiness-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A;color:#1A1A1A}.readiness-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3;color:#1A1A1A}
+    .readiness-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}.readiness-card .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px;color:#1A1A1A}.readiness-card .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#1A1A1A;letter-spacing:.04em}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
+    .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+    .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
+    section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:18px 21px;margin:0 0 14px;break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
+    h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:16pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11pt} small{font-weight:normal;color:#5C5549}
+    ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
+    table{width:100%;border-collapse:collapse}.score-grid-table{table-layout:fixed}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:7px 8px;text-align:left;vertical-align:top}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%}
+    .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
+    .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:7px;color:#1C1814}
+    .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
+    .opp-block{margin-top:10px;background:#FFFDF9;border:1px solid #E6DED2;border-left:3px solid #C8A96E;padding:12px 14px;border-radius:8px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
+    .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8B2E2E;margin-bottom:6px}
+    .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
+    .opp-row strong{color:#5C5549}
+    .opp-row em{color:#6B5E52;font-style:normal}.opp-field{margin-top:8px;padding-top:6px;border-top:1px solid #EDE7DE;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;margin-bottom:2px}.opp-val{display:block;width:100%;font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#1C1814;line-height:1.45;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
+    .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
+    .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
+    .action-card{margin-bottom:8px;padding:10px 14px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:5px;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}
+    .action-card .action-text{font-weight:600;color:#1C1814;font-size:10pt}
+    .action-card .action-meta{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549;margin-top:3px}
+  </style></head><body>
+    <header class="cover">
+      <div class="brand">RevisionGrade™ Evaluation Report</div>
+      <div class="tag">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
+      <div class="hero">
+        <div>
+          <h1 class="title">${escapeHtml(doc.title)}</h1>
+          <p class="subtitle">${escapeHtml(doc.titleBlock.reportType)}</p>
+          ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
+        </div>
+        <aside class="readiness-card ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">
+          <div class="label">Overall Score</div>
+          <div class="value ${scorePaletteClassFromLabel(doc.titleBlock.overallScoreLabel)}">${escapeHtml(doc.titleBlock.overallScoreLabel)}</div>
+          ${doc.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(doc.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
+          <div class="verdict ${readinessPaletteClass(doc.titleBlock.marketReadiness)}">${escapeHtml(doc.titleBlock.marketReadiness)}</div>
+          ${doc.titleBlock.marketReadinessConfidenceLabel ? `<div class="label">${escapeHtml(doc.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
+        </aside>
+      </div>
+      <div class="grid">
+        <div class="metric"><strong>Genre</strong><div>${escapeHtml(doc.titleBlock.genre)}${doc.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.genreConfidenceLabel)}">${escapeHtml(doc.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
+        <div class="metric"><strong>Target Audience</strong><div>${doc.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(doc.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.audienceConfidenceLabel)}">${escapeHtml(doc.titleBlock.audienceConfidenceLabel)}</span></div></div>
+        <div class="metric"><strong>Submitted Word Count</strong><div>${escapeHtml(doc.titleBlock.submittedWordCount)}</div></div>
+        <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(doc.titleBlock.estimatedPages)}</div></div>
+        <div class="metric"><strong>Reading Grade Level</strong><div>${escapeHtml(doc.titleBlock.readingGradeLevel)}</div></div>
+        <div class="metric"><strong>Dialogue/Narrative Ratio</strong><div>${escapeHtml(doc.titleBlock.dialogueNarrativeRatio)}</div></div>
+        <div class="metric"><strong>Date Generated</strong><div>${escapeHtml(doc.titleBlock.dateGenerated)}</div></div>
+        <div class="metric"><strong>Confidentiality</strong><div>Prepared for author/editorial use.</div></div>
+        ${doc.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(doc.titleBlock.shelf)}${doc.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(doc.titleBlock.shelfConfidenceLabel)}">${escapeHtml(doc.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
+        ${doc.titleBlock.genreExpectationContract ? `<div class="metric"><strong>Genre Expectations</strong><div>${escapeHtml(doc.titleBlock.genreExpectationContract.contractSummary)}${doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 ? `<br /><small>Reader emphasis: ${escapeHtml(doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', '))}</small>` : ''}</div></div>` : ''}
+      </div>
+      <p class="footnote">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+    </header>
+    <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneParagraphPitch))}</p></section>
+    <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(cleanReportText(doc.oneSentencePitch))}</p></section>
+    ${doc.premise ? `<section><h2>Premise</h2><p>${escapeHtml(cleanReportText(doc.premise))}</p></section>` : ''}
+    <section><h2>Content Warnings</h2>${list(doc.contentWarnings)}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
+    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric"><strong>Total</strong><div>${doc.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${doc.revisionOpportunitySummary.high}</div></div><div class="metric"><strong>Optional</strong><div>${doc.revisionOpportunitySummary.medium}</div></div><div class="metric"><strong>Consider</strong><div>${doc.revisionOpportunitySummary.low}</div></div></div></section>
+    <section><h2>Executive Summary</h2><p>${escapeHtml(cleanReportText(doc.executiveSummary))}</p></section>
+    <section><h2>Top Strengths</h2>${list(doc.topStrengths, { ordered: true })}</section>
+    <section><h2>Top Risks</h2>${list(doc.topRisks, { ordered: true })}</section>
+    <section><h2>Top Recommendations</h2>${doc.topRecommendations.length > 0 ? list(doc.topRecommendations, { ordered: true }) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
+    <section><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+    <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
+    ${dream ? dreamSectionsHtml : ((doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') ? `
+    ${doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0 ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(doc.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
+    ${doc.modeSpecific.storyLedgerArchitectureMap.length > 0 ? `<section><h2>${sectionTitle('story_ledger')}</h2>${list(doc.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
+    ${doc.modeSpecific.reviewGateReadinessSurface.length > 0 ? `<section><h2>${sectionTitle('review_gate')}</h2>${list(doc.modeSpecific.reviewGateReadinessSurface)}</section>` : ''}
+    ${doc.modeSpecific.governedLedgerAddenda.length > 0 ? `<section><h2>${sectionTitle('governed_ledgers')}</h2>${list(doc.modeSpecific.governedLedgerAddenda)}</section>` : ''}
+    ${doc.modeSpecific.crossLayerSynthesis.length > 0 ? `<section><h2>${sectionTitle('cross_layer_synthesis')}</h2>${list(doc.modeSpecific.crossLayerSynthesis)}</section>` : ''}
+    ${doc.modeSpecific.layerAwareRevisionSequencing.length > 0 ? `<section><h2>${sectionTitle('revision_sequencing')}</h2>${list(doc.modeSpecific.layerAwareRevisionSequencing)}</section>` : ''}
+    ${doc.modeSpecific.revisionPriorityPlan.length > 0 ? `<section><h2>${sectionTitle('revision_sequencing')}</h2>${doc.modeSpecific.revisionPriorityPlan.map((item) => `<article class="card"><h3>Priority ${item.priority}: ${escapeHtml(cleanReportText(item.title))}</h3><p><strong>Location:</strong> ${escapeHtml(cleanReportText(item.location))}</p><p><strong>Operation:</strong> ${escapeHtml(cleanReportText(item.operation))}</p><p><strong>Recommendation:</strong> ${escapeHtml(cleanReportText(item.recommendation))}</p><p><strong>Rationale:</strong> ${escapeHtml(cleanReportText(item.rationale))}</p></article>`).join('')}</section>` : ''}
+    ${doc.modeSpecific.continuityCoverageProof.length > 0 ? `<section><h2>${sectionTitle('continuity_coverage')}</h2>${list(doc.modeSpecific.continuityCoverageProof)}</section>` : ''}
+    ${doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0 ? `<section><h2>${sectionTitle('readiness_posture')}</h2><p>${escapeHtml(cleanReportText(doc.modeSpecific.readinessReleasabilityPosture))}</p></section>` : ''}
+    ` : '')}
+    ${(doc.templateMode !== 'short_form_evaluation' && (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0)) ? `<section><h2>Action Items</h2>${doc.actionItems.quickWins.length > 0 ? `<h3>Quick Wins</h3>${doc.actionItems.quickWins.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}${doc.actionItems.strategicRevisions.length > 0 ? `<h3>Strategic Revisions</h3>${doc.actionItems.strategicRevisions.map((item, i) => { const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', '); return `<div class="action-card"><p class="action-text">${i + 1}. ${escapeHtml(cleanReportText(item.action))}${tags ? ` <span class="action-meta">[${escapeHtml(tags)}]</span>` : ''}</p>${item.anchor_snippet ? `<p class="action-evidence"><strong>Original Passage:</strong> "${escapeHtml(cleanReportText(item.anchor_snippet))}"</p>` : ''}${item.candidate_text_a ? `<p class="action-revision"><strong>Suggested Revision:</strong> "${escapeHtml(cleanReportText(item.candidate_text_a))}"</p>` : ''}${item.reader_effect ? `<p class="action-meta"><strong>Reader Effect:</strong> ${escapeHtml(cleanReportText(item.reader_effect))}</p>` : ''}${item.why ? `<p class="action-meta">Why: ${escapeHtml(cleanReportText(item.why))}</p>` : ''}${item.manuscript_coordinates ? `<p class="action-meta"><strong>Location:</strong> ${escapeHtml(cleanReportText(item.manuscript_coordinates))}</p>` : ''}</div>`; }).join('')}` : ''}</section>` : ''}
+    <section><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(cleanReportText(doc.confidenceExplanation))}</p></section>
+    <section><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(cleanReportText(doc.disclaimer))}</p></section>
+  </body></html>`;
+}
+
+async function buildCanonicalTemplateDocx(doc: UnifiedEvaluationDocument, dream: LongformDreamDocument | null = null, jobId = ''): Promise<Buffer> {
+  const makeHeading = (text: string) =>
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 300, after: 110 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: docxHex(RG.borderLight) } },
+      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 30, font: 'Georgia' })],
+    });
+
+  const makeDivider = () =>
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.goldMid) },
+              children: [new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: ' ', size: 4 })] })],
+            }),
+          ],
+        }),
+      ],
+    });
+
+  const para = (text: string, opts: { bold?: boolean; color?: string; italics?: boolean } = {}) =>
+    new Paragraph({
+      spacing: { after: 115, line: 310 },
+      children: [
+        new TextRun({
+          text: cleanReportText(text),
+          size: 22,
+          font: 'Calibri',
+          bold: opts.bold,
+          italics: opts.italics,
+          color: docxHex(opts.color ?? RG.textPrimary),
+        }),
+      ],
+    });
+
+  const makeCallout = (heading: string, body: string, color: string = RG.surfaceAlt) =>
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(color) },
+              children: [
+                new Paragraph({
+                  spacing: { after: 70 },
+                  children: [new TextRun({ text: heading, bold: true, size: 21, color: docxHex(RG.oxblood), font: 'Georgia' })],
+                }),
+                new Paragraph({
+                  spacing: { after: 60, line: 300 },
+                  children: [new TextRun({ text: cleanReportText(body), size: 21, color: docxHex(RG.textPrimary), font: 'Calibri' })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+  const metadataTableRows: TableRow[] = [
+    ...(jobId ? [['Reference ID', jobId] as [string, string]] : []),
+    ['Report Type', doc.titleBlock.reportType],
+    ['Overall Score', `${doc.titleBlock.overallScoreLabel}${doc.titleBlock.overallScoreConfidenceLabel ? ` (${doc.titleBlock.overallScoreConfidenceLabel})` : ''}`],
+    ['Market Readiness', `${doc.titleBlock.marketReadiness}${doc.titleBlock.marketReadinessConfidenceLabel ? ` (${doc.titleBlock.marketReadinessConfidenceLabel})` : ''}`],
+    ['Genre', `${doc.titleBlock.genre}${doc.titleBlock.genreConfidenceLabel ? ` (${doc.titleBlock.genreConfidenceLabel})` : ''}`],
+    ['Target Audience', `${doc.titleBlock.audienceTentative ? 'Tentative: ' : ''}${doc.titleBlock.targetAudience} (${doc.titleBlock.audienceConfidenceLabel})`],
+    ...(doc.titleBlock.shelf ? [['Shelf', `${doc.titleBlock.shelf}${doc.titleBlock.shelfConfidenceLabel ? ` (${doc.titleBlock.shelfConfidenceLabel})` : ''}`] as [string, string]] : []),
+    ['Submitted Word Count', doc.titleBlock.submittedWordCount],
+    ['Estimated Pages', doc.titleBlock.estimatedPages],
+    ['Reading Grade Level', doc.titleBlock.readingGradeLevel],
+    ['Dialogue/Narrative Ratio', doc.titleBlock.dialogueNarrativeRatio],
+    ['Date Generated', doc.titleBlock.dateGenerated],
+    ['Confidentiality', 'Prepared for author/editorial use.'],
+  ].map(
+    ([label, value]) =>
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 36, type: WidthType.PERCENTAGE },
+            borders: DOCX_NO_BORDERS,
+            shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+            children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+          }),
+          new TableCell({
+            width: { size: 64, type: WidthType.PERCENTAGE },
+            borders: DOCX_NO_BORDERS,
+            children: [new Paragraph({ children: [new TextRun({ text: cleanReportText(value), size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })],
+          }),
+        ],
+      }),
+  );
+
+  const children: (Paragraph | Table)[] = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      heading: HeadingLevel.TITLE,
+      spacing: { before: 220, after: 80 },
+      children: [new TextRun({ text: 'RevisionGrade™', bold: true, size: 48, color: docxHex(RG.oxblood), font: 'Georgia' })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 220 },
+      children: [new TextRun({ text: 'Editorial Readiness Assessment', size: 22, color: docxHex(RG.textMuted), font: 'Calibri', allCaps: true })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      children: [new TextRun({ text: cleanReportText(doc.title), bold: true, size: 40, color: docxHex(RG.textPrimary), font: 'Georgia' })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 260 },
+      children: [new TextRun({ text: doc.titleBlock.reportType, size: 22, color: docxHex(RG.textMuted), font: 'Calibri' })],
+    }),
+    makeDivider(),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              children: [
+                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Overall Score', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: doc.titleBlock.overallScoreLabel, bold: true, size: 34, color: docxHex(scorePaletteColorFromLabel(doc.titleBlock.overallScoreLabel)), font: 'Georgia' })],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+              children: [
+                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Market Readiness', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new TextRun({ text: cleanReportText(doc.titleBlock.marketReadiness), bold: true, size: 30, color: docxHex(readinessPaletteColor(doc.titleBlock.marketReadiness)), font: 'Georgia' })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }),
+    new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: ' ' })] }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: metadataTableRows,
+    }),
+    ...(doc.titleBlock.genreExpectationContract
+      ? [para(`Genre Expectations: ${doc.titleBlock.genreExpectationContract.contractSummary}${doc.titleBlock.genreExpectationContract.expectationProfileLabels.length > 0 ? ` — Reader emphasis: ${doc.titleBlock.genreExpectationContract.expectationProfileLabels.join(', ')}` : ''}`, { color: RG.textMuted })]
+      : []),
+    new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: EXPORT_DISCLAIMER, size: 18, color: docxHex(RG.textMuted), italics: true })] }),
+    makeDivider(),
+    makeHeading('One-Paragraph Pitch'),
+    makeCallout('Author-Facing Pitch', doc.oneParagraphPitch, RG.surfaceAlt),
+    makeHeading('One-Sentence Pitch'),
+    makeCallout('Single-Sentence Hook', doc.oneSentencePitch, RG.surface),
+  ];
+
+  if (doc.premise) {
+    children.push(makeHeading('Premise'));
+    children.push(para(doc.premise));
+  }
+
+  children.push(makeHeading('Content Warnings'));
+  doc.contentWarnings.forEach((item) => children.push(docxListPara(item)));
+  children.push(para('Consider including content warnings in book marketing or front matter.'));
+
+  children.push(makeHeading('Revision Opportunity Summary'));
+  // Metric values are structured data — bypass cleanReportText to prevent truncation
+  children.push(new Paragraph({
+    spacing: { after: 115, line: 310 },
+    children: [new TextRun({ text: `Total: ${doc.revisionOpportunitySummary.total}`, size: 22, font: 'Calibri', bold: true, color: docxHex(RG.textPrimary) })],
+  }));
+  children.push(new Paragraph({
+    spacing: { after: 115, line: 310 },
+    children: [new TextRun({ text: `Recommended: ${doc.revisionOpportunitySummary.high}  |  Optional: ${doc.revisionOpportunitySummary.medium}  |  Consider: ${doc.revisionOpportunitySummary.low}`, size: 22, font: 'Calibri', color: docxHex(RG.textPrimary) })],
+  }));
+  children.push(makeHeading('Executive Summary'));
+  children.push(makeCallout('Executive Editorial Assessment', doc.executiveSummary, RG.surfaceAlt));
+  children.push(makeHeading('Top Strengths'));
+  doc.topStrengths.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
+  children.push(makeHeading('Top Risks'));
+  doc.topRisks.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
+  children.push(makeHeading('Top Recommendations'));
+  if (doc.topRecommendations.length > 0) {
+    doc.topRecommendations.forEach((item, index) => children.push(docxListPara(item, `${index + 1}.`)));
+  } else {
+    children.push(para('See per-criterion opportunities below for detailed revision guidance.'));
+  }
+
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 260, after: 90 },
+      pageBreakBefore: true,
+      children: [new TextRun({ text: '13 Criteria Score Grid', bold: true, color: docxHex(RG.oxblood), size: 28 })],
+    }),
+  );
+  children.push(
+    new Table({
+      rows: [
+        new TableRow({
+          tableHeader: true,
+          children: [
+            new TableCell({
+              width: { size: 55, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ children: [new TextRun({ text: 'Criterion', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+            }),
+            new TableCell({
+              width: { size: 15, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Score', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+            }),
+            new TableCell({
+              width: { size: 30, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'Confidence', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
+            }),
+          ],
+        }),
+        ...doc.criteriaScoreGrid.map(
+          (row) =>
+            new TableRow({
+              children: [
+                new TableCell({ borders: DOCX_NO_BORDERS, shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) }, children: [new Paragraph({ children: [new TextRun({ text: row.label, size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] }),
+                new TableCell({
+                  borders: DOCX_NO_BORDERS,
+                  shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.RIGHT,
+                      children: [new TextRun({ text: row.scoreLabel, bold: true, size: 20, color: docxHex(scorePaletteColorFromLabel(row.scoreLabel)), font: 'Calibri' })],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  borders: DOCX_NO_BORDERS,
+                  shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.RIGHT,
+                      children: [new TextRun({ text: row.confidenceLabel, bold: true, size: 20, color: docxHex(confidencePaletteColor(row.confidenceLabel)), font: 'Calibri' })],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+        ),
+      ],
+      width: { size: 100, type: WidthType.PERCENTAGE },
+    }),
+  );
+
+  children.push(makeDivider());
+  children.push(makeHeading('Criterion Rationales & Surfaced Opportunities'));
+  doc.criterionDetails.forEach((detail, detailIdx) => {
+    if (detailIdx > 0) {
+      children.push(new Paragraph({ spacing: { before: 160, after: 0 }, children: [new TextRun({ text: '' })] }));
+    }
+    children.push(
+      new Paragraph({
+        spacing: { before: 100, after: 90 },
+        shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+        border: { left: { style: BorderStyle.SINGLE, size: 12, color: docxHex(RG.oxblood) } },
+        children: [
+          new TextRun({ text: `${detail.label}  `, bold: true, size: 24, color: docxHex(RG.textPrimary), font: 'Georgia' }),
+          new TextRun({ text: detail.scoreLabel, bold: true, size: 23, color: docxHex(scorePaletteColorFromLabel(detail.scoreLabel)), font: 'Calibri' }),
+          new TextRun({ text: '  |  ', size: 21, color: docxHex(RG.textMuted), font: 'Calibri' }),
+          new TextRun({ text: detail.confidenceLabel, bold: true, size: 21, color: docxHex(confidencePaletteColor(detail.confidenceLabel)), font: 'Calibri' }),
+        ],
+      }),
+    );
+    if (detail.supportLabel) children.push(para(`Status: ${detail.supportLabel}`));
+    if (detail.rationaleLabel) children.push(para(`${detail.rationaleLabel}:`));
+    children.push(para(detail.rationaleText));
+    if (detail.recommendations.length > 0) {
+      children.push(new Paragraph({
+        spacing: { before: 120, after: 60 },
+        children: [new TextRun({ text: `OPPORTUNITIES (${detail.recommendations.length})`, bold: true, size: 18, color: docxHex(RG.textMuted) })],
+      }));
+      detail.recommendations.forEach((rec, index) => {
+        const rows = opportunityRows(rec as ExportRecommendation);
+        children.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: [new TableCell({
+                borders: DOCX_NO_BORDERS,
+                shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+                children: [new Paragraph({ children: [new TextRun({ text: `${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood), font: 'Calibri' })] })],
+              })],
+            }),
+            ...(rows.length > 0 ? rows.map(([label, value]) => {
+            if (label === 'Evidence') {
+              // Verbatim quote: italicized with quotation marks
+              return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: `\u201c${cleanReportText(value)}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })] })] });
+            }
+            if (label === 'Observation' || label === 'Diagnostic Basis') {
+              // Non-verbatim evidence: no quotes, not italicized
+              return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: cleanReportText(value), size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })] })] });
+            }
+            return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: cleanReportText(value), size: 19, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] })] });
+          }) : [new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: cleanReportText(rec.action, 'No action provided.'), size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] })] })]),
+          ],
+        }));
+      });
+    }
+  });
+
+  // ── Action Items (suppressed for short-form per Revision Surface Ownership Contract) ──
+  if (doc.templateMode !== 'short_form_evaluation' && (doc.actionItems.quickWins.length > 0 || doc.actionItems.strategicRevisions.length > 0)) {
+    children.push(makeHeading('Action Items'));
+    if (doc.actionItems.quickWins.length > 0) {
+      children.push(new Paragraph({
+        spacing: { before: 80, after: 60 },
+        children: [new TextRun({ text: 'Quick Wins', bold: true, size: 22, color: docxHex(RG.textPrimary) })],
+      }));
+      doc.actionItems.quickWins.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: `${i + 1}. ${cleanReportText(item.action)}`, bold: true, size: 20, color: docxHex(RG.textPrimary) }),
+            ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
+          ],
+        }));
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = aType === 'paraphrased_observation' ? 'Observation' : aType === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage';
+          const quoted = aType === 'verbatim_quote' || !aType;
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: `${aLabel}: `, bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+              new TextRun({ text: quoted ? `"${cleanReportText(item.anchor_snippet)}"` : cleanReportText(item.anchor_snippet), italics: quoted, size: 18, color: docxHex(RG.textMuted) }),
+            ],
+          }));
+        }
+        if (item.candidate_text_a) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: `"${cleanReportText(item.candidate_text_a)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.reader_effect) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.reader_effect), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.why) children.push(para(`Why: ${cleanReportText(item.why)}`));
+        if (item.manuscript_coordinates) children.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Location: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.manuscript_coordinates), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+      });
+    }
+    if (doc.actionItems.strategicRevisions.length > 0) {
+      children.push(new Paragraph({
+        spacing: { before: 80, after: 60 },
+        children: [new TextRun({ text: 'Strategic Revisions', bold: true, size: 22, color: docxHex(RG.textPrimary) })],
+      }));
+      doc.actionItems.strategicRevisions.forEach((item, i) => {
+        const tags = [item.effort ? `${item.effort} effort` : '', item.impact ? `${item.impact} impact` : ''].filter(Boolean).join(', ');
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: `${i + 1}. ${cleanReportText(item.action)}`, bold: true, size: 20, color: docxHex(RG.textPrimary) }),
+            ...(tags ? [new TextRun({ text: ` [${tags}]`, size: 18, color: docxHex(RG.textMuted) })] : []),
+          ],
+        }));
+        if (item.anchor_snippet) {
+          const aType = (item as { anchor_type?: string }).anchor_type;
+          const aLabel = aType === 'paraphrased_observation' ? 'Observation' : aType === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Original Passage';
+          const quoted = aType === 'verbatim_quote' || !aType;
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: `${aLabel}: `, bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+              new TextRun({ text: quoted ? `"${cleanReportText(item.anchor_snippet)}"` : cleanReportText(item.anchor_snippet), italics: quoted, size: 18, color: docxHex(RG.textMuted) }),
+            ],
+          }));
+        }
+        if (item.candidate_text_a) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: `"${cleanReportText(item.candidate_text_a)}"`, italics: true, size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.reader_effect) children.push(new Paragraph({
+          spacing: { after: 20 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.reader_effect), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+        if (item.why) children.push(para(`Why: ${cleanReportText(item.why)}`));
+        if (item.manuscript_coordinates) children.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 480 },
+          children: [
+            new TextRun({ text: 'Location: ', bold: true, size: 18, color: docxHex(RG.textPrimary) }),
+            new TextRun({ text: cleanReportText(item.manuscript_coordinates), size: 18, color: docxHex(RG.textMuted) }),
+          ],
+        }));
+      });
+    }
+  }
+
+  // ── Sections 13–21: UED section authority + DREAM enrichment ────────────
+  // DREAM provides richer content; UED modeSpecific is fallback.
+  // Template-authorized headings and §13→§21 order enforced in all paths.
+  if (dream) {
+    // §12a Expanded Criterion Analysis (subsection expanding §12)
+    if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
+      children.push(makeHeading(sectionTitle('expanded_criterion_analysis')));
+      dream.criterion_analyses.forEach(a => {
+        const score = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
+        children.push(para(`${getCriterionDisplayLabel(a.key)} — ${score} (${formatConfidenceLabel(a.confidence)})`, { bold: true }));
+        if (Array.isArray(a.fit_evidence) && a.fit_evidence.length > 0) {
+          children.push(para('What Is Working:', { bold: true }));
+          a.fit_evidence.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(a.gap_evidence) && a.gap_evidence.length > 0) {
+          children.push(para('What Weakens Impact:', { bold: true }));
+          a.gap_evidence.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(a.revision_queue) && a.revision_queue.length > 0) {
+          children.push(para('Revision Queue:', { bold: true }));
+          a.revision_queue.forEach((item, i) => children.push(docxListPara(formatRevisionQueueItem(item), `${i + 1}.`)));
+        }
+      });
+    }
+
+    // §13 Story Ledger or Layer-Aware Architecture Map
+    const hasStructuralDocx = Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0;
+    const hasArcMapDocx = Array.isArray(dream.arc_map) && dream.arc_map.length > 0;
+    const hasLayerAnalysesDocx = Array.isArray(dream.layer_analyses) && dream.layer_analyses.length > 0;
+    if (hasStructuralDocx || hasArcMapDocx || hasLayerAnalysesDocx) {
+      children.push(makeHeading(sectionTitle('story_ledger')));
+      if (hasStructuralDocx) {
+        children.push(para('Structural Architecture:', { bold: true }));
+        dream.structural_stack.forEach(layer => {
+          children.push(para(`${cleanReportText(layer.layer_name)} — ${layer.status}`, { bold: true }));
+          children.push(para(`Function: ${cleanReportText(layer.function)}`));
+          if (layer.revision_note) children.push(para(`Revision note: ${cleanReportText(layer.revision_note)}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasArcMapDocx) {
+        children.push(para('Arc Map:', { bold: true }));
+        dream.arc_map.forEach(act => {
+          children.push(para(`${cleanReportText(act.act_name)} (${cleanReportText(act.chapter_range)})`, { bold: true }));
+          children.push(para(`Function: ${cleanReportText(act.primary_function)}`));
+          if (act.revision_priority) children.push(para(`Revision priority: ${cleanReportText(act.revision_priority)}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasLayerAnalysesDocx) {
+        children.push(para('Layer Analysis:', { bold: true }));
+        dream.layer_analyses.forEach(l => {
+          children.push(para(`${cleanReportText(l.layer_name)} — ${l.status}`, { bold: true }));
+          children.push(para(cleanReportText(l.needed_revision)));
+        });
+      }
+    }
+
+    // §14 Review Gate Readiness Surface
+    if (dream.acceptance_checks) {
+      const ac = dream.acceptance_checks;
+      const hasRequired = Array.isArray(ac.required_detection) && ac.required_detection.length > 0;
+      const hasFailure = Array.isArray(ac.failure_conditions) && ac.failure_conditions.length > 0;
+      if (hasRequired || hasFailure) {
+        children.push(makeHeading(sectionTitle('review_gate')));
+        if (hasRequired) {
+          children.push(para('Required Detection:', { bold: true }));
+          ac.required_detection.forEach(item => children.push(docxListPara(item)));
+        }
+        if (hasFailure) {
+          children.push(para('Failure Conditions:', { bold: true }));
+          ac.failure_conditions.forEach(item => children.push(docxListPara(item)));
+        }
+      }
+    }
+
+    // §15 Governed Ledgers or Compact Governed-Ledger Addenda
+    if (dream.symbolic_audit) {
+      const sa = dream.symbolic_audit;
+      const hasAuditContent = (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) || (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) || (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) || hasMeaningfulText(sa.audit_conclusion);
+      if (hasAuditContent) {
+        children.push(makeHeading(sectionTitle('governed_ledgers')));
+        if (Array.isArray(sa.preserved_symbols) && sa.preserved_symbols.length > 0) {
+          children.push(para('Preserved Symbols:', { bold: true }));
+          sa.preserved_symbols.forEach(sym => {
+            children.push(para(`${cleanReportText(sym.symbol)} — ${cleanReportText(sym.current_function)}`));
+            if (sym.revision_instruction) children.push(para(`Revision: ${cleanReportText(sym.revision_instruction)}`, { color: RG.textMuted }));
+          });
+        }
+        if (Array.isArray(sa.doctrine_strengths) && sa.doctrine_strengths.length > 0) {
+          children.push(para('Doctrine Strengths:', { bold: true }));
+          sa.doctrine_strengths.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(sa.doctrine_risks) && sa.doctrine_risks.length > 0) {
+          children.push(para('Doctrine Risks:', { bold: true }));
+          sa.doctrine_risks.forEach(item => children.push(docxListPara(item)));
+        }
+        if (hasMeaningfulText(sa.audit_conclusion)) children.push(para(cleanReportText(sa.audit_conclusion)));
+      }
+    }
+
+    // §16 Cross-Layer Synthesis
+    const hasDreamScoresDocx = dream.dream_scores && (dream.dream_scores.quality != null || dream.dream_scores.readiness != null || dream.dream_scores.commercial != null || dream.dream_scores.literary != null);
+    const hasVerdictDocx = hasMeaningfulText(dream.executive_verdict);
+    const hasCrossLayerDocx = Array.isArray(dream.cross_layer_integration) && dream.cross_layer_integration.length > 0;
+    const hasReaderExpDocx = dream.reader_experience && (dream.reader_experience.first_act || dream.reader_experience.middle || dream.reader_experience.final_act || hasMeaningfulText(dream.reader_experience.aftertaste));
+    if (hasDreamScoresDocx || hasVerdictDocx || hasCrossLayerDocx || hasReaderExpDocx) {
+      children.push(makeHeading(sectionTitle('cross_layer_synthesis')));
+      if (hasDreamScoresDocx) {
+        const ds = dream.dream_scores!;
+        const scoreEntries: Array<[string, number | null | undefined]> = [
+          ['Quality', ds.quality], ['Readiness', ds.readiness],
+          ['Commercial', ds.commercial], ['Literary', ds.literary],
+        ];
+        scoreEntries.forEach(([label, val]) => {
+          if (val != null) children.push(para(`${label}: ${scoreLabel(val, 100)}`));
+        });
+      }
+      if (hasVerdictDocx) {
+        children.push(para('Executive Verdict:', { bold: true }));
+        children.push(para(cleanReportText(dream.executive_verdict)));
+      }
+      if (hasCrossLayerDocx) {
+        children.push(para('Cross-Layer Integration:', { bold: true }));
+        dream.cross_layer_integration.forEach(c => {
+          children.push(para(`${cleanReportText(c.motif)} — ${cleanReportText(c.integration_quality)}`));
+          children.push(para(cleanReportText(c.description)));
+          if (c.revision_note) children.push(para(`Revision note: ${cleanReportText(c.revision_note)}`, { color: RG.textMuted }));
+        });
+      }
+      if (hasReaderExpDocx) {
+        const re = dream.reader_experience!;
+        children.push(para('Reader Experience:', { bold: true }));
+        const addAct = (title: string, act: { reader_question: string; emotional_state: string; risk: string } | null | undefined) => {
+          if (!act) return;
+          if (!hasMeaningfulText(act.reader_question) && !hasMeaningfulText(act.emotional_state) && !hasMeaningfulText(act.risk)) return;
+          children.push(para(title, { bold: true }));
+          if (hasMeaningfulText(act.reader_question)) children.push(para(`Reader Question: ${cleanReportText(act.reader_question)}`));
+          if (hasMeaningfulText(act.emotional_state)) children.push(para(`Emotional State: ${cleanReportText(act.emotional_state)}`));
+          if (hasMeaningfulText(act.risk)) children.push(para(`Risk: ${cleanReportText(act.risk)}`));
+        };
+        addAct('First Act', re.first_act);
+        addAct('Middle', re.middle);
+        addAct('Final Act', re.final_act);
+        if (hasMeaningfulText(re.aftertaste)) children.push(para(`Aftertaste: ${cleanReportText(re.aftertaste)}`));
+      }
+    }
+
+    // §17 Layer-Aware Revision Sequencing
+    const dreamRevisionPlanDocx = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (dreamRevisionPlanDocx.length > 0) {
+      children.push(makeHeading(sectionTitle('revision_sequencing')));
+      dreamRevisionPlanDocx.forEach(item => {
+        children.push(para(`Priority ${item.displayPriority}: ${cleanReportText(item.title)}`, { bold: true }));
+        children.push(para(cleanReportText(item.goal)));
+        if (Array.isArray(item.actions) && item.actions.length > 0) {
+          children.push(para('Actions:', { bold: true }));
+          item.actions.forEach((action, i) => children.push(docxListPara(action, `${i + 1}.`)));
+        }
+        if (item.acceptance_check) children.push(para(`Acceptance Check: ${cleanReportText(item.acceptance_check)}`, { color: RG.textMuted }));
+      });
+    }
+
+    // §18 Long-Form Continuity and Coverage Proof
+    {
+      children.push(makeHeading(sectionTitle('continuity_coverage')));
+      const continuityItemsDocx: string[] = [];
+      if (Array.isArray(dream.arc_map)) {
+        dream.arc_map.forEach(act => { if (hasMeaningfulText(act.primary_function)) continuityItemsDocx.push(`${cleanReportText(act.act_name)}: ${cleanReportText(act.primary_function)}`); });
+      }
+      if (Array.isArray(dream.layer_analyses)) {
+        dream.layer_analyses.forEach(l => { if (hasMeaningfulText(l.needed_revision)) continuityItemsDocx.push(`${cleanReportText(l.layer_name)}: ${cleanReportText(l.needed_revision)}`); });
+      }
+      if (Array.isArray(dream.cross_layer_integration)) {
+        dream.cross_layer_integration.forEach(c => { if (hasMeaningfulText(c.revision_note)) continuityItemsDocx.push(`${cleanReportText(c.motif)}: ${cleanReportText(c.revision_note)}`); });
+      }
+      if (continuityItemsDocx.length > 0) {
+        continuityItemsDocx.forEach(item => children.push(docxListPara(item)));
+      } else {
+        children.push(para('Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.'));
+      }
+    }
+
+    // §19 Readiness / Releasability Posture
+    const hasReleasabilityDocx = Array.isArray(dream.releasability) && dream.releasability.length > 0;
+    const hasMarketShelfDocx = dream.market_shelf && (
+      hasMeaningfulText(dream.market_shelf.best_shelf) ||
+      hasMeaningfulText(dream.market_shelf.marketable_hook) ||
+      hasMeaningfulText(dream.market_shelf.market_danger) ||
+      (Array.isArray(dream.market_shelf.shelf_neighbors) && dream.market_shelf.shelf_neighbors.length > 0) ||
+      (Array.isArray(dream.market_shelf.comparison_space) && dream.market_shelf.comparison_space.length > 0)
+    );
+    if (hasReleasabilityDocx || hasMarketShelfDocx) {
+      children.push(makeHeading(sectionTitle('readiness_posture')));
+      if (hasReleasabilityDocx) {
+        dream.releasability.forEach(dim => {
+          children.push(para(`${cleanReportText(dim.dimension)}: ${cleanReportText(dim.current_status)} [${dim.verdict}]`));
+        });
+      }
+      if (hasMarketShelfDocx) {
+        const ms = dream.market_shelf!;
+        children.push(para('Market Shelf:', { bold: true }));
+        if (hasMeaningfulText(ms.best_shelf)) children.push(para(`Best Shelf: ${cleanReportText(ms.best_shelf)}`));
+        if (hasMeaningfulText(ms.marketable_hook)) children.push(para(`Marketable Hook: ${cleanReportText(ms.marketable_hook)}`));
+        if (hasMeaningfulText(ms.market_danger)) children.push(para(`Market Danger: ${cleanReportText(ms.market_danger)}`));
+        if (Array.isArray(ms.shelf_neighbors) && ms.shelf_neighbors.length > 0) {
+          children.push(para('Shelf Neighbors:', { bold: true }));
+          ms.shelf_neighbors.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(ms.comparison_space) && ms.comparison_space.length > 0) {
+          children.push(para('Comparison Space:', { bold: true }));
+          ms.comparison_space.forEach(item => children.push(docxListPara(item)));
+        }
+        if (Array.isArray(dream.what_not_to_become) && dream.what_not_to_become.length > 0) {
+          children.push(para('What Not to Become:', { bold: true }));
+          dream.what_not_to_become.forEach(item => children.push(docxListPara(item)));
+        }
+      }
+    }
+  } else if (doc.templateMode === 'long_form_evaluation' || doc.templateMode === 'long_form_multi_layer_evaluation') {
+    // UED fallback — no DREAM available
+    if (doc.modeSpecific.manuscriptScaleContinuityFindings.length > 0) {
+      children.push(makeHeading('Manuscript-Scale Continuity Findings'));
+      doc.modeSpecific.manuscriptScaleContinuityFindings.forEach((item) => children.push(docxListPara(item)));
+    }
+
+    const appendHeadingList = (heading: string, items: string[]) => {
+      if (items.length === 0) return;
+      children.push(makeHeading(heading));
+      items.forEach((item) => children.push(docxListPara(item)));
+    };
+
+    appendHeadingList(sectionTitle('story_ledger'), doc.modeSpecific.storyLedgerArchitectureMap);
+    appendHeadingList(sectionTitle('review_gate'), doc.modeSpecific.reviewGateReadinessSurface);
+    appendHeadingList(sectionTitle('governed_ledgers'), doc.modeSpecific.governedLedgerAddenda);
+    appendHeadingList(sectionTitle('cross_layer_synthesis'), doc.modeSpecific.crossLayerSynthesis);
+    appendHeadingList(sectionTitle('revision_sequencing'), doc.modeSpecific.layerAwareRevisionSequencing);
+    appendHeadingList(sectionTitle('continuity_coverage'), doc.modeSpecific.continuityCoverageProof);
+    if (doc.modeSpecific.readinessReleasabilityPosture.trim().length > 0) {
+      children.push(makeHeading(sectionTitle('readiness_posture')));
+      children.push(para(doc.modeSpecific.readinessReleasabilityPosture));
+    }
+    if (doc.modeSpecific.revisionPriorityPlan.length > 0) {
+      children.push(makeHeading(sectionTitle('revision_sequencing')));
+      doc.modeSpecific.revisionPriorityPlan.forEach((item) => {
+        children.push(para(`Priority ${item.priority}: ${item.title}`, { bold: true }));
+        children.push(para(`Location: ${item.location}`));
+        children.push(para(`Operation: ${item.operation}`));
+        children.push(para(`Recommendation: ${item.recommendation}`));
+        children.push(para(`Rationale: ${item.rationale}`));
+      });
+    }
+  }
+  children.push(makeHeading(sectionTitle('confidence_explanation')));
+  children.push(para(doc.confidenceExplanation));
+
+  children.push(makeHeading(sectionTitle('disclaimer')));
+  children.push(para(doc.disclaimer));
+
+  const docxDoc = new Document({
+    sections: [
+      {
+        headers: {
+          default: new Header({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [new TextRun({ text: `RevisionGrade™ Evaluation Report | ${cleanReportText(doc.title)}`, size: 16, color: docxHex(RG.textFaint), font: 'Calibri' })],
+              }),
+            ],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({ text: `${FOOTER_LINE}  |  Page `, size: 16, color: docxHex(RG.textFaint) }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 16, color: docxHex(RG.textFaint) }),
+                ],
+              }),
+            ],
+          }),
+        },
+        children,
+      },
+    ],
+  });
+
+  return await Packer.toBuffer(docxDoc);
+}
+
+function scoreBarColor(score: number | null | undefined): string {
+  if (typeof score !== 'number') return RG.textFaint;
+  if (score >= 8) return RG.success;
+  if (score >= 6) return RG.warning;
+  return RG.error;
+}
+
+
+function escapeHtml(value: unknown): string {
+  const text = typeof value === 'number' ? String(value) : value;
+  return toPdfSafeText(text, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderHtmlParagraph(value: unknown, fallback = ''): string {
+  const text = cleanReportText(value, fallback, { blockTruncation: true });
+  if (!text) return '';
+  return `<p>${escapeHtml(text)}</p>`;
+}
+
+function renderHtmlList(items: unknown, empty = 'None supplied.'): string {
+  const values = filterAuthorFacingTextList(items);
+  if (values.length === 0) return `<p>${escapeHtml(empty)}</p>`;
+  return `<ul class="rg-bullet-list">${values.map((item) => `<li><span class="rg-list-marker">\u2022</span><span>${escapeHtml(cleanReportText(item, ''))}</span></li>`).join('')}</ul>`;
+}
+
+function renderHtmlOrderedList(items: unknown, empty = 'None supplied.'): string {
+  const values = filterAuthorFacingTextList(items);
+  if (values.length === 0) return `<p>${escapeHtml(empty)}</p>`;
+  return `<ul class="rg-ordered-list">${values.map((item, index) => `<li><span class="rg-list-marker">${index + 1}.</span><span>${escapeHtml(cleanReportText(item, ''))}</span></li>`).join('')}</ul>`;
+}
+
+function renderMetric(label: string, value: unknown): string {
+  const safeValue = escapeHtml(value ?? 'Not available');
+  return `<div class="metric"><dt>${escapeHtml(label)}</dt><dd>${safeValue}</dd></div>`;
+}
+
+function renderScoreClass(score: number | null | undefined): string {
+  if (typeof score !== 'number') return 'score-muted';
+  if (score >= 8) return 'score-strong';
+  if (score >= 6) return 'score-watch';
+  return 'score-risk';
+}
+
+function renderPremiumReportHtml(
+  result: ExportableResult,
+  metadata: ReportMetadata,
+  summaryFallback: string,
+  dream: LongformDreamDocument | null,
+  enrichment: EnrichmentData,
+  ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null },
+  jobId = '',
+): string {
+  const pitches = buildReportPitches({
+    premise: enrichment?.premise,
+    summary: result.overview.one_paragraph_summary,
+    title: metadata.displayTitle,
+    one_sentence_pitch: (result.overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (result.overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
+  });
+  const inlineSummary = summarizeRevisionOpportunities(result.criteria);
+  const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
+  const topRecommendations = buildTopRecommendations(result, 5);
+  const readinessCriterion = result.criteria.find((criterion) => {
+    const key = criterion.key.toLowerCase();
+    const label = getCriterionDisplayLabel(criterion.key).toLowerCase();
+    return key.includes('readiness') || key.includes('market') || label.includes('readiness') || label.includes('market');
+  });
+  const readinessScore = readinessCriterion?.score_0_10;
+  const readinessConfidence = readinessCriterion?.confidence_level ? formatConfidenceLabel(readinessCriterion.confidence_level) : null;
+  const legacyReadinessClass = readinessPaletteClass(metadata.verdict);
+  const dialogueRatio = enrichment?.dialogue_percentage != null
+    ? `${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage ?? (100 - enrichment.dialogue_percentage))}% narrative`
+    : null;
+
+  const criteriaRows = result.criteria.map((criterion) => {
+    const score = criterion.score_0_10;
+    return `
+      <tr>
+        <td>${escapeHtml(getCriterionDisplayLabel(criterion.key))}</td>
+        <td class="score-cell ${renderScoreClass(score)}">${escapeHtml(scoreLabel(score, 10))}</td>
+        <td>${escapeHtml(criterion.confidence_level ? formatConfidenceLabel(criterion.confidence_level) : 'Not available')}</td>
+      </tr>`;
+  }).join('');
+
+  const criteriaCards = result.criteria.map((criterion) => {
+    const opportunities = getCriterionOpportunities(criterion as { recommendations?: unknown });
+    const opportunityHtml = opportunities.length > 0
+      ? `<div class="opportunities"><h4>Opportunities</h4>${opportunities.map((opportunity, idx) => {
+          const rows = opportunityRows(opportunity);
+          return `<div class="opportunity">
+            <p class="opportunity-label">${escapeHtml(exportSeverity(opportunity.priority))} #${idx + 1}</p>
+            ${rows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join('')}
+          </div>`;
+        }).join('')}</div>`
+      : '';
+    return `<article class="criterion-card">
+      <div class="criterion-head">
+        <h3>${escapeHtml(getCriterionDisplayLabel(criterion.key))}</h3>
+        <div class="criterion-score ${renderScoreClass(criterion.score_0_10)}">${escapeHtml(scoreLabel(criterion.score_0_10, 10))}</div>
+      </div>
+      <p class="confidence">${escapeHtml(criterion.confidence_level ? formatConfidenceLabel(criterion.confidence_level) : 'Confidence not available')}</p>
+      ${renderHtmlParagraph(criterion.rationale)}
+      ${opportunityHtml}
+    </article>`;
+  }).join('');
+
+  const dreamHtml = dream ? `<section class="section page-break-before">
+    <h2>${sectionTitle('cross_layer_synthesis')}</h2>
+    <div class="score-grid four">
+      ${[
+        ['Quality', dream.dream_scores?.quality],
+        ['Readiness', dream.dream_scores?.readiness],
+        ['Commercial', dream.dream_scores?.commercial],
+        ['Literary', dream.dream_scores?.literary],
+      ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatScoreForDisplay(value, 'N/A'))}</strong><small>/100</small></div>`).join('')}
+    </div>
+  </section>` : '';
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(metadata.displayTitle)} - RevisionGrade Report</title>
+  <style>
+    @page {
+      size: Letter;
+      margin: 0.72in 0.72in 0.82in;
+      @bottom-left { content: "RevisionGrade\\2122"; color: #8a8175; font-size: 9pt; }
+      @bottom-right { content: counter(page); color: #8a8175; font-size: 9pt; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #1c1814; background: #faf7f2; font-family: Georgia, "Times New Roman", serif; font-size: 11.5pt; line-height: 1.55; }
+    .cover { padding: 0.35in 0 0; page-break-after: always; }
+    .brand { color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 22pt; font-weight: 700; letter-spacing: 0.02em; }
+    .tagline { margin-top: 0.08in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }
+    .rule { height: 3px; margin: 0.28in 0 0.35in; background: #b8922a; }
+    h1 { margin: 0; max-width: 6.4in; font-size: 26pt; line-height: 1.12; color: #1c1814; font-weight: 700; }
+    .subtitle { margin-top: 0.12in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 12pt; }
+    .cover-grid { display: grid; grid-template-columns: 1fr 2in; gap: 0.28in; margin-top: 0.35in; align-items: start; }
+    .metadata { display: grid; grid-template-columns: 1fr 1fr; gap: 0.12in 0.18in; }
+    .metric { padding: 0.12in 0.14in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 6px; }
+    dt { margin: 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    dd { margin: 0.04in 0 0; color: #1c1814; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; font-weight: 600; }
+    body, p, li, td, div, span { overflow-wrap: anywhere; word-break: normal; hyphens: auto; }
+    .score-card { padding: 0.22in; color: #1a1a1a; background: #faf7f2; border: 2px solid #d9d0c3; border-radius: 8px; max-width: 100%; overflow: visible; white-space: normal; }
+    .score-card.readiness-strong { background: #eef7ef; border-color: #9dc79d; color: #1a1a1a; }
+    .score-card.readiness-watch { background: #fff6e8; border-color: #d9a441; color: #1a1a1a; }
+    .score-card.readiness-risk { background: #fdeeee; border-color: #c97a7a; color: #1a1a1a; }
+    .score-card.readiness-muted { background: #faf7f2; border-color: #d9d0c3; color: #1a1a1a; }
+    .score-card span { display: block; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .score-card strong { display: block; margin-top: 0.08in; font-family: Georgia, "Times New Roman", serif; font-size: 38pt; line-height: 1; color: #1a1a1a; }
+    .score-card small { color: #5c5549; font-size: 16pt; }
+    .badge { display: inline-block; margin-top: 0.12in; padding: 0.04in 0.12in; border: 1px solid #d9d0c3; border-radius: 999px; color: #1a1a1a; background: rgba(255,255,255,.55); font-family: Helvetica, Arial, sans-serif; font-size: 10pt; font-weight: 700; text-transform: uppercase; max-width: 100%; white-space: normal; }
+    .readiness { margin-top: 0.16in; padding: 0.16in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; }
+    .readiness h2 { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #5c5549; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; }
+    .readiness strong { display: block; margin-top: 0.08in; color: #1c1814; font-size: 18pt; }
+    .readiness p { margin: 0.05in 0 0; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    .disclaimer { margin-top: 0.35in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; line-height: 1.45; }
+    .section { margin: 0 0 0.34in; padding: 0.22in 0.24in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; break-inside: avoid; }
+    .section.allow-break { break-inside: auto; }
+    h2 { margin: 0 0 0.12in; color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 15pt; line-height: 1.2; }
+    h3 { margin: 0; color: #1c1814; font-family: Helvetica, Arial, sans-serif; font-size: 12.5pt; line-height: 1.25; }
+    h4 { margin: 0.12in 0 0.06in; color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; }
+    p { margin: 0 0 0.11in; }
+    ul.rg-bullet-list, ul.rg-ordered-list { margin: 0.03in 0 0; padding-left: 0; list-style: none; }
+    .rg-bullet-list li, .rg-ordered-list li { display: flex; gap: 0.08in; margin-bottom: 0.08in; padding-left: 0; }
+    .rg-list-marker { flex: 0 0 auto; color: #5c5549; font-weight: 700; }
+    .score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; }
+    .score-grid div { padding: 0.12in; background: #faf7f2; border: 1px solid #d9d0c3; border-radius: 6px; text-align: center; }
+    .score-grid span { display: block; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; }
+    .score-grid strong { display: block; margin-top: 0.04in; font-size: 18pt; color: #1c1814; }
+    table { width: 100%; border-collapse: collapse; }
+    .score-grid-table { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; table-layout: fixed; }
+    .score-grid-table th { padding: 0.08in; color: #5c5549; text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #b8922a; }
+    .score-grid-table td { padding: 0.08in; border-bottom: 1px solid #e6ded2; vertical-align: top; }
+    .score-grid-table th:nth-child(2), .score-grid-table th:nth-child(3), .score-grid-table td:nth-child(2), .score-grid-table td:nth-child(3) { text-align: right; }
+    .score-cell, .criterion-score { font-weight: 700; white-space: nowrap; }
+    .score-strong { color: #3a6b2a; } .score-watch { color: #8b5e1a; } .score-risk { color: #8b2020; } .score-muted { color: #5c5549; }
+    .criterion-card { margin: 0 0 0.22in; padding: 0.18in 0.2in; background: #fffdf9; border: 1px solid #d9d0c3; border-radius: 8px; break-inside: avoid; }
+    .criterion-head { display: grid; grid-template-columns: 1fr auto; gap: 0.16in; align-items: start; }
+    .criterion-score { font-family: Helvetica, Arial, sans-serif; font-size: 13pt; }
+    .confidence { margin-top: 0.03in; color: #5c5549; font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; font-weight: 700; }
+    .opportunity { margin-top: 0.09in; padding: 0.12in 0.14in; background: #faf7f2; border-left: 3px solid #b8922a; }
+    .opportunity p { margin-bottom: 0.06in; font-size: 10pt; line-height: 1.45; }
+    .opportunity-label { color: #8b2e2e; font-family: Helvetica, Arial, sans-serif; font-weight: 700; text-transform: uppercase; }
+    .page-break-before { page-break-before: always; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="brand">RevisionGrade&#8482;</div>
+    <div class="tagline">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
+    <div class="rule"></div>
+    <h1>${escapeHtml(metadata.displayTitle)}</h1>
+    <p class="subtitle">${escapeHtml(metadata.reportType)}</p>
+    <p style="margin:0.06in 0 0;color:#5c5549;font-family:Helvetica,Arial,sans-serif;font-size:9pt;">Reference ID: ${escapeHtml(jobId)}</p>
+    <div class="cover-grid">
+      <dl class="metadata">
+        ${renderMetric('Genre', metadata.genre ?? 'Not specified')}
+        ${metadata.targetAudience ? renderMetric('Target Audience', metadata.targetAudience) : ''}
+        ${renderMetric('Shelf', metadata.shelf ?? 'Not specified')}
+        ${renderMetric('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : 'Not available')}
+        ${renderMetric('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : 'Not available')}
+        ${renderMetric('Reading Grade Level', enrichment?.reading_grade_level != null ? `${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)` : 'Not available')}
+        ${renderMetric('Dialogue/Narrative Ratio', dialogueRatio ?? 'Not available')}
+        ${renderMetric('Date Generated', metadata.generatedAt)}
+        ${ledger.totalItems > 0 ? renderMetric('Revision Queue Items', String(ledger.totalItems)) : ''}
+        ${renderMetric('Confidentiality', 'Prepared for author/editorial use')}
+      </dl>
+      <aside>
+        <div class="score-card ${legacyReadinessClass}"><span>Overall Score</span><strong>${escapeHtml(formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'))}<small>/100</small></strong><div class="badge">${escapeHtml(metadata.verdict)}</div></div>
+        ${readinessCriterion ? `<div class="readiness"><h2>Market Readiness</h2><strong>${escapeHtml(scoreLabel(readinessScore, 10))}</strong>${readinessConfidence ? `<p>${escapeHtml(readinessConfidence)}</p>` : ''}${readinessCriterion.rationale ? `<p>${escapeHtml(cleanReportText(readinessCriterion.rationale, '', { blockTruncation: true }))}</p>` : ''}</div>` : ''}
+      </aside>
+    </div>
+    <p class="disclaimer">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+  </section>
+
+  <section class="section"><h2>One-Paragraph Pitch</h2>${renderHtmlParagraph(pitches.oneParagraphPitch)}</section>
+  <section class="section"><h2>One-Sentence Pitch</h2>${renderHtmlParagraph(pitches.oneSentencePitch)}</section>
+  ${enrichment?.premise ? `<section class="section"><h2>Premise</h2>${renderHtmlParagraph(enrichment.premise)}</section>` : ''}
+  <section class="section"><h2>Content Warnings</h2>${renderHtmlList(enrichment?.trigger_warnings, 'No content warnings identified.')}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
+  <section class="section"><h2>Revision Opportunity Summary</h2><div class="score-grid">${[
+    ['Total', opportunitySummary.total], ['Recommended', opportunitySummary.high], ['Optional', opportunitySummary.medium], ['Consider', opportunitySummary.low],
+  ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div><p>Recommendation tiers indicate the suggested urgency of each revision opportunity.</p></section>
+  <section class="section allow-break"><h2>Executive Summary</h2>${renderHtmlParagraph(result.overview.one_paragraph_summary, summaryFallback)}</section>
+  <section class="section"><h2>Top Strengths</h2>${renderHtmlOrderedList(result.overview.top_3_strengths, 'No strengths supplied.')}</section>
+  <section class="section"><h2>Top Risks</h2>${renderHtmlOrderedList(result.overview.top_3_risks, 'No risks supplied.')}</section>
+  <section class="section"><h2>Top Recommendations</h2>${topRecommendations.length > 0 ? renderHtmlOrderedList(topRecommendations) : `<p>See per-criterion opportunities below for detailed revision guidance.</p>`}</section>
+  <section class="section page-break-before"><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+  <section class="allow-break"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${criteriaCards}</section>
+  <section class="section"><h2>${sectionTitle('confidence_explanation')}</h2><p><strong>${escapeHtml(CONFIDENCE_EXPLANATION.title)}</strong></p><p>${escapeHtml(CONFIDENCE_EXPLANATION.intro)}</p><ul class="rg-bullet-list">${CONFIDENCE_EXPLANATION.levels.map((l) => `<li><span class="rg-list-marker">\u2022</span><span><strong>${escapeHtml(l.label)}:</strong> ${escapeHtml(l.description)}</span></li>`).join('')}</ul></section>
+  ${dreamHtml}
+  <section class="section" style="margin-top:0.5in;border:none;background:none;padding:0;">
+    <p style="color:#5c5549;font-size:9.5pt;line-height:1.5;">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+  </section>
+</body>
+</html>`;
+}
+
+async function buildChromiumPdf(html: string): Promise<Buffer> {
+  const chromiumModule = await import('@sparticuz/chromium');
+  const puppeteerModule = await import('puppeteer-core');
+  const chromium = (chromiumModule.default ?? chromiumModule) as unknown as {
+    args: string[];
+    defaultViewport: { width: number; height: number } | null;
+    executablePath: string | (() => Promise<string>);
+    headless?: boolean | "shell";
+  };
+  const puppeteer = puppeteerModule.default ?? puppeteerModule;
+  const executablePath =
+    typeof chromium.executablePath === "function"
+      ? await chromium.executablePath()
+      : chromium.executablePath;
+
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless: chromium.headless ?? true,
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    const pdf = await page.pdf({
+      format: 'letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0in', right: '0in', bottom: '0in', left: '0in' },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
+}
+
+
+async function buildPdfReport(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
+  const metadata = buildMetadata(result, title, dream, enrichment);
+  const summaryFallback = buildSummaryFallback(result);
+  const html = renderPremiumReportHtml(result, metadata, summaryFallback, dream, enrichment, ledger, jobId);
+  return await buildChromiumPdf(html);
+}
+
+function docxVerdictColor(verdict: string): string {
+  const v = verdict.toLowerCase();
+  if (v === 'market ready' || v === 'pass') return RG.success;
+  if (v === 'near market ready' || v === 'revise') return RG.warning;
+  return RG.error;
+}
+
+function docxScoreColor(score: number | null | undefined): string {
+  if (typeof score !== 'number') return RG.textFaint;
+  if (score >= 8) return RG.success;
+  if (score >= 6) return RG.warning;
+  return RG.error;
+}
+
+const DOCX_NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+const DOCX_NO_BORDERS = { top: DOCX_NONE_BORDER, bottom: DOCX_NONE_BORDER, left: DOCX_NONE_BORDER, right: DOCX_NONE_BORDER };
+
+/**
+ * @deprecated LEGACY — this function is dead code. The production path uses
+ * buildCanonicalTemplateDocx exclusively. This remains temporarily for reference
+ * only and is hard-guarded against accidental production invocation.
+ * TODO: Remove entirely once all references are cleared.
+ */
+async function buildDocx(result: ExportableResult, title: string | null, jobId: string, dream: LongformDreamDocument | null, enrichment: EnrichmentData = null, ledger: RevisionLedgerSummary = { totalItems: 0, ledgerTotals: null }): Promise<Buffer> {
+  // HARD GUARD: This legacy function must never execute in production.
+  // The canonical path is buildCanonicalTemplateDocx via UnifiedEvaluationDocument.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
+    throw new Error(
+      '[REVISION_SURFACE_OWNERSHIP_GATE] Legacy buildDocx called in production. ' +
+      'This is a release-blocking defect. Use buildCanonicalTemplateDocx instead.',
+    );
+  }
+  const metadata = buildMetadata(result, title, dream, enrichment);
+  const summaryFallback = buildSummaryFallback(result);
+  const pitches = buildReportPitches({
+    premise: enrichment?.premise,
+    summary: result.overview.one_paragraph_summary,
+    title: metadata.displayTitle,
+    one_sentence_pitch: (result.overview as Record<string, unknown>).one_sentence_pitch as string | undefined,
+    one_paragraph_pitch: (result.overview as Record<string, unknown>).one_paragraph_pitch as string | undefined,
+  });
+  const inlineSummary = summarizeRevisionOpportunities(result.criteria);
+  const opportunitySummary = effectiveOpportunitySummary(inlineSummary, ledger);
+  const topRecommendations = buildTopRecommendations(result, 5);
+
+  const spacer = () => new Paragraph({ spacing: { after: 200 }, children: [] });
+  const brandHeading = (text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]) =>
+    new Paragraph({
+      heading: level,
+      spacing: { before: 320, after: 120 },
+      children: [new TextRun({ text, color: RG.oxblood.replace('#', ''), bold: true })],
+    });
+  const bodyPara = (text: string, opts: { bold?: boolean; color?: string; size?: number; spacing?: number } = {}) =>
+    new Paragraph({
+      spacing: { after: opts.spacing ?? 140 },
+      children: [new TextRun({
+        text: cleanReportText(text),
+        bold: opts.bold ?? false,
+        size: opts.size ?? 21,
+        color: (opts.color ?? RG.textPrimary).replace('#', ''),
+        font: 'Calibri',
+      })],
+    });
+  const bulletPara = (text: string, color?: string) =>
+    new Paragraph({
+      indent: { left: 0, hanging: 0 },
+      spacing: { after: 80 },
+      children: [
+        new TextRun({
+          text: '\u2022 ',
+          size: 21,
+          color: (color ?? RG.textPrimary).replace('#', ''),
+          font: 'Calibri',
+        }),
+        new TextRun({
+          text: cleanReportText(text),
+          size: 21,
+          color: (color ?? RG.textPrimary).replace('#', ''),
+          font: 'Calibri',
+        }),
+      ],
+    });
+  const metaRow = (label: string, value: string | null) => {
+    if (!value) return null;
+    return new Paragraph({
+      spacing: { after: 40 },
+      children: [
+        new TextRun({ text: `${label}: `, bold: true, size: 20, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+        new TextRun({ text: value, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+      ],
+    });
+  };
+
+  const children: (Paragraph | Table)[] = [];
+
+  // ── Cover page ──────────────────────────────────────────────────
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 40 },
+    children: [new TextRun({ text: 'RevisionGrade\u2122', bold: true, size: 52, color: RG.oxblood.replace('#', ''), font: 'Georgia' })],
+  }));
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 200 },
+    children: [new TextRun({
+      text: 'Manuscript diagnosis, author-controlled revision, and professional submission preparation.',
+      size: 19, color: RG.textMuted.replace('#', ''), font: 'Calibri', italics: true,
+    })],
+  }));
+
+  // Gold divider via table
+  children.push(new Table({
+    rows: [new TableRow({
+      children: [new TableCell({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: DOCX_NO_BORDERS,
+        shading: { type: ShadingType.SOLID, color: RG.gold.replace('#', '') },
+        children: [new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: ' ', size: 4 })] })],
+      })],
+    })],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  }));
+  children.push(spacer());
+
+  // Title
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 80 },
+    children: [new TextRun({ text: metadata.displayTitle, bold: true, size: 36, color: RG.textPrimary.replace('#', ''), font: 'Georgia' })],
+  }));
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 160 },
+    children: [new TextRun({ text: metadata.reportType, size: 22, color: RG.textMuted.replace('#', ''), font: 'Calibri' })],
+  }));
+
+  // Score + Verdict table
+  const verdictCol = docxVerdictColor(metadata.verdict);
+  children.push(new Table({
+    rows: [new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          borders: DOCX_NO_BORDERS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: formatScoreForDisplay(result.overview.overall_score_0_100, 'N/A'), bold: true, size: 56, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
+              new TextRun({ text: ' / 100', size: 22, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          })],
+        }),
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          borders: DOCX_NO_BORDERS,
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: metadata.verdict, bold: true, size: 36, color: verdictCol.replace('#', ''), font: 'Georgia' })],
+          })],
+        }),
+      ],
+    })],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  }));
+  children.push(spacer());
+
+  // ── Market Readiness (when criterion exists) ────────────────────
+  const readinessCriterion = result.criteria.find((criterion) => {
+    const key = criterion.key.toLowerCase();
+    const label = getCriterionDisplayLabel(criterion.key).toLowerCase();
+    return key.includes('readiness') || key.includes('market') || label.includes('readiness') || label.includes('market');
+  });
+  if (readinessCriterion) {
+    const readinessScore = readinessCriterion.score_0_10;
+    const readinessConfidence = readinessCriterion.confidence_level
+      ? formatConfidenceLabel(readinessCriterion.confidence_level)
+      : null;
+    children.push(new Paragraph({
+      spacing: { after: 60 },
+      children: [
+        new TextRun({ text: 'Market Readiness: ', bold: true, size: 22, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+        new TextRun({ text: typeof readinessScore === 'number' ? scoreLabel(readinessScore, 10) : 'Not scored', bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+        ...(readinessConfidence ? [new TextRun({ text: ` (${readinessConfidence})`, size: 20, color: RG.textMuted.replace('#', ''), font: 'Calibri' })] : []),
+      ],
+    }));
+  }
+  children.push(spacer());
+
+  // Metadata block
+  const metaLines = [
+    metaRow('Reference ID', jobId),
+    metaRow('Genre', metadata.genre),
+    metaRow('Target Audience', metadata.targetAudience),
+    metaRow('Shelf', metadata.shelf),
+    metaRow('Submitted Word Count', metadata.wordCount ? metadata.wordCount.toLocaleString() : null),
+    metaRow('Estimated Manuscript Pages', metadata.estimatedPages ? `${metadata.estimatedPages.toLocaleString()} at ${WORDS_PER_MANUSCRIPT_PAGE} words/page` : null),
+    metaRow('Reading Grade Level', enrichment?.reading_grade_level != null ? `${Math.floor(enrichment.reading_grade_level)} (Flesch-Kincaid)` : null),
+    metaRow('Dialogue/Narrative Ratio', enrichment?.dialogue_percentage != null && enrichment?.narrative_percentage != null ? `${Math.floor(enrichment.dialogue_percentage)}% dialogue / ${Math.floor(enrichment.narrative_percentage)}% narrative` : null),
+    metaRow('Generated', metadata.generatedAt),
+    metaRow('Confidentiality', 'Prepared for author/editorial use'),
+  ].filter((p): p is Paragraph => p !== null);
+  metaLines.forEach((p) => children.push(p));
+  children.push(spacer());
+
+  // ── Enrichment sections ────────────────────────────────────────
+  children.push(brandHeading('One-Paragraph Pitch', HeadingLevel.HEADING_2));
+  children.push(bodyPara(pitches.oneParagraphPitch));
+
+  children.push(brandHeading('One-Sentence Pitch', HeadingLevel.HEADING_2));
+  children.push(bodyPara(pitches.oneSentencePitch, { bold: true, size: 22, color: RG.oxblood }));
+
+  if (enrichment?.premise) {
+    children.push(brandHeading('Premise', HeadingLevel.HEADING_2));
+    children.push(new Paragraph({
+      spacing: { after: 140 },
+      children: [new TextRun({ text: cleanReportText(enrichment.premise), italics: true, size: 21, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
+    }));
+  }
+
+  children.push(brandHeading('Content Warnings', HeadingLevel.HEADING_2));
+  if (enrichment?.trigger_warnings && enrichment.trigger_warnings.length > 0) {
+    enrichment.trigger_warnings.forEach((w) => children.push(bulletPara(w, RG.warning)));
+  } else {
+    children.push(bodyPara('No content warnings identified.', { size: 19, color: RG.textMuted }));
+  }
+  children.push(bodyPara('Consider including content warnings in book marketing or front matter.', { size: 18, color: RG.textMuted }));
+
+  children.push(brandHeading('Revision Opportunity Summary', HeadingLevel.HEADING_2));
+  children.push(new Table({
+    rows: [new TableRow({
+      children: [
+        ['Total', opportunitySummary.total],
+        ['Recommended', opportunitySummary.high],
+        ['Optional', opportunitySummary.medium],
+        ['Consider', opportunitySummary.low],
+      ].map(([label, value]) => new TableCell({
+        width: { size: 25, type: WidthType.PERCENTAGE },
+        borders: DOCX_NO_BORDERS,
+        shading: { type: ShadingType.SOLID, color: RG.surface.replace('#', '') },
+        children: [
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(label), size: 17, color: RG.textMuted.replace('#', ''), font: 'Calibri' })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(value), bold: true, size: 26, color: RG.textPrimary.replace('#', ''), font: 'Georgia' })] }),
+        ],
+      })),
+    })],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  }));
+  children.push(bodyPara('Priority labels indicate the recommended urgency of each revision opportunity.', { size: 18, color: RG.textMuted }));
+
+  // ── Summary ─────────────────────────────────────────────────────
+  children.push(brandHeading('Executive Summary', HeadingLevel.HEADING_2));
+  children.push(bodyPara(cleanReportText(result.overview.one_paragraph_summary, summaryFallback, { blockTruncation: true })));
+
+  // ── Strengths & Risks ───────────────────────────────────────────
+  children.push(brandHeading('Top Strengths', HeadingLevel.HEADING_2));
+  result.overview.top_3_strengths.forEach((s) => children.push(bulletPara(s, RG.success)));
+
+  children.push(brandHeading('Top Risks', HeadingLevel.HEADING_2));
+  result.overview.top_3_risks.forEach((r) => children.push(bulletPara(r, RG.warning)));
+
+  children.push(brandHeading('Top Recommendations', HeadingLevel.HEADING_2));
+  if (topRecommendations.length > 0) {
+    topRecommendations.forEach((r) => children.push(bulletPara(r, RG.oxblood)));
+  } else {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: 'See per-criterion opportunities below for detailed revision guidance.', italics: true, color: '666666', size: 20 })],
+      spacing: { before: 100, after: 100 },
+    }));
+  }
+
+  // ── Criteria Score Table ────────────────────────────────────────
+  children.push(brandHeading('13 Criteria Score Grid', HeadingLevel.HEADING_2));
+  // Header row
+  const headerRow = new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 45, type: WidthType.PERCENTAGE },
+        shading: { type: ShadingType.SOLID, color: RG.ink.replace('#', '') },
+        borders: DOCX_NO_BORDERS,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Criterion', bold: true, size: 19, color: RG.cream.replace('#', ''), font: 'Calibri' })] })],
+      }),
+      new TableCell({
+        width: { size: 15, type: WidthType.PERCENTAGE },
+        shading: { type: ShadingType.SOLID, color: RG.ink.replace('#', '') },
+        borders: DOCX_NO_BORDERS,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Score', bold: true, size: 19, color: RG.cream.replace('#', ''), font: 'Calibri' })] })],
+      }),
+      new TableCell({
+        width: { size: 40, type: WidthType.PERCENTAGE },
+        shading: { type: ShadingType.SOLID, color: RG.ink.replace('#', '') },
+        borders: DOCX_NO_BORDERS,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Confidence', bold: true, size: 19, color: RG.cream.replace('#', ''), font: 'Calibri' })] })],
+      }),
+    ],
+  });
+
+  const criteriaRows = result.criteria.map((c, idx) => {
+    const rowShading = idx % 2 === 0 ? RG.surface.replace('#', '') : RG.surfaceAlt.replace('#', '');
+    const sColor = docxScoreColor(c.score_0_10);
+    const confStr = c.confidence_level ? formatConfidenceLabel(c.confidence_level) : '-';
+    return new TableRow({
+      children: [
+        new TableCell({
+          shading: { type: ShadingType.SOLID, color: rowShading },
+          borders: DOCX_NO_BORDERS,
+          children: [new Paragraph({ children: [new TextRun({ text: getCriterionDisplayLabel(c.key), size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })] })],
+        }),
+        new TableCell({
+          shading: { type: ShadingType.SOLID, color: rowShading },
+          borders: DOCX_NO_BORDERS,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: scoreLabel(c.score_0_10, 10), bold: true, size: 20, color: sColor.replace('#', ''), font: 'Calibri' })] })],
+        }),
+        new TableCell({
+          shading: { type: ShadingType.SOLID, color: rowShading },
+          borders: DOCX_NO_BORDERS,
+          children: [new Paragraph({ children: [new TextRun({ text: confStr, size: 20, color: confidencePaletteColor(c.confidence_level).replace('#', ''), font: 'Calibri' })] })],
+        }),
+      ],
+    });
+  });
+
+  children.push(new Table({
+    rows: [headerRow, ...criteriaRows],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  }));
+  children.push(spacer());
+
+  // Per-criterion: Rationale + Fit/Gap + Opportunities
+  children.push(brandHeading('Criterion Rationales & Surfaced Opportunities', HeadingLevel.HEADING_2));
+  result.criteria.forEach((c) => {
+    const criterionRecord = c as Record<string, unknown>;
+    if (!c.rationale && !criterionRecord.fit_summary) return;
+
+    children.push(brandHeading(getCriterionDisplayLabel(c.key), HeadingLevel.HEADING_3));
+
+    // Rationale (mistake-proofed)
+    if (c.rationale) {
+      children.push(bodyPara(mistakeProofText(c.rationale), { size: 19, color: RG.textMuted }));
+    }
+
+    // Fit summary (what's working)
+    if (typeof criterionRecord.fit_summary === 'string' && criterionRecord.fit_summary.trim()) {
+      children.push(new Paragraph({
+        spacing: { before: 80, after: 40 },
+        children: [new TextRun({
+          text: 'What\u2019s Working: ',
+          bold: true,
+          size: 18,
+          color: '2E7D32',
+          font: 'Calibri',
+        }), new TextRun({
+          text: cleanReportText(criterionRecord.fit_summary),
+          size: 18,
+          color: RG.textPrimary.replace('#', ''),
+          font: 'Calibri',
+        })],
+      }));
+    }
+
+    // Gap summary (what needs to close — rendered for all scores when present)
+    if (typeof criterionRecord.gap_summary === 'string' && criterionRecord.gap_summary.trim()) {
+      children.push(new Paragraph({
+        spacing: { before: 40, after: 40 },
+        children: [new TextRun({
+          text: 'Gap to Close: ',
+          bold: true,
+          size: 18,
+          color: 'E65100',
+          font: 'Calibri',
+        }), new TextRun({
+          text: cleanReportText(criterionRecord.gap_summary),
+          size: 18,
+          color: RG.textPrimary.replace('#', ''),
+          font: 'Calibri',
+        })],
+      }));
+    }
+
+    // Opportunities (evidence-driven — rendered for all scores when present)
+    const opportunities = getCriterionOpportunities(c as { recommendations?: unknown });
+    opportunities.forEach((opportunity, idx) => {
+      children.push(bodyPara(`${exportSeverity(opportunity.priority)} #${idx + 1}`, {
+        bold: true,
+        size: 18,
+        color: RG.oxblood,
+        spacing: 40,
+      }));
+
+      opportunityRows(opportunity).forEach(([label, value]) => {
+        if (label === 'Evidence') {
+          children.push(new Paragraph({
+            spacing: { after: 60 },
+            children: [new TextRun({
+              text: `Evidence: \u201c${cleanReportText(value)}\u201d`,
+              italics: true,
+              size: 18,
+              color: RG.textMuted.replace('#', ''),
+              font: 'Calibri',
+            })],
+          }));
+          return;
+        }
+
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({
+              text: `${label}: `,
+              bold: true,
+              size: 18,
+              color: RG.textMuted.replace('#', ''),
+              font: 'Calibri',
+            }),
+            new TextRun({
+              text: cleanReportText(value),
+              size: 18,
+              color: RG.textPrimary.replace('#', ''),
+              font: 'Calibri',
+            }),
+          ],
+        }));
+      });
+    });
+
+    children.push(spacer());
+  });
+
+  // ── Action Items (Quick Wins + Strategic Revisions) ─────────────
+  const quickWins = Array.isArray(result.recommendations?.quick_wins) ? result.recommendations.quick_wins : [];
+  const strategicRevisions = Array.isArray(result.recommendations?.strategic_revisions) ? result.recommendations.strategic_revisions : [];
+
+  if (quickWins.length > 0 || strategicRevisions.length > 0) {
+    children.push(brandHeading('Action Items', HeadingLevel.HEADING_2));
+
+    if (quickWins.length > 0) {
+      children.push(bodyPara('Quick Wins', { bold: true, size: 22, color: RG.oxblood }));
+      quickWins.forEach((qw: { action?: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string }) => {
+        const actionText = cleanReportText(qw.action ?? '');
+        const effortTag = qw.effort ? ` [${qw.effort} effort]` : '';
+        const impactTag = qw.impact ? ` [${qw.impact} impact]` : '';
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: actionText, bold: true, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: effortTag + impactTag, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+        if (qw.anchor_snippet) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(qw.anchor_snippet)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (qw.candidate_text_a) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(qw.candidate_text_a)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (qw.reader_effect) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(qw.reader_effect), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (qw.why) {
+          children.push(bodyPara(cleanReportText(qw.why), { size: 19, color: RG.textMuted }));
+        }
+        if (qw.manuscript_coordinates) {
+          children.push(new Paragraph({
+            spacing: { after: 40 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Location: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(qw.manuscript_coordinates), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+      });
+      children.push(spacer());
+    }
+
+    if (strategicRevisions.length > 0) {
+      children.push(bodyPara('Strategic Revisions', { bold: true, size: 22, color: RG.oxblood }));
+      strategicRevisions.forEach((sr: { action?: string; why?: string; effort?: string; impact?: string; anchor_snippet?: string; manuscript_coordinates?: string; mechanism?: string; reader_effect?: string; candidate_text_a?: string }) => {
+        const actionText = cleanReportText(sr.action ?? '');
+        const effortTag = sr.effort ? ` [${sr.effort} effort]` : '';
+        const impactTag = sr.impact ? ` [${sr.impact} impact]` : '';
+        children.push(new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: actionText, bold: true, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: effortTag + impactTag, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+        if (sr.anchor_snippet) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Original Passage: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(sr.anchor_snippet)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (sr.candidate_text_a) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Suggested Revision: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: `\u201c${cleanReportText(sr.candidate_text_a)}\u201d`, italics: true, size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (sr.reader_effect) {
+          children.push(new Paragraph({
+            spacing: { after: 20 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Reader Effect: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(sr.reader_effect), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+        if (sr.why) {
+          children.push(bodyPara(cleanReportText(sr.why), { size: 19, color: RG.textMuted }));
+        }
+        if (sr.manuscript_coordinates) {
+          children.push(new Paragraph({
+            spacing: { after: 40 },
+            indent: { left: 480 },
+            children: [
+              new TextRun({ text: 'Location: ', bold: true, size: 18, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ text: cleanReportText(sr.manuscript_coordinates), size: 18, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            ],
+          }));
+        }
+      });
+      children.push(spacer());
+    }
+  }
+
+  // ── Dream / Cross-Layer Synthesis ─────────────────────────────────
+  if (dream) {
+    children.push(brandHeading(sectionTitle('cross_layer_synthesis'), HeadingLevel.HEADING_2));
+    // Dream scores table
+    const dreamScoreRow = new TableRow({
+      children: ['Quality', 'Readiness', 'Commercial', 'Literary'].map((label, i) => {
+        const vals = [dream.dream_scores?.quality, dream.dream_scores?.readiness, dream.dream_scores?.commercial, dream.dream_scores?.literary];
+        return new TableCell({
+          width: { size: 25, type: WidthType.PERCENTAGE },
+          borders: DOCX_NO_BORDERS,
+          shading: { type: ShadingType.SOLID, color: RG.surface.replace('#', '') },
+          children: [
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: label, size: 17, color: RG.textMuted.replace('#', ''), font: 'Calibri' })] }),
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: scoreLabel(vals[i], 100), bold: true, size: 24, color: RG.textPrimary.replace('#', ''), font: 'Georgia' })] }),
+          ],
+        });
+      }),
+    });
+    children.push(new Table({ rows: [dreamScoreRow], width: { size: 100, type: WidthType.PERCENTAGE } }));
+    children.push(spacer());
+
+    children.push(brandHeading('Executive Verdict', HeadingLevel.HEADING_3));
+    children.push(bodyPara(dream.executive_verdict ?? '-'));
+
+    if (dream.market_shelf) {
+      children.push(brandHeading('Market Shelf', HeadingLevel.HEADING_3));
+      const shelfMeta = [
+        metaRow('Best Shelf', dream.market_shelf.best_shelf),
+        metaRow('Marketable Hook', dream.market_shelf.marketable_hook),
+        metaRow('Market Danger', dream.market_shelf.market_danger),
+      ].filter((p): p is Paragraph => p !== null);
+      shelfMeta.forEach((p) => children.push(p));
+      if (Array.isArray(dream.market_shelf.shelf_neighbors)) {
+        dream.market_shelf.shelf_neighbors.forEach((item) => children.push(bulletPara(item)));
+      }
+    }
+
+    if (Array.isArray(dream.structural_stack) && dream.structural_stack.length > 0) {
+      children.push(brandHeading('Structural Stack', HeadingLevel.HEADING_3));
+      dream.structural_stack.forEach((layer) => {
+        children.push(bodyPara(`${layer.layer_name} - ${layer.status}`, { bold: true }));
+        children.push(bodyPara(`Function: ${layer.function}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Revision note: ${layer.revision_note}`, { size: 19, color: RG.textMuted }));
+      });
+    }
+
+    if (Array.isArray(dream.arc_map) && dream.arc_map.length > 0) {
+      children.push(brandHeading('Arc Map', HeadingLevel.HEADING_3));
+      dream.arc_map.forEach((act) => {
+        children.push(bodyPara(`${act.act_name} (${act.chapter_range})`, { bold: true }));
+        children.push(bodyPara(`Function: ${act.primary_function}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Revision priority: ${act.revision_priority}`, { size: 19, color: RG.textMuted }));
+      });
+    }
+
+    const revisionPlan = getRenumberedAuthorFacingRevisionPlan(dream.revision_plan);
+    if (revisionPlan.length > 0) {
+      children.push(brandHeading('Revision Plan', HeadingLevel.HEADING_3));
+      revisionPlan.forEach((item) => {
+        children.push(bodyPara(`Priority ${item.displayPriority}: ${item.title}`, { bold: true }));
+        children.push(bodyPara(`Goal: ${item.goal}`, { size: 19, color: RG.textMuted }));
+        if (Array.isArray(item.actions)) item.actions.forEach((action) => children.push(bulletPara(action)));
+        if (item.acceptance_check) children.push(bodyPara(`Acceptance check: ${item.acceptance_check}`, { size: 19, color: RG.textMuted }));
+      });
+    }
+
+    // Expanded Criterion Analysis from dream document
+    if (Array.isArray(dream.criterion_analyses) && dream.criterion_analyses.length > 0) {
+      children.push(brandHeading(sectionTitle('expanded_criterion_analysis'), HeadingLevel.HEADING_2));
+      dream.criterion_analyses.forEach((a) => {
+        children.push(new Paragraph({
+          spacing: { before: 160, after: 60 },
+          children: [
+            new TextRun({ text: `${getCriterionDisplayLabel(a.key)}`, bold: true, size: 22, color: RG.textPrimary.replace('#', ''), font: 'Georgia' }),
+            new TextRun({ text: ` — ${scoreLabel(a.score, 10)}`, bold: true, size: 20, color: docxScoreColor(a.score).replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: ` (${formatConfidenceLabel(a.confidence)})`, size: 18, color: confidencePaletteColor(a.confidence).replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+
+        const fitItems = filterAuthorFacingTextList(a.fit_evidence);
+        if (fitItems.length > 0) {
+          children.push(new Paragraph({
+            spacing: { before: 60, after: 30 },
+            children: [new TextRun({ text: 'What Is Working:', bold: true, size: 18, color: '2E7D32', font: 'Calibri' })],
+          }));
+          fitItems.forEach((item) => children.push(bulletPara(item, RG.success)));
+        }
+
+        const gapItems = filterAuthorFacingTextList(a.gap_evidence);
+        if (gapItems.length > 0) {
+          children.push(new Paragraph({
+            spacing: { before: 60, after: 30 },
+            children: [new TextRun({ text: 'What Weakens Impact:', bold: true, size: 18, color: 'E65100', font: 'Calibri' })],
+          }));
+          gapItems.forEach((item) => children.push(bulletPara(item, RG.warning)));
+        }
+
+        const revItems = filterAuthorFacingTextList(a.revision_queue);
+        if (revItems.length > 0) {
+          children.push(new Paragraph({
+            spacing: { before: 60, after: 30 },
+            children: [new TextRun({ text: 'Revision Queue:', bold: true, size: 18, color: RG.oxblood.replace('#', ''), font: 'Calibri' })],
+          }));
+          revItems.forEach((item, idx) => {
+            children.push(new Paragraph({
+              spacing: { after: 40 },
+              children: [new TextRun({ text: `${idx + 1}. ${formatRevisionQueueItem(item)}`, size: 19, color: RG.textPrimary.replace('#', ''), font: 'Calibri' })],
+            }));
+          });
+        }
+
+        children.push(spacer());
+      });
+    }
+
+    // Symbolic / Doctrine Audit
+    if (dream.symbolic_audit) {
+      children.push(brandHeading(sectionTitle('governed_ledgers'), HeadingLevel.HEADING_2));
+      if (Array.isArray(dream.symbolic_audit.preserved_symbols) && dream.symbolic_audit.preserved_symbols.length > 0) {
+        children.push(bodyPara('Preserved Symbols:', { bold: true }));
+        dream.symbolic_audit.preserved_symbols.forEach((sym) => {
+          children.push(bulletPara(`${sym.symbol} \u2014 ${sym.current_function}`));
+          if (sym.revision_instruction) children.push(bodyPara(`  Revision: ${sym.revision_instruction}`, { size: 18, color: RG.textMuted }));
+        });
+      }
+      if (Array.isArray(dream.symbolic_audit.doctrine_strengths) && dream.symbolic_audit.doctrine_strengths.length > 0) {
+        children.push(bodyPara('Doctrine Strengths:', { bold: true, color: RG.success }));
+        dream.symbolic_audit.doctrine_strengths.forEach((s) => children.push(bulletPara(s, RG.success)));
+      }
+      if (Array.isArray(dream.symbolic_audit.doctrine_risks) && dream.symbolic_audit.doctrine_risks.length > 0) {
+        children.push(bodyPara('Doctrine Risks:', { bold: true, color: RG.warning }));
+        dream.symbolic_audit.doctrine_risks.forEach((r) => children.push(bulletPara(r, RG.warning)));
+      }
+      if (dream.symbolic_audit.audit_conclusion) {
+        children.push(bodyPara(`Audit Conclusion: ${dream.symbolic_audit.audit_conclusion}`));
+      }
+      children.push(spacer());
+    }
+
+    // Reader Experience (subsection under Cross-Layer Synthesis)
+    if (dream.reader_experience) {
+      children.push(bodyPara('Reader Experience', { bold: true, size: 22 }));
+      const re = dream.reader_experience;
+      if (re.first_act) {
+        children.push(bodyPara('First Act:', { bold: true }));
+        children.push(bodyPara(`Reader question: ${re.first_act.reader_question}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Emotional state: ${re.first_act.emotional_state}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Risk: ${re.first_act.risk}`, { size: 19, color: RG.textMuted }));
+      }
+      if (re.middle) {
+        children.push(bodyPara('Middle:', { bold: true }));
+        children.push(bodyPara(`Reader question: ${re.middle.reader_question}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Emotional state: ${re.middle.emotional_state}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Risk: ${re.middle.risk}`, { size: 19, color: RG.textMuted }));
+      }
+      if (re.final_act) {
+        children.push(bodyPara('Final Act:', { bold: true }));
+        children.push(bodyPara(`Reader question: ${re.final_act.reader_question}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Emotional state: ${re.final_act.emotional_state}`, { size: 19, color: RG.textMuted }));
+        children.push(bodyPara(`Risk: ${re.final_act.risk}`, { size: 19, color: RG.textMuted }));
+      }
+      if (re.aftertaste) {
+        children.push(bodyPara(`Aftertaste: ${re.aftertaste}`));
+      }
+      children.push(spacer());
+    }
+
+    // Releasability
+    if (Array.isArray(dream.releasability) && dream.releasability.length > 0) {
+      children.push(brandHeading(sectionTitle('readiness_posture'), HeadingLevel.HEADING_2));
+      dream.releasability.forEach((dim) => {
+        children.push(new Paragraph({
+          spacing: { after: 60 },
+          children: [
+            new TextRun({ text: `${dim.dimension}: `, bold: true, size: 20, color: RG.textPrimary.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: `${dim.current_status} `, size: 20, color: RG.textMuted.replace('#', ''), font: 'Calibri' }),
+            new TextRun({ text: `[${dim.verdict}]`, bold: true, size: 20, color: (dim.verdict === 'Ready' ? RG.success : dim.verdict === 'Near-ready' ? RG.gold : RG.warning).replace('#', ''), font: 'Calibri' }),
+          ],
+        }));
+      });
+      children.push(spacer());
+    }
+  }
+
+  // Internal governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon,
+  // Revision Canon) is intentionally omitted from customer-facing downloads.
+  // It remains accessible via the admin support view only.
+
+  // Gold divider
+  children.push(new Table({
+    rows: [new TableRow({
+      children: [new TableCell({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: DOCX_NO_BORDERS,
+        shading: { type: ShadingType.SOLID, color: RG.gold.replace('#', '') },
+        children: [new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: ' ', size: 4 })] })],
+      })],
+    })],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  }));
+  // ── §13 Confidence Explanation ──
+  children.push(brandHeading('Confidence Explanation', HeadingLevel.HEADING_2));
+  children.push(bodyPara(CONFIDENCE_EXPLANATION.title, { bold: true }));
+  children.push(bodyPara(CONFIDENCE_EXPLANATION.intro));
+  for (const level of CONFIDENCE_EXPLANATION.levels) {
+    children.push(new Paragraph({
+      spacing: { after: 80 },
+      children: [
+        new TextRun({ text: `${level.label}: `, bold: true, size: 20, font: 'Georgia' }),
+        new TextRun({ text: level.description, size: 20, font: 'Georgia' }),
+      ],
+    }));
+  }
+
+  // ── §14 Author-facing disclaimer ──
+  children.push(bodyPara(EXPORT_DISCLAIMER, { size: 16, color: RG.textFaint, spacing: 40 }));
+
+  const docxDoc = new Document({
+    sections: [{
+      headers: {
+        default: new Header({
+          children: [new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            children: [new TextRun({ text: 'RevisionGrade\u2122 Evaluation Report', size: 16, color: RG.textFaint.replace('#', ''), font: 'Calibri', italics: true })],
+          })],
+        }),
+      },
+      footers: {
+        default: new Footer({
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: 'RevisionGrade\u2122  |  Confidential  |  Page ', size: 14, color: RG.textFaint.replace('#', ''), font: 'Calibri' }),
+              new TextRun({ children: [PageNumber.CURRENT], size: 14, color: RG.textFaint.replace('#', ''), font: 'Calibri' }),
+            ],
+          })],
+        }),
+      },
+      children,
+    }],
+  });
+  return await Packer.toBuffer(docxDoc);
+}
+
+async function loadCanonicalEvaluationResult(admin: ReturnType<typeof createAdminClient>, jobId: string): Promise<unknown | null> {
+  const { data: artifact } = await admin
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .in('artifact_type', ['evaluation_result_v2', 'evaluation_result_v1'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return artifact?.content ?? null;
+}
+
+async function loadRevisionLedgerSummary(admin: ReturnType<typeof createAdminClient>, jobId: string): Promise<RevisionLedgerSummary> {
+  const { data: ledgerRow } = await admin
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'revision_opportunity_ledger_v1')
+    .maybeSingle();
+
+  const content = ledgerRow?.content as {
+    opportunities?: unknown[];
+    totals?: Record<string, number>;
+  } | null | undefined;
+
+  if (!content?.opportunities || !Array.isArray(content.opportunities)) {
+    return { totalItems: 0, ledgerTotals: null };
+  }
+
+  const totals = content.totals && typeof content.totals === 'object'
+    ? {
+        must: typeof content.totals.must === 'number' ? content.totals.must : 0,
+        should: typeof content.totals.should === 'number' ? content.totals.should : 0,
+        could: typeof content.totals.could === 'number' ? content.totals.could : 0,
+      }
+    : null;
+
+  return {
+    totalItems: content.opportunities.length,
+    ledgerTotals: totals,
+  };
+}
+
+async function loadDreamDocument(admin: ReturnType<typeof createAdminClient>, jobId: string): Promise<LongformDreamDocument | null> {
+  const { data: dreamRow } = await admin
+    .from('evaluation_artifacts')
+    .select('content')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'longform_document_v1')
+    .maybeSingle();
+  const content = dreamRow?.content as { longform_document?: unknown } | null | undefined;
+  if (content?.longform_document && typeof content.longform_document === 'object') {
+    return content.longform_document as LongformDreamDocument;
+  }
+  return null;
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { jobId: string } | Promise<{ jobId: string }> },
+) {
+  const rateLimitDenied = enforceApiRateLimit(request, {
+    bucket: 'report_download',
+    limit: 80,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimitDenied) return rateLimitDenied;
+
+  const resolved = await Promise.resolve(params);
+  const jobId = resolved.jobId;
+
+  if (!jobId || !UUID_RE.test(jobId)) {
+    return NextResponse.json({ error: 'Invalid job ID' }, { status: 400 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const formatParam = (searchParams.get('format') ?? 'pdf').toLowerCase();
+  if (!['pdf', 'docx', 'txt'].includes(formatParam)) {
+    return NextResponse.json({ error: 'Invalid format' }, { status: 400 });
+  }
+  const format = formatParam as ExportFormat;
+
+  const auth = await requireUser();
+  if (auth.ok === false) return auth.response;
+  const user = auth.user;
+
+  const admin = createAdminClient();
+  const { data: job, error } = await admin
+    .from('evaluation_jobs')
+    .select('evaluation_result, status, validity_status, user_id, progress, manuscripts(title)')
+    .eq('id', jobId)
+    .maybeSingle();
+
+  if (error || !job) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  if (job.user_id !== user.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  const exposureDecision = await getAuthorExposureDecision(admin, jobId);
+  if (exposureDecision.exposable === false) {
+    if (exposureDecision.reason === 'db_error') {
+      console.error('[report-download] author_exposure DB error', {
+        jobId,
+        details: exposureDecision.details,
+      });
+      return NextResponse.json(
+        { error: 'System error checking author exposure certification' },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  const canonicalResult = await loadCanonicalEvaluationResult(admin, jobId);
+  const rawResult = canonicalResult ?? (job.evaluation_result as unknown);
+
+  if (!rawResult || !canReleaseEvaluationRead({ ...job, evaluation_result: rawResult })) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  if (!isExportableResultCandidate(rawResult)) {
+    return NextResponse.json({ error: 'Invalid result format' }, { status: 500 });
+  }
+
+  const result = rawResult as ExportableResult;
+
+  // ── Read-time sanitization — clean malformed text in stored artifacts ──
+  // This fixes ALL existing evaluations that were persisted before the write-time
+  // sanitizer was deployed. Without this, the parity gate rejects them permanently.
+  sanitizeResultForDownload(result as unknown as Record<string, unknown>);
+
+  // ── Download Parity Gate — reject incomplete artifacts before building ──
+  const parity = validateDownloadParity(result);
+  if (!parity.pass) {
+    console.error('[report-download] Download parity gate FAILED', {
+      jobId,
+      format,
+      violations: parity.violations,
+    });
+    return NextResponse.json(
+      {
+        error:
+          'This download is temporarily unavailable while we verify content accuracy. ' +
+          'Our team has been notified and is looking into it. ' +
+          'In the meantime, you can save a copy of your evaluation by right-clicking ' +
+          'anywhere on the report page, selecting "Print," and choosing "Save as PDF." ' +
+          'The file will appear in your downloads folder. ' +
+          'If you need further assistance, reach out to support@revisiongrade.com.',
+        code: 'DOWNLOAD_PARITY_FAILED',
+        violations: parity.violations.map((v) => v.code),
+      },
+      { status: 422 },
+    );
+  }
+
+  const relationTitle = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts);
+  const title = relationTitle ?? result.metrics?.manuscript?.title ?? null;
+  const [dream, ledgerSummary] = await Promise.all([
+    loadDreamDocument(admin, jobId),
+    loadRevisionLedgerSummary(admin, jobId),
+  ]);
+  // Governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon) is internal
+  // pipeline diagnostics — never included in user-facing downloads.
+
+  const persistedDocument = await loadCertifiedUnifiedEvaluationDocumentArtifact(admin, jobId);
+  if (persistedDocument.ok === false) {
+    console.error('[report-download] Certified UED load failed', {
+      jobId,
+      format,
+      reason: persistedDocument.reason,
+      details: persistedDocument.details,
+    });
+    return NextResponse.json(
+      {
+        error: 'This download is temporarily unavailable while we verify content accuracy.',
+        code: 'CERTIFIED_UED_UNAVAILABLE',
+      },
+      { status: persistedDocument.reason === 'db_error' ? 500 : 422 },
+    );
+  }
+
+  const canonicalDoc = persistedDocument.document;
+
+  // ── ViewModel: single source of truth for all rendered fields ──────────
+  // The VM applies all sanitization (mistakeProofText, correctScopeLanguage) internally.
+  // canonicalDocForRender is an EPHEMERAL render adapter — never persisted, never source-truth.
+  // Source-truth gates below use certified canonicalDoc only.
+  const vm = normalizeEvaluationReportViewModel(canonicalDoc);
+  const canonicalDocForRender = applyViewModelToDocument(canonicalDoc, vm);
+
+  // ── Runtime §13–§21 heading parity guard ──────────────────────────────
+  // For long-form multi-layer evaluations, validate that the generated content
+  // contains the exact template-authorized heading sequence before serving.
+  // This inspects actual rendered output, not just pre-render objects.
+  const isMultiLayerDownload = canonicalDoc.templateMode === 'long_form_multi_layer_evaluation';
+
+  // ── REVISION_SURFACE_OWNERSHIP_GATE — block author exposure if violations exist ──
+  // Validates rendered output does not contain forbidden sections per mode.
+  // Must execute before Phase 5 Author Exposure (serving any download).
+  // A violation is a release-blocking defect, not advisory.
+  {
+    const gateTxt = buildCanonicalTemplateTxt(canonicalDocForRender, dream, jobId);
+    const gateHtml = renderCanonicalTemplateHtml(canonicalDocForRender, dream, jobId);
+    const uedGateResult = runRevisionSurfaceOwnershipGate(canonicalDoc);
+    const renderedGateResult = runRenderedOutputOwnershipGate({ html: gateHtml, txt: gateTxt });
+    const allFailures = [...uedGateResult.failures, ...renderedGateResult.failures];
+    const gateResult = { status: allFailures.length === 0 ? 'pass' : 'fail', failures: allFailures };
+
+    if (gateResult.status === 'fail') {
+      const diagnosis = buildRevisionSurfaceOwnershipDiagnosis(uedGateResult, jobId);
+      console.error('[report-download] REVISION_SURFACE_OWNERSHIP_GATE FAILED — blocking author exposure', {
+        jobId,
+        format,
+        templateMode: canonicalDoc.templateMode,
+        failureCount: gateResult.failures.length,
+        failures: gateResult.failures.slice(0, 5),
+        diagnosis,
+      });
+      return NextResponse.json(
+        {
+          error:
+            'This download is temporarily unavailable. Our content quality checks identified a formatting issue ' +
+            'that needs to be resolved before this report can be served. Our team has been notified.',
+          code: 'REVISION_SURFACE_OWNERSHIP_GATE_FAILED',
+          failure_diagnosis_v1: diagnosis,
+          failure_count: gateResult.failures.length,
+        },
+        { status: 422 },
+      );
+    }
+  }
+
+  if (format === 'txt') {
+    const body = buildCanonicalTemplateTxt(canonicalDocForRender, dream, jobId);
+
+    if (isMultiLayerDownload) {
+      const txtHeadings = extractTxtHeadings(body);
+      const validation = validateRenderedHeadings(txtHeadings, 'txt');
+      if (!validation.valid) {
+        console.error('[report-download] §13–§21 heading parity FAILED for TXT', {
+          jobId,
+          errors: validation.errors,
+          extractedHeadings: txtHeadings,
+        });
+        return NextResponse.json(
+          {
+            error: 'Download temporarily blocked: section heading parity check failed. Our team has been notified.',
+            code: 'SECTION_PARITY_FAILED',
+            details: validation.errors,
+          },
+          { status: 422 },
+        );
+      }
+    }
+
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'txt')}"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
+  if (format === 'pdf') {
+    try {
+      const html = renderCanonicalTemplateHtml(canonicalDocForRender, dream, jobId);
+
+      if (isMultiLayerDownload) {
+        const htmlHeadings = extractHtmlH2Headings(html);
+        const validation = validateRenderedHeadings(htmlHeadings, 'pdf');
+        if (!validation.valid) {
+          console.error('[report-download] §13–§21 heading parity FAILED for PDF/HTML', {
+            jobId,
+            errors: validation.errors,
+            extractedHeadings: htmlHeadings,
+          });
+          return NextResponse.json(
+            {
+              error: 'Download temporarily blocked: section heading parity check failed. Our team has been notified.',
+              code: 'SECTION_PARITY_FAILED',
+              details: validation.errors,
+            },
+            { status: 422 },
+          );
+        }
+      }
+
+      const buffer = await buildChromiumPdf(html);
+      if (buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
+        throw new Error('Generated artifact does not contain valid PDF header bytes');
+      }
+
+      return new Response(new Uint8Array(buffer), {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'pdf')}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    } catch (err) {
+      console.error('[report-download] Canonical template PDF export failed', {
+        jobId,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+
+      return NextResponse.json(
+        {
+          error: 'PDF export failed. Please retry or choose TXT/DOCX.',
+          code: 'PDF_EXPORT_FAILED',
+        },
+        { status: 500 },
+      );
+    }
+  }
+
+  const docxBuffer = await buildCanonicalTemplateDocx(canonicalDocForRender, dream, jobId);
+
+  if (isMultiLayerDownload) {
+    // Unzip the DOCX and inspect word/document.xml for heading parity
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(docxBuffer);
+      const documentXml = await zip.file('word/document.xml')?.async('string');
+      if (documentXml) {
+        const docxHeadings = extractDocxXmlHeadings(documentXml);
+        const validation = validateRenderedHeadings(docxHeadings, 'docx');
+        const structureErrors = validateDocxXmlStructure(documentXml);
+
+        const allErrors = [...validation.errors, ...structureErrors];
+        if (allErrors.length > 0) {
+          console.error('[report-download] §13–§21 heading parity FAILED for DOCX', {
+            jobId,
+            errors: allErrors,
+            extractedHeadings: docxHeadings,
+          });
+          return NextResponse.json(
+            {
+              error: 'Download temporarily blocked: section heading parity check failed. Our team has been notified.',
+              code: 'SECTION_PARITY_FAILED',
+              details: allErrors,
+            },
+            { status: 422 },
+          );
+        }
+      }
+    } catch (zipErr) {
+      console.error('[report-download] DOCX XML inspection failed (non-blocking)', {
+        jobId,
+        error: zipErr instanceof Error ? zipErr.message : String(zipErr),
+      });
+    }
+  }
+
+  return new Response(new Uint8Array(docxBuffer), {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': `attachment; filename="${safeFilename(title, jobId, 'docx')}"`,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+export const __testingDownload = {
+  buildCanonicalTemplateTxt,
+  renderCanonicalTemplateHtml,
+  buildCanonicalTemplateDocx,
+  applyViewModelToDocument,
+  loadCertifiedUnifiedEvaluationDocumentArtifact,
+  renderPremiumReportHtml,
+};
