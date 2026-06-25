@@ -836,24 +836,24 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
   - artifact exists and is releasable
   - requested format is supported
 - **Process / runtime code surface:**
-  - `lib/evaluation/downloadReadTimeSanitizer.ts` (read-time sanitization of RG-generated editorial text)
-  - `lib/evaluation/downloadParityGate.ts` (post-sanitization parity validation)
-  - `lib/evaluation/unifiedEvaluationDocument.ts` (canonical renderer adapter)
-  - `app/api/evaluations/[jobId]/route.ts` (format-specific renderers: `buildCanonicalTemplateTxt`, `renderCanonicalTemplateHtml` → PDF, `buildCanonicalTemplateDocx`)
+  - `lib/evaluation/unifiedEvaluationDocument.ts` (Certified UED assembly)
+  - `lib/evaluation/evaluationReportViewModel.ts` (single author-facing presentation/sanitization boundary)
+  - `lib/evaluation/reportRenderParity.ts` (post-render parity validation)
+  - `app/api/reports/[jobId]/download/route.ts` (format-specific VM renderers: `renderTxtFromViewModel`, `renderHtmlFromViewModel` → PDF, `renderDocxFromViewModel`)
 - **Output:** PDF, DOCX, or TXT file delivered to the user
 - **Output acceptance metrics:**
-  - Read-time sanitizer passes: no forbidden patterns remain in editorial text
-  - Parity gate passes: post-sanitization output preserves data integrity
+  - ViewModel boundary passes: no forbidden patterns remain in VM-owned editorial text
+  - Render parity gate passes: output preserves data integrity across PDF/DOCX/TXT
   - **Evidence ownership preserved:** `anchor_snippet` and `evidence_snippets[*].snippet` are byte-for-byte identical to source (Runtime Doctrine #12)
   - Format-specific renderer completes without error
   - Output sections match webpage: same report type, overall score, confidence labels, market readiness, criteria scores, recommendation counts, executive summary, and active template order
 - **Customer / downstream stage:** End user (downloaded file)
 - **Gates / invariants:**
-  - Read-time sanitizer must NOT mutate manuscript evidence or quotations (author-owned content)
-  - Read-time sanitizer MAY sanitize: summaries, rationale, recommendations, quick wins, strategic revisions (RG-generated editorial text)
-  - Parity gate validates cleaned output before format rendering proceeds
-  - Download rejected if contamination remains after sanitization
-  - Download rejected if parity gate fails
+  - ViewModel sanitizer must NOT mutate manuscript evidence or quotations (author-owned content)
+  - Renderers may format VM fields only; they must not re-derive or re-sanitize VM-owned data
+  - Render parity gate validates output before format rendering proceeds
+  - Download rejected if contamination remains after VM normalization
+  - Download rejected if render parity gate fails
 - **Failure codes:** `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
 - **Required telemetry:** sanitizer pass/fail + patterns cleaned, parity gate pass/fail, format render timing
 - **Required evidence artifact:** pre-sanitization snapshot + post-sanitization diff + parity gate diagnostic

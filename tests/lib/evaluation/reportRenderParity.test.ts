@@ -5,6 +5,7 @@ import {
   buildUnifiedDocumentForParityFromEvaluationResult,
   inferCanonicalEvaluationModeFromWordCount,
 } from '@/lib/evaluation/reportRenderParity';
+import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import mammoth from 'mammoth';
 
@@ -250,9 +251,10 @@ describe('report render parity manifest builder', () => {
       displayTitle: 'Measured Parity Manuscript',
       mode,
     });
-    const txt = testing.buildCanonicalTemplateTxt(doc, null, 'job-measured');
-    const html = testing.renderCanonicalTemplateHtml(doc, null, 'job-measured');
-    const docxBuffer = await testing.buildCanonicalTemplateDocx(doc, null, 'job-measured');
+    const vm = normalizeEvaluationReportViewModel(doc);
+    const txt = testing.renderTxtFromViewModel(vm, null, 'job-measured');
+    const html = testing.renderHtmlFromViewModel(vm, null, 'job-measured');
+    const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-measured');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
     const manifest = buildReportRenderManifestV1({
@@ -266,6 +268,31 @@ describe('report render parity manifest builder', () => {
       },
     });
 
+    if (manifest.parity.status !== 'pass') {
+      console.log('PARITY FAILURE DETAILS:', JSON.stringify(manifest.parity, null, 2));
+      for (const surface of ['webpage', 'pdf', 'docx', 'txt'] as const) {
+        if (manifest.surfaces[surface].missing_required_fields.length > 0) {
+          console.log(`${surface} MISSING:`, manifest.surfaces[surface].missing_required_fields);
+        }
+      }
+      // Debug: show UED criterionDetails and rendered fragments
+      const { mistakeProofText } = require('../../../lib/evaluation/reportRenderSafety');
+      const uedDetails = doc.criterionDetails;
+      for (const detail of uedDetails) {
+        for (const rec of (detail.recommendations ?? [])) {
+          const fields = { anchor_snippet: rec.anchor_snippet, symptom: rec.symptom, mechanism: rec.mechanism, specific_fix: rec.specific_fix, action: rec.action, reader_effect: rec.reader_effect, mistake_proofing: rec.mistake_proofing };
+          for (const [key, val] of Object.entries(fields)) {
+            if (!val) continue;
+            const fragment = mistakeProofText(val, '').normalize('NFKC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+            const inTxt = txt.normalize('NFKC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase().includes(fragment);
+            const inDocx = docxText.normalize('NFKC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase().includes(fragment);
+            if (!inTxt || !inDocx) {
+              console.log(`FRAGMENT MISS [${key}]: "${fragment}" | inTxt=${inTxt} inDocx=${inDocx}`);
+            }
+          }
+        }
+      }
+    }
     expect(manifest.parity.status).toBe('pass');
     expect(Object.values(manifest.surfaces).every((surface) => surface.measurement_mode === 'measured_renderer_output')).toBe(true);
     expect(manifest.surfaces.txt.measured_output_length).toBeGreaterThan(100);

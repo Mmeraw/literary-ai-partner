@@ -8,6 +8,7 @@
  * Produces a parity matrix as test output.
  */
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
+import { normalizeEvaluationReportViewModel } from '../../../lib/evaluation/evaluationReportViewModel';
 import mammoth from 'mammoth';
 
 describe('Surface Parity Verification — Rendered Output Proof', () => {
@@ -212,9 +213,10 @@ describe('Surface Parity Verification — Rendered Output Proof', () => {
     });
 
     // ── Generate all surfaces ────────────────────────────────────────────
-    const txt = testing.buildCanonicalTemplateTxt(canonicalDoc);
-    const html = testing.renderCanonicalTemplateHtml(canonicalDoc);
-    const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
+    const vm = normalizeEvaluationReportViewModel(canonicalDoc);
+    const txt = testing.renderTxtFromViewModel(vm, null, 'job-parity-test');
+    const html = testing.renderHtmlFromViewModel(vm, null, 'job-parity-test');
+    const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-parity-test');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
     // ── Extract section headings from each surface ───────────────────────

@@ -1,7 +1,11 @@
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
+import { normalizeEvaluationReportViewModel } from '../../../lib/evaluation/evaluationReportViewModel';
 import mammoth from 'mammoth';
 
-describe('download adapters parity (Option A canonicalDoc)', () => {
+const buildVm = (canonicalDoc: ReturnType<typeof buildShortFormEvaluationDocument>) =>
+  normalizeEvaluationReportViewModel(canonicalDoc as any);
+
+describe('download adapters parity (ViewModel renderers)', () => {
   test('TXT and HTML adapters include canonical section content in consistent order', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
@@ -44,8 +48,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
       },
     });
 
-    const txt = testing.buildCanonicalTemplateTxt(canonicalDoc);
-    const html = testing.renderCanonicalTemplateHtml(canonicalDoc);
+    const vm = buildVm(canonicalDoc);
+    const txt = testing.renderTxtFromViewModel(vm);
+    const html = testing.renderHtmlFromViewModel(vm);
 
     expect(txt).toContain('ONE-PARAGRAPH PITCH');
     expect(txt).toContain('A concise summary for parity output checks.');
@@ -59,7 +64,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(html).toContain('class="cover"');
     expect(html).toContain('Submitted Word Count');
 
-    const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
+    const docxBuffer = await testing.renderDocxFromViewModel(vm);
     expect(docxBuffer.length).toBeGreaterThan(100);
     expect(docxBuffer[0]).toBe(0x50); // PK zip magic header
     expect(docxBuffer[1]).toBe(0x4b);
@@ -125,8 +130,9 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
       },
     });
 
-    const txt = testing.buildCanonicalTemplateTxt(canonicalDoc);
-    const html = testing.renderCanonicalTemplateHtml(canonicalDoc);
+    const vm = buildVm(canonicalDoc);
+    const txt = testing.renderTxtFromViewModel(vm);
+    const html = testing.renderHtmlFromViewModel(vm);
 
     const overlongTxtLines = txt
       .split('\n')
@@ -170,7 +176,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
     expect(html).not.toContain('<h3>Strategic Revisions</h3>');
 
     // DOCX must include all 6 diagnostic fields
-    const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc);
+    const docxBuffer = await testing.renderDocxFromViewModel(vm);
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
     expect(docxText).toContain('A dark truck, fast, heading toward the river, with a reference identifier');
     expect(docxText).toContain('Stakes or decision pressure diffuses before reaching the reader.');
@@ -321,9 +327,10 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
       },
     } as any;
 
-    const txt = testing.buildCanonicalTemplateTxt(canonicalDoc, dream, 'job-template-truth');
-    const html = testing.renderCanonicalTemplateHtml(canonicalDoc, dream, 'job-template-truth');
-    const docxBuffer = await testing.buildCanonicalTemplateDocx(canonicalDoc, dream, 'job-template-truth');
+    const vm = buildVm(canonicalDoc);
+    const txt = testing.renderTxtFromViewModel(vm, dream, 'job-template-truth');
+    const html = testing.renderHtmlFromViewModel(vm, dream, 'job-template-truth');
+    const docxBuffer = await testing.renderDocxFromViewModel(vm, dream, 'job-template-truth');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
     // §13-§21 template-authorized headings (from shared section contract)
@@ -414,7 +421,7 @@ describe('download adapters parity (Option A canonicalDoc)', () => {
       },
     });
 
-    const html = testing.renderCanonicalTemplateHtml(canonicalDoc);
+    const html = testing.renderHtmlFromViewModel(buildVm(canonicalDoc));
 
     // Short-form: score-grid table MUST have scoped class
     expect(html).toContain('class="score-grid-table"');

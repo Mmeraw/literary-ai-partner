@@ -606,7 +606,7 @@ describe("regression", () => {
     expect(defaultValue).toBeGreaterThanOrEqual(14000);
 
     // Floor for the env-var override must also be >= 12000 — accept no lower override silently.
-    const floorMatch = src.match(/parsed\s*>=\s*(\d+)\s*&&\s*parsed\s*<=\s*\d+/);
+    const floorMatch = src.match(/parsed\s*>=\s*(\d+)\s*&&\s*parsed\s*<=\s*(?:\d+|[A-Z0-9_]+)/);
     expect(floorMatch).not.toBeNull();
     expect(parseInt(floorMatch![1], 10)).toBeGreaterThanOrEqual(12000);
   });
