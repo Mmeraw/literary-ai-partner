@@ -167,14 +167,14 @@ describe('executable FIPOC registry', () => {
     const webpage = RENDERER_CONSUMPTION_MATRIX.find((entry) => entry.surface === 'webpage');
     expect(webpage).toEqual(expect.objectContaining({
       stageId: 'S11a_RENDERER_WEBPAGE',
-      canonicalInput: 'UnifiedEvaluationDocument',
+      canonicalInput: 'EvaluationReportViewModel',
       currentFitGapStatus: 'ok',
-      remediationPr: 'closed by PR-02/S11a strict UED consumption',
+      remediationPr: 'closed by PR-1183 direct VM renderer consumption',
       mayFormatOnly: true,
       rendererMayDerive: false,
     }));
     expect(webpage?.forbiddenInputs).toEqual(expect.arrayContaining([
-      'direct evaluation_result_v2 rendering without UnifiedEvaluationDocument',
+      'direct evaluation_result_v2 rendering without EvaluationReportViewModel',
       'local score calculation',
       'local page calculation',
     ]));
