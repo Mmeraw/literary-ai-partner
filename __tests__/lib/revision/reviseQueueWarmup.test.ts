@@ -1,6 +1,7 @@
 import {
   loadReviseQueueWarmupCorpus,
   REVISE_QUEUE_BENCHMARK_FILES,
+  REVISE_QUEUE_GOLD_STANDARD_FIXTURES,
   REVISE_QUEUE_WARMUP_FILES,
 } from '@/lib/revision/reviseQueueWarmup'
 
@@ -14,6 +15,8 @@ describe('revise queue warmup corpus proof', () => {
     expect(corpus.proof.fileCount).toBe(REVISE_QUEUE_WARMUP_FILES.length)
     expect(corpus.proof.benchmarkCount).toBe(REVISE_QUEUE_BENCHMARK_FILES.length)
     expect(corpus.proof.benchmarkFilesLoaded).toEqual([...REVISE_QUEUE_BENCHMARK_FILES])
+    expect(corpus.proof.reviseFixtureCount).toBe(REVISE_QUEUE_GOLD_STANDARD_FIXTURES.length)
+    expect(corpus.proof.reviseFixturesLoaded).toEqual([...REVISE_QUEUE_GOLD_STANDARD_FIXTURES])
     expect(corpus.proof.combinedBytes).toBeGreaterThan(1000)
     expect(corpus.proof.combinedSha256).toMatch(/^[a-f0-9]{64}$/)
 
@@ -47,5 +50,25 @@ describe('revise queue warmup corpus proof', () => {
       expect(corpus.proof.benchmarkFilesLoaded).toContain(path)
       expect(corpus.files[path as (typeof REVISE_QUEUE_WARMUP_FILES)[number]]).toBeTruthy()
     }
+  })
+
+  test('loads the Revise gold-standard fixture suite for Workbench quality calibration', async () => {
+    const corpus = await loadReviseQueueWarmupCorpus()
+
+    for (const path of [
+      'docs/gold-standards/revise/README.md',
+      'docs/gold-standards/revise/cartel-babies-revise-gold-standard.md',
+      'docs/gold-standards/revise/let-the-river-decide-revise-gold-standard.md',
+      'docs/gold-standards/revise/mythoamphibia-revise-gold-standard.md',
+      'docs/gold-standards/revise/return-to-the-source-revise-gold-standard.md',
+    ]) {
+      expect(REVISE_QUEUE_GOLD_STANDARD_FIXTURES).toContain(path)
+      expect(corpus.proof.reviseFixturesLoaded).toContain(path)
+      expect(corpus.files[path as (typeof REVISE_QUEUE_WARMUP_FILES)[number]]).toBeTruthy()
+    }
+
+    expect(corpus.combinedText).toContain('perfect A/B/C repair set')
+    expect(corpus.combinedText).toContain('six-part diagnosis')
+    expect(corpus.combinedText).toContain('admission_gate_expectation')
   })
 })
