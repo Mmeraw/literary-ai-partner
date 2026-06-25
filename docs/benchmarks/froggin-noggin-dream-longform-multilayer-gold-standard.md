@@ -15,40 +15,24 @@ governed-ledgers: true
 runtime-authority: true
 wave-applied: true
 source-benchmark-merged:
-  - docs/benchmarks/froggin-noggin-dream.md
-  - docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
-replacement-policy: canonical unified marker; full body and addendum remain preserved until expansion/archive cleanup
+  - docs/benchmarks/archive/froggin-noggin-dream.md
+  - docs/benchmarks/archive/froggin-noggin-dream-v2-governed-ledger-addendum.md
+replacement-policy: canonical unified active benchmark; source benchmark pair archived out of active benchmark folder
 ---
 
 # Froggin Noggin — DREAM Long-Form Multi-Layer Gold Standard Benchmark
 
 This is the canonical unified benchmark marker for *Froggin Noggin*.
 
-It designates the active required-gold long-form multi-layer authority path while preserving the source benchmark and governed-ledger addendum for audit:
+It designates the active required-gold long-form multi-layer authority path. The source benchmark and governed-ledger addendum have been moved out of the active benchmark folder and preserved in the archive for audit:
 
 ```text
-docs/benchmarks/froggin-noggin-dream.md
-docs/benchmarks/froggin-noggin-dream-v2-governed-ledger-addendum.md
+docs/benchmarks/archive/froggin-noggin-dream.md
+docs/benchmarks/archive/froggin-noggin-dream-v2-governed-ledger-addendum.md
 ```
-
-A later expansion pass may fold the full preserved benchmark body and governed-ledger addendum into this file, then archive the source pair.
 
 Minimum preserved benchmark facts:
 
 - Overall Quality Score: 66/100
 - Readiness Score: 58/100
 - Required-gold benchmark
-- Runtime authority: true
-- Route: LONG_FORM
-- Output mode: multi_layer_long_form
-- Evaluation mode: long_form_multi_layer_evaluation
-
-Required governed-ledger coverage is inherited from the source addendum until fully folded here:
-
-- Character Coverage & Arc Ledger
-- Relationship Spine Ledger
-- Symbol-to-Character Payoff Ledger
-- Sensory / Emotional Register Ledger
-- Manuscript Integrity Confidence Notes
-- Evidence Distribution / Confidence Notes
-- Required detection / failure conditions
