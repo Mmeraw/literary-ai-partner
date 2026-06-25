@@ -262,7 +262,7 @@ export function normalizeEvaluationReportViewModel(
     scoreLabel: detail.scoreLabel,
     scorePalette: deriveScorePalette(detail.scoreLabel),
     confidenceLabel: detail.confidenceLabel ?? null,
-    supportLabel: detail.supportLabel ?? null,
+    supportLabel: detail.supportLabel ? sanitizeText(detail.supportLabel, isLongForm) : null,
     rationaleLabel: detail.rationaleLabel,
     rationaleText: sanitizeText(detail.rationaleText, isLongForm),
     recommendations: (detail.recommendations ?? []).map(rec => ({
@@ -280,10 +280,7 @@ export function normalizeEvaluationReportViewModel(
   }));
 
   const confidenceExplanation = sanitizeText(
-    ued.criterionDetails
-      .filter(d => d.confidenceLabel)
-      .map(d => `${d.label}: ${d.confidenceLabel}`)
-      .join('. ') || 'Confidence levels are derived from evidence density and diagnostic coverage.',
+    ued.confidenceExplanation,
     isLongForm,
   );
 
@@ -310,7 +307,7 @@ export function normalizeEvaluationReportViewModel(
 
     confidenceExplanation,
 
-    modeSpecific: {
+    modeSpecific: ued.modeSpecific ? {
       manuscriptScaleContinuityFindings: sanitizeList(ued.modeSpecific.manuscriptScaleContinuityFindings, isLongForm),
       storyLedgerArchitectureMap: sanitizeList(ued.modeSpecific.storyLedgerArchitectureMap, isLongForm),
       reviewGateReadinessSurface: sanitizeList(ued.modeSpecific.reviewGateReadinessSurface, isLongForm),
@@ -320,7 +317,7 @@ export function normalizeEvaluationReportViewModel(
       layerAwareRevisionSequencing: sanitizeList(ued.modeSpecific.layerAwareRevisionSequencing, isLongForm),
       continuityCoverageProof: sanitizeList(ued.modeSpecific.continuityCoverageProof, isLongForm),
       readinessReleasabilityPosture: sanitizeText(ued.modeSpecific.readinessReleasabilityPosture, isLongForm),
-    },
+    } : undefined,
 
     disclaimer: DISCLAIMER,
   };
