@@ -15,6 +15,66 @@ describe('evaluateAuthorExposureCertification', () => {
     }
   });
 
+  test('allows certified payload when supplied Phase 4B audit passes', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      certified_at: '2026-02-22T00:00:00.000Z',
+      blocking_reasons: [],
+      parity_results: { status: 'pass' },
+      final_external_audit: {
+        artifact_type: 'final_external_audit_v1',
+        status: 'pass',
+      },
+    });
+
+    expect(decision.exposable).toBe(true);
+  });
+
+  test('allows certified payload when supplied Phase 4B audit warns but does not block', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      blocking_reasons: [],
+      parity_results: { status: 'pass' },
+      final_external_audit: {
+        artifact_type: 'final_external_audit_v1',
+        status: 'warn',
+      },
+    });
+
+    expect(decision.exposable).toBe(true);
+  });
+
+  test('blocks certified payload when supplied Phase 4B audit blocks', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      blocking_reasons: [],
+      parity_results: { status: 'pass' },
+      final_external_audit: {
+        artifact_type: 'final_external_audit_v1',
+        status: 'block',
+      },
+    });
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+  });
+
+  test('blocks certified payload when supplied Phase 4B audit is malformed', () => {
+    const decision = evaluateAuthorExposureCertification({
+      decision: 'certified',
+      blocking_reasons: [],
+      parity_results: { status: 'pass' },
+      final_external_audit: { status: 'pass' },
+    });
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+  });
+
   test('blocks when decision is not certified', () => {
     const decision = evaluateAuthorExposureCertification({
       decision: 'blocked',
@@ -119,6 +179,22 @@ describe('evaluateAuthorExposureCertification', () => {
     if (decision.exposable) {
       expect(decision.certifiedAt).toBe('2026-01-01T00:00:00.000Z');
     }
+  });
+
+  test('extracts nested author_exposure_certification and enforces nested Phase 4B audit', () => {
+    const decision = evaluateAuthorExposureCertification({
+      author_exposure_certification: {
+        decision: 'certified',
+        blocking_reasons: [],
+        parity_results: { status: 'pass' },
+        final_external_audit: {
+          artifact_type: 'final_external_audit_v1',
+          status: 'block',
+        },
+      },
+    });
+
+    expect(decision).toMatchObject({ exposable: false, reason: 'final_external_audit_failed' });
   });
 
   // blocking_reasons fail-closed contract: must be a present empty array
@@ -279,7 +355,7 @@ describe('getAuthorExposureDecision', () => {
     });
   });
 
-  test('returns missing_certification when content field is absent', async () => {
+  test('returns final_external_audit_failed when certification embeds blocking Phase 4B audit', async () => {
     const admin = {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
@@ -288,9 +364,43 @@ describe('getAuthorExposureDecision', () => {
               order: jest.fn(() => ({
                 limit: jest.fn(() => ({
                   maybeSingle: jest.fn(async () => ({
-                    data: { content: null },
+                    data: {
+                      content: {
+                        decision: 'certified',
+                        blocking_reasons: [],
+                        parity_results: { status: 'pass' },
+                        final_external_audit: {
+                          artifact_type: 'final_external_audit_v1',
+                          status: 'block',
+                        },
+                      },
+                    },
                     error: null,
                   })),
+                })),
+              })),
+            })),
+          })),
+        })),
+      })),
+    } as never;
+
+    const decision = await getAuthorExposureDecision(admin, 'job-1');
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+  });
+
+  test('returns missing_certification when content field is absent', async () => {
+    const admin = {
+      from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              order: jest.fn(() => ({
+                limit: jest.fn(() => ({
+                  maybeSingle: jest.fn(async () => ({ data: { content: null }, error: null })),
                 })),
               })),
             })),
