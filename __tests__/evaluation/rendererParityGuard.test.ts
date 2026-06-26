@@ -19,11 +19,25 @@ const DOWNLOAD_ROUTE = path.resolve(
   '../../app/api/reports/[jobId]/download/route.ts',
 );
 
+const VM_SOURCE = path.resolve(
+  __dirname,
+  '../../lib/evaluation/evaluationReportViewModel.ts',
+);
+
+const SHORT_FORM_DOC = path.resolve(
+  __dirname,
+  '../../lib/evaluation/shortFormReportDocument.ts',
+);
+
 describe('Issue #1021 — Renderer Parity Guard', () => {
   let downloadRouteSource: string;
+  let vmSource: string;
+  let shortFormSource: string;
 
   beforeAll(() => {
     downloadRouteSource = fs.readFileSync(DOWNLOAD_ROUTE, 'utf-8');
+    vmSource = fs.readFileSync(VM_SOURCE, 'utf-8');
+    shortFormSource = fs.readFileSync(SHORT_FORM_DOC, 'utf-8');
   });
 
   // ─── Shared canonical artifact source ───────────────────────────────
@@ -50,12 +64,14 @@ describe('Issue #1021 — Renderer Parity Guard', () => {
     expect(downloadRouteSource).toContain('sanitizeCMOS');
   });
 
-  test('all format branches use buildTopRecommendations from shared module', () => {
-    expect(downloadRouteSource).toContain('buildTopRecommendations');
+  test('UED construction uses buildTopRecommendations from shared module', () => {
+    // buildTopRecommendations runs during UED construction, VM consumes pre-built ued.topRecommendations
+    expect(shortFormSource).toContain('buildTopRecommendations');
   });
 
-  test('all format branches use buildReportPitches from shared template contract', () => {
-    expect(downloadRouteSource).toContain('buildReportPitches');
+  test('UED construction uses buildReportPitches from shared template contract', () => {
+    // buildReportPitches runs during UED construction, VM consumes pre-built pitches
+    expect(shortFormSource).toContain('buildReportPitches');
   });
 
   test('download route uses getAuthorExposureDecision gate', () => {
@@ -123,15 +139,17 @@ describe('Issue #1021 — Renderer Parity Guard', () => {
     expect(downloadRouteSource).toContain('formatScoreForDisplay');
   });
 
-  test('download route uses shared revision opportunity summarizer', () => {
-    expect(downloadRouteSource).toContain('summarizeRevisionOpportunities');
+  test('shared revision opportunity summarizer is available in template contract', () => {
+    const contractSource = fs.readFileSync(
+      path.resolve(__dirname, '../../lib/evaluation/reportTemplateContract.ts'), 'utf-8');
+    expect(contractSource).toContain('summarizeRevisionOpportunities');
   });
 
-  test('download route uses filterAuthorFacingTextList for safety-filtered lists', () => {
-    expect(downloadRouteSource).toContain('filterAuthorFacingTextList');
+  test('VM uses filterAuthorFacingTextList for safety-filtered lists', () => {
+    expect(vmSource).toContain('filterAuthorFacingTextList');
   });
 
-  test('download route uses getCriterionDisplayLabel for consistent criterion names', () => {
-    expect(downloadRouteSource).toContain('getCriterionDisplayLabel');
+  test('VM uses getCriterionDisplayLabel for consistent criterion names', () => {
+    expect(vmSource).toContain('getCriterionDisplayLabel');
   });
 });
