@@ -48,7 +48,8 @@ export function inferWorkTypeFromWordCount(wordCount: number): string {
 }
 
 // ── Cognitive Initialization Protocol ────────────────────────────────────────
-// Loaded from docs/governance/dream-cognitive-initialization-protocol.md via
+// Loaded from docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md
+// (legacy fallback: docs/governance/dream-cognitive-initialization-protocol.md) via
 // buildCompactCognitiveInitializationBlock(). This is constitutional reasoning
 // authority for seed posture, evidence discipline, preservation, and downstream
 // Phase 5 certification.

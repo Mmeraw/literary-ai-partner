@@ -9,7 +9,8 @@
  * returns a built-in fallback so the pipeline never crashes.
  *
  * Canonical template locations:
- *   - DREAM Cognitive Initialization Protocol: docs/governance/dream-cognitive-initialization-protocol.md
+ *   - DREAM Cognitive Initialization Protocol: docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md
+ *     (legacy fallback: docs/governance/dream-cognitive-initialization-protocol.md)
  *   - DREAM evaluation: docs/templates/evaluation/*.md
  *   - Story Ledger template: docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md
  */
@@ -30,6 +31,13 @@ const TEMPLATE_DIR = join(
 );
 
 const COGNITIVE_INITIALIZATION_PROTOCOL_PATH = join(
+  process.cwd(),
+  "docs",
+  "governance",
+  "DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md",
+);
+
+const LEGACY_COGNITIVE_INITIALIZATION_PROTOCOL_PATH = join(
   process.cwd(),
   "docs",
   "governance",
@@ -78,9 +86,15 @@ function loadTemplateFile(filePath: string, cacheKey: string): string {
  * evaluation, revise, queue, and certification stages.
  */
 export function loadDreamCognitiveInitializationProtocol(): string {
-  return loadTemplateFile(
+  const primary = loadTemplateFile(
     COGNITIVE_INITIALIZATION_PROTOCOL_PATH,
-    "governance:dream_cognitive_initialization_protocol",
+    "governance:dream_cognitive_initialization_protocol:primary",
+  );
+  if (primary.trim().length > 0) return primary;
+
+  return loadTemplateFile(
+    LEGACY_COGNITIVE_INITIALIZATION_PROTOCOL_PATH,
+    "governance:dream_cognitive_initialization_protocol:legacy",
   );
 }
 
