@@ -1,6 +1,6 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const STATUS_DOT: Record<string, string> = {
   strong: "bg-emerald-400",
@@ -9,9 +9,9 @@ const STATUS_DOT: Record<string, string> = {
   fragile: "bg-rose-400",
 };
 
-export default function LongformLayerAnalysis({ doc }: Props) {
-  const layers = doc.layer_analyses ?? [];
-  const crossLayer = doc.cross_layer_integration ?? [];
+export default function LongformLayerAnalysis({ vm }: Props) {
+  const layers = vm.layerAnalyses ?? [];
+  const crossLayer = vm.crossLayerIntegration ?? [];
   if (layers.length === 0 && crossLayer.length === 0) return null;
 
   return (
@@ -26,9 +26,9 @@ export default function LongformLayerAnalysis({ doc }: Props) {
                   <span className={`inline-block w-2.5 h-2.5 rounded-full ${dot}`} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-800">{layer.layer_name}</p>
+                  <p className="text-sm font-medium text-gray-800">{layer.layerName}</p>
                   <p className="text-xs text-gray-700 capitalize mb-1">{layer.status}</p>
-                  <p className="text-xs text-gray-600 leading-relaxed">{layer.needed_revision}</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">{layer.neededRevision}</p>
                 </div>
               </div>
             );
@@ -48,19 +48,19 @@ export default function LongformLayerAnalysis({ doc }: Props) {
                   <span className="font-medium text-gray-800">{row.motif}</span>
                   <span
                     className={`shrink-0 px-2 py-0.5 rounded text-xs font-medium border ${
-                      row.integration_quality === "strong"
+                      row.integrationQuality === "strong"
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : row.integration_quality === "moderate"
+                        : row.integrationQuality === "moderate"
                           ? "bg-amber-50 text-amber-700 border-amber-200"
                           : "bg-rose-50 text-rose-700 border-rose-200"
                     }`}
                   >
-                    {row.integration_quality}
+                    {row.integrationQuality}
                   </span>
                 </div>
                 <p className="text-xs text-gray-600 mb-1">{row.description}</p>
-                {row.revision_note && (
-                  <p className="text-xs text-indigo-600 italic">{row.revision_note}</p>
+                {row.revisionNote && (
+                  <p className="text-xs text-indigo-600 italic">{row.revisionNote}</p>
                 )}
               </div>
             ))}

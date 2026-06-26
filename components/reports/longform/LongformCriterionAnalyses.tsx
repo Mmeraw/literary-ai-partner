@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
-import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
+import type {
+  LongFormMultiLayerEvaluationViewModel,
+  LongFormMultiLayerCriterionAnalysisViewModel,
+} from "@/lib/evaluation/evaluationReportViewModel";
 import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const CONFIDENCE_BADGE: Record<string, string> = {
   High: "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400",
@@ -30,7 +32,7 @@ function EvidenceList({ items, label, accent }: { items: string[]; label: string
   );
 }
 
-function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][number] }) {
+function CriterionCard({ a }: { a: LongFormMultiLayerCriterionAnalysisViewModel }) {
   const [open, setOpen] = useState(true);
   const badge = CONFIDENCE_BADGE[a.confidence] ?? "bg-gray-100 text-gray-600";
   // score can be null (e.g. proseControl in insufficient-signal state) — guard
@@ -52,7 +54,7 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
             {formatScoreForDisplay(safeScore)}
           </span>
           <span className="font-medium text-gray-800 text-sm">
-            {getCriterionDisplayLabel(a.key)}
+            {a.displayLabel}
           </span>
           <span className={`hidden sm:inline-block px-2 py-0.5 rounded text-xs font-medium ${badge}`}>
             {a.confidence}
@@ -63,17 +65,17 @@ function CriterionCard({ a }: { a: LongformDreamDocument["criterion_analyses"][n
 
       {open && (
         <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3 bg-gray-50">
-          <EvidenceList items={a.fit_evidence} label="What is working" accent="text-emerald-600" />
-          <EvidenceList items={a.gap_evidence} label="What weakens impact" accent="text-amber-600" />
-          <EvidenceList items={a.revision_queue} label="Revision queue" accent="text-indigo-600" />
+          <EvidenceList items={a.fitEvidence} label="What is working" accent="text-emerald-600" />
+          <EvidenceList items={a.gapEvidence} label="What weakens impact" accent="text-amber-600" />
+          <EvidenceList items={a.revisionQueue} label="Revision queue" accent="text-indigo-600" />
         </div>
       )}
     </div>
   );
 }
 
-export default function LongformCriterionAnalyses({ doc }: Props) {
-  const analyses = doc.criterion_analyses ?? [];
+export default function LongformCriterionAnalyses({ vm }: Props) {
+  const analyses = vm.criterionAnalyses ?? [];
   if (analyses.length === 0) return null;
 
   return (

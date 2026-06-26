@@ -1,6 +1,6 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const SEVERITY_COLORS: Record<string, { badge: string; border: string }> = {
   blocking: {
@@ -27,13 +27,13 @@ const KIND_LABELS: Record<string, string> = {
   needs_manual_verification: "Needs verification",
 };
 
-export default function LongformManuscriptIntegrityTable({ doc }: Props) {
-  const issues = doc.manuscript_integrity_issues ?? [];
+export default function LongformManuscriptIntegrityTable({ vm }: Props) {
+  const issues = vm.manuscriptIntegrityIssues ?? [];
 
   // Also pull releasability rows that relate to integrity/confidence
-  const integrityReleasability = (doc.releasability ?? []).filter((r) =>
+  const integrityReleasability = (vm.releasability ?? []).filter((r) =>
     /integrit|confidence|publication|defect|hygiene|toc|anchor|duplic/i.test(
-      r.dimension + " " + r.current_status
+      r.dimension + " " + r.currentStatus
     )
   );
 
@@ -124,7 +124,7 @@ export default function LongformManuscriptIntegrityTable({ doc }: Props) {
                       {r.verdict}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600">{r.current_status}</p>
+                  <p className="text-xs text-gray-600">{r.currentStatus}</p>
                 </div>
               );
             })}

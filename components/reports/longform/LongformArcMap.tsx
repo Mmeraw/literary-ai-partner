@@ -1,9 +1,9 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
-export default function LongformArcMap({ doc }: Props) {
-  const arcs = doc.arc_map ?? [];
+export default function LongformArcMap({ vm }: Props) {
+  const arcs = vm.arcMap ?? [];
   if (arcs.length === 0) return null;
 
   return (
@@ -20,10 +20,10 @@ export default function LongformArcMap({ doc }: Props) {
         <tbody>
           {arcs.map((arc, i) => (
             <tr key={i} className="border-b border-gray-100 align-top">
-              <td className="py-2.5 pr-4 font-medium text-gray-800">{arc.act_name}</td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-gray-500">{arc.chapter_range}</td>
-              <td className="py-2.5 pr-4 text-gray-600 text-xs leading-relaxed">{arc.primary_function}</td>
-              <td className="py-2.5 text-gray-600 text-xs leading-relaxed">{arc.revision_priority}</td>
+              <td className="py-2.5 pr-4 font-medium text-gray-800">{arc.actName}</td>
+              <td className="py-2.5 pr-4 font-mono text-xs text-gray-500">{arc.chapterRange}</td>
+              <td className="py-2.5 pr-4 text-gray-600 text-xs leading-relaxed">{arc.primaryFunction}</td>
+              <td className="py-2.5 text-gray-600 text-xs leading-relaxed">{arc.revisionPriority}</td>
             </tr>
           ))}
         </tbody>

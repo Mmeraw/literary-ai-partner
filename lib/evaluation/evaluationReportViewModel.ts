@@ -34,7 +34,7 @@
  */
 
 import type { UnifiedEvaluationDocument, CanonicalEvaluationMode } from '@/lib/evaluation/unifiedEvaluationDocument';
-import { correctScopeLanguage, mistakeProofText, getRenumberedAuthorFacingRevisionPlan, filterAuthorFacingTextList } from '@/lib/evaluation/reportRenderSafety';
+import { correctScopeLanguage, mistakeProofText, getRenumberedAuthorFacingRevisionPlan, filterAuthorFacingTextList, getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety';
 import type { EvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 import { getEvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
@@ -148,6 +148,7 @@ export type LongFormMultiLayerArcEntryViewModel = {
 
 export type LongFormMultiLayerCriterionAnalysisViewModel = {
   key: string;
+  displayLabel: string;
   score: number;
   confidence: string;
   fitEvidence: string[];
@@ -376,7 +377,7 @@ export function normalizeEvaluationReportViewModel({
   governance,
 }: {
   ued: UnifiedEvaluationDocument;
-  dreamDoc?: LongformDreamDocument | null;
+  dreamDoc?: unknown | null;
   governance?: GovernanceWarningInput;
 }): EvaluationReportViewModel {
   const mode = ued.templateMode;
@@ -486,7 +487,10 @@ export function normalizeEvaluationReportViewModel({
       readinessReleasabilityPosture: sanitizeText(ued.modeSpecific.readinessReleasabilityPosture, isLongForm),
     } : undefined,
 
-    longFormMultiLayerEvaluation: normalizeLongFormMultiLayer(dreamDoc ?? null, isLongForm),
+    longFormMultiLayerEvaluation: normalizeLongFormMultiLayer(
+      (dreamDoc && typeof dreamDoc === 'object' ? dreamDoc as LongformDreamDocument : null),
+      isLongForm,
+    ),
     integrityBanner: governance ? classifyEvaluationIntegrityBanner(governance) : null,
 
     disclaimer: DISCLAIMER,
@@ -540,8 +544,9 @@ function normalizeLongFormMultiLayer(
 
   const criterionAnalyses: LongFormMultiLayerCriterionAnalysisViewModel[] = (doc.criterion_analyses ?? []).map(c => ({
     key: c.key,
+    displayLabel: getCriterionDisplayLabel(s(c.key)),
     score: c.score,
-    confidence: c.confidence,
+    confidence: s(c.confidence),
     fitEvidence: sl(c.fit_evidence ?? []),
     gapEvidence: sl(c.gap_evidence ?? []),
     revisionQueue: sl(c.revision_queue ?? []),
@@ -646,4 +651,19 @@ function normalizeLongFormMultiLayer(
     repoSummary,
     manuscriptIntegrityIssues,
   };
+}
+
+/**
+ * Public projection helper — converts a raw long-form (DREAM) artifact into the
+ * renderer-facing LongFormMultiLayerEvaluationViewModel. Used by client surfaces
+ * (e.g. SynthesisPoller) that fetch the longform_document_v1 artifact directly
+ * and must render it without ever exposing LongformDreamDocument to the renderer.
+ * The longform artifact is always a long-form evaluation, so long-form scope
+ * sanitization is applied.
+ */
+export function projectLongFormMultiLayerEvaluation(
+  dreamDoc: unknown | null,
+): LongFormMultiLayerEvaluationViewModel | null {
+  const doc = dreamDoc && typeof dreamDoc === 'object' ? (dreamDoc as LongformDreamDocument) : null;
+  return normalizeLongFormMultiLayer(doc, true);
 }

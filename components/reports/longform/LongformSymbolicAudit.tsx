@@ -1,14 +1,14 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
-export default function LongformSymbolicAudit({ doc }: Props) {
-  const audit = doc.symbolic_audit;
+export default function LongformSymbolicAudit({ vm }: Props) {
+  const audit = vm.symbolicAudit;
   if (!audit) return null;
 
-  const symbols = audit.preserved_symbols ?? [];
-  const strengths = audit.doctrine_strengths ?? [];
-  const risks = audit.doctrine_risks ?? [];
+  const symbols = audit.preservedSymbols ?? [];
+  const strengths = audit.doctrineStrengths ?? [];
+  const risks = audit.doctrineRisks ?? [];
 
   return (
     <div className="space-y-5">
@@ -23,10 +23,10 @@ export default function LongformSymbolicAudit({ doc }: Props) {
                 <p className="font-medium text-gray-800 mb-0.5">{s.symbol}</p>
                 <p className="text-xs text-gray-600 mb-1">
                   <span className="font-medium text-gray-700">Current function:</span>{" "}
-                  {s.current_function}
+                  {s.currentFunction}
                 </p>
                 <p className="text-xs text-indigo-600">
-                  <span className="font-medium">Instruction:</span> {s.revision_instruction}
+                  <span className="font-medium">Instruction:</span> {s.revisionInstruction}
                 </p>
               </div>
             ))}
@@ -67,9 +67,9 @@ export default function LongformSymbolicAudit({ doc }: Props) {
         )}
       </div>
 
-      {audit.audit_conclusion && (
+      {audit.auditConclusion && (
         <p className="text-sm text-gray-700 italic border-l-4 border-indigo-200 pl-3">
-          {audit.audit_conclusion}
+          {audit.auditConclusion}
         </p>
       )}
     </div>

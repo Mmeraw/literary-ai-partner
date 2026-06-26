@@ -1,6 +1,6 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const STATUS_STYLES: Record<string, string> = {
   strong: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -9,9 +9,9 @@ const STATUS_STYLES: Record<string, string> = {
   fragile: "bg-rose-100 text-rose-700 border-rose-200",
 };
 
-export default function LongformStructuralStack({ doc }: Props) {
-  const stack = doc.structural_stack ?? [];
-  const antiPatterns = doc.what_not_to_become ?? [];
+export default function LongformStructuralStack({ vm }: Props) {
+  const stack = vm.structuralStack ?? [];
+  const antiPatterns = vm.whatNotToBecome ?? [];
   if (stack.length === 0 && antiPatterns.length === 0) return null;
 
   return (
@@ -33,14 +33,14 @@ export default function LongformStructuralStack({ doc }: Props) {
                   STATUS_STYLES[layer.status] ?? "bg-gray-100 text-gray-600 border-gray-200";
                 return (
                   <tr key={i} className="border-b border-gray-100 align-top">
-                    <td className="py-2.5 pr-4 font-medium text-gray-800">{layer.layer_name}</td>
+                    <td className="py-2.5 pr-4 font-medium text-gray-800">{layer.layerName}</td>
                     <td className="py-2.5 pr-4">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${badgeClass}`}>
                         {layer.status}
                       </span>
                     </td>
                     <td className="py-2.5 pr-4 text-gray-600 text-xs leading-relaxed">{layer.function}</td>
-                    <td className="py-2.5 text-gray-600 text-xs leading-relaxed">{layer.revision_note}</td>
+                    <td className="py-2.5 text-gray-600 text-xs leading-relaxed">{layer.revisionNote}</td>
                   </tr>
                 );
               })}

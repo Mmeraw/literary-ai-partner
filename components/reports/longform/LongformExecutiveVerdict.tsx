@@ -1,6 +1,6 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const SCORE_DIMS = [
   { key: "quality", label: "Quality" },
@@ -71,9 +71,9 @@ function parseVerdictSegments(
   return segments;
 }
 
-export default function LongformExecutiveVerdict({ doc }: Props) {
-  const segments = doc.executive_verdict
-    ? parseVerdictSegments(doc.executive_verdict)
+export default function LongformExecutiveVerdict({ vm }: Props) {
+  const segments = vm.executiveVerdict
+    ? parseVerdictSegments(vm.executiveVerdict)
     : [];
 
   return (
@@ -81,7 +81,7 @@ export default function LongformExecutiveVerdict({ doc }: Props) {
       {/* DREAM subscores */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {SCORE_DIMS.map(({ key, label }) => {
-          const val = doc.dream_scores?.[key];
+          const val = vm.scores?.[key];
           const display = typeof val === "number" ? val : "—";
           return (
             <div

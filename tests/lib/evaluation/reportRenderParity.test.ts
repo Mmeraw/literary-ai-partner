@@ -252,9 +252,9 @@ describe('report render parity manifest builder', () => {
       mode,
     });
     const vm = normalizeEvaluationReportViewModel({ ued: doc });
-    const txt = testing.renderTxtFromViewModel(vm, null, 'job-measured');
-    const html = testing.renderHtmlFromViewModel(vm, null, 'job-measured');
-    const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-measured');
+    const txt = testing.renderTxtFromViewModel(vm, 'job-measured');
+    const html = testing.renderHtmlFromViewModel(vm, 'job-measured');
+    const docxBuffer = await testing.renderDocxFromViewModel(vm, 'job-measured');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
     const manifest = buildReportRenderManifestV1({
