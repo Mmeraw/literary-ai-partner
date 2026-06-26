@@ -9,23 +9,7 @@ import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertif
 import { isEvaluationResultV1, type EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, type EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
-// Governance types retained as comments — internal-only, never exported to users.
-// import type { WaveGovernanceData } from '@/lib/evaluation/waveGovernanceData';
-// import type { Gate15AuditArtifact } from '@/lib/evaluation/gate15/gate15_orchestrator';
-// import type { GoldenSpineArtifact } from '@/lib/evaluation/goldenSpine/goldenSpineAudit';
-// import type { DialogueCanonAuditArtifact } from '@/lib/evaluation/dialogueCanon/dialogueCanonAudit';
-// import type { RevisionCanonMetadata } from '@/lib/evaluation/revisionCanonMetadata';
-import {
-  filterAuthorFacingTextList,
-  getRenumberedAuthorFacingRevisionPlan,
-  getCriterionDisplayLabel,
-  mistakeProofText,
-} from '@/lib/evaluation/reportRenderSafety';
-import { buildTopRecommendations } from '@/lib/evaluation/reportRecommendations';
-import {
-  buildReportPitches,
-  summarizeRevisionOpportunities,
-} from '@/lib/evaluation/reportTemplateContract';
+
 import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { EVALUATION_TEMPLATE_CONTRACTS } from '@/lib/evaluation/unifiedEvaluationDocument';
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
@@ -228,17 +212,6 @@ type ReportMetadata = {
   targetAudience: string | null;
 };
 
-type LedgerTotals = {
-  must: number;
-  should: number;
-  could: number;
-};
-
-type RevisionLedgerSummary = {
-  totalItems: number;
-  ledgerTotals: LedgerTotals | null;
-};
-
 type ExportRecommendation = {
   priority?: 'high' | 'medium' | 'low';
   action?: string;
@@ -272,32 +245,13 @@ function evidenceLabel(anchorType?: string): string {
 }
 
 
-function formatRevisionQueueItem(raw: string): string {
-  const locationMatch = raw.match(/\[LOCATION:\s*([^\]]*)\]/i);
-  const operationMatch = raw.match(/\[OPERATION:\s*([^\]]*)\]/i);
-  if (!locationMatch && !operationMatch) return cleanReportText(raw, '');
-
-  const location = locationMatch ? locationMatch[1].trim() : null;
-  const operation = operationMatch ? operationMatch[1].trim() : null;
-  const remainder = cleanReportText(raw, '');
-
-  const parts: string[] = [];
-  if (location) parts.push(`Location: ${location}`);
-  if (operation) parts.push(`Operation: ${operation.charAt(0).toUpperCase()}${operation.slice(1)}`);
-  if (remainder) parts.push(`Recommendation: ${remainder}`);
-  return parts.join(' | ');
-}
-
-function pushTxtListBlock(lines: string[], label: string, values: unknown, options: { ordered?: boolean; isRevisionQueue?: boolean } = {}): void {
-  const items = filterAuthorFacingTextList(values);
-  const cleaned = items
-    .map((item) => options.isRevisionQueue ? formatRevisionQueueItem(item) : cleanReportText(item, ''))
-    .filter((item) => item.length > 0);
-  if (cleaned.length === 0) return;
+function pushTxtListBlock(lines: string[], label: string, values: string[], options: { ordered?: boolean } = {}): void {
+  const items = values.filter(v => v.length > 0);
+  if (items.length === 0) return;
 
   lines.push('');
   lines.push(`${label}:`);
-  cleaned.forEach((item, idx) => {
+  items.forEach((item, idx) => {
     if (options.ordered) {
       lines.push(`${idx + 1}. ${item}`);
       return;
@@ -312,7 +266,7 @@ function docxListPara(text: string, marker = '\u2022'): Paragraph {
     spacing: { after: 90 },
     children: [
       new TextRun({ text: `${marker} `, size: 21, color: docxHex(RG.textMuted), font: 'Calibri' }),
-      new TextRun({ text: cleanReportText(text), size: 21, color: docxHex(RG.textPrimary), font: 'Calibri' }),
+      new TextRun({ text, size: 21, color: docxHex(RG.textPrimary), font: 'Calibri' }),
     ],
   });
 }
@@ -426,11 +380,6 @@ function safeTruncateText(text: string): string {
   return result;
 }
 
-function cleanReportText(text: unknown, fallback = '—', _options: { blockTruncation?: boolean } = {}): string {
-  // Mistake-proofing: ALL text now goes through the full quality gate
-  // regardless of blockTruncation flag (previously only some paths were covered).
-  return mistakeProofText(text, fallback);
-}
 
 // ── Phase 4b: UED-shaped render bridge REMOVED ──────────────────────────────
 // The former UED-shaped render bridge has been eliminated. All renderers now consume
@@ -503,20 +452,18 @@ function fitToWidth(value: string, maxWidth: number): string {
   return `${value.slice(0, maxWidth - 1)}…`;
 }
 
-function toPdfSafeText(value: unknown, fallback = '-'): string {
-  return cleanReportText(value, fallback)
+/** Encoding-safety normalization for PDF/HTML output — no content sanitization. */
+function toSafeEncoding(text: string): string {
+  return text
     .normalize('NFKC')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .replace(/[\u00A0\xA0]/g, ' ')
-    // Preserve smart typography for WinAnsiEncoding-compatible chars:
-    // \u2018/\u2019 = curly single quotes, \u201C/\u201D = curly double quotes,
-    // \u2013 = en-dash, \u2014 = em-dash, \u2122 = ™, \u00AE = ®, \u00A9 = ©
-    // Only strip truly unsupported chars (above Latin Extended-B / outside WinAnsi)
     .replace(/[\u201A\u201B]/g, '\u2018')
     .replace(/[\u201E\u201F]/g, '\u201C')
     .replace(/\u2212/g, '\u2013')
     .trim();
 }
+
 
 // ── VM-native Long-Form Multi-Layer TXT sections ────────────────────────
 // Renders §12a–§21 from LongFormMultiLayerEvaluationViewModel (pre-sanitized).
@@ -1958,8 +1905,8 @@ function scoreBarColor(score: number | null | undefined): string {
 
 
 function escapeHtml(value: unknown): string {
-  const text = typeof value === 'number' ? String(value) : value;
-  return toPdfSafeText(text, '')
+  const text = typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
+  return toSafeEncoding(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -2039,37 +1986,6 @@ async function loadCanonicalEvaluationResult(admin: ReturnType<typeof createAdmi
     .maybeSingle();
 
   return artifact?.content ?? null;
-}
-
-async function loadRevisionLedgerSummary(admin: ReturnType<typeof createAdminClient>, jobId: string): Promise<RevisionLedgerSummary> {
-  const { data: ledgerRow } = await admin
-    .from('evaluation_artifacts')
-    .select('content')
-    .eq('job_id', jobId)
-    .eq('artifact_type', 'revision_opportunity_ledger_v1')
-    .maybeSingle();
-
-  const content = ledgerRow?.content as {
-    opportunities?: unknown[];
-    totals?: Record<string, number>;
-  } | null | undefined;
-
-  if (!content?.opportunities || !Array.isArray(content.opportunities)) {
-    return { totalItems: 0, ledgerTotals: null };
-  }
-
-  const totals = content.totals && typeof content.totals === 'object'
-    ? {
-        must: typeof content.totals.must === 'number' ? content.totals.must : 0,
-        should: typeof content.totals.should === 'number' ? content.totals.should : 0,
-        could: typeof content.totals.could === 'number' ? content.totals.could : 0,
-      }
-    : null;
-
-  return {
-    totalItems: content.opportunities.length,
-    ledgerTotals: totals,
-  };
 }
 
 async function loadDreamDocument(admin: ReturnType<typeof createAdminClient>, jobId: string): Promise<LongformDreamDocument | null> {
@@ -2190,10 +2106,7 @@ export async function GET(
 
   const relationTitle = extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts);
   const title = relationTitle ?? result.metrics?.manuscript?.title ?? null;
-  const [dream, ledgerSummary] = await Promise.all([
-    loadDreamDocument(admin, jobId),
-    loadRevisionLedgerSummary(admin, jobId),
-  ]);
+  const dream = await loadDreamDocument(admin, jobId);
   // Governance data (WAVE, Gate 15, Golden Spine, Dialogue Canon) is internal
   // pipeline diagnostics — never included in user-facing downloads.
 
