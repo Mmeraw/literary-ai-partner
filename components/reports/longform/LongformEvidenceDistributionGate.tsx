@@ -1,38 +1,37 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 import {
   formatCriterionConfidenceLabel,
   getConfidenceLabelClasses,
   type CanonicalConfidenceLabel,
 } from "@/lib/evaluation/confidenceFieldPolicy";
-import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
 
-type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel; showInternalSections?: boolean };
 
-export default function LongformEvidenceDistributionGate({ doc, showInternalSections = false }: Props) {
+export default function LongformEvidenceDistributionGate({ vm, showInternalSections = false }: Props) {
   // Evidence distribution / confidence gate surfaces through:
-  // - criterion_analyses (confidence per criterion, fit_evidence, gap_evidence distribution flags)
-  // - acceptance_checks (failure conditions around evidence distribution)
-  // - calibration_notes (evidence distribution lessons)
+  // - criterionAnalyses (confidence per criterion, fitEvidence, gapEvidence distribution flags)
+  // - acceptanceChecks (failure conditions around evidence distribution)
+  // - calibrationNotes (evidence distribution lessons)
 
-  const criteriaWithConfidence = (doc.criterion_analyses ?? []).map((c) => ({
+  const criteriaWithConfidence = (vm.criterionAnalyses ?? []).map((c) => ({
     ...c,
     hasDistributionGap:
-      c.gap_evidence?.some((g) =>
+      c.gapEvidence?.some((g) =>
         /distribution|opening.heavy|narrow|insufficient|single|limited|concentrated/i.test(g)
       ) ?? false,
   }));
 
   const distributionGaps = criteriaWithConfidence.filter((c) => c.hasDistributionGap);
 
-  const evidenceFailures = (doc.acceptance_checks?.failure_conditions ?? []).filter((f) =>
+  const evidenceFailures = (vm.acceptanceChecks?.failureConditions ?? []).filter((f) =>
     /evidence|distribution|opening.heavy|confidence|narrow|insufficient/i.test(f)
   );
-  const evidenceDetections = (doc.acceptance_checks?.required_detection ?? []).filter((d) =>
+  const evidenceDetections = (vm.acceptanceChecks?.requiredDetection ?? []).filter((d) =>
     /evidence|distribution|confidence|coverage/i.test(d)
   );
 
-  const distributionNotes = (doc.calibration_notes ?? []).filter((n) =>
+  const distributionNotes = (vm.calibrationNotes ?? []).filter((n) =>
     /evidence|distribution|opening.heavy|confidence|narrow|coverage/i.test(n)
   );
 
@@ -99,7 +98,7 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
                   } p-2 text-xs`}
                 >
                   <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="font-medium text-gray-800">{getCriterionDisplayLabel(c.key)}</span>
+                    <span className="font-medium text-gray-800">{c.displayLabel}</span>
                     <span
                       className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${colorClass}`}
                     >
@@ -129,9 +128,9 @@ export default function LongformEvidenceDistributionGate({ doc, showInternalSect
                 key={i}
                 className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"
               >
-                <p className="font-medium text-amber-800 mb-1">{getCriterionDisplayLabel(c.key)}</p>
+                <p className="font-medium text-amber-800 mb-1">{c.displayLabel}</p>
                 <ul className="list-none space-y-0.5 pl-0">
-                  {c.gap_evidence
+                  {c.gapEvidence
                     .filter((g) =>
                       /distribution|opening.heavy|narrow|insufficient|single|limited|concentrated/i.test(
                         g

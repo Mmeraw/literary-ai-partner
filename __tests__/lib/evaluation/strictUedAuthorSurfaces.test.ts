@@ -13,7 +13,12 @@ describe('strict certified UED consumption on author-facing surfaces', () => {
 
     expect(source).toContain('loadCertifiedUnifiedEvaluationDocumentArtifact');
     expect(source).toContain('if (persistedDocument.ok === false)');
-    expect(source).toContain('const canonicalDoc = sanitizeAuthorFacingDisplayValue(persistedDocument.document');
+    // Post-migration: the certified persisted UED is fed straight into the
+    // ViewModel normalizer, which owns all sanitization. The page no longer
+    // builds a local canonicalDoc via sanitizeAuthorFacingDisplayValue.
+    expect(source).toContain('normalizeEvaluationReportViewModel({');
+    expect(source).toContain('ued: persistedDocument.document');
+    expect(source).not.toContain('sanitizeAuthorFacingDisplayValue(persistedDocument.document');
     expect(source).not.toContain('buildWebpageUnifiedDocument');
     expect(source).not.toContain('buildUnifiedEvaluationDocument({');
     expect(source).not.toContain('Missing persisted UED artifact; using legacy');

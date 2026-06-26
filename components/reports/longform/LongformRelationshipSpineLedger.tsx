@@ -1,7 +1,6 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
-import { getRenumberedAuthorFacingRevisionPlan } from "@/lib/evaluation/reportRenderSafety";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel; showInternalSections?: boolean };
 
 const QUALITY_COLORS: Record<string, string> = {
   strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -9,28 +8,28 @@ const QUALITY_COLORS: Record<string, string> = {
   weak: "bg-rose-100 text-rose-800 border-rose-200",
 };
 
-export default function LongformRelationshipSpineLedger({ doc, showInternalSections = false }: Props) {
-  // Relationship spine data surfaces through cross_layer_integration (relationship motifs),
-  // structural_stack (relationship spine layers), and acceptance_checks.
-  const relationshipMotifs = (doc.cross_layer_integration ?? []).filter((m) =>
+export default function LongformRelationshipSpineLedger({ vm, showInternalSections = false }: Props) {
+  // Relationship spine data surfaces through crossLayerIntegration (relationship motifs),
+  // structuralStack (relationship spine layers), and acceptanceChecks.
+  const relationshipMotifs = (vm.crossLayerIntegration ?? []).filter((m) =>
     /relation|spine|bond|dyad|companion|bridge|connect|family|trust|tension|captiv|guard|dynamic|unit/i.test(
       m.motif + " " + m.description
     )
   );
 
-  const relationshipLayers = (doc.structural_stack ?? []).filter((l) =>
-    /relation|spine|bond|companion|family|unit|dyad/i.test(l.layer_name)
+  const relationshipLayers = (vm.structuralStack ?? []).filter((l) =>
+    /relation|spine|bond|companion|family|unit|dyad/i.test(l.layerName)
   );
 
-  const requiredDetections = (doc.acceptance_checks?.required_detection ?? []).filter((d) =>
+  const requiredDetections = (vm.acceptanceChecks?.requiredDetection ?? []).filter((d) =>
     /relation|spine|bond|bridge|companion|dyad|family|unit/i.test(d)
   );
-  const failureConditions = (doc.acceptance_checks?.failure_conditions ?? []).filter((f) =>
+  const failureConditions = (vm.acceptanceChecks?.failureConditions ?? []).filter((f) =>
     /relation|spine|bond|bridge|companion|dyad|family|unit|underweight/i.test(f)
   );
 
-  // Also pull from revision_plan items that target relationships
-  const relationshipRevisions = getRenumberedAuthorFacingRevisionPlan(doc.revision_plan).filter((p) =>
+  // Also pull from revisionPlan items that target relationships
+  const relationshipRevisions = (vm.revisionPlan ?? []).filter((p) =>
     /relation|spine|bond|companion|bridge|dyad|family|unit/i.test(p.title + " " + p.goal)
   );
 
@@ -53,7 +52,7 @@ export default function LongformRelationshipSpineLedger({ doc, showInternalSecti
           <div className="space-y-2">
             {relationshipMotifs.map((m, i) => {
               const qualityClass =
-                QUALITY_COLORS[m.integration_quality] ??
+                QUALITY_COLORS[m.integrationQuality] ??
                 "bg-gray-100 text-gray-700 border-gray-200";
               return (
                 <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
@@ -62,13 +61,13 @@ export default function LongformRelationshipSpineLedger({ doc, showInternalSecti
                     <span
                       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${qualityClass}`}
                     >
-                      {m.integration_quality}
+                      {m.integrationQuality}
                     </span>
                   </div>
                   <p className="text-xs text-gray-600 mb-1">{m.description}</p>
-                  {m.revision_note && (
+                  {m.revisionNote && (
                     <p className="text-xs text-indigo-600">
-                      <span className="font-medium">Revision note:</span> {m.revision_note}
+                      <span className="font-medium">Revision note:</span> {m.revisionNote}
                     </p>
                   )}
                 </div>
@@ -87,11 +86,11 @@ export default function LongformRelationshipSpineLedger({ doc, showInternalSecti
           <div className="space-y-2">
             {relationshipLayers.map((l, i) => (
               <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
-                <p className="font-medium text-gray-800 mb-0.5">{l.layer_name}</p>
+                <p className="font-medium text-gray-800 mb-0.5">{l.layerName}</p>
                 <p className="text-xs text-gray-600 mb-1">{l.function}</p>
                 <p className="text-xs text-indigo-600">
                   <span className="font-medium">Status:</span> {l.status} —{" "}
-                  {l.revision_note}
+                  {l.revisionNote}
                 </p>
               </div>
             ))}
@@ -122,10 +121,10 @@ export default function LongformRelationshipSpineLedger({ doc, showInternalSecti
                     ))}
                   </ul>
                 )}
-                {p.acceptance_check && (
+                {p.acceptanceCheck && (
                   <p className="text-xs text-emerald-700 mt-1 border-t border-indigo-200 pt-1">
                     <span className="font-medium">Acceptance check:</span>{" "}
-                    {p.acceptance_check}
+                    {p.acceptanceCheck}
                   </p>
                 )}
               </div>

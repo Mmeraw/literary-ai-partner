@@ -39,9 +39,12 @@ describe('Download ViewModel Boundary Gate — Static Guards', () => {
       expect(routeSource).toMatch(/import\s+\{[^}]*normalizeEvaluationReportViewModel[^}]*\}\s+from/);
     });
 
-    it('creates VM from certified canonicalDoc', () => {
+    it('creates VM from certified canonicalDoc via named envelope', () => {
+      // VM is built from the certified UED (canonicalDoc) through the named
+      // input envelope. DREAM is passed in as an upstream artifact for the VM
+      // to project — renderers never see it directly.
       expect(executableSource).toMatch(
-        /const\s+vm\s*=\s*normalizeEvaluationReportViewModel\(\s*canonicalDoc\s*\)/,
+        /const\s+vm\s*=\s*normalizeEvaluationReportViewModel\(\s*\{[^}]*ued:\s*canonicalDoc/,
       );
     });
 
@@ -165,10 +168,10 @@ describe('Download ViewModel Boundary Gate — Static Guards', () => {
     });
   });
 
-  describe('TEMPORARY_DREAM_RENDERER_EXCEPTION policy', () => {
-    // DREAM helper functions (getDisplayDream*, filterAuthorFacingTextList, etc.)
-    // are allowed on dream.* objects only. They must NOT be called on vm.* fields.
-    // This is visible technical debt until Phase 4b PR-2 migrates DREAM to VM.
+  describe('Long-Form Multi-Layer rendering flows through the VM only', () => {
+    // Migration complete: DREAM is now projected into
+    // vm.longFormMultiLayerEvaluation at the VM boundary. Renderers must never
+    // receive raw `dream` or call DREAM helpers on any field.
 
     it('does not call getDisplayDream* on vm.* fields', () => {
       expect(executableSource).not.toMatch(/getDisplayDream\w*\(\s*vm\b/);
@@ -182,14 +185,14 @@ describe('Download ViewModel Boundary Gate — Static Guards', () => {
       expect(executableSource).not.toMatch(/getRenumberedAuthorFacingRevisionPlan\(\s*vm\b/);
     });
 
-    it('DREAM helpers on dream.* are allowed (TEMPORARY_DREAM_RENDERER_EXCEPTION)', () => {
-      // This test documents that dream.* helper usage is intentional temporary debt.
-      // The route currently passes `dream` to VM renderers (e.g., renderTxtFromViewModel(vm, dream, ...))
-      // which is the DREAM enrichment path — acceptable until PR-2.
+    it('active renderers receive only vm — no raw dream argument', () => {
+      // Migration complete: the `dream` param was removed from the active
+      // renderers. DREAM reaches output exclusively via
+      // vm.longFormMultiLayerEvaluation, projected once at the VM boundary.
       const dreamParamCalls = executableSource.match(
-        /renderTxtFromViewModel\([^,]+,\s*dream\b|renderHtmlFromViewModel\([^,]+,\s*dream\b|renderDocxFromViewModel\([^,]+,\s*dream\b/g,
+        /renderTxtFromViewModel\([^,)]+,\s*dream\b|renderHtmlFromViewModel\([^,)]+,\s*dream\b|renderDocxFromViewModel\([^,)]+,\s*dream\b/g,
       );
-      expect(dreamParamCalls?.length).toBeGreaterThan(0);
+      expect(dreamParamCalls).toBeNull();
     });
   });
 

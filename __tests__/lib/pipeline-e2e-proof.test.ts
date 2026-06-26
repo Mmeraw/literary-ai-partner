@@ -1816,10 +1816,16 @@ describe('E2E Chain 11: Short-Form Renderer Parity — Webpage + PDF/DOCX/TXT', 
     expect(surfaces).toContain('dream');
 
     for (const entry of RENDERER_CONSUMPTION_MATRIX) {
-      expect(
-        entry.canonicalInput.includes('EvaluationReportViewModel') ||
-        entry.canonicalInput.includes('UnifiedEvaluationDocument'),
-      ).toBe(true);
+      // The four report-render surfaces consume the single renderer contract
+      // (EvaluationReportViewModel) post-migration — never a raw upstream
+      // artifact. 'dream' is the adjacent DREAM production worker, not a report
+      // renderer, so it still consumes its production inputs (evaluation_result_v2
+      // + the UED field contract).
+      if (entry.surface === 'dream') {
+        expect(entry.canonicalInput).toContain('evaluation_result_v2');
+      } else {
+        expect(entry.canonicalInput).toContain('EvaluationReportViewModel');
+      }
       expect(entry.forbiddenInputs.length).toBeGreaterThan(0);
       expect(entry.rendererMayDerive).toBe(false);
     }

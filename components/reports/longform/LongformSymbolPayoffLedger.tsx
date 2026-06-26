@@ -1,17 +1,17 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
-export default function LongformSymbolPayoffLedger({ doc }: Props) {
-  // Symbol-to-character payoff lives in symbolic_audit.preserved_symbols (lifecycle traces)
-  // and cross_layer_integration (symbol/motif entries).
-  const symbols = doc.symbolic_audit?.preserved_symbols ?? [];
-  const symbolMotifs = (doc.cross_layer_integration ?? []).filter((m) =>
+export default function LongformSymbolPayoffLedger({ vm }: Props) {
+  // Symbol-to-character payoff lives in symbolicAudit.preservedSymbols (lifecycle traces)
+  // and crossLayerIntegration (symbol/motif entries).
+  const symbols = vm.symbolicAudit?.preservedSymbols ?? [];
+  const symbolMotifs = (vm.crossLayerIntegration ?? []).filter((m) =>
     /symbol|motif|object|artifact|charm|icon|token|recurring/i.test(
       m.motif + " " + m.description
     )
   );
-  const auditConclusion = doc.symbolic_audit?.audit_conclusion;
+  const auditConclusion = vm.symbolicAudit?.auditConclusion;
 
   const hasData = symbols.length > 0 || symbolMotifs.length > 0 || auditConclusion;
 
@@ -31,11 +31,11 @@ export default function LongformSymbolPayoffLedger({ doc }: Props) {
                 <p className="font-semibold text-gray-800 mb-1">{s.symbol}</p>
                 <p className="text-xs text-gray-600 mb-2">
                   <span className="font-medium text-gray-700">Current function:</span>{" "}
-                  {s.current_function}
+                  {s.currentFunction}
                 </p>
                 <p className="text-xs text-indigo-600 border-l-2 border-indigo-200 pl-2">
                   <span className="font-medium">Revision instruction:</span>{" "}
-                  {s.revision_instruction}
+                  {s.revisionInstruction}
                 </p>
               </div>
             ))}
@@ -52,9 +52,9 @@ export default function LongformSymbolPayoffLedger({ doc }: Props) {
           <div className="space-y-2">
             {symbolMotifs.map((m, i) => {
               const qualityColor =
-                m.integration_quality === "strong"
+                m.integrationQuality === "strong"
                   ? "text-emerald-700"
-                  : m.integration_quality === "weak"
+                  : m.integrationQuality === "weak"
                   ? "text-rose-700"
                   : "text-amber-700";
               return (
@@ -62,13 +62,13 @@ export default function LongformSymbolPayoffLedger({ doc }: Props) {
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-medium text-gray-800">{m.motif}</p>
                     <span className={`text-xs font-semibold ${qualityColor}`}>
-                      {m.integration_quality}
+                      {m.integrationQuality}
                     </span>
                   </div>
                   <p className="text-xs text-gray-600 mb-1">{m.description}</p>
-                  {m.revision_note && (
+                  {m.revisionNote && (
                     <p className="text-xs text-indigo-600">
-                      <span className="font-medium">Revision note:</span> {m.revision_note}
+                      <span className="font-medium">Revision note:</span> {m.revisionNote}
                     </p>
                   )}
                 </div>

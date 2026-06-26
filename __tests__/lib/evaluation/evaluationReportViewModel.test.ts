@@ -101,7 +101,7 @@ function buildUedWithTitleBlock(titleBlockOverrides: Record<string, unknown>): U
 describe('normalizeEvaluationReportViewModel', () => {
   describe('passes through certified UED values without recomputation', () => {
     const ued = buildMinimalUed();
-    const vm = normalizeEvaluationReportViewModel(ued);
+    const vm = normalizeEvaluationReportViewModel({ ued });
 
     it('preserves report type from UED', () => {
       expect(vm.titleBlock.reportType).toBe('Short-Form Evaluation');
@@ -160,40 +160,40 @@ describe('normalizeEvaluationReportViewModel', () => {
 
   describe('derives palette classifications from certified values', () => {
     it('score palette: strong for 90+/100', () => {
-      const vm = normalizeEvaluationReportViewModel(buildUedWithTitleBlock({ overallScoreLabel: '92/100' }));
+      const vm = normalizeEvaluationReportViewModel({ ued: buildUedWithTitleBlock({ overallScoreLabel: '92/100' }) });
       expect(vm.titleBlock.overallScorePalette).toBe('strong');
     });
 
     it('score palette: watch for 80-89/100', () => {
-      const vm = normalizeEvaluationReportViewModel(buildMinimalUed());
+      const vm = normalizeEvaluationReportViewModel({ ued: buildMinimalUed() });
       expect(vm.titleBlock.overallScorePalette).toBe('watch');
     });
 
     it('score palette: risk for <80/100', () => {
-      const vm = normalizeEvaluationReportViewModel(buildUedWithTitleBlock({ overallScoreLabel: '65/100' }));
+      const vm = normalizeEvaluationReportViewModel({ ued: buildUedWithTitleBlock({ overallScoreLabel: '65/100' }) });
       expect(vm.titleBlock.overallScorePalette).toBe('risk');
     });
 
     it('score palette: strong for 9/10', () => {
-      expect(normalizeEvaluationReportViewModel(buildMinimalUed()).criteriaScoreGrid[0].scorePalette).toBe('strong');
+      expect(normalizeEvaluationReportViewModel({ ued: buildMinimalUed() }).criteriaScoreGrid[0].scorePalette).toBe('strong');
     });
 
     it('score palette: watch for 6/10', () => {
-      expect(normalizeEvaluationReportViewModel(buildMinimalUed()).criteriaScoreGrid[1].scorePalette).toBe('watch');
+      expect(normalizeEvaluationReportViewModel({ ued: buildMinimalUed() }).criteriaScoreGrid[1].scorePalette).toBe('watch');
     });
 
     it('readiness palette: ready for "Market Ready"', () => {
-      const vm = normalizeEvaluationReportViewModel(buildUedWithTitleBlock({ marketReadiness: 'Market Ready' }));
+      const vm = normalizeEvaluationReportViewModel({ ued: buildUedWithTitleBlock({ marketReadiness: 'Market Ready' }) });
       expect(vm.titleBlock.marketReadinessPalette).toBe('ready');
     });
 
     it('readiness palette: near for "Near Market Ready"', () => {
-      const vm = normalizeEvaluationReportViewModel(buildMinimalUed());
+      const vm = normalizeEvaluationReportViewModel({ ued: buildMinimalUed() });
       expect(vm.titleBlock.marketReadinessPalette).toBe('near');
     });
 
     it('readiness palette: not_ready for "Not Market Ready"', () => {
-      const vm = normalizeEvaluationReportViewModel(buildUedWithTitleBlock({ marketReadiness: 'Not Market Ready' }));
+      const vm = normalizeEvaluationReportViewModel({ ued: buildUedWithTitleBlock({ marketReadiness: 'Not Market Ready' }) });
       expect(vm.titleBlock.marketReadinessPalette).toBe('not_ready');
     });
   });
@@ -203,20 +203,20 @@ describe('normalizeEvaluationReportViewModel', () => {
   describe('long-form mode', () => {
     it('marks long-form multi-layer contract as partial', () => {
       const ued = buildMinimalUed({ templateMode: 'long_form_multi_layer_evaluation' });
-      const vm = normalizeEvaluationReportViewModel(ued);
+      const vm = normalizeEvaluationReportViewModel({ ued });
       expect(vm.templateMode).toBe('long_form_multi_layer_evaluation');
       expect(vm.contractStatus).toBe('partial');
     });
 
     it('marks short-form contract as complete', () => {
-      const vm = normalizeEvaluationReportViewModel(buildMinimalUed());
+      const vm = normalizeEvaluationReportViewModel({ ued: buildMinimalUed() });
       expect(vm.contractStatus).toBe('complete');
     });
   });
 
   describe('disclaimer', () => {
     it('includes standard RevisionGrade disclaimer', () => {
-      const vm = normalizeEvaluationReportViewModel(buildMinimalUed());
+      const vm = normalizeEvaluationReportViewModel({ ued: buildMinimalUed() });
       expect(vm.disclaimer).toContain('RevisionGrade');
       expect(vm.disclaimer).toContain('does not guarantee publication');
     });
@@ -224,7 +224,7 @@ describe('normalizeEvaluationReportViewModel', () => {
 
   describe('short-form mode contract: forbidden top-level sections', () => {
     const ued = buildMinimalUed({ templateMode: 'short_form_evaluation' });
-    const vm = normalizeEvaluationReportViewModel(ued);
+    const vm = normalizeEvaluationReportViewModel({ ued });
 
     it('VM does not expose actionItems / quickWins / strategicRevisions', () => {
       // The ViewModel must not carry these fields — they are not contract-approved
@@ -260,15 +260,15 @@ describe('normalizeEvaluationReportViewModel', () => {
 
   describe('Web/Download parity: both surfaces consume identical VM fields', () => {
     // This test proves that if both web and download route call
-    // normalizeEvaluationReportViewModel(ued), they get the SAME field values.
+    // normalizeEvaluationReportViewModel({ ued }), they get the SAME field values.
     // This is stronger than "deterministic" — it simulates two independent consumers.
     const rawUed = buildMinimalUed();
 
     // Simulate web surface consumer
-    const webVm = normalizeEvaluationReportViewModel(rawUed);
+    const webVm = normalizeEvaluationReportViewModel({ ued: rawUed });
 
     // Simulate download route consumer (same UED, independent call)
-    const downloadVm = normalizeEvaluationReportViewModel(rawUed);
+    const downloadVm = normalizeEvaluationReportViewModel({ ued: rawUed });
 
     it('score: web and download see identical value and palette', () => {
       expect(webVm.titleBlock.overallScoreLabel).toBe(downloadVm.titleBlock.overallScoreLabel);

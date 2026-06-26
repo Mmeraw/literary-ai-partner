@@ -1,7 +1,6 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
-import { getRenumberedAuthorFacingRevisionPlan } from "@/lib/evaluation/reportRenderSafety";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const PRIORITY_COLORS = [
   "border-rose-400 bg-rose-50",
@@ -11,8 +10,8 @@ const PRIORITY_COLORS = [
   "border-lime-400 bg-lime-50",
 ];
 
-export default function LongformRevisionPlan({ doc }: Props) {
-  const plan = getRenumberedAuthorFacingRevisionPlan(doc.revision_plan);
+export default function LongformRevisionPlan({ vm }: Props) {
+  const plan = vm.revisionPlan ?? [];
   if (plan.length === 0) return null;
 
   return (
@@ -40,9 +39,9 @@ export default function LongformRevisionPlan({ doc }: Props) {
                     ))}
                   </ul>
                 )}
-                {item.acceptance_check && (
+                {item.acceptanceCheck && (
                   <p className="text-xs text-indigo-700 mt-2 pt-2 border-t border-indigo-100">
-                    <span className="font-semibold">Done when:</span> {item.acceptance_check}
+                    <span className="font-semibold">Done when:</span> {item.acceptanceCheck}
                   </p>
                 )}
               </div>

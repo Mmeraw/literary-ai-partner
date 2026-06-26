@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import { projectLongFormMultiLayerEvaluation } from "@/lib/evaluation/evaluationReportViewModel";
 import {
   LongformExecutiveVerdict,
   LongformScoreGrid,
@@ -141,52 +142,55 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
   }, [dreamDoc, fetchArtifact]);
 
   // ── Synthesis ready ───────────────────────────────────────────────────────
-  if (dreamDoc) {
+  // The poller loads the raw artifact, but renderer-facing code only sees the
+  // Long-Form Multi-Layer ViewModel — never the internal DREAM document.
+  const lf = projectLongFormMultiLayerEvaluation(dreamDoc);
+  if (lf) {
     return (
       <div className="space-y-8">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Executive Verdict</h3>
-          <LongformExecutiveVerdict doc={dreamDoc} />
+          <LongformExecutiveVerdict vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Market Shelf</h3>
-          <LongformMarketShelf doc={dreamDoc} />
+          <LongformMarketShelf vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Structural Stack</h3>
-          <LongformStructuralStack doc={dreamDoc} />
+          <LongformStructuralStack vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Arc Map</h3>
-          <LongformArcMap doc={dreamDoc} />
+          <LongformArcMap vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">13-Criterion Score Grid</h3>
-          <LongformScoreGrid doc={dreamDoc} />
+          <LongformScoreGrid vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Criterion Analysis</h3>
-          <LongformCriterionAnalyses doc={dreamDoc} />
+          <LongformCriterionAnalyses vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Layer Analysis</h3>
-          <LongformLayerAnalysis doc={dreamDoc} />
+          <LongformLayerAnalysis vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Symbolic / Doctrine Audit</h3>
-          <LongformSymbolicAudit doc={dreamDoc} />
+          <LongformSymbolicAudit vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Reader Experience</h3>
-          <LongformReaderExperience doc={dreamDoc} />
+          <LongformReaderExperience vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Revision Plan</h3>
-          <LongformRevisionPlan doc={dreamDoc} />
+          <LongformRevisionPlan vm={lf} />
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Releasability</h3>
-          <LongformReleasability doc={dreamDoc} />
+          <LongformReleasability vm={lf} />
         </div>
         {/* Ledger A–F moved to "Character System" and "Craft Evidence" peer sections in page.tsx */}
       </div>
