@@ -1,6 +1,6 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 
-type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel; showInternalSections?: boolean };
 
 const VERDICT_STYLES: Record<string, string> = {
   Ready: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -9,10 +9,10 @@ const VERDICT_STYLES: Record<string, string> = {
   "Must fix": "bg-rose-100 text-rose-700 border-rose-200",
 };
 
-export default function LongformReleasability({ doc, showInternalSections = false }: Props) {
-  const rows = doc.releasability ?? [];
-  const checks = doc.acceptance_checks;
-  const integrity = doc.manuscript_integrity_issues ?? [];
+export default function LongformReleasability({ vm, showInternalSections = false }: Props) {
+  const rows = vm.releasability ?? [];
+  const checks = vm.acceptanceChecks;
+  const integrity = vm.manuscriptIntegrityIssues ?? [];
 
   if (rows.length === 0 && !checks && integrity.length === 0) return null;
 
@@ -36,7 +36,7 @@ export default function LongformReleasability({ doc, showInternalSections = fals
                   <tr key={i} className="border-b border-gray-100 align-top">
                     <td className="py-2.5 pr-4 font-medium text-gray-800">{row.dimension}</td>
                     <td className="py-2.5 pr-4 text-gray-600 text-xs leading-relaxed">
-                      {row.current_status}
+                      {row.currentStatus}
                     </td>
                     <td className="py-2.5">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${verdictClass}`}>
@@ -54,13 +54,13 @@ export default function LongformReleasability({ doc, showInternalSections = fals
       {/* Acceptance checks — INTERNAL ONLY (never shown to authors) */}
       {showInternalSections && checks && (
         <div className="grid sm:grid-cols-2 gap-4">
-          {(checks.required_detection?.length ?? 0) > 0 && (
+          {(checks.requiredDetection?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
                 Required detection <span className="text-amber-700">(internal)</span>
               </p>
               <ul className="list-none space-y-1 pl-0">
-                {checks.required_detection.map((item, i) => (
+                {checks.requiredDetection.map((item, i) => (
                   <li key={i} className="flex gap-1.5 text-xs text-gray-600">
                     <span className="shrink-0 text-gray-500">•</span>
                     <span>{item}</span>
@@ -69,13 +69,13 @@ export default function LongformReleasability({ doc, showInternalSections = fals
               </ul>
             </div>
           )}
-          {(checks.failure_conditions?.length ?? 0) > 0 && (
+          {(checks.failureConditions?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
                 Failure conditions <span className="text-amber-700">(internal)</span>
               </p>
               <ul className="list-none space-y-1 pl-0">
-                {checks.failure_conditions.map((item, i) => (
+                {checks.failureConditions.map((item, i) => (
                   <li key={i} className="flex gap-1.5 text-xs text-gray-600">
                     <span className="shrink-0 text-gray-500">•</span>
                     <span>{item}</span>

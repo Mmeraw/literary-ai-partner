@@ -1,9 +1,11 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type {
+  LongFormMultiLayerEvaluationViewModel,
+  LongFormMultiLayerCriterionAnalysisViewModel,
+} from "@/lib/evaluation/evaluationReportViewModel";
 import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
-import { getDisplayText } from "@/lib/evaluation/reportRenderSafety";
 import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
 
-type Props = { doc: LongformDreamDocument; showInternalSections?: boolean };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel; showInternalSections?: boolean };
 
 const STATUS_COLORS: Record<string, string> = {
   strong: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -12,27 +14,27 @@ const STATUS_COLORS: Record<string, string> = {
   fragile: "bg-red-100 text-red-800 border-red-200",
 };
 
-export default function LongformCharacterCoverageArcLedger({ doc, showInternalSections = false }: Props) {
-  // Character coverage is distributed across structural_stack (character layers),
-  // layer_analyses (character status), and criterion_analyses (character criterion).
-  const characterLayers = (doc.structural_stack ?? []).filter((l) =>
-    /character|protagonist|arc|pov|voice|companion|co-prot/i.test(l.layer_name)
+export default function LongformCharacterCoverageArcLedger({ vm, showInternalSections = false }: Props) {
+  // Character coverage is distributed across structuralStack (character layers),
+  // layerAnalyses (character status), and criterionAnalyses (character criterion).
+  const characterLayers = (vm.structuralStack ?? []).filter((l) =>
+    /character|protagonist|arc|pov|voice|companion|co-prot/i.test(l.layerName)
   );
-  const characterLayerAnalyses = (doc.layer_analyses ?? []).filter((l) =>
-    /character|protagonist|arc|pov|voice|companion|co-prot/i.test(l.layer_name)
+  const characterLayerAnalyses = (vm.layerAnalyses ?? []).filter((l) =>
+    /character|protagonist|arc|pov|voice|companion|co-prot/i.test(l.layerName)
   );
-  const characterCriterion = (doc.criterion_analyses ?? []).find(
+  const characterCriterion = (vm.criterionAnalyses ?? []).find(
     (c) => c.key === "character" || c.key === "character_arc" || c.key === "characterization"
   );
-  const voiceCriterion = (doc.criterion_analyses ?? []).find(
+  const voiceCriterion = (vm.criterionAnalyses ?? []).find(
     (c) => c.key === "voice" || c.key === "pov" || c.key === "voice_pov"
   );
-  const closureCriterion = (doc.criterion_analyses ?? []).find(
+  const closureCriterion = (vm.criterionAnalyses ?? []).find(
     (c) => c.key === "closure" || c.key === "narrative_closure" || c.key === "ending"
   );
 
-  const requiredDetections = doc.acceptance_checks?.required_detection ?? [];
-  const failureConditions = doc.acceptance_checks?.failure_conditions ?? [];
+  const requiredDetections = vm.acceptanceChecks?.requiredDetection ?? [];
+  const failureConditions = vm.acceptanceChecks?.failureConditions ?? [];
 
   const characterDetections = requiredDetections.filter((d) =>
     /character|protagonist|companion|arc|pov|co-prot/i.test(d)
@@ -69,7 +71,7 @@ export default function LongformCharacterCoverageArcLedger({ doc, showInternalSe
                   className="rounded-lg border border-gray-200 p-3 text-sm"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-gray-800">{layer.layer_name}</p>
+                    <p className="font-medium text-gray-800">{layer.layerName}</p>
                     <span
                       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass}`}
                     >
@@ -77,10 +79,10 @@ export default function LongformCharacterCoverageArcLedger({ doc, showInternalSe
                     </span>
                   </div>
                   <p className="text-xs text-gray-600 mb-1">{layer.function}</p>
-                  {layer.revision_note && (
+                  {layer.revisionNote && (
                     <p className="text-xs text-indigo-600">
                       <span className="font-medium">Revision note:</span>{" "}
-                      {layer.revision_note}
+                      {layer.revisionNote}
                     </p>
                   )}
                 </div>
@@ -99,12 +101,12 @@ export default function LongformCharacterCoverageArcLedger({ doc, showInternalSe
           <div className="space-y-2">
             {characterLayerAnalyses.map((l, i) => (
               <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
-                <p className="font-medium text-gray-800 mb-0.5">{l.layer_name}</p>
+                <p className="font-medium text-gray-800 mb-0.5">{l.layerName}</p>
                 <p className="text-xs text-gray-600 mb-1">
                   <span className="font-medium text-gray-700">Status:</span> {l.status}
                 </p>
                 <p className="text-xs text-indigo-600">
-                  <span className="font-medium">Needed revision:</span> {l.needed_revision}
+                  <span className="font-medium">Needed revision:</span> {l.neededRevision}
                 </p>
               </div>
             ))}
@@ -183,16 +185,7 @@ export default function LongformCharacterCoverageArcLedger({ doc, showInternalSe
 
 // ── Shared sub-component ──────────────────────────────────────────────────────
 
-type CriterionEntry = {
-  key: string;
-  score: number;
-  confidence: string;
-  fit_evidence: string[];
-  gap_evidence: string[];
-  revision_queue: string[];
-};
-
-function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
+function CriterionMiniBlock({ criterion }: { criterion: LongFormMultiLayerCriterionAnalysisViewModel }) {
   const confidenceLabel = formatCriterionConfidenceLabel(criterion.confidence, undefined);
   const confidenceClasses = confidenceLabel
     ? getConfidenceLabelClasses(confidenceLabel)
@@ -206,11 +199,11 @@ function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
           {confidenceLabel ?? `${criterion.confidence} confidence`}
         </span>
       </div>
-      {criterion.fit_evidence?.length > 0 && (
+      {criterion.fitEvidence?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-emerald-600 mb-1">Fit evidence</p>
           <ul className="list-none space-y-0.5 pl-0">
-            {criterion.fit_evidence.map((e, i) => (
+            {criterion.fitEvidence.map((e, i) => (
               <li key={i} className="flex gap-1.5 text-xs text-gray-600">
                 <span className="shrink-0 text-gray-500">•</span>
                 <span>{e}</span>
@@ -219,11 +212,11 @@ function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
           </ul>
         </div>
       )}
-      {criterion.gap_evidence?.length > 0 && (
+      {criterion.gapEvidence?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-rose-600 mb-1">Gap evidence</p>
           <ul className="list-none space-y-0.5 pl-0">
-            {criterion.gap_evidence.map((e, i) => (
+            {criterion.gapEvidence.map((e, i) => (
               <li key={i} className="flex gap-1.5 text-xs text-gray-600">
                 <span className="shrink-0 text-gray-500">•</span>
                 <span>{e}</span>
@@ -232,14 +225,14 @@ function CriterionMiniBlock({ criterion }: { criterion: CriterionEntry }) {
           </ul>
         </div>
       )}
-      {criterion.revision_queue?.length > 0 && (
+      {criterion.revisionQueue?.length > 0 && (
         <div>
           <p className="text-xs font-medium text-indigo-600 mb-1">Revision queue</p>
           <ul className="list-none space-y-0.5 pl-0">
-            {criterion.revision_queue.map((r, i) => (
+            {criterion.revisionQueue.map((r, i) => (
               <li key={i} className="flex gap-1.5 text-xs text-gray-700">
                 <span className="shrink-0 text-gray-500">{i + 1}.</span>
-                <span>{r}</span>
+                <span>{r.displayText}</span>
               </li>
             ))}
           </ul>

@@ -115,7 +115,7 @@ async function runFieldLineageAudit(params: {
     displayTitle: params.displayTitle,
     mode: params.mode,
   });
-  const vm = normalizeEvaluationReportViewModel(doc);
+  const vm = normalizeEvaluationReportViewModel({ ued: doc });
   const txt = testing.renderTxtFromViewModel(vm, null, 'job-audit');
   const html = testing.renderHtmlFromViewModel(vm, null, 'job-audit');
   const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-audit');

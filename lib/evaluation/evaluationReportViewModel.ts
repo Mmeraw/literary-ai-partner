@@ -34,9 +34,12 @@
  */
 
 import type { UnifiedEvaluationDocument, CanonicalEvaluationMode } from '@/lib/evaluation/unifiedEvaluationDocument';
-import { correctScopeLanguage, mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
+import { correctScopeLanguage, mistakeProofText, getRenumberedAuthorFacingRevisionPlan, filterAuthorFacingTextList, getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety';
 import type { EvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 import { getEvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
+import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
+import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
+import type { EvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
 
 // ────────────────────────────────────────────────────────────────────────────
 // ViewModel Types
@@ -108,6 +111,189 @@ export type CriterionDetailViewModel = {
   }>;
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+// Long-Form Multi-Layer Evaluation ViewModel
+// ────────────────────────────────────────────────────────────────────────────
+// Proper renderer contract — renderers never see LongformDreamDocument.
+// All fields are camelCase, pre-sanitized, and author-facing.
+
+export type LongFormMultiLayerScoresViewModel = {
+  quality: number | null;
+  readiness: number | null;
+  commercial: number | null;
+  literary: number | null;
+};
+
+export type LongFormMultiLayerMarketShelfViewModel = {
+  bestShelf: string | null;
+  shelfNeighbors: string[];
+  comparisonSpace: string[];
+  marketableHook: string | null;
+  marketDanger: string | null;
+};
+
+export type LongFormMultiLayerStructuralLayerViewModel = {
+  layerName: string;
+  function: string;
+  status: string;
+  revisionNote: string;
+};
+
+export type LongFormMultiLayerArcEntryViewModel = {
+  actName: string;
+  chapterRange: string;
+  primaryFunction: string;
+  revisionPriority: string;
+};
+
+export type LongFormMultiLayerRevisionQueueItemViewModel = {
+  displayText: string;
+  location: string | null;
+  operation: string | null;
+  recommendation: string;
+};
+
+export type LongFormMultiLayerCriterionAnalysisViewModel = {
+  key: string;
+  displayLabel: string;
+  score: number;
+  confidence: string;
+  fitEvidence: string[];
+  gapEvidence: string[];
+  revisionQueue: LongFormMultiLayerRevisionQueueItemViewModel[];
+};
+
+export type LongFormMultiLayerLayerAnalysisViewModel = {
+  layerName: string;
+  status: string;
+  neededRevision: string;
+};
+
+export type LongFormMultiLayerCrossLayerEntryViewModel = {
+  motif: string;
+  description: string;
+  integrationQuality: string;
+  revisionNote: string;
+};
+
+export type LongFormMultiLayerSymbolicAuditViewModel = {
+  preservedSymbols: Array<{
+    symbol: string;
+    currentFunction: string;
+    revisionInstruction: string;
+  }>;
+  doctrineStrengths: string[];
+  doctrineRisks: string[];
+  auditConclusion: string;
+};
+
+export type LongFormMultiLayerReaderExperienceActViewModel = {
+  readerQuestion: string;
+  emotionalState: string;
+  risk: string;
+};
+
+export type LongFormMultiLayerReaderExperienceViewModel = {
+  firstAct: LongFormMultiLayerReaderExperienceActViewModel | null;
+  middle: LongFormMultiLayerReaderExperienceActViewModel | null;
+  finalAct: LongFormMultiLayerReaderExperienceActViewModel | null;
+  aftertaste: string;
+};
+
+export type LongFormMultiLayerRevisionPlanItemViewModel = {
+  displayPriority: number;
+  title: string;
+  goal: string;
+  actions: string[];
+  acceptanceCheck: string;
+};
+
+export type LongFormMultiLayerReleasabilityViewModel = {
+  dimension: string;
+  currentStatus: string;
+  verdict: string;
+};
+
+export type LongFormMultiLayerAcceptanceChecksViewModel = {
+  requiredDetection: string[];
+  failureConditions: string[];
+};
+
+export type LongFormMultiLayerRepoSummaryViewModel = {
+  benchmarkName: string;
+  source: string;
+  evaluationType: string;
+  overallScore: number;
+  readinessScore: number;
+  primaryStrengths: string[];
+  primaryBlockers: string[];
+  goldStandardRequirement: string;
+};
+
+export type LongFormMultiLayerIntegrityIssueViewModel = {
+  kind: string;
+  description: string;
+  severity: string;
+};
+
+export type LongFormMultiLayerEvaluationViewModel = {
+  executiveVerdict: string;
+  scores: LongFormMultiLayerScoresViewModel;
+  marketShelf: LongFormMultiLayerMarketShelfViewModel;
+  whatNotToBecome: string[];
+  structuralStack: LongFormMultiLayerStructuralLayerViewModel[];
+  arcMap: LongFormMultiLayerArcEntryViewModel[];
+  criterionAnalyses: LongFormMultiLayerCriterionAnalysisViewModel[];
+  layerAnalyses: LongFormMultiLayerLayerAnalysisViewModel[];
+  crossLayerIntegration: LongFormMultiLayerCrossLayerEntryViewModel[];
+  symbolicAudit: LongFormMultiLayerSymbolicAuditViewModel | null;
+  readerExperience: LongFormMultiLayerReaderExperienceViewModel | null;
+  revisionPlan: LongFormMultiLayerRevisionPlanItemViewModel[];
+  releasability: LongFormMultiLayerReleasabilityViewModel[];
+  acceptanceChecks: LongFormMultiLayerAcceptanceChecksViewModel | null;
+  calibrationNotes: string[];
+  repoSummary: LongFormMultiLayerRepoSummaryViewModel | null;
+  manuscriptIntegrityIssues: LongFormMultiLayerIntegrityIssueViewModel[];
+};
+
+/**
+ * Renderer-facing projection of the technical/support diagnostic block.
+ * Admin/support viewers see this; like every other rendered surface it must
+ * be pre-formatted at the VM boundary, never read from raw result fields.
+ */
+export type SupportMetadataViewModel = {
+  model: string;
+  confidenceLabel: string;
+  wordCount: string;
+  processingTime: string | null;
+};
+
+/**
+ * Raw support-diagnostic inputs sourced from the internal evaluation_result.
+ * The VM owns all formatting; renderers never read these raw values directly.
+ */
+export type SupportMetadataInput = {
+  model?: unknown;
+  confidence?: unknown;
+  wordCount?: unknown;
+  processingMs?: unknown;
+};
+
+export type GovernanceWarningInput = {
+  governance?: {
+    confidence_label?: 'high' | 'medium' | 'low' | 'withheld';
+    warnings?: string[];
+    transparency?: {
+      artifact_validation_result?: 'PASS' | 'HOLD' | 'FAIL';
+      propagation_summary?: {
+        upstream_integrity?: 'strong' | 'mixed' | 'weak';
+        authority_level?: 'normal' | 'constrained' | 'blocked';
+      };
+      [key: string]: unknown;
+    };
+  };
+};
+
 export type EvaluationReportViewModel = {
   // Identity
   templateMode: CanonicalEvaluationMode;
@@ -158,6 +344,15 @@ export type EvaluationReportViewModel = {
     readinessReleasabilityPosture: string;
   };
 
+  // Long-Form Multi-Layer Evaluation (DREAM projection — renderer contract)
+  longFormMultiLayerEvaluation: LongFormMultiLayerEvaluationViewModel | null;
+
+  // Integrity banner (governance projection)
+  integrityBanner: EvaluationIntegrityBanner | null;
+
+  // Support/technical diagnostic block (admin-gated render surface)
+  supportMetadata: SupportMetadataViewModel | null;
+
   // Disclaimer
   disclaimer: string;
 };
@@ -201,6 +396,41 @@ function sanitizeList(items: string[], isLongForm: boolean): string[] {
 }
 
 /**
+ * Project a raw revision-queue item into structured renderer-ready fields.
+ *
+ * Internal markers ([LOCATION: …] [OPERATION: …]) are parsed while the raw
+ * DREAM text is still available. The VM exposes location, operation, and
+ * recommendation as discrete fields — renderers format from those, never
+ * parsing bracket syntax.
+ */
+function projectRevisionQueueItem(raw: string, isLongForm: boolean): LongFormMultiLayerRevisionQueueItemViewModel {
+  const locationMatch = raw.match(/\[LOCATION:\s*([^\]]*)\]/i);
+  const operationMatch = raw.match(/\[OPERATION:\s*([^\]]*)\]/i);
+  const recommendation = sanitizeText(raw, isLongForm);
+
+  const location = locationMatch ? locationMatch[1].trim() : null;
+  const operation = operationMatch
+    ? operationMatch[1].trim().charAt(0).toUpperCase() + operationMatch[1].trim().slice(1)
+    : null;
+
+  const parts: string[] = [];
+  if (location) parts.push(`Location: ${location}`);
+  if (operation) parts.push(`Operation: ${operation}`);
+  if (recommendation) parts.push(`Recommendation: ${recommendation}`);
+
+  return {
+    displayText: parts.length > 0 && (location || operation) ? parts.join(' | ') : recommendation,
+    location,
+    operation,
+    recommendation,
+  };
+}
+
+function projectRevisionQueueList(items: string[], isLongForm: boolean): LongFormMultiLayerRevisionQueueItemViewModel[] {
+  return items.map(item => projectRevisionQueueItem(item, isLongForm));
+}
+
+/**
  * Normalize a UnifiedEvaluationDocument into a renderer-ready ViewModel.
  *
  * All business logic is applied here. Renderers receive pre-computed values
@@ -209,9 +439,17 @@ function sanitizeList(items: string[], isLongForm: boolean): string[] {
  * The webpage and download route should both call this once, then render
  * vm.* fields directly with no additional correction layers.
  */
-export function normalizeEvaluationReportViewModel(
-  ued: UnifiedEvaluationDocument,
-): EvaluationReportViewModel {
+export function normalizeEvaluationReportViewModel({
+  ued,
+  dreamDoc,
+  governance,
+  supportMetadata,
+}: {
+  ued: UnifiedEvaluationDocument;
+  dreamDoc?: unknown | null;
+  governance?: GovernanceWarningInput;
+  supportMetadata?: SupportMetadataInput | null;
+}): EvaluationReportViewModel {
   const mode = ued.templateMode;
   const contract = getEvaluationContract(mode);
   const isLongForm = mode !== 'short_form_evaluation';
@@ -319,6 +557,205 @@ export function normalizeEvaluationReportViewModel(
       readinessReleasabilityPosture: sanitizeText(ued.modeSpecific.readinessReleasabilityPosture, isLongForm),
     } : undefined,
 
+    longFormMultiLayerEvaluation: normalizeLongFormMultiLayer(
+      (dreamDoc && typeof dreamDoc === 'object' ? dreamDoc as LongformDreamDocument : null),
+      isLongForm,
+    ),
+    integrityBanner: governance ? classifyEvaluationIntegrityBanner(governance) : null,
+
+    supportMetadata: supportMetadata ? projectSupportMetadata(supportMetadata) : null,
+
     disclaimer: DISCLAIMER,
   };
+}
+
+function projectSupportMetadata(input: SupportMetadataInput): SupportMetadataViewModel {
+  const model = typeof input.model === 'string' && input.model.trim()
+    ? input.model.trim()
+    : 'Not available';
+
+  const confidenceLabel = typeof input.confidence === 'number' && Number.isFinite(input.confidence)
+    ? `${(input.confidence * 100).toFixed(0)}%`
+    : 'Not available';
+
+  const wordCount = typeof input.wordCount === 'number' && Number.isFinite(input.wordCount)
+    ? input.wordCount.toLocaleString()
+    : 'N/A';
+
+  const processingTime = typeof input.processingMs === 'number' && Number.isFinite(input.processingMs)
+    ? `${(input.processingMs / 1000).toFixed(1)}s`
+    : null;
+
+  return { model, confidenceLabel, wordCount, processingTime };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Long-Form Multi-Layer Evaluation normalization
+// ────────────────────────────────────────────────────────────────────────────
+// Transforms internal LongformDreamDocument into renderer-facing
+// LongFormMultiLayerEvaluationViewModel. All sanitization applied here;
+// renderers receive pre-computed values only.
+
+function normalizeLongFormMultiLayer(
+  doc: LongformDreamDocument | null,
+  isLongForm: boolean,
+): LongFormMultiLayerEvaluationViewModel | null {
+  if (!doc) return null;
+
+  const s = (text: string) => sanitizeText(text, isLongForm);
+  const sl = (items: string[]) => sanitizeList(items, isLongForm);
+
+  const scores: LongFormMultiLayerScoresViewModel = {
+    quality: doc.dream_scores?.quality ?? null,
+    readiness: doc.dream_scores?.readiness ?? null,
+    commercial: doc.dream_scores?.commercial ?? null,
+    literary: doc.dream_scores?.literary ?? null,
+  };
+
+  const marketShelf: LongFormMultiLayerMarketShelfViewModel = {
+    bestShelf: doc.market_shelf?.best_shelf ? s(doc.market_shelf.best_shelf) : null,
+    shelfNeighbors: sl(doc.market_shelf?.shelf_neighbors ?? []),
+    comparisonSpace: sl(doc.market_shelf?.comparison_space ?? []),
+    marketableHook: doc.market_shelf?.marketable_hook ? s(doc.market_shelf.marketable_hook) : null,
+    marketDanger: doc.market_shelf?.market_danger ? s(doc.market_shelf.market_danger) : null,
+  };
+
+  const structuralStack: LongFormMultiLayerStructuralLayerViewModel[] = (doc.structural_stack ?? []).map(layer => ({
+    layerName: s(layer.layer_name),
+    function: s(layer.function),
+    status: layer.status,
+    revisionNote: s(layer.revision_note),
+  }));
+
+  const arcMap: LongFormMultiLayerArcEntryViewModel[] = (doc.arc_map ?? []).map(act => ({
+    actName: s(act.act_name),
+    chapterRange: s(act.chapter_range),
+    primaryFunction: s(act.primary_function),
+    revisionPriority: s(act.revision_priority),
+  }));
+
+  const criterionAnalyses: LongFormMultiLayerCriterionAnalysisViewModel[] = (doc.criterion_analyses ?? []).map(c => ({
+    key: c.key,
+    displayLabel: getCriterionDisplayLabel(s(c.key)),
+    score: c.score,
+    confidence: s(c.confidence),
+    fitEvidence: sl(c.fit_evidence ?? []),
+    gapEvidence: sl(c.gap_evidence ?? []),
+    revisionQueue: projectRevisionQueueList(c.revision_queue ?? [], isLongForm),
+  }));
+
+  const layerAnalyses: LongFormMultiLayerLayerAnalysisViewModel[] = (doc.layer_analyses ?? []).map(l => ({
+    layerName: s(l.layer_name),
+    status: l.status,
+    neededRevision: s(l.needed_revision),
+  }));
+
+  const crossLayerIntegration: LongFormMultiLayerCrossLayerEntryViewModel[] = (doc.cross_layer_integration ?? []).map(c => ({
+    motif: s(c.motif),
+    description: s(c.description),
+    integrationQuality: c.integration_quality,
+    revisionNote: s(c.revision_note),
+  }));
+
+  const symbolicAudit: LongFormMultiLayerSymbolicAuditViewModel | null = doc.symbolic_audit ? {
+    preservedSymbols: (doc.symbolic_audit.preserved_symbols ?? []).map(ps => ({
+      symbol: s(ps.symbol),
+      currentFunction: s(ps.current_function),
+      revisionInstruction: s(ps.revision_instruction),
+    })),
+    doctrineStrengths: sl(doc.symbolic_audit.doctrine_strengths ?? []),
+    doctrineRisks: sl(doc.symbolic_audit.doctrine_risks ?? []),
+    auditConclusion: s(doc.symbolic_audit.audit_conclusion ?? ''),
+  } : null;
+
+  const readerExperience: LongFormMultiLayerReaderExperienceViewModel | null = doc.reader_experience ? {
+    firstAct: doc.reader_experience.first_act ? {
+      readerQuestion: s(doc.reader_experience.first_act.reader_question ?? ''),
+      emotionalState: s(doc.reader_experience.first_act.emotional_state ?? ''),
+      risk: s(doc.reader_experience.first_act.risk ?? ''),
+    } : null,
+    middle: doc.reader_experience.middle ? {
+      readerQuestion: s(doc.reader_experience.middle.reader_question ?? ''),
+      emotionalState: s(doc.reader_experience.middle.emotional_state ?? ''),
+      risk: s(doc.reader_experience.middle.risk ?? ''),
+    } : null,
+    finalAct: doc.reader_experience.final_act ? {
+      readerQuestion: s(doc.reader_experience.final_act.reader_question ?? ''),
+      emotionalState: s(doc.reader_experience.final_act.emotional_state ?? ''),
+      risk: s(doc.reader_experience.final_act.risk ?? ''),
+    } : null,
+    aftertaste: s(doc.reader_experience.aftertaste ?? ''),
+  } : null;
+
+  const revisionPlan: LongFormMultiLayerRevisionPlanItemViewModel[] =
+    getRenumberedAuthorFacingRevisionPlan(doc.revision_plan).map(item => ({
+      displayPriority: item.displayPriority,
+      title: s(item.title),
+      goal: s(item.goal),
+      actions: sl(item.actions),
+      acceptanceCheck: s(item.acceptance_check),
+    }));
+
+  const releasability: LongFormMultiLayerReleasabilityViewModel[] = (doc.releasability ?? []).map(dim => ({
+    dimension: s(dim.dimension),
+    currentStatus: s(dim.current_status),
+    verdict: dim.verdict,
+  }));
+
+  const acceptanceChecks: LongFormMultiLayerAcceptanceChecksViewModel | null = doc.acceptance_checks ? {
+    requiredDetection: filterAuthorFacingTextList(doc.acceptance_checks.required_detection ?? []),
+    failureConditions: filterAuthorFacingTextList(doc.acceptance_checks.failure_conditions ?? []),
+  } : null;
+
+  const repoSummary: LongFormMultiLayerRepoSummaryViewModel | null = doc.repo_summary ? {
+    benchmarkName: s(doc.repo_summary.benchmark_name ?? ''),
+    source: s(doc.repo_summary.source ?? ''),
+    evaluationType: s(doc.repo_summary.evaluation_type ?? ''),
+    overallScore: doc.repo_summary.overall_score ?? 0,
+    readinessScore: doc.repo_summary.readiness_score ?? 0,
+    primaryStrengths: sl(doc.repo_summary.primary_strengths ?? []),
+    primaryBlockers: sl(doc.repo_summary.primary_blockers ?? []),
+    goldStandardRequirement: s(doc.repo_summary.gold_standard_requirement ?? ''),
+  } : null;
+
+  const manuscriptIntegrityIssues: LongFormMultiLayerIntegrityIssueViewModel[] = (doc.manuscript_integrity_issues ?? []).map(issue => ({
+    kind: issue.kind,
+    description: s(issue.description),
+    severity: issue.severity,
+  }));
+
+  return {
+    executiveVerdict: s(doc.executive_verdict ?? ''),
+    scores,
+    marketShelf,
+    whatNotToBecome: sl(doc.what_not_to_become ?? []),
+    structuralStack,
+    arcMap,
+    criterionAnalyses,
+    layerAnalyses,
+    crossLayerIntegration,
+    symbolicAudit,
+    readerExperience,
+    revisionPlan,
+    releasability,
+    acceptanceChecks,
+    calibrationNotes: sl(doc.calibration_notes ?? []),
+    repoSummary,
+    manuscriptIntegrityIssues,
+  };
+}
+
+/**
+ * Public projection helper — converts a raw long-form (DREAM) artifact into the
+ * renderer-facing LongFormMultiLayerEvaluationViewModel. Used by client surfaces
+ * (e.g. SynthesisPoller) that fetch the longform_document_v1 artifact directly
+ * and must render it without ever exposing LongformDreamDocument to the renderer.
+ * The longform artifact is always a long-form evaluation, so long-form scope
+ * sanitization is applied.
+ */
+export function projectLongFormMultiLayerEvaluation(
+  dreamDoc: unknown | null,
+): LongFormMultiLayerEvaluationViewModel | null {
+  const doc = dreamDoc && typeof dreamDoc === 'object' ? (dreamDoc as LongformDreamDocument) : null;
+  return normalizeLongFormMultiLayer(doc, true);
 }

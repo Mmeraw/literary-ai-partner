@@ -1,42 +1,41 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
-import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
 import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
-export default function LongformSensoryEmotionalRegister({ doc }: Props) {
+export default function LongformSensoryEmotionalRegister({ vm }: Props) {
   // Sensory/emotional register surfaces through:
-  // - cross_layer_integration (sensory/emotional system motifs)
-  // - symbolic_audit.doctrine_strengths / doctrine_risks (sensory governance)
-  // - reader_experience (emotional state, aftertaste, register language)
-  // - criterion_analyses for tone, prose, worldbuilding
+  // - crossLayerIntegration (sensory/emotional system motifs)
+  // - symbolicAudit.doctrineStrengths / doctrineRisks (sensory governance)
+  // - readerExperience (emotional state, aftertaste, register language)
+  // - criterionAnalyses for tone, prose, worldbuilding
 
-  const sensoryMotifs = (doc.cross_layer_integration ?? []).filter((m) =>
+  const sensoryMotifs = (vm.crossLayerIntegration ?? []).filter((m) =>
     /sensor|sound|music|smell|taste|touch|light|silence|dread|tender|obedien|trauma|belong|disorienta|register|atmosphere|conditi|punishment|emotional/i.test(
       m.motif + " " + m.description
     )
   );
 
   const doctrineSensory = [
-    ...(doc.symbolic_audit?.doctrine_strengths ?? []).filter((s) =>
+    ...(vm.symbolicAudit?.doctrineStrengths ?? []).filter((s) =>
       /sensor|sound|music|smell|taste|touch|light|silence|emotional|register|atmosphere/i.test(s)
     ),
   ];
   const doctureRiskSensory = [
-    ...(doc.symbolic_audit?.doctrine_risks ?? []).filter((r) =>
+    ...(vm.symbolicAudit?.doctrineRisks ?? []).filter((r) =>
       /sensor|sound|music|smell|taste|touch|light|silence|emotional|register|atmosphere/i.test(r)
     ),
   ];
 
-  const toneOrProseCriteria = (doc.criterion_analyses ?? []).filter((c) =>
+  const toneOrProseCriteria = (vm.criterionAnalyses ?? []).filter((c) =>
     /tone|prose|style|voice|world|atmosphere/i.test(c.key)
   );
 
-  const rx = doc.reader_experience;
-  const firstActEmotional = rx?.first_act?.emotional_state;
-  const middleEmotional = rx?.middle?.emotional_state;
-  const finalEmotional = rx?.final_act?.emotional_state;
+  const rx = vm.readerExperience;
+  const firstActEmotional = rx?.firstAct?.emotionalState;
+  const middleEmotional = rx?.middle?.emotionalState;
+  const finalEmotional = rx?.finalAct?.emotionalState;
   const aftertaste = rx?.aftertaste;
 
   const hasData =
@@ -60,9 +59,9 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
           <div className="space-y-2">
             {sensoryMotifs.map((m, i) => {
               const qualityColor =
-                m.integration_quality === "strong"
+                m.integrationQuality === "strong"
                   ? "text-emerald-700"
-                  : m.integration_quality === "weak"
+                  : m.integrationQuality === "weak"
                   ? "text-rose-700"
                   : "text-amber-700";
               return (
@@ -70,13 +69,13 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-medium text-gray-800">{m.motif}</p>
                     <span className={`text-xs font-semibold ${qualityColor}`}>
-                      {m.integration_quality}
+                      {m.integrationQuality}
                     </span>
                   </div>
                   <p className="text-xs text-gray-600 mb-1">{m.description}</p>
-                  {m.revision_note && (
+                  {m.revisionNote && (
                     <p className="text-xs text-indigo-600">
-                      <span className="font-medium">Revision note:</span> {m.revision_note}
+                      <span className="font-medium">Revision note:</span> {m.revisionNote}
                     </p>
                   )}
                 </div>
@@ -171,22 +170,22 @@ export default function LongformSensoryEmotionalRegister({ doc }: Props) {
               return (
                 <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="font-semibold text-gray-800">{getCriterionDisplayLabel(c.key)}</span>
+                    <span className="font-semibold text-gray-800">{c.displayLabel}</span>
                     <span className="text-lg font-bold text-indigo-700">{formatScoreFractionForDisplay(c.score, 10)}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${confidenceClasses}`}>
                       {confidenceLabel ?? c.confidence}
                     </span>
                   </div>
-                  {c.fit_evidence?.length > 0 && (
+                  {c.fitEvidence?.length > 0 && (
                     <p className="text-xs text-gray-600">
                       <span className="font-medium text-emerald-600">Fit: </span>
-                      {c.fit_evidence[0]}
+                      {c.fitEvidence[0]}
                     </p>
                   )}
-                  {c.gap_evidence?.length > 0 && (
+                  {c.gapEvidence?.length > 0 && (
                     <p className="text-xs text-gray-600 mt-0.5">
                       <span className="font-medium text-rose-600">Gap: </span>
-                      {c.gap_evidence[0]}
+                      {c.gapEvidence[0]}
                     </p>
                   )}
                 </div>

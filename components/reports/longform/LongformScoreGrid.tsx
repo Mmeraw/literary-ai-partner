@@ -1,8 +1,7 @@
-import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
-import { getCriterionDisplayLabel } from "@/lib/evaluation/reportRenderSafety";
+import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
-type Props = { doc: LongformDreamDocument };
+type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const CONFIDENCE_BADGE: Record<string, string> = {
   High: "bg-emerald-100 text-emerald-700",
@@ -41,8 +40,8 @@ function scoreBar(score: number | null) {
   );
 }
 
-export default function LongformScoreGrid({ doc }: Props) {
-  const analyses = doc.criterion_analyses ?? [];
+export default function LongformScoreGrid({ vm }: Props) {
+  const analyses = vm.criterionAnalyses ?? [];
   if (analyses.length === 0) return null;
 
   return (
@@ -59,11 +58,11 @@ export default function LongformScoreGrid({ doc }: Props) {
         <tbody>
           {analyses.map((a, i) => {
             const badge = CONFIDENCE_BADGE[a.confidence] ?? "bg-gray-100 text-gray-600";
-            const summary = a.fit_evidence?.[0] ?? "—";
+            const summary = a.fitEvidence?.[0] ?? "—";
             return (
               <tr key={i} className="border-b border-gray-100 align-top">
                 <td className="py-2.5 pr-4 font-medium text-gray-800">
-                  {getCriterionDisplayLabel(a.key)}
+                  {a.displayLabel}
                 </td>
                 <td className="py-2.5 pr-6">{scoreBar(a.score)}</td>
                 <td className="py-2.5 pr-4">
