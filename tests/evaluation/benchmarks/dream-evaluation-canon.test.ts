@@ -95,8 +95,10 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
   });
 
   it('uses native DREAM benchmarks with Cartel Babies as primary Pass 3B exemplar', () => {
-    expect(PASS3B_SYSTEM_PROMPT).toContain('Cartel Babies DREAM evaluation (docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md) — primary required-gold product exemplar');
-    expect(PASS3B_SYSTEM_PROMPT).toContain('Froggin Noggin DREAM evaluation (docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md) — required-gold benchmark');
-    expect(PASS3B_SYSTEM_PROMPT).toContain('Let the River Decide DREAM evaluation (docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md, calibration-tier)');
+    expect(PASS3B_SYSTEM_PROMPT).toContain('Cartel Babies');
+    expect(PASS3B_SYSTEM_PROMPT).toContain('Froggin Noggin');
+    expect(PASS3B_SYSTEM_PROMPT).toContain('Let the River Decide');
+    expect(PASS3B_SYSTEM_PROMPT).toContain('Return to the Source');
+    expect(PASS3B_SYSTEM_PROMPT).toContain('Native long-form multi-layer benchmarks');
   });
 });

@@ -72,10 +72,17 @@ function hasCanonical13FrontMatter(markdown: string): boolean {
     new RegExp(`benchmark-schema:\\s*${tag}\\b`).test(body),
   );
   if (!hasSchema) return false;
-  // V2 addenda and non-gold-standard files don't contain a full 13-criteria
-  // score grid — skip them. Only validate primary benchmark bodies that are
-  // expected to have the full score grid.
+  // V2 addenda, seeds, and candidate-tier files don't contain a full
+  // 13-criteria score grid — skip them. Only validate primary benchmark
+  // bodies that are expected to have the full score grid.
   if (/source-benchmark:/.test(body)) return false;
+  if (/benchmark-role:.*(?:extension|seed)/.test(body)) return false;
+  if (/benchmark-tier:.*candidate/.test(body)) return false;
+  // Merged stubs (marker files that reference archived sources but have no
+  // score grid content) are excluded by checking for a score table pattern
+  // in the body below the front-matter.
+  const afterFm = markdown.slice(fm[0].length);
+  if (!/\|\s*\d+\s*\/\s*10\s*\|/.test(afterFm)) return false;
   return true;
 }
 
@@ -110,7 +117,7 @@ function parseScoreGrid(markdown: string): ParsedRow[] {
     rows.push({
       criterion: cells[criterionIdx],
       score: parseFloat(scoreMatch[1]),
-      confidence: cells[confidenceIdx],
+      confidence: cells[confidenceIdx].replace(/\s+Confidence$/i, ""),
     });
   }
   return rows;

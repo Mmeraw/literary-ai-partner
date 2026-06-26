@@ -27,9 +27,9 @@ describe("Flow 1 artifact type contract", () => {
 
   it("writeArtifact module exports no competing final artifact types", () => {
     const keys = Object.keys(ARTIFACT_TYPES);
-    // There should be exactly one artifact type constant today.
+    // Each canonical artifact type constant must be listed here.
     // If a new type is added, this test forces an explicit decision.
-    expect(keys).toEqual(["ONE_PAGE_SUMMARY"]);
+    expect(keys).toEqual(["ONE_PAGE_SUMMARY", "FINAL_EXTERNAL_AUDIT"]);
   });
 
   it("phase2.ts uses ARTIFACT_TYPES constant (not a raw string)", () => {

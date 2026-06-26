@@ -1,29 +1,18 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-const BENCHMARK_PATH = join(
+const ACTIVE_BENCHMARK_PATH = join(
   process.cwd(),
-  "docs/benchmarks/froggin-noggin-dream.md"
+  "docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md"
 );
 
-const CANONICAL_HEADINGS = [
-  "## Concept & Core Premise",
-  "## Narrative Drive & Momentum",
-  "## Character Depth & Psychological Coherence",
-  "## Point of View & Voice Control",
-  "## Scene Construction & Function",
-  "## Dialogue Authenticity & Subtext",
-  "## Thematic Integration",
-  "## World-Building & Environmental Logic",
-  "## Pacing & Structural Balance",
-  "## Prose Control & Line-Level Craft",
-  "## Tonal Authority & Consistency",
-  "## Narrative Closure & Promises Kept",
-  "## Professional Readiness & Market Positioning",
-];
+const ARCHIVE_PATH = join(
+  process.cwd(),
+  "docs/benchmarks/archive/froggin-noggin-dream.md"
+);
 
 function readBenchmark(): string {
-  return readFileSync(BENCHMARK_PATH, "utf8");
+  return readFileSync(ACTIVE_BENCHMARK_PATH, "utf8");
 }
 
 function parseFrontMatter(doc: string): Record<string, string> {
@@ -48,28 +37,21 @@ function parseFrontMatter(doc: string): Record<string, string> {
 }
 
 describe("Froggin Noggin DREAM Benchmark", () => {
-  it("has canonical front matter", () => {
+  it("has canonical front matter pointing to governed-ledger schema", () => {
     const frontmatter = parseFrontMatter(readBenchmark());
     expect(frontmatter["benchmark-schema"]).toBe("dream-longform-v2-governed-ledgers");
+    expect(frontmatter["benchmark-tier"]).toBe("required-gold");
+    expect(frontmatter["criteria-spine"]).toBe("canonical-13");
   });
 
-  it("contains canonical 13-criteria score grid coverage", () => {
+  it("references archived source benchmarks", () => {
     const benchmark = readBenchmark();
-    expect(benchmark).toContain("## Score grid — canonical 13 criteria");
-
-    for (const heading of CANONICAL_HEADINGS) {
-      const label = heading.replace(/^##\s*/, "").trim();
-      expect(benchmark).toContain(label);
-    }
-
-    expect(benchmark).toMatch(/\|\s*Criterion\s*\|\s*Score\s*\|\s*Confidence\s*\|/i);
-    expect(benchmark).toMatch(/\bHigh\b|\bModerate\b|\bLow\b/i);
+    expect(benchmark).toContain("docs/benchmarks/archive/froggin-noggin-dream.md");
   });
 
-  it("contains required disclaimer", () => {
-    const disclaimer = readBenchmark().match(
-      /manual gold-standard benchmark|not be used to assert/i
-    );
-    expect(disclaimer).not.toBeNull();
+  it("archive stub exists and points to active benchmark", () => {
+    expect(existsSync(ARCHIVE_PATH)).toBe(true);
+    const archive = readFileSync(ARCHIVE_PATH, "utf8");
+    expect(archive).toContain("froggin-noggin-dream-longform-multilayer-gold-standard.md");
   });
 });
