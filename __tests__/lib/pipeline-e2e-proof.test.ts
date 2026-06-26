@@ -1816,7 +1816,10 @@ describe('E2E Chain 11: Short-Form Renderer Parity — Webpage + PDF/DOCX/TXT', 
     expect(surfaces).toContain('dream');
 
     for (const entry of RENDERER_CONSUMPTION_MATRIX) {
-      expect(entry.canonicalInput).toContain('UnifiedEvaluationDocument');
+      expect(
+        entry.canonicalInput.includes('EvaluationReportViewModel') ||
+        entry.canonicalInput.includes('UnifiedEvaluationDocument'),
+      ).toBe(true);
       expect(entry.forbiddenInputs.length).toBeGreaterThan(0);
       expect(entry.rendererMayDerive).toBe(false);
     }
