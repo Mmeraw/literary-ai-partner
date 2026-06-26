@@ -50,6 +50,8 @@ This file is the unified repo authority for *Cartel Babies* under the Long-Form 
 
 This file supersedes the old two-file benchmark arrangement. The original manual benchmark's editorial findings remain preserved where still accurate, but the governed-ledger obligations and current manuscript observations in this unified file control benchmark interpretation.
 
+This is a manual gold-standard benchmark and should not be used to assert production output equivalence.
+
 The current uploaded manuscript differs from the older benchmark snapshot. The prior benchmark reported an exact duplicate Chapter 4 / Chapter 16 *Canvas Morning* issue. In the current manuscript, the observed table of contents shows **Chapter 4 – Under His Father’s God**, **Chapter 7 – Canvas Morning**, and **Chapter 16 – The Lesson**. The title *Canvas Morning* appears once in the current chapter list. Therefore, the old duplicate-chapter blocker should be treated as **resolved or historical unless a fresh body-level duplicate scan proves otherwise**. A compliant evaluator must distinguish historical benchmark defects from current manuscript defects.
 
 ---
