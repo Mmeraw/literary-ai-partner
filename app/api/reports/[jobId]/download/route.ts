@@ -972,7 +972,7 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
       push(`${a.displayLabel} — ${scoreLabel(a.score, 10)} (${formatConfidenceLabel(a.confidence)})`);
       pushTxtListBlock(lines, 'What Is Working', a.fitEvidence);
       pushTxtListBlock(lines, 'What Weakens Impact', a.gapEvidence);
-      pushTxtListBlock(lines, 'Revision Queue', a.revisionQueue, { ordered: true, isRevisionQueue: true });
+      pushTxtListBlock(lines, 'Revision Queue', a.revisionQueue.map(r => r.displayText), { ordered: true });
     });
   }
 
@@ -1755,7 +1755,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
             ? `<p style="margin:10px 0 4px"><strong>What Weakens Impact:</strong></p>${list(a.gapEvidence)}`
             : '';
           const queueHtml = a.revisionQueue.length > 0
-            ? `<p style="margin:10px 0 4px"><strong>Revision Queue:</strong></p>${list(a.revisionQueue.map(formatRevisionQueueItem), { ordered: true })}`
+            ? `<p style="margin:10px 0 4px"><strong>Revision Queue:</strong></p>${list(a.revisionQueue.map(r => r.displayText), { ordered: true })}`
             : '';
           return `<article class="card"><h3>${escapeHtml(a.displayLabel)} <small><span class="criterion-score ${scorePaletteClassFromLabel(sc)}">${escapeHtml(sc)}</span> · <span class="confidence-text ${confidencePaletteClass(confLabel)}">${escapeHtml(confLabel)}</span></small></h3>${fitHtml}${gapHtml}${queueHtml}</article>`;
         }).join('')
@@ -2322,7 +2322,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
         }
         if (a.revisionQueue.length > 0) {
           children.push(vmPara('Revision Queue:', { bold: true }));
-          a.revisionQueue.forEach((item, i) => children.push(docxListPara(formatRevisionQueueItem(item), `${i + 1}.`)));
+          a.revisionQueue.forEach((item, i) => children.push(docxListPara(item.displayText, `${i + 1}.`)));
         }
       });
     }

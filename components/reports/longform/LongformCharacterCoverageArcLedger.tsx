@@ -232,7 +232,7 @@ function CriterionMiniBlock({ criterion }: { criterion: LongFormMultiLayerCriter
             {criterion.revisionQueue.map((r, i) => (
               <li key={i} className="flex gap-1.5 text-xs text-gray-700">
                 <span className="shrink-0 text-gray-500">{i + 1}.</span>
-                <span>{r}</span>
+                <span>{r.displayText}</span>
               </li>
             ))}
           </ul>

@@ -386,6 +386,12 @@ export default async function ReportPage({
     ued: persistedDocument.document,
     dreamDoc,
     governance: { governance },
+    supportMetadata: {
+      model: result.engine?.model,
+      confidence: governance?.confidence,
+      wordCount: metrics?.manuscript?.word_count,
+      processingMs: metrics?.processing?.runtime_ms,
+    },
   });
   const lf = vm.longFormMultiLayerEvaluation;
   const integrityBanner = vm.integrityBanner;
@@ -787,7 +793,7 @@ export default async function ReportPage({
                         <div>
                           <p className="font-medium">Revision Queue:</p>
                           <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
-                            {analysis.revisionQueue.map((entry, i) => <li key={i}>{entry}</li>)}
+                            {analysis.revisionQueue.map((entry, i) => <li key={i}>{entry.displayText}</li>)}
                           </ol>
                         </div>
                       ) : null}
@@ -1260,30 +1266,32 @@ export default async function ReportPage({
               Evaluation Metadata
               <span className="text-xs font-normal text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Support view</span>
             </h2>
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-600">Model</p>
-                <p className="font-mono text-gray-900">{result.engine.model}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Confidence</p>
-                <p className="font-mono text-gray-900">{(governance.confidence * 100).toFixed(0)}%</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Job ID</p>
-                <p className="font-mono text-gray-900">{params.jobId}</p>
-              </div>
-              <div>
-                <p className="text-gray-600">Word Count</p>
-                <p className="font-mono text-gray-900">{metrics.manuscript.word_count ? metrics.manuscript.word_count.toLocaleString() : 'N/A'}</p>
-              </div>
-              {metrics.processing.runtime_ms && (
+            {vm.supportMetadata && (
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-gray-600">Processing Time</p>
-                  <p className="font-mono text-gray-900">{(metrics.processing.runtime_ms / 1000).toFixed(1)}s</p>
+                  <p className="text-gray-600">Model</p>
+                  <p className="font-mono text-gray-900">{vm.supportMetadata.model}</p>
                 </div>
-              )}
-            </div>
+                <div>
+                  <p className="text-gray-600">Confidence</p>
+                  <p className="font-mono text-gray-900">{vm.supportMetadata.confidenceLabel}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Job ID</p>
+                  <p className="font-mono text-gray-900">{params.jobId}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Word Count</p>
+                  <p className="font-mono text-gray-900">{vm.supportMetadata.wordCount}</p>
+                </div>
+                {vm.supportMetadata.processingTime && (
+                  <div>
+                    <p className="text-gray-600">Processing Time</p>
+                    <p className="font-mono text-gray-900">{vm.supportMetadata.processingTime}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
 

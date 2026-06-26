@@ -112,8 +112,10 @@ describe('VM Boundary Gate: Static Guard', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/.*$/gm, '');
 
-  it('documents TEMPORARY_DREAM_RENDERER_EXCEPTION for non-VM DREAM helpers', () => {
-    expect(source).toMatch(/TEMPORARY_DREAM_RENDERER_EXCEPTION/);
+  it('no longer carries TEMPORARY_DREAM_RENDERER_EXCEPTION (migration complete — VM owns long-form)', () => {
+    // The temporary exception was removed once long-form rendering moved behind
+    // vm.longFormMultiLayerEvaluation. The marker must be gone.
+    expect(source).not.toMatch(/TEMPORARY_DREAM_RENDERER_EXCEPTION/);
   });
 
   it('page.tsx must NOT import mistakeProofText (VM owns all sanitization)', () => {
@@ -141,11 +143,12 @@ describe('VM Boundary Gate: Static Guard', () => {
     expect(sourceNoComments).not.toMatch(/getRenumberedAuthorFacingRevisionPlan\s*\(\s*vm\./);
   });
 
-  it('page.tsx may temporarily call DREAM helpers for dream.* fields only', () => {
-    // Temporary technical-debt exception marker must remain visible.
-    expect(sourceNoComments).toMatch(/correctScopeLanguage\s*\(\s*dream/);
-    expect(sourceNoComments).toMatch(/getDisplayDream\w*\s*\(\s*dream/);
-    expect(sourceNoComments).toMatch(/filterAuthorFacingTextList\s*\(\s*analysis\./);
+  it('page.tsx must NOT call raw DREAM helpers (migration complete — VM owns long-form sanitization)', () => {
+    // All long-form sanitization now happens once at the VM boundary; page.tsx
+    // reads only vm.longFormMultiLayerEvaluation and must not touch raw DREAM helpers.
+    expect(sourceNoComments).not.toMatch(/correctScopeLanguage\s*\(\s*dream/);
+    expect(sourceNoComments).not.toMatch(/getDisplayDream\w*\s*\(\s*dream/);
+    expect(sourceNoComments).not.toMatch(/filterAuthorFacingTextList\s*\(\s*analysis\./);
   });
 
   it('page.tsx must NOT reference canonicalDoc.actionItems', () => {
@@ -295,9 +298,11 @@ describe('VM Boundary Gate: Rendered Heading Guard (short-form)', () => {
         const lines = source.split('\n');
         for (let i = 0; i < lines.length; i++) {
           if (headingPattern.test(lines[i])) {
-            // Check surrounding context for isLongForm guard
+            // Check surrounding context for a long-form guard. After the VM
+            // migration the guard is `lf` (= vm.longFormMultiLayerEvaluation,
+            // which is null for short-form), replacing the old isLongForm flag.
             const context = lines.slice(Math.max(0, i - 10), i).join('\n');
-            expect(context).toMatch(/isLongForm/);
+            expect(context).toMatch(/isLongForm|\blf\b/);
           }
         }
       }

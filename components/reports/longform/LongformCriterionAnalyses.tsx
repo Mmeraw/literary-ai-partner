@@ -67,7 +67,7 @@ function CriterionCard({ a }: { a: LongFormMultiLayerCriterionAnalysisViewModel 
         <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3 bg-gray-50">
           <EvidenceList items={a.fitEvidence} label="What is working" accent="text-emerald-600" />
           <EvidenceList items={a.gapEvidence} label="What weakens impact" accent="text-amber-600" />
-          <EvidenceList items={a.revisionQueue} label="Revision queue" accent="text-indigo-600" />
+          <EvidenceList items={a.revisionQueue.map(r => r.displayText)} label="Revision queue" accent="text-indigo-600" />
         </div>
       )}
     </div>

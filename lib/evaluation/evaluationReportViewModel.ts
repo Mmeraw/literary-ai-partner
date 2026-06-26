@@ -146,6 +146,13 @@ export type LongFormMultiLayerArcEntryViewModel = {
   revisionPriority: string;
 };
 
+export type LongFormMultiLayerRevisionQueueItemViewModel = {
+  displayText: string;
+  location: string | null;
+  operation: string | null;
+  recommendation: string;
+};
+
 export type LongFormMultiLayerCriterionAnalysisViewModel = {
   key: string;
   displayLabel: string;
@@ -153,7 +160,7 @@ export type LongFormMultiLayerCriterionAnalysisViewModel = {
   confidence: string;
   fitEvidence: string[];
   gapEvidence: string[];
-  revisionQueue: string[];
+  revisionQueue: LongFormMultiLayerRevisionQueueItemViewModel[];
 };
 
 export type LongFormMultiLayerLayerAnalysisViewModel = {
@@ -249,6 +256,29 @@ export type LongFormMultiLayerEvaluationViewModel = {
   manuscriptIntegrityIssues: LongFormMultiLayerIntegrityIssueViewModel[];
 };
 
+/**
+ * Renderer-facing projection of the technical/support diagnostic block.
+ * Admin/support viewers see this; like every other rendered surface it must
+ * be pre-formatted at the VM boundary, never read from raw result fields.
+ */
+export type SupportMetadataViewModel = {
+  model: string;
+  confidenceLabel: string;
+  wordCount: string;
+  processingTime: string | null;
+};
+
+/**
+ * Raw support-diagnostic inputs sourced from the internal evaluation_result.
+ * The VM owns all formatting; renderers never read these raw values directly.
+ */
+export type SupportMetadataInput = {
+  model?: unknown;
+  confidence?: unknown;
+  wordCount?: unknown;
+  processingMs?: unknown;
+};
+
 export type GovernanceWarningInput = {
   governance?: {
     confidence_label?: 'high' | 'medium' | 'low' | 'withheld';
@@ -320,6 +350,9 @@ export type EvaluationReportViewModel = {
   // Integrity banner (governance projection)
   integrityBanner: EvaluationIntegrityBanner | null;
 
+  // Support/technical diagnostic block (admin-gated render surface)
+  supportMetadata: SupportMetadataViewModel | null;
+
   // Disclaimer
   disclaimer: string;
 };
@@ -363,6 +396,41 @@ function sanitizeList(items: string[], isLongForm: boolean): string[] {
 }
 
 /**
+ * Project a raw revision-queue item into structured renderer-ready fields.
+ *
+ * Internal markers ([LOCATION: …] [OPERATION: …]) are parsed while the raw
+ * DREAM text is still available. The VM exposes location, operation, and
+ * recommendation as discrete fields — renderers format from those, never
+ * parsing bracket syntax.
+ */
+function projectRevisionQueueItem(raw: string, isLongForm: boolean): LongFormMultiLayerRevisionQueueItemViewModel {
+  const locationMatch = raw.match(/\[LOCATION:\s*([^\]]*)\]/i);
+  const operationMatch = raw.match(/\[OPERATION:\s*([^\]]*)\]/i);
+  const recommendation = sanitizeText(raw, isLongForm);
+
+  const location = locationMatch ? locationMatch[1].trim() : null;
+  const operation = operationMatch
+    ? operationMatch[1].trim().charAt(0).toUpperCase() + operationMatch[1].trim().slice(1)
+    : null;
+
+  const parts: string[] = [];
+  if (location) parts.push(`Location: ${location}`);
+  if (operation) parts.push(`Operation: ${operation}`);
+  if (recommendation) parts.push(`Recommendation: ${recommendation}`);
+
+  return {
+    displayText: parts.length > 0 && (location || operation) ? parts.join(' | ') : recommendation,
+    location,
+    operation,
+    recommendation,
+  };
+}
+
+function projectRevisionQueueList(items: string[], isLongForm: boolean): LongFormMultiLayerRevisionQueueItemViewModel[] {
+  return items.map(item => projectRevisionQueueItem(item, isLongForm));
+}
+
+/**
  * Normalize a UnifiedEvaluationDocument into a renderer-ready ViewModel.
  *
  * All business logic is applied here. Renderers receive pre-computed values
@@ -375,10 +443,12 @@ export function normalizeEvaluationReportViewModel({
   ued,
   dreamDoc,
   governance,
+  supportMetadata,
 }: {
   ued: UnifiedEvaluationDocument;
   dreamDoc?: unknown | null;
   governance?: GovernanceWarningInput;
+  supportMetadata?: SupportMetadataInput | null;
 }): EvaluationReportViewModel {
   const mode = ued.templateMode;
   const contract = getEvaluationContract(mode);
@@ -493,8 +563,30 @@ export function normalizeEvaluationReportViewModel({
     ),
     integrityBanner: governance ? classifyEvaluationIntegrityBanner(governance) : null,
 
+    supportMetadata: supportMetadata ? projectSupportMetadata(supportMetadata) : null,
+
     disclaimer: DISCLAIMER,
   };
+}
+
+function projectSupportMetadata(input: SupportMetadataInput): SupportMetadataViewModel {
+  const model = typeof input.model === 'string' && input.model.trim()
+    ? input.model.trim()
+    : 'Not available';
+
+  const confidenceLabel = typeof input.confidence === 'number' && Number.isFinite(input.confidence)
+    ? `${(input.confidence * 100).toFixed(0)}%`
+    : 'Not available';
+
+  const wordCount = typeof input.wordCount === 'number' && Number.isFinite(input.wordCount)
+    ? input.wordCount.toLocaleString()
+    : 'N/A';
+
+  const processingTime = typeof input.processingMs === 'number' && Number.isFinite(input.processingMs)
+    ? `${(input.processingMs / 1000).toFixed(1)}s`
+    : null;
+
+  return { model, confidenceLabel, wordCount, processingTime };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -549,7 +641,7 @@ function normalizeLongFormMultiLayer(
     confidence: s(c.confidence),
     fitEvidence: sl(c.fit_evidence ?? []),
     gapEvidence: sl(c.gap_evidence ?? []),
-    revisionQueue: sl(c.revision_queue ?? []),
+    revisionQueue: projectRevisionQueueList(c.revision_queue ?? [], isLongForm),
   }));
 
   const layerAnalyses: LongFormMultiLayerLayerAnalysisViewModel[] = (doc.layer_analyses ?? []).map(l => ({

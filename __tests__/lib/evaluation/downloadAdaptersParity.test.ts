@@ -327,10 +327,12 @@ describe('download adapters parity (ViewModel renderers)', () => {
       },
     } as any;
 
-    const vm = buildVm(canonicalDoc);
-    const txt = testing.renderTxtFromViewModel(vm, dream, 'job-template-truth');
-    const html = testing.renderHtmlFromViewModel(vm, dream, 'job-template-truth');
-    const docxBuffer = await testing.renderDocxFromViewModel(vm, dream, 'job-template-truth');
+    // DREAM now flows through the VM boundary (projected into
+    // vm.longFormMultiLayerEvaluation); renderers receive only the VM.
+    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
+    const txt = testing.renderTxtFromViewModel(vm, 'job-template-truth');
+    const html = testing.renderHtmlFromViewModel(vm, 'job-template-truth');
+    const docxBuffer = await testing.renderDocxFromViewModel(vm, 'job-template-truth');
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
 
     // §13-§21 template-authorized headings (from shared section contract)
