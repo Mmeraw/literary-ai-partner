@@ -3,7 +3,7 @@
 Status: Canonical runtime success contract for long-form and long-form multi-layer evaluations.
 Authority: This document defines what "success" means for a long-form pipeline run. Tier 2 stress assertions, fail-closed codes, and pipeline-health diagnostics must map to clauses defined here.
 Companion docs:
-- `docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md` (report payload contract)
+- `docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md` (report payload contract)
 - `docs/governance/DREAM_OUTPUT_SPEC.md` (output canon)
 - `docs/WAVE_REVISION_GUIDE_CANON.md` (WAVE canon)
 - `docs/canon/registered/volumes/VOLUME-II-STORY-EVALUATION-CRITERIA.md` (13 criteria)

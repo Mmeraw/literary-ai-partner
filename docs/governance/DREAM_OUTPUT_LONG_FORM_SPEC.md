@@ -1,4 +1,8 @@
-# RevisionGrade DREAM Output Long-Form Specification
+# RevisionGrade DREAM Output Long-Form Specification (Legacy Alias)
+
+> **Superseded naming authority:** `docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md`
+>
+> This file remains as a compatibility alias for historical references. Active governance naming and downstream references must use the multi-layer successor file.
 
 **Status:** PROPOSED LOCK — DREAM long-form completeness contract  
 **Owner:** Mmeraw  
@@ -33,7 +37,7 @@ This spec inherits from, and must not contradict:
 - `docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md`
 - `docs/benchmarks/froggin-noggin-dream.md`
 - `docs/benchmarks/cartel-babies-dream-longform-multilayer-gold-standard.md`
-- `docs/benchmarks/let-the-river-decide-dream.md`
+- `docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md`
 - `lib/evaluation/pipeline/prompts/pass3b-longform.ts`
 
 ### Binding WAVE rule
@@ -543,7 +547,7 @@ These define house style, depth, and report architecture.
 
 ### Calibration benchmark
 
-`docs/benchmarks/let-the-river-decide-dream.md` is extended calibration coverage. It tests eco-thriller / memoir-witness / road-narrative / cultural-protocol / research-heavy ambiguity behavior and should be used to broaden calibration without blocking the minimum required gold-standard lock.
+`docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md` is extended calibration coverage. It tests eco-thriller / memoir-witness / road-narrative / cultural-protocol / research-heavy ambiguity behavior and should be used to broaden calibration without blocking the minimum required gold-standard lock.
 
 ### Public-domain calibration
 

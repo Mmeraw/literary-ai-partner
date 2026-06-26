@@ -24,7 +24,7 @@ This addendum upgrades `docs/benchmarks/public-domain/the-awakening-dream-calibr
 The original prose, scores, and editorial judgment remain preserved. This addendum is binding for benchmark interpretation under:
 
 ```text
-docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
+docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md
 ```
 
 Ledger specs:

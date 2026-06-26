@@ -24,7 +24,7 @@ This addendum upgrades `docs/benchmarks/cartel-babies-dream.md` to the DREAM v2 
 The original scores, prose, and editorial judgments remain preserved. This addendum is binding for benchmark interpretation under:
 
 ```text
-docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
+docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md
 ```
 
 Where the original body and this addendum differ on coverage obligations, integrity classification, or DREAM v2 required detections, this addendum defines the current benchmark requirement.

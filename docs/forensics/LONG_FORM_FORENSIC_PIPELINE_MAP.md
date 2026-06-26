@@ -244,7 +244,7 @@ Short-form Pass 3 synthesizes from one analysis. Long-form must aggregate across
 
 | Field | Value |
 |-------|-------|
-| **Canon ref** | docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md, benchmarks/froggin-noggin-dream.md |
+| **Canon ref** | docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md, benchmarks/froggin-noggin-dream.md |
 | **Runtime code** | `lib/evaluation/pipeline/runPass3bLongform.ts`, `app/api/workers/process-dream/route.ts` |
 | **Input** | Completed evaluation_result_v2 + manuscript chunks + Pass2a context |
 | **Output** | `longform_document_v1` artifact — 16-section DREAM document |

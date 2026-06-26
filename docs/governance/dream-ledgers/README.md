@@ -5,7 +5,7 @@ This directory breaks the DREAM v2 governed-ledger contract into compact, indepe
 The governing parent spec remains:
 
 ```text
-docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
+docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md
 ```
 
 These files do not create new public lifecycle statuses, new scoring criteria, or new Pass 3b top-level JSON keys. They define the required editorial completeness obligations that must be folded into the existing DREAM long-form report shape.

@@ -1,4 +1,8 @@
-# DREAM State Long-Form Evaluation Canon
+# DREAM State Long-Form Evaluation Canon (Legacy Alias)
+
+> **Superseded naming authority:** `docs/governance/DREAM_STATE_LONG_FORM_MULTI_LAYER_CANON.md`
+>
+> This file remains as a compatibility alias for historical references. Active governance naming and downstream references should use the multi-layer successor canon.
 
 **Status:** Draft governance canon  
 **Owner:** Mmeraw  

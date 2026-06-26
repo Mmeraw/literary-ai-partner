@@ -32,7 +32,7 @@ Its purpose is to teach DREAM evaluators how to detect social perception as plot
 Governing spec:
 
 ```text
-docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
+docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md
 ```
 
 Governed ledger specs:

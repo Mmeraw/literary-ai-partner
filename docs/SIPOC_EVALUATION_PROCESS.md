@@ -51,7 +51,7 @@ The following governance families are runtime-relevant authority sources and mus
 
 - **Evaluation templates:** `docs/templates/evaluation/short-form-evaluation-template.md`, `docs/templates/evaluation/long-form-multi-layer-evaluation-template.md`
 - **Rendering contract:** `docs/templates/evaluation/evaluation-rendering-contract.md`
-- **Governance specifications:** `docs/governance/DREAM_OUTPUT_SPEC.md`, `docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md`, `docs/governance/DREAM_STATE_LONGFORM_CANON.md`, `docs/governance/seed-phase-template-alignment-contract.md`, `docs/governance/phase-2-calibration-template.md`
+- **Governance specifications:** `docs/governance/DREAM_OUTPUT_SPEC.md`, `docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md`, `docs/governance/DREAM_STATE_LONG_FORM_MULTI_LAYER_CANON.md`, `docs/governance/seed-phase-template-alignment-contract.md`, `docs/governance/phase-2-calibration-template.md`
 - **Benchmark authorities:** `docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md`, `docs/canon/registered/control/BENCHMARK-CHARTER.md`
 - **Canon authorities:** `docs/GOLDEN_SPINE.md`, `docs/canon/intake/_md/Normalized Gold Standard CANONICAL ACCEPTANCE COMPARATOR v1.md`
 - **DREAM / GOLD format templates:** `docs/benchmarks/templates/dream-longform-layered-template.md`
@@ -1228,7 +1228,7 @@ The following stages execute after the main 11-stage evaluation spine completes 
   - Score-aware selection filters: full bridge for ≤7, polish for 8–9, audit-only for 10
   - Generic fallback eliminated for all manuscripts with Pass 3 findings
 - **Canon refs:** Volume III pass architecture, WAVE readiness governance
-- **Spec refs:** `docs/governance/DREAM_STATE_LONGFORM_CANON.md`
+- **Spec refs:** `docs/governance/DREAM_STATE_LONG_FORM_MULTI_LAYER_CANON.md`
 - **Runtime refs:** `lib/evaluation/waveRevision.ts`, `lib/revision/wavePlanner.ts`, `lib/revision/waveRegistry.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Active — Partial (criterion bridge fix merged PR #1108; score-aware selection active)
@@ -1326,7 +1326,7 @@ Async Pass 3b — produces the full narrative synthesis document for long-form m
   - Contains "No/Michael" contamination (3 instances) — **SIPOC: CONTAMINATED — banned-name guard not applied to DREAM output**
   - Genre, Report Type in DREAM document diverges from webpage — **SIPOC: FAIL — cross-medium parity violated**
 - **Canon refs:** DREAM State Longform Canon, Volume III pass architecture
-- **Spec refs:** `docs/governance/DREAM_STATE_LONGFORM_CANON.md`
+- **Spec refs:** `docs/governance/DREAM_STATE_LONG_FORM_MULTI_LAYER_CANON.md`
 - **Runtime refs:** `app/api/workers/process-dream/route.ts`, `lib/evaluation/pipeline/runPass3bLongform.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Active — Partial (synthesis working; contamination guard and cross-medium parity enforcement pending)

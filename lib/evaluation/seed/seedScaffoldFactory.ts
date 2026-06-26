@@ -165,7 +165,9 @@ const storyLayerDefinitions: Record<StoryLayerCoreLayerKey, Omit<StorySeedLayerS
 
 export function deriveSeedEvaluationMode(wordCount: number, forceMultiLayer = false): SeedEvaluationMode {
   if (forceMultiLayer || wordCount >= 75000) return 'long_form_multi_layer_evaluation';
-  if (wordCount >= 25000) return 'long_form_evaluation';
+  // Contract-aligned routing: all new 25k+ submissions use long_form_multi_layer_evaluation.
+  // long_form_evaluation remains in the type union for historical artifact compatibility only.
+  if (wordCount >= 25000) return 'long_form_multi_layer_evaluation';
   return 'short_form_evaluation';
 }
 
@@ -220,9 +222,7 @@ export function buildCompleteEvaluationSeedV1(args: { wordCount: number; workTyp
   const evaluationMode = deriveSeedEvaluationMode(args.wordCount, args.forceMultiLayer);
   const selected_template = evaluationMode === 'short_form_evaluation'
     ? 'docs/templates/evaluation/short-form-evaluation-template.md'
-    : evaluationMode === 'long_form_evaluation'
-      ? 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md'
-      : 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
+    : 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
 
   return {
     artifact_type: 'evaluation_seed_v1',

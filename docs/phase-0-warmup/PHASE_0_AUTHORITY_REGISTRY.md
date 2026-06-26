@@ -68,7 +68,7 @@ docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
 docs/benchmarks/README.md
 docs/benchmarks/templates/dream-longform-layered-template.md
-docs/governance/DREAM_OUTPUT_LONG_FORM_SPEC.md
+docs/governance/DREAM_OUTPUT_LONG_FORM_MULTI_LAYER_SPEC.md
 ```
 
 ### C. Native manuscript benchmarks, public calibration benchmarks, and Story Ledger answer keys
