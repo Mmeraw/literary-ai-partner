@@ -213,7 +213,7 @@ describe('Surface Parity Verification — Rendered Output Proof', () => {
     });
 
     // ── Generate all surfaces ────────────────────────────────────────────
-    const vm = normalizeEvaluationReportViewModel(canonicalDoc);
+    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc });
     const txt = testing.renderTxtFromViewModel(vm, null, 'job-parity-test');
     const html = testing.renderHtmlFromViewModel(vm, null, 'job-parity-test');
     const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-parity-test');

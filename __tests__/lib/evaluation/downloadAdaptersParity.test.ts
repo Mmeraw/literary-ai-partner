@@ -3,7 +3,7 @@ import { normalizeEvaluationReportViewModel } from '../../../lib/evaluation/eval
 import mammoth from 'mammoth';
 
 const buildVm = (canonicalDoc: ReturnType<typeof buildShortFormEvaluationDocument>) =>
-  normalizeEvaluationReportViewModel(canonicalDoc as any);
+  normalizeEvaluationReportViewModel({ ued: canonicalDoc as any });
 
 describe('download adapters parity (ViewModel renderers)', () => {
   test('TXT and HTML adapters include canonical section content in consistent order', async () => {

@@ -181,7 +181,7 @@ describe('VM Boundary Gate: Static Guard', () => {
 
 describe('VM Boundary Gate: Contract Preservation', () => {
   const ued = buildMinimalUed();
-  const vm = normalizeEvaluationReportViewModel(ued);
+  const vm = normalizeEvaluationReportViewModel({ ued });
 
   it('preserves score label exactly from UED (no recomputation)', () => {
     expect(vm.titleBlock.overallScoreLabel).toBe(ued.titleBlock.overallScoreLabel);
@@ -233,7 +233,7 @@ describe('VM Boundary Gate: Contract Preservation', () => {
 
 describe('VM Boundary Gate: No Shadow Inventory', () => {
   const ued = buildMinimalUed();
-  const vm = normalizeEvaluationReportViewModel(ued);
+  const vm = normalizeEvaluationReportViewModel({ ued });
   const vmKeys = Object.keys(vm);
 
   it('VM does not expose actionItems', () => {
@@ -308,7 +308,7 @@ describe('VM Boundary Gate: Rendered Heading Guard (short-form)', () => {
 describe('VM Boundary Gate: Revise Queue Independence', () => {
   it('VM does not expose Revise Queue workflow data', () => {
     const ued = buildMinimalUed();
-    const vm = normalizeEvaluationReportViewModel(ued);
+    const vm = normalizeEvaluationReportViewModel({ ued });
     const vmKeys = Object.keys(vm);
 
     // Revise Queue lives at app/revise-queue/ — completely separate surface
@@ -319,7 +319,7 @@ describe('VM Boundary Gate: Revise Queue Independence', () => {
 
   it('criterion recommendations preserve opportunity_id for ledger traceability', () => {
     const ued = buildMinimalUed();
-    const vm = normalizeEvaluationReportViewModel(ued);
+    const vm = normalizeEvaluationReportViewModel({ ued });
 
     // Every recommendation must trace to revision_opportunity_ledger_v1
     const allRecs = vm.criterionDetails.flatMap(d => d.recommendations);

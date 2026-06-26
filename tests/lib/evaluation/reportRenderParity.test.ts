@@ -251,7 +251,7 @@ describe('report render parity manifest builder', () => {
       displayTitle: 'Measured Parity Manuscript',
       mode,
     });
-    const vm = normalizeEvaluationReportViewModel(doc);
+    const vm = normalizeEvaluationReportViewModel({ ued: doc });
     const txt = testing.renderTxtFromViewModel(vm, null, 'job-measured');
     const html = testing.renderHtmlFromViewModel(vm, null, 'job-measured');
     const docxBuffer = await testing.renderDocxFromViewModel(vm, null, 'job-measured');
