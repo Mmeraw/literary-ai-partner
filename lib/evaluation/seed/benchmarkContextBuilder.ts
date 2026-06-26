@@ -1,22 +1,23 @@
 /**
  * Benchmark Context Builder for Seed Generation
  *
- * Builds a compact context block from the dream/gold-standard benchmarks
- * and failure modes docs. This context is injected into seed generation
- * prompts so the LLM has:
- *   1. The exact 10-layer structure it must populate
- *   2. Per-layer failure conditions (what NOT to do)
- *   3. Gold-standard example shapes (what good output looks like)
- *   4. Structural validation criteria
- *   5. The DREAM evaluation template for the manuscript's route (long-form or short-form)
- *   6. A completed benchmark exemplar showing what gold-standard output looks like
- *   7. A compact map of the current native/public calibration family
+ * Builds a compact context block from the dream/gold-standard benchmarks,
+ * cognitive initialization protocol, and failure modes docs. This context is
+ * injected into seed generation prompts so the LLM has:
+ *   1. The DREAM Cognitive Initialization Protocol reasoning posture
+ *   2. The exact 10-layer structure it must populate
+ *   3. Per-layer failure conditions (what NOT to do)
+ *   4. Gold-standard example shapes (what good output looks like)
+ *   5. Structural validation criteria
+ *   6. The DREAM evaluation template for the manuscript's route (long-form or short-form)
+ *   7. A completed benchmark exemplar showing what gold-standard output looks like
+ *   8. A compact map of the current native/public calibration family
  *
  * The context is kept compact to fit within model budgets
  * while providing enough grounding to prevent common extraction failures.
  */
 
-import { buildCompactTemplateBlock, buildCompactStoryLedgerBlock, type DreamTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
+import { buildCompactCognitiveInitializationBlock, buildCompactTemplateBlock, buildCompactStoryLedgerBlock, type DreamTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
 
 export type SeedRoute = 'LONG_FORM' | 'SHORT_FORM';
 
@@ -45,6 +46,12 @@ export function inferWorkTypeFromWordCount(wordCount: number): string {
   if (wordCount < 50_000) return 'novella';
   return 'novel';
 }
+
+// ── Cognitive Initialization Protocol ────────────────────────────────────────
+// Loaded from docs/governance/dream-cognitive-initialization-protocol.md via
+// buildCompactCognitiveInitializationBlock(). This is constitutional reasoning
+// authority for seed posture, evidence discipline, preservation, and downstream
+// Phase 5 certification.
 
 // ── Story Ledger Template Structure ─────────────────────────────────────────
 // Now loaded at runtime from docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md
@@ -107,6 +114,7 @@ This is the canonical product example for seed and Phase 1A Story Ledger quality
  */
 export function buildSeedBenchmarkContext(route?: SeedRoute): string {
   const templateKey: DreamTemplateKey = route === 'SHORT_FORM' ? 'short_form' : 'long_form';
+  const cognitiveInitialization = buildCompactCognitiveInitializationBlock();
   const dreamTemplate = buildCompactTemplateBlock(templateKey);
   const exemplar = BENCHMARK_EXEMPLAR_CARTEL_BABIES;
 
@@ -115,10 +123,13 @@ export function buildSeedBenchmarkContext(route?: SeedRoute): string {
     '',
     'You MUST use this benchmark context to structure your output.',
     'Your output will be validated against these standards.',
+    'The DREAM Cognitive Initialization Protocol below is constitutional reasoning authority for how you think before detection, evaluation, revision, and certification.',
     'The DREAM evaluation template below is what your seed prepares the manuscript to be evaluated against.',
     'The completed benchmark exemplar shows what gold-standard output looks like.',
     'The benchmark family map shows what structural patterns the system must recognize across genres and forms.',
     'Your seed output becomes GOLDEN GROUND TRUTH — downstream phases need hard evidence to override anything you establish here.',
+    '',
+    cognitiveInitialization,
     '',
     buildCompactStoryLedgerBlock(),
     '',
