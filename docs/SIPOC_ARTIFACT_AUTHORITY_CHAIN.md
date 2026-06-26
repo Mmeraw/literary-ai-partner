@@ -1,6 +1,7 @@
 # Artifact Authority Chain — SIPOC/FIPOC Governance Constitution
 
-> **Status:** Active governance document
+> **Status:** Active Phase 5A governance document
+> **Top-level doctrine:** `docs/governance/AUTHORITY_CHAIN.md` (binding)
 > **Evaluation counterpart:** `docs/SIPOC_EVALUATION_PROCESS.md`
 > **Revise counterpart:** `docs/SIPOC_REVISE_PROCESS.md`
 > **Agent Readiness counterpart:** `docs/SIPOC_AGENT_READINESS_PROCESS.md`
@@ -11,27 +12,30 @@
 ## Purpose
 
 This document is the **master governance SIPOC** for the RevisionGrade Artifact Authority Chain.
-It declares the immutable authority hierarchy from evaluation templates through contract registry,
-certified UED, ViewModel, and renderers.
+It declares the immutable artifact-level authority hierarchy from evaluation templates through contract registry,
+certified UED, ViewModel, renderers, and validation assets.
 
-Every other SIPOC (Evaluation, Revise, Agent Readiness, Storygate) operates within the
-authority constraints declared here. When there is ambiguity about which artifact governs,
-this document is the tiebreaker.
+`docs/governance/AUTHORITY_CHAIN.md` is the top-level doctrine. This document is the artifact-level
+SIPOC/FIPOC execution map for that doctrine. Every other SIPOC (Evaluation, Revise, Agent Readiness,
+Storygate) operates within the authority constraints declared here. When there is ambiguity about which
+artifact governs, the top-level Authority Chain wins first; this document is the artifact-level tiebreaker.
 
 ---
 
-## Authority Hierarchy (5 Levels)
+## Authority Hierarchy (6 Levels)
 
 ```
 Level 1 — Golden Records (Templates)
     ↓ governs
 Level 2 — Contract Registry (Executable Authority)
     ↓ governs
-Level 3 — Runtime Representations (Certified UED)
+Level 3 — Certified Runtime Artifacts (UED, ledgers, decisions, packages)
     ↓ governs
-Level 4 — Renderers (ViewModel → Web/PDF/DOCX/TXT)
+Level 4 — ViewModels / Product Boundaries
     ↓ governs
-Level 5 — Validation Assets (DREAM, Benchmarks, Fixtures)
+Level 5 — Renderers / Downloads / UI Surfaces
+    ↓ validated by
+Level 6 — Validation Assets (DREAM, Benchmarks, Fixtures, Regression Corpus)
 ```
 
 ### Authority Rules
@@ -41,7 +45,7 @@ Level 5 — Validation Assets (DREAM, Benchmarks, Fixtures)
 | Higher levels override lower | Template changes override contracts, contracts override runtime |
 | Lower levels may NOT contradict higher | A renderer cannot add content not in the ViewModel |
 | Each level inherits constraints from above | UED structure is constrained by the contract which is constrained by the template |
-| Validation assets (Level 5) are NEVER sources of truth | DREAM, benchmarks, and fixtures validate — they do not define |
+| Validation assets (Level 6) are NEVER sources of truth | DREAM, benchmarks, fixtures, and regression corpus validate — they do not define |
 
 ---
 
