@@ -11,9 +11,9 @@
  *  3. Bucket classification must be consistent with retryability.
  *  4. `LLR_PRE_ARTIFACT_GENERATION_BLOCK` is explicitly rescuable despite the LLR_ prefix.
  *  5. PASS3_FAILED is terminal (legacy path; deterministic on retry).
- *  6. PASS1_FAILED and PASS2_FAILED are NOT terminal (provider transient; retry allowed).
- *  7. All TIMEOUT variants are retryable.
- *  8. Non-kick-eligible QG_ codes are terminal. Kick-eligible QG_ codes get 1 backward kick per FIPOC KICK_MATRIX.
+ *  6. Policy-defined codes defer to failureRecoveryPolicy before legacy prefix defaults.
+ *  7. TIMEOUT variants are bounded by retry_then_terminal_block policy: one retry, then stop.
+ *  8. Non-kick-eligible QG_ codes are terminal unless explicitly log_only; kick-eligible QG_ codes get 1 backward kick.
  */
 
 import {
@@ -39,9 +39,8 @@ function isRescuable(code: string): boolean {
 
 describe('Terminal failure codes — must not auto-retry', () => {
   const terminalCodes = [
-    // Quality gate — content-driven; retrying produces identical failure
-    // NOTE: kick-eligible QG codes (QG_DUPLICATE_REC, QG_MISSING_RATIONALE, etc.)
-    // are NOT terminal — they get 1 FIPOC backward kick. Only generic QG codes remain terminal.
+    // Quality gate — content-driven; retrying produces identical failure unless
+    // explicitly log_only or rollback/kick-eligible in failureRecoveryPolicy.
     'QG_FAILED',
     'QG_SCORE_TOO_LOW',
     'QG_CRITERION_INVALID',
@@ -63,8 +62,9 @@ describe('Terminal failure codes — must not auto-retry', () => {
     'PASS4_EXTERNAL_ADJUDICATION_MISSING_KEY',
 
     // Deterministic pipeline failures
+    'PASS1_FAILED',
+    'PASS2_FAILED',
     'PASS3_FAILED',
-    'PASS2_INDEPENDENCE_REWRITE_FAILED',
     // TEMPLATE_COMPLETENESS_GATE_FAILED moved to kick-eligible (FIPOC KICK_MATRIX)
     'SCOPE_CLASSIFICATION_FAILED',
     'MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE',
@@ -109,9 +109,8 @@ describe('Rescuable failure codes — must allow at least one self-recovery atte
     'PASS3_TIMEOUT',
     'WORKER_TIMEOUT',
 
-    // Pass 1+2 failures from OpenAI — provider transient
-    'PASS1_FAILED',
-    'PASS2_FAILED',
+    // Bounded policy retry — one attempt, then terminal block
+    'PASS2_INDEPENDENCE_REWRITE_FAILED',
     'PHASE2_PASS12_FAILED',
 
     // Platform lease/claim transient failures
@@ -168,10 +167,10 @@ describe('Self-recovery attempt count policy', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('OPENAI_SERVER_ERROR')).toBe(3);
   });
 
-  it('PASS*_TIMEOUT codes get 3 retries (provider timeout transient)', () => {
-    expect(maxSelfRecoveryAttemptsForFailureCode('PASS1_TIMEOUT')).toBe(3);
-    expect(maxSelfRecoveryAttemptsForFailureCode('PASS2_TIMEOUT')).toBe(3);
-    expect(maxSelfRecoveryAttemptsForFailureCode('PASS3_TIMEOUT')).toBe(3);
+  it('PASS*_TIMEOUT codes get 1 retry per retry_then_terminal_block governance policy', () => {
+    expect(maxSelfRecoveryAttemptsForFailureCode('PASS1_TIMEOUT')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('PASS2_TIMEOUT')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('PASS3_TIMEOUT')).toBe(1);
   });
 
   it('terminal codes always get 0 retries regardless of category', () => {
@@ -182,7 +181,6 @@ describe('Self-recovery attempt count policy', () => {
 
   it('FIPOC kick-eligible codes get exactly 1 retry (backward kick budget)', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(1);
-    expect(maxSelfRecoveryAttemptsForFailureCode('QG_DUPLICATE_REC')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_RATIONALE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_EVIDENCE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_DENSITY_FLOOR_VIOLATION')).toBe(1);
@@ -193,9 +191,17 @@ describe('Self-recovery attempt count policy', () => {
 
   it('v2 gate-specific error codes get exactly 1 retry (synthesis-repairable)', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_SUMMARY_OMITS_WEAKNESS')).toBe(1);
-    expect(maxSelfRecoveryAttemptsForFailureCode('QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_REQUIRED_EVIDENCE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_CONSEQUENCE_CONTRACT')).toBe(1);
+  });
+
+  it('log_only quality diagnostics get 0 retries and do not block runtime flow', () => {
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_DUPLICATE_REC')).toBe(0);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_GENERIC_REC')).toBe(0);
+    expect(isTerminalFailureCode('QG_DUPLICATE_REC')).toBe(false);
+    expect(isTerminalFailureCode('QG_GENERIC_REC')).toBe(false);
+    expect(isKickEligibleFailureCode('QG_DUPLICATE_REC')).toBe(false);
+    expect(isKickEligibleFailureCode('QG_GENERIC_REC')).toBe(false);
   });
 
   it('null/undefined code defaults to 2 retries (conservative unknown-error policy)', () => {
@@ -214,9 +220,11 @@ describe('classifyFailureBucket — bucket assignment contract', () => {
     expect(classifyFailureBucket('QG_SCORE_TOO_LOW')).toBe('app_logic');
   });
 
-  it('PASS1_FAILED and PASS2_FAILED route to openai_provider bucket', () => {
+  it('PASS1_FAILED and PASS2_FAILED route to openai_provider bucket but are terminal by governance policy', () => {
     expect(classifyFailureBucket('PASS1_FAILED')).toBe('openai_provider');
     expect(classifyFailureBucket('PASS2_FAILED')).toBe('openai_provider');
+    expect(isTerminalFailureCode('PASS1_FAILED')).toBe(true);
+    expect(isTerminalFailureCode('PASS2_FAILED')).toBe(true);
   });
 
   it('PASS*_TIMEOUT codes route to openai_provider bucket', () => {
@@ -279,7 +287,6 @@ describe('Prefix-matching edge cases', () => {
   });
 
   it('kick-eligible QG_ codes are NOT terminal — FIPOC override', () => {
-    expect(isTerminalFailureCode('QG_DUPLICATE_REC')).toBe(false);
     expect(isTerminalFailureCode('QG_MISSING_RATIONALE')).toBe(false);
     expect(isTerminalFailureCode('QG_MISSING_EVIDENCE')).toBe(false);
     expect(isTerminalFailureCode('QG_DENSITY_FLOOR_VIOLATION')).toBe(false);
@@ -288,11 +295,23 @@ describe('Prefix-matching edge cases', () => {
     expect(isTerminalFailureCode('QG_EVIDENCE_FABRICATION')).toBe(false);
   });
 
-  it('v2 gate-specific error codes are NOT terminal — synthesis-repairable', () => {
+  it('log_only QG_ diagnostics are NOT terminal and NOT kick-eligible', () => {
+    expect(isTerminalFailureCode('QG_DUPLICATE_REC')).toBe(false);
+    expect(isTerminalFailureCode('QG_GENERIC_REC')).toBe(false);
+    expect(isKickEligibleFailureCode('QG_DUPLICATE_REC')).toBe(false);
+    expect(isKickEligibleFailureCode('QG_GENERIC_REC')).toBe(false);
+  });
+
+  it('v2 gate-specific rollback codes are NOT terminal — synthesis-repairable', () => {
     expect(isTerminalFailureCode('QG_SUMMARY_OMITS_WEAKNESS')).toBe(false);
-    expect(isTerminalFailureCode('QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH')).toBe(false);
     expect(isTerminalFailureCode('QG_MISSING_REQUIRED_EVIDENCE')).toBe(false);
     expect(isTerminalFailureCode('QG_CONSEQUENCE_CONTRACT')).toBe(false);
+  });
+
+  it('v2 gate-specific structural codes are terminal clean stops', () => {
+    expect(isTerminalFailureCode('QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH')).toBe(true);
+    expect(isTerminalFailureCode('QG_CRITERIA_SCOPE_SHAPE_MISMATCH')).toBe(true);
+    expect(isTerminalFailureCode('QG_PROPAGATION_INTEGRITY')).toBe(true);
   });
 
   it('any POLICY_VIOLATION prefixed code is terminal', () => {
@@ -351,9 +370,10 @@ describe('Governance anti-regression: critical category invariants', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(1);
   });
 
-  it('PASS2_INDEPENDENCE_REWRITE_FAILED is terminal — deterministic editorial failure', () => {
-    expect(isTerminalFailureCode('PASS2_INDEPENDENCE_REWRITE_FAILED')).toBe(true);
-    expect(isRescuable('PASS2_INDEPENDENCE_REWRITE_FAILED')).toBe(false);
+  it('PASS2_INDEPENDENCE_REWRITE_FAILED retries once then terminal-blocks — deterministic editorial repair budget', () => {
+    expect(isTerminalFailureCode('PASS2_INDEPENDENCE_REWRITE_FAILED')).toBe(false);
+    expect(isRescuable('PASS2_INDEPENDENCE_REWRITE_FAILED')).toBe(true);
+    expect(maxSelfRecoveryAttemptsForFailureCode('PASS2_INDEPENDENCE_REWRITE_FAILED')).toBe(1);
   });
 
   it('QUOTA_EXCEEDED is terminal — requires admin action before any retry', () => {
@@ -374,7 +394,6 @@ describe('Governance anti-regression: critical category invariants', () => {
 describe('isKickEligibleV2CheckId — unwrap QG_FAILED by check_id', () => {
   it('synthesis-repairable v2 check_ids are kick-eligible', () => {
     expect(isKickEligibleV2CheckId('v2_summary_weakness_presence')).toBe(true);
-    expect(isKickEligibleV2CheckId('v2_fidelity_score_confidence_alignment')).toBe(true);
     expect(isKickEligibleV2CheckId('v2_scored_anchor_threshold')).toBe(true);
     expect(isKickEligibleV2CheckId('v2_completeness_bridge')).toBe(true);
   });
@@ -399,9 +418,9 @@ describe('isKickEligibleV2CheckId — unwrap QG_FAILED by check_id', () => {
     expect(isKickEligibleV2CheckId('v2_summary_weakness_presence')).toBe(true);
   });
 
-  it('QG_FAILED wrapper with score/confidence mismatch check_id triggers kick via unwrap', () => {
+  it('QG_FAILED wrapper with score/confidence mismatch check_id does not kick because it is a soft downgrade/terminal structural code', () => {
     expect(isTerminalFailureCode('QG_FAILED')).toBe(true);
-    expect(isKickEligibleV2CheckId('v2_fidelity_score_confidence_alignment')).toBe(true);
+    expect(isKickEligibleV2CheckId('v2_fidelity_score_confidence_alignment')).toBe(false);
   });
 
   it('QG_FAILED wrapper with only terminal/infra errors does NOT kick', () => {
@@ -416,7 +435,6 @@ describe('isKickEligibleV2CheckId — unwrap QG_FAILED by check_id', () => {
     // The backward kick budget is 1 per failure code. After 1 kick,
     // the same failure becomes terminal (quarantine).
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_SUMMARY_OMITS_WEAKNESS')).toBe(1);
-    expect(maxSelfRecoveryAttemptsForFailureCode('QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_REQUIRED_EVIDENCE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_CONSEQUENCE_CONTRACT')).toBe(1);
     // After exhausting kick budget (1 attempt), these codes should not be retried
