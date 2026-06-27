@@ -1,11 +1,15 @@
 import {
+  getActiveEvaluationModes,
   getEvaluationContract,
+  getEvaluationTemplateContractMetadata,
   getSupportedEvaluationModes,
+  isActiveEvaluationMode,
   isContractComplete,
   getRequiredOpportunityFields,
   getSeverityTiers,
   type EvaluationMode,
 } from '@/lib/evaluation/contracts/evaluationContractRegistry';
+import { EVALUATION_TEMPLATE_CONTRACTS } from '@/lib/evaluation/unifiedEvaluationDocument';
 
 describe('Evaluation Contract Registry', () => {
   describe('getEvaluationContract', () => {
@@ -24,16 +28,19 @@ describe('Evaluation Contract Registry', () => {
       expect(contract.missingExecutableRules).toHaveLength(0);
     });
 
-    it('long_form_evaluation has partial implementation status with explicit gaps', () => {
+    it('long_form_evaluation is complete but historical-compatibility only', () => {
       const contract = getEvaluationContract('long_form_evaluation');
-      expect(contract.implementationStatus).toBe('partial');
-      expect(contract.missingExecutableRules.length).toBeGreaterThan(0);
+      expect(contract.implementationStatus).toBe('complete');
+      expect(contract.missingExecutableRules).toHaveLength(0);
+      expect(contract.productLifecycle).toBe('historical_compatibility');
+      expect(contract.outputMode).toBe('legacy_long_form');
     });
 
-    it('long_form_multi_layer_evaluation has partial implementation status with explicit gaps', () => {
+    it('long_form_multi_layer_evaluation has complete implementation status', () => {
       const contract = getEvaluationContract('long_form_multi_layer_evaluation');
-      expect(contract.implementationStatus).toBe('partial');
-      expect(contract.missingExecutableRules.length).toBeGreaterThan(0);
+      expect(contract.implementationStatus).toBe('complete');
+      expect(contract.missingExecutableRules).toHaveLength(0);
+      expect(contract.productLifecycle).toBe('active');
     });
 
     it('throws for unknown mode', () => {
@@ -95,9 +102,62 @@ describe('Evaluation Contract Registry', () => {
     it('multi-layer includes Cross-Layer Synthesis and Layer-Aware Revision Sequencing', () => {
       const contract = getEvaluationContract('long_form_multi_layer_evaluation');
       const titles = contract.requiredSections.map(s => s.title);
-      expect(titles).toContain('Cross-Layer Synthesis');
+      const optionalTitles = contract.optionalSections.map(s => s.title);
+      expect(optionalTitles).toContain('Cross-Layer Integration');
       expect(titles).toContain('Layer-Aware Revision Sequencing');
       expect(titles).toContain('Readiness / Releasability Posture');
+      expect(titles).toContain('Narrative Synthesis');
+      expect(titles).toContain('Market Shelf');
+      expect(titles).toContain('Author-Facing Disclaimer');
+    });
+  });
+
+  describe('Phase 5B authority chain', () => {
+    it('derives UED template metadata from the executable contract registry', () => {
+      expect(EVALUATION_TEMPLATE_CONTRACTS).toEqual(getEvaluationTemplateContractMetadata());
+    });
+
+    it('marks only current product modes active for new submissions', () => {
+      expect(getActiveEvaluationModes()).toEqual([
+        'short_form_evaluation',
+        'long_form_multi_layer_evaluation',
+      ]);
+      expect(isActiveEvaluationMode('short_form_evaluation')).toBe(true);
+      expect(isActiveEvaluationMode('long_form_evaluation')).toBe(false);
+      expect(isActiveEvaluationMode('long_form_multi_layer_evaluation')).toBe(true);
+    });
+
+    it('locks doctrine → executable contract → UED certification → ViewModel/render parity metadata', () => {
+      const expectedContractPaths: Record<EvaluationMode, string> = {
+        short_form_evaluation: 'lib/evaluation/contracts/shortFormContract.ts',
+        long_form_evaluation: 'lib/evaluation/contracts/longFormContract.ts',
+        long_form_multi_layer_evaluation: 'lib/evaluation/contracts/longFormMultiLayerContract.ts',
+      };
+
+      for (const mode of getSupportedEvaluationModes()) {
+        const contract = getEvaluationContract(mode);
+        expect(contract.certificationChain.templateDoctrinePath).toBe(contract.templatePath);
+        expect(contract.certificationChain.executableContractPath).toBe(expectedContractPaths[mode]);
+        expect(contract.certificationChain.unifiedEvaluationDocumentBuilder).toBe('lib/evaluation/unifiedEvaluationDocument.ts');
+        expect(contract.certificationChain.uedCertificationArtifact).toBe('author_exposure_certification_v1');
+        expect(contract.certificationChain.viewModelArtifact).toBe('evaluation_report_view_model_v1');
+        expect(contract.certificationChain.renderParityGate).toBe('PHASE5_RENDER_PARITY_FAIL');
+      }
+    });
+
+    it('forbids executable product contracts from creating non-ledger opportunities', () => {
+      for (const mode of getSupportedEvaluationModes()) {
+        const contract = getEvaluationContract(mode);
+        const sections = [...contract.requiredSections, ...contract.optionalSections];
+        expect(sections.every((section) => section.mayCreateNewOpportunities === false)).toBe(true);
+
+        for (const rule of contract.revisionSurfaceRules) {
+          expect(rule.mayCreateNewOpportunities).toBe(false);
+          if (rule.ownsOpportunities || rule.ownsRecommendationText) {
+            expect(rule.mustTraceToCanonicalLedger).toBe(true);
+          }
+        }
+      }
     });
   });
 
@@ -143,12 +203,12 @@ describe('Evaluation Contract Registry', () => {
       expect(isContractComplete('short_form_evaluation')).toBe(true);
     });
 
-    it('returns false for long_form_evaluation', () => {
-      expect(isContractComplete('long_form_evaluation')).toBe(false);
+    it('returns true for long_form_evaluation historical compatibility contract', () => {
+      expect(isContractComplete('long_form_evaluation')).toBe(true);
     });
 
-    it('returns false for long_form_multi_layer_evaluation', () => {
-      expect(isContractComplete('long_form_multi_layer_evaluation')).toBe(false);
+    it('returns true for long_form_multi_layer_evaluation', () => {
+      expect(isContractComplete('long_form_multi_layer_evaluation')).toBe(true);
     });
   });
 });

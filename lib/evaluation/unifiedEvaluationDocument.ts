@@ -2,6 +2,7 @@ import { buildShortFormEvaluationDocument, type ShortFormResultLike } from '@/li
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { getReportHeaderContract } from '@/lib/evaluation/reportHeaderPolicy';
 import { deriveShelfConfidence, type CanonicalConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
+import { getEvaluationTemplateContractMetadata } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 
 export type CanonicalEvaluationMode =
   | 'short_form_evaluation'
@@ -12,23 +13,11 @@ export const EVALUATION_TEMPLATE_CONTRACTS: Record<CanonicalEvaluationMode, {
   templateName: string;
   reportType: string;
   templatePath: string;
-}> = {
-  short_form_evaluation: {
-    templateName: 'Short-Form Evaluation Template',
-    reportType: 'Short-Form Evaluation',
-    templatePath: 'docs/templates/evaluation/short-form-evaluation-template.md',
-  },
-  long_form_evaluation: {
-    templateName: 'Long-Form Evaluation Template',
-    reportType: 'Long-Form Evaluation',
-    templatePath: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
-  },
-  long_form_multi_layer_evaluation: {
-    templateName: 'Long-Form Multi-Layer Evaluation Template',
-    reportType: 'Long-Form Multi-Layer Evaluation',
-    templatePath: 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md',
-  },
-} as const;
+}> = getEvaluationTemplateContractMetadata() as Record<CanonicalEvaluationMode, {
+  templateName: string;
+  reportType: string;
+  templatePath: string;
+}>;
 
 export type UnifiedEvaluationDocument = Omit<ReturnType<typeof buildShortFormEvaluationDocument>, 'templateMode' | 'titleBlock'> & {
   templateMode: CanonicalEvaluationMode;

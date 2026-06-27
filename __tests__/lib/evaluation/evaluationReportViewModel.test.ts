@@ -201,11 +201,11 @@ describe('normalizeEvaluationReportViewModel', () => {
 
 
   describe('long-form mode', () => {
-    it('marks long-form multi-layer contract as partial', () => {
+    it('marks long-form multi-layer contract as complete', () => {
       const ued = buildMinimalUed({ templateMode: 'long_form_multi_layer_evaluation' });
       const vm = normalizeEvaluationReportViewModel({ ued });
       expect(vm.templateMode).toBe('long_form_multi_layer_evaluation');
-      expect(vm.contractStatus).toBe('partial');
+      expect(vm.contractStatus).toBe('complete');
     });
 
     it('marks short-form contract as complete', () => {
