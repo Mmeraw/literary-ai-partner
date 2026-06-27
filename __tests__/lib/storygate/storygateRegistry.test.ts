@@ -204,6 +204,52 @@ describe('STORYGATE_KICK_MATRIX', () => {
     expect(kick?.blocking).toBe(true);
     expect(kick?.blocksControlledAccess).toBe(true);
   });
+
+  test('invalid package authority blocks Storygate intake and controlled access', () => {
+    const kick = STORYGATE_KICK_MATRIX.find((entry) => entry.kickCode === 'PACKAGE_AUTHORITY_INVALID');
+    expect(kick).toBeDefined();
+    expect(kick).toEqual(expect.objectContaining({
+      detectedAt: 'SG05_PACKAGE_VERIFICATION',
+      blocking: true,
+      blocksControlledAccess: true,
+      httpStatus: 422,
+    }));
+    expect(kick?.description).toMatch(/renderer\/download output/i);
+    expect(kick?.description).toMatch(/evaluation_report_view_model_v1/);
+    expect(kick?.description).toMatch(/uncertified Agent Readiness output/i);
+    expect(kick?.description).toMatch(/AR08\/AR09 gaps/i);
+  });
+});
+
+describe('Storygate downstream package authority boundary', () => {
+  test('SG01 and SG05 reject renderer, VM, uncertified package, and stale Agent Readiness gap authority', () => {
+    const creatorSubmission = STORYGATE_PROCESS_REGISTRY.find((stage) => stage.stageId === 'SG01_CREATOR_SUBMISSION');
+    const packageVerification = STORYGATE_PROCESS_REGISTRY.find((stage) => stage.stageId === 'SG05_PACKAGE_VERIFICATION');
+    expect(creatorSubmission?.failureCodes).toContain('PACKAGE_AUTHORITY_INVALID');
+    expect(packageVerification?.failureCodes).toContain('PACKAGE_AUTHORITY_INVALID');
+
+    const boundaryText = [
+      creatorSubmission?.processContract,
+      creatorSubmission?.dirtyDataRules.join(' '),
+      packageVerification?.processContract,
+      packageVerification?.dirtyDataRules.join(' '),
+    ].join(' ');
+
+    expect(boundaryText).toMatch(/Web\/PDF\/DOCX\/TXT renderer output/);
+    expect(boundaryText).toMatch(/evaluation_report_view_model_v1/);
+    expect(boundaryText).toMatch(/uncertified Agent Readiness output/);
+    expect(boundaryText).toMatch(/AR08\/AR09/);
+  });
+
+  test('agent_readiness_package_v1 requires certified package authority before Storygate verification', () => {
+    const artifact = STORYGATE_ARTIFACT_REGISTRY.find((entry) => entry.artifact === 'agent_readiness_package_v1');
+    expect(artifact).toBeDefined();
+    expect(artifact?.completenessMetric).toMatch(/certified by Agent Readiness|equivalent professional authority/i);
+    expect(artifact?.dirtyDataRule).toMatch(/Web\/PDF\/DOCX\/TXT renderer output/);
+    expect(artifact?.dirtyDataRule).toMatch(/evaluation_report_view_model_v1/);
+    expect(artifact?.dirtyDataRule).toMatch(/uncertified Agent Readiness output/);
+    expect(artifact?.dirtyDataRule).toMatch(/AR08\/AR09 gaps/);
+  });
 });
 
 describe('STORYGATE_CERTIFICATION_GATE_REGISTRY', () => {
@@ -240,6 +286,12 @@ describe('STORYGATE_AUTHORITY_SOURCE_REGISTRY', () => {
       }
     }
   });
+
+  test('Storygate binds to artifact authority chain and Agent Readiness handoff doctrine', () => {
+    const authorityIds = new Set(STORYGATE_AUTHORITY_SOURCE_REGISTRY.map((authority) => authority.authorityId));
+    expect(authorityIds.has('ARTIFACT_AUTHORITY_CHAIN')).toBe(true);
+    expect(authorityIds.has('SIPOC_AGENT_READINESS')).toBe(true);
+  });
 });
 
 describe('STORYGATE_RENDERER_MATRIX', () => {
@@ -247,6 +299,14 @@ describe('STORYGATE_RENDERER_MATRIX', () => {
     const artifacts = new Set(STORYGATE_ARTIFACT_REGISTRY.map((artifact) => artifact.artifact));
     for (const renderer of STORYGATE_RENDERER_MATRIX) {
       for (const artifact of renderer.consumedArtifacts) expect(artifacts.has(artifact)).toBe(true);
+    }
+  });
+
+  test('Storygate surfaces do not consume renderer/download output or ViewModel as authority', () => {
+    const forbiddenArtifacts = new Set(['evaluation_report_view_model_v1', 'web_renderer', 'pdf_renderer', 'docx_renderer', 'txt_renderer']);
+    for (const renderer of STORYGATE_RENDERER_MATRIX) {
+      for (const artifact of renderer.consumedArtifacts) expect(forbiddenArtifacts.has(artifact)).toBe(false);
+      expect(renderer.notes).not.toMatch(/as authority from renderer/i);
     }
   });
 });
@@ -263,6 +323,18 @@ describe('STORYGATE_CERTIFICATION_GATE_REGISTRY', () => {
   test('Storygate is registry-described, not fully SIPOC-enforced', () => {
     expect(STORYGATE_CERTIFICATION_GATE_REGISTRY.some((gate) => gate.enforced === false)).toBe(true);
     expect(STORYGATE_PROCESS_REGISTRY.some((stage) => stage.certificationStatus === 'missing_critical')).toBe(true);
+  });
+
+  test('certified package handoff boundary is registry/test enforced without runtime certification claim', () => {
+    const gate = STORYGATE_CERTIFICATION_GATE_REGISTRY.find((entry) => entry.gateId === 'SGCG09_CERTIFIED_PACKAGE_HANDOFF_ONLY');
+    expect(gate).toEqual(expect.objectContaining({
+      appliesToStageId: 'SG05_PACKAGE_VERIFICATION',
+      enforced: true,
+      testEvidence: '__tests__/lib/storygate/storygateRegistry.test.ts',
+    }));
+    expect(gate?.description).toMatch(/renderer\/download output/);
+    expect(gate?.description).toMatch(/evaluation_report_view_model_v1/);
+    expect(gate?.notes).toMatch(/does not implement missing Storygate package verification runtime/i);
   });
 });
 

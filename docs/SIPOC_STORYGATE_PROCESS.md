@@ -4,7 +4,7 @@
 > **Primary authority:** `docs/storygate/STORYGATE_STUDIO_CANON.md`  
 > **Executable registry:** `lib/storygate/storygateRegistry.ts`  
 > **CSV mirrors:** `docs/registries/storygate/*.csv`  
-> **Last updated:** 2026-06-11
+> **Last updated:** 2026-06-27
 
 Storygate Studio is the controlled-access layer for readiness-vetted manuscript projects and verified publishing professionals.
 
@@ -23,6 +23,9 @@ This SIPOC/FIPOC is derived from current Storygate Studio canon, not Base44. Bas
 7. Film, screen, screenplay, adaptation, deck, treatment, producer-facing, and film-rights-marketplace requirements are excluded from current scope.
 8. Access is verified, creator/admin approved, controlled, and append-only logged.
 9. Storygate is registry-described, not fully SIPOC-enforced.
+10. Storygate downstream package intake may consume certified `agent_readiness_package_v1` or equivalent professional materials only.
+11. Storygate must not consume Web/PDF/DOCX/TXT renderer output or `evaluation_report_view_model_v1` as package authority.
+12. Storygate must not treat uncertified Agent Readiness output, AR08 export gaps, or AR09 package-history gaps as resolved.
 
 ---
 
@@ -40,7 +43,7 @@ This SIPOC/FIPOC is derived from current Storygate Studio canon, not Base44. Bas
 - Sample Pages
 - Rights Declaration
 
-Equivalent professional materials may satisfy package quality. Buying RevisionGrade services is not required. Current Agent Readiness output may be used as a base, but it must be supplemented with every required Storygate field before Storygate package verification can pass.
+Equivalent professional materials may satisfy package quality. Buying RevisionGrade services is not required. Certified Agent Readiness output may be used as a base, but it must be supplemented with every required Storygate field before Storygate package verification can pass. Storygate must not accept renderer/download output, `evaluation_report_view_model_v1`, uncertified Agent Readiness output, or stale claims that Agent Readiness AR08/AR09 gaps are resolved as package authority.
 
 ---
 
@@ -70,7 +73,7 @@ Industry verification occurs before access request. Package verification and rea
 | Seq | Stage | Name | Status | Notes |
 |-----|-------|------|--------|-------|
 | 1 | `SG01_CREATOR_SUBMISSION` | Creator Submission Entry | partial / gap | Current app surfaces describe preparation; durable current-canon submission path not proven |
-| 2 | `SG02_INTAKE_VALIDATION` | Submission Intake Validation | missing-critical | Current-canon validator required; Base44 validators are legacy-only |
+| 2 | `SG02_INTAKE_VALIDATION` | Submission Intake Validation | partial / gap | Current-canon validator exists; durable submission route/database persistence remains a gap |
 | 3 | `SG03_INTERNAL_SCREENING` | Internal Screening | missing-critical | Must enforce current scope and 9.0 threshold |
 | 4 | `SG04_TIER_ASSIGNMENT` | Tier Assignment | missing-critical | Persisted tier/audit evidence not proven |
 | 5 | `SG05_PACKAGE_VERIFICATION` | Professional Package Verification | partial / gap | Package requires Market Comparables, Market Category, Target Audience, Market Position Statement, and Rights Declaration |
@@ -88,12 +91,12 @@ Industry verification occurs before access request. Package verification and rea
 
 | Element | Contract |
 |---------|----------|
-| Suppliers | creator/author, Agent Readiness package, internal reviewer, publishing professional, creator/admin approver, audit logger |
-| Inputs | manuscript package, readiness evidence, rights declaration, verification request, access request |
+| Suppliers | creator/author, certified Agent Readiness package, equivalent professional package, internal reviewer, publishing professional, creator/admin approver, audit logger |
+| Inputs | certified `agent_readiness_package_v1` or equivalent professional manuscript package, readiness evidence, rights declaration, verification request, access request |
 | Process | validate package, screen, assign tier, verify package, verify 9.0 readiness, verify professional, activate listing, request access, approve/deny, control access, log/revoke |
 | Outputs | submission request, validation result, screening result, tier assignment, package verification result, eligibility result, verification record, listing, access request, access grant, access log, revocation record |
 | Customers | creator/author, verified publishing professional, admin/governance reviewer |
-| Feedback/Kicks | missing fields, missing Market Comparables, missing market category, missing target audience, missing market position statement, missing rights, below 9.0 threshold, unverified professional, unauthorized approval, missing grant, artifact outside scope, missing audit |
+| Feedback/Kicks | missing fields, missing Market Comparables, missing market category, missing target audience, missing market position statement, missing rights, invalid package authority, below 9.0 threshold, unverified professional, unauthorized approval, missing grant, artifact outside scope, missing audit |
 
 ---
 
@@ -102,6 +105,8 @@ Industry verification occurs before access request. Package verification and rea
 | Authority | Level | Use |
 |-----------|-------|-----|
 | `docs/storygate/STORYGATE_STUDIO_CANON.md` | binding | Primary current Storygate Studio canon |
+| `docs/SIPOC_ARTIFACT_AUTHORITY_CHAIN.md` | binding | Authority-order doctrine for certified artifact handoff and renderer/ViewModel boundaries |
+| `docs/SIPOC_AGENT_READINESS_PROCESS.md` | binding | Certified Agent Readiness package boundary and unresolved AR08/AR09 gap state |
 | `docs/SIPOC_STORYGATE_PROCESS.md` | binding | Process constitution |
 | `lib/storygate/storygateRegistry.ts` | binding executable registry | Machine-readable registry |
 | `docs/SYSTEM_FACTORY_MAP.md` | secondary | Cross-factory summary |
@@ -131,6 +136,8 @@ Industry verification occurs before access request. Package verification and rea
 Use as current authority:
 
 - `docs/storygate/STORYGATE_STUDIO_CANON.md`
+- `docs/SIPOC_ARTIFACT_AUTHORITY_CHAIN.md`
+- `docs/SIPOC_AGENT_READINESS_PROCESS.md`
 - `docs/SIPOC_STORYGATE_PROCESS.md`
 - `lib/storygate/storygateRegistry.ts`
 - `docs/registries/storygate/*.csv`
@@ -151,4 +158,4 @@ Do not use as binding authority:
 
 ## Certification Boundary
 
-Storygate SIPOC/FIPOC is valid governance infrastructure, but Storygate is not production-certified or fully SIPOC-enforced until current runtime implements/proves every missing-critical stage.
+Storygate SIPOC/FIPOC is valid governance infrastructure, but Storygate is not production-certified or fully SIPOC-enforced until current runtime implements/proves every missing-critical stage. The package-authority boundary is registry/test-enforced architecture only in this patch; it does not implement missing Storygate runtime behavior or resolve Agent Readiness AR08/AR09 gaps.

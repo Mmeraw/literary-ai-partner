@@ -27,6 +27,16 @@ import {
   AGENT_READINESS_RENDERER_MATRIX,
   SECTION_WORD_LIMIT_REGISTRY,
 } from '../lib/agent-readiness/agentReadinessRegistry';
+import {
+  STORYGATE_ARTIFACT_REGISTRY,
+  STORYGATE_AUTHORITY_SOURCE_REGISTRY,
+  STORYGATE_CERTIFICATION_GATE_REGISTRY,
+  STORYGATE_FIELD_REGISTRY,
+  STORYGATE_KICK_MATRIX,
+  STORYGATE_PROCESS_REGISTRY,
+  STORYGATE_RENDERER_MATRIX,
+  STORYGATE_THRESHOLD_REGISTRY,
+} from '../lib/storygate/storygateRegistry';
 
 const OUT_DIR = path.resolve('docs/registries');
 
@@ -350,3 +360,104 @@ writeArCsv('section_word_limit_registry.csv', SECTION_WORD_LIMIT_REGISTRY, [
 ]);
 
 console.log(`[fipoc:export] wrote agent-readiness registries to ${AR_OUT_DIR}`);
+
+// ─── Storygate Studio Registry Exports ──────────────────────────────────────
+
+const STORYGATE_OUT_DIR = path.join(OUT_DIR, 'storygate');
+if (!fs.existsSync(STORYGATE_OUT_DIR)) fs.mkdirSync(STORYGATE_OUT_DIR, { recursive: true });
+
+function writeStorygateCsv<T extends object>(filename: string, rows: readonly T[], columns: Array<keyof T>): void {
+  const lines = [
+    columns.join(','),
+    ...rows.map((row) => columns.map((col) => csvEscape(row[col])).join(',')),
+  ];
+  fs.writeFileSync(path.join(STORYGATE_OUT_DIR, filename), `${lines.join('\n')}\n`, 'utf8');
+}
+
+writeStorygateCsv('storygate_process_registry.csv', STORYGATE_PROCESS_REGISTRY, [
+  'sequence',
+  'stageId',
+  'processName',
+  'activeState',
+  'supplier',
+  'inputArtifacts',
+  'outputArtifacts',
+  'certificationStatus',
+  'fitGapStatus',
+  'notes',
+]);
+
+writeStorygateCsv('storygate_artifact_registry.csv', STORYGATE_ARTIFACT_REGISTRY, [
+  'artifact',
+  'producerStageId',
+  'consumerStageIds',
+  'requiredFields',
+  'completenessMetric',
+  'accuracyMetric',
+  'dirtyDataRule',
+  'requiredForControlledAccess',
+  'fitGapStatus',
+]);
+
+writeStorygateCsv('storygate_field_registry.csv', STORYGATE_FIELD_REGISTRY, [
+  'field',
+  'artifact',
+  'required',
+  'nullable',
+  'canonicalValues',
+  'sourceStageId',
+  'validatorStageId',
+  'uiRendered',
+  'notes',
+]);
+
+writeStorygateCsv('storygate_kick_matrix.csv', STORYGATE_KICK_MATRIX, [
+  'kickCode',
+  'detectedAt',
+  'description',
+  'blocking',
+  'blocksControlledAccess',
+  'remediation',
+  'httpStatus',
+]);
+
+writeStorygateCsv('storygate_authority_source_registry.csv', STORYGATE_AUTHORITY_SOURCE_REGISTRY, [
+  'authorityId',
+  'family',
+  'authorityLevel',
+  'title',
+  'path',
+  'appliesToStageIds',
+  'appliesToArtifacts',
+  'executionUse',
+  'notes',
+]);
+
+writeStorygateCsv('storygate_renderer_matrix.csv', STORYGATE_RENDERER_MATRIX, [
+  'surface',
+  'route',
+  'consumedArtifacts',
+  'consumedFields',
+  'writeCapability',
+  'notes',
+]);
+
+writeStorygateCsv('storygate_certification_gate_registry.csv', STORYGATE_CERTIFICATION_GATE_REGISTRY, [
+  'gateId',
+  'description',
+  'appliesToStageId',
+  'enforced',
+  'testEvidence',
+  'notes',
+]);
+
+writeStorygateCsv('storygate_threshold_registry.csv', STORYGATE_THRESHOLD_REGISTRY, [
+  'thresholdId',
+  'canonicalValue',
+  'implementationValue',
+  'appliesToStageIds',
+  'fitGapStatus',
+  'notes',
+]);
+
+console.log(`[fipoc:export] wrote storygate registries to ${STORYGATE_OUT_DIR}`);
