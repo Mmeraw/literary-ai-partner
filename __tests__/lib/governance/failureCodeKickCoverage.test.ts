@@ -335,7 +335,7 @@ describe('failure-code → kick-matrix coverage audit', () => {
   test('failure recovery definitions are unique and declaration-based', () => {
     const definitionCodes = FAILURE_RECOVERY_DEFINITIONS.map((definition) => definition.failureCode);
     expect(definitionCodes).toHaveLength(new Set(definitionCodes).size);
-    expect(definitionCodes.length).toBe(167);
+    expect(definitionCodes.length).toBe(172);
   });
 
   test.each(FAMILY_AUDITS)('$family stages declare input metrics, output metrics, dirty-data rules, and failure codes', (audit) => {

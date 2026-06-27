@@ -84,6 +84,7 @@ import {
 import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
 import { lookupKicksForStage } from '@/lib/evaluation/fipocRegistry';
 import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
+import { getFailureRecoveryDefinition } from '@/lib/governance/failureRecoveryPolicy';
 import {
   buildScoreLedger,
   computeAuthorityComposite,
@@ -1943,7 +1944,6 @@ const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
  */
 const KICK_ELIGIBLE_V2_CHECK_IDS = new Set<string>([
   'v2_summary_weakness_presence',
-  'v2_fidelity_score_confidence_alignment',
   'v2_scored_anchor_threshold',
   'v2_completeness_bridge',
 ]);
@@ -1954,6 +1954,10 @@ const KICK_ELIGIBLE_V2_CHECK_IDS = new Set<string>([
  */
 export function isKickEligibleFailureCode(code: string | null | undefined): boolean {
   if (!code) return false;
+  const definition = getFailureRecoveryDefinition(code);
+  if (definition) {
+    return definition.recoveryPolicy.mode === 'rollback_to_certified_checkpoint';
+  }
   return KICK_ELIGIBLE_FAILURE_CODES.has(code);
 }
 
@@ -1977,6 +1981,10 @@ export function isKickEligibleV2CheckId(checkId: string | null | undefined): boo
  */
 export function isTerminalFailureCode(code: string | null | undefined): boolean {
   if (!code) return false; // Unknown code: assume rescuable (conservative)
+  const definition = getFailureRecoveryDefinition(code);
+  if (definition) {
+    return definition.recoveryPolicy.mode === 'terminal_block';
+  }
   if (code === 'LLR_PRE_ARTIFACT_GENERATION_BLOCK') {
     return false;
   }
@@ -1987,6 +1995,11 @@ export function isTerminalFailureCode(code: string | null | undefined): boolean 
 
 export function maxSelfRecoveryAttemptsForFailureCode(code: string | null | undefined): number {
   if (!code) return 2;
+
+  const definition = getFailureRecoveryDefinition(code);
+  if (definition) {
+    return definition.recoveryPolicy.retryLimit;
+  }
 
   // FIPOC KICK_MATRIX: kick-eligible gate failures get exactly 1 retry (backward kick).
   if (KICK_ELIGIBLE_FAILURE_CODES.has(code)) return 1;
