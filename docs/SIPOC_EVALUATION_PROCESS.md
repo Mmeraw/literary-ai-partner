@@ -1062,9 +1062,10 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
 | `S08_ER2_NORMALIZATION` | High-risk | Boundary semantics and score/null integrity critical |
 | `S09_QUALITYGATEV2` | Partial | Deterministic gate active; statistical certification pending |
 | `S10_PERSISTENCE` | Partial | Atomic enforcement present; seam risk remains |
-| `S10c_VIEWMODEL_BOUNDARY_GATE` | Active | ViewModel normalization active; boundary enforcement tests passing; all renderers consume VM |
-| `S11a_RENDERER_WEBPAGE` | Partial | Consumes `evaluation_report_view_model_v1`; format-only rendering active |
-| `S11b_DOWNLOAD_PIPELINE` | Emerging | Consumes `evaluation_report_view_model_v1`; cross-format parity gate active; evidence ownership enforced |
+| `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Proven | Runtime certification enforced by `authorExposureCertification.ts`, `reportRenderParity.ts`, and constitutional registry / DCIP loading |
+| `S10c_VIEWMODEL_BOUNDARY_GATE` | Proven | ViewModel normalization active; boundary enforcement tests passing; all renderers consume VM |
+| `S11a_RENDERER_WEBPAGE` | Proven | Consumes `evaluation_report_view_model_v1`; format-only rendering active and registry-tested |
+| `S11b_DOWNLOAD_PIPELINE` | Proven | Consumes `evaluation_report_view_model_v1`; cross-format parity gate active; evidence ownership enforced |
 | `ADJACENT_PHASE_0` | Emerging | Authority proof generation active; fixture coverage pending |
 | `ADJACENT_PHASE_0_5A` | Emerging | Seed generation active; two-pass validation implemented; format conformance guard active |
 | `ADJACENT_PHASE_0_5B` | Emerging | Revise opportunity seed generation active; candidate-prose contract defined |

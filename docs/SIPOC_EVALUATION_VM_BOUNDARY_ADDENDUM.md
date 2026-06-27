@@ -86,6 +86,30 @@ Renderers own only:
 - page breaks
 - file-format structures
 
+## Renderer Boundary Contract
+
+All Evaluation renderers — Web, PDF, DOCX, TXT, and print-friendly projections — have the same canonical supplier:
+
+```text
+evaluation_report_view_model_v1
+```
+
+Renderers are presentation surfaces only. They must never own or perform:
+
+- sanitization
+- normalization
+- scope correction
+- score derivation
+- confidence derivation
+- genre or audience inference
+- recommendation or opportunity generation
+- fallback author-facing text generation
+- author exposure filtering
+- certified artifact repair
+- business-rule interpretation
+
+If a renderer needs data not present in `evaluation_report_view_model_v1`, the defect belongs upstream at `S10c_VIEWMODEL_BOUNDARY_GATE` or `S10b_PHASE5_AUTHOR_EXPOSURE_GATE`. The renderer must not synthesize the missing value locally.
+
 Renderers must not:
 
 - re-sanitize ViewModel-owned text
