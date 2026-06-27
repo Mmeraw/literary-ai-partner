@@ -25,18 +25,43 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Early exit: skip Supabase/build/test for docs/benchmark-only PRs
+      - name: Check PR scope
+        id: scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null || git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          NON_DOC=$(echo "$FILES" | grep -vE '^(docs/|archive/|\.github/PULL_REQUEST_TEMPLATE/|\.github/pr-bodies/|README\.md|CONTRIBUTING\.md|LICENSE)' || true)
+          if [ -z "$NON_DOC" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Docs/benchmark-only PR — skipping Flow 1 proof pack."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Skip notice
+        if: steps.scope.outputs.skip == 'true'
+        run: echo "Flow 1 proof pack skipped — no pipeline/code changes in this PR."
+
       - uses: actions/setup-node@v5
+        if: steps.scope.outputs.skip != 'true'
         with:
           node-version: "24"
           cache: "npm"
 
       - name: Setup Supabase CLI
+        if: steps.scope.outputs.skip != 'true'
         uses: ./.github/actions/setup-supabase-cli
 
       - name: Install deps
+        if: steps.scope.outputs.skip != 'true'
         run: npm ci
 
       - name: Prime Supabase images (best effort)
+        if: steps.scope.outputs.skip != 'true'
         shell: bash
         timeout-minutes: 8
         run: |
@@ -52,6 +77,7 @@ jobs:
           fi
 
       - name: Start Supabase (local)
+        if: steps.scope.outputs.skip != 'true'
         shell: bash
         timeout-minutes: 25
         run: |
@@ -73,6 +99,7 @@ jobs:
           exit 1
 
       - name: Export LOCAL Supabase env for CI
+        if: steps.scope.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -98,6 +125,7 @@ jobs:
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
 
       - name: Start Next.js server (port 3002)
+        if: steps.scope.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -106,13 +134,14 @@ jobs:
           npx --yes wait-on http://127.0.0.1:3002
 
       - name: Run Flow 1 proof pack (Jest)
+        if: steps.scope.outputs.skip != 'true'
         run: npm test -- tests/flow1-proof-pack.test.ts --testTimeout=180000 --testPathIgnorePatterns=/node_modules/
         env:
           FLOW1_BASE_URL: http://127.0.0.1:3002
           CRON_SECRET: test-cron-secret-for-flow1-proof
 
       - name: Stop Supabase
-        if: always()
+        if: always() && steps.scope.outputs.skip != 'true'
         run: supabase stop
 
       - name: CI Gate Summary

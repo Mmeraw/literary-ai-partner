@@ -1,0 +1,381 @@
+{
+  "fixture_id": "LTRD_FULL_CANON_FIDELITY_FIXTURE_V1",
+  "version": "1.0.0",
+  "manuscript": "Let the River Decide",
+  "author": "Michael J. Meraw",
+  "contributing_author": "Clifford R. Wagner",
+  "scope": "Full manuscript / 37 chapters plus epilogue / 83,779 words",
+  "route": "LONG_FORM",
+  "created": "2026-06-10",
+  "purpose": "Machine-readable gate for RevisionGrade evaluation regression tests. An evaluation of this manuscript FAILS if any REQUIRED check is unmet or any FORBIDDEN check triggers. Derived from the Let the River Decide DREAM benchmark, the v2 governed-ledger addendum, and the 9-layer ideal Story Ledger benchmark. Test/benchmark use only; do not inject into production prompts or general platform calibration.",
+
+  "forbidden_unsupported_terms": {
+    "description": "These labels assert facts or framings the manuscript does not support and must not appear in evaluation output without direct manuscript citation.",
+    "terms": [
+      "based on a true story",
+      "memoir",
+      "non-fiction account",
+      "real Dene community",
+      "documented Indigenous ceremony",
+      "actual environmental case"
+    ],
+    "permitted_replacements": [
+      "fictionalized Indigenous community",
+      "invented protocol / ceremony",
+      "literary eco-thriller",
+      "witness narrative",
+      "spiritual-realist northern fiction",
+      "corporate-extraction antagonist system"
+    ],
+    "gate_behavior": "CANON_GROUNDING_ERROR — evaluation must be rejected if any forbidden term appears. The front matter signals fictionalization; the evaluator must not assert documentary or memoir status, and must not assert that the Tłekeh Dene community, its protocol, or its ceremonies are real-world entities."
+  },
+
+  "cultural_protocol_gate": {
+    "description": "Mandatory, manuscript-specific safety gate. This manuscript depicts a fictionalized northern Indigenous (Tłekeh Dene) community, invented protocol, ceremony, elders, food covenant, and spiritual belief narrated by an outsider.",
+    "required_behavior": [
+      "Evaluation MUST include an explicit cultural/protocol risk analysis as a first-class section, not a footnote.",
+      "Evaluation MUST recommend a qualified Indigenous (northern / Dene-adjacent) sensitivity reader before publication.",
+      "Evaluation MUST treat 'witness vs ownership' as a structural craft problem, not only a theme.",
+      "Evaluation MUST NOT certify the manuscript as publication-ready while cultural/protocol review is outstanding."
+    ],
+    "failure_type": "CULTURAL_PROTOCOL_OMISSION",
+    "critical": true,
+    "gate_note": "If the cultural/protocol risk section is absent, the evaluation is a hard test failure regardless of other scores. Readiness MUST NOT be scored above 65 while review is outstanding."
+  },
+
+  "required_entities": {
+    "description": "Tiered treatment requirements. Each tier must be satisfied independently; meeting a lower tier does not satisfy a higher tier.",
+    "entities": [
+      {
+        "entity": "Mike",
+        "aliases": ["the narrator", "I"],
+        "tier_1_mention": true,
+        "tier_2_role": "First-person witness narrator; outsider traveling north; carries the witness-vs-ownership ethical pressure; road-family son figure to Cliff",
+        "tier_3_relationship": ["Mike–Cliff (road family / father-figure)", "Mike–William (outsider/elder access)", "Mike–the river (witness/judgment)", "Mike–Leanna (witness/antagonist conscience)"],
+        "tier_4_criterion_integration": ["POV & Voice", "Character Depth", "Thematic Integration"],
+        "tier_5_recommendation_check": "Do not recommend 'adding a narrator' or 'establishing a POV.' Mike is the established first-person narrator. Recommend sharpening the witness/ownership boundary only.",
+        "minimum_passing_tier": 3
+      },
+      {
+        "entity": "Cliff",
+        "aliases": ["Dad"],
+        "tier_1_mention": true,
+        "tier_2_role": "Stepfather / road-family anchor; aging-competence figure; skeptic who undergoes a belief transition from humoring Mike to witnessing the river; comic and tender counterweight",
+        "tier_3_relationship": ["Mike–Cliff (road family)", "Cliff–the dogs (caretaking / kinship)", "Cliff–Plunkett family currents (inheritance / silence)"],
+        "tier_4_criterion_integration": ["Character Depth", "Dialogue", "Tonal Authority"],
+        "tier_5_recommendation_check": "Do not recommend 'adding a companion character.' Cliff is present and load-bearing. Recommend making his belief shift visible and earned only.",
+        "minimum_passing_tier": 3
+      },
+      {
+        "entity": "Fritz and Schultz",
+        "aliases": ["the dogs"],
+        "tier_1_mention": true,
+        "tier_2_role": "Dogs as sentinels / kin / nonhuman witness; instinct and mortality; their behavior changes stakes and signals the river's activity",
+        "tier_3_relationship": ["Cliff–the dogs (caretaking)", "the dogs–the river (animal-sensory warning system)"],
+        "tier_4_criterion_integration": ["Worldbuilding", "Scene Construction", "Thematic Integration"],
+        "tier_5_recommendation_check": "Do not treat the dogs as decorative pet material. They are a functional animal-sensory layer. Do not recommend 'removing' or 'reducing' them as flavor.",
+        "minimum_passing_tier": 2,
+        "warning": "The dogs are sensory EVIDENCE, not charm. An evaluation that reduces them to atmosphere is a STRUCTURAL omission."
+      },
+      {
+        "entity": "William",
+        "tier_1_mention": true,
+        "tier_2_role": "Elder; authority on river protocol and Smokehouse Camp; gatekeeper of story and knowledge; source of the witness-vs-ownership boundary ('You cannot carry our stories')",
+        "tier_3_relationship": ["Mike–William (outsider/elder access)", "William–Leanna (avoidance / contested history)", "William–the community (authority)"],
+        "tier_4_criterion_integration": ["Character Depth", "Worldbuilding", "Thematic Integration"],
+        "tier_5_recommendation_check": "Do not recommend 'adding an elder.' William is present. Do not flatten him into a vessel for sacred authority; recommend ordinary-personhood texture only.",
+        "minimum_passing_tier": 2,
+        "warning": "Risk flag: William can read as a container for sacred authority rather than a fully ordinary person. Evaluation must note this representational risk."
+      },
+      {
+        "entity": "Leanna",
+        "tier_1_mention": true,
+        "tier_2_role": "Divided-inheritance figure; corporate hinge (Verdant); embodies conflict inside inheritance; prevents a simplistic Indigenous-good / corporate-bad binary; late-arriving central antagonist / sacrifice figure",
+        "tier_3_relationship": ["Mike–Leanna (witness / conscience)", "William–Leanna (contested history)", "Leanna–Verdant/OCEA (corporate inheritance)"],
+        "tier_4_criterion_integration": ["Character Depth", "Thematic Integration", "Narrative Drive"],
+        "tier_5_recommendation_check": "Do not recommend 'adding a corporate antagonist.' Leanna is present. Recommend seeding her earlier (before Ch. 31) only.",
+        "minimum_passing_tier": 3,
+        "warning": "Leanna arrives too late structurally. Evaluation must flag late integration but MUST NOT recommend 'creating' her."
+      },
+      {
+        "entity": "Esmé",
+        "tier_1_mention": true,
+        "tier_2_role": "Community figure; giver of stone/feather offerings; carries grief and protocol; embodies food/work/social density of Smokehouse Camp",
+        "tier_3_relationship": ["Esmé–Mike (gift / protocol)", "Esmé–the community (kinship)"],
+        "tier_4_criterion_integration": ["Character Depth", "Worldbuilding"],
+        "minimum_passing_tier": 2,
+        "warning": "Risk flag: Esmé can read as a container for sacred authority rather than an ordinary person. Evaluation must note representational risk."
+      },
+      {
+        "entity": "Verdant / OCEA",
+        "aliases": ["Verdant", "OCEA", "the corporation"],
+        "tier_1_mention": true,
+        "tier_2_role": "Institutional antagonist system; corporate/legal extraction force; euphemism and 'extraction spellwork' embodied in documents",
+        "tier_3_relationship": ["Leanna–Verdant/OCEA (inheritance)", "Verdant–the river (extraction vs. balance)", "Verdant–the community (legal threat)"],
+        "tier_4_criterion_integration": ["Worldbuilding", "Thematic Integration", "Narrative Drive"],
+        "minimum_passing_tier": 2
+      },
+      {
+        "entity": "Anthony",
+        "tier_1_mention": true,
+        "tier_2_role": "Community figure whose status (inheritance / exclusion / witness / successor) is an unresolved promise requiring payoff",
+        "tier_3_relationship": ["Anthony–the community (status / succession)"],
+        "minimum_passing_tier": 1,
+        "warning": "Anthony's status is an unresolved promise. Evaluation must track it, not invent a resolution."
+      }
+    ]
+  },
+
+  "required_relationships": {
+    "description": "These relationship spines must be evaluated, not merely mentioned. Each has a minimum treatment level.",
+    "relationships": [
+      {
+        "spine": "Mike–Cliff",
+        "function": "Road family / father-figure bond; aging-competence tenderness and banter; emotional spine of the road narrative",
+        "minimum_treatment": "Must be evaluated as a structural spine with criterion-level impact on Character Depth and Tonal Authority",
+        "critical": true,
+        "gate_note": "If the Mike–Cliff spine is omitted from a commercial pitch or summary, that is a STRUCTURAL omission of the book's load-bearing emotional arc."
+      },
+      {
+        "spine": "Mike–the river",
+        "function": "Witness / judgment / memory; the river as active agent, archive, and judge — not setting or mood",
+        "minimum_treatment": "Must treat the river as an agentive symbolic force whose agency and ambiguity are protected, not as scenery",
+        "critical": true,
+        "gate_note": "An evaluation that treats the river only as setting/atmosphere is a SYMBOLIC_SYSTEM_OMISSION. The river is the title's argument."
+      },
+      {
+        "spine": "Mike–William (witness vs ownership)",
+        "function": "Outsider access to story/ceremony; the central ethical boundary ('You cannot carry our stories')",
+        "minimum_treatment": "Must identify the witness-vs-ownership boundary as a structural craft problem and check whether it has narrative consequence (refusal, correction, silence, limit)",
+        "critical": true
+      },
+      {
+        "spine": "Leanna–Verdant/OCEA (divided inheritance)",
+        "function": "Corporate inheritance hinge; conflict inside inheritance that breaks the Indigenous-good / corporate-bad binary",
+        "minimum_treatment": "Must identify Leanna as the divided-inheritance figure and flag her late structural arrival",
+        "critical": true
+      },
+      {
+        "spine": "Cliff–the dogs / the dogs–the river",
+        "function": "Animal-sensory witness layer; the dogs register the river's activity before humans do",
+        "minimum_treatment": "Must treat the dogs as functional sensory evidence, not decorative companions",
+        "critical": false
+      },
+      {
+        "spine": "Cliff–Plunkett family currents",
+        "function": "Inheritance / settlement / war / silence; epilogue family-current layer that must connect to river ethics",
+        "minimum_treatment": "Must note the Plunkett inheritance layer and whether it integrates with the river's witness ethic",
+        "critical": false
+      }
+    ]
+  },
+
+  "required_object_systems": {
+    "description": "These objects/systems must be evaluated as functional elements of the manuscript's symbolic system, not merely named.",
+    "objects": [
+      {
+        "object": "The river",
+        "function": "Memory, judge, archive, body, nervous system; the central symbolic and structural engine; the title's argument",
+        "minimum_treatment": "Must be evaluated as an agentive symbolic SYSTEM whose power and ambiguity must be protected; must not be flattened to setting",
+        "critical": true
+      },
+      {
+        "object": "NV115",
+        "function": "Ominous marker / surveillance / corporate-or-unknown threat; thriller hook introduced with heavy opening weight",
+        "minimum_treatment": "Must identify NV115 as an underpaid promise relative to its opening weight; must flag the need to resolve or intentionally reframe (criminal threat / corporate surveillance / river-marked omen / misread paranoia)",
+        "critical": true,
+        "note": "Promise/payoff gate: NV115 is over-weighted at open and under-paid later. Recommend resolution or deliberate reframe, not removal."
+      },
+      {
+        "object": "Cake / shared food",
+        "aliases": ["the cake", "shared food", "food covenant"],
+        "function": "Covenant, kinship, safe offering, human/dog equality; embodied protocol of Smokehouse Camp",
+        "minimum_treatment": "Must be evaluated as a covenant/kinship system, not a quaint scene; must remain embodied, not overexplained",
+        "critical": false
+      },
+      {
+        "object": "Birch / bark maps",
+        "aliases": ["bark maps", "birchbark maps"],
+        "function": "Indigenous archive / non-paper authority / counter-document opposing corporate and legal papers",
+        "minimum_treatment": "Must be evaluated as a counter-document system set against corporate/legal documents",
+        "critical": false
+      },
+      {
+        "object": "Corporate / legal documents",
+        "aliases": ["the documents", "legal papers", "extraction spellwork"],
+        "function": "Legal fiction / euphemism / 'extraction spellwork'; a world-building and antagonist system that must drive plot, not only critique",
+        "minimum_treatment": "Must evaluate corporate/legal language as a world-building system, and flag where evidence accumulation becomes pacing drag",
+        "critical": false
+      },
+      {
+        "object": "Stones / feathers",
+        "aliases": ["stones", "feathers", "Esmé's gifts"],
+        "function": "Memory, verdict, offering, grief marker, witness; returned grief and sky/water connection",
+        "minimum_treatment": "Must track stones/feathers as witness-and-consequence offerings with personal meaning for Cliff/Mike",
+        "critical": false
+      }
+    ]
+  },
+
+  "required_structural_lanes": {
+    "description": "These structural lanes must be represented in the evaluation. Missing an entire lane is a STRUCTURAL_LANE_OMISSION failure.",
+    "lanes": [
+      {
+        "lane": "Road-family / Mike–Cliff lane",
+        "key_entities": ["Mike", "Cliff", "the dogs", "Mike–Cliff relationship"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true
+      },
+      {
+        "lane": "River-as-witness / symbolic-agency lane",
+        "key_entities": ["the river", "Mike–the river", "stones", "feathers"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true
+      },
+      {
+        "lane": "Smokehouse Camp / community-protocol lane",
+        "key_entities": ["William", "Esmé", "Anthony", "cake / food covenant", "bark maps", "witness vs ownership"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true
+      },
+      {
+        "lane": "Corporate-extraction / legal lane",
+        "key_entities": ["Verdant / OCEA", "Leanna", "corporate documents", "the river"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true
+      },
+      {
+        "lane": "Thriller / disappearance lane",
+        "key_entities": ["NV115", "missing posters", "disappeared persons", "the vanished white-truck camper", "Calder"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false
+      },
+      {
+        "lane": "Inheritance / Plunkett epilogue lane",
+        "key_entities": ["Plunkett family currents", "Cliff", "Anthony", "Leanna"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false
+      },
+      {
+        "lane": "Cultural / protocol risk lane",
+        "key_entities": ["Tłekeh Dene community", "invented protocol / ceremony", "witness vs ownership", "sensitivity review requirement"],
+        "failure_type": "CULTURAL_PROTOCOL_OMISSION",
+        "critical": true
+      }
+    ]
+  },
+
+  "closure_score_governance": {
+    "description": "Scoring governance rules for the title-bearing closure and the open promises.",
+    "rule": "The final 'voice for the river' question is the title payoff and must be recognized as a strong, intentional close. Narrative Closure MUST NOT be scored below 6/10 solely because plot threads remain open by design.",
+    "corollary": "A Closure score of 7/10 or higher requires the evaluation to account for the open promises (NV115, Anthony's status, Plunkett integration) as a documented promise/payoff gap, not to pretend they are resolved.",
+    "promise_payoff_ledger_required": ["NV115", "Calder", "the vanished white-truck camper", "Anthony", "Leanna", "Verdant", "OCEA", "Esmé's stone/feather gifts", "the council's non-signature", "Plunkett"]
+  },
+
+  "recommendation_already_present_guard": {
+    "description": "Any recommendation to 'add,' 'introduce,' or 'create' the following elements is a RECOMMENDATION_ERROR. These elements are already present in the manuscript.",
+    "already_present": [
+      "Mike as first-person witness narrator",
+      "Cliff as road-family anchor",
+      "Fritz and Schultz (the dogs) as sentinels",
+      "William as elder / protocol authority",
+      "Leanna as divided-inheritance corporate figure",
+      "Verdant / OCEA as corporate antagonist system",
+      "The river as agentive symbolic force",
+      "NV115 as ominous marker",
+      "Cake / food covenant",
+      "Birch / bark maps as counter-document",
+      "The witness-vs-ownership boundary",
+      "The final 'voice for the river' question"
+    ],
+    "correct_recommendation_verbs": ["compress", "seed earlier", "sharpen", "clarify the function of", "foreground", "strengthen the payoff of", "give consequence to"],
+    "forbidden_recommendation_verbs": ["add", "introduce", "create", "establish", "develop from scratch"]
+  },
+
+  "revise_queue_protections": {
+    "description": "Rules for what may and may not enter the Revise queue from an evaluation of this manuscript.",
+    "blocked_from_revise_queue": [
+      "Any task asserting memoir / non-fiction / true-story status",
+      "Any task recommending 'add a narrator' or 'establish a POV' (Mike is present)",
+      "Any task recommending 'add a corporate antagonist' (Leanna / Verdant are present)",
+      "Any task recommending 'remove the dogs' or treating them as decorative",
+      "Any task recommending 'add an elder' (William is present)",
+      "Any task that certifies publication readiness while cultural/protocol review is outstanding"
+    ],
+    "required_revise_queue_entries": [
+      "Compress the evidence ledger by 15-25% without losing scale",
+      "Seed Leanna / Verdant before Chapter 31 (memory, photo, document, news clip, or William's avoidance)",
+      "Clarify NV115's function (criminal threat / corporate surveillance / river-marked omen / misread paranoia)",
+      "Run a witness/ownership revision pass that dramatizes refusal, correction, silence, or consequence",
+      "Make Anthony's status pay off (inheritance, exclusion, witness, or successor function)",
+      "Make the council's non-signature materially consequential",
+      "Commission an Indigenous (northern / Dene-adjacent) sensitivity reader before publication"
+    ]
+  },
+
+  "ci_acceptance_gate": {
+    "description": "A future evaluation of Let the River Decide PASSES this fixture if ALL of the following return true.",
+    "required_passing_checks": [
+      "mike_identified_as_first_person_witness_narrator",
+      "cliff_identified_as_road_family_anchor",
+      "dogs_treated_as_functional_sensory_layer_not_decoration",
+      "william_identified_as_elder_protocol_authority",
+      "leanna_identified_as_divided_inheritance_corporate_figure",
+      "verdant_ocea_identified_as_corporate_antagonist_system",
+      "river_evaluated_as_agentive_symbolic_system_not_setting",
+      "nv115_flagged_as_underpaid_promise",
+      "witness_vs_ownership_treated_as_structural_craft_problem",
+      "cultural_protocol_risk_section_present",
+      "sensitivity_reader_recommended_before_publication",
+      "no_forbidden_terms_present",
+      "no_recommendation_to_add_already_present_elements",
+      "promise_payoff_ledger_addresses_open_threads"
+    ],
+    "truth_target_scores": {
+      "overall": 72,
+      "quality": 74,
+      "readiness": 65,
+      "commercial": 66,
+      "literary": 78
+    },
+    "acceptable_score_delta": {
+      "description": "A future evaluation passes if its scores fall within this delta from the truth target.",
+      "overall_delta": 5,
+      "individual_criterion_delta": 1.5
+    }
+  },
+
+  "known_failure_specimen": {
+    "job_id": "b841e72d-3f19-4a8c-96e1-7d4c839af2b5",
+    "label": "hypothetical_offending_evaluation_v1",
+    "status": "constructed_negative_specimen",
+    "note": "No production offending run exists for this manuscript. This specimen encodes the anticipated failure modes documented in the DREAM benchmark and v2 governed-ledger addendum, for use as a negative training example.",
+    "overall_score": 64,
+    "delta_from_truth_target": -8,
+    "critical_misses": [
+      "River treated as setting/atmosphere rather than agentive judge/archive",
+      "Dogs (Fritz and Schultz) reduced to decorative pet material",
+      "Smokehouse Camp flattened into generic Indigenous-community setting",
+      "Leanna omitted or treated only as late minor character, not divided-inheritance hinge",
+      "Witness-vs-ownership boundary treated as theme only, not structural craft problem",
+      "Cultural/protocol risk section absent",
+      "No sensitivity-reader recommendation"
+    ],
+    "forbidden_term_violations": [
+      { "term": "based on a true story", "occurrences": 1 },
+      { "term": "memoir", "occurrences": 2 }
+    ],
+    "structural_lanes_missing": [
+      "river-as-witness / symbolic-agency lane",
+      "smokehouse camp / community-protocol lane",
+      "cultural / protocol risk lane"
+    ],
+    "largest_criterion_gap": {
+      "criterion": "Thematic Integration",
+      "offending_score": 6.0,
+      "truth_target_score": 8.5,
+      "delta": -2.5,
+      "cause": "Symbolic-system blindness — river agency and witness/ownership boundary read as mood and message rather than the manuscript's load-bearing structural argument"
+    }
+  }
+}
