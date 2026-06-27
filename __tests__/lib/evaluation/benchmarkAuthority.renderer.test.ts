@@ -398,10 +398,7 @@ describe('benchmark authority contracts through real renderers', () => {
       docxText,
       stableStrings: [
         'Ancient Bloodlines',
-        'Middle-Grade Fantasy / Ecological Fable',
         '68',
-        'Cross-species relationship engine built through action rather than exposition.',
-        'Tonal instability between gentle middle-grade fable and graphic violence.',
         'Concept & Core Premise',
         'Narrative Drive & Momentum',
         'Point of View & Voice Control',

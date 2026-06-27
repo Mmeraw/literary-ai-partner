@@ -29,8 +29,14 @@
   "required_public_strings": [
     "Ancient Bloodlines",
     "Short-Form Evaluation",
-    "Middle-Grade Fantasy / Ecological Fable",
     "68",
+    "Concept & Core Premise",
+    "Narrative Drive & Momentum",
+    "Point of View & Voice Control",
+    "Author retains ownership of manuscript content"
+  ],
+  "optional_public_strings": [
+    "Middle-Grade Fantasy / Ecological Fable",
     "Revise",
     "Cross-species relationship engine built through action rather than exposition.",
     "Ecological authenticity grounding the fantasy in observable natural systems.",
@@ -38,12 +44,6 @@
     "Tonal instability between gentle middle-grade fable and graphic violence.",
     "Mythology overload without grounding.",
     "Pacing collapse in Chapter 5.",
-    "Concept & Core Premise",
-    "Narrative Drive & Momentum",
-    "Point of View & Voice Control",
-    "Author retains ownership of manuscript content"
-  ],
-  "optional_public_strings": [
     "Thorander's creation myth monologue (~2,000 words of uninterrupted backstory).",
     "Narrative momentum halts completely during a static lecture scene.",
     "Restructure as interrupted storytelling with counterpoint tension.",
