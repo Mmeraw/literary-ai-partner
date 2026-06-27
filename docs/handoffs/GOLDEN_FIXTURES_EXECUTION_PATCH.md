@@ -9,15 +9,15 @@ Because this handoff is intentionally procedural, perform the final substitution
 Only these active fixture files may exist:
 
 ```text
-tests/fixtures/report-golden/README.md
-tests/fixtures/report-golden/short-form/expected.json
-tests/fixtures/report-golden/long-form-multi-layer/expected.json
+tests/benchmark-authority/README.md
+tests/benchmark-authority/short-form/expected.json
+tests/benchmark-authority/long-form-multi-layer/expected.json
 ```
 
 This file must not exist:
 
 ```text
-tests/fixtures/report-golden/long-form/expected.json
+tests/benchmark-authority/long-form/expected.json
 ```
 
 ## Required product modes
@@ -34,7 +34,7 @@ Do not reintroduce standalone `long_form_evaluation`.
 1. Open:
 
 ```text
-tests/fixtures/report-golden/long-form-multi-layer/expected.json
+tests/benchmark-authority/long-form-multi-layer/expected.json
 ```
 
 2. Replace the synthetic fixture identity with the repository's primary required-gold runtime benchmark identity.
@@ -77,7 +77,7 @@ Use stable strings from:
 4. Update the DREAM half of:
 
 ```text
-__tests__/lib/evaluation/reportGoldenFixtures.renderer.test.ts
+__tests__/lib/evaluation/benchmarkAuthority.renderer.test.ts
 ```
 
 Replace synthetic manuscript strings with the same source benchmark strings used in the fixture.
@@ -87,16 +87,16 @@ Replace synthetic manuscript strings with the same source benchmark strings used
 ## Commands
 
 ```bash
-find tests/fixtures/report-golden -maxdepth 3 -type f -print
+find tests/benchmark-authority -maxdepth 3 -type f -print
 npx jest --runInBand --runTestsByPath \
-  __tests__/lib/evaluation/reportGoldenFixtures.contract.test.ts \
-  __tests__/lib/evaluation/reportGoldenFixtures.renderer.test.ts
+  __tests__/lib/evaluation/benchmarkAuthority.contract.test.ts \
+  __tests__/lib/evaluation/benchmarkAuthority.renderer.test.ts
 ```
 
 ## Commit
 
 ```bash
-git add tests/fixtures/report-golden __tests__/lib/evaluation/reportGoldenFixtures.renderer.test.ts
+git add tests/benchmark-authority __tests__/lib/evaluation/benchmarkAuthority.renderer.test.ts
 git commit -m "test(rendering): ground golden fixtures in benchmark canon"
 git push origin main
 ```

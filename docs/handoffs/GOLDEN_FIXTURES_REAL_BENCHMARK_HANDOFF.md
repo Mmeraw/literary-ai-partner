@@ -11,7 +11,7 @@ short_form_evaluation
 long_form_multi_layer_evaluation
 ```
 
-There is no active standalone `long_form_evaluation` product mode. Do not recreate `tests/fixtures/report-golden/long-form/expected.json`.
+There is no active standalone `long_form_evaluation` product mode. Do not recreate `tests/benchmark-authority/long-form/expected.json`.
 
 ## Runtime benchmark authority
 
@@ -65,15 +65,15 @@ Shelf: Literary Thriller / International Crime / Borderlands Fiction
 ## Required final fixture layout
 
 ```text
-tests/fixtures/report-golden/README.md
-tests/fixtures/report-golden/short-form/expected.json
-tests/fixtures/report-golden/long-form-multi-layer/expected.json
+tests/benchmark-authority/README.md
+tests/benchmark-authority/short-form/expected.json
+tests/benchmark-authority/long-form-multi-layer/expected.json
 ```
 
 Forbidden final file:
 
 ```text
-tests/fixtures/report-golden/long-form/expected.json
+tests/benchmark-authority/long-form/expected.json
 ```
 
 ## Replace DREAM fixture JSON
@@ -81,7 +81,7 @@ tests/fixtures/report-golden/long-form/expected.json
 Write this file exactly:
 
 ```text
-tests/fixtures/report-golden/long-form-multi-layer/expected.json
+tests/benchmark-authority/long-form-multi-layer/expected.json
 ```
 
 ```json
@@ -190,19 +190,19 @@ The current renderer test may still build a synthetic DREAM document such as `Th
 
 Minimum renderer test requirements:
 
-1. The fixture file must load from `tests/fixtures/report-golden/long-form-multi-layer/expected.json`.
+1. The fixture file must load from `tests/benchmark-authority/long-form-multi-layer/expected.json`.
 2. The test must assert `mode === long_form_multi_layer_evaluation`.
 3. No active test may assert or load `long_form_evaluation`.
-4. No active test may require `tests/fixtures/report-golden/long-form/expected.json`.
+4. No active test may require `tests/benchmark-authority/long-form/expected.json`.
 5. Public-domain calibration files must not be used as runtime golden fixtures.
 
 ## Commands
 
 ```bash
-find tests/fixtures/report-golden -maxdepth 3 -type f -print
+find tests/benchmark-authority -maxdepth 3 -type f -print
 npx jest --runInBand --runTestsByPath \
-  __tests__/lib/evaluation/reportGoldenFixtures.contract.test.ts \
-  __tests__/lib/evaluation/reportGoldenFixtures.renderer.test.ts
+  __tests__/lib/evaluation/benchmarkAuthority.contract.test.ts \
+  __tests__/lib/evaluation/benchmarkAuthority.renderer.test.ts
 ```
 
 If renderer assertions fail because the test still emits synthetic data, update the test builder to emit Cartel Babies strings above, not the fixture JSON.
