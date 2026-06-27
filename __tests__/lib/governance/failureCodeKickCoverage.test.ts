@@ -12,9 +12,13 @@ import { KICK_MATRIX, PROCESS_REGISTRY } from '../../../lib/evaluation/fipocRegi
 import { REVISE_KICK_MATRIX, REVISE_PROCESS_REGISTRY } from '../../../lib/revision/reviseRegistry';
 import { AGENT_READINESS_KICK_MATRIX, AGENT_READINESS_PROCESS_REGISTRY } from '../../../lib/agent-readiness/agentReadinessRegistry';
 import { STORYGATE_KICK_MATRIX, STORYGATE_PROCESS_REGISTRY } from '../../../lib/storygate/storygateRegistry';
+import { getFailureRecoveryPolicy, type FailureRecoveryPolicyMode } from '../../../lib/governance/failureRecoveryPolicy';
 
 type StageLike = {
   stageId: string;
+  inputMetrics: readonly string[];
+  outputMetrics: readonly string[];
+  dirtyDataRules: readonly string[];
   failureCodes: readonly string[];
 };
 
@@ -28,6 +32,7 @@ type FamilyAudit = {
   expectedUnmappedFailureCodes: readonly string[];
   expectedKickRowsWithoutStageFailureCode?: readonly string[];
   expectedClassificationCounts: FailureCodeClassificationCounts;
+  expectedNonKickRecoveryPolicyCounts: FailureRecoveryPolicyCounts;
 };
 
 type FailureCodeClassification =
@@ -39,6 +44,7 @@ type FailureCodeClassification =
   | 'diagnostic-only';
 
 type FailureCodeClassificationCounts = Record<FailureCodeClassification, number>;
+type FailureRecoveryPolicyCounts = Record<FailureRecoveryPolicyMode, number>;
 
 const EMPTY_CLASSIFICATION_COUNTS: FailureCodeClassificationCounts = {
   'release-blocking': 0,
@@ -47,6 +53,13 @@ const EMPTY_CLASSIFICATION_COUNTS: FailureCodeClassificationCounts = {
   'certification/governance': 0,
   'terminal/expected': 0,
   'diagnostic-only': 0,
+};
+
+const EMPTY_RECOVERY_POLICY_COUNTS: FailureRecoveryPolicyCounts = {
+  rollback_to_certified_checkpoint: 0,
+  retry_then_terminal_block: 0,
+  terminal_block: 0,
+  log_only: 0,
 };
 
 function uniqueSorted(values: readonly string[]): string[] {
@@ -97,6 +110,14 @@ function classificationCounts(codes: readonly string[]): FailureCodeClassificati
     for (const classification of classifyUnmappedFailureCode(code)) {
       counts[classification] += 1;
     }
+  }
+  return counts;
+}
+
+function recoveryPolicyCounts(codes: readonly string[], hasKick: boolean): FailureRecoveryPolicyCounts {
+  const counts = { ...EMPTY_RECOVERY_POLICY_COUNTS };
+  for (const code of codes) {
+    counts[getFailureRecoveryPolicy({ failureCode: code, hasKick }).mode] += 1;
   }
   return counts;
 }
@@ -231,6 +252,12 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
       'terminal/expected': 18,
       'diagnostic-only': 34,
     },
+    expectedNonKickRecoveryPolicyCounts: {
+      rollback_to_certified_checkpoint: 0,
+      retry_then_terminal_block: 14,
+      terminal_block: 44,
+      log_only: 4,
+    },
   },
   {
     family: 'Revise',
@@ -245,6 +272,12 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
       'certification/governance': 2,
       'terminal/expected': 10,
       'diagnostic-only': 18,
+    },
+    expectedNonKickRecoveryPolicyCounts: {
+      rollback_to_certified_checkpoint: 0,
+      retry_then_terminal_block: 6,
+      terminal_block: 17,
+      log_only: 1,
     },
   },
   {
@@ -262,6 +295,12 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
       'terminal/expected': 3,
       'diagnostic-only': 0,
     },
+    expectedNonKickRecoveryPolicyCounts: {
+      rollback_to_certified_checkpoint: 0,
+      retry_then_terminal_block: 1,
+      terminal_block: 3,
+      log_only: 0,
+    },
   },
   {
     family: 'Storygate',
@@ -277,10 +316,25 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
       'terminal/expected': 4,
       'diagnostic-only': 1,
     },
+    expectedNonKickRecoveryPolicyCounts: {
+      rollback_to_certified_checkpoint: 0,
+      retry_then_terminal_block: 2,
+      terminal_block: 11,
+      log_only: 0,
+    },
   },
 ];
 
 describe('failure-code → kick-matrix coverage audit', () => {
+  test.each(FAMILY_AUDITS)('$family stages declare input metrics, output metrics, dirty-data rules, and failure codes', (audit) => {
+    for (const stage of audit.stages) {
+      expect(stage.inputMetrics.length).toBeGreaterThan(0);
+      expect(stage.outputMetrics.length).toBeGreaterThan(0);
+      expect(stage.dirtyDataRules.length).toBeGreaterThan(0);
+      expect(stage.failureCodes.length).toBeGreaterThan(0);
+    }
+  });
+
   test.each(FAMILY_AUDITS)('$family unmapped failure codes are explicit and audit-locked', (audit) => {
     const failures = stageFailureCodes(audit.stages);
     const kicks = new Set(kickCodes(audit.kicks, audit.kickCodeField));
@@ -309,6 +363,52 @@ describe('failure-code → kick-matrix coverage audit', () => {
     const unmapped = failures.filter((code) => !kicks.has(code));
 
     expect(classificationCounts(unmapped)).toEqual(audit.expectedClassificationCounts);
+  });
+
+  test.each(FAMILY_AUDITS)('$family kick-mapped failures use rollback-to-certified-checkpoint recovery', (audit) => {
+    const failures = new Set(stageFailureCodes(audit.stages));
+    const mappedKickCodes = kickCodes(audit.kicks, audit.kickCodeField).filter((code) => failures.has(code));
+
+    expect(recoveryPolicyCounts(mappedKickCodes, true)).toEqual({
+      ...EMPTY_RECOVERY_POLICY_COUNTS,
+      rollback_to_certified_checkpoint: mappedKickCodes.length,
+    });
+
+    for (const code of mappedKickCodes) {
+      const policy = getFailureRecoveryPolicy({ failureCode: code, hasKick: true });
+      expect(policy).toEqual(expect.objectContaining({
+        mode: 'rollback_to_certified_checkpoint',
+        checkpointArtifact: 'unified_evaluation_document_v1',
+        diagnosticPacket: 'stage_failure_delta_v1',
+        retainFailedAttemptSnapshot: true,
+        mutationPolicy: 'no_in_place_mutation_of_certified_artifacts',
+        failedArtifactAuthority: 'audit_evidence_only',
+        authorExposure: false,
+      }));
+    }
+  });
+
+  test.each(FAMILY_AUDITS)('$family non-kick failures have explicit recovery/terminal/log policy counts', (audit) => {
+    const failures = stageFailureCodes(audit.stages);
+    const kicks = new Set(kickCodes(audit.kicks, audit.kickCodeField));
+    const unmapped = failures.filter((code) => !kicks.has(code));
+
+    expect(recoveryPolicyCounts(unmapped, false)).toEqual(audit.expectedNonKickRecoveryPolicyCounts);
+  });
+
+  test.each(FAMILY_AUDITS)('$family non-kick failure artifacts remain evidence, not replacement authority', (audit) => {
+    for (const code of audit.expectedUnmappedFailureCodes) {
+      const policy = getFailureRecoveryPolicy({ failureCode: code, hasKick: false });
+      expect(policy.retainFailedAttemptSnapshot).toBe(true);
+      expect(policy.failedArtifactAuthority).toBe('audit_evidence_only');
+      expect(policy.mutationPolicy).toBe('no_in_place_mutation_of_certified_artifacts');
+      if (policy.mode === 'retry_then_terminal_block') {
+        expect(policy.diagnosticPacket).toBe('stage_failure_delta_v1');
+      }
+      if (policy.mode === 'terminal_block') {
+        expect(policy.authorExposure).toBe(false);
+      }
+    }
   });
 
   test('high-risk unmapped classifications remain visible before Phase 5B', () => {
