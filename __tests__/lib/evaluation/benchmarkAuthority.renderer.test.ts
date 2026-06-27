@@ -271,43 +271,43 @@ function buildGoldenDreamFixture() {
     ],
     arc_map: [
       {
-        act_name: 'Act I \u2014 Seizure and System Entry',
+        act_name: 'Act I\u2014Seizure and System Entry',
         chapter_range: '1-10',
         primary_function: 'Michael is abducted, transported into mountain camp, registered by force into hierarchy.',
         revision_priority: 'Maintain urgency and visual clarity.',
       },
       {
-        act_name: 'Act II \u2014 Benjamin Before and During Michael',
+        act_name: 'Act II\u2014Benjamin Before and During Michael',
         chapter_range: '11-20',
         primary_function: 'Benjamin backstory explains why Michael matters; search begins.',
         revision_priority: 'Convert repeated shame into external action.',
       },
       {
-        act_name: 'Act III \u2014 Camp Adaptation and First Moral Bond',
+        act_name: 'Act III\u2014Camp Adaptation and First Moral Bond',
         chapter_range: '21-35',
         primary_function: 'Table tennis becomes plot architecture; Paolito attention and trust transfer.',
         revision_priority: 'Maintain changed-condition endings for each chapter.',
       },
       {
-        act_name: 'Act IV \u2014 Benjamin Search and Institutional Friction',
+        act_name: 'Act IV\u2014Benjamin Search and Institutional Friction',
         chapter_range: '36-50',
         primary_function: 'Private horror of not knowing; humiliating slowness of official help.',
         revision_priority: 'Maintain propulsion in search arc.',
       },
       {
-        act_name: 'Act V \u2014 Ra\u00FAl Impossible Handoff',
+        act_name: 'Act V\u2014Ra\u00FAl Impossible Handoff',
         chapter_range: '51-65',
         primary_function: 'Ra\u00FAl becomes legible; handoff of Paolito must flower from earlier contradictions.',
         revision_priority: 'Avoid sudden redemption.',
       },
       {
-        act_name: 'Act VI \u2014 Break, Extraction, and State Handoff',
+        act_name: 'Act VI\u2014Break, Extraction, and State Handoff',
         chapter_range: '66-80',
         primary_function: 'Non-drug shipment, convoy, attack, escape, embassy, orientation, new names.',
         revision_priority: 'Add resistance to protection sequence.',
       },
       {
-        act_name: 'Act VII \u2014 New Country, Old Trauma, New Family',
+        act_name: 'Act VII\u2014New Country, Old Trauma, New Family',
         chapter_range: '81-87 + Epilogue',
         primary_function: 'Prove survival is not healing; table-tennis coda.',
         revision_priority: 'Nonviolent play after captivity as correct final image.',
@@ -488,6 +488,305 @@ function buildGoldenDreamFixture() {
   return { canonicalDoc, dream };
 }
 
+function buildGoldenFrogginFixture() {
+  const canonicalDoc = buildShortFormEvaluationDocument({
+    displayTitle: 'Froggin Noggin',
+    result: {
+      generated_at: '2026-06-27T12:00:00.000Z',
+      overview: {
+        overall_score_0_100: 58,
+        verdict: 'revise',
+        one_paragraph_summary:
+          'Froggin Noggin runs two parallel power structures against each other for 100 pages and dares the reader to admit they are looking in a mirror: a human meth-cook storyline on one bank of Kingdom Lake and a matriarchal frog colony beneath it, braided by a shared doctrine of sovereigns hoarding chemistry.',
+        top_3_strengths: [
+          'Toadstone, meth cook, and matriarchal frog politburo form a genuinely original premise.',
+          'Aqua World cosmology is textured and consistent across Gorf, hibernation, and council systems.',
+          'The transgression is the asset: street register is authentic and character-coded.',
+        ],
+        top_3_risks: [
+          'Three-refrain chant and extended Brutus monologues delay the first concrete turn.',
+          'No promise made on page 1 has been kept by page 100.',
+          'Council scenes arrive as position-paper rotations.',
+        ],
+      },
+      enrichment: {
+        premise:
+          'On one bank of Kingdom Lake, two men marinate in stoner-noir self-destruction while one cooks methamphetamine; beneath the lake, a matriarchal frog colony rules through doctrine, surveillance, and the toadstone.',
+        trigger_warnings: ['crystal methamphetamine manufacture', 'addiction', 'matriarchal cruelty'],
+        reading_grade_level: 10.5,
+        dialogue_percentage: 45,
+        narrative_percentage: 55,
+      },
+      metrics: {
+        manuscript: {
+          title: 'Froggin Noggin',
+          word_count: 51252,
+          genre: 'Literary Transgressive Fiction / Dual-POV Eco-Fable',
+          target_audience:
+            'Adult literary readers of transgressive fiction and dual-POV dark fantasy; indie literary / horror-adjacent press audience',
+        },
+      },
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 8,
+          confidence_level: 'high',
+          rationale:
+            'Toadstone plus meth cook plus matriarchal frog politburo is a genuine original; two sovereigns hoard chemistry while their subjects would rather swallow the shiny thing than be free.',
+          recommendations: [
+            {
+              priority: 'high',
+              action: 'Mirror Brutus\u2019s meth cook against Zimeon\u2019s shard discovery on adjacent chapter beats.',
+              anchor_snippet:
+                'The novel runs a deliberate parallel between Brutus manufacturing chemical authority in a mineshaft and Zimeon ingesting chemical authority in the Dead Zone.',
+              anchor_type: 'paraphrased_observation',
+              symptom: 'The two chemical-authority chapters are not yet placed to make a reader feel the rhyme.',
+              mechanism: 'The thematic parallel is stated as doctrine rather than felt through sequence.',
+              specific_fix:
+                'Re-sequence so the meth cook and the first shard lick sit adjacent; end one on inhaled fumes and open the next on the falling cascade.',
+              reader_effect: 'Converts addiction-as-sovereign-authority from author-claim to felt experience.',
+              mistake_proofing: 'Do not flatten the dual-POV cosmology into a single quest line.',
+            },
+          ],
+        },
+        {
+          key: 'narrativeDrive',
+          score_0_10: 4,
+          confidence_level: 'high',
+          rationale:
+            'No promise made on page 1 has been kept by page 100: the toadstone is unfound, no frog has died on-page, no human has paid a real cost.',
+          recommendations: [],
+        },
+      ],
+    },
+  });
+
+  canonicalDoc.templateMode = 'long_form_multi_layer_evaluation';
+
+  const dream = {
+    dream_scores: { quality: 58, readiness: null, commercial: null, literary: null },
+    executive_verdict:
+      'The transgression is the asset, not the liability. The craft problem is that the narrator currently rides at Brutus\u2019s eye level instead of above it, and the manuscript has not yet kept a single promise it made on page 1. Fix the un-narrated cruelty and the missing Page-100 waypoint without sanding down the transgression.',
+    market_shelf: {
+      best_shelf: 'Literary Transgressive Fiction / Dual-POV Eco-Fable',
+      marketable_hook: 'Two sovereigns hoarding chemistry, and subjects who would rather swallow the shiny thing than be free.',
+      shelf_neighbors: ['Transgressive literary fiction', 'Dark literary fantasy', 'Horror-adjacent eco-fable'],
+      comparison_space: ['Trainspotting meets Watership Down meets early Chuck Palahniuk'],
+      market_danger: 'The book is mis-shelved if pitched as YA, cozy fantasy, or commercial fantasy quest.',
+    },
+    what_not_to_become: [
+      'A book edited into safety with the transgression sanded down.',
+      'A simplified frog-adventure story that erases the adult eco-satirical myth, amphibian polity, grotesque human thread, toadstone/shard/Gorf system, and cross-species tenderness.',
+    ],
+    structural_stack: [
+      {
+        layer_name: 'Human storyline\u2014Kingdom Lake meth world',
+        status: 'strong but eye-level',
+        function: 'Chey and Brutus marinate in stoner-noir self-destruction while Brutus cooks methamphetamine and fantasizes about the toadstone.',
+        revision_note: 'Let the narrator be smarter than Brutus while Brutus performs his own damage.',
+      },
+      {
+        layer_name: 'Frog storyline\u2014Aqua World matriarchy',
+        status: 'excellent',
+        function: 'Crown Hyla rules a Columbian spotted frog colony through doctrine, surveillance, and pre-hibernation maiming of dissenters.',
+        revision_note: 'Stage Hyla\u2019s maiming of Arcana as present-tense scene, not recollection.',
+      },
+      {
+        layer_name: 'Cosmological / theological frame',
+        status: 'strong',
+        function: 'Gorf, toadstone, shard, and the Genesis/Dominatus pastiche position Hyla as a feminine-divine echo.',
+        revision_note: 'Earn one more move with a Dominatus 2 fragment that reframes the toadstone as Her test.',
+      },
+      {
+        layer_name: 'Structural mirroring spine',
+        status: 'present but invisible',
+        function: 'Chemical authority over the body links Hyla\u2019s rule, Brutus\u2019s meth, the colony\u2019s toadstone, and the meth\u2019s control of Brutus.',
+        revision_note: 'Make the mirroring visible; it is the spine.',
+      },
+    ],
+    arc_map: [
+      {
+        act_name: 'Opening Movement\u2014Dual-System Setup',
+        chapter_range: '1-14',
+        primary_function: 'Establish the human meth world and the frog matriarchy as parallel power structures sharing one doctrine.',
+        revision_priority: 'Lock the slang register and escalate the council scenes.',
+      },
+      {
+        act_name: 'Page-100 Waypoint',
+        chapter_range: 'excerpt close',
+        primary_function: 'Deliver a false-positive toadstone payoff that keeps one page-1 promise and arms Act II.',
+        revision_priority: 'Close the opening arc with a kept promise.',
+      },
+    ],
+    criterion_analyses: [
+      {
+        key: 'concept',
+        score: 8,
+        confidence: 'high',
+        fit_evidence: ['Toadstone, meth cook, and matriarchal frog politburo is a genuine original.'],
+        gap_evidence: ['The thematic rhyme between human and frog chemical authority is not yet felt through sequence.'],
+        revision_queue: [
+          'Mirror Brutus\u2019s meth cook against Zimeon\u2019s shard discovery on adjacent chapter beats.',
+        ],
+      },
+      {
+        key: 'narrativeDrive',
+        score: 4,
+        confidence: 'high',
+        fit_evidence: ['Multiple strong engines: meth cook, shard discovery, matriarchal surveillance.'],
+        gap_evidence: ['No promise made on page 1 has been kept by page 100.'],
+        revision_queue: [
+          'Stage Hyla\u2019s maiming of Arcana as a present-tense scene.',
+          'Deliver a Page-100 waypoint payoff.',
+        ],
+      },
+    ],
+    layer_analyses: [
+      {
+        layer_name: 'Human meth layer',
+        status: 'strong but eye-level',
+        needed_revision: 'Add one sentence of somatic narration per rant so the body indicts the mouth.',
+      },
+      {
+        layer_name: 'Frog matriarchy layer',
+        status: 'excellent',
+        needed_revision: 'Escalate the council political scenes rather than defending them.',
+      },
+      {
+        layer_name: 'Theological frame layer',
+        status: 'open but unwalked',
+        needed_revision: 'Walk through the Genesis/Dominatus door with one retroactive reframe.',
+      },
+    ],
+    cross_layer_integration: [
+      {
+        motif: 'Chemical authority over the body',
+        description: 'Brutus\u2019s meth, Zimeon\u2019s shard, Hyla\u2019s rule, and the colony\u2019s toadstone all enact control of the body.',
+        integration_quality: 'strong but invisible',
+        revision_note: 'Make the mirroring visible as the structural spine.',
+      },
+      {
+        motif: 'Addiction-as-religion',
+        description: 'Addiction and matriarchy-as-surveillance braid into one doctrine across both storylines.',
+        integration_quality: 'strong',
+        revision_note: 'Keep the braid; convert doctrine into felt sequence.',
+      },
+    ],
+    symbolic_audit: {
+      preserved_symbols: [
+        {
+          symbol: 'Toadstone / shard',
+          current_function: 'Parallel addictive authorities mirroring human meth and frog amulet.',
+          revision_instruction: 'Treat as required detection: the shard is the narrative mirror of Brutus\u2019s meth.',
+        },
+        {
+          symbol: 'Mother-Earth-as-aging-diva voice',
+          current_function: 'The strongest sustained prose in the excerpt; the book\u2019s North Star voice.',
+          revision_instruction: 'Use the signature voice deliberately, not accidentally; write six more.',
+        },
+      ],
+      doctrine_strengths: ['Aqua World cosmology is textured and consistent.', 'Transgression is character-coded, not gratuitous.'],
+      doctrine_risks: ['Register drift between street and mythic voices taxes the reader every page.'],
+      audit_conclusion: 'Symbolic architecture is sound; primary risk is register drift and un-narrated cruelty.',
+    },
+    reader_experience: {
+      first_act: {
+        reader_question: 'Will these two hoarded chemistries collide?',
+        emotional_state: 'Dark-comic complicity and unease.',
+        risk: 'Setup-heavy first 100 pages with no concrete turn.',
+      },
+      middle: {
+        reader_question: 'Which sovereign is more dangerous, the human or the frog?',
+        emotional_state: 'Growing recognition that the frogs are the morally darker storyline.',
+        risk: 'Council scenes may read as position-paper rotations.',
+      },
+      final_act: {
+        reader_question: 'Has any page-1 promise been kept?',
+        emotional_state: 'Anticipation pending a Page-100 payoff.',
+        risk: 'No interim payoff by Page 100.',
+      },
+      aftertaste: 'A literary-transgressive novel that should be edited into precision, not safety.',
+    },
+    revision_plan: [
+      {
+        priority: 'P1',
+        title: 'Mirror Brutus\u2019s meth cook against Zimeon\u2019s shard discovery on adjacent chapter beats.',
+        goal: 'Convert thematic doctrine into felt experience through sequence.',
+        actions: [
+          'Re-sequence the meth cook and first shard lick to sit adjacent.',
+          'End one chapter on inhaled fumes and open the next on the falling cascade.',
+        ],
+        acceptance_check: 'The reader feels the rhyme between human and frog chemical authority.',
+      },
+      {
+        priority: 'P2',
+        title: 'Stage Hyla\u2019s maiming of Arcana as a present-tense scene, not a recollection.',
+        goal: 'Establish the frog plot as the morally darker storyline.',
+        actions: [
+          'Move the maiming into present tense.',
+          'Show the webbed mud, the single tooth, and the minimal bleeding.',
+        ],
+        acceptance_check: 'The reader is implicated in both the human and frog cruelties.',
+      },
+      {
+        priority: 'P3',
+        title: 'Page-100 waypoint payoff: false-positive toadstone.',
+        goal: 'Keep one page-1 promise and arm Act II.',
+        actions: [
+          'In the closing scene, Brutus finds a calcified nodule and pockets it.',
+          'Leave both Brutus and the reader unsure whether it is a real toadstone.',
+        ],
+        acceptance_check: 'The opening arc closes with a kept promise.',
+      },
+    ],
+    releasability: [
+      {
+        dimension: 'Concept / premise',
+        current_status: 'Distinctive and original',
+        verdict: 'Ready after positioning',
+      },
+      {
+        dimension: 'Frog-council political layer',
+        current_status: 'Literary-fantasy register',
+        verdict: 'Ready with escalation',
+      },
+      {
+        dimension: 'Page-100 structural payoff',
+        current_status: 'Missing',
+        verdict: 'Revise',
+      },
+      {
+        dimension: 'Line-level register control',
+        current_status: 'Contraction drift across registers',
+        verdict: 'Revise',
+      },
+      {
+        dimension: 'Publication readiness',
+        current_status: 'Not yet',
+        verdict: 'Revise before release',
+      },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        'Must detect the dual-POV human and frog storylines as parallel power structures.',
+        'Must detect the structural mirroring of chemical authority over the body.',
+        'Must detect the missing Page-100 waypoint payoff.',
+      ],
+      failure_conditions: [
+        'Fails if treated as YA or cozy fantasy.',
+        'Fails if the transgression is read as authorial endorsement rather than indictment.',
+        'Fails if the frog matriarchy is ignored.',
+      ],
+    },
+    calibration_notes: [
+      'Scoring calibrated for Transgressive-mode literary fiction across the first 100 pages (Chapters 1-14, 51,252 words).',
+    ],
+    manuscript_integrity_issues: [],
+  } as any;
+
+  return { canonicalDoc, dream };
+}
+
 describe('benchmark authority contracts through real renderers', () => {
   test('short-form benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
@@ -561,6 +860,57 @@ describe('benchmark authority contracts through real renderers', () => {
         'Make final protection sequence procedurally resistant',
         'Premise / hook',
         'Must detect Benjamin as dual-POV co-protagonist.',
+        'Author retains ownership of manuscript content',
+      ],
+    });
+
+    expect(txt).not.toContain('[LOCATION:');
+    expect(html).not.toContain('[LOCATION:');
+    expect(docxText).not.toContain('[LOCATION:');
+    expect(txt).not.toContain('[OPERATION:');
+    expect(html).not.toContain('[OPERATION:');
+    expect(docxText).not.toContain('[OPERATION:');
+    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
+  });
+
+  test('Froggin Noggin benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+    const contract = loadContract('long-form-multi-layer/froggin-noggin.expected.json');
+    const { canonicalDoc, dream } = buildGoldenFrogginFixture();
+    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
+
+    expect(vm.templateMode).toBe('long_form_multi_layer_evaluation');
+    expect(vm.longFormMultiLayerEvaluation).not.toBeNull();
+
+    const txt = testing.renderTxtFromViewModel(vm);
+    const html = testing.renderHtmlFromViewModel(vm);
+    const docxBuffer = await testing.renderDocxFromViewModel(vm);
+    const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
+
+    assertStableStringsRenderEverywhere({
+      contract,
+      txt,
+      html,
+      docxText,
+      stableStrings: [
+        'Froggin Noggin',
+        'Literary Transgressive Fiction / Dual-POV Eco-Fable',
+        'Two sovereigns hoarding chemistry, and subjects who would rather swallow the shiny thing than be free.',
+        'A book edited into safety with the transgression sanded down.',
+        'Human storyline\u2014Kingdom Lake meth world',
+        'Frog storyline\u2014Aqua World matriarchy',
+        'Cosmological / theological frame',
+        'Structural mirroring spine',
+        'Concept & Core Premise',
+        'Narrative Drive & Momentum',
+        'Mirror Brutus\u2019s meth cook against Zimeon\u2019s shard discovery on adjacent chapter beats.',
+        'Stage Hyla\u2019s maiming of Arcana as a present-tense scene, not a recollection.',
+        'Page-100 waypoint payoff: false-positive toadstone.',
+        'Concept / premise',
+        'Page-100 structural payoff',
+        'Publication readiness',
+        'Must detect the dual-POV human and frog storylines as parallel power structures.',
         'Author retains ownership of manuscript content',
       ],
     });

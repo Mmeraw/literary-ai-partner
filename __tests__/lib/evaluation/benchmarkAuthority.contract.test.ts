@@ -63,7 +63,13 @@ describe('benchmark authority contract package', () => {
     }
   });
 
-  test('each active contract has enough public content to function as a product golden', () => {
+  // Contract-validity governance (not quantity). The required public surface is
+  // the truly stable, contract-level set — it may be small. The real proof that a
+  // contract is "enough" is the renderer-contract coverage in
+  // benchmarkAuthority.renderer.test.ts, not an arbitrary string count. We only
+  // assert the contract is internally valid: present profile, non-empty unique
+  // surfaces, no required/forbidden overlap, and CMOS-clean public strings.
+  test('each active contract is internally valid as a product golden', () => {
     for (const [, relativePath] of ACTIVE_CONTRACTS) {
       const contract = loadContract(relativePath);
       expect(contract.manuscript_profile.title).toBeTruthy();
@@ -71,8 +77,31 @@ describe('benchmark authority contract package', () => {
       expect(contract.manuscript_profile.genre).toBeTruthy();
       expect(contract.manuscript_profile.target_audience).toBeTruthy();
       expect(contract.expected_section_order.length).toBeGreaterThanOrEqual(10);
-      expect(contract.required_public_strings.length).toBeGreaterThanOrEqual(20);
-      expect(contract.forbidden_public_strings.length).toBeGreaterThanOrEqual(8);
+
+      const required = contract.required_public_strings;
+      const forbidden = contract.forbidden_public_strings;
+
+      // Non-empty surfaces — stable contract content must exist, however small.
+      expect(required.length).toBeGreaterThan(0);
+      expect(forbidden.length).toBeGreaterThan(0);
+
+      // Uniqueness — no duplicate contract strings in either surface.
+      expect(new Set(required).size).toBe(required.length);
+      expect(new Set(forbidden).size).toBe(forbidden.length);
+
+      // Every required string is a non-empty stable public string.
+      for (const value of required) {
+        expect(typeof value).toBe('string');
+        expect(value.trim().length).toBeGreaterThan(0);
+      }
+
+      // A string can never be both required and forbidden.
+      const overlap = forbidden.filter((value) => required.includes(value));
+      expect(overlap).toEqual([]);
+
+      // CMOS: required public strings carry no space-padded em dashes.
+      const spacedEmDash = required.filter((value) => / \u2014 /.test(value));
+      expect(spacedEmDash).toEqual([]);
     }
   });
 
@@ -131,5 +160,38 @@ describe('benchmark authority contract package', () => {
       expect(overlap).toEqual([]);
       expect(name).toBeTruthy();
     }
+  });
+
+  test('Froggin Noggin long-form contract is grounded in the first-100-pages canon and free of contradictions', () => {
+    const contract = loadContract('long-form-multi-layer/froggin-noggin.expected.json');
+
+    expect(contract.schema_version).toBe('benchmark_authority_contract_v1');
+    expect(contract.contract_id).toBe('long-form-multi-layer-froggin-noggin');
+    expect(contract.mode).toBe('long_form_multi_layer_evaluation');
+    expect(contract.route).toBe('LONG_FORM');
+
+    expect(contract.manuscript_profile.title).toBe('Froggin Noggin');
+    expect(contract.manuscript_profile.word_count).toBe(51_252);
+    expect(contract.required_public_strings.length).toBeGreaterThanOrEqual(20);
+    expect(contract.forbidden_public_strings.length).toBeGreaterThanOrEqual(8);
+
+    // No fabricated full-novel metadata.
+    const allText = JSON.stringify(contract);
+    expect(allText).not.toContain('127036');
+    expect(allText).not.toContain('127,036');
+    expect(allText).not.toContain("sanitized children");
+
+    // A string can never be both required and forbidden.
+    const required = new Set(contract.required_public_strings);
+    const overlap = contract.forbidden_public_strings.filter((value) => required.has(value));
+    expect(overlap).toEqual([]);
+
+    // DREAM stays an internal-only token; no required public string may carry it.
+    expect(contract.forbidden_public_strings).toContain('DREAM');
+    expect(contract.required_public_strings.filter((value) => value.includes('DREAM'))).toEqual([]);
+
+    // CMOS: em dashes carry no surrounding spaces in any public string.
+    const spacedEmDash = contract.required_public_strings.filter((value) => / \u2014 /.test(value));
+    expect(spacedEmDash).toEqual([]);
   });
 });

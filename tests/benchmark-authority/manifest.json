@@ -21,7 +21,16 @@
       "mode": "long_form_multi_layer_evaluation",
       "tier": "required-gold",
       "runtime_authority": true,
-      "dir": "long-form-multi-layer"
+      "dir": "long-form-multi-layer",
+      "contract_file": "expected.json"
+    },
+    {
+      "id": "long-form-multi-layer-froggin-noggin",
+      "mode": "long_form_multi_layer_evaluation",
+      "tier": "required-gold",
+      "runtime_authority": true,
+      "dir": "long-form-multi-layer",
+      "contract_file": "froggin-noggin.expected.json"
     }
   ]
 }
