@@ -12,7 +12,12 @@ import { KICK_MATRIX, PROCESS_REGISTRY } from '../../../lib/evaluation/fipocRegi
 import { REVISE_KICK_MATRIX, REVISE_PROCESS_REGISTRY } from '../../../lib/revision/reviseRegistry';
 import { AGENT_READINESS_KICK_MATRIX, AGENT_READINESS_PROCESS_REGISTRY } from '../../../lib/agent-readiness/agentReadinessRegistry';
 import { STORYGATE_KICK_MATRIX, STORYGATE_PROCESS_REGISTRY } from '../../../lib/storygate/storygateRegistry';
-import { getFailureRecoveryPolicy, type FailureRecoveryPolicyMode } from '../../../lib/governance/failureRecoveryPolicy';
+import {
+  FAILURE_RECOVERY_DEFINITIONS,
+  getFailureRecoveryDefinition,
+  getFailureRecoveryPolicy,
+  type FailureRecoveryPolicyMode,
+} from '../../../lib/governance/failureRecoveryPolicy';
 
 type StageLike = {
   stageId: string;
@@ -326,12 +331,26 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
 ];
 
 describe('failure-code → kick-matrix coverage audit', () => {
+  test('failure recovery definitions are unique and declaration-based', () => {
+    const definitionCodes = FAILURE_RECOVERY_DEFINITIONS.map((definition) => definition.failureCode);
+    expect(definitionCodes).toHaveLength(new Set(definitionCodes).size);
+    expect(definitionCodes.length).toBe(167);
+  });
+
   test.each(FAMILY_AUDITS)('$family stages declare input metrics, output metrics, dirty-data rules, and failure codes', (audit) => {
     for (const stage of audit.stages) {
       expect(stage.inputMetrics.length).toBeGreaterThan(0);
       expect(stage.outputMetrics.length).toBeGreaterThan(0);
       expect(stage.dirtyDataRules.length).toBeGreaterThan(0);
       expect(stage.failureCodes.length).toBeGreaterThan(0);
+    }
+  });
+
+  test.each(FAMILY_AUDITS)('$family stage failure codes have explicit failure recovery definitions', (audit) => {
+    for (const code of stageFailureCodes(audit.stages)) {
+      const definition = getFailureRecoveryDefinition(code);
+      expect(definition).toBeDefined();
+      expect(definition!.failureCode).toBe(code);
     }
   });
 

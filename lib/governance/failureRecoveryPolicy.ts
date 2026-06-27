@@ -18,51 +18,258 @@ export type FailureRecoveryPolicy = {
   mode: FailureRecoveryPolicyMode;
   checkpointArtifact: 'unified_evaluation_document_v1' | null;
   diagnosticPacket: 'stage_failure_delta_v1' | null;
+  retryLimit: number;
+  escalation: 'redo_target_from_kick_matrix' | 'terminal_block_after_retry' | 'terminal_block' | 'passive_observability';
   retainFailedAttemptSnapshot: boolean;
   mutationPolicy: 'no_in_place_mutation_of_certified_artifacts';
   failedArtifactAuthority: 'audit_evidence_only';
   authorExposure: boolean;
 };
 
-const TRANSIENT_RETRY_PATTERN = /(TIMEOUT|RPC|DB|WRITE|CLAIM|LEASE|GENERATION_FAILED|SYNTHESIS_FAILED|RENDER_FAILED|HYDRATION_FAILED|UNAVAILABLE|NOT_PERSISTED|NOT_CREATED|SYNC)/;
+export type FailureRecoveryDefinition = {
+  failureCode: string;
+  recoveryPolicy: FailureRecoveryPolicy;
+};
 
-const LOG_ONLY_FAILURE_CODES = new Set<string>([
+const LOG_ONLY_FAILURE_CODES = [
   'FINAL_AUDIT_LOW_COVERAGE',
-  'REC_INTEGRITY_GENERIC',
-  'QG_GENERIC_REC',
   'QG_DUPLICATE_REC',
+  'QG_GENERIC_REC',
+  'REC_INTEGRITY_GENERIC',
   'WORKBENCH_DIAGNOSTIC_INCOMPLETE',
-]);
+] as const;
 
-function basePolicy(mode: FailureRecoveryPolicyMode, authorExposure: boolean): FailureRecoveryPolicy {
+const RETRY_THEN_TERMINAL_BLOCK_FAILURE_CODES = [
+  'ACCESS_LOG_WRITE_FAILED',
+  'CANDIDATE_GENERATION_FAILED',
+  'CLAIM_RPC_FAILED',
+  'CROSSCHECK_TIMEOUT',
+  'CROSSCHECK_UNAVAILABLE',
+  'DB_WRITE_FAILED',
+  'DOWNLOAD_RENDER_FAILED',
+  'DREAM_TIMEOUT',
+  'GENERATION_TIMEOUT',
+  'LEASE_OVERLAP_DETECTED',
+  'LEDGER_SYNC_DUPLICATE_LOCAL_ID',
+  'PASS1_TIMEOUT',
+  'PASS2_INDEPENDENCE_REWRITE_FAILED',
+  'PASS2_TIMEOUT',
+  'PASS3_TIMEOUT',
+  'REVISE_AUTHOR_DECISION_NOT_PERSISTED',
+  'REVISE_SEED_GENERATION_FAILED',
+  'REVISION_LEDGER_ASSEMBLY_FAILED',
+  'REVOCATION_NOT_PERSISTED',
+  'SEED_GENERATION_FAILED',
+  'TRUSTEDPATH_UNAUTHENTICATED',
+  'WAVE_EXECUTION_TIMEOUT',
+  'WORKBENCH_HYDRATION_FAILED',
+] as const;
+
+const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
+  'ACCESS_CONTROL_BYPASS',
+  'ACCESS_GRANT_MISSING',
+  'ACCESS_REQUEST_NOT_CREATED',
+  'ADMISSION_CANON_GATE_FAIL',
+  'ADMISSION_CARD_CONTRACT_FAIL',
+  'AGENT_PACKAGE_RENDERER_OUTPUT_INVALID',
+  'APPROVAL_ACTOR_NOT_AUTHORIZED',
+  'ARTIFACT_NOT_ALLOWED',
+  'CANDIDATE_CANON_GATE_FAIL',
+  'CANDIDATE_VOICE_GATE_FAIL',
+  'COMPLETION_PREMATURE',
+  'CROSSCHECK_INVALID_VERDICT',
+  'DB_WRITE_FAILURE',
+  'DECISION_INVALID_VALUE',
+  'DIALOGUE_CANON_EXECUTION_FAILED',
+  'DOWNLOAD_PARITY_FAILED',
+  'DREAM_SYNTHESIS_FAILED',
+  'EDITORIAL_META_LANGUAGE',
+  'FINAL_AUDIT_CONTRADICTION',
+  'FORBIDDEN_SCOPE_REQUESTED',
+  'GATE15_EXECUTION_FAILED',
+  'HANDOFF_GENERIC_LANGUAGE',
+  'INELIGIBLE_MANUSCRIPT',
+  'INVALID_FORMAT',
+  'LEDGER_EVIDENCE_MISSING',
+  'LEDGER_SYNC_DB_ERROR',
+  'LEDGER_SYNC_VALIDATION_FAIL',
+  'LISTING_ALREADY_EXISTS',
+  'MANUSCRIPT_NOT_FINAL',
+  'MARKET_COMPARABLES_MISSING',
+  'MISSING_CONTEXT',
+  'MISSING_REQUIRED_FIELDS',
+  'NO_COMPLETED_EVALUATION',
+  'OUTPUT_TOO_SHORT',
+  'OUTPUT_TOO_THIN',
+  'PACKAGE_AUTHORITY_INVALID',
+  'PACKAGE_GATE_FAILED',
+  'PHASE5_BANNED_ENTITY',
+  'PHASE5_MISSING_AUDIT',
+  'PHASE5_RENDER_PARITY_FAIL',
+  'PHASE5_TEMPLATE_CONTRACT_FAIL',
+  'PHASE5_UNCERTIFIED_OUTPUT',
+  'QG_ARTIFACT_GATE_FAIL',
+  'QUALITY_GATE_NOT_PASSED',
+  'REVIEW_GATE_QUALITY_HARD_FAIL',
+  'REVIEW_GATE_REJECTED',
+  'REVISE_HANDOFF_RENDERER_OUTPUT_INVALID',
+  'REVISION_LEDGER_EVIDENCE_MISSING',
+  'RIGHTS_DECLARATION_MISSING',
+  'RIGHTS_GATE_FAILED',
+  'SCORE_BELOW_THRESHOLD',
+  'SECTIONS_NOT_ALL_APPROVED',
+  'SEED_FIT_GAP_BLOCKED',
+  'STRUCTURED_AUDIT_FIELDS_MISSING',
+  'TRUSTEDPATH_INELIGIBLE_VERDICT',
+  'TRUSTEDPATH_LEDGER_WRITE_FAIL',
+  'UNAUTHENTICATED',
+  'UNRESOLVED_PLACEHOLDER',
+  'UNVERIFIED_INDUSTRY_USER',
+  'VERIFICATION_STATE_UNAUDITED',
+  'VIEWMODEL_BOUNDARY_CONTAMINATION',
+  'WAVE_DERIVATION_EMPTY',
+  'WORD_LIMIT_EXCEEDED',
+  'WORKBENCH_ANCHOR_UNRESOLVABLE',
+] as const;
+
+const TERMINAL_BLOCK_FAILURE_CODES = [
+  '400',
+  '401',
+  '403',
+  '413',
+  '429',
+  '500',
+  'ACCESS_REQUEST_NOT_FOUND',
+  'ADMISSION_CANDIDATE_QUALITY_FAIL',
+  'ADMISSION_VOICE_GATE_FAIL',
+  'AUDIT_EVENT_MISSING',
+  'CANDIDATE_DUPLICATES_ORIGINAL',
+  'CANDIDATE_EMPTY',
+  'CANONICAL_STATUS_VIOLATION',
+  'COMPLETION_CERT_INVALID',
+  'COMPLETION_PENDING_SYNC',
+  'CROSSCHECK_HASH_MISMATCH',
+  'DECISION_CUSTOM_EMPTY',
+  'DECISION_MISSING_OPPORTUNITY',
+  'DOWNLOAD_FORMAT_UNSUPPORTED',
+  'DREAM_NO_CHUNKS',
+  'DREAM_NO_EVAL_RESULT',
+  'ELIGIBILITY_NOT_PROVEN',
+  'ENTITY_CONTAMINATION_REJECTED',
+  'EQUIVALENT_ASSESSMENT_UNVERIFIED',
+  'EVALUATION_ARTIFACT_VALIDATION_FAILED',
+  'EVALUATION_GATE_REJECTED',
+  'FINAL_AUDIT_MISSING_DREAM',
+  'FINAL_AUDIT_SCHEMA_INVALID',
+  'GOLDEN_SPINE_EXECUTION_FAILED',
+  'HANDOFF_BROKEN_MODAL',
+  'HANDOFF_INCOMPLETE_SENTENCE',
+  'HANDOFF_MISSING_EVIDENCE_ANCHOR',
+  'HANDOFF_SCAFFOLD_RESIDUE',
+  'LEDGER_ASSEMBLY_FAILED',
+  'LEDGER_CRITERION_MISSING',
+  'LEDGER_EMPTY',
+  'LISTING_NOT_ACTIVE',
+  'MISSING_SECTIONS',
+  'MISSING_TIER_DECISION',
+  'NON_ADMIN_VERIFICATION_ATTEMPT',
+  'NON_CANONICAL_ACCESS_DECISION',
+  'NON_CANONICAL_TIER',
+  'NO_PACKAGE_HISTORY',
+  'PASS1_FAILED',
+  'PASS2_FAILED',
+  'PASS3_FAILED',
+  'PHASE0_AUTHORITY_MISSING',
+  'PHASE0_BASELINE_CHECKSUM_FAILED',
+  'PHASE5_SCORE_DRIFT',
+  'PIPELINE_INPUT_INVALID',
+  'PLACEHOLDER_TEXT_DETECTED',
+  'PRIVATE_LISTING_BLOCKED',
+  'QG_CRITERIA_MISSING',
+  'QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH',
+  'QG_INDEPENDENCE_VIOLATION',
+  'QG_SCORE_RANGE',
+  'QUEUE_ASSEMBLY_FAILED',
+  'QUEUE_EMPTY_AFTER_ADMISSION',
+  'QUEUE_OVERCAP',
+  'REC_INTEGRITY_NO_EVIDENCE',
+  'REVIEW_GATE_QUALITY_TECHNICAL_BLOCK',
+  'REVIEW_GATE_TIMEOUT',
+  'REVISE_ABC_NOT_PROSE',
+  'REVISE_ADMISSION_FAILED',
+  'REVISE_EVIDENCE_MISSING',
+  'REVISE_QUEUE_EMPTY',
+  'REVISE_SEED_AUTHORITY_PROOF_MISSING',
+  'REVISION_CANON_METADATA_FAILED',
+  'REVISION_LEDGER_EMPTY',
+  'SECTION_NOT_FOUND',
+  'SEED_AUTHORITY_PROOF_MISSING',
+  'TRUSTEDPATH_ALREADY_DECIDED',
+  'VIEWMODEL_SANITIZATION_INCOMPLETE',
+  'WAVE_PLAN_FAILED',
+  'WORKBENCH_MODE_CONTRACT_MISSING',
+] as const;
+
+function defineFailure(
+  failureCode: string,
+  mode: FailureRecoveryPolicyMode,
+  retryLimit: number,
+  escalation: FailureRecoveryPolicy['escalation'],
+): FailureRecoveryDefinition {
   return {
-    mode,
-    checkpointArtifact: mode === 'rollback_to_certified_checkpoint' ? 'unified_evaluation_document_v1' : null,
-    diagnosticPacket: mode === 'rollback_to_certified_checkpoint' || mode === 'retry_then_terminal_block'
-      ? 'stage_failure_delta_v1'
-      : null,
-    retainFailedAttemptSnapshot: true,
-    mutationPolicy: 'no_in_place_mutation_of_certified_artifacts',
-    failedArtifactAuthority: 'audit_evidence_only',
-    authorExposure,
+    failureCode,
+    recoveryPolicy: {
+      mode,
+      checkpointArtifact: mode === 'rollback_to_certified_checkpoint' ? 'unified_evaluation_document_v1' : null,
+      diagnosticPacket: mode === 'rollback_to_certified_checkpoint' || mode === 'retry_then_terminal_block'
+        ? 'stage_failure_delta_v1'
+        : null,
+      retryLimit,
+      escalation,
+      retainFailedAttemptSnapshot: true,
+      mutationPolicy: 'no_in_place_mutation_of_certified_artifacts',
+      failedArtifactAuthority: 'audit_evidence_only',
+      authorExposure: mode === 'log_only',
+    },
   };
+}
+
+function definitionsFor(
+  codes: readonly string[],
+  mode: FailureRecoveryPolicyMode,
+  retryLimit: number,
+  escalation: FailureRecoveryPolicy['escalation'],
+): FailureRecoveryDefinition[] {
+  return codes.map((code) => defineFailure(code, mode, retryLimit, escalation));
+}
+
+export const FAILURE_RECOVERY_DEFINITIONS: readonly FailureRecoveryDefinition[] = [
+  ...definitionsFor(ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES, 'rollback_to_certified_checkpoint', 1, 'redo_target_from_kick_matrix'),
+  ...definitionsFor(RETRY_THEN_TERMINAL_BLOCK_FAILURE_CODES, 'retry_then_terminal_block', 1, 'terminal_block_after_retry'),
+  ...definitionsFor(TERMINAL_BLOCK_FAILURE_CODES, 'terminal_block', 0, 'terminal_block'),
+  ...definitionsFor(LOG_ONLY_FAILURE_CODES, 'log_only', 0, 'passive_observability'),
+];
+
+const FAILURE_RECOVERY_DEFINITION_BY_CODE = new Map(
+  FAILURE_RECOVERY_DEFINITIONS.map((definition) => [definition.failureCode, definition]),
+);
+
+export function getFailureRecoveryDefinition(failureCode: string): FailureRecoveryDefinition | undefined {
+  return FAILURE_RECOVERY_DEFINITION_BY_CODE.get(failureCode);
 }
 
 export function getFailureRecoveryPolicy(input: {
   failureCode: string;
   hasKick: boolean;
 }): FailureRecoveryPolicy {
-  if (input.hasKick) {
-    return basePolicy('rollback_to_certified_checkpoint', false);
+  const definition = getFailureRecoveryDefinition(input.failureCode);
+  if (!definition) {
+    throw new Error(`Missing failure recovery definition for ${input.failureCode}`);
   }
 
-  if (LOG_ONLY_FAILURE_CODES.has(input.failureCode)) {
-    return basePolicy('log_only', true);
+  if (input.hasKick && definition.recoveryPolicy.mode !== 'rollback_to_certified_checkpoint') {
+    throw new Error(`Kick-mapped failure ${input.failureCode} must declare rollback_to_certified_checkpoint recovery`);
   }
 
-  if (TRANSIENT_RETRY_PATTERN.test(input.failureCode)) {
-    return basePolicy('retry_then_terminal_block', false);
-  }
-
-  return basePolicy('terminal_block', false);
+  return definition.recoveryPolicy;
 }
