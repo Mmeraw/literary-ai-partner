@@ -1,20 +1,23 @@
 {
   "schema_version": "benchmark_authority_manifest_v1",
-  "description": "Benchmark Authority Library manifest. Each entry registers a contract for parametrized renderer parity testing.",
+  "description": "Benchmark Authority Library manifest. Each entry registers a contract for parametrized renderer parity testing. The manifest is enumeration metadata only; the authority chain is Benchmark -> Contract (expected.json) -> ViewModel -> Renderer. Every entry must either resolve to a registered fixture builder or be marked contract_only: true (contract-validated but skipped by the renderer parity harness).",
   "contracts": [
     {
       "id": "short-form-ancient-bloodlines",
       "mode": "short_form_evaluation",
       "tier": "required-gold",
       "runtime_authority": true,
-      "dir": "short-form"
+      "dir": "short-form",
+      "contract_file": "expected.json"
     },
     {
       "id": "short-form-yellow-wallpaper",
       "mode": "short_form_evaluation",
       "tier": "calibration-only",
       "runtime_authority": false,
-      "dir": "short-form"
+      "contract_only": true,
+      "dir": "short-form",
+      "contract_file": "expected.json"
     },
     {
       "id": "cartel-babies-required-gold",
@@ -39,6 +42,15 @@
       "runtime_authority": false,
       "dir": "long-form-multi-layer",
       "contract_file": "let-the-river-decide.expected.json"
+    },
+    {
+      "id": "long-form-multi-layer-mythoamphibia",
+      "mode": "long_form_multi_layer_evaluation",
+      "tier": "required-gold-candidate",
+      "benchmark_status": "candidate",
+      "runtime_authority": true,
+      "dir": "long-form-multi-layer",
+      "contract_file": "mythoamphibia.expected.json"
     }
   ]
 }

@@ -33,7 +33,6 @@
   ],
   "required_public_strings": [
     "Cartel Babies",
-    "DREAM Long-Form Multi-Layer Evaluation",
     "Upmarket Suspense / Literary Cartel Thriller",
     "Adult readers of literary suspense, borderlands crime fiction, character-driven thrillers, and morally complex family dramas",
     "76",
@@ -75,6 +74,11 @@
     "Strong abduction, camp adaptation, and extraction momentum.",
     "Benjamin repetition and final administrative smoothness soften drive."
   ],
+  "surface_required_strings": {
+    "txt": ["DREAM Long-Form Multi-Layer Evaluation"],
+    "html": ["DREAM Long-Form Multi-Layer Evaluation"],
+    "docx": ["DREAM Long-Form Multi-Layer Evaluation"]
+  },
   "source_only_strings": [
     "A Canadian expatriate abducted by cartel operatives in Sinaloa is pulled into a hidden camp where survival depends on tactical observation, emotional discipline, and dangerous usefulness.",
     "cartel abduction",
@@ -83,7 +87,6 @@
     "homophobic bullying"
   ],
   "forbidden_public_strings": [
-    "DREAM",
     "revision_opportunity_ledger",
     "revision_canon_metadata",
     "internal_check_id",

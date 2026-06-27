@@ -6,14 +6,45 @@ import { normalizeEvaluationReportViewModel } from '../../../lib/evaluation/eval
 
 const CONTRACT_ROOT = join(process.cwd(), 'tests/benchmark-authority');
 
+// Public-facing report-type label for long-form multi-layer (DREAM) benchmarks.
+// "DREAM" here is a product label, not an internal artifact.
+const LONG_FORM_REPORT_TYPE = 'DREAM Long-Form Multi-Layer Evaluation';
+
+type SurfaceRequiredStrings = {
+  txt?: string[];
+  html?: string[];
+  docx?: string[];
+};
+
 type BenchmarkContract = {
   mode: 'short_form_evaluation' | 'long_form_multi_layer_evaluation';
   required_public_strings: string[];
+  surface_required_strings?: SurfaceRequiredStrings;
   forbidden_public_strings: string[];
+};
+
+type ManifestEntry = {
+  id: string;
+  mode: 'short_form_evaluation' | 'long_form_multi_layer_evaluation';
+  dir: string;
+  contract_file?: string;
+  contract_only?: boolean;
+};
+
+type BenchmarkManifest = {
+  contracts: ManifestEntry[];
 };
 
 function loadContract(relativePath: string): BenchmarkContract {
   return JSON.parse(readFileSync(join(CONTRACT_ROOT, relativePath), 'utf8')) as BenchmarkContract;
+}
+
+function loadManifest(): BenchmarkManifest {
+  return JSON.parse(readFileSync(join(CONTRACT_ROOT, 'manifest.json'), 'utf8')) as BenchmarkManifest;
+}
+
+function contractPathForEntry(entry: ManifestEntry): string {
+  return `${entry.dir}/${entry.contract_file ?? 'expected.json'}`;
 }
 
 function stripHtmlTags(html: string): string {
@@ -33,9 +64,17 @@ function normalizeSurfaceText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function assertStableStringsRenderEverywhere(params: {
+function assertStringsInSurface(surfacePlain: string, surfaceName: string, expectedStrings: string[]) {
+  for (const expected of expectedStrings) {
+    const normalized = normalizeSurfaceText(expected);
+    if (!surfacePlain.includes(normalized)) {
+      throw new Error(`Expected ${surfaceName} surface to contain ${JSON.stringify(expected)} but it was missing.`);
+    }
+  }
+}
+
+function assertContractRendersAcrossSurfaces(params: {
   contract: BenchmarkContract;
-  stableStrings: string[];
   txt: string;
   html: string;
   docxText: string;
@@ -44,13 +83,18 @@ function assertStableStringsRenderEverywhere(params: {
   const htmlPlain = normalizeSurfaceText(stripHtmlTags(params.html));
   const docxPlain = normalizeSurfaceText(params.docxText);
 
-  for (const expected of params.stableStrings) {
-    expect(params.contract.required_public_strings).toContain(expected);
-    const normalized = normalizeSurfaceText(expected);
-    expect(txtPlain).toContain(normalized);
-    expect(htmlPlain).toContain(normalized);
-    expect(docxPlain).toContain(normalized);
-  }
+  const universal = params.contract.required_public_strings ?? [];
+  const surface = params.contract.surface_required_strings ?? {};
+
+  // Universal strings must render on every public surface.
+  assertStringsInSurface(txtPlain, 'TXT', universal);
+  assertStringsInSurface(htmlPlain, 'HTML/PDF', universal);
+  assertStringsInSurface(docxPlain, 'DOCX', universal);
+
+  // Surface-specific strings must render on their declared surface only.
+  assertStringsInSurface(txtPlain, 'TXT', surface.txt ?? []);
+  assertStringsInSurface(htmlPlain, 'HTML/PDF', surface.html ?? []);
+  assertStringsInSurface(docxPlain, 'DOCX', surface.docx ?? []);
 }
 
 function assertForbiddenStringsDoNotLeak(params: {
@@ -141,8 +185,26 @@ function buildGoldenShortFormDocument() {
   });
 }
 
+// Long-form multi-layer (DREAM) fixtures are born as long-form documents:
+// the canonical UED is mode-tagged long_form_multi_layer_evaluation and the
+// public report type defaults to the DREAM long-form label. The DREAM document
+// itself is supplied separately to the ViewModel as dreamDoc.
+function buildLongFormMultiLayerDocument(input: {
+  result: Parameters<typeof buildShortFormEvaluationDocument>[0]['result'];
+  displayTitle: string;
+  reportType?: string;
+}) {
+  const doc = buildShortFormEvaluationDocument({
+    displayTitle: input.displayTitle,
+    reportType: input.reportType ?? LONG_FORM_REPORT_TYPE,
+    result: input.result,
+  });
+  doc.templateMode = 'long_form_multi_layer_evaluation';
+  return doc;
+}
+
 function buildGoldenDreamFixture() {
-  const canonicalDoc = buildShortFormEvaluationDocument({
+  const canonicalDoc = buildLongFormMultiLayerDocument({
     displayTitle: 'Cartel Babies',
     result: {
       generated_at: '2026-06-22T12:00:00.000Z',
@@ -207,8 +269,6 @@ function buildGoldenDreamFixture() {
       ],
     },
   });
-
-  canonicalDoc.templateMode = 'long_form_multi_layer_evaluation';
 
   const dream = {
     dream_scores: { quality: 76, readiness: 70, commercial: null, literary: null },
@@ -489,7 +549,7 @@ function buildGoldenDreamFixture() {
 }
 
 function buildGoldenFrogginFixture() {
-  const canonicalDoc = buildShortFormEvaluationDocument({
+  const canonicalDoc = buildLongFormMultiLayerDocument({
     displayTitle: 'Froggin Noggin',
     result: {
       generated_at: '2026-06-27T12:00:00.000Z',
@@ -560,8 +620,6 @@ function buildGoldenFrogginFixture() {
       ],
     },
   });
-
-  canonicalDoc.templateMode = 'long_form_multi_layer_evaluation';
 
   const dream = {
     dream_scores: { quality: 58, readiness: null, commercial: null, literary: null },
@@ -788,7 +846,7 @@ function buildGoldenFrogginFixture() {
 }
 
 function buildGoldenRiverFixture() {
-  const canonicalDoc = buildShortFormEvaluationDocument({
+  const canonicalDoc = buildLongFormMultiLayerDocument({
     displayTitle: 'Let the River Decide',
     result: {
       generated_at: '2026-06-27T19:00:00.000Z',
@@ -842,8 +900,6 @@ function buildGoldenRiverFixture() {
       ],
     },
   });
-
-  canonicalDoc.templateMode = 'long_form_multi_layer_evaluation';
 
   const dream = {
     dream_scores: { quality: 72, readiness: 65, commercial: null, literary: null },
@@ -1083,190 +1139,277 @@ function buildGoldenRiverFixture() {
   return { canonicalDoc, dream };
 }
 
+function buildGoldenMythoamphibiaFixture() {
+  const criteriaSpine: Array<{ key: string; score: number; confidence: string; finding: string; anchors: string[] }> = [
+    { key: 'concept', score: 9.0, confidence: 'high', finding: 'Multi-species civilizational eco-mythology distributing consciousness across humans, amphibians, objects, environments, deities, and collective entities.', anchors: ['distributed consciousness', 'multi-species civilization', 'object memory'] },
+    { key: 'narrativeDrive', score: 6.5, confidence: 'moderate-high', finding: 'Multiple powerful engines (Brutus degradation, extinction timer, succession crisis, cross-species contact, Mine possession), but architecture density creates pacing pressure.', anchors: ['Brutus degradation', 'extinction timer', 'Mine possession'] },
+    { key: 'character', score: 8.0, confidence: 'high', finding: 'Brutus, Billy, Crown Hyla, Thorander, Zimeon, and Rana form a strong multi-species ensemble with distinct psychological logics.', anchors: ['Brutus', 'Billy', 'Crown Hyla'] },
+    { key: 'voice', score: 8.5, confidence: 'high', finding: 'Polyphonic architecture across human, amphibian, object, environmental, divine, and collective POV domains.', anchors: ['polyphonic POV', 'distributed truth', 'object voice'] },
+    { key: 'sceneConstruction', score: 7.0, confidence: 'moderate-high', finding: 'Best scenes embody doctrine through action: council debates, human-amphibian contact events, object-consciousness revelations, Mine possession episodes.', anchors: ['council debates', 'contact events', 'object revelations'] },
+    { key: 'dialogue', score: 7.0, confidence: 'moderate', finding: 'Dialogue serves political, doctrinal, and ecological functions across species; council debates and Gorf-language exchanges are structurally rich.', anchors: ['council debate', 'Gorf-language', 'Brutus/Billy contrast'] },
+    { key: 'theme', score: 9.0, confidence: 'high', finding: 'Dominion versus domination, survival versus purity, extinction, contamination, faith, transformation, kinship, and stewardship are enacted through bodies, water, eggs, glyphs, objects, rituals, and predation.', anchors: ['dominion vs domination', 'contamination', 'stewardship'] },
+    { key: 'worldbuilding', score: 9.0, confidence: 'high', finding: 'Aqua World governance, Gorf theology, amphibian metamorphosis biology, object-consciousness memory systems, Mine consciousness, and verse-code infrastructure form the most richly governed world in the native benchmark corpus.', anchors: ['Aqua World', 'Gorf theology', 'verse-code'] },
+    { key: 'pacing', score: 6.0, confidence: 'moderate-high', finding: 'The multi-layer architecture and six consciousness domains create legitimate pacing challenge; the ecological timer provides macro-pacing urgency.', anchors: ['layer density', 'verse-code rhythm', 'ecological timer'] },
+    { key: 'proseControl', score: 7.5, confidence: 'moderate', finding: 'Grotesque comedy, sacred register, ecological dread, amphibian embodiment, and object-consciousness voice coexist; prose is vivid and distinctive.', anchors: ['grotesque-sacred register', 'amphibian embodiment', 'object voice'] },
+    { key: 'tone', score: 7.5, confidence: 'moderate-high', finding: 'Comedy, grotesquerie, horror, sacred language, ecological grief, and political satire operate simultaneously and are mostly governed.', anchors: ['tonal collision', 'sacred-grotesque', 'eco-grief'] },
+    { key: 'narrativeClosure', score: 6.5, confidence: 'moderate', finding: 'Succession arc (Zimeon/Rana), extinction timer, Mine possession, and cross-species contact carry forward-facing structural promises; closure is partially open by design.', anchors: ['succession arc', 'extinction timer', 'open by design'] },
+    { key: 'marketability', score: 6.0, confidence: 'moderate-high', finding: 'Object-consciousness rules, Triune boundaries, and architecture density need sharper reader-legibility; transmedia/codex hooks must reinforce narrative meaning, not replace it.', anchors: ['reader-legibility', 'transmedia hooks', 'genre-defying scope'] },
+  ];
+
+  const canonicalDoc = buildLongFormMultiLayerDocument({
+    displayTitle: 'The Lost World of MythOAmphibia / DOMINATUS I',
+    result: {
+      generated_at: '2026-06-27T20:00:00.000Z',
+      overview: {
+        overall_score_0_100: 76,
+        verdict: 'revise',
+        one_paragraph_summary:
+          'The Lost World of MythOAmphibia / DOMINATUS I is the most architecturally complex native benchmark: a multi-species civilizational eco-mythology distributing consciousness across humans, amphibians, objects, environments, deities, and collective entities. Concept, literary ambition, and worldbuilding are exceptional; readiness and commercial reach are moderated by the demands the multi-layer architecture places on reader accessibility.',
+        top_3_strengths: [
+          'Distributed multi-species consciousness across six domains.',
+          'The most richly governed world in the native benchmark corpus.',
+          'Extraordinary thematic integration of dominion, contamination, and stewardship.',
+        ],
+        top_3_risks: [
+          'Architecture density creates legitimate pacing pressure.',
+          'Object-consciousness rules and Triune boundaries need reader-legibility.',
+          'Genre-defying scope challenges conventional shelving.',
+        ],
+      },
+      enrichment: {
+        trigger_warnings: ['body horror', 'addiction', 'violence', 'ecological collapse', 'possession'],
+        premise:
+          'A poisoned frog civilization and a degrading human vessel collide as consciousness itself is distributed across bodies, objects, relics, and the dying Realm.',
+      },
+      metrics: {
+        manuscript: {
+          title: 'The Lost World of MythOAmphibia / DOMINATUS I',
+          word_count: 0,
+          genre: 'Mythic Eco-Fantasy / Multi-Species Civilizational Saga / Literary Eco-Horror',
+          target_audience:
+            'Adult readers of literary fantasy, ecological speculative fiction, multi-species worldbuilding, body-horror-inflected mythic fiction, and transmedia/codex-ready mythos storytelling',
+        },
+      },
+      criteria: criteriaSpine.map((c) => ({
+        key: c.key,
+        score_0_10: c.score,
+        confidence_level: c.confidence.startsWith('high') ? 'high' : 'moderate',
+        rationale: c.finding,
+        recommendations: [],
+      })),
+    },
+  });
+
+  const dream = {
+    dream_scores: { quality: 80, readiness: 62, commercial: 60, literary: 86 },
+    executive_verdict:
+      'The Lost World of MythOAmphibia / DOMINATUS I distributes consciousness across biological characters, nonhuman societies, objects, environmental systems, sacred artifacts, and divine voices. It must not be flattened into single-species frog fantasy, gross-out horror, environmental allegory, or animal adventure. Its principal challenge is reader-legibility: the architecture is exceptional, but object-consciousness rules and Triune boundaries must register on the page without taxonomic explanation.',
+    market_shelf: {
+      best_shelf: 'Literary Fantasy / Ecological Speculative Fiction / Mythic Multi-Species Saga',
+      marketable_hook: 'A poisoned frog civilization and a degrading human vessel collide as consciousness itself is distributed across bodies, objects, relics, and the dying Realm.',
+      shelf_neighbors: ['Mythic eco-fantasy', 'Dark ecological fantasy', 'Literary eco-horror', 'Animal-civilization myth'],
+      comparison_space: ['Distributed-consciousness speculative fiction', 'Grotesque-sacred mythos'],
+      market_danger: 'The book can be misread as frog fantasy, gross-out horror, environmental allegory, or animal adventure.',
+    },
+    what_not_to_become: [
+      'A single-species frog fantasy that erases the human degradation thread, object consciousness, and distributed Realm awareness.',
+      'A genre eco-allegory where the multi-layer architecture is flattened to imaginative worldbuilding without testing institutional, ecological, and consciousness logic.',
+    ],
+    structural_stack: [
+      { layer_name: 'Multi-species consciousness distribution', status: 'strong', function: 'Distributes consciousness across human, amphibian, object, environmental, divine, and collective domains.', revision_note: 'Keep the six domains distinguishable without taxonomic explanation.' },
+      { layer_name: 'Object consciousness / relic memory', status: 'strong', function: 'Objects are memory containers, witness devices, shame archives, and ritual vessels.', revision_note: 'Show one limit and one power within each object\u2019s first consciousness scene.' },
+      { layer_name: 'Frog civilization / amphibian governance', status: 'strong', function: 'Frog civilization as governed culture with institutions, not novelty or costume.', revision_note: 'Dramatize council and doctrine through action.' },
+      { layer_name: 'Ecological collapse / extinction pressure', status: 'moderate', function: 'Contamination-as-causality drives the macro-pacing extinction timer.', revision_note: 'Foreground egg-failure, blight, and habitat-collapse as felt urgency.' },
+      { layer_name: 'Mine consciousness / Triune distributed entity', status: 'moderate', function: 'Darkness, Dampness, and Silence operate as coordinated entity forces.', revision_note: 'Keep the Triune internally differentiated and legible.' },
+      { layer_name: 'Brutus degradation / possession architecture', status: 'strong', function: 'Tracks possession and bodily transformation across ecological, mythic, and bodily systems.', revision_note: 'Position Billy as the human-scale witness to the degradation architecture.' },
+      { layer_name: 'Divine / Gorf / religious authority architecture', status: 'moderate', function: 'Religious authority and doctrinal drift govern the mythos.', revision_note: 'Keep divine ambiguity exact but not over-explained.' },
+    ],
+    arc_map: [
+      { act_name: 'Contact pressure / human entry', chapter_range: '1\u20133', primary_function: 'Establishes human-amphibian contact and Brutus/Billy vulnerability.', revision_priority: 'Billy witness-POV must be structurally legible.' },
+      { act_name: 'Civilization and doctrine', chapter_range: '4\u201310', primary_function: 'Expands frog governance, Gorf theology, and object memory.', revision_priority: 'Avoid exposition; dramatize institutions.' },
+      { act_name: 'Degradation and possession', chapter_range: '11\u201320', primary_function: 'Brutus possession deepens; Mine/Triune pressure rises.', revision_priority: 'Keep Triune differentiation legible.' },
+      { act_name: 'Extinction timer / succession', chapter_range: '21\u201330', primary_function: 'Ecological collapse and Zimeon/Rana succession converge.', revision_priority: 'Foreground contamination-as-causality.' },
+    ],
+    criterion_analyses: criteriaSpine.map((c) => ({
+      key: c.key,
+      score: c.score,
+      confidence: c.confidence,
+      finding: c.finding,
+      evidence_anchors: c.anchors,
+    })),
+    layer_analyses: [
+      { layer_name: 'Multi-species consciousness distribution', strength: 'excellent', needed_revision: 'Keep all six domains distinguishable without taxonomic explanation.' },
+      { layer_name: 'Object consciousness / relic memory', strength: 'strong', needed_revision: 'Establish object rules early (one limit, one power).' },
+      { layer_name: 'Brutus degradation / possession architecture', strength: 'strong', needed_revision: 'Anchor Billy as human-scale reader access.' },
+    ],
+    cross_layer_integration: [
+      { motif: 'Contamination as causality', layers_connected: ['Ecological collapse', 'Brutus degradation', 'Mine consciousness'], strength: 'strong' },
+      { motif: 'Distributed memory and witness', layers_connected: ['Object consciousness', 'Frog civilization', 'Divine authority'], strength: 'strong' },
+    ],
+    symbolic_audit: {
+      systems: [
+        { symbol: 'Toadstone', status: 'central', function: 'Authority, memory, and doctrinal power.' },
+        { symbol: 'Boot / McDiaper', status: 'strong', function: 'Object consciousness and shame archive.' },
+        { symbol: 'The Mine', status: 'needs legibility', function: 'Environmental possession vector via the Triune.' },
+        { symbol: 'Eggs / water', status: 'strong', function: 'Ecological continuity and extinction pressure.' },
+      ],
+    },
+    reader_experience: {
+      opening: {
+        reader_question: 'Whose consciousness governs this world, and how many kinds are there?',
+        emotional_state: 'Estranged wonder and ecological dread.',
+        risk: 'Object-consciousness rules must register early.',
+      },
+      midpoint: {
+        reader_question: 'Is Brutus a villain, a vessel, or a victim of possession?',
+        emotional_state: 'Mounting body-horror and moral ambiguity.',
+        risk: 'Triune boundaries may blur without internal differentiation.',
+      },
+      final_act: {
+        reader_question: 'Can the civilization survive contamination and succession?',
+        emotional_state: 'Mythic gravity and ecological grief.',
+        risk: 'Closure is open by design; promises must still feel kept.',
+      },
+      aftertaste: 'The truth of the manuscript is distributed; no single narrator owns truth.',
+    },
+    revision_plan: [
+      {
+        priority: 'P1',
+        title: 'Clarify object-consciousness rules.',
+        goal: 'Each object with POV shows one limit and one power within its first consciousness scene.',
+        actions: ['Establish object rules on first appearance.', 'Avoid over-rationalizing governed strangeness.'],
+        acceptance_check: 'Readers accept object consciousness without exposition.',
+      },
+      {
+        priority: 'P1',
+        title: 'Strengthen Billy witness-POV structural function.',
+        goal: 'Position Billy as the human-scale reader access point to the degradation architecture.',
+        actions: ['Frame Billy\u2019s perception of Brutus\u2019s transformation as structural access, not only friendship.'],
+        acceptance_check: 'Billy reads as witness POV, not sidekick.',
+      },
+      {
+        priority: 'P2',
+        title: 'Foreground the ecological extinction timer.',
+        goal: 'Contamination-as-causality must drive pacing, not merely theme.',
+        actions: ['Make egg-failure, blight, and habitat-collapse create felt urgency.'],
+        acceptance_check: 'Ecological timer produces structural urgency.',
+      },
+      {
+        priority: 'P2',
+        title: 'Clarify Triune consciousness boundaries.',
+        goal: 'Darkness, Dampness, and Silence read as coordinated forces with different functions.',
+        actions: ['Differentiate the Triune internally without taxonomic explanation.'],
+        acceptance_check: 'Distributed consciousness shows internal differentiation.',
+      },
+    ],
+    releasability: [
+      { dimension: 'Concept', current_status: 'Exceptional, genre-defining scope', verdict: 'Strong' },
+      { dimension: 'Distributed multi-species consciousness', current_status: 'Bold and distinctive', verdict: 'Strong' },
+      { dimension: 'Reader accessibility', current_status: 'Architecture density challenges legibility', verdict: 'Revise' },
+      { dimension: 'Publication readiness', current_status: 'Ambition exceeds current accessibility', verdict: 'Revise before release' },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        'Multi-species consciousness across all six domains',
+        'Object consciousness as memory and witness, not props',
+        'Frog civilization as governed culture with institutions',
+        'Brutus possession/degradation architecture',
+      ],
+      failure_conditions: [
+        'Fails if flattened to single-species frog fantasy.',
+        'Fails if objects treated as props.',
+        'Fails if fewer than four of six consciousness domains are detected.',
+      ],
+    },
+    calibration_notes: [
+      'Scores derived from the MythOAmphibia canon-corrected truth target.',
+      'Benchmark tier is required-gold candidate pending full-manuscript grounding.',
+    ],
+    manuscript_integrity_issues: [],
+  } as any;
+
+  return { canonicalDoc, dream };
+}
+
+type FixtureResult = { canonicalDoc: unknown; dream?: unknown };
+
+/**
+ * Contract-aware fixture builders, keyed by manifest contract id. Each builder
+ * produces a representative UED (and DREAM document for multi-layer mode) for
+ * its benchmark. The renderer parity harness is generic: adding a new benchmark
+ * means dropping in an expected.json, a manifest entry, and one builder here.
+ *
+ * No blind injection of contract strings -- every asserted string must come from
+ * real document fields placed by these builders and survive ViewModel
+ * normalization plus rendering across TXT, HTML/PDF, and DOCX.
+ */
+const FIXTURE_BUILDERS: Record<string, () => FixtureResult> = {
+  'short-form-ancient-bloodlines': () => ({ canonicalDoc: buildGoldenShortFormDocument() }),
+  'cartel-babies-required-gold': () => buildGoldenDreamFixture(),
+  'long-form-multi-layer-froggin-noggin': () => buildGoldenFrogginFixture(),
+  'long-form-multi-layer-let-the-river-decide': () => buildGoldenRiverFixture(),
+  'long-form-multi-layer-mythoamphibia': () => buildGoldenMythoamphibiaFixture(),
+};
+
+describe('benchmark authority library manifest', () => {
+  test('every non-contract_only manifest entry has a registered fixture builder', () => {
+    const manifest = loadManifest();
+    for (const entry of manifest.contracts) {
+      if (entry.contract_only) continue;
+      expect(FIXTURE_BUILDERS[entry.id]).toBeDefined();
+    }
+  });
+});
+
 describe('benchmark authority contracts through real renderers', () => {
-  test('short-form benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
-    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
-    const testing = routeModule.__testingDownload;
-    const contract = loadContract('short-form/expected.json');
-    const vm = normalizeEvaluationReportViewModel({ ued: buildGoldenShortFormDocument() as any });
+  const manifest = loadManifest();
+  const renderableEntries = manifest.contracts.filter((entry) => !entry.contract_only);
 
-    expect(vm.templateMode).toBe('short_form_evaluation');
-    expect(vm.titleBlock.displayTitle).toBe('Ancient Bloodlines');
+  test.each(renderableEntries.map((entry) => [entry.id, entry] as const))(
+    '%s contract renders through ViewModel, TXT, HTML/PDF, and DOCX',
+    async (_id, entry) => {
+      const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+      const testing = routeModule.__testingDownload;
 
-    const txt = testing.renderTxtFromViewModel(vm);
-    const html = testing.renderHtmlFromViewModel(vm);
-    const docxBuffer = await testing.renderDocxFromViewModel(vm);
-    const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
+      const contract = loadContract(contractPathForEntry(entry));
+      const builder = FIXTURE_BUILDERS[entry.id];
+      expect(builder).toBeDefined();
 
-    assertStableStringsRenderEverywhere({
-      contract,
-      txt,
-      html,
-      docxText,
-      stableStrings: [
-        'Ancient Bloodlines',
-        '68',
-        'Concept & Core Premise',
-        'Narrative Drive & Momentum',
-        'Point of View & Voice Control',
-        'Author retains ownership of manuscript content',
-      ],
-    });
+      const { canonicalDoc, dream } = builder();
 
-    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
-  });
+      // Lock-in: long-form fixtures are born as long-form/DREAM documents and
+      // must never silently regress to a Short-Form-labelled report.
+      if (entry.mode === 'long_form_multi_layer_evaluation') {
+        const doc = canonicalDoc as { templateMode?: string; titleBlock?: { reportType?: string } };
+        expect(doc.templateMode).toBe('long_form_multi_layer_evaluation');
+        expect(doc.titleBlock?.reportType).toBe(LONG_FORM_REPORT_TYPE);
+      }
 
-  test('DREAM benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
-    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
-    const testing = routeModule.__testingDownload;
-    const contract = loadContract('long-form-multi-layer/expected.json');
-    const { canonicalDoc, dream } = buildGoldenDreamFixture();
-    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
+      const vm = normalizeEvaluationReportViewModel(
+        dream
+          ? { ued: canonicalDoc as any, dreamDoc: dream as any }
+          : { ued: canonicalDoc as any },
+      );
 
-    expect(vm.templateMode).toBe('long_form_multi_layer_evaluation');
-    expect(vm.longFormMultiLayerEvaluation).not.toBeNull();
+      expect(vm.templateMode).toBe(entry.mode);
+      if (entry.mode === 'long_form_multi_layer_evaluation') {
+        expect(vm.longFormMultiLayerEvaluation).not.toBeNull();
+      }
 
-    const txt = testing.renderTxtFromViewModel(vm);
-    const html = testing.renderHtmlFromViewModel(vm);
-    const docxBuffer = await testing.renderDocxFromViewModel(vm);
-    const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
+      const txt = testing.renderTxtFromViewModel(vm);
+      const html = testing.renderHtmlFromViewModel(vm);
+      const docxBuffer = await testing.renderDocxFromViewModel(vm);
+      const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
 
-    assertStableStringsRenderEverywhere({
-      contract,
-      txt,
-      html,
-      docxText,
-      stableStrings: [
-        'Cartel Babies',
-        'Upmarket Suspense / Literary Cartel Thriller',
-        'Literary Thriller / International Crime / Borderlands Fiction',
-        'Chosen family under cartel sovereignty.',
-        'A generic narco shootout thriller.',
-        'Immediate Survival Thriller',
-        'Camp-System Anatomy',
-        'Benjamin Parallel Search',
-        'Healing and Chosen Family',
-        'Act I',
-        'Act II',
-        'Act III',
-        'Table Tennis',
-        'Naming / Renaming',
-        'Run current manuscript-integrity pass',
-        'Compress 8\u201312% globally',
-        'Make final protection sequence procedurally resistant',
-        'Premise / hook',
-        'Must detect Benjamin as dual-POV co-protagonist.',
-        'Author retains ownership of manuscript content',
-      ],
-    });
+      assertContractRendersAcrossSurfaces({ contract, txt, html, docxText });
 
-    expect(txt).not.toContain('[LOCATION:');
-    expect(html).not.toContain('[LOCATION:');
-    expect(docxText).not.toContain('[LOCATION:');
-    expect(txt).not.toContain('[OPERATION:');
-    expect(html).not.toContain('[OPERATION:');
-    expect(docxText).not.toContain('[OPERATION:');
-    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
-  });
+      // Revision-queue display rule: raw placement tokens must never leak.
+      for (const surface of [txt, html, docxText]) {
+        expect(surface).not.toContain('[LOCATION:');
+        expect(surface).not.toContain('[OPERATION:');
+      }
 
-  test('Froggin Noggin benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
-    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
-    const testing = routeModule.__testingDownload;
-    const contract = loadContract('long-form-multi-layer/froggin-noggin.expected.json');
-    const { canonicalDoc, dream } = buildGoldenFrogginFixture();
-    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
-
-    expect(vm.templateMode).toBe('long_form_multi_layer_evaluation');
-    expect(vm.longFormMultiLayerEvaluation).not.toBeNull();
-
-    const txt = testing.renderTxtFromViewModel(vm);
-    const html = testing.renderHtmlFromViewModel(vm);
-    const docxBuffer = await testing.renderDocxFromViewModel(vm);
-    const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
-
-    assertStableStringsRenderEverywhere({
-      contract,
-      txt,
-      html,
-      docxText,
-      stableStrings: [
-        'Froggin Noggin',
-        'Literary Transgressive Fiction / Dual-POV Eco-Fable',
-        'Two sovereigns hoarding chemistry, and subjects who would rather swallow the shiny thing than be free.',
-        'A book edited into safety with the transgression sanded down.',
-        'Human storyline\u2014Kingdom Lake meth world',
-        'Frog storyline\u2014Aqua World matriarchy',
-        'Cosmological / theological frame',
-        'Structural mirroring spine',
-        'Concept & Core Premise',
-        'Narrative Drive & Momentum',
-        'Mirror Brutus\u2019s meth cook against Zimeon\u2019s shard discovery on adjacent chapter beats.',
-        'Stage Hyla\u2019s maiming of Arcana as a present-tense scene, not a recollection.',
-        'Page-100 waypoint payoff: false-positive toadstone.',
-        'Concept / premise',
-        'Page-100 structural payoff',
-        'Publication readiness',
-        'Must detect the dual-POV human and frog storylines as parallel power structures.',
-        'Author retains ownership of manuscript content',
-      ],
-    });
-
-    expect(txt).not.toContain('[LOCATION:');
-    expect(html).not.toContain('[LOCATION:');
-    expect(docxText).not.toContain('[LOCATION:');
-    expect(txt).not.toContain('[OPERATION:');
-    expect(html).not.toContain('[OPERATION:');
-    expect(docxText).not.toContain('[OPERATION:');
-    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
-  });
-
-  test('Let the River Decide benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
-    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
-    const testing = routeModule.__testingDownload;
-    const contract = loadContract('long-form-multi-layer/let-the-river-decide.expected.json');
-    const { canonicalDoc, dream } = buildGoldenRiverFixture();
-    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
-
-    expect(vm.templateMode).toBe('long_form_multi_layer_evaluation');
-    expect(vm.longFormMultiLayerEvaluation).not.toBeNull();
-
-    const txt = testing.renderTxtFromViewModel(vm);
-    const html = testing.renderHtmlFromViewModel(vm);
-    const docxBuffer = await testing.renderDocxFromViewModel(vm);
-    const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
-
-    assertStableStringsRenderEverywhere({
-      contract,
-      txt,
-      html,
-      docxText,
-      stableStrings: [
-        'Let the River Decide',
-        'Adult Literary Eco-Thriller / Eco-Spiritual Road Novel',
-        'Literary Eco-Thriller / Climate Fiction / Spiritual Realism / Road Novel',
-        'A northern river may be remembering, judging, and removing those who profit from desecration.',
-        'A documentary eco-mystery where the narrator supplies the governing theory instead of letting the river remain exact but not fully legible.',
-        'Road-trip witness layer',
-        'River agency layer',
-        'Animal-sensory layer',
-        'Concept & Core Premise',
-        'Narrative Drive & Momentum',
-        'Compress the evidence ledger by 15\u201325%.',
-        'Promote Leanna / Verdant earlier.',
-        'Concept',
-        'Central relationship engine',
-        'Publication readiness',
-        'Mike / Cliff / dogs as travel-family unit',
-        'Author retains ownership of manuscript content',
-      ],
-    });
-
-    expect(txt).not.toContain('[LOCATION:');
-    expect(html).not.toContain('[LOCATION:');
-    expect(docxText).not.toContain('[LOCATION:');
-    expect(txt).not.toContain('[OPERATION:');
-    expect(html).not.toContain('[OPERATION:');
-    expect(docxText).not.toContain('[OPERATION:');
-    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
-  });
+      assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
+    },
+  );
 });
