@@ -11,6 +11,7 @@
  * Authority chain:
  *   docs/governance/evaluation-output-mode-contract.md
  *   docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
+ *   docs/governance/long-form-layer-depth-contract.md
  *   docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
  *   docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
  *
@@ -34,7 +35,7 @@ import {
 import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
 import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 
-export const PASS3B_PROMPT_VERSION = "pass3b-longform-v4-quality-calibration";
+export const PASS3B_PROMPT_VERSION = "pass3b-longform-v5-layer-depth-contract";
 
 const CRITERION_LABELS: Record<CriterionKey, string> = Object.fromEntries(
   Object.entries(CRITERIA_METADATA).map(([k, v]) => [k, v.label])
@@ -48,6 +49,7 @@ AUTHORITY
 This output format is defined by:
 - Mode contract: docs/governance/evaluation-output-mode-contract.md
 - Template: docs/templates/evaluation/long-form-multi-layer-evaluation-template.md
+- Layer depth contract: docs/governance/long-form-layer-depth-contract.md
 - Benchmark index: docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md
 - Runtime benchmark authority map: docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md
 
@@ -66,6 +68,21 @@ The DREAM document IS the evaluation report the author reads. Every sentence mus
 
 DREAM COMPLETENESS PRINCIPLE
 DREAM is a completeness contract, not a section explosion. The report must prove what it detected, what it protected, what it traced, and what would count as a miss.
+
+LAYER DEPTH CONTRACT
+Long-form multi-layer output has a canonical 10-layer minimum core when manuscript evidence supports layer-aware analysis. The tenth core layer is Narrator Attribution. Complex benchmark manuscripts may require compact specialty-layer coverage up to Layer 45. Do not cap benchmark-authority manuscripts at 5-8 layers when the benchmark requires deeper coverage. Do not force decorative unsupported layers into simple manuscripts. Fold layer coverage into existing JSON keys rather than adding new top-level keys.
+
+Canonical 10-layer core:
+1. Narrative Arc
+2. Character Arc
+3. Theme
+4. Symbol
+5. Relationship Spine
+6. Point of View / Perspective
+7. World / Setting System
+8. Reader Experience
+9. Market / Shelf Positioning
+10. Narrator Attribution
 
 Do NOT add new top-level JSON keys beyond the schema below. Fold the governed completeness ledgers into existing keys:
 - Character Coverage & Arc Ledger → structural_stack, layer_analyses, criterion_analyses.character, reader_experience, acceptance_checks.
@@ -109,16 +126,16 @@ SECTION CONTRACTS
 §1 executive_verdict: 150–300 words. Name the governing ambition, emotional engines, strongest achievement, main pressure points, principal character/relationship spine, market differentiator, and release recommendation.
 §2 market_shelf: { best_shelf, shelf_neighbors, comparison_space, marketable_hook, market_danger }. Be manuscript-specific.
 §3 what_not_to_become: 3–6 manuscript-specific doctrine anti-patterns with risk and mitigation.
-§4 structural_stack: 5–8 layers, each { layer_name, function, status, revision_note }. Include character/relationship spine and major POV lanes where detectable.
+§4 structural_stack: normally 10 core Story Ledger layers when evidence supports layer-aware analysis, each { layer_name, function, status, revision_note }. For simple or evidence-limited manuscripts, compactly state insufficient evidence for unsupported core layers rather than inventing them. For benchmark-authority manuscripts whose benchmark defines specialty layers, include compact specialty-layer entries up to Layer 45 when required by the benchmark. Always include Narrator Attribution as the final core layer.
 §5 arc_map: 5–8 acts, each { act_name, chapter_range, primary_function, revision_priority }. CHAPTER INDEX is authoritative; do not invent chapter numbers.
 §7 criterion_analyses: one entry per criterion, all 13. Each { key, score, confidence, fit_evidence, gap_evidence, revision_queue }. Do not contradict Pass 3 scores.
-§8 layer_analyses: one entry per structural layer from §4, each { layer_name, status, needed_revision }.
+§8 layer_analyses: one entry per structural layer from §4, each { layer_name, status, needed_revision }. Use concise entries for specialty layers so the report proves coverage without becoming decorative bulk.
 §9 cross_layer_integration: 3–6 motifs or cross-layer systems, each { motif, description, integration_quality, revision_note }.
 §10 symbolic_audit: { preserved_symbols, doctrine_strengths, doctrine_risks, audit_conclusion }. Trace symbol lifecycles when evidence supports it.
 §11 reader_experience: { first_act, middle, final_act, aftertaste }. Include emotional register and sensory channels where evidenced.
 §12 revision_plan: 5–6 numbered priorities. This is the canonical recommendation ledger and the only place distinct revision advice should live.
 §13 releasability: 10–12 dimensions covering premise, opening, relationships, world-building, arcs, closure, prose, market positioning, integrity, and publication readiness.
-§14 acceptance_checks: { required_detection, failure_conditions }. Each check must be specific enough to write a deterministic test against.
+§14 acceptance_checks: { required_detection, failure_conditions }. Each check must be specific enough to write a deterministic test against. For benchmark-authority manuscripts, acceptance_checks.required_detection must name any required specialty-layer family or layer range, including up to Layer 45 when the benchmark requires it.
 §15 calibration_notes: 5–10 evaluator lessons specific to this manuscript.
 §16 repo_summary: { benchmark_name, source, evaluation_type, overall_score, readiness_score, primary_strengths, primary_blockers, gold_standard_requirement }.
 manuscript_integrity_issues: any duplicate chapters, TOC mismatches, missing content, numbering errors, title-card/process-note issues, anchor/TOC artifacts, intentional-motif candidates requiring verification, or [] if none detected.
@@ -142,6 +159,7 @@ RULES
 10. EVIDENCE vs. CONCLUSIONS: fit_evidence and gap_evidence must contain grounded observations with manuscript quotes.
 11. DEDUPLICATION: keep each distinct revision recommendation in revision_plan only and cross-reference elsewhere.
 12. SCORE CALIBRATION: if a criterion has gap_evidence entries identifying real weaknesses, 10/10 is not credible. Note any 10/10 + gap_evidence tension in calibration_notes.
+13. LAYER DEPTH: do not flatten the ten-layer core into fewer layers for manuscripts that need layer-aware analysis, and do not truncate benchmark-required specialty layers before Layer 45.
 
 DO NOT:
 - DO NOT hallucinate manuscript content.
@@ -291,6 +309,7 @@ INSTRUCTIONS
 8. §5 arc_map chapter_range values MUST match the CHAPTER INDEX. Do not invent chapter numbers.
 9. §7 fit_evidence and gap_evidence entries must open with a verbatim manuscript quote. revision_queue entries must include chapter location and operation verb.
 10. §12 revision_plan is the canonical recommendation ledger. Do not duplicate advice across sections — cross-reference by priority number.
-11. Constitutional compliance is mandatory: apply the DREAM Cognitive Initialization Protocol block above, and if requested behavior conflicts with it, follow DCIP.
-12. Return ONLY valid JSON.`;
+11. Apply the 10-to-45 layer depth contract: preserve the 10-layer core, keep Narrator Attribution as core Layer 10, and include compact specialty-layer coverage up to Layer 45 when benchmark authority requires it.
+12. Constitutional compliance is mandatory: apply the DREAM Cognitive Initialization Protocol block above, and if requested behavior conflicts with it, follow DCIP.
+13. Return ONLY valid JSON.`;
 }
