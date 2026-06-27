@@ -7,15 +7,27 @@ type BenchmarkContract = {
   mode: string;
   route: string;
   word_count_band: string;
+  word_count?: number | null;
+  benchmark_tier?: string;
+  benchmark_status?: string;
+  scores_are_authoritative?: boolean;
+  score_authority?: string;
+  score_source?: string;
   manuscript_profile: {
     title: string;
-    word_count: number;
+    word_count?: number;
+    manuscript_scope?: string;
     genre: string;
     target_audience: string;
   };
   required_surfaces: string[];
   expected_section_order: string[];
   required_public_strings: string[];
+  surface_required_strings?: {
+    txt?: string[];
+    html?: string[];
+    docx?: string[];
+  };
   forbidden_public_strings: string[];
   required_criterion_keys?: string[];
   required_diagnostic_fields?: string[];
@@ -26,7 +38,25 @@ type BenchmarkContract = {
   };
 };
 
+type ManifestEntry = {
+  id: string;
+  mode: string;
+  dir: string;
+  contract_file?: string;
+  contract_only?: boolean;
+};
+
+type BenchmarkManifest = { contracts: ManifestEntry[] };
+
 const CONTRACT_ROOT = join(process.cwd(), 'tests/benchmark-authority');
+
+function loadManifest(): BenchmarkManifest {
+  return JSON.parse(readFileSync(join(CONTRACT_ROOT, 'manifest.json'), 'utf8')) as BenchmarkManifest;
+}
+
+function contractPathForEntry(entry: ManifestEntry): string {
+  return `${entry.dir}/${entry.contract_file ?? 'expected.json'}`;
+}
 const ACTIVE_CONTRACTS = [
   ['short form', 'short-form/expected.json', 'short_form_evaluation'],
   ['long-form multi-layer', 'long-form-multi-layer/expected.json', 'long_form_multi_layer_evaluation'],
@@ -186,9 +216,98 @@ describe('benchmark authority contract package', () => {
     const overlap = contract.forbidden_public_strings.filter((value) => required.has(value));
     expect(overlap).toEqual([]);
 
-    // DREAM stays an internal-only token; no required public string may carry it.
-    expect(contract.forbidden_public_strings).toContain('DREAM');
-    expect(contract.required_public_strings.filter((value) => value.includes('DREAM'))).toEqual([]);
+    // "DREAM Long-Form Multi-Layer Evaluation" is the public report-type label,
+    // so bare "DREAM" is not forbidden for long-form contracts. The label must
+    // render as a public surface string instead.
+    expect(contract.forbidden_public_strings).not.toContain('DREAM');
+    expect(contract.surface_required_strings?.txt).toContain('DREAM Long-Form Multi-Layer Evaluation');
+    expect(contract.surface_required_strings?.html).toContain('DREAM Long-Form Multi-Layer Evaluation');
+    expect(contract.surface_required_strings?.docx).toContain('DREAM Long-Form Multi-Layer Evaluation');
+    // No bare "DREAM" token may sit in the universal required surface.
+    expect(contract.required_public_strings.filter((value) => value === 'DREAM')).toEqual([]);
+
+    // CMOS: em dashes carry no surrounding spaces in any public string.
+    const spacedEmDash = contract.required_public_strings.filter((value) => / \u2014 /.test(value));
+    expect(spacedEmDash).toEqual([]);
+  });
+
+  test('every manifest contract that claims authoritative scores names a source', () => {
+    const manifest = loadManifest();
+    for (const entry of manifest.contracts) {
+      const contract = loadContract(contractPathForEntry(entry));
+      if (contract.scores_are_authoritative) {
+        expect(contract.score_source).toBeTruthy();
+      }
+    }
+  });
+
+  test('long-form multi-layer contracts treat the DREAM label as public, not forbidden', () => {
+    const manifest = loadManifest();
+    const longForm = manifest.contracts.filter(
+      (entry) => entry.mode === 'long_form_multi_layer_evaluation',
+    );
+    expect(longForm.length).toBeGreaterThan(0);
+
+    for (const entry of longForm) {
+      const contract = loadContract(contractPathForEntry(entry));
+      // Bare "DREAM" is a public product label, never a forbidden token.
+      expect(contract.forbidden_public_strings).not.toContain('DREAM');
+      // The label is provable on every public surface.
+      for (const surface of ['txt', 'html', 'docx'] as const) {
+        expect(contract.surface_required_strings?.[surface]).toContain(
+          'DREAM Long-Form Multi-Layer Evaluation',
+        );
+      }
+      // Genuine internal artifacts stay forbidden.
+      expect(contract.forbidden_public_strings).toEqual(
+        expect.arrayContaining(['revision_opportunity_ledger', 'raw_prompt']),
+      );
+    }
+  });
+
+  test('MythOAmphibia candidate contract is grounded, surface-aware, and provenance-tagged', () => {
+    const contract = loadContract('long-form-multi-layer/mythoamphibia.expected.json');
+
+    expect(contract.schema_version).toBe('benchmark_authority_contract_v1');
+    expect(contract.contract_id).toBe('long-form-multi-layer-mythoamphibia');
+    expect(contract.mode).toBe('long_form_multi_layer_evaluation');
+    expect(contract.route).toBe('LONG_FORM');
+
+    // No fabricated word count — scope/band only.
+    expect(contract.word_count).toBeNull();
+    expect(contract.word_count_band).toBeTruthy();
+    expect(contract.manuscript_profile.manuscript_scope).toBeTruthy();
+    expect(contract.benchmark_tier).toBe('required-gold-candidate');
+
+    // Authoritative scores must name their source.
+    expect(contract.scores_are_authoritative).toBe(true);
+    expect(contract.score_source).toMatch(/canon_corrected_truth_target_v1\.md$/);
+
+    // Universal required surface is the title plus the canonical-13 criterion labels.
+    expect(contract.required_public_strings).toEqual(
+      expect.arrayContaining([
+        'The Lost World of MythOAmphibia',
+        'Concept & Core Premise',
+        'Narrative Drive & Momentum',
+        'Character Depth & Psychological Coherence',
+        'Point of View & Voice Control',
+        'Scene Construction & Function',
+        'Dialogue Authenticity & Subtext',
+        'Thematic Integration',
+        'World-Building & Environmental Logic',
+        'Pacing & Structural Balance',
+        'Prose Control & Line-Level Craft',
+        'Tonal Authority & Consistency',
+        'Narrative Closure & Promises Kept',
+        'Professional Readiness & Market Positioning',
+      ]),
+    );
+    expect(contract.required_criterion_keys).toHaveLength(13);
+
+    // A string can never be both required and forbidden.
+    const required = new Set(contract.required_public_strings);
+    const overlap = contract.forbidden_public_strings.filter((value) => required.has(value));
+    expect(overlap).toEqual([]);
 
     // CMOS: em dashes carry no surrounding spaces in any public string.
     const spacedEmDash = contract.required_public_strings.filter((value) => / \u2014 /.test(value));

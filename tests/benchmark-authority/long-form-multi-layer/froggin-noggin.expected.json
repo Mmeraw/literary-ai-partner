@@ -57,6 +57,11 @@
     "Must detect the structural mirroring of chemical authority over the body.",
     "Author retains ownership of manuscript content"
   ],
+  "surface_required_strings": {
+    "txt": ["DREAM Long-Form Multi-Layer Evaluation"],
+    "html": ["DREAM Long-Form Multi-Layer Evaluation"],
+    "docx": ["DREAM Long-Form Multi-Layer Evaluation"]
+  },
   "optional_public_strings": [
     "Toadstone + meth cook + matriarchal frog politburo is a genuine original.",
     "Three-refrain chant and extended Brutus monologues delay the first concrete turn.",
@@ -72,7 +77,6 @@
     "matriarchal cruelty"
   ],
   "forbidden_public_strings": [
-    "DREAM",
     "revision_opportunity_ledger",
     "revision_canon_metadata",
     "internal_check_id",

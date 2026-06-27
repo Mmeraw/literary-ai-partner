@@ -57,6 +57,11 @@
     "Mike / Cliff / dogs as travel-family unit",
     "Author retains ownership of manuscript content"
   ],
+  "surface_required_strings": {
+    "txt": ["DREAM Long-Form Multi-Layer Evaluation"],
+    "html": ["DREAM Long-Form Multi-Layer Evaluation"],
+    "docx": ["DREAM Long-Form Multi-Layer Evaluation"]
+  },
   "optional_public_strings": [
     "The manuscript repeatedly tries to prove what the scenes already make the reader feel.",
     "The book is most powerful when the river remains exact but not fully legible.",
@@ -68,7 +73,6 @@
     "A man, his aging stepfather, and two dogs encounter a northern First Nation whose river may be remembering, judging, and removing those who profit from desecration."
   ],
   "forbidden_public_strings": [
-    "DREAM",
     "revision_opportunity_ledger",
     "raw_prompt",
     "chain_of_thought",
