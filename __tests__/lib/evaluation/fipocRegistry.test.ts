@@ -302,6 +302,12 @@ describe('executable FIPOC registry', () => {
       expect(lines.length - 1).toBe(rowCount);
     }
   });
+
+  test('failureCodes are derived from stage-owned failureDefinitions', () => {
+    for (const stage of PROCESS_REGISTRY) {
+      expect(stage.failureCodes).toEqual(stage.failureDefinitions.map((definition) => definition.failureCode));
+    }
+  });
 });
 
 describe('KICK_MATRIX lookup functions', () => {
