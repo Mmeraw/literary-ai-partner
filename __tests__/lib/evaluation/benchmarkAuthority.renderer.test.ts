@@ -787,6 +787,302 @@ function buildGoldenFrogginFixture() {
   return { canonicalDoc, dream };
 }
 
+function buildGoldenRiverFixture() {
+  const canonicalDoc = buildShortFormEvaluationDocument({
+    displayTitle: 'Let the River Decide',
+    result: {
+      generated_at: '2026-06-27T19:00:00.000Z',
+      overview: {
+        overall_score_0_100: 72,
+        verdict: 'revise',
+        one_paragraph_summary:
+          'Let the River Decide is a serious, atmospheric, adult literary eco-thriller / eco-spiritual road novel built around a memorable central proposition: water is not inert background, but witness, archive, nervous system, and judge. The manuscript\u2019s greatest assets are atmosphere, voice, thematic seriousness, environmental imagination, the Mike/Cliff relationship, the animal-sensory layer, and the repeated transformation of ordinary travel detail into moral pressure.',
+        top_3_strengths: [
+          'River-as-memory/judge premise is distinctive and powerful.',
+          'Smokehouse Camp atmospheric and ceremonial material.',
+          'Mike/Cliff relationship engine and animal-sensory layer.',
+        ],
+        top_3_risks: [
+          'Over-evidence: manuscript repeatedly proves what scenes already show.',
+          'Cultural/protocol uncertainty requires external sensitivity review.',
+          'NV115/Plunkett threads need sharper payoff integration.',
+        ],
+      },
+      enrichment: {
+        trigger_warnings: ['violence', 'disappearances', 'environmental destruction', 'grief'],
+        premise:
+          'A man, his aging stepfather, and two dogs encounter a northern First Nation whose river may be remembering, judging, and removing those who profit from desecration.',
+      },
+      metrics: {
+        manuscript: {
+          title: 'Let the River Decide',
+          word_count: 83_779,
+          genre: 'Adult Literary Eco-Thriller / Eco-Spiritual Road Novel',
+          target_audience:
+            'Adult readers of literary eco-thriller, climate fiction, spiritual realism, road novels, family-inheritance fiction, and ethically complex environmental suspense',
+        },
+      },
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 9,
+          confidence_level: 'high',
+          rationale:
+            'The river-as-memory/judge premise, filtered through road-trip witness, Indigenous protocol, and corporate extraction, is distinctive and powerful.',
+          recommendations: [],
+        },
+        {
+          key: 'narrativeDrive',
+          score_0_10: 7,
+          confidence_level: 'high',
+          rationale:
+            'Strong opening, return-to-camp arc, and ending; middle research/ledger sections slow pressure.',
+          recommendations: [],
+        },
+      ],
+    },
+  });
+
+  canonicalDoc.templateMode = 'long_form_multi_layer_evaluation';
+
+  const dream = {
+    dream_scores: { quality: 72, readiness: 65, commercial: null, literary: null },
+    executive_verdict:
+      'Let the River Decide is a serious, atmospheric, adult literary eco-thriller / eco-spiritual road novel. The book begins with road-trip unease, missing-person posters, a black truck marked NV115, a remote river camp, and the vulnerability of two travelers with dogs at the edge of the Liard. The manuscript\u2019s greatest assets are atmosphere, voice, thematic seriousness, environmental imagination, the Mike/Cliff relationship, and the animal-sensory layer. The principal drag is over-evidence: the manuscript repeatedly tries to prove what the scenes already make the reader feel.',
+    market_shelf: {
+      best_shelf: 'Literary Eco-Thriller / Climate Fiction / Spiritual Realism / Road Novel',
+      marketable_hook: 'A northern river may be remembering, judging, and removing those who profit from desecration.',
+      shelf_neighbors: ['Literary eco-thriller', 'Climate fiction', 'Spiritual realism', 'Road novel'],
+      comparison_space: ['Eco-spiritual suspense', 'First Nation sovereignty fiction'],
+      market_danger: 'The book can be misread as generic eco-thriller, nature documentary, Indigenous exploitation narrative, or conspiracy procedural.',
+    },
+    what_not_to_become: [
+      'A documentary eco-mystery where the narrator supplies the governing theory instead of letting the river remain exact but not fully legible.',
+      'A research-file novel where evidence ledgers replace narrative tension and the river\u2019s ambiguity is over-explained.',
+    ],
+    structural_stack: [
+      {
+        layer_name: 'Road-trip witness layer',
+        status: 'strong',
+        function: 'Gives the reader an outsider entry point and mobile investigation frame.',
+        revision_note: 'Maintain lived pattern without overexplaining pattern.',
+      },
+      {
+        layer_name: 'Smokehouse Camp / T\u0142ekeh Dene layer',
+        status: 'strong',
+        function: 'Provides moral center, cultural ground, and living alternative to extraction logic.',
+        revision_note: 'Treat as story custody and cultural authority, not exposition.',
+      },
+      {
+        layer_name: 'River agency layer',
+        status: 'strong',
+        function: 'Converts environmental damage into active consequence and unifies disparate events.',
+        revision_note: 'Remain exact but not fully overexplained.',
+      },
+      {
+        layer_name: 'Investigation / ledger layer',
+        status: 'moderate',
+        function: 'Gives the spiritual premise documentary scaffolding.',
+        revision_note: 'Compress strongest cases; convert rest to tighter dossier pattern.',
+      },
+      {
+        layer_name: 'Corporate / infrastructure layer',
+        status: 'moderate',
+        function: 'Supplies external antagonist system and reconciliation-capitalism pressure.',
+        revision_note: 'Promote Leanna / Verdant earlier for causal integration.',
+      },
+      {
+        layer_name: 'Family / aging / labor layer',
+        status: 'strong',
+        function: 'Grounds ecological argument in care, inheritance, labor, and mortality.',
+        revision_note: 'The family is not cured; they are safe enough to begin.',
+      },
+      {
+        layer_name: 'Animal-sensory layer',
+        status: 'strong',
+        function: 'Tests spaces before humans can interpret them; gives river danger physical immediacy.',
+        revision_note: 'Read as embodied evidence, not atmosphere.',
+      },
+    ],
+    arc_map: [
+      {
+        act_name: 'Opening unease / road vulnerability',
+        chapter_range: '1\u20133',
+        primary_function: 'Strong hook, atmosphere, immediate dread.',
+        revision_priority: 'NV115 must pay off or be framed as first symptom.',
+      },
+      {
+        act_name: 'Research expansion / river pattern',
+        chapter_range: '4\u20138',
+        primary_function: 'Broadens stakes and scale.',
+        revision_priority: 'Can become essayistic; reduce uncertainty less early.',
+      },
+      {
+        act_name: 'Family and witness grounding',
+        chapter_range: '9\u201316',
+        primary_function: 'Deepens human texture and moral vocabulary.',
+        revision_priority: 'Tie back to river agency.',
+      },
+      {
+        act_name: 'Return to Smokehouse Camp / protocol',
+        chapter_range: '26\u201331',
+        primary_function: 'Best atmospheric and ceremonial material; strong emotional center.',
+        revision_priority: 'High risk of outsider over-access; requires cultural review.',
+      },
+      {
+        act_name: 'River verdict / witness charge',
+        chapter_range: '36\u201337',
+        primary_function: 'Strong thematic closure; memorable final summons.',
+        revision_priority: 'Ending risks over-declaring meaning unless some final mystery remains intact.',
+      },
+    ],
+    criterion_analyses: [
+      {
+        key: 'concept',
+        score: 8.5,
+        confidence: 'high',
+        finding: 'The river-as-memory/judge premise, filtered through road-trip witness, Indigenous protocol, and corporate extraction, is distinctive and powerful.',
+        evidence_anchors: ['river witness frame', 'road-trip structure', 'corporate extraction antagonist'],
+      },
+      {
+        key: 'narrativeDrive',
+        score: 7.0,
+        confidence: 'high',
+        finding: 'Strong opening, return-to-camp arc, and ending; middle research/ledger sections slow pressure.',
+        evidence_anchors: ['opening dread', 'Smokehouse return', 'research drag in middle'],
+      },
+    ],
+    layer_analyses: [
+      {
+        layer_name: 'Road-trip witness layer',
+        strength: 'strong',
+        needed_revision: 'Maintain outsider vulnerability without over-interpreting scenes.',
+      },
+      {
+        layer_name: 'Smokehouse Camp layer',
+        strength: 'excellent',
+        needed_revision: 'Cultural review required before treating representation as final.',
+      },
+      {
+        layer_name: 'River agency layer',
+        strength: 'strong',
+        needed_revision: 'Keep exact but not fully legible.',
+      },
+    ],
+    cross_layer_integration: [
+      {
+        motif: 'Water as memory and judgment',
+        layers_connected: ['River agency', 'Smokehouse Camp', 'Investigation ledger'],
+        strength: 'strong',
+      },
+      {
+        motif: 'Dogs as sensory sentinels',
+        layers_connected: ['Animal-sensory', 'Road-trip witness', 'River agency'],
+        strength: 'strong',
+      },
+    ],
+    symbolic_audit: {
+      systems: [
+        { symbol: 'River', status: 'central', function: 'Witness, archive, nervous system, judge.' },
+        { symbol: 'NV115 / black truck', status: 'needs payoff', function: 'Dread, pursuit, pattern recognition.' },
+        { symbol: 'Dogs\u2019 refusals', status: 'strong', function: 'Embodied evidence of danger.' },
+        { symbol: 'Smoke / fish / bannock', status: 'strong', function: 'Living social texture and story custody.' },
+      ],
+    },
+    reader_experience: {
+      opening: {
+        reader_question: 'Why are these travelers anxious, and what is the black truck?',
+        emotional_state: 'Road-trip unease, atmospheric dread.',
+        risk: 'NV115 thread must pay off or be reframed.',
+      },
+      midpoint: {
+        reader_question: 'Is the river really doing this, or is this paranoia?',
+        emotional_state: 'Growing uncertainty between documentary evidence and spiritual possibility.',
+        risk: 'Research sections may reduce mystery too early.',
+      },
+      final_act: {
+        reader_question: 'Will Mike accept the witness charge, and at what cost?',
+        emotional_state: 'Gravity, ceremony, restraint.',
+        risk: 'Ending risks over-declaring meaning.',
+      },
+      aftertaste: 'The river remains exact but not fully legible.',
+    },
+    revision_plan: [
+      {
+        priority: 'P1',
+        title: 'Compress the evidence ledger by 15\u201325%.',
+        goal: 'Keep strongest case studies; convert rest into tighter dossier pattern.',
+        actions: [
+          'Identify and remove the weakest 25% of documentary evidence inserts.',
+          'Convert remaining inserts into compressed dossier entries.',
+        ],
+        acceptance_check: 'Pacing improves without losing sense of scale.',
+      },
+      {
+        priority: 'P2',
+        title: 'Promote Leanna / Verdant earlier.',
+        goal: 'Leanna is too structurally important to arrive late.',
+        actions: [
+          'Seed Leanna/Verdant pressure in first third.',
+          'Connect corporate language to river/community stakes earlier.',
+        ],
+        acceptance_check: 'External antagonist system has causal presence from midpoint.',
+      },
+      {
+        priority: 'P3',
+        title: 'Run witness/ownership revision pass.',
+        goal: 'Dramatize narrator restraint more and explain it less.',
+        actions: [
+          'Ask whether each scene can dramatize refusal, correction, silence, or consequence instead of explanation.',
+        ],
+        acceptance_check: 'Witness boundary is felt, not lectured.',
+      },
+    ],
+    releasability: [
+      {
+        dimension: 'Concept',
+        current_status: 'Strong, distinctive, marketable',
+        verdict: 'Close',
+      },
+      {
+        dimension: 'Central relationship engine',
+        current_status: 'Strong Mike/Cliff',
+        verdict: 'Ready with trimming',
+      },
+      {
+        dimension: 'Pacing',
+        current_status: 'Middle drag from over-evidence',
+        verdict: 'Revise',
+      },
+      {
+        dimension: 'Publication readiness',
+        current_status: 'Close but not ready',
+        verdict: 'Revise before release',
+      },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        'Mike / Cliff / dogs as travel-family unit',
+        'Dogs as animal-sensory detection layer',
+        'River agency as symbolic and sensory system',
+        'Smokehouse Camp as living social/protocol center',
+      ],
+      failure_conditions: [
+        'Fails if treated as generic eco-thriller.',
+        'Fails if dogs treated as decorative pet material.',
+        'Fails if river agency over-explained into documentary certainty.',
+      ],
+    },
+    calibration_notes: [
+      'Scoring calibrated for literary eco-thriller at 83,779 words.',
+      'Cultural/protocol sensitivity review required before treating representation as final.',
+    ],
+    manuscript_integrity_issues: [],
+  } as any;
+
+  return { canonicalDoc, dream };
+}
+
 describe('benchmark authority contracts through real renderers', () => {
   test('short-form benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
@@ -911,6 +1207,56 @@ describe('benchmark authority contracts through real renderers', () => {
         'Page-100 structural payoff',
         'Publication readiness',
         'Must detect the dual-POV human and frog storylines as parallel power structures.',
+        'Author retains ownership of manuscript content',
+      ],
+    });
+
+    expect(txt).not.toContain('[LOCATION:');
+    expect(html).not.toContain('[LOCATION:');
+    expect(docxText).not.toContain('[LOCATION:');
+    expect(txt).not.toContain('[OPERATION:');
+    expect(html).not.toContain('[OPERATION:');
+    expect(docxText).not.toContain('[OPERATION:');
+    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
+  });
+
+  test('Let the River Decide benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+    const contract = loadContract('long-form-multi-layer/let-the-river-decide.expected.json');
+    const { canonicalDoc, dream } = buildGoldenRiverFixture();
+    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
+
+    expect(vm.templateMode).toBe('long_form_multi_layer_evaluation');
+    expect(vm.longFormMultiLayerEvaluation).not.toBeNull();
+
+    const txt = testing.renderTxtFromViewModel(vm);
+    const html = testing.renderHtmlFromViewModel(vm);
+    const docxBuffer = await testing.renderDocxFromViewModel(vm);
+    const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
+
+    assertStableStringsRenderEverywhere({
+      contract,
+      txt,
+      html,
+      docxText,
+      stableStrings: [
+        'Let the River Decide',
+        'Adult Literary Eco-Thriller / Eco-Spiritual Road Novel',
+        'Literary Eco-Thriller / Climate Fiction / Spiritual Realism / Road Novel',
+        'A northern river may be remembering, judging, and removing those who profit from desecration.',
+        'A documentary eco-mystery where the narrator supplies the governing theory instead of letting the river remain exact but not fully legible.',
+        'Road-trip witness layer',
+        'River agency layer',
+        'Animal-sensory layer',
+        'Concept & Core Premise',
+        'Narrative Drive & Momentum',
+        'Compress the evidence ledger by 15\u201325%.',
+        'Promote Leanna / Verdant earlier.',
+        'Concept',
+        'Central relationship engine',
+        'Publication readiness',
+        'Mike / Cliff / dogs as travel-family unit',
         'Author retains ownership of manuscript content',
       ],
     });

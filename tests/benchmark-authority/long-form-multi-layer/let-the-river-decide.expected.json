@@ -1,0 +1,82 @@
+{
+  "schema_version": "benchmark_authority_contract_v1",
+  "contract_id": "long-form-multi-layer-let-the-river-decide",
+  "mode": "long_form_multi_layer_evaluation",
+  "route": "LONG_FORM",
+  "word_count_band": "75000-125000",
+  "manuscript_profile": {
+    "title": "Let the River Decide",
+    "submission_scope": "full_manuscript",
+    "word_count": 83779,
+    "chapter_count": 37,
+    "structure_note": "37 chapters plus epilogue",
+    "genre": "Adult Literary Eco-Thriller / Eco-Spiritual Road Novel",
+    "target_audience": "Adult readers of literary eco-thriller, climate fiction, spiritual realism, road novels, family-inheritance fiction, and ethically complex environmental suspense"
+  },
+  "required_surfaces": ["view_model", "txt", "html_pdf", "docx"],
+  "expected_section_order": [
+    "title_block",
+    "executive_verdict",
+    "scores",
+    "market_shelf",
+    "what_not_to_become",
+    "structural_stack",
+    "arc_map",
+    "criterion_analyses",
+    "layer_analyses",
+    "cross_layer_integration",
+    "symbolic_audit",
+    "reader_experience",
+    "revision_plan",
+    "releasability",
+    "acceptance_checks",
+    "calibration_notes",
+    "manuscript_integrity_issues",
+    "disclaimer"
+  ],
+  "required_public_strings": [
+    "Let the River Decide",
+    "Adult Literary Eco-Thriller / Eco-Spiritual Road Novel",
+    "Adult readers of literary eco-thriller, climate fiction, spiritual realism, road novels, family-inheritance fiction, and ethically complex environmental suspense",
+    "72",
+    "65",
+    "Road-trip witness layer",
+    "Smokehouse Camp / T\u0142ekeh Dene layer",
+    "River agency layer",
+    "Animal-sensory layer",
+    "Literary Eco-Thriller / Climate Fiction / Spiritual Realism / Road Novel",
+    "A northern river may be remembering, judging, and removing those who profit from desecration.",
+    "A documentary eco-mystery where the narrator supplies the governing theory instead of letting the river remain exact but not fully legible.",
+    "Concept & Core Premise",
+    "Narrative Drive & Momentum",
+    "Compress the evidence ledger by 15\u201325%.",
+    "Promote Leanna / Verdant earlier.",
+    "Concept",
+    "Central relationship engine",
+    "Publication readiness",
+    "Mike / Cliff / dogs as travel-family unit",
+    "Author retains ownership of manuscript content"
+  ],
+  "optional_public_strings": [
+    "The manuscript repeatedly tries to prove what the scenes already make the reader feel.",
+    "The book is most powerful when the river remains exact but not fully legible.",
+    "Close but not submission-ready",
+    "Moderate-High Confidence"
+  ],
+  "source_only_strings": [
+    "Water is not inert background, but witness, archive, nervous system, and judge.",
+    "A man, his aging stepfather, and two dogs encounter a northern First Nation whose river may be remembering, judging, and removing those who profit from desecration."
+  ],
+  "forbidden_public_strings": [
+    "DREAM",
+    "revision_opportunity_ledger",
+    "raw_prompt",
+    "chain_of_thought",
+    "[LOCATION:",
+    "[OPERATION:",
+    "system_context",
+    "internal_reasoning",
+    "prompt_template",
+    "model_config"
+  ]
+}
