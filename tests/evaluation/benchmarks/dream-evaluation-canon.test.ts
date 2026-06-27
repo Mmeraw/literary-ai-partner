@@ -132,10 +132,11 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(PASS3B_SYSTEM_PROMPT).toContain('Froggin Noggin');
     expect(PASS3B_SYSTEM_PROMPT).toContain('Let the River Decide');
     expect(PASS3B_SYSTEM_PROMPT).toContain('Return to the Source');
+    expect(PASS3B_SYSTEM_PROMPT).toContain('The Lost World of MythOAmphibia');
     expect(PASS3B_SYSTEM_PROMPT).toContain('Native long-form multi-layer benchmarks');
   });
 
-  it('locks native benchmark role canon in the documented benchmark index README', () => {
+  it('locks native benchmark role canon in the documented benchmark README', () => {
     const benchmarkReadme = readBenchmark('README.md');
 
     expect(benchmarkReadme).toContain('Cartel Babies');
@@ -144,5 +145,44 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(benchmarkReadme).toContain('Froggin Noggin` remains a required-gold DREAM benchmark');
     expect(benchmarkReadme).toContain('Let the River Decide` remains calibration-tier');
     expect(benchmarkReadme).toContain('When a single code or test example is needed, prefer `Cartel Babies`');
+  });
+
+  it('locks the full native long-form multi-layer benchmark family', () => {
+    const index = readBenchmark('DREAM_LONGFORM_BENCHMARK_INDEX.md');
+
+    expect(index).toContain('Froggin Noggin');
+    expect(index).toContain('Cartel Babies');
+    expect(index).toContain('Let the River Decide');
+    expect(index).toContain('The Lost World of MythOAmphibia / DOMINATUS I');
+    expect(index).toContain('lost-world-of-mythoamphibia-dream-longform-multilayer-gold-standard.md');
+    expect(index).toContain('Required gold candidate');
+  });
+
+  it('locks public-domain calibration standards as calibration-only, non-runtime authority', () => {
+    const index = readBenchmark('DREAM_LONGFORM_BENCHMARK_INDEX.md');
+
+    for (const title of [
+      'Dracula',
+      'Great Expectations',
+      'Pride and Prejudice',
+      'The Awakening',
+      'The Wonderful Wizard of Oz',
+      'The Murder on the Links',
+    ]) {
+      expect(index).toContain(title);
+    }
+
+    for (const path of [
+      'public-domain/dracula-dream-calibration.md',
+      'public-domain/great-expectations-dream-calibration.md',
+      'public-domain/pride-and-prejudice-dream-calibration.md',
+      'public-domain/the-wonderful-wizard-of-oz-dream-calibration.md',
+    ]) {
+      expect(index).toContain(path);
+    }
+
+    expect(index).toContain('public-domain-calibration');
+    expect(index).toContain('runtime-authority: false');
+    expect(index).toContain('not RevisionGrade-native runtime authority');
   });
 });
