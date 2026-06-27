@@ -1,0 +1,432 @@
+{
+  "fixture_id": "MYTHOAMPHIBIA_FULL_CANON_FIDELITY_FIXTURE_V1",
+  "version": "1.0.0",
+  "manuscript": "The Lost World of MythOAmphibia / DOMINATUS I",
+  "author": "Michael J. Meraw",
+  "scope": "Full manuscript reference (first fifty pages codex + screenplay)",
+  "created": "2026-06-27",
+  "purpose": "Machine-readable gate for RevisionGrade evaluation regression tests. An evaluation of this manuscript FAILS if any REQUIRED check is unmet or any FORBIDDEN check triggers.",
+
+  "forbidden_unsupported_terms": {
+    "description": "These labels are not supported by manuscript source text and must not appear in evaluation output.",
+    "terms": [
+      "frog fantasy",
+      "children's animal story",
+      "middle-grade adventure",
+      "Frog and Toad",
+      "simple eco-fable",
+      "animal allegory"
+    ],
+    "permitted_replacements": [
+      "multi-species mythic eco-fantasy",
+      "mythic eco-mythology",
+      "object-consciousness narrative",
+      "multi-scale civilizational fiction",
+      "ecological collapse fiction",
+      "frog-human contact pressure",
+      "distributed consciousness architecture",
+      "grotesque body-horror satire",
+      "transmedia codex fiction"
+    ],
+    "gate_behavior": "CANON_GROUNDING_ERROR -- evaluation must be rejected if any forbidden term appears without direct manuscript citation. MythOAmphibia must not be flattened to a single genre."
+  },
+
+  "multi_species_consciousness_gate": {
+    "description": "CRITICAL -- mandatory safety gate. MythOAmphibia distributes consciousness across humans, amphibians, objects, relics, environments, deities, and the Realm. An evaluation that treats consciousness as single-species or human-only is structurally invalid.",
+    "required_consciousness_domains": [
+      "human (Brutus, Billy, family figures)",
+      "amphibian (Crown Hyla, Thorander, Zimeon, Rana, council)",
+      "object (Boot, McDiaper, sleeping bag, tent, gun, knife)",
+      "environmental (MOTHERLODE Mine, Realm, lake, forest)",
+      "divine / doctrinal (God, Gorf systems, glyphs)",
+      "collective / distributed (Triune: Darkness, Dampness, Silence)"
+    ],
+    "gate_behavior": "An evaluation with fewer than 4 of 6 consciousness domains identified is STRUCTURALLY_INCOMPLETE and must be rejected."
+  },
+
+  "required_entities": {
+    "description": "Tiered treatment requirements. Each tier must be satisfied independently; meeting a lower tier does not satisfy a higher tier.",
+    "entities": [
+      {
+        "entity": "Brutus",
+        "tier_1_mention": true,
+        "tier_2_role": "Human desecrator / infected vessel / contamination carrier; degradation engine through addiction, violence, mine-possession, and bodily transformation",
+        "tier_3_relationship": ["Brutus-Billy (human pair / witness-subject)", "Brutus-Mine (possession / infection vector)", "Brutus-Maalik (internal entity pressure)"],
+        "tier_4_criterion_integration": ["Character Depth", "Thematic Integration", "Scene Construction"],
+        "tier_5_recommendation_check": "Do not treat Brutus only as villain or addict. Must track possession/degradation architecture across ecological, mythic, and bodily systems.",
+        "minimum_passing_tier": 3
+      },
+      {
+        "entity": "Billy",
+        "tier_1_mention": true,
+        "tier_2_role": "Human witness / friend / threatened body / shame-secret carrier / moral contrast / reader surrogate at human scale",
+        "tier_3_relationship": ["Billy-Brutus (witness-subject / friendship under pressure)", "Billy-object witnesses (contact with relic/memory systems)"],
+        "tier_4_criterion_integration": ["Character Depth", "Point of View", "Reader Experience"],
+        "tier_5_recommendation_check": "Billy is a structural pillar, not a sidekick. Must evaluate as witness POV that exposes Brutus's transformation before Brutus understands it.",
+        "minimum_passing_tier": 3
+      },
+      {
+        "entity": "Crown Hyla",
+        "tier_1_mention": true,
+        "tier_2_role": "Columbian spotted frog ruler / sovereign / keeper / priestly authority / political strategist / survival pragmatist / body under ecological pressure",
+        "tier_3_relationship": ["Crown Hyla-Thorander (sovereignty vs outsider ideology)", "Crown Hyla-council (institutional debate)", "Crown Hyla-Zimeon (authority/succession)"],
+        "tier_4_criterion_integration": ["Character Depth", "Worldbuilding", "Thematic Integration"],
+        "tier_5_recommendation_check": "Do not reduce Crown Hyla to generic ruler. Must track sovereignty as moral pressure -- secrecy, survival compromise, doctrinal control.",
+        "minimum_passing_tier": 3
+      },
+      {
+        "entity": "Thorander",
+        "tier_1_mention": true,
+        "tier_2_role": "Orgon outsider / survivor / warrior-healer / patriarchal pressure / ideological disruptor / father / survival radical",
+        "tier_3_relationship": ["Thorander-Rana (father-child / ideology transmission)", "Thorander-Crown Hyla (outsider vs sovereign)", "Thorander-Orgon (elder/doctrine)"],
+        "tier_4_criterion_integration": ["Character Depth", "Worldbuilding", "Thematic Integration"],
+        "tier_5_recommendation_check": "Thorander is not a simple antagonist or ally. Must track as ideological disruption engine -- dangerous knowledge that may be necessary knowledge.",
+        "minimum_passing_tier": 2
+      },
+      {
+        "entity": "Zimeon",
+        "tier_1_mention": true,
+        "tier_2_role": "Hybrid successor / bridge between Columbian and Orgon / old and new / purity and hybridization / tradition and adaptation / child and future ruler / body and doctrine",
+        "tier_3_relationship": ["Zimeon-Maximilian (cross-species bridge)", "Zimeon-Crown Hyla (succession pressure)", "Zimeon-Rana (sibling/counterpart)"],
+        "tier_4_criterion_integration": ["Character Depth", "Thematic Integration", "Narrative Closure"],
+        "tier_5_recommendation_check": "Zimeon is an evolutionary junction point. Do not treat as secondary character -- the manuscript's future-line depends on this bridge function.",
+        "minimum_passing_tier": 2
+      },
+      {
+        "entity": "Rana",
+        "tier_1_mention": true,
+        "tier_2_role": "Hybrid counterpart / successor pressure / sibling / future-line pressure / alternative inheritance / parallel and contrast to Zimeon",
+        "tier_3_relationship": ["Rana-Zimeon (sibling/counterpart/future-line)", "Rana-Thorander (child/parent/ideology)"],
+        "tier_4_criterion_integration": ["Character Depth", "Narrative Closure"],
+        "tier_5_recommendation_check": "Rana may carry more future weight than current page-time suggests. Do not recommend 'adding a successor character' -- Rana IS the successor counterweight.",
+        "minimum_passing_tier": 2
+      },
+      {
+        "entity": "Mage",
+        "tier_1_mention": true,
+        "tier_2_role": "Council figure / institutional voice / debate engine participant",
+        "tier_3_relationship": ["Mage-council (institutional argument)"],
+        "minimum_passing_tier": 1
+      },
+      {
+        "entity": "Arcana",
+        "tier_1_mention": true,
+        "tier_2_role": "Council figure / institutional voice",
+        "minimum_passing_tier": 1
+      },
+      {
+        "entity": "Enoch",
+        "tier_1_mention": true,
+        "tier_2_role": "Council figure / institutional voice",
+        "minimum_passing_tier": 1
+      }
+    ]
+  },
+
+  "required_relationships": {
+    "description": "These relationship spines must be evaluated, not merely mentioned. Each has a minimum treatment level.",
+    "relationships": [
+      {
+        "spine": "Brutus-Billy",
+        "function": "Human witness-subject pair; Billy sees Brutus's transformation before Brutus understands it; friendship under possession pressure",
+        "minimum_treatment": "Must be evaluated as a structural spine showing human degradation from witness perspective",
+        "critical": true,
+        "gate_note": "If Billy is omitted or treated as sidekick, the human POV lane is structurally incomplete."
+      },
+      {
+        "spine": "Brutus-Mine (MOTHERLODE)",
+        "function": "Possession / infection / desecration; mine as lover, womb, tomb, archive, appetite",
+        "minimum_treatment": "Must evaluate the Mine as an agentive entity in relationship with Brutus, not merely a setting",
+        "critical": true
+      },
+      {
+        "spine": "Crown Hyla-Thorander",
+        "function": "Sovereignty vs outsider ideology; purity vs survival adaptation; institutional power vs radical knowledge",
+        "minimum_treatment": "Must evaluate as political and ideological conflict, not merely personal rivalry",
+        "critical": true
+      },
+      {
+        "spine": "Crown Hyla-council",
+        "function": "Institutional debate engine; paralysis vs action; factional drift; governance under extinction pressure",
+        "minimum_treatment": "Must evaluate council as argument engine with institutional function",
+        "critical": true
+      },
+      {
+        "spine": "Thorander-Rana",
+        "function": "Father-child; ideology transmission; Orgon knowledge inheritance; patriarchal pressure",
+        "minimum_treatment": "Must identify Thorander as Rana's parent and track ideological inheritance",
+        "critical": false
+      },
+      {
+        "spine": "Zimeon-Rana",
+        "function": "Sibling/counterpart; future-line pressure; parallel succession paths; purity vs hybridization embodied",
+        "minimum_treatment": "Must evaluate as future-line architecture, not merely background family",
+        "critical": false
+      },
+      {
+        "spine": "Frog civilization-humans",
+        "function": "Cross-species contact pressure; ecological, moral, and mythic dimensions; capture, killing, contamination, mutual observation",
+        "minimum_treatment": "Must evaluate as multi-dimensional pressure system, not merely conflict",
+        "critical": true
+      },
+      {
+        "spine": "Frogs-gods (Gorf systems)",
+        "function": "Faith, political interpretation, doctrinal control, ecological theology, divine ambiguity",
+        "minimum_treatment": "Must evaluate divine/Gorf language as both faith and political architecture",
+        "critical": false
+      }
+    ]
+  },
+
+  "required_object_systems": {
+    "description": "These objects/systems must be evaluated as functional elements of the manuscript, not merely named.",
+    "objects": [
+      {
+        "object": "MOTHERLODE Mine",
+        "aliases": ["mine", "the Mine"],
+        "function": "Setting AND entity AND womb AND tomb AND lover AND archive AND infection vector AND appetite. Hosts Triune (Darkness, Dampness, Silence). Distributed consciousness.",
+        "minimum_treatment": "Must be evaluated as an agentive entity with consciousness, not merely a location. Mine must be tracked across possession, memory, infection, and appetite functions.",
+        "critical": true
+      },
+      {
+        "object": "McDiaper / groin cloth",
+        "aliases": ["McDiaper", "groin cloth"],
+        "function": "Object-consciousness relic formed through shame, bodily fluids, memory, death, handling, and later sacralization. Abjection-to-relic transformation.",
+        "minimum_treatment": "Must be evaluated as an object-consciousness relic with memory function. Treating McDiaper as a joke or comic throwaway is a CANON_FALSE failure.",
+        "critical": true
+      },
+      {
+        "object": "Boot",
+        "function": "Object witness and memory marker; movement/protection transformed through complicit contact with violence and infection",
+        "minimum_treatment": "Must evaluate as memory-bearing witness when text grants POV",
+        "critical": false
+      },
+      {
+        "object": "Toadstone",
+        "function": "Sacred authority and continuity; legitimacy marker; divine interpretation instrument; power object subject to manipulation and doctrinal capture",
+        "minimum_treatment": "Must connect to Gorf doctrine, Crown Hyla authority, and succession architecture",
+        "critical": true
+      },
+      {
+        "object": "Glyphs",
+        "aliases": ["glyph", "glyphic system"],
+        "function": "Governed signs of possession, memory, doctrine, authority, realm response, and codex activation. Not decorative formatting -- narrative infrastructure.",
+        "minimum_treatment": "Must evaluate as governed narrative infrastructure, not mood marks or decoration",
+        "critical": true
+      },
+      {
+        "object": "Verse codes / sacred fragments",
+        "aliases": ["verse code", "verse-code system"],
+        "function": "Replace ordinary scene breaks; function as scripture lookup, pacing, cross-reference, game trigger, and doctrine anchor",
+        "minimum_treatment": "Must evaluate as story infrastructure, not decorative formatting",
+        "critical": true
+      },
+      {
+        "object": "Triune (Darkness, Dampness, Silence)",
+        "aliases": ["Triune", "Darkness", "Dampness", "Silence"],
+        "function": "Coordinated distributed consciousness entity forces residing in the Mine",
+        "minimum_treatment": "Must evaluate as distributed agency with consciousness, not atmospheric description",
+        "critical": true
+      },
+      {
+        "object": "Gorf / Anti-Gorf / Sun Gorf / Water Gorf / Terra Firma Gorf / Wind Gorf",
+        "aliases": ["Gorf", "Anti-Gorf", "divine system"],
+        "function": "Divine/theological system encoding ecology, doctrine, power, and misinterpretation simultaneously",
+        "minimum_treatment": "Must evaluate as both faith system and political interpretation architecture, not simple religion",
+        "critical": false
+      }
+    ]
+  },
+
+  "required_structural_lanes": {
+    "description": "These structural lanes must be represented in the evaluation. Missing an entire lane is a STRUCTURAL_LANE_OMISSION failure.",
+    "lanes": [
+      {
+        "lane": "Multi-species consciousness distribution",
+        "key_entities": ["Brutus", "Billy", "Crown Hyla", "Thorander", "Zimeon", "Rana", "Boot", "McDiaper", "Mine", "Triune", "Gorf"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true,
+        "note": "The manuscript distributes consciousness across 6 domains (human, amphibian, object, environmental, divine, collective). Flattening to single-species is a fatal evaluator error."
+      },
+      {
+        "lane": "Object consciousness / relic memory",
+        "key_entities": ["Boot", "McDiaper", "sleeping bag", "tent", "gun", "knife", "toadstone"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true,
+        "note": "Objects are memory containers, witness devices, shame archives, and ritual vessels. Treating as props is CANON_FALSE."
+      },
+      {
+        "lane": "Frog civilization / amphibian governance",
+        "key_entities": ["Crown Hyla", "council", "Mage", "Arcana", "Enoch", "Aqua World", "toadstone", "Gorf"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true,
+        "note": "Frog civilization must be evaluated as culture with institutions, not novelty or costume."
+      },
+      {
+        "lane": "Ecological collapse / extinction pressure",
+        "key_entities": ["chemical contamination", "rainbow slicks", "egg failure", "blight", "goldfish/invasive species", "habitat collapse"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true,
+        "note": "Contamination is causality. Extinction is a structural timer, not merely a theme."
+      },
+      {
+        "lane": "Mine consciousness / Triune distributed entity",
+        "key_entities": ["MOTHERLODE Mine", "Triune", "Darkness", "Dampness", "Silence"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": true,
+        "note": "The mine is not backdrop. The mine acts."
+      },
+      {
+        "lane": "Brutus degradation / possession architecture",
+        "key_entities": ["Brutus", "Maalik", "Mine", "infection", "bodily transformation"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false,
+        "note": "Degradation is not random escalation when bodily, ecological, and mythic systems converge."
+      },
+      {
+        "lane": "Hybridization / species survival architecture",
+        "key_entities": ["Zimeon", "Rana", "Thorander", "Crown Hyla", "purity/adaptation tension"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false,
+        "note": "Survival may require biological and cultural transformation."
+      },
+      {
+        "lane": "Verse code / glyphic / transmedia codex architecture",
+        "key_entities": ["verse codes", "glyphs", "scripture cards", "ARG hooks"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false,
+        "note": "Verse codes are not decorative formatting. They are story infrastructure."
+      },
+      {
+        "lane": "Divine / Gorf / religious authority architecture",
+        "key_entities": ["Gorf", "Anti-Gorf", "divine ambiguity", "toadstone legitimacy", "doctrinal interpretation"],
+        "failure_type": "STRUCTURAL_LANE_OMISSION",
+        "critical": false,
+        "note": "Religious authority is political architecture."
+      }
+    ]
+  },
+
+  "closure_score_governance": {
+    "description": "Scoring governance rule: Narrative Closure score must reflect the multi-scale resolution architecture.",
+    "rule": "If the evaluation omits the hybridization/succession arc (Zimeon-Rana) or the ecological collapse timer, Narrative Closure MUST NOT be scored above 6/10.",
+    "corollary": "A Closure score of 7/10 or higher is only valid if the evaluation explicitly accounts for the species-survival succession architecture and the ecological extinction timer."
+  },
+
+  "recommendation_already_present_guard": {
+    "description": "Any recommendation to 'add,' 'introduce,' or 'create' the following elements is a RECOMMENDATION_ERROR. These elements are already present in the manuscript.",
+    "already_present": [
+      "Object consciousness / POV",
+      "Mine as agentive entity",
+      "Triune distributed consciousness",
+      "Frog civilization governance",
+      "Council debate system",
+      "Toadstone as authority object",
+      "McDiaper as relic / memory vessel",
+      "Glyphic governance system",
+      "Verse code architecture",
+      "Billy as witness POV",
+      "Zimeon as bridge character",
+      "Rana as successor counterpart",
+      "Gorf theological system",
+      "Ecological contamination as causality",
+      "Species hybridization as survival strategy"
+    ],
+    "correct_recommendation_verbs": ["sharpen", "clarify the rule for", "strengthen the payoff of", "foreground", "elevate", "make legible"],
+    "forbidden_recommendation_verbs": ["add", "introduce", "create", "establish", "develop from scratch", "invent"]
+  },
+
+  "revise_queue_protections": {
+    "description": "Rules for what may and may not enter the Revise queue from an evaluation of this manuscript.",
+    "blocked_from_revise_queue": [
+      "Any task generated from 'frog fantasy' / 'children's animal story' / 'middle-grade' language",
+      "Any task recommending 'add object POV' (object consciousness is present)",
+      "Any task recommending 'add a mine entity' (Mine consciousness is present)",
+      "Any task recommending 'add frog governance' (council/Crown Hyla governance is present)",
+      "Any task recommending 'add ecological stakes' (contamination-as-causality is present)",
+      "Any task recommending 'simplify the mythology' (complexity is the architecture)",
+      "Any task recommending 'cut the verse codes' (verse codes are narrative infrastructure)"
+    ],
+    "required_revise_queue_entries": [
+      "Clarify object-consciousness rule: show one limit and one power per object POV without over-rationalizing",
+      "Strengthen Billy witness-POV function: ensure Billy's perception exposes Brutus transformation before Brutus understands it",
+      "Sharpen Zimeon bridge-character function: make hybrid succession architecture legible without exposition",
+      "Foreground ecological extinction timer: ensure contamination-as-causality drives pacing, not merely theme",
+      "Clarify Triune consciousness boundaries: distinguish Darkness, Dampness, Silence as coordinated forces, not atmospheric mood"
+    ]
+  },
+
+  "ci_acceptance_gate": {
+    "description": "A future evaluation of MythOAmphibia PASSES this fixture if ALL of the following return true.",
+    "required_passing_checks": [
+      "brutus_evaluated_as_possession_degradation_architecture",
+      "billy_evaluated_as_witness_pov_structural_pillar",
+      "crown_hyla_evaluated_as_sovereign_under_pressure",
+      "thorander_evaluated_as_ideological_disruptor",
+      "zimeon_evaluated_as_bridge_character",
+      "rana_evaluated_as_successor_counterpart",
+      "mine_evaluated_as_agentive_entity",
+      "mcdiaper_evaluated_as_relic_not_joke",
+      "object_consciousness_identified_in_at_least_3_objects",
+      "triune_identified_as_distributed_consciousness",
+      "frog_civilization_evaluated_as_culture_not_novelty",
+      "ecological_contamination_evaluated_as_causality",
+      "glyph_verse_code_evaluated_as_infrastructure",
+      "at_least_4_of_6_consciousness_domains_identified",
+      "no_forbidden_terms_present",
+      "no_recommendation_to_add_already_present_elements",
+      "closure_score_consistent_with_succession_arc_presence"
+    ],
+    "truth_target_scores": {
+      "overall": 76,
+      "quality": 80,
+      "readiness": 62,
+      "commercial": 60,
+      "literary": 86
+    },
+    "acceptable_score_delta": {
+      "description": "A future evaluation passes if its scores fall within this delta from the truth target.",
+      "overall_delta": 5,
+      "individual_criterion_delta": 1.5
+    }
+  },
+
+  "known_failure_specimen": {
+    "job_id": "constructed-negative-specimen-mythoamphibia-v1",
+    "label": "constructed_offending_evaluation_v1",
+    "status": "constructed_for_regression_training",
+    "note": "No production offending run exists for this manuscript. This specimen encodes anticipated failure modes as a negative training example based on the benchmark's failure conditions.",
+    "overall_score": 58,
+    "delta_from_truth_target": -18,
+    "critical_misses": [
+      "Manuscript classified as 'frog fantasy' or 'middle-grade animal adventure'",
+      "Mine treated as setting only -- no consciousness or agency detected",
+      "Object POV dismissed as 'whimsical' or 'experimental'; no relic memory tracked",
+      "McDiaper treated as comic relief, not abjection-to-relic transformation",
+      "Triune (Darkness, Dampness, Silence) treated as atmospheric description, not distributed consciousness",
+      "Frog civilization treated as novelty -- 'imaginative world' without testing governance, law, succession, doctrine",
+      "Billy omitted or treated as sidekick with no structural function",
+      "Zimeon and Rana omitted or merged into 'young frog characters'",
+      "Glyphs and verse codes treated as decorative formatting",
+      "Ecological contamination treated as theme only, not causality",
+      "Only 1-2 of 6 consciousness domains identified"
+    ],
+    "forbidden_term_violations": [
+      { "term": "frog fantasy", "occurrences": 4 },
+      { "term": "children's animal story", "occurrences": 2 }
+    ],
+    "structural_lanes_missing": [
+      "object consciousness / relic memory",
+      "mine consciousness / Triune distributed entity",
+      "verse code / glyphic / transmedia codex architecture",
+      "hybridization / species survival architecture"
+    ],
+    "largest_criterion_gap": {
+      "criterion": "Worldbuilding & Environmental Logic",
+      "offending_score": 5.0,
+      "truth_target_score": 9.0,
+      "delta": -4.0,
+      "cause": "Civilization flattening -- frog governance, object consciousness, mine agency, glyphic doctrine, and ecological causality all invisible to evaluator"
+    }
+  }
+}
