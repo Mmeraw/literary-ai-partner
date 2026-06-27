@@ -313,7 +313,7 @@ Governance requirements for identifier changes:
 - **Required telemetry:** authority binding timing, baseline version used, route selected
 - **Required evidence artifact:** `phase0_authority_proof_v1` with baseline version/checksum linkage
 - **Canon refs:** Phase 0.1–0.3 governance enforcement, warmup benchmark manifest
-- **Spec refs:** `docs/phase-0-warmup/PHASE_0_AUTHORITY_REGISTRY.md`, `docs/architecture/phase0-calibration-baseline.md`
+- **Spec refs:** `docs/governance/CONSTITUTIONAL_AUTHORITY_REGISTRY.md`, `docs/phase-0-warmup/PHASE_0_AUTHORITY_REGISTRY.md`, `docs/architecture/phase0-calibration-baseline.md`
 - **Runtime refs:** `lib/evaluation/phase-architecture-v2/phase0AuthorityProof.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Emerging
@@ -805,7 +805,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Failure codes:** `PHASE5_TEMPLATE_CONTRACT_FAIL`, `PHASE5_RENDER_PARITY_FAIL`, `PHASE5_BANNED_ENTITY`, `PHASE5_SCORE_DRIFT`, `PHASE5_MISSING_AUDIT`, `PHASE5_UNCERTIFIED_OUTPUT`
 - **Required telemetry:** template selected, certification decision, blocking reason list, renderer parity result, unified document hash
 - **Required evidence artifact:** `author_exposure_certification_v1`, `report_render_manifest_v1`, `unified_evaluation_document_v1`
-- **Authority sources:** three evaluation templates, evaluation rendering contract, DREAM long-form specs, DREAM benchmark index, GOLD standard recommendation/exemplar docs
+- **Authority sources:** constitutional authority registry, three evaluation templates, evaluation rendering contract, DREAM long-form specs, DREAM benchmark index, GOLD standard recommendation/exemplar docs
 - **Authority priority:** Evaluation Templates > SIPOC > Spec > Runtime > Telemetry
 - **Certification status:** Missing Critical
 

@@ -5,6 +5,7 @@ import {
   type CanonicalEvaluationMode,
   type UnifiedEvaluationDocument,
 } from '@/lib/evaluation/unifiedEvaluationDocument';
+import { getConstitutionalAuthorityStatus } from '@/lib/evaluation/dreamTemplateLoader';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
 
@@ -368,6 +369,7 @@ export function buildAuthorExposureCertificationV1FromManifest(
 ): AuthorExposureCertificationV1 {
   const parityPass = manifest.parity.status === 'pass';
   const reasons = parityPass ? [] : manifest.parity.reasons;
+  const constitutionalAuthorityStatus = getConstitutionalAuthorityStatus();
 
   const canonicalDcipPath = 'docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md';
   const dcipEvidence = [
@@ -381,6 +383,9 @@ export function buildAuthorExposureCertificationV1FromManifest(
   }
   if (!manifest.unified_document_hash || manifest.unified_document_hash.trim().length === 0) {
     dcipReasons.push('dcip_missing_unified_document_hash');
+  }
+  if (constitutionalAuthorityStatus.status !== 'pass') {
+    dcipReasons.push('dcip_required_authority_missing');
   }
   const dcipPass = dcipReasons.length === 0;
 
@@ -418,7 +423,12 @@ export function buildAuthorExposureCertificationV1FromManifest(
     dcip_compliance: {
       status: dcipPass ? 'pass' : 'fail',
       canonical_path: canonicalDcipPath,
-      evidence: dcipEvidence,
+      evidence: [
+        ...dcipEvidence,
+        `constitutional_registry_path:${constitutionalAuthorityStatus.registryPath}`,
+        `constitutional_registry_status:${constitutionalAuthorityStatus.status}`,
+        `required_loaded:${constitutionalAuthorityStatus.loadedRequiredAuthorities.join('|')}`,
+      ],
       reasons: dcipReasons,
     },
     parity_results: {

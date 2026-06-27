@@ -109,6 +109,18 @@ export interface AuthoritySourceRegistryEntry {
 
 export const AUTHORITY_SOURCE_REGISTRY: AuthoritySourceRegistryEntry[] = [
   {
+    authorityId: 'CONSTITUTIONAL_AUTHORITY_REGISTRY_V1',
+    family: 'registry',
+    title: 'Constitutional Authority Registry',
+    path: 'docs/governance/CONSTITUTIONAL_AUTHORITY_REGISTRY.md',
+    appliesToStageIds: ['ADJACENT_PHASE_0', 'ADJACENT_PHASE_0_5A', 'ADJACENT_PHASE_0_5B', 'ADJACENT_DREAM', 'ADJACENT_REVISE', 'S10b_PHASE5_AUTHOR_EXPOSURE_GATE'],
+    appliesToArtifacts: ['phase0_authority_proof_v1', 'story_map_seed_v1', 'revise_opportunity_seed_v1', 'longform_document_v1', 'revision_opportunity_ledger_v1', 'author_exposure_certification_v1'],
+    runtimeBinding: 'binding',
+    surfacedInSipocUi: true,
+    executionUse: 'Single runtime entry point for constitutional authority loading and required-authority fail-closed checks.',
+    notes: 'Runtime loaders must consume this registry before resolving constitutional authorities directly.',
+  },
+  {
     authorityId: 'SIPOC_EVALUATION_PROCESS_V1',
     family: 'sipoc',
     title: 'SIPOC Evaluation Process',

@@ -26,6 +26,7 @@ import type { SynthesizedCriterion, ManuscriptChunkEvidence, Pass2aStructuredCon
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import {
+  buildCompactConstitutionalAuthorityRegistryBlock,
   buildCompactCognitiveInitializationBlock,
   buildCompactTemplateBlock,
   resolveTemplateKey,
@@ -234,6 +235,7 @@ export function buildPass3bUserPrompt(params: {
     : "";
 
   const templateKey = resolveTemplateKey(params.wordCount, params.mode?.includes('multi_layer'));
+  const constitutionalRegistryBlock = buildCompactConstitutionalAuthorityRegistryBlock();
   const dreamTemplateBlock = buildCompactTemplateBlock(templateKey);
   const dcipBlock = buildCompactCognitiveInitializationBlock();
   const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
@@ -243,6 +245,11 @@ ${dcipBlock ? `
 ## DREAM COGNITIVE INITIALIZATION PROTOCOL (Constitutional Authority)
 Apply this protocol as a mandatory constitutional layer for synthesis behavior and safety. Do not invent constitutional clauses; follow only this canonical block.
 ${dcipBlock}
+` : ""}
+${constitutionalRegistryBlock ? `
+## CONSTITUTIONAL AUTHORITY REGISTRY (Single Runtime Entry Point)
+Treat this registry as the active constitutional hierarchy and authority source of truth for this synthesis run.
+${constitutionalRegistryBlock}
 ` : ""}
 ${dreamTemplateBlock ? `
 ## DREAM EVALUATION TEMPLATE (Canonical Report Shape)

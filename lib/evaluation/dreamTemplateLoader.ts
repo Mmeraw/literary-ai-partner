@@ -30,6 +30,13 @@ const TEMPLATE_DIR = join(
   "evaluation",
 );
 
+const CONSTITUTIONAL_AUTHORITY_REGISTRY_PATH = join(
+  process.cwd(),
+  "docs",
+  "governance",
+  "CONSTITUTIONAL_AUTHORITY_REGISTRY.md",
+);
+
 const COGNITIVE_INITIALIZATION_PROTOCOL_PATH = join(
   process.cwd(),
   "docs",
@@ -60,6 +67,68 @@ const FILE_MAP: Record<DreamTemplateKey, string> = {
 
 const cache = new Map<string, string>();
 
+export type ConstitutionalAuthorityBinding = "binding" | "template" | "calibration" | "reference";
+
+export type ConstitutionalAuthorityEntry = {
+  authorityId: string;
+  level: 1 | 2 | 3;
+  required: boolean;
+  runtimeBinding: ConstitutionalAuthorityBinding;
+  path: string;
+};
+
+const FALLBACK_CONSTITUTIONAL_AUTHORITIES: ConstitutionalAuthorityEntry[] = [
+  {
+    authorityId: "DCIP",
+    level: 1,
+    required: true,
+    runtimeBinding: "binding",
+    path: "docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md",
+  },
+  {
+    authorityId: "EVALUATION_TEMPLATE_LONG_FORM_MULTI_LAYER",
+    level: 1,
+    required: true,
+    runtimeBinding: "template",
+    path: "docs/templates/evaluation/long-form-multi-layer-evaluation-template.md",
+  },
+  {
+    authorityId: "EVALUATION_RENDERING_CONTRACT",
+    level: 1,
+    required: true,
+    runtimeBinding: "binding",
+    path: "docs/templates/evaluation/evaluation-rendering-contract.md",
+  },
+  {
+    authorityId: "EVALUATION_OUTPUT_MODE_CONTRACT",
+    level: 1,
+    required: true,
+    runtimeBinding: "binding",
+    path: "docs/governance/evaluation-output-mode-contract.md",
+  },
+  {
+    authorityId: "STORY_LEDGER_TEMPLATE",
+    level: 2,
+    required: true,
+    runtimeBinding: "binding",
+    path: "docs/benchmarks/story-ledger/STORY_LEDGER_10_LAYER_TEMPLATE.md",
+  },
+  {
+    authorityId: "RUNTIME_BENCHMARK_AUTHORITY_MAP",
+    level: 3,
+    required: true,
+    runtimeBinding: "calibration",
+    path: "docs/benchmarks/RUNTIME_BENCHMARK_AUTHORITY_MAP.md",
+  },
+  {
+    authorityId: "DREAM_LONGFORM_BENCHMARK_INDEX",
+    level: 3,
+    required: true,
+    runtimeBinding: "calibration",
+    path: "docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md",
+  },
+];
+
 /**
  * Load any template file by absolute path. Caches after first read.
  */
@@ -80,14 +149,103 @@ function loadTemplateFile(filePath: string, cacheKey: string): string {
   }
 }
 
+function parseBoolean(value: string): boolean {
+  return value.trim().toLowerCase() === "true";
+}
+
+function parseBinding(value: string): ConstitutionalAuthorityBinding {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "binding" || normalized === "template" || normalized === "calibration" || normalized === "reference") {
+    return normalized;
+  }
+  return "reference";
+}
+
+function parseLevel(value: string): 1 | 2 | 3 | null {
+  const n = Number(value.trim());
+  if (n === 1 || n === 2 || n === 3) return n;
+  return null;
+}
+
+export function loadConstitutionalAuthorityRegistry(): ConstitutionalAuthorityEntry[] {
+  const raw = loadTemplateFile(
+    CONSTITUTIONAL_AUTHORITY_REGISTRY_PATH,
+    "governance:constitutional_authority_registry",
+  );
+
+  if (!raw.trim()) return FALLBACK_CONSTITUTIONAL_AUTHORITIES;
+
+  const parsed: ConstitutionalAuthorityEntry[] = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("|")) continue;
+
+    const parts = trimmed.split("|").map((p) => p.trim());
+    if (parts.length !== 5) continue;
+    const [authorityId, levelRaw, requiredRaw, runtimeBindingRaw, pathRaw] = parts;
+    const level = parseLevel(levelRaw);
+    if (!authorityId || !level || !pathRaw) continue;
+
+    parsed.push({
+      authorityId,
+      level,
+      required: parseBoolean(requiredRaw),
+      runtimeBinding: parseBinding(runtimeBindingRaw),
+      path: pathRaw,
+    });
+  }
+
+  return parsed.length > 0 ? parsed : FALLBACK_CONSTITUTIONAL_AUTHORITIES;
+}
+
+export function getConstitutionalAuthorityEntry(authorityId: string): ConstitutionalAuthorityEntry | null {
+  const entry = loadConstitutionalAuthorityRegistry().find((e) => e.authorityId === authorityId);
+  return entry ?? null;
+}
+
+export function getConstitutionalAuthorityStatus(): {
+  registryPath: string;
+  entries: ConstitutionalAuthorityEntry[];
+  missingRequiredAuthorities: string[];
+  loadedRequiredAuthorities: string[];
+  status: "pass" | "fail";
+} {
+  const entries = loadConstitutionalAuthorityRegistry();
+  const missingRequiredAuthorities: string[] = [];
+  const loadedRequiredAuthorities: string[] = [];
+
+  for (const entry of entries) {
+    if (!entry.required) continue;
+    const content = loadTemplateFile(join(process.cwd(), entry.path), `governance:authority:${entry.authorityId}`);
+    if (!content.trim()) {
+      missingRequiredAuthorities.push(entry.authorityId);
+    } else {
+      loadedRequiredAuthorities.push(entry.authorityId);
+    }
+  }
+
+  return {
+    registryPath: "docs/governance/CONSTITUTIONAL_AUTHORITY_REGISTRY.md",
+    entries,
+    missingRequiredAuthorities,
+    loadedRequiredAuthorities,
+    status: missingRequiredAuthorities.length === 0 ? "pass" : "fail",
+  };
+}
+
 /**
  * Load the DREAM Cognitive Initialization Protocol. Returns the full markdown
  * content. This is constitutional reasoning authority for DREAM-compatible
  * evaluation, revise, queue, and certification stages.
  */
 export function loadDreamCognitiveInitializationProtocol(): string {
+  const dcipAuthority = getConstitutionalAuthorityEntry("DCIP");
+  const dcipPath = dcipAuthority?.path
+    ? join(process.cwd(), dcipAuthority.path)
+    : COGNITIVE_INITIALIZATION_PROTOCOL_PATH;
+
   const primary = loadTemplateFile(
-    COGNITIVE_INITIALIZATION_PROTOCOL_PATH,
+    dcipPath,
     "governance:dream_cognitive_initialization_protocol:primary",
   );
   if (primary.trim().length > 0) return primary;
@@ -96,6 +254,27 @@ export function loadDreamCognitiveInitializationProtocol(): string {
     LEGACY_COGNITIVE_INITIALIZATION_PROTOCOL_PATH,
     "governance:dream_cognitive_initialization_protocol:legacy",
   );
+}
+
+export function buildCompactConstitutionalAuthorityRegistryBlock(): string {
+  const status = getConstitutionalAuthorityStatus();
+  const lines = [
+    "CONSTITUTIONAL AUTHORITY REGISTRY (runtime source of truth):",
+    `Registry path: ${status.registryPath}`,
+    `Registry status: ${status.status}`,
+    "",
+    "Required authorities:",
+    ...status.entries
+      .filter((entry) => entry.required)
+      .sort((a, b) => a.level - b.level)
+      .map((entry) => `- L${entry.level} ${entry.authorityId} (${entry.runtimeBinding}) → ${entry.path}`),
+  ];
+
+  if (status.missingRequiredAuthorities.length > 0) {
+    lines.push("", `Missing required authorities: ${status.missingRequiredAuthorities.join(", ")}`);
+  }
+
+  return lines.join("\n");
 }
 
 /**

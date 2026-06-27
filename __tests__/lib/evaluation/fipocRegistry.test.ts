@@ -242,6 +242,7 @@ describe('executable FIPOC registry', () => {
     ]));
 
     expect(AUTHORITY_SOURCE_REGISTRY.map((entry) => entry.path)).toEqual(expect.arrayContaining([
+      'docs/governance/CONSTITUTIONAL_AUTHORITY_REGISTRY.md',
       'docs/SIPOC_EVALUATION_PROCESS.md',
       'docs/benchmarks/DREAM_LONGFORM_BENCHMARK_INDEX.md',
       'docs/canon/registered/control/BENCHMARK-CHARTER.md',

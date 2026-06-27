@@ -19,7 +19,10 @@
  */
 
 import OpenAI from 'openai';
-import { buildCompactCognitiveInitializationBlock } from '@/lib/evaluation/dreamTemplateLoader';
+import {
+  buildCompactConstitutionalAuthorityRegistryBlock,
+  buildCompactCognitiveInitializationBlock,
+} from '@/lib/evaluation/dreamTemplateLoader';
 import { buildEnglishVariantPromptBlock } from '@/lib/evaluation/englishVariant';
 import {
   buildHydrationFailureRecord,
@@ -230,6 +233,7 @@ function operationInstruction(operation?: string): string {
 function buildUserMessage(opportunities: HydrationOpportunity[]): string {
   const englishVariantBlock = buildEnglishVariantPromptBlock(opportunities[0]?.english_variant);
   const dcipBlock = buildCompactCognitiveInitializationBlock();
+  const constitutionalRegistryBlock = buildCompactConstitutionalAuthorityRegistryBlock();
   const items = opportunities
     .map(
       (o, i) =>
@@ -253,6 +257,12 @@ Apply this protocol as mandatory constitutional behavior for revision candidate 
 ${dcipBlock}
 
 ` : ''}${englishVariantBlock}
+${constitutionalRegistryBlock ? `
+CONSTITUTIONAL AUTHORITY REGISTRY (Single Runtime Entry Point)
+Treat this registry as the active constitutional hierarchy for this candidate-generation run.
+${constitutionalRegistryBlock}
+
+` : ''}
 
 Hard rules:
 - Return prose only inside candidate_a/b/c. Do not return advice, diagnosis, rationale, summary, bullets, labels, or explanations.

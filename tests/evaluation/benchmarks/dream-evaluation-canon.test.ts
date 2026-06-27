@@ -1,6 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildCompactTemplateBlock, loadDreamTemplate, resolveTemplateKey } from '@/lib/evaluation/dreamTemplateLoader';
+import {
+  buildCompactConstitutionalAuthorityRegistryBlock,
+  buildCompactTemplateBlock,
+  getConstitutionalAuthorityStatus,
+  loadConstitutionalAuthorityRegistry,
+  loadDreamTemplate,
+  resolveTemplateKey,
+} from '@/lib/evaluation/dreamTemplateLoader';
 import { buildCompleteEvaluationSeedV1 } from '@/lib/evaluation/seed/seedScaffoldFactory';
 import { PASS3B_SYSTEM_PROMPT } from '@/lib/evaluation/pipeline/prompts/pass3b-longform';
 
@@ -79,6 +86,27 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(multiBlock).toContain('DREAM LONG-FORM MULTI-LAYER EVALUATION TEMPLATE');
   });
 
+  it('loads constitutional authority registry and keeps required authorities available', () => {
+    const registry = loadConstitutionalAuthorityRegistry();
+    const status = getConstitutionalAuthorityStatus();
+    const compact = buildCompactConstitutionalAuthorityRegistryBlock();
+
+    expect(registry.length).toBeGreaterThanOrEqual(6);
+    expect(registry.map((entry) => entry.authorityId)).toEqual(expect.arrayContaining([
+      'DCIP',
+      'EVALUATION_TEMPLATE_LONG_FORM_MULTI_LAYER',
+      'EVALUATION_RENDERING_CONTRACT',
+      'EVALUATION_OUTPUT_MODE_CONTRACT',
+      'STORY_LEDGER_TEMPLATE',
+      'RUNTIME_BENCHMARK_AUTHORITY_MAP',
+    ]));
+
+    expect(status.status).toBe('pass');
+    expect(status.missingRequiredAuthorities).toHaveLength(0);
+    expect(compact).toContain('CONSTITUTIONAL AUTHORITY REGISTRY');
+    expect(compact).toContain('Registry status: pass');
+  });
+
   it('keeps SEED evaluation scaffolds aligned to the three canonical template paths', () => {
     const shortSeed = buildCompleteEvaluationSeedV1({ wordCount: 4_000, workType: 'short story' });
     const longSeed = buildCompleteEvaluationSeedV1({ wordCount: 40_000, workType: 'novel' });
@@ -87,7 +115,7 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(shortSeed.manuscript_profile.evaluation_mode).toBe('short_form_evaluation');
     expect(shortSeed.reporting_template_path.selected_template).toBe('docs/templates/evaluation/short-form-evaluation-template.md');
 
-    expect(longSeed.manuscript_profile.evaluation_mode).toBe('long_form_evaluation');
+    expect(longSeed.manuscript_profile.evaluation_mode).toBe('long_form_multi_layer_evaluation');
     expect(longSeed.reporting_template_path.selected_template).toBe('docs/templates/evaluation/long-form-multi-layer-evaluation-template.md');
 
     expect(multiSeed.manuscript_profile.evaluation_mode).toBe('long_form_multi_layer_evaluation');
