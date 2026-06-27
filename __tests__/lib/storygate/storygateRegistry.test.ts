@@ -94,6 +94,12 @@ describe('STORYGATE_PROCESS_REGISTRY', () => {
     }));
     expect(intake?.codeSurfaces).toContain('lib/storygate/storygateSubmissionValidator.ts');
   });
+
+  test('failureCodes are derived from stage-owned failureDefinitions', () => {
+    for (const stage of STORYGATE_PROCESS_REGISTRY) {
+      expect(stage.failureCodes).toEqual(stage.failureDefinitions.map((definition) => definition.failureCode));
+    }
+  });
 });
 
 describe('Storygate current package canon', () => {

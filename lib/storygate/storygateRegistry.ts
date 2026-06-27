@@ -71,8 +71,8 @@ export interface StorygateProcessEntry {
   forwardKick: string;
   backwardKick: string;
   dirtyDataRules: string[];
-  failureCodes: string[];
   failureDefinitions: FailureRecoveryDefinition[];
+  failureCodes: string[];
   consumers: string[];
   uiExposed: boolean;
   certificationStatus: StorygateCertificationStatus;
@@ -80,7 +80,7 @@ export interface StorygateProcessEntry {
   notes: string;
 }
 
-type StorygateProcessEntrySource = Omit<StorygateProcessEntry, 'failureDefinitions'>;
+type StorygateProcessEntrySource = Omit<StorygateProcessEntry, 'failureCodes'>;
 
 const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] = [
   {
@@ -107,7 +107,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
       'Film, screen, adaptation, producer-facing, and film-rights marketplace materials are out of current scope.',
       'Storygate intake must not treat Web/PDF/DOCX/TXT renderer output, evaluation_report_view_model_v1, uncertified Agent Readiness output, or unresolved Agent Readiness AR08/AR09 gaps as package authority.',
     ],
-    failureCodes: ['UNAUTHENTICATED', 'MISSING_REQUIRED_FIELDS', 'FORBIDDEN_SCOPE_REQUESTED', 'PACKAGE_AUTHORITY_INVALID'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNAUTHENTICATED', 'MISSING_REQUIRED_FIELDS', 'FORBIDDEN_SCOPE_REQUESTED', 'PACKAGE_AUTHORITY_INVALID']),
     consumers: ['SG02_INTAKE_VALIDATION'],
     uiExposed: true,
     certificationStatus: 'partial',
@@ -131,7 +131,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG03_INTERNAL_SCREENING (on pass)',
     backwardKick: 'SG01_CREATOR_SUBMISSION (on validation failure)',
     dirtyDataRules: ['System/database errors must return 500 and must not be masked as 400-class validation failures.'],
-    failureCodes: ['MISSING_REQUIRED_FIELDS', 'PLACEHOLDER_TEXT_DETECTED', 'MARKET_COMPARABLES_MISSING', 'RIGHTS_DECLARATION_MISSING', 'FORBIDDEN_SCOPE_REQUESTED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['MISSING_REQUIRED_FIELDS', 'PLACEHOLDER_TEXT_DETECTED', 'MARKET_COMPARABLES_MISSING', 'RIGHTS_DECLARATION_MISSING', 'FORBIDDEN_SCOPE_REQUESTED']),
     consumers: ['SG03_INTERNAL_SCREENING'],
     uiExposed: false,
     certificationStatus: 'partial',
@@ -155,7 +155,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG04_TIER_ASSIGNMENT',
     backwardKick: 'SG01_CREATOR_SUBMISSION (if missing materials require creator remediation)',
     dirtyDataRules: ['Do not institutionalize 8.0 as Storygate admission. Do not infer film/adaptation eligibility.'],
-    failureCodes: ['SCORE_BELOW_THRESHOLD', 'PACKAGE_GATE_FAILED', 'FORBIDDEN_SCOPE_REQUESTED', 'RIGHTS_GATE_FAILED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['SCORE_BELOW_THRESHOLD', 'PACKAGE_GATE_FAILED', 'FORBIDDEN_SCOPE_REQUESTED', 'RIGHTS_GATE_FAILED']),
     consumers: ['SG04_TIER_ASSIGNMENT', 'SG06_READINESS_VERIFICATION'],
     uiExposed: false,
     certificationStatus: 'missing_critical',
@@ -179,7 +179,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG05_PACKAGE_VERIFICATION',
     backwardKick: 'SG03_INTERNAL_SCREENING (if screening reasons incomplete)',
     dirtyDataRules: ['Tier must not be inferred by public UI.', 'Tier assignment must not itself create industry-visible listing.'],
-    failureCodes: ['MISSING_TIER_DECISION', 'NON_CANONICAL_TIER'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['MISSING_TIER_DECISION', 'NON_CANONICAL_TIER']),
     consumers: ['SG05_PACKAGE_VERIFICATION'],
     uiExposed: false,
     certificationStatus: 'missing_critical',
@@ -203,7 +203,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG06_READINESS_VERIFICATION',
     backwardKick: 'SG01_CREATOR_SUBMISSION or Agent Readiness Factory (if package incomplete)',
     dirtyDataRules: ['Market comparables are not optional for Storygate admission.', 'Market category is not optional for Storygate package verification.', 'Target audience and market position statement are not optional for Storygate package verification.', 'Rights declaration must be explicit before listing activation.', 'Package verification must reject Web/PDF/DOCX/TXT renderer output, evaluation_report_view_model_v1, uncertified Agent Readiness output, and claims that unresolved Agent Readiness AR08/AR09 gaps are resolved.'],
-    failureCodes: ['PACKAGE_GATE_FAILED', 'MARKET_COMPARABLES_MISSING', 'RIGHTS_DECLARATION_MISSING', 'PACKAGE_AUTHORITY_INVALID'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['PACKAGE_GATE_FAILED', 'MARKET_COMPARABLES_MISSING', 'RIGHTS_DECLARATION_MISSING', 'PACKAGE_AUTHORITY_INVALID']),
     consumers: ['SG06_READINESS_VERIFICATION', 'SG08_LISTING_ACTIVATION'],
     uiExposed: true,
     certificationStatus: 'partial',
@@ -227,7 +227,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG07_INDUSTRY_VERIFICATION and SG08_LISTING_ACTIVATION (if eligible)',
     backwardKick: 'SG01_CREATOR_SUBMISSION or Revise Factory (if below threshold)',
     dirtyDataRules: ['No registry, SIPOC, CSV, app route, or test may define Storygate admission as 8.0.'],
-    failureCodes: ['SCORE_BELOW_THRESHOLD', 'EQUIVALENT_ASSESSMENT_UNVERIFIED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['SCORE_BELOW_THRESHOLD', 'EQUIVALENT_ASSESSMENT_UNVERIFIED']),
     consumers: ['SG08_LISTING_ACTIVATION'],
     uiExposed: true,
     certificationStatus: 'partial',
@@ -251,7 +251,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG09_ACCESS_REQUEST (if verified)',
     backwardKick: 'SG07_INDUSTRY_VERIFICATION (remain unverified until admin approval)',
     dirtyDataRules: ['Verified badge must reflect persisted server-side verification state, not client-side display state.'],
-    failureCodes: ['UNVERIFIED_INDUSTRY_USER', 'VERIFICATION_STATE_UNAUDITED', 'NON_ADMIN_VERIFICATION_ATTEMPT'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNVERIFIED_INDUSTRY_USER', 'VERIFICATION_STATE_UNAUDITED', 'NON_ADMIN_VERIFICATION_ATTEMPT']),
     consumers: ['SG09_ACCESS_REQUEST', 'SG11_CONTROLLED_ACCESS'],
     uiExposed: true,
     certificationStatus: 'missing_critical',
@@ -275,7 +275,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG09_ACCESS_REQUEST',
     backwardKick: 'SG05_PACKAGE_VERIFICATION or SG06_READINESS_VERIFICATION (if eligibility fails)',
     dirtyDataRules: ['Listing visibility must start private/restricted by default.', 'Duplicate listing for same manuscript + creator must be blocked.'],
-    failureCodes: ['MANUSCRIPT_NOT_FINAL', 'LISTING_ALREADY_EXISTS', 'ELIGIBILITY_NOT_PROVEN'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['MANUSCRIPT_NOT_FINAL', 'LISTING_ALREADY_EXISTS', 'ELIGIBILITY_NOT_PROVEN']),
     consumers: ['SG09_ACCESS_REQUEST', 'SG11_CONTROLLED_ACCESS'],
     uiExposed: false,
     certificationStatus: 'missing_critical',
@@ -299,7 +299,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG10_CREATOR_ADMIN_APPROVAL',
     backwardKick: 'SG07_INDUSTRY_VERIFICATION (if requester is not verified)',
     dirtyDataRules: ['Access request must not grant access automatically.'],
-    failureCodes: ['UNAUTHENTICATED', 'UNVERIFIED_INDUSTRY_USER', 'LISTING_NOT_ACTIVE', 'ACCESS_REQUEST_NOT_CREATED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNAUTHENTICATED', 'UNVERIFIED_INDUSTRY_USER', 'LISTING_NOT_ACTIVE', 'ACCESS_REQUEST_NOT_CREATED']),
     consumers: ['SG10_CREATOR_ADMIN_APPROVAL'],
     uiExposed: true,
     certificationStatus: 'missing_critical',
@@ -323,7 +323,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG11_CONTROLLED_ACCESS (if approved)',
     backwardKick: 'SG09_ACCESS_REQUEST (if denied or more info needed)',
     dirtyDataRules: ['Only creator or admin may approve access for the project.', 'Denied requests must not create grants.'],
-    failureCodes: ['APPROVAL_ACTOR_NOT_AUTHORIZED', 'ACCESS_REQUEST_NOT_FOUND', 'NON_CANONICAL_ACCESS_DECISION'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['APPROVAL_ACTOR_NOT_AUTHORIZED', 'ACCESS_REQUEST_NOT_FOUND', 'NON_CANONICAL_ACCESS_DECISION']),
     consumers: ['SG11_CONTROLLED_ACCESS', 'SG12_ACCESS_LOGGING_REVOCATION'],
     uiExposed: true,
     certificationStatus: 'missing_critical',
@@ -347,7 +347,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'SG12_ACCESS_LOGGING_REVOCATION',
     backwardKick: 'SG10_CREATOR_ADMIN_APPROVAL (if grant missing or expired)',
     dirtyDataRules: ['Do not expose artifacts outside the approved grant scope.', 'Every view/download must create an access log event.'],
-    failureCodes: ['ACCESS_GRANT_MISSING', 'ARTIFACT_NOT_ALLOWED', 'PRIVATE_LISTING_BLOCKED', 'ACCESS_LOG_WRITE_FAILED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['ACCESS_GRANT_MISSING', 'ARTIFACT_NOT_ALLOWED', 'PRIVATE_LISTING_BLOCKED', 'ACCESS_LOG_WRITE_FAILED']),
     consumers: ['SG12_ACCESS_LOGGING_REVOCATION'],
     uiExposed: true,
     certificationStatus: 'missing_critical',
@@ -371,7 +371,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
     forwardKick: 'none — terminal audit/revocation stage',
     backwardKick: 'SG10_CREATOR_ADMIN_APPROVAL or SG11_CONTROLLED_ACCESS (depending on invalid grant/access state)',
     dirtyDataRules: ['AccessLog must be append-only.', 'Revocation must not delete historical evidence.'],
-    failureCodes: ['AUDIT_EVENT_MISSING', 'STRUCTURED_AUDIT_FIELDS_MISSING', 'REVOCATION_NOT_PERSISTED', 'ACCESS_CONTROL_BYPASS'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['AUDIT_EVENT_MISSING', 'STRUCTURED_AUDIT_FIELDS_MISSING', 'REVOCATION_NOT_PERSISTED', 'ACCESS_CONTROL_BYPASS']),
     consumers: ['Admin audit surfaces', 'Creator access dashboard', 'Governance review'],
     uiExposed: true,
     certificationStatus: 'missing_critical',
@@ -382,7 +382,7 @@ const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] 
 
 export const STORYGATE_PROCESS_REGISTRY: readonly StorygateProcessEntry[] = STORYGATE_PROCESS_REGISTRY_SOURCE.map((stage) => ({
   ...stage,
-  failureDefinitions: getFailureRecoveryDefinitionsForCodes(stage.failureCodes),
+  failureCodes: stage.failureDefinitions.map((definition) => definition.failureCode),
 }));
 
 export interface StorygateArtifactEntry {
