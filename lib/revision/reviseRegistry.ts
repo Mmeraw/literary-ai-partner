@@ -161,8 +161,8 @@ export type ReviseStage = {
   backwardKick: string;
   dirtyDataRules: string[];
   retryBudget: number;
-  failureCodes: string[];
   failureDefinitions: FailureRecoveryDefinition[];
+  failureCodes: string[];
   consumers: string[];
   uiExposed: boolean;
   certificationStatus: ReviseCertificationStatus;
@@ -170,7 +170,7 @@ export type ReviseStage = {
   notes: string;
 };
 
-type ReviseStageSource = Omit<ReviseStage, 'failureDefinitions'>;
+type ReviseStageSource = Omit<ReviseStage, 'failureCodes'>;
 
 const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
   {
@@ -192,7 +192,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'S10b_PHASE5_AUTHOR_EXPOSURE_GATE if evaluation_result_v2 absent or uncertified',
     dirtyDataRules: ['missing evidence_anchor without manuscript_wide_support', 'opportunity with no criterion', 'duplicate opportunity_id', 'missing/failing DCIP compliance', 'missing required constitutional authority'],
     retryBudget: 1,
-    failureCodes: ['LEDGER_ASSEMBLY_FAILED', 'LEDGER_EVIDENCE_MISSING', 'LEDGER_EMPTY', 'LEDGER_CRITERION_MISSING'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['LEDGER_ASSEMBLY_FAILED', 'LEDGER_EVIDENCE_MISSING', 'LEDGER_EMPTY', 'LEDGER_CRITERION_MISSING']),
     consumers: ['RS02_QUEUE_ADMISSION'],
     uiExposed: false,
     certificationStatus: 'partial',
@@ -218,7 +218,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS01_LEDGER_ASSEMBLY if ledger_backing_coverage < 100%',
     dirtyDataRules: ['missing six-part diagnostic', 'candidate_text empty when operation requires one', 'anchor missing without manuscript_wide_support', 'canon gate fail', 'voice gate fail', 'renderer/download output used for Revise admission'],
     retryBudget: 0,
-    failureCodes: ['ADMISSION_CARD_CONTRACT_FAIL', 'ADMISSION_CANON_GATE_FAIL', 'ADMISSION_VOICE_GATE_FAIL', 'ADMISSION_CANDIDATE_QUALITY_FAIL', 'REVISE_HANDOFF_RENDERER_OUTPUT_INVALID'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['ADMISSION_CARD_CONTRACT_FAIL', 'ADMISSION_CANON_GATE_FAIL', 'ADMISSION_VOICE_GATE_FAIL', 'ADMISSION_CANDIDATE_QUALITY_FAIL', 'REVISE_HANDOFF_RENDERER_OUTPUT_INVALID']),
     consumers: ['RS03_QUEUE_PRIORITIZATION'],
     uiExposed: false,
     certificationStatus: 'partial',
@@ -244,7 +244,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS02_QUEUE_ADMISSION if queue empty after hard cap',
     dirtyDataRules: ['queue_length > hard_cap after trim', 'gaps in display_index', 'duplicate opportunity_id in queue'],
     retryBudget: 0,
-    failureCodes: ['QUEUE_ASSEMBLY_FAILED', 'QUEUE_OVERCAP', 'QUEUE_EMPTY_AFTER_ADMISSION'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['QUEUE_ASSEMBLY_FAILED', 'QUEUE_OVERCAP', 'QUEUE_EMPTY_AFTER_ADMISSION']),
     consumers: ['RS04_WORKBENCH_LOAD'],
     uiExposed: true,
     certificationStatus: 'emerging',
@@ -270,7 +270,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS02_QUEUE_ADMISSION if anchor cannot be resolved',
     dirtyDataRules: ['anchor not found in source manuscript', 'diagnostic field empty or placeholder', 'Ready item missing exact A/B/C prose', 'generic or malformed candidate prose', 'mode contract missing'],
     retryBudget: 1,
-    failureCodes: ['WORKBENCH_ANCHOR_UNRESOLVABLE', 'WORKBENCH_DIAGNOSTIC_INCOMPLETE', 'WORKBENCH_MODE_CONTRACT_MISSING', 'WORKBENCH_HYDRATION_FAILED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['WORKBENCH_ANCHOR_UNRESOLVABLE', 'WORKBENCH_DIAGNOSTIC_INCOMPLETE', 'WORKBENCH_MODE_CONTRACT_MISSING', 'WORKBENCH_HYDRATION_FAILED']),
     consumers: ['RS05_CANDIDATE_GENERATION', 'RS06_AUTHOR_DECISION'],
     uiExposed: true,
     certificationStatus: 'emerging',
@@ -296,7 +296,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS04_WORKBENCH_LOAD if generation fails',
     dirtyDataRules: ['candidate_text = original_text', 'empty candidate_text', 'voice gate violation', 'canon gate violation', 'missing mechanism or rationale'],
     retryBudget: 1,
-    failureCodes: ['CANDIDATE_GENERATION_FAILED', 'CANDIDATE_VOICE_GATE_FAIL', 'CANDIDATE_CANON_GATE_FAIL', 'CANDIDATE_EMPTY', 'CANDIDATE_DUPLICATES_ORIGINAL'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['CANDIDATE_GENERATION_FAILED', 'CANDIDATE_VOICE_GATE_FAIL', 'CANDIDATE_CANON_GATE_FAIL', 'CANDIDATE_EMPTY', 'CANDIDATE_DUPLICATES_ORIGINAL']),
     consumers: ['RS06_AUTHOR_DECISION', 'RS09_CROSSCHECK_VERIFICATION'],
     uiExposed: true,
     certificationStatus: 'partial',
@@ -322,7 +322,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'none (author may re-decide before sync)',
     dirtyDataRules: ['non-canonical decision value', 'missing opportunity_id', 'custom_text empty when decision=custom', 'undo without prior local_id'],
     retryBudget: 0,
-    failureCodes: ['DECISION_INVALID_VALUE', 'DECISION_MISSING_OPPORTUNITY', 'DECISION_CUSTOM_EMPTY'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['DECISION_INVALID_VALUE', 'DECISION_MISSING_OPPORTUNITY', 'DECISION_CUSTOM_EMPTY']),
     consumers: ['RS07_LEDGER_SYNC'],
     uiExposed: true,
     certificationStatus: 'partial',
@@ -348,7 +348,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS06_AUTHOR_DECISION if sync fails (client retries)',
     dirtyDataRules: ['non-canonical decision written to DB', 'duplicate local_id', 'missing opportunity_id on write', 'undo without undone_local_id'],
     retryBudget: 3,
-    failureCodes: ['LEDGER_SYNC_VALIDATION_FAIL', 'LEDGER_SYNC_DB_ERROR', 'LEDGER_SYNC_DUPLICATE_LOCAL_ID'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['LEDGER_SYNC_VALIDATION_FAIL', 'LEDGER_SYNC_DB_ERROR', 'LEDGER_SYNC_DUPLICATE_LOCAL_ID']),
     consumers: ['RS08_COMPLETION', 'RS10_TRUSTEDPATH'],
     uiExposed: false,
     certificationStatus: 'partial',
@@ -374,7 +374,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS07_LEDGER_SYNC if uncommitted decisions remain',
     dirtyDataRules: ['completion certified with pending sync', 'completion_type non-canonical', 'decided_count < total_ready'],
     retryBudget: 0,
-    failureCodes: ['COMPLETION_PREMATURE', 'COMPLETION_PENDING_SYNC', 'COMPLETION_CERT_INVALID'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['COMPLETION_PREMATURE', 'COMPLETION_PENDING_SYNC', 'COMPLETION_CERT_INVALID']),
     consumers: ['RS10_TRUSTEDPATH'],
     uiExposed: true,
     certificationStatus: 'certified',
@@ -400,7 +400,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS06_AUTHOR_DECISION (flag/reject remain in manual review)',
     dirtyDataRules: ['non-canonical verdict value', 'cross-check modifies repair text (forbidden)', 'content hash mismatch on cache hit'],
     retryBudget: 2,
-    failureCodes: ['CROSSCHECK_TIMEOUT', 'CROSSCHECK_INVALID_VERDICT', 'CROSSCHECK_HASH_MISMATCH', 'CROSSCHECK_UNAVAILABLE'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['CROSSCHECK_TIMEOUT', 'CROSSCHECK_INVALID_VERDICT', 'CROSSCHECK_HASH_MISMATCH', 'CROSSCHECK_UNAVAILABLE']),
     consumers: ['RS10_TRUSTEDPATH'],
     uiExposed: false,
     certificationStatus: 'partial',
@@ -426,7 +426,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
     backwardKick: 'RS06_AUTHOR_DECISION for skipped items',
     dirtyDataRules: ['applying non-approve verdict', 'mutating source manuscript text', 'applying to already-decided finding', 'unauthenticated call'],
     retryBudget: 1,
-    failureCodes: ['TRUSTEDPATH_UNAUTHENTICATED', 'TRUSTEDPATH_INELIGIBLE_VERDICT', 'TRUSTEDPATH_ALREADY_DECIDED', 'TRUSTEDPATH_LEDGER_WRITE_FAIL'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['TRUSTEDPATH_UNAUTHENTICATED', 'TRUSTEDPATH_INELIGIBLE_VERDICT', 'TRUSTEDPATH_ALREADY_DECIDED', 'TRUSTEDPATH_LEDGER_WRITE_FAIL']),
     consumers: ['RS08_COMPLETION'],
     uiExposed: true,
     certificationStatus: 'partial',
@@ -437,7 +437,7 @@ const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
 
 export const REVISE_PROCESS_REGISTRY: readonly ReviseStage[] = REVISE_PROCESS_REGISTRY_SOURCE.map((stage) => ({
   ...stage,
-  failureDefinitions: getFailureRecoveryDefinitionsForCodes(stage.failureCodes),
+  failureCodes: stage.failureDefinitions.map((definition) => definition.failureCode),
 }));
 
 // ─── Artifact Registry ───────────────────────────────────────────────────────

@@ -187,6 +187,12 @@ describe('Revise Registry — process registry', () => {
     expect(stage!.notes).toContain('fixStrategy=fixDirection');
     expect(stage!.notes).toContain('readerImpact=readerEffect');
   });
+
+  test('failureCodes are derived from stage-owned failureDefinitions', () => {
+    for (const stage of REVISE_PROCESS_REGISTRY) {
+      expect(stage.failureCodes).toEqual(stage.failureDefinitions.map((definition) => definition.failureCode));
+    }
+  });
 });
 
 describe('Revise Registry — artifact registry', () => {
