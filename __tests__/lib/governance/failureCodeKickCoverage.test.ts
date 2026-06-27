@@ -27,6 +27,26 @@ type FamilyAudit = {
   kickCodeField: string;
   expectedUnmappedFailureCodes: readonly string[];
   expectedKickRowsWithoutStageFailureCode?: readonly string[];
+  expectedClassificationCounts: FailureCodeClassificationCounts;
+};
+
+type FailureCodeClassification =
+  | 'release-blocking'
+  | 'author-facing'
+  | 'persistence'
+  | 'certification/governance'
+  | 'terminal/expected'
+  | 'diagnostic-only';
+
+type FailureCodeClassificationCounts = Record<FailureCodeClassification, number>;
+
+const EMPTY_CLASSIFICATION_COUNTS: FailureCodeClassificationCounts = {
+  'release-blocking': 0,
+  'author-facing': 0,
+  persistence: 0,
+  'certification/governance': 0,
+  'terminal/expected': 0,
+  'diagnostic-only': 0,
 };
 
 function uniqueSorted(values: readonly string[]): string[] {
@@ -43,6 +63,42 @@ function kickCodes(kicks: readonly KickLike[], kickCodeField: string): string[] 
       .map((kick) => kick[kickCodeField])
       .filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
   );
+}
+
+function classifyUnmappedFailureCode(code: string): FailureCodeClassification[] {
+  const classifications = new Set<FailureCodeClassification>();
+
+  if (/^(PHASE5|VIEWMODEL|DOWNLOAD_PARITY|EVALUATION_ARTIFACT|EVALUATION_GATE|FINAL_AUDIT|GOLDEN_SPINE|AUTHORITY|PHASE0|CANONICAL|ELIGIBILITY|RIGHTS_GATE|ACCESS_CONTROL|PRIVATE_LISTING|PACKAGE|COMPLETION_CERT|TRUSTEDPATH_LEDGER_WRITE|LEDGER_SYNC_DB|DB_WRITE|DB_|ACCESS_LOG_WRITE|REVOCATION|VERIFICATION_STATE)/.test(code)) {
+    classifications.add('release-blocking');
+  }
+  if (/(AUTHOR|DOWNLOAD|HANDOFF|REC_|REVISE|AGENT|VIEWMODEL|STORYGATE|ACCESS|LISTING|SECTION|MISSING_SECTIONS|QUALITY_GATE|PLACEHOLDER|PRIVATE_LISTING|RIGHTS|ELIGIBILITY)/.test(code)) {
+    classifications.add('author-facing');
+  }
+  if (/(DB|RPC|WRITE|PERSIST|SYNC|CLAIM|LEASE|REVOCATION|ACCESS_LOG|HISTORY|NOT_CREATED|NOT_FOUND)/.test(code)) {
+    classifications.add('persistence');
+  }
+  if (/(CERT|CANON|AUTHORITY|AUDIT|GATE|GOVERNANCE|PHASE|QG_|DREAM|WAVE|GOLDEN|TEMPLATE|VIEWMODEL|ELIGIBILITY|VERIFICATION|RIGHTS_GATE|EQUIVALENT)/.test(code)) {
+    classifications.add('certification/governance');
+  }
+  if (/^(400|401|403|413|429|500)$|TIMEOUT|EMPTY|NOT_FOUND|ALREADY|UNAUTHENTICATED|UNAVAILABLE|INVALID|MISSING_TIER|NON_CANONICAL|DECISION_CUSTOM_EMPTY|TERMINAL|PENDING|NO_CHUNKS|NO_EVAL_RESULT|NO_PACKAGE_HISTORY|SECTION_NOT_FOUND/.test(code)) {
+    classifications.add('terminal/expected');
+  }
+  if (/(DIAGNOSTIC|LOW_COVERAGE|SCHEMA|SCORE_RANGE|DUPLICATE|GENERIC|QUALITY_TECHNICAL|CROSSCHECK|VOICE|CANDIDATE|WORKBENCH|QUEUE|PASS\d|SEED|DREAM|WAVE|REVIEW_GATE|QG_|REC_INTEGRITY|FIDELITY|INDEPENDENCE|CRITERION|PLACEHOLDER|SCAFFOLD|MODAL)/.test(code)) {
+    classifications.add('diagnostic-only');
+  }
+  if (classifications.size === 0) classifications.add('diagnostic-only');
+
+  return [...classifications].sort();
+}
+
+function classificationCounts(codes: readonly string[]): FailureCodeClassificationCounts {
+  const counts = { ...EMPTY_CLASSIFICATION_COUNTS };
+  for (const code of codes) {
+    for (const classification of classifyUnmappedFailureCode(code)) {
+      counts[classification] += 1;
+    }
+  }
+  return counts;
 }
 
 const EVALUATION_UNMAPPED_FAILURE_CODES = [
@@ -178,6 +234,14 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     kicks: KICK_MATRIX,
     kickCodeField: 'failureCode',
     expectedUnmappedFailureCodes: EVALUATION_UNMAPPED_FAILURE_CODES,
+    expectedClassificationCounts: {
+      'release-blocking': 16,
+      'author-facing': 20,
+      persistence: 5,
+      'certification/governance': 29,
+      'terminal/expected': 18,
+      'diagnostic-only': 34,
+    },
   },
   {
     family: 'Revise',
@@ -185,6 +249,14 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     kicks: REVISE_KICK_MATRIX,
     kickCodeField: 'kickCode',
     expectedUnmappedFailureCodes: REVISE_UNMAPPED_FAILURE_CODES,
+    expectedClassificationCounts: {
+      'release-blocking': 3,
+      'author-facing': 0,
+      persistence: 4,
+      'certification/governance': 2,
+      'terminal/expected': 10,
+      'diagnostic-only': 18,
+    },
   },
   {
     family: 'Agent Readiness',
@@ -193,6 +265,14 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     kickCodeField: 'kickCode',
     expectedUnmappedFailureCodes: AGENT_READINESS_UNMAPPED_FAILURE_CODES,
     expectedKickRowsWithoutStageFailureCode: ['CREATOR_APPROVAL_REQUIRED'],
+    expectedClassificationCounts: {
+      'release-blocking': 1,
+      'author-facing': 3,
+      persistence: 3,
+      'certification/governance': 1,
+      'terminal/expected': 3,
+      'diagnostic-only': 0,
+    },
   },
   {
     family: 'Storygate',
@@ -200,6 +280,14 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     kicks: STORYGATE_KICK_MATRIX,
     kickCodeField: 'kickCode',
     expectedUnmappedFailureCodes: STORYGATE_UNMAPPED_FAILURE_CODES,
+    expectedClassificationCounts: {
+      'release-blocking': 7,
+      'author-facing': 9,
+      persistence: 3,
+      'certification/governance': 8,
+      'terminal/expected': 4,
+      'diagnostic-only': 1,
+    },
   },
 ];
 
@@ -224,5 +312,27 @@ describe('failure-code → kick-matrix coverage audit', () => {
 
     expect(totalUnmapped).toBeGreaterThan(0);
     expect(totalUnmapped).toBe(114);
+  });
+
+  test.each(FAMILY_AUDITS)('$family unmapped failure codes have severity/risk classification counts', (audit) => {
+    const failures = stageFailureCodes(audit.stages);
+    const kicks = new Set(kickCodes(audit.kicks, audit.kickCodeField));
+    const unmapped = failures.filter((code) => !kicks.has(code));
+
+    expect(classificationCounts(unmapped)).toEqual(audit.expectedClassificationCounts);
+  });
+
+  test('high-risk unmapped classifications remain visible before Phase 5B', () => {
+    const totals = FAMILY_AUDITS.reduce<FailureCodeClassificationCounts>((acc, audit) => {
+      for (const [classification, count] of Object.entries(audit.expectedClassificationCounts) as Array<[FailureCodeClassification, number]>) {
+        acc[classification] += count;
+      }
+      return acc;
+    }, { ...EMPTY_CLASSIFICATION_COUNTS });
+
+    expect(totals['release-blocking']).toBe(27);
+    expect(totals['author-facing']).toBe(32);
+    expect(totals.persistence).toBe(15);
+    expect(totals['certification/governance']).toBe(40);
   });
 });
