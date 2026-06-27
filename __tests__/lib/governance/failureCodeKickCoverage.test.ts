@@ -454,3 +454,73 @@ describe('failure-code → kick-matrix coverage audit', () => {
     expect(totals['certification/governance']).toBe(34);
   });
 });
+
+describe('governance must not over-block runtime flow', () => {
+  // All kick codes across every family — used in multiple assertions below.
+  const allKickCodes = new Set<string>([
+    ...KICK_MATRIX.map((k) => k.failureCode).filter((c): c is string => typeof c === 'string' && c.length > 0),
+    ...REVISE_KICK_MATRIX.map((k) => (k as Record<string, unknown>)['kickCode']).filter((c): c is string => typeof c === 'string' && c.length > 0),
+    ...AGENT_READINESS_KICK_MATRIX.map((k) => (k as Record<string, unknown>)['kickCode']).filter((c): c is string => typeof c === 'string' && c.length > 0),
+    ...STORYGATE_KICK_MATRIX.map((k) => (k as Record<string, unknown>)['kickCode']).filter((c): c is string => typeof c === 'string' && c.length > 0),
+  ]);
+
+  test('log_only failure count is locked — any addition requires explicit review', () => {
+    const logOnlyDefinitions = FAILURE_RECOVERY_DEFINITIONS.filter(
+      (definition) => definition.recoveryPolicy.mode === 'log_only',
+    );
+    expect(logOnlyDefinitions).toHaveLength(5);
+  });
+
+  test('log_only failures never block finalization: passive_observability escalation, zero retries', () => {
+    for (const definition of FAILURE_RECOVERY_DEFINITIONS) {
+      if (definition.recoveryPolicy.mode === 'log_only') {
+        expect(definition.recoveryPolicy.escalation).toBe('passive_observability');
+        expect(definition.recoveryPolicy.retryLimit).toBe(0);
+        expect(definition.recoveryPolicy.authorExposure).toBe(true);
+        expect(definition.recoveryPolicy.checkpointArtifact).toBeNull();
+      }
+    }
+  });
+
+  test('log_only failures are never kick-mapped — a kick would contradict passive observability', () => {
+    const logOnlyCodes = new Set(
+      FAILURE_RECOVERY_DEFINITIONS
+        .filter((definition) => definition.recoveryPolicy.mode === 'log_only')
+        .map((definition) => definition.failureCode),
+    );
+    for (const kickCode of allKickCodes) {
+      expect(logOnlyCodes.has(kickCode)).toBe(false);
+    }
+  });
+
+  test('terminal_block failures have zero retries and stop cleanly — no redo', () => {
+    for (const definition of FAILURE_RECOVERY_DEFINITIONS) {
+      if (definition.recoveryPolicy.mode === 'terminal_block') {
+        expect(definition.recoveryPolicy.retryLimit).toBe(0);
+        expect(definition.recoveryPolicy.escalation).toBe('terminal_block');
+        expect(definition.recoveryPolicy.checkpointArtifact).toBeNull();
+      }
+    }
+  });
+
+  test('retry_then_terminal_block failures retry exactly once then stop — no redo loop', () => {
+    for (const definition of FAILURE_RECOVERY_DEFINITIONS) {
+      if (definition.recoveryPolicy.mode === 'retry_then_terminal_block') {
+        expect(definition.recoveryPolicy.retryLimit).toBe(1);
+        expect(definition.recoveryPolicy.escalation).toBe('terminal_block_after_retry');
+        expect(definition.recoveryPolicy.checkpointArtifact).toBeNull();
+      }
+    }
+  });
+
+  test('only rollback_to_certified_checkpoint failures are kick-mapped — no terminal or log failure triggers redo', () => {
+    const nonRollbackCodes = new Set(
+      FAILURE_RECOVERY_DEFINITIONS
+        .filter((definition) => definition.recoveryPolicy.mode !== 'rollback_to_certified_checkpoint')
+        .map((definition) => definition.failureCode),
+    );
+    for (const kickCode of allKickCodes) {
+      expect(nonRollbackCodes.has(kickCode)).toBe(false);
+    }
+  });
+});
