@@ -55,10 +55,10 @@ Validation Asset
 
 ## Current critical gaps and active constraints captured
 
-1. `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` is planned-required / missing-critical until runtime certification is fully enforced.
-2. `S10c_VIEWMODEL_BOUNDARY_GATE` is active: evaluation renderers must consume `evaluation_report_view_model_v1` for author-facing report content.
+1. `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` is proven/active: runtime certification is enforced by `authorExposureCertification.ts`, `reportRenderParity.ts`, and constitutional registry / DCIP loading.
+2. `S10c_VIEWMODEL_BOUNDARY_GATE` is proven/active: evaluation renderers must consume `evaluation_report_view_model_v1` for author-facing report content.
 3. Web/PDF/DOCX/TXT renderers must format only; they must not recalculate report type, score, genre, criteria, confidence, warnings, pitch, premise, opportunity counts, or entity names.
-4. Revise must consume `revision_opportunity_ledger_v1`; it must not consume `evaluation_report_view_model_v1`.
+4. Revise must consume `revision_opportunity_ledger_v1`; it must not consume `evaluation_report_view_model_v1`. The Revise ledger quality manifest carries DCIP compliance and constitutional authority registry status inherited from certified Evaluation context.
 5. Agent Readiness must consume certified UED + certified ledger + certified decisions; it must not consume `evaluation_report_view_model_v1`.
 6. Gate 15 / final audit / dialogue canon failures must block author exposure when configured as blocking.
 7. WAVE, DREAM, Canon Governance, and Final External Audit are active production stages where configured, but DREAM and benchmarks remain validation assets only — not template or runtime authority.

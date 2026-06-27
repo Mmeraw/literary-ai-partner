@@ -228,10 +228,10 @@ Reason: the entire downstream pipeline quality depends on seed completeness and 
 | EvaluationResultV2 normalization | `S08_ER2_NORMALIZATION` | Pipeline adapter / observability normalization | `S09_QUALITYGATEV2` | High-risk |
 | QualityGateV2 | `S09_QUALITYGATEV2` | Deterministic gate engine | `S10_PERSISTENCE` | Partial |
 | Persistence | `S10_PERSISTENCE` | Atomic persistence layer | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Partial |
-| Phase 5 Author Exposure Gate | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Evaluation templates + `UnifiedEvaluationDocument` + renderer manifest + audits | `S10c_VIEWMODEL_BOUNDARY_GATE`, `ADJACENT_REVISION_LEDGER` | Missing Critical |
+| Phase 5 Author Exposure Gate | `S10b_PHASE5_AUTHOR_EXPOSURE_GATE` | Evaluation templates + `UnifiedEvaluationDocument` + renderer manifest + audits + constitutional authority registry | `S10c_VIEWMODEL_BOUNDARY_GATE`, `ADJACENT_REVISION_LEDGER` | Proven |
 | ViewModel Boundary Gate | `S10c_VIEWMODEL_BOUNDARY_GATE` | Phase 5-certified `UnifiedEvaluationDocument` + Contract Registry | `S11a_RENDERER_WEBPAGE`, `S11b_DOWNLOAD_PIPELINE` | Active |
-| Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | `evaluation_report_view_model_v1` (from ViewModel Boundary Gate) | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Partial |
-| Download Pipeline | `S11b_DOWNLOAD_PIPELINE` | `evaluation_report_view_model_v1` + format renderers (PDF/DOCX/TXT) | End user (downloaded files) | Emerging |
+| Renderer (Webpage) | `S11a_RENDERER_WEBPAGE` | `evaluation_report_view_model_v1` (from ViewModel Boundary Gate) | End user / admin, `S11b_DOWNLOAD_PIPELINE`, `ADJACENT_REVISE` | Proven |
+| Download Pipeline | `S11b_DOWNLOAD_PIPELINE` | `evaluation_report_view_model_v1` + format renderers (PDF/DOCX/TXT) | End user (downloaded files) | Proven |
 | WAVE Revision Planning | `ADJACENT_WAVE` | Pass 3 synthesis + evaluation_result_v2 | Canon Governance, DREAM, Revise | Active — Partial |
 | Canon Governance Runner | `ADJACENT_CANON_GOVERNANCE` | Manuscript + evaluation_result_v2 criteria | DREAM, Final Audit | Active — Partial |
 | DREAM Long-Form Synthesis | `ADJACENT_DREAM` | Manuscript chunks + evaluation_result_v2 | Final External Audit, End user | Active — Partial |
@@ -523,7 +523,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Spec refs:** `docs/JOB_CONTRACT_v1.md`, `docs/NOMENCLATURE_CANON_v1.md`
 - **Runtime refs:** `app/api/jobs/route.ts`, `app/api/evaluate/route.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
-- **Certification status:** Partial
+- **Certification status:** Proven
 
 ### `S02_QUEUE` — Queue
 
@@ -599,7 +599,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Spec refs:** `docs/EVALUATION_CRITICAL_FILE_PATH.md`
 - **Runtime refs:** `lib/manuscripts/chunking.ts`, `app/api/admin/pipeline-health/route.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
-- **Certification status:** Emerging
+- **Certification status:** Proven
 
 ### `S05_PASS1` — Pass 1
 
@@ -801,7 +801,9 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Process / runtime code surface:**
   - `lib/evaluation/unifiedEvaluationDocument.ts`
   - `lib/evaluation/reportHeaderPolicy.ts`
-  - planned: `lib/evaluation/authorExposureCertification.ts`
+  - `lib/evaluation/authorExposureCertification.ts` (active certification enforcement)
+  - `lib/evaluation/reportRenderParity.ts` (render manifest + certification evidence)
+  - `lib/evaluation/dreamTemplateLoader.ts` (constitutional authority registry / DCIP loading)
 - **Output:** `unified_evaluation_document_v1` + `author_exposure_certification_v1` + `report_render_manifest_v1`
 - **Output acceptance metrics:**
   - active template path persisted in the render manifest
@@ -817,11 +819,11 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Required evidence artifact:** `author_exposure_certification_v1`, `report_render_manifest_v1`, `unified_evaluation_document_v1`
 - **Authority sources:** constitutional authority registry, three evaluation templates, evaluation rendering contract, DREAM long-form specs, DREAM benchmark index, GOLD standard recommendation/exemplar docs
 - **Authority priority:** Evaluation Templates > SIPOC > Spec > Runtime > Telemetry
-- **Certification status:** Missing Critical
+- **Certification status:** Proven
 
 ### `S10c_VIEWMODEL_BOUNDARY_GATE` — ViewModel Boundary Gate
 
-- **Supplier:** Phase 5-certified `UnifiedEvaluationDocument` + Contract Registry
+- **Supplier:** Phase 5-certified `UnifiedEvaluationDocument` + active evaluation contract registry
 - **Input:** `unified_evaluation_document_v1` (Phase 5-certified) + active `EvaluationContract` from registry
 - **Input acceptance metrics:**
   - `UnifiedEvaluationDocument` present and Phase 5-certified
@@ -925,12 +927,12 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
   - Render parity gate validates output before format rendering proceeds
   - Download rejected if contamination remains after VM normalization
   - Download rejected if render parity gate fails
-- **Failure codes:** `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
-- **Required telemetry:** sanitizer pass/fail + patterns cleaned, parity gate pass/fail, format render timing
-- **Required evidence artifact:** pre-sanitization snapshot + post-sanitization diff + parity gate diagnostic
+- **Failure codes:** `VIEWMODEL_BOUNDARY_CONTAMINATION`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
+- **Required telemetry:** ViewModel boundary pass/fail, render parity pass/fail, format render timing
+- **Required evidence artifact:** `evaluation_report_view_model_v1` source marker + `report_render_manifest_v1` parity diagnostic
 - **Canon refs:** Runtime Doctrine #11/#12, Volume III fail-closed governance
-- **Spec refs:** `docs/forensics/SISTER_FORENSIC_PIPELINE_MAP.md` (Stage 12–15)
-- **Runtime refs:** `lib/evaluation/downloadReadTimeSanitizer.ts`, `lib/evaluation/downloadParityGate.ts`
+- **Spec refs:** `docs/SIPOC_EVALUATION_VM_BOUNDARY_ADDENDUM.md`, `docs/templates/evaluation/surface-parity-matrix.md`
+- **Runtime refs:** `app/api/reports/[jobId]/download/route.ts`, `lib/evaluation/evaluationReportViewModel.ts`, `lib/evaluation/reportRenderParity.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Emerging
 
@@ -947,7 +949,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 | Deterministic quality gate | gate failures block downstream persistence | S09 |
 | Persist fail-closed | no artifact write after gate or validation fail | S10 |
 | Releasable read path | only releasable outputs are rendered | S11a |
-| Download evidence preservation | `anchor_snippet` and `evidence_snippets[*].snippet` byte-for-byte identical before/after sanitization | S11b |
+| Download evidence preservation | `anchor_snippet` and `evidence_snippets[*].snippet` byte-for-byte identical from certified UED through ViewModel and renderer output | S10c–S11b |
 | Download parity | overall score, criteria scores, rec count, executive summary identical across webpage/PDF/DOCX/TXT | S11a–S11b |
 | WAVE derivation non-empty | `derived_wave_ids` is non-empty when Pass 3 findings contain ≥1 criterion with score ≤9 | ADJACENT_WAVE |
 | WAVE score-aware selection | score-10 criteria produce continuity audit waves only; score ≤7 produce full structural bridge | ADJACENT_WAVE |
@@ -993,7 +995,7 @@ This registry indexes active runtime families used along the evaluation certific
 - Revise admission failures: `REVISE_ADMISSION_FAILED`, `REVISE_QUEUE_EMPTY`, `REVISE_EVIDENCE_MISSING`, `REVISE_ABC_NOT_PROSE`, `REVISE_AUTHOR_DECISION_NOT_PERSISTED`
 - Handoff gate failures: `HANDOFF_SCAFFOLD_RESIDUE`, `HANDOFF_INCOMPLETE_SENTENCE`, `HANDOFF_BROKEN_MODAL`, `HANDOFF_GENERIC_LANGUAGE`, `HANDOFF_MISSING_EVIDENCE_ANCHOR`
 - ViewModel boundary failures: `VIEWMODEL_BOUNDARY_VIOLATION`, `VIEWMODEL_CONTRACT_RESOLUTION_FAILED`, `VIEWMODEL_SANITIZATION_FAILED`, `RENDER_PARITY_FAILED`
-- Download pipeline failures: `DOWNLOAD_SANITIZER_FAILED`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
+- Download pipeline failures: `VIEWMODEL_BOUNDARY_CONTAMINATION`, `DOWNLOAD_PARITY_FAILED`, `DOWNLOAD_RENDER_FAILED`, `DOWNLOAD_FORMAT_UNSUPPORTED`
 - Recommendation integrity failures: `REC_INTEGRITY_MALFORMED`, `REC_INTEGRITY_GENERIC`, `REC_INTEGRITY_NO_EVIDENCE`
 - WAVE failures: `WAVE_DERIVATION_EMPTY`, `WAVE_EXECUTION_TIMEOUT`, `WAVE_PLAN_FAILED`
 - Canon Governance failures: `GATE15_EXECUTION_FAILED`, `GATE15_TIMEOUT`, `GOLDEN_SPINE_EXECUTION_FAILED`, `GOLDEN_SPINE_TIMEOUT`, `DIALOGUE_CANON_EXECUTION_FAILED`, `DIALOGUE_CANON_TIMEOUT`, `REVISION_CANON_METADATA_FAILED`

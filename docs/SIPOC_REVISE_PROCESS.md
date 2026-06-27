@@ -56,7 +56,7 @@ AGENT READINESS FACTORY   (docs/SIPOC_AGENT_READINESS_PROCESS.md)
 ```
 Certified UED
     ↓
-revision_opportunity_ledger_v1   (bridge from Evaluation)
+revision_opportunity_ledger_v1   (bridge from Evaluation; includes DCIP compliance + constitutional authority status in quality_manifest)
     ↓
 REVISE_ADMISSION_GATE            (validates ledger backing, card contract, evidence anchors)
     ↓
@@ -79,6 +79,13 @@ Every queue item in `workbench_queue_v1` MUST contain:
 - `evaluation_job_id` — the evaluation job that produced the evidence
 
 No queue item may exist without ledger provenance. This is enforced by `REVISE_LEDGER_TRACEABILITY_GATE`.
+
+The source `revision_opportunity_ledger_v1` quality manifest MUST also carry:
+
+- `dcip_compliance` — inherited from certified Evaluation context and passing before Ready admission
+- `constitutional_authority_registry` — status of required constitutional authorities loaded through `docs/governance/CONSTITUTIONAL_AUTHORITY_REGISTRY.md`
+
+Revise consumes this constitutional context as provenance only. It must not reinterpret DCIP or create an alternative authority chain.
 
 ---
 
