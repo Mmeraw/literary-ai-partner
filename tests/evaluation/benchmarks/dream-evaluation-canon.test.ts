@@ -13,6 +13,7 @@ import { PASS3B_SYSTEM_PROMPT } from '@/lib/evaluation/pipeline/prompts/pass3b-l
 
 const REPO_ROOT = process.cwd();
 const TEMPLATE_DIR = join(REPO_ROOT, 'docs/templates/evaluation');
+const BENCHMARK_DIR = join(REPO_ROOT, 'docs/benchmarks');
 
 const CANONICAL_TEMPLATE_PATHS = [
   'short-form-evaluation-template.md',
@@ -22,6 +23,10 @@ const CANONICAL_TEMPLATE_PATHS = [
 
 function readTemplate(fileName: string): string {
   return readFileSync(join(TEMPLATE_DIR, fileName), 'utf8');
+}
+
+function readBenchmark(fileName: string): string {
+  return readFileSync(join(BENCHMARK_DIR, fileName), 'utf8');
 }
 
 describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () => {
@@ -128,5 +133,16 @@ describe('DREAM evaluation canon — short, long, and multi-layer surfaces', () 
     expect(PASS3B_SYSTEM_PROMPT).toContain('Let the River Decide');
     expect(PASS3B_SYSTEM_PROMPT).toContain('Return to the Source');
     expect(PASS3B_SYSTEM_PROMPT).toContain('Native long-form multi-layer benchmarks');
+  });
+
+  it('locks native benchmark role canon in the documented benchmark index README', () => {
+    const benchmarkReadme = readBenchmark('README.md');
+
+    expect(benchmarkReadme).toContain('Cartel Babies');
+    expect(benchmarkReadme).toContain('primary product exemplar');
+    expect(benchmarkReadme).toContain('primary required-gold Story Ledger exemplar');
+    expect(benchmarkReadme).toContain('Froggin Noggin` remains a required-gold DREAM benchmark');
+    expect(benchmarkReadme).toContain('Let the River Decide` remains calibration-tier');
+    expect(benchmarkReadme).toContain('When a single code or test example is needed, prefer `Cartel Babies`');
   });
 });
