@@ -284,8 +284,8 @@ describe('Revise Registry — field registry', () => {
 });
 
 describe('Revise Registry — kick matrix', () => {
-  test('has 12 kick codes', () => {
-    expect(REVISE_KICK_MATRIX).toHaveLength(12);
+  test('has 14 kick codes', () => {
+    expect(REVISE_KICK_MATRIX).toHaveLength(14);
   });
 
   test('REVISE_HANDOFF_RENDERER_OUTPUT_INVALID kicks back to the ViewModel boundary', () => {
@@ -303,10 +303,28 @@ describe('Revise Registry — kick matrix', () => {
     expect(kick!.severity).toBe('blocking');
   });
 
+  test('LEDGER_SYNC_DB_ERROR is a blocking persistence kick', () => {
+    const kick = REVISE_KICK_MATRIX.find((k) => k.kickCode === 'LEDGER_SYNC_DB_ERROR');
+    expect(kick).toBeDefined();
+    expect(kick!.triggeringStageId).toBe('RS07_LEDGER_SYNC');
+    expect(kick!.targetStageId).toBe('RS06_AUTHOR_DECISION');
+    expect(kick!.blocksAuthorExposure).toBe(true);
+    expect(kick!.severity).toBe('blocking');
+  });
+
   test('DECISION_INVALID_VALUE is a blocking kick', () => {
     const kick = REVISE_KICK_MATRIX.find((k) => k.kickCode === 'DECISION_INVALID_VALUE');
     expect(kick).toBeDefined();
     expect(kick!.blocksAuthorExposure).toBe(true);
+  });
+
+  test('TRUSTEDPATH_LEDGER_WRITE_FAIL is a blocking TrustedPath persistence kick', () => {
+    const kick = REVISE_KICK_MATRIX.find((k) => k.kickCode === 'TRUSTEDPATH_LEDGER_WRITE_FAIL');
+    expect(kick).toBeDefined();
+    expect(kick!.triggeringStageId).toBe('RS10_TRUSTEDPATH');
+    expect(kick!.targetStageId).toBe('RS07_LEDGER_SYNC');
+    expect(kick!.blocksAuthorExposure).toBe(true);
+    expect(kick!.severity).toBe('blocking');
   });
 
   test('all triggeringStageIds reference registered stages', () => {

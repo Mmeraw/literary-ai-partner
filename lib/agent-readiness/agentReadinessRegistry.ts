@@ -824,6 +824,15 @@ export const AGENT_READINESS_KICK_MATRIX: readonly AgentReadinessKickEntry[] = [
     httpStatus: 422,
   },
   {
+    kickCode: 'QUALITY_GATE_NOT_PASSED',
+    detectedAt: 'AR08_EXPORT',
+    description: 'Package assembly attempted from sections that failed quality gate requirements.',
+    blocking: true,
+    blocksPackageAssembly: true,
+    remediation: 'Regenerate failed sections and pass AR03 quality gate before package export.',
+    httpStatus: 422,
+  },
+  {
     kickCode: 'CREATOR_APPROVAL_REQUIRED',
     detectedAt: 'AR08_EXPORT',
     description: 'Storygate submission attempted without explicit approved creator_approval_v1 artifact.',
@@ -831,6 +840,15 @@ export const AGENT_READINESS_KICK_MATRIX: readonly AgentReadinessKickEntry[] = [
     blocksPackageAssembly: false,
     remediation: 'Creator must explicitly approve the Agent Readiness package before Storygate submission.',
     httpStatus: 422,
+  },
+  {
+    kickCode: 'DB_WRITE_FAILURE',
+    detectedAt: 'AR04_SECTION_PERSISTENCE',
+    description: 'Section persistence write failed; package state cannot be certified from partial/non-durable data.',
+    blocking: true,
+    blocksPackageAssembly: true,
+    remediation: 'Retry persistence and surface system error (500). Do not proceed to export from non-durable section state.',
+    httpStatus: 500,
   },
   {
     kickCode: 'AGENT_PACKAGE_RENDERER_OUTPUT_INVALID',

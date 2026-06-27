@@ -746,6 +746,15 @@ export const REVISE_KICK_MATRIX: readonly ReviseKick[] = [
     severity: 'blocking',
   },
   {
+    kickCode: 'LEDGER_SYNC_DB_ERROR',
+    triggeringStageId: 'RS07_LEDGER_SYNC',
+    targetStageId: 'RS06_AUTHOR_DECISION',
+    triggerCondition: 'ledger sync persistence failed (database/system error) before durable decision write',
+    resolution: 'Throw and block progression; replay decision sync only after durable persistence succeeds.',
+    blocksAuthorExposure: true,
+    severity: 'blocking',
+  },
+  {
     kickCode: 'DECISION_INVALID_VALUE',
     triggeringStageId: 'RS06_AUTHOR_DECISION',
     targetStageId: 'RS06_AUTHOR_DECISION',
@@ -771,6 +780,15 @@ export const REVISE_KICK_MATRIX: readonly ReviseKick[] = [
     resolution: 'Route to manual author review; do not auto-apply',
     blocksAuthorExposure: false,
     severity: 'advisory',
+  },
+  {
+    kickCode: 'TRUSTEDPATH_LEDGER_WRITE_FAIL',
+    triggeringStageId: 'RS10_TRUSTEDPATH',
+    targetStageId: 'RS07_LEDGER_SYNC',
+    triggerCondition: 'TrustedPath apply path could not durably write ledger updates or completion state',
+    resolution: 'Abort apply and return to ledger sync for durable persistence; do not mark TrustedPath applied on partial writes.',
+    blocksAuthorExposure: true,
+    severity: 'blocking',
   },
   {
     kickCode: 'CROSSCHECK_INVALID_VERDICT',

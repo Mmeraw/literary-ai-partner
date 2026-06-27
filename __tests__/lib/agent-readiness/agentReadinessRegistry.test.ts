@@ -240,8 +240,8 @@ describe('AGENT_READINESS_FIELD_REGISTRY', () => {
 // ─── Kick Matrix ──────────────────────────────────────────────────────────────
 
 describe('AGENT_READINESS_KICK_MATRIX', () => {
-  test('has 13 kick codes', () => {
-    expect(AGENT_READINESS_KICK_MATRIX).toHaveLength(13);
+  test('has 15 kick codes', () => {
+    expect(AGENT_READINESS_KICK_MATRIX).toHaveLength(15);
   });
 
   test('all kick codes are unique', () => {
@@ -289,6 +289,23 @@ describe('AGENT_READINESS_KICK_MATRIX', () => {
     const kick = AGENT_READINESS_KICK_MATRIX.find((k) => k.kickCode === 'SECTIONS_NOT_ALL_APPROVED');
     expect(kick).toBeDefined();
     expect(kick!.blocksPackageAssembly).toBe(true);
+  });
+
+  test('QUALITY_GATE_NOT_PASSED blocks package assembly at export boundary', () => {
+    const kick = AGENT_READINESS_KICK_MATRIX.find((k) => k.kickCode === 'QUALITY_GATE_NOT_PASSED');
+    expect(kick).toBeDefined();
+    expect(kick!.detectedAt).toBe('AR08_EXPORT');
+    expect(kick!.blocksPackageAssembly).toBe(true);
+    expect(kick!.httpStatus).toBe(422);
+  });
+
+  test('DB_WRITE_FAILURE blocks package assembly on persistence failure', () => {
+    const kick = AGENT_READINESS_KICK_MATRIX.find((k) => k.kickCode === 'DB_WRITE_FAILURE');
+    expect(kick).toBeDefined();
+    expect(kick!.detectedAt).toBe('AR04_SECTION_PERSISTENCE');
+    expect(kick!.blocking).toBe(true);
+    expect(kick!.blocksPackageAssembly).toBe(true);
+    expect(kick!.httpStatus).toBe(500);
   });
 
   test('AGENT_PACKAGE_RENDERER_OUTPUT_INVALID blocks package assembly', () => {

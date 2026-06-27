@@ -219,6 +219,31 @@ describe('STORYGATE_KICK_MATRIX', () => {
     expect(kick?.description).toMatch(/uncertified Agent Readiness output/i);
     expect(kick?.description).toMatch(/AR08\/AR09 gaps/i);
   });
+
+  test('controlled-access authority kicks exist for rights, verification auditability, and bypass defense', () => {
+    const rights = STORYGATE_KICK_MATRIX.find((entry) => entry.kickCode === 'RIGHTS_GATE_FAILED');
+    const verificationAudit = STORYGATE_KICK_MATRIX.find((entry) => entry.kickCode === 'VERIFICATION_STATE_UNAUDITED');
+    const bypass = STORYGATE_KICK_MATRIX.find((entry) => entry.kickCode === 'ACCESS_CONTROL_BYPASS');
+
+    expect(rights).toEqual(expect.objectContaining({
+      detectedAt: 'SG06_READINESS_VERIFICATION',
+      blocking: true,
+      blocksControlledAccess: true,
+      httpStatus: 422,
+    }));
+    expect(verificationAudit).toEqual(expect.objectContaining({
+      detectedAt: 'SG07_INDUSTRY_VERIFICATION',
+      blocking: true,
+      blocksControlledAccess: true,
+      httpStatus: 500,
+    }));
+    expect(bypass).toEqual(expect.objectContaining({
+      detectedAt: 'SG12_ACCESS_LOGGING_REVOCATION',
+      blocking: true,
+      blocksControlledAccess: true,
+      httpStatus: 500,
+    }));
+  });
 });
 
 describe('Storygate downstream package authority boundary', () => {

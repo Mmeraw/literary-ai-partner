@@ -112,7 +112,6 @@ const EVALUATION_UNMAPPED_FAILURE_CODES = [
   'CLAIM_RPC_FAILED',
   'DB_WRITE_FAILED',
   'DOWNLOAD_FORMAT_UNSUPPORTED',
-  'DOWNLOAD_PARITY_FAILED',
   'DOWNLOAD_RENDER_FAILED',
   'DREAM_NO_CHUNKS',
   'DREAM_NO_EVAL_RESULT',
@@ -138,9 +137,7 @@ const EVALUATION_UNMAPPED_FAILURE_CODES = [
   'PASS3_TIMEOUT',
   'PHASE0_AUTHORITY_MISSING',
   'PHASE0_BASELINE_CHECKSUM_FAILED',
-  'PHASE5_MISSING_AUDIT',
   'PHASE5_SCORE_DRIFT',
-  'PHASE5_UNCERTIFIED_OUTPUT',
   'PIPELINE_INPUT_INVALID',
   'QG_CRITERIA_MISSING',
   'QG_DUPLICATE_REC',
@@ -164,7 +161,6 @@ const EVALUATION_UNMAPPED_FAILURE_CODES = [
   'REVISION_LEDGER_EMPTY',
   'SEED_AUTHORITY_PROOF_MISSING',
   'SEED_GENERATION_FAILED',
-  'VIEWMODEL_BOUNDARY_CONTAMINATION',
   'VIEWMODEL_SANITIZATION_INCOMPLETE',
   'WAVE_EXECUTION_TIMEOUT',
   'WAVE_PLAN_FAILED',
@@ -186,13 +182,11 @@ const REVISE_UNMAPPED_FAILURE_CODES = [
   'LEDGER_ASSEMBLY_FAILED',
   'LEDGER_CRITERION_MISSING',
   'LEDGER_EMPTY',
-  'LEDGER_SYNC_DB_ERROR',
   'LEDGER_SYNC_DUPLICATE_LOCAL_ID',
   'QUEUE_ASSEMBLY_FAILED',
   'QUEUE_EMPTY_AFTER_ADMISSION',
   'QUEUE_OVERCAP',
   'TRUSTEDPATH_ALREADY_DECIDED',
-  'TRUSTEDPATH_LEDGER_WRITE_FAIL',
   'TRUSTEDPATH_UNAUTHENTICATED',
   'WORKBENCH_DIAGNOSTIC_INCOMPLETE',
   'WORKBENCH_HYDRATION_FAILED',
@@ -200,16 +194,13 @@ const REVISE_UNMAPPED_FAILURE_CODES = [
 ] as const;
 
 const AGENT_READINESS_UNMAPPED_FAILURE_CODES = [
-  'DB_WRITE_FAILURE',
   'GENERATION_TIMEOUT',
   'MISSING_SECTIONS',
   'NO_PACKAGE_HISTORY',
-  'QUALITY_GATE_NOT_PASSED',
   'SECTION_NOT_FOUND',
 ] as const;
 
 const STORYGATE_UNMAPPED_FAILURE_CODES = [
-  'ACCESS_CONTROL_BYPASS',
   'ACCESS_LOG_WRITE_FAILED',
   'ACCESS_REQUEST_NOT_FOUND',
   'AUDIT_EVENT_MISSING',
@@ -223,8 +214,6 @@ const STORYGATE_UNMAPPED_FAILURE_CODES = [
   'PLACEHOLDER_TEXT_DETECTED',
   'PRIVATE_LISTING_BLOCKED',
   'REVOCATION_NOT_PERSISTED',
-  'RIGHTS_GATE_FAILED',
-  'VERIFICATION_STATE_UNAUDITED',
 ] as const;
 
 const FAMILY_AUDITS: readonly FamilyAudit[] = [
@@ -235,10 +224,10 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     kickCodeField: 'failureCode',
     expectedUnmappedFailureCodes: EVALUATION_UNMAPPED_FAILURE_CODES,
     expectedClassificationCounts: {
-      'release-blocking': 16,
-      'author-facing': 20,
+      'release-blocking': 12,
+      'author-facing': 18,
       persistence: 5,
-      'certification/governance': 29,
+      'certification/governance': 26,
       'terminal/expected': 18,
       'diagnostic-only': 34,
     },
@@ -250,9 +239,9 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     kickCodeField: 'kickCode',
     expectedUnmappedFailureCodes: REVISE_UNMAPPED_FAILURE_CODES,
     expectedClassificationCounts: {
-      'release-blocking': 3,
+      'release-blocking': 1,
       'author-facing': 0,
-      persistence: 4,
+      persistence: 2,
       'certification/governance': 2,
       'terminal/expected': 10,
       'diagnostic-only': 18,
@@ -266,10 +255,10 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     expectedUnmappedFailureCodes: AGENT_READINESS_UNMAPPED_FAILURE_CODES,
     expectedKickRowsWithoutStageFailureCode: ['CREATOR_APPROVAL_REQUIRED'],
     expectedClassificationCounts: {
-      'release-blocking': 1,
-      'author-facing': 3,
-      persistence: 3,
-      'certification/governance': 1,
+      'release-blocking': 0,
+      'author-facing': 2,
+      persistence: 2,
+      'certification/governance': 0,
       'terminal/expected': 3,
       'diagnostic-only': 0,
     },
@@ -281,10 +270,10 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     kickCodeField: 'kickCode',
     expectedUnmappedFailureCodes: STORYGATE_UNMAPPED_FAILURE_CODES,
     expectedClassificationCounts: {
-      'release-blocking': 7,
-      'author-facing': 9,
+      'release-blocking': 4,
+      'author-facing': 7,
       persistence: 3,
-      'certification/governance': 8,
+      'certification/governance': 6,
       'terminal/expected': 4,
       'diagnostic-only': 1,
     },
@@ -311,7 +300,7 @@ describe('failure-code → kick-matrix coverage audit', () => {
     const totalUnmapped = FAMILY_AUDITS.reduce((total, audit) => total + audit.expectedUnmappedFailureCodes.length, 0);
 
     expect(totalUnmapped).toBeGreaterThan(0);
-    expect(totalUnmapped).toBe(114);
+    expect(totalUnmapped).toBe(103);
   });
 
   test.each(FAMILY_AUDITS)('$family unmapped failure codes have severity/risk classification counts', (audit) => {
@@ -330,9 +319,9 @@ describe('failure-code → kick-matrix coverage audit', () => {
       return acc;
     }, { ...EMPTY_CLASSIFICATION_COUNTS });
 
-    expect(totals['release-blocking']).toBe(27);
-    expect(totals['author-facing']).toBe(32);
-    expect(totals.persistence).toBe(15);
-    expect(totals['certification/governance']).toBe(40);
+    expect(totals['release-blocking']).toBe(17);
+    expect(totals['author-facing']).toBe(27);
+    expect(totals.persistence).toBe(12);
+    expect(totals['certification/governance']).toBe(34);
   });
 });
