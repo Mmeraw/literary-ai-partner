@@ -116,6 +116,12 @@ describe('AGENT_READINESS_PROCESS_REGISTRY', () => {
       expect(stage.outputArtifacts.length).toBeGreaterThan(0);
     }
   });
+
+  test('failureCodes are derived from stage-owned failureDefinitions', () => {
+    for (const stage of AGENT_READINESS_PROCESS_REGISTRY) {
+      expect(stage.failureCodes).toEqual(stage.failureDefinitions.map((definition) => definition.failureCode));
+    }
+  });
 });
 
 // ─── Artifact Registry ────────────────────────────────────────────────────────

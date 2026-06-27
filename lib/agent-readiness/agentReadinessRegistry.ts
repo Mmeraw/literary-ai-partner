@@ -76,8 +76,8 @@ export interface AgentReadinessProcessEntry {
   forwardKick: string;
   backwardKick: string;
   dirtyDataRules: string[];
-  failureCodes: string[];
   failureDefinitions: FailureRecoveryDefinition[];
+  failureCodes: string[];
   consumers: string[];
   uiExposed: boolean;
   certificationStatus: AgentReadinessCertificationStatus;
@@ -85,7 +85,7 @@ export interface AgentReadinessProcessEntry {
   notes: string;
 }
 
-type AgentReadinessProcessEntrySource = Omit<AgentReadinessProcessEntry, 'failureDefinitions'>;
+type AgentReadinessProcessEntrySource = Omit<AgentReadinessProcessEntry, 'failureCodes'>;
 
 const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEntrySource[] = [
   {
@@ -109,7 +109,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Exclude running and queued evaluations.',
       'evaluationJobId must be a valid UUID present in the evaluation_jobs table.',
     ],
-    failureCodes: ['INELIGIBLE_MANUSCRIPT', 'MISSING_CONTEXT', 'NO_COMPLETED_EVALUATION'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['INELIGIBLE_MANUSCRIPT', 'MISSING_CONTEXT', 'NO_COMPLETED_EVALUATION']),
     consumers: ['AR02_SECTION_GENERATION', 'AR07_BATCH_GENERATION (batch shortcut passes manuscriptId+evaluationJobId downstream to AR02)'],
     uiExposed: true,
     certificationStatus: 'proven',
@@ -141,7 +141,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Sections generated sequentially in: query_pitch → what_makes_unique → synopsis → comparables → query_letter.',
       'Web/PDF/DOCX/TXT renderer output and evaluation_report_view_model_v1 are forbidden as Agent Readiness authority.',
     ],
-    failureCodes: ['UNAUTHENTICATED', 'MISSING_CONTEXT', 'INELIGIBLE_MANUSCRIPT', 'GENERATION_TIMEOUT'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNAUTHENTICATED', 'MISSING_CONTEXT', 'INELIGIBLE_MANUSCRIPT', 'GENERATION_TIMEOUT']),
     consumers: ['AR03_QUALITY_GATE'],
     uiExposed: false,
     certificationStatus: 'proven',
@@ -168,13 +168,13 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Do not persist any section that fails the quality gate.',
       'qualityGateReason must be set on failure and must not be exposed as a user-facing error without sanitisation.',
     ],
-    failureCodes: [
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes([
       'OUTPUT_TOO_SHORT',
       'EDITORIAL_META_LANGUAGE',
       'UNRESOLVED_PLACEHOLDER',
       'WORD_LIMIT_EXCEEDED',
       'OUTPUT_TOO_THIN',
-    ],
+    ]),
     consumers: ['AR04_SECTION_PERSISTENCE'],
     uiExposed: false,
     certificationStatus: 'proven',
@@ -201,7 +201,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Never write a section with status=approved at generation time — approval is an explicit author action.',
       'DB write failure (saveError) returns HTTP 500 and does NOT return generated content. The author must retry the generation.',
     ],
-    failureCodes: ['UNAUTHENTICATED', 'DB_WRITE_FAILURE', 'QUALITY_GATE_NOT_PASSED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNAUTHENTICATED', 'DB_WRITE_FAILURE', 'QUALITY_GATE_NOT_PASSED']),
     consumers: ['AR05_AUTHOR_REVIEW', 'AR06_COMPLETENESS_CHECK'],
     uiExposed: false,
     certificationStatus: 'proven',
@@ -235,7 +235,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Author bio must not contain AI-invented facts. Only shape author-supplied input.',
       'Section approval calls POST /api/agent-readiness/sections/approve which writes status=approved to DB and persists an audit record.',
     ],
-    failureCodes: ['UNAUTHENTICATED', 'SECTION_NOT_FOUND'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNAUTHENTICATED', 'SECTION_NOT_FOUND']),
     consumers: ['AR06_COMPLETENESS_CHECK'],
     uiExposed: true,
     certificationStatus: 'proven',
@@ -262,7 +262,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Download/export is gated on all 6 sections having status=approved in DB.',
       'Export route returns HTTP 422 with missingSections if completeness check fails.',
     ],
-    failureCodes: ['SECTIONS_NOT_ALL_APPROVED'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['SECTIONS_NOT_ALL_APPROVED']),
     consumers: ['AR08_EXPORT'],
     uiExposed: true,
     certificationStatus: 'proven',
@@ -290,7 +290,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Per-section errors must not block other sections from generating.',
       'author_bio is only generated if authorBioInput is present and ≥50 chars.',
     ],
-    failureCodes: ['UNAUTHENTICATED', 'MISSING_CONTEXT'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNAUTHENTICATED', 'MISSING_CONTEXT']),
     consumers: ['AR03_QUALITY_GATE', 'AR04_SECTION_PERSISTENCE'],
     uiExposed: true,
     certificationStatus: 'proven',
@@ -319,7 +319,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'Export/package assembly must not consume Web/PDF/DOCX/TXT renderer output or evaluation_report_view_model_v1.',
       'KNOWN GAP: export does not enforce that all 6 sections are present or approved. A package with 1 section can be exported. Full enforcement (requiring all 6 approved sections) is a planned required gate, not currently implemented.',
     ],
-    failureCodes: ['INVALID_FORMAT', 'MISSING_SECTIONS', 'UNAUTHENTICATED', 'AGENT_PACKAGE_RENDERER_OUTPUT_INVALID'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['INVALID_FORMAT', 'MISSING_SECTIONS', 'UNAUTHENTICATED', 'AGENT_PACKAGE_RENDERER_OUTPUT_INVALID']),
     consumers: ['Author (file download)'],
     uiExposed: true,
     certificationStatus: 'partial',
@@ -346,7 +346,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
       'History must not show packages from other users.',
       'History is read-only — no edits may originate from this stage.',
     ],
-    failureCodes: ['UNAUTHENTICATED', 'NO_PACKAGE_HISTORY'],
+    failureDefinitions: getFailureRecoveryDefinitionsForCodes(['UNAUTHENTICATED', 'NO_PACKAGE_HISTORY']),
     consumers: ['Author (read-only view)'],
     uiExposed: true,
     certificationStatus: 'missing_critical',
@@ -357,7 +357,7 @@ const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEnt
 
 export const AGENT_READINESS_PROCESS_REGISTRY: readonly AgentReadinessProcessEntry[] = AGENT_READINESS_PROCESS_REGISTRY_SOURCE.map((stage) => ({
   ...stage,
-  failureDefinitions: getFailureRecoveryDefinitionsForCodes(stage.failureCodes),
+  failureCodes: stage.failureDefinitions.map((definition) => definition.failureCode),
 }));
 
 // ─── Artifact Registry ──────────────────────────────────────────────────────
