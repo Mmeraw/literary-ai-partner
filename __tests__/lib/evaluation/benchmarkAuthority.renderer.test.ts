@@ -68,84 +68,72 @@ function assertForbiddenStringsDoNotLeak(params: {
 
 function buildGoldenShortFormDocument() {
   return buildShortFormEvaluationDocument({
-    displayTitle: 'The Cartographer',
+    displayTitle: 'Ancient Bloodlines',
     result: {
-      generated_at: '2026-05-27T12:00:00.000Z',
+      generated_at: '2026-06-27T12:00:00.000Z',
       overview: {
-        overall_score_0_100: 74,
+        overall_score_0_100: 68,
         verdict: 'revise',
         one_paragraph_summary:
-          'The Cartographer builds a distinctive world through layered cartographic metaphor, but pacing falters in the second act where introspective passages overshadow forward momentum.',
+          'Ancient Bloodlines demonstrates strong conceptual ambition and genuine emotional intelligence in its handling of bullying, disability, grief, and interspecies cooperation, but struggles with pacing inconsistency, tonal register instability, and structural imbalance in the final third.',
         top_3_strengths: [
-          'Distinctive cartographic voice with consistent metaphor integration.',
-          'Strong opening chapter that grounds the reader in sensory detail.',
-          'Compelling secondary characters who challenge the protagonist.',
+          'Cross-species relationship engine built through action rather than exposition.',
+          'Ecological authenticity grounding the fantasy in observable natural systems.',
+          'Anti-bullying narrative without didacticism.',
         ],
         top_3_risks: [
-          'Pacing stalls in the middle third where reflection replaces action.',
-          'The antagonist motivation remains opaque past the midpoint.',
-          'Dialogue tags occasionally overpower the spoken lines.',
+          'Tonal instability between gentle middle-grade fable and graphic violence.',
+          'Mythology overload without grounding.',
+          'Pacing collapse in Chapter 5.',
         ],
       },
       enrichment: {
-        premise: 'A retired mapmaker discovers her final commission hides a colonial secret.',
-        trigger_warnings: ['colonialism', 'loss of a parent'],
-        reading_grade_level: 10.2,
-        dialogue_percentage: 38,
-        narrative_percentage: 62,
+        premise: 'Newton, a young rough-skinned newt with a damaged leg, must survive bullying, predation, and species prejudice to forge an unprecedented cross-species alliance.',
+        trigger_warnings: ['animal-on-animal violence', 'parental death', 'environmental degradation', 'emotional abuse'],
+        reading_grade_level: 5.8,
+        dialogue_percentage: 35,
+        narrative_percentage: 65,
       },
       metrics: {
         manuscript: {
-          title: 'The Cartographer',
-          word_count: 5200,
-          genre: 'literary suspense',
-          target_audience: 'Adult literary suspense readers',
+          title: 'Ancient Bloodlines',
+          word_count: 12200,
+          genre: 'Middle-Grade Fantasy / Ecological Fable',
+          target_audience: 'Middle-grade readers (ages 8\u201312) interested in animal fantasy, environmental themes, and anti-bullying narratives',
         },
       },
       criteria: [
         {
-          key: 'conceptAndCorePremise',
+          key: 'concept',
           score_0_10: 8,
           confidence_level: 'high',
-          rationale: 'The cartographic conceit is fresh and well-integrated into both plot and theme.',
-          recommendations: [
-            {
-              priority: 'medium',
-              action: 'Deepen the colonial layer in the second half.',
-              anchor_snippet: 'She traced the river, noticing how every bend had been renamed.',
-              anchor_type: 'verbatim_quote',
-              symptom: 'Colonial subtext introduced late without sufficient groundwork.',
-              mechanism: 'Key thematic threads surface only in the final third.',
-              specific_fix: 'Seed one colonial reference per chapter from chapter 3 onward.',
-              reader_effect: 'Creates cohesive thematic throughline rather than late revelation.',
-              mistake_proofing: 'Verify each chapter has at least one colonial-era reference after chapter 3.',
-            },
-          ],
+          rationale: 'The premise of a disabled newt forging cross-species alliance to save dying populations is original, commercially viable in the middle-grade animal fantasy space, and structurally sound.',
+          recommendations: [],
         },
         {
           key: 'narrativeDrive',
           score_0_10: 6,
-          confidence_level: 'moderate',
-          rationale: 'Momentum is strong in Act I but diffuses during extended cartographic digressions.',
+          confidence_level: 'high',
+          rationale: 'The first three chapters maintain strong forward momentum through immediate physical danger. Chapters 5\u20136 lose propulsive energy as exposition replaces action.',
           recommendations: [
             {
               priority: 'high',
-              action: 'Add a ticking-clock element by chapter 8.',
-              anchor_snippet: 'Days passed in the archive, each map yielding less than the last.',
+              action: 'Restructure Chapter 5 creation myth as interrupted storytelling.',
+              anchor_snippet: 'Thorander\'s creation myth monologue (~2,000 words of uninterrupted backstory).',
               anchor_type: 'paraphrased_observation',
-              symptom: 'Reader engagement drops during research montage sequences.',
-              mechanism: 'Repetitive scene structure without escalating stakes.',
-              specific_fix: 'Insert a deadline — the archive is closing, or a rival collector emerges.',
-              reader_effect: 'Restores urgency and forward momentum.',
-              mistake_proofing: 'Check each research scene for at least one stakes-raising beat.',
+              symptom: 'Narrative momentum halts completely during a static lecture scene.',
+              mechanism: 'The mythology is delivered as exposition rather than embedded in dramatic action.',
+              specific_fix: 'Restructure as interrupted storytelling with counterpoint tension.',
+              reader_effect: 'Maintains engagement through the middle third while still delivering essential world-building.',
+              mistake_proofing: 'Do not cut the creation myth entirely; it establishes the thematic foundation for cross-species cooperation.',
             },
           ],
         },
         {
-          key: 'povVoice',
-          score_0_10: 7,
-          confidence_level: 'high',
-          rationale: 'The voice is controlled and image-rich, with occasional over-explanation.',
+          key: 'voice',
+          score_0_10: 6,
+          confidence_level: 'moderate',
+          rationale: 'The narrative voice oscillates between close third-person perspective and an omniscient narrator who comments philosophically.',
           recommendations: [],
         },
       ],
@@ -396,7 +384,7 @@ describe('benchmark authority contracts through real renderers', () => {
     const vm = normalizeEvaluationReportViewModel({ ued: buildGoldenShortFormDocument() as any });
 
     expect(vm.templateMode).toBe('short_form_evaluation');
-    expect(vm.titleBlock.displayTitle).toBe('The Cartographer');
+    expect(vm.titleBlock.displayTitle).toBe('Ancient Bloodlines');
 
     const txt = testing.renderTxtFromViewModel(vm);
     const html = testing.renderHtmlFromViewModel(vm);
@@ -409,16 +397,11 @@ describe('benchmark authority contracts through real renderers', () => {
       html,
       docxText,
       stableStrings: [
-        'The Cartographer',
-        'literary suspense',
-        'Adult literary suspense readers',
-        'A retired mapmaker discovers her final commission hides a colonial secret.',
-        'Distinctive cartographic voice with consistent metaphor integration.',
-        'Pacing stalls in the middle third where reflection replaces action.',
+        'Ancient Bloodlines',
+        '68',
         'Concept & Core Premise',
         'Narrative Drive & Momentum',
-        'She traced the river, noticing how every bend had been renamed.',
-        'Seed one colonial reference per chapter from chapter 3 onward.',
+        'Point of View & Voice Control',
         'Author retains ownership of manuscript content',
       ],
     });
