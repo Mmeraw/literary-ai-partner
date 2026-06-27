@@ -4,16 +4,16 @@ import mammoth from 'mammoth';
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
 import { normalizeEvaluationReportViewModel } from '../../../lib/evaluation/evaluationReportViewModel';
 
-const FIXTURE_ROOT = join(process.cwd(), 'tests/fixtures/report-golden');
+const CONTRACT_ROOT = join(process.cwd(), 'tests/benchmark-authority');
 
-type GoldenFixture = {
+type BenchmarkContract = {
   mode: 'short_form_evaluation' | 'long_form_multi_layer_evaluation';
   required_public_strings: string[];
   forbidden_public_strings: string[];
 };
 
-function loadFixture(relativePath: string): GoldenFixture {
-  return JSON.parse(readFileSync(join(FIXTURE_ROOT, relativePath), 'utf8')) as GoldenFixture;
+function loadContract(relativePath: string): BenchmarkContract {
+  return JSON.parse(readFileSync(join(CONTRACT_ROOT, relativePath), 'utf8')) as BenchmarkContract;
 }
 
 function stripHtmlTags(html: string): string {
@@ -33,8 +33,8 @@ function normalizeSurfaceText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function assertStableGoldenStringsRenderEverywhere(params: {
-  fixture: GoldenFixture;
+function assertStableStringsRenderEverywhere(params: {
+  contract: BenchmarkContract;
   stableStrings: string[];
   txt: string;
   html: string;
@@ -45,7 +45,7 @@ function assertStableGoldenStringsRenderEverywhere(params: {
   const docxPlain = normalizeSurfaceText(params.docxText);
 
   for (const expected of params.stableStrings) {
-    expect(params.fixture.required_public_strings).toContain(expected);
+    expect(params.contract.required_public_strings).toContain(expected);
     const normalized = normalizeSurfaceText(expected);
     expect(txtPlain).toContain(normalized);
     expect(htmlPlain).toContain(normalized);
@@ -54,12 +54,12 @@ function assertStableGoldenStringsRenderEverywhere(params: {
 }
 
 function assertForbiddenStringsDoNotLeak(params: {
-  fixture: GoldenFixture;
+  contract: BenchmarkContract;
   txt: string;
   html: string;
   docxText: string;
 }) {
-  for (const forbidden of params.fixture.forbidden_public_strings) {
+  for (const forbidden of params.contract.forbidden_public_strings) {
     expect(params.txt).not.toContain(forbidden);
     expect(params.html).not.toContain(forbidden);
     expect(params.docxText).not.toContain(forbidden);
@@ -388,11 +388,11 @@ function buildGoldenDreamFixture() {
   return { canonicalDoc, dream };
 }
 
-describe('report golden fixtures through real renderers', () => {
-  test('short-form golden fixture renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
+describe('benchmark authority contracts through real renderers', () => {
+  test('short-form benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
-    const fixture = loadFixture('short-form/expected.json');
+    const contract = loadContract('short-form/expected.json');
     const vm = normalizeEvaluationReportViewModel({ ued: buildGoldenShortFormDocument() as any });
 
     expect(vm.templateMode).toBe('short_form_evaluation');
@@ -403,8 +403,8 @@ describe('report golden fixtures through real renderers', () => {
     const docxBuffer = await testing.renderDocxFromViewModel(vm);
     const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
 
-    assertStableGoldenStringsRenderEverywhere({
-      fixture,
+    assertStableStringsRenderEverywhere({
+      contract,
       txt,
       html,
       docxText,
@@ -423,13 +423,13 @@ describe('report golden fixtures through real renderers', () => {
       ],
     });
 
-    assertForbiddenStringsDoNotLeak({ fixture, txt, html, docxText });
+    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
   });
 
-  test('DREAM golden fixture renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
+  test('DREAM benchmark contract renders through ViewModel, TXT, HTML/PDF, and DOCX', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
-    const fixture = loadFixture('long-form-multi-layer/expected.json');
+    const contract = loadContract('long-form-multi-layer/expected.json');
     const { canonicalDoc, dream } = buildGoldenDreamFixture();
     const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
 
@@ -441,8 +441,8 @@ describe('report golden fixtures through real renderers', () => {
     const docxBuffer = await testing.renderDocxFromViewModel(vm);
     const docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
 
-    assertStableGoldenStringsRenderEverywhere({
-      fixture,
+    assertStableStringsRenderEverywhere({
+      contract,
       txt,
       html,
       docxText,
@@ -474,6 +474,6 @@ describe('report golden fixtures through real renderers', () => {
     expect(txt).not.toContain('[OPERATION:');
     expect(html).not.toContain('[OPERATION:');
     expect(docxText).not.toContain('[OPERATION:');
-    assertForbiddenStringsDoNotLeak({ fixture, txt, html, docxText });
+    assertForbiddenStringsDoNotLeak({ contract, txt, html, docxText });
   });
 });

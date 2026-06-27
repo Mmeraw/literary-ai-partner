@@ -1,6 +1,6 @@
 {
-  "schema_version": "report_golden_fixture_v1",
-  "fixture_id": "long-form-multi-layer-burning-archive",
+  "schema_version": "benchmark_authority_contract_v1",
+  "contract_id": "long-form-multi-layer-burning-archive",
   "mode": "long_form_multi_layer_evaluation",
   "route": "LONG_FORM",
   "word_count_band": "75000+",
