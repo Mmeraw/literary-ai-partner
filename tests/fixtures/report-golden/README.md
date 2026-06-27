@@ -19,10 +19,13 @@ Each fixture declares:
 
 The first contract test validates the fixture package itself. Follow-up renderer tests should load these fixtures and assert that ViewModel, TXT, HTML/PDF, and DOCX outputs preserve all required public strings without leaking forbidden internals.
 
-## Fixtures
+## Active fixtures
 
 | Fixture | Mode | Purpose |
 |---|---|---|
 | `short-form/expected.json` | `short_form_evaluation` | Short report, no DREAM sections |
-| `long-form/expected.json` | `long_form_evaluation` | Standard long-form report boundary |
 | `long-form-multi-layer/expected.json` | `long_form_multi_layer_evaluation` | Full DREAM multi-layer report |
+
+## Retired mode rule
+
+`long_form_evaluation` is not an active customer-facing product mode. Standard long-form has been retired/archived; active long manuscripts resolve to the long-form multi-layer DREAM surface. Do not add `long-form/expected.json` or any new active golden fixture for `long_form_evaluation`.
