@@ -65,6 +65,7 @@ The Agent Readiness Package **MAY NOT** consume:
 | Pass 1/2/3 intermediate artifacts | Pre-normalization state; potentially inconsistent |
 | Temporary diagnostics (telemetry, logs) | Observability data; not content |
 | `evaluation_report_view_model_v1` | ViewModel is a renderer surface — Agent Readiness is not a renderer |
+| Web/PDF/DOCX/TXT renderer output | Presentation/download surfaces; not package authority |
 | Direct DB queries bypassing certified artifacts | Breaks traceability chain |
 
 Violations produce `AGENT_PACKAGE_TRACEABILITY_VIOLATION` and block package generation.
@@ -122,33 +123,28 @@ Violations produce `AGENT_PACKAGE_TRACEABILITY_VIOLATION` and block package gene
     status value. Non-canonical `PackageStatus`, `SectionStatus`, `GenerateMode`, or
     `ExportFormat` values are CI-failing defects.
 
+14. **Agent packages do not reinterpret upstream artifacts.** Agent Readiness may package certified Evaluation and Revise artifacts into author-facing submission materials, but it must not reinterpret UED, Revise ledger, scores, recommendations, or business rules.
+
+15. **Renderer-dependent handoff is invalid.** Agent Readiness must not consume Web/PDF/DOCX/TXT renderer output or `evaluation_report_view_model_v1` as package authority. If package assembly depends on renderer/download output, the handoff is invalid and must kick back to the Evaluation / Revise authority boundary instead of assembling the package.
+
 ---
 
-## Known Gaps (as of 2026-06-11)
+## Known Gaps (as of 2026-06-27)
 
 > These are explicitly documented runtime gaps. They are not design errors —
 > they are honest acknowledgment of what is not yet implemented. Each is marked
 > `missing_critical` or `gap` in the registry.
 
-### GAP-1: Section approval is not persisted to DB (`AR05`, `AR06`)
-The **Approve** button in `AgentReadinessClient.tsx` is a disabled stub with no
-`onClick` handler. Approval state lives in React `sectionStates` only. No API
-endpoint writes `status='approved'` to `agent_readiness_sections`. The
-`getPackageStatuses()` function reads `status='approved'` from DB but nothing writes
-it, so `packageStatus` can never become `Approved` via the DB path.
+### RESOLVED-1: Section approval persistence (`AR05`, `AR06`)
+Section approval is now persisted via `POST /api/agent-readiness/sections/approve`.
+The executable registry marks `AR05_AUTHOR_REVIEW` and `AR06_COMPLETENESS_CHECK`
+as `proven / ok`; stale wording that described the Approve button as a disabled
+stub is no longer authoritative.
 
-**Required fix:** Create `POST /api/agent-readiness/sections/approve` (or similar),
-wire the Approve button, and reload section state from DB on page load.
-
-### GAP-2: DB persistence failure is non-fatal (`AR04`)
-In `app/api/agent-readiness/generate/route.ts`, the `saveError` from the Supabase
-upsert is caught, logged as a warning, and the route still returns `200` with the
-generated content. This means content can be shown to the author without being saved.
-This violates the AI_GOVERNANCE contract requiring system errors to surface as 500
-rather than being masked.
-
-**Required fix:** Treat `saveError` as a 500-class error or implement a retry + explicit
-failure response so the author knows persistence failed.
+### RESOLVED-2: DB persistence failure handling (`AR04`)
+`AR04_SECTION_PERSISTENCE` is now `proven / ok` in the executable registry. DB
+write failure returns HTTP 500 and generated content is not returned to the author
+as if persistence had succeeded.
 
 ### GAP-3: Export does not enforce section completeness or approval (`AR08`)
 The download route (`app/api/agent-readiness/download/route.ts`) requires only
@@ -187,8 +183,9 @@ Agent Package Traceability Gate (AR00)  [AGENT_PACKAGE_TRACEABILITY_GATE]
 
 **Highest-risk seams:**
 - `AR00_TRACEABILITY_GATE` (certified input validation — must run before any generation)
-- `AR04_SECTION_PERSISTENCE` (DB failure non-fatal — GAP-2)
-- `AR05_AUTHOR_REVIEW → AR06_COMPLETENESS_CHECK` (approval not persisted — GAP-1)
+- `AR08_EXPORT` (package assembly/export still does not enforce all-section approval at API level — GAP-3)
+- `AR09_HISTORY` (package history/audit persistence missing — GAP-4)
+- `AR00_TRACEABILITY_GATE → AR08_EXPORT` (renderer/download output must never become package authority)
 
 ---
 
@@ -273,9 +270,9 @@ Resolve evaluation job → load certified artifacts → verify no banned inputs 
 | 1 | `AR01_MANUSCRIPT_ELIGIBILITY` | Manuscript Eligibility Check | proven / ok | — |
 | 2 | `AR02_SECTION_GENERATION` | Section Generation (AI) | proven / ok | — |
 | 3 | `AR03_QUALITY_GATE` | Quality Gate | proven / ok | — |
-| 4 | `AR04_SECTION_PERSISTENCE` | Section Persistence | missing_critical / critical | GAP-2: DB failure non-fatal |
-| 5 | `AR05_AUTHOR_REVIEW` | Author Review & Section Approval | missing_critical / critical | GAP-1: approval not persisted |
-| 6 | `AR06_COMPLETENESS_CHECK` | Package Completeness Check | missing_critical / critical | GAP-1: DB completeness check broken |
+| 4 | `AR04_SECTION_PERSISTENCE` | Section Persistence | proven / ok | DB failure returns HTTP 500 |
+| 5 | `AR05_AUTHOR_REVIEW` | Author Review & Section Approval | proven / ok | approval persisted via API |
+| 6 | `AR06_COMPLETENESS_CHECK` | Package Completeness Check | proven / ok | approved status tracked in DB |
 | 7 | `AR07_BATCH_GENERATION` | Batch Section Generation (generate-all) | proven / ok | — |
 | 8 | `AR08_EXPORT` | Package Export (Assembly + Download) | partial / gap | GAP-3: no completeness/approval enforcement |
 | 9 | `AR09_HISTORY` | Package History | missing_critical / critical | GAP-4: no persistence |

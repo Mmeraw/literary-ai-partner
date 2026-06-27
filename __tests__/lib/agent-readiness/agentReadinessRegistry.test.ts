@@ -240,8 +240,8 @@ describe('AGENT_READINESS_FIELD_REGISTRY', () => {
 // ─── Kick Matrix ──────────────────────────────────────────────────────────────
 
 describe('AGENT_READINESS_KICK_MATRIX', () => {
-  test('has 12 kick codes', () => {
-    expect(AGENT_READINESS_KICK_MATRIX).toHaveLength(12);
+  test('has 13 kick codes', () => {
+    expect(AGENT_READINESS_KICK_MATRIX).toHaveLength(13);
   });
 
   test('all kick codes are unique', () => {
@@ -289,6 +289,14 @@ describe('AGENT_READINESS_KICK_MATRIX', () => {
     const kick = AGENT_READINESS_KICK_MATRIX.find((k) => k.kickCode === 'SECTIONS_NOT_ALL_APPROVED');
     expect(kick).toBeDefined();
     expect(kick!.blocksPackageAssembly).toBe(true);
+  });
+
+  test('AGENT_PACKAGE_RENDERER_OUTPUT_INVALID blocks package assembly', () => {
+    const kick = AGENT_READINESS_KICK_MATRIX.find((k) => k.kickCode === 'AGENT_PACKAGE_RENDERER_OUTPUT_INVALID');
+    expect(kick).toBeDefined();
+    expect(kick!.detectedAt).toBe('AR08_EXPORT');
+    expect(kick!.blocksPackageAssembly).toBe(true);
+    expect(kick!.description).toMatch(/evaluation_report_view_model_v1/i);
   });
 
   test('UNAUTHENTICATED blocks package assembly', () => {
@@ -580,6 +588,8 @@ describe('Known gap guards (audit-locked)', () => {
     // The contract must document the actual gate: at least one section, not all 6 approved
     expect(stage!.processContract).toMatch(/at least one section/i);
     expect(stage!.notes).toMatch(/KNOWN GAP/i);
+    expect(stage!.failureCodes).toContain('AGENT_PACKAGE_RENDERER_OUTPUT_INVALID');
+    expect(stage!.processContract).toMatch(/evaluation_report_view_model_v1/i);
     // Must NOT falsely claim the API enforces all-6-approved
     expect(stage!.processContract).not.toMatch(/blocked.*all.*6.*approved/i);
   });
