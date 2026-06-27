@@ -746,6 +746,185 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     ).toBe(false);
   });
 
+  test("continues persistence and finalization when QualityGateV2 reports only log-only dirty diagnostics", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 82,
+          verdict: "pass",
+          one_paragraph_summary: "Summary",
+          top_3_strengths: ["Clear narrative throughline"],
+          top_3_risks: ["Secondary character arc needs deepening"],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: {
+        pass: true,
+        checks: [],
+        warnings: [],
+      },
+      pass4_governance: { ok: true },
+    });
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue({
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-1",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: {
+        model: "o3",
+        provider: "openai",
+        prompt_version: "test",
+      },
+      overview: {
+        verdict: "pass",
+        overall_score_0_100: 82,
+        one_paragraph_summary: "Summary",
+        top_3_strengths: ["Clear narrative throughline"],
+        top_3_risks: ["Secondary character arc needs deepening"],
+      },
+      criteria: new Array(13).fill(null).map((_, idx) => ({
+        key: [
+          "concept",
+          "narrativeDrive",
+          "character",
+          "voice",
+          "sceneConstruction",
+          "dialogue",
+          "theme",
+          "worldbuilding",
+          "pacing",
+          "proseControl",
+          "tone",
+          "narrativeClosure",
+          "marketability",
+        ][idx],
+        scorable: true,
+        status: "SCORABLE",
+        signal_present: true,
+        signal_strength: "SUFFICIENT",
+        confidence_band: "MEDIUM",
+        score_0_10: 7,
+        rationale: "Criterion is supported by manuscript evidence and synthesis.",
+        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
+        recommendations: [],
+      })),
+      recommendations: {
+        quick_wins: [
+          {
+            action: "Sharpen scene transitions for momentum.",
+            why: "Smoother transitions preserve narrative drive between beats.",
+          },
+        ],
+        strategic_revisions: [
+          {
+            action: "Strengthen secondary character arc continuity.",
+            why: "Consistent subplot escalation reinforces emotional payoff.",
+          },
+        ],
+      },
+      metrics: {
+        manuscript: {},
+        processing: {},
+      },
+      artifacts: [],
+      governance: {
+        confidence: 0.9,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+      },
+    });
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: false,
+      checks: [
+        {
+          check_id: "v2_passive_duplicate_recommendation_diagnostic",
+          passed: false,
+          error_code: "QG_DUPLICATE_REC",
+          details: "Duplicate recommendation diagnostic retained for audit only",
+        },
+        {
+          check_id: "v2_passive_generic_recommendation_diagnostic",
+          passed: false,
+          error_code: "QG_GENERIC_REC",
+          details: "Generic recommendation diagnostic retained for audit only",
+        },
+      ],
+      warnings: ["Passive recommendation diagnostics retained"],
+      artifactGate: {
+        verdict: "PASS",
+        reasonCodes: [],
+        validatedAt: new Date().toISOString(),
+        enforcementMode: "enforce",
+      },
+    });
+
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-1",
+      criteria: [],
+    });
+
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-1");
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result.success).toBe(true);
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(true);
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "finalize_job_failure_atomic"),
+    ).toBe(false);
+    expect(
+      supabaseStub.evaluationJobUpdates.some(
+        (payload: Record<string, unknown>) => payload.status === "failed",
+      ),
+    ).toBe(false);
+
+    const postQgSnapshotCall = (upsertEvaluationArtifactMock.mock.calls as any[]).find(
+      (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
+    );
+    expect(postQgSnapshotCall?.[0]?.content?.quality_gate?.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ error_code: "QG_DUPLICATE_REC", passed: false }),
+        expect.objectContaining({ error_code: "QG_GENERIC_REC", passed: false }),
+      ]),
+    );
+
+    const persistCall = supabaseStub.rpcCalls.find(
+      (call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic",
+    ) as { fn: string; args?: Record<string, unknown> } | undefined;
+    const persistedEvaluationResult = persistCall?.args?.p_evaluation_result as
+      | Record<string, unknown>
+      | undefined;
+    const governance = persistedEvaluationResult?.governance as
+      | { warnings?: string[] }
+      | undefined;
+    expect(governance?.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Passive recommendation diagnostics retained"),
+        expect.stringContaining("QG_DUPLICATE_REC"),
+        expect.stringContaining("QG_GENERIC_REC"),
+      ]),
+    );
+  });
+
   test("persists downgradedResult when quality gate provides explicit non-mutating downgrade", async () => {
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);

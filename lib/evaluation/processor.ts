@@ -10553,6 +10553,21 @@ export async function processEvaluationJob(
     }, scopeProfileForV2Gate);
     let qgSummaryRepairDiagnostics: Record<string, unknown> | null = null;
 
+    const failedQualityGateChecks = () =>
+      qualityGateV2.checks.filter((check) => !check.passed);
+    const isBlockingQualityGateCheck = (check: (typeof qualityGateV2.checks)[number]) => {
+      const errorCode = (check as Record<string, unknown>).error_code;
+      if (typeof errorCode !== 'string' || errorCode.trim().length === 0) {
+        return true;
+      }
+      const definition = getFailureRecoveryDefinition(errorCode);
+      return definition?.recoveryPolicy.mode !== 'log_only';
+    };
+    const blockingQualityGateChecks = () =>
+      failedQualityGateChecks().filter(isBlockingQualityGateCheck);
+    const logOnlyQualityGateChecks = () =>
+      failedQualityGateChecks().filter((check) => !isBlockingQualityGateCheck(check));
+
     // ── Deterministic QG summary weakness repair ─────────────────────────────
     // If the ONLY hard failure is v2_summary_weakness_presence, the evaluation
     // content is valid — only the overview summary text omitted bottom-score
@@ -10564,7 +10579,7 @@ export async function processEvaluationJob(
       // Exclude v2_fidelity_score_confidence_alignment from hard-fail count,
       // matching the gate's own logic (qualityGate.ts line 1882-1883) which
       // considers fidelity mismatch a soft-downgrade, not a hard block.
-      const hardFailedChecks = qualityGateV2.checks.filter(
+      const hardFailedChecks = blockingQualityGateChecks().filter(
         (check) => !check.passed && check.check_id !== 'v2_fidelity_score_confidence_alignment',
       );
       const isOnlySummaryWeakness =
@@ -10610,8 +10625,20 @@ export async function processEvaluationJob(
       }
     }
 
-    if (!qualityGateV2.pass) {
-      const failedCheckRecords = qualityGateV2.checks.filter((check) => !check.passed);
+    const logOnlyQGWarnings = logOnlyQualityGateChecks().map((check) => {
+      const code = (check as Record<string, unknown>).error_code as string;
+      return `[QualityGateV2:log_only] ${check.check_id}${code ? `/${code}` : ''}: ${check.details ?? 'diagnostic retained'}`;
+    });
+
+    if (!qualityGateV2.pass && blockingQualityGateChecks().length === 0) {
+      console.warn(
+        `[Processor] ${jobId}: QualityGateV2 emitted log-only diagnostic(s); continuing finalization`,
+        logOnlyQGWarnings,
+      );
+    }
+
+    if (!qualityGateV2.pass && blockingQualityGateChecks().length > 0) {
+      const failedCheckRecords = blockingQualityGateChecks();
       const failedChecks = failedCheckRecords
         .map((check) => `${check.check_id}: ${check.details ?? check.error_code ?? 'failed'}`);
       const gateError = `[QualityGateV2] ${failedChecks.join('; ')}`;
@@ -10872,6 +10899,7 @@ export async function processEvaluationJob(
     effectiveEvaluationResult.governance.warnings = [
       ...(effectiveEvaluationResult.governance.warnings ?? []),
       ...(qualityGateV2.warnings ?? []),
+      ...logOnlyQGWarnings,
       ...(artifactGateDecision.reasonCodes.length > 0
         ? [
             `[ArtifactValidation:${artifactGateDecision.verdict}] reason_codes=${artifactGateDecision.reasonCodes.join(',')}`,

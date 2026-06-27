@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import {
   getFailureRecoveryDefinition,
   getFailureRecoveryPolicy,
@@ -41,6 +43,32 @@ describe('processor runtime governance flow', () => {
     }
   });
 
+  test('QualityGateV2 recovery modes are explicit governance decisions', () => {
+    const expectedModes: Array<[
+      string,
+      'rollback_to_certified_checkpoint' | 'terminal_block',
+      number,
+    ]> = [
+      // Repairable presentation/completeness defects may roll back once to the certified checkpoint.
+      ['QG_ARTIFACT_GATE_FAIL', 'rollback_to_certified_checkpoint', 1],
+      ['QG_CONSEQUENCE_CONTRACT', 'rollback_to_certified_checkpoint', 1],
+      ['QG_MISSING_REQUIRED_EVIDENCE', 'rollback_to_certified_checkpoint', 1],
+      ['QG_SUMMARY_OMITS_WEAKNESS', 'rollback_to_certified_checkpoint', 1],
+      // Structural scope/score/integrity defects are clean terminal stops, not redo loops.
+      ['QG_CRITERIA_MISSING', 'terminal_block', 0],
+      ['QG_CRITERIA_SCOPE_SHAPE_MISMATCH', 'terminal_block', 0],
+      ['QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH', 'terminal_block', 0],
+      ['QG_PROPAGATION_INTEGRITY', 'terminal_block', 0],
+      ['QG_SCORE_RANGE', 'terminal_block', 0],
+    ];
+
+    for (const [failureCode, mode, retryLimit] of expectedModes) {
+      const definition = getFailureRecoveryDefinition(failureCode);
+      expect(definition?.recoveryPolicy.mode).toBe(mode);
+      expect(definition?.recoveryPolicy.retryLimit).toBe(retryLimit);
+    }
+  });
+
   test('processor kick eligibility follows rollback policy, not legacy QG prefix rules', () => {
     const expectations: Array<[string, boolean]> = [
       ['QG_ARTIFACT_GATE_FAIL', true],
@@ -76,5 +104,15 @@ describe('processor runtime governance flow', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_SUMMARY_OMITS_WEAKNESS')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_REQUIRED_EVIDENCE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_CONSEQUENCE_CONTRACT')).toBe(1);
+  });
+
+  test('latency guard: processor runtime does not import CI registry-wide audit surfaces', () => {
+    const processorSource = readFileSync(`${process.cwd()}/lib/evaluation/processor.ts`, 'utf8');
+
+    expect(processorSource).not.toMatch(/failureCodeKickCoverage/);
+    expect(processorSource).not.toMatch(/PROCESS_REGISTRY/);
+    expect(processorSource).not.toMatch(/REVISE_PROCESS_REGISTRY/);
+    expect(processorSource).not.toMatch(/AGENT_READINESS_PROCESS_REGISTRY/);
+    expect(processorSource).not.toMatch(/STORYGATE_PROCESS_REGISTRY/);
   });
 });
