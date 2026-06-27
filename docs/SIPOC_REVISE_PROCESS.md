@@ -4,8 +4,18 @@
 > **CSV mirrors:** `docs/registries/revise/`
 > **Evaluation counterpart:** `docs/SIPOC_EVALUATION_PROCESS.md`
 > **Governance:** `AI_GOVERNANCE.md` (binding)
+> **Top-level doctrine:** `docs/governance/AUTHORITY_CHAIN.md` (binding)
+> **Artifact authority:** `docs/SIPOC_ARTIFACT_AUTHORITY_CHAIN.md`
 
 ---
+
+## Normative Relationship
+
+This Revise SIPOC is governed by `docs/governance/AUTHORITY_CHAIN.md` and the artifact-level constitution in `docs/SIPOC_ARTIFACT_AUTHORITY_CHAIN.md`.
+
+It is the normative downstream counterpart to `docs/SIPOC_EVALUATION_PROCESS.md` for the Evaluation → Revise handoff (`revision_opportunity_ledger_v1`).
+
+Where wording conflicts with top-level doctrine, doctrine is authoritative until this document is reconciled.
 
 ## Purpose
 
