@@ -1,14 +1,14 @@
 {
   "schema_version": "benchmark_authority_contract_v1",
-  "contract_id": "short-form-the-cartographer",
+  "contract_id": "short-form-ancient-bloodlines",
   "mode": "short_form_evaluation",
   "route": "SHORT_FORM",
-  "word_count_band": "4000-8000",
+  "word_count_band": "4000-25000",
   "manuscript_profile": {
-    "title": "The Cartographer",
-    "word_count": 5200,
-    "genre": "literary suspense",
-    "target_audience": "Adult literary suspense readers"
+    "title": "Ancient Bloodlines",
+    "word_count": 12200,
+    "genre": "Middle-Grade Fantasy / Ecological Fable",
+    "target_audience": "Middle-grade readers (ages 8–12) interested in animal fantasy, environmental themes, and anti-bullying narratives"
   },
   "required_surfaces": ["view_model", "txt", "html_pdf", "docx"],
   "expected_section_order": [
@@ -27,42 +27,34 @@
     "author_disclaimer"
   ],
   "required_public_strings": [
-    "The Cartographer",
+    "Ancient Bloodlines",
     "Short-Form Evaluation",
-    "literary suspense",
-    "Adult literary suspense readers",
-    "74 / 100",
+    "Middle-Grade Fantasy / Ecological Fable",
+    "68",
     "Revise",
-    "Genre Confidence",
-    "Market Readiness Confidence",
-    "A retired mapmaker discovers her final commission hides a colonial secret.",
-    "The Cartographer builds a distinctive world through layered cartographic metaphor, but pacing falters in the second act where introspective passages overshadow forward momentum.",
-    "Distinctive cartographic voice with consistent metaphor integration.",
-    "Pacing stalls in the middle third where reflection replaces action.",
+    "Cross-species relationship engine built through action rather than exposition.",
+    "Ecological authenticity grounding the fantasy in observable natural systems.",
+    "Anti-bullying narrative without didacticism.",
+    "Tonal instability between gentle middle-grade fable and graphic violence.",
+    "Mythology overload without grounding.",
+    "Pacing collapse in Chapter 5.",
     "Concept & Core Premise",
     "Narrative Drive & Momentum",
     "Point of View & Voice Control",
-    "She traced the river, noticing how every bend had been renamed.",
-    "Colonial subtext introduced late without sufficient groundwork.",
-    "Seed one colonial reference per chapter from chapter 3 onward.",
-    "Creates cohesive thematic throughline rather than late revelation.",
-    "Verify each chapter has at least one colonial-era reference after chapter 3.",
-    "Days passed in the archive, each map yielding less than the last.",
-    "Insert a deadline — the archive is closing, or a rival collector emerges.",
     "Author retains ownership of manuscript content"
   ],
-  "required_criterion_keys": [
-    "conceptAndCorePremise",
-    "narrativeDrive",
-    "povVoice"
+  "optional_public_strings": [
+    "Thorander's creation myth monologue (~2,000 words of uninterrupted backstory).",
+    "Narrative momentum halts completely during a static lecture scene.",
+    "Restructure as interrupted storytelling with counterpoint tension.",
+    "Maintains engagement through the middle third while still delivering essential world-building.",
+    "Do not cut the creation myth entirely; it establishes the thematic foundation for cross-species cooperation."
   ],
-  "required_diagnostic_fields": [
-    "anchor_snippet",
-    "symptom",
-    "mechanism",
-    "specific_fix",
-    "reader_effect",
-    "mistake_proofing"
+  "source_only_strings": [
+    "Newton, a young rough-skinned newt with a damaged leg, must survive bullying, predation, and species prejudice to forge an unprecedented cross-species alliance.",
+    "animal-on-animal violence",
+    "parental death",
+    "environmental degradation"
   ],
   "forbidden_public_strings": [
     "DREAM",
@@ -75,5 +67,18 @@
     "provider_response",
     "raw_prompt",
     "chain_of_thought"
+  ],
+  "required_criterion_keys": [
+    "concept",
+    "narrativeDrive",
+    "voice"
+  ],
+  "required_diagnostic_fields": [
+    "anchor_snippet",
+    "symptom",
+    "mechanism",
+    "specific_fix",
+    "reader_effect",
+    "mistake_proofing"
   ]
 }
