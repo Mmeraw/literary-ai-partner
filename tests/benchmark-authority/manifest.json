@@ -1,0 +1,27 @@
+{
+  "schema_version": "benchmark_authority_manifest_v1",
+  "description": "Benchmark Authority Library manifest. Each entry registers a contract for parametrized renderer parity testing.",
+  "contracts": [
+    {
+      "id": "short-form-ancient-bloodlines",
+      "mode": "short_form_evaluation",
+      "tier": "required-gold",
+      "runtime_authority": true,
+      "dir": "short-form"
+    },
+    {
+      "id": "short-form-yellow-wallpaper",
+      "mode": "short_form_evaluation",
+      "tier": "calibration-only",
+      "runtime_authority": false,
+      "dir": "short-form"
+    },
+    {
+      "id": "cartel-babies-required-gold",
+      "mode": "long_form_multi_layer_evaluation",
+      "tier": "required-gold",
+      "runtime_authority": true,
+      "dir": "long-form-multi-layer"
+    }
+  ]
+}
