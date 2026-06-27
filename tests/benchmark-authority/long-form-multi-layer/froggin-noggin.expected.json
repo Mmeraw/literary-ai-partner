@@ -1,0 +1,112 @@
+{
+  "schema_version": "benchmark_authority_contract_v1",
+  "contract_id": "long-form-multi-layer-froggin-noggin",
+  "mode": "long_form_multi_layer_evaluation",
+  "route": "LONG_FORM",
+  "word_count_band": "25000-75000",
+  "manuscript_profile": {
+    "title": "Froggin Noggin",
+    "submission_scope": "first_100_pages",
+    "word_count": 51252,
+    "chapter_count": 14,
+    "genre": "Literary Transgressive Fiction / Dual-POV Eco-Fable",
+    "target_audience": "Adult literary readers of transgressive fiction and dual-POV dark fantasy; indie literary / horror-adjacent press audience"
+  },
+  "required_surfaces": ["view_model", "txt", "html_pdf", "docx"],
+  "expected_section_order": [
+    "title_block",
+    "executive_verdict",
+    "dream_scores",
+    "market_shelf",
+    "what_not_to_become",
+    "structural_stack",
+    "arc_map",
+    "criterion_analyses",
+    "layer_analyses",
+    "cross_layer_integration",
+    "symbolic_audit",
+    "reader_experience",
+    "revision_plan",
+    "releasability",
+    "acceptance_checks",
+    "calibration_notes",
+    "manuscript_integrity_issues",
+    "author_disclaimer"
+  ],
+  "required_public_strings": [
+    "Froggin Noggin",
+    "Literary Transgressive Fiction / Dual-POV Eco-Fable",
+    "Adult literary readers of transgressive fiction and dual-POV dark fantasy; indie literary / horror-adjacent press audience",
+    "58",
+    "Two sovereigns hoarding chemistry, and subjects who would rather swallow the shiny thing than be free.",
+    "A book edited into safety with the transgression sanded down.",
+    "A simplified frog-adventure story that erases the adult eco-satirical myth, amphibian polity, grotesque human thread, toadstone/shard/Gorf system, and cross-species tenderness.",
+    "Human storyline\u2014Kingdom Lake meth world",
+    "Frog storyline\u2014Aqua World matriarchy",
+    "Cosmological / theological frame",
+    "Structural mirroring spine",
+    "Concept & Core Premise",
+    "Narrative Drive & Momentum",
+    "Mirror Brutus\u2019s meth cook against Zimeon\u2019s shard discovery on adjacent chapter beats.",
+    "Stage Hyla\u2019s maiming of Arcana as a present-tense scene, not a recollection.",
+    "Page-100 waypoint payoff: false-positive toadstone.",
+    "Concept / premise",
+    "Page-100 structural payoff",
+    "Publication readiness",
+    "Must detect the dual-POV human and frog storylines as parallel power structures.",
+    "Must detect the structural mirroring of chemical authority over the body.",
+    "Author retains ownership of manuscript content"
+  ],
+  "optional_public_strings": [
+    "Toadstone + meth cook + matriarchal frog politburo is a genuine original.",
+    "Three-refrain chant and extended Brutus monologues delay the first concrete turn.",
+    "The novel runs a deliberate parallel between Brutus manufacturing chemical authority in a mineshaft and Zimeon ingesting chemical authority in the Dead Zone.",
+    "No promise made on page 1 has been kept by page 100.",
+    "Position the query letter to indie literary presses with a transgressive list or a horror-adjacent imprint, not to commercial fantasy."
+  ],
+  "source_only_strings": [
+    "Froggin Noggin runs two parallel power structures against each other for 100 pages and dares the reader to admit they are looking in a mirror.",
+    "a toadstone\u2014a froggin noggin",
+    "I want a toadstone. Imagine a talisman with mystical powers!",
+    "crystal methamphetamine manufacture",
+    "matriarchal cruelty"
+  ],
+  "forbidden_public_strings": [
+    "DREAM",
+    "revision_opportunity_ledger",
+    "revision_canon_metadata",
+    "internal_check_id",
+    "provider_response",
+    "raw_prompt",
+    "chain_of_thought",
+    "pass3-synthesis-v11-transgressive",
+    "Pass3-Convergence",
+    "WAVE"
+  ],
+  "required_dream_keys": [
+    "executive_verdict",
+    "dream_scores",
+    "market_shelf",
+    "what_not_to_become",
+    "structural_stack",
+    "arc_map",
+    "criterion_analyses",
+    "layer_analyses",
+    "cross_layer_integration",
+    "symbolic_audit",
+    "reader_experience",
+    "revision_plan",
+    "releasability",
+    "acceptance_checks",
+    "calibration_notes",
+    "manuscript_integrity_issues"
+  ],
+  "required_criterion_keys": [
+    "concept",
+    "narrativeDrive"
+  ],
+  "required_revision_queue_display_rule": {
+    "must_render_clean_display_text": true,
+    "forbidden_raw_tokens": ["[LOCATION:", "[OPERATION:"]
+  }
+}

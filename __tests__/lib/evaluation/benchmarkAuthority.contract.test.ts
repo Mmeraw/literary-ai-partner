@@ -132,4 +132,37 @@ describe('benchmark authority contract package', () => {
       expect(name).toBeTruthy();
     }
   });
+
+  test('Froggin Noggin long-form contract is grounded in the first-100-pages canon and free of contradictions', () => {
+    const contract = loadContract('long-form-multi-layer/froggin-noggin.expected.json');
+
+    expect(contract.schema_version).toBe('benchmark_authority_contract_v1');
+    expect(contract.contract_id).toBe('long-form-multi-layer-froggin-noggin');
+    expect(contract.mode).toBe('long_form_multi_layer_evaluation');
+    expect(contract.route).toBe('LONG_FORM');
+
+    expect(contract.manuscript_profile.title).toBe('Froggin Noggin');
+    expect(contract.manuscript_profile.word_count).toBe(51_252);
+    expect(contract.required_public_strings.length).toBeGreaterThanOrEqual(20);
+    expect(contract.forbidden_public_strings.length).toBeGreaterThanOrEqual(8);
+
+    // No fabricated full-novel metadata.
+    const allText = JSON.stringify(contract);
+    expect(allText).not.toContain('127036');
+    expect(allText).not.toContain('127,036');
+    expect(allText).not.toContain("sanitized children");
+
+    // A string can never be both required and forbidden.
+    const required = new Set(contract.required_public_strings);
+    const overlap = contract.forbidden_public_strings.filter((value) => required.has(value));
+    expect(overlap).toEqual([]);
+
+    // DREAM stays an internal-only token; no required public string may carry it.
+    expect(contract.forbidden_public_strings).toContain('DREAM');
+    expect(contract.required_public_strings.filter((value) => value.includes('DREAM'))).toEqual([]);
+
+    // CMOS: em dashes carry no surrounding spaces in any public string.
+    const spacedEmDash = contract.required_public_strings.filter((value) => / \u2014 /.test(value));
+    expect(spacedEmDash).toEqual([]);
+  });
 });
