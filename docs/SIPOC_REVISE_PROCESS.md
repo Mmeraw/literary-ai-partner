@@ -105,6 +105,9 @@ Revise consumes this constitutional context as provenance only. It must not rein
 12. **Completion gate is active.** `RS08_COMPLETION` emits `revision_completion_record_v1` and certifies only when all `ready_for_revise` items have persisted decisions and no pending sync remains.
 13. **`needs_targeting` items are not deleted.** They persist in an advisory view. Authors may retarget them. They do not block completion of `ready_for_revise` items.
 14. **Observability is passive.** Telemetry (`lib/revision/telemetry.ts`) and governance logs must not alter control flow.
+15. **Queues own queue state only.** Queues own lifecycle, admission, retry, lease, and presentation state. Queues do not own or mutate certified UED, ViewModel, renderer, or download artifacts.
+16. **Revise consumes certified lineage only.** Revise consumes certified Evaluation lineage and `revision_opportunity_ledger_v1` provenance only. It must not consume Web/PDF/DOCX/TXT renderer output or `evaluation_report_view_model_v1` as a revision authority.
+17. **Renderer-dependent handoff is invalid.** If Revise admission depends on renderer/download output, the handoff is invalid and must kick back to the Evaluation authority boundary (`S10b_PHASE5_AUTHOR_EXPOSURE_GATE` / `S10c_VIEWMODEL_BOUNDARY_GATE`) instead of proceeding through Revise.
 
 ---
 
@@ -198,6 +201,7 @@ Validate traceability fields → verify UED hash against persisted artifacts →
 - **REVISE_LEDGER_TRACEABILITY_GATE:** No `ready_for_revise` item may enter workbench without all five traceability fields verified
 - Items that fail traceability are not deleted — they move to `needs_targeting` with reason `traceability_incomplete`
 - This gate does NOT re-evaluate or re-score — it validates provenance only
+- This gate MUST reject renderer/download-derived inputs. Web/PDF/DOCX/TXT projections and `evaluation_report_view_model_v1` are presentation artifacts, not Revise authority.
 - Passive: does not alter opportunity content, severity, or classification
 
 ### Failure Codes
@@ -207,6 +211,7 @@ Validate traceability fields → verify UED hash against persisted artifacts →
 - `REVISE_TRACEABILITY_UED_HASH_MISMATCH`
 - `REVISE_TRACEABILITY_FINDING_NOT_FOUND`
 - `REVISE_TRACEABILITY_JOB_NOT_FOUND`
+- `REVISE_HANDOFF_RENDERER_OUTPUT_INVALID`
 
 ---
 

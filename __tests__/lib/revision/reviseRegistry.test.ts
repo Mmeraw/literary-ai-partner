@@ -284,8 +284,16 @@ describe('Revise Registry — field registry', () => {
 });
 
 describe('Revise Registry — kick matrix', () => {
-  test('has 11 kick codes', () => {
-    expect(REVISE_KICK_MATRIX).toHaveLength(11);
+  test('has 12 kick codes', () => {
+    expect(REVISE_KICK_MATRIX).toHaveLength(12);
+  });
+
+  test('REVISE_HANDOFF_RENDERER_OUTPUT_INVALID kicks back to the ViewModel boundary', () => {
+    const kick = REVISE_KICK_MATRIX.find((k) => k.kickCode === 'REVISE_HANDOFF_RENDERER_OUTPUT_INVALID');
+    expect(kick).toBeDefined();
+    expect(kick!.triggeringStageId).toBe('RS02_QUEUE_ADMISSION');
+    expect(kick!.targetStageId).toBe('S10c_VIEWMODEL_BOUNDARY_GATE');
+    expect(kick!.severity).toBe('blocking');
   });
 
   test('LEDGER_SYNC_VALIDATION_FAIL is a blocking kick', () => {
@@ -309,7 +317,7 @@ describe('Revise Registry — kick matrix', () => {
   });
 
   test('all targetStageIds reference registered stages or evaluation-side stages', () => {
-    const EVAL_STAGES = new Set(['S10b_PHASE5_AUTHOR_EXPOSURE_GATE']);
+    const EVAL_STAGES = new Set(['S10b_PHASE5_AUTHOR_EXPOSURE_GATE', 'S10c_VIEWMODEL_BOUNDARY_GATE']);
     for (const kick of REVISE_KICK_MATRIX) {
       const known = registeredStageIds.has(kick.targetStageId) || EVAL_STAGES.has(kick.targetStageId);
       expect({ kick: kick.kickCode, target: kick.targetStageId, known }).toMatchObject({ known: true });
