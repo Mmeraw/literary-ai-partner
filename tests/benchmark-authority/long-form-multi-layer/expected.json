@@ -1,14 +1,14 @@
 {
   "schema_version": "benchmark_authority_contract_v1",
-  "contract_id": "long-form-multi-layer-burning-archive",
+  "contract_id": "long-form-multi-layer-cartel-babies",
   "mode": "long_form_multi_layer_evaluation",
   "route": "LONG_FORM",
   "word_count_band": "75000+",
   "manuscript_profile": {
-    "title": "The Burning Archive",
-    "word_count": 92000,
-    "genre": "historical thriller",
-    "target_audience": "Adult historical fiction and thriller readers"
+    "title": "Cartel Babies",
+    "word_count": 125004,
+    "genre": "Upmarket Suspense / Literary Cartel Thriller",
+    "target_audience": "Adult readers of literary suspense, borderlands crime fiction, character-driven thrillers, and morally complex family dramas"
   },
   "required_surfaces": ["view_model", "txt", "html_pdf", "docx"],
   "expected_section_order": [
@@ -32,37 +32,67 @@
     "author_disclaimer"
   ],
   "required_public_strings": [
-    "The Burning Archive",
+    "Cartel Babies",
     "DREAM Long-Form Multi-Layer Evaluation",
-    "historical thriller",
-    "Adult historical fiction and thriller readers",
-    "88",
-    "82",
-    "Historical thriller",
-    "Coded medieval manuscript reveals suppressed history.",
-    "A dry academic procedural that loses its thriller spine.",
-    "Timeline Architecture",
-    "Mystery Layer",
+    "Upmarket Suspense / Literary Cartel Thriller",
+    "Adult readers of literary suspense, borderlands crime fiction, character-driven thrillers, and morally complex family dramas",
+    "76",
+    "70",
+    "Literary Thriller / International Crime / Borderlands Fiction",
+    "Chosen family under cartel sovereignty.",
+    "A generic narco shootout thriller.",
+    "Immediate Survival Thriller",
+    "Camp-System Anatomy",
+    "Benjamin Parallel Search",
+    "Healing and Chosen Family",
     "Act I",
     "Act II",
     "Act III",
     "Concept & Core Premise",
     "Narrative Drive & Momentum",
-    "Dual-timeline structure is well-integrated with the mystery premise.",
-    "Modern stakes remain primarily intellectual.",
-    "Emotional Arc",
-    "Fire imagery",
-    "The coded manuscript",
-    "What secret does this manuscript hold?",
-    "A lingering question about what other secrets remain buried in archives.",
-    "Deepen protagonist emotional arc",
-    "Tighten mid-novel pacing",
-    "Narrative Cohesion",
-    "Emotional Depth",
-    "Must detect dual-timeline structure and evaluate coherence.",
-    "Fails if pacing issue in chapters 12-18 is not flagged.",
-    "Scoring calibrated for dual-timeline historical thriller expectations.",
+    "Table Tennis",
+    "Naming / Renaming",
+    "Roads",
+    "Run current manuscript-integrity pass",
+    "Compress 8\u201312% globally",
+    "Make final protection sequence procedurally resistant",
+    "Premise / hook",
+    "Central relationship engine",
+    "Benjamin search arc",
+    "Publication readiness",
+    "Must detect Benjamin as dual-POV co-protagonist.",
+    "Must detect Paolito-to-Paul identity transformation.",
+    "Must detect table tennis as relational bridge activity.",
+    "Fails if treated as generic cartel thriller.",
     "Author retains ownership of manuscript content"
+  ],
+  "optional_public_strings": [
+    "The novel contains a cartel-captivity hook, Benjamin search lane, and Paolito/Paul chosen-family payoff.",
+    "Market framing can scatter across cartel, social issue, rescue, queer relationship, and witness-protection shelves.",
+    "Define the public-facing premise around chosen family under cartel sovereignty, with cartel survival as the engine and Paolito/Paul as the emotional hinge.",
+    "Readers and agents understand the book's unique promise quickly.",
+    "Do not flatten the novel into child-rescue sentiment or generic cartel action.",
+    "Strong abduction, camp adaptation, and extraction momentum.",
+    "Benjamin repetition and final administrative smoothness soften drive."
+  ],
+  "source_only_strings": [
+    "A Canadian expatriate abducted by cartel operatives in Sinaloa is pulled into a hidden camp where survival depends on tactical observation, emotional discipline, and dangerous usefulness.",
+    "cartel abduction",
+    "child endangerment",
+    "physical assault",
+    "homophobic bullying"
+  ],
+  "forbidden_public_strings": [
+    "DREAM",
+    "revision_opportunity_ledger",
+    "revision_canon_metadata",
+    "internal_check_id",
+    "provider_response",
+    "raw_prompt",
+    "chain_of_thought",
+    "Final External Audit",
+    "Golden Spine",
+    "WAVE"
   ],
   "required_dream_keys": [
     "executive_verdict",
@@ -83,21 +113,11 @@
     "manuscript_integrity_issues"
   ],
   "required_criterion_keys": [
-    "conceptAndCorePremise",
+    "concept",
     "narrativeDrive"
   ],
   "required_revision_queue_display_rule": {
     "must_render_clean_display_text": true,
     "forbidden_raw_tokens": ["[LOCATION:", "[OPERATION:"]
-  },
-  "forbidden_public_strings": [
-    "revision_opportunity_ledger",
-    "revision_canon_metadata",
-    "internal_check_id",
-    "provider_response",
-    "raw_prompt",
-    "chain_of_thought",
-    "Final External Audit",
-    "Golden Spine"
-  ]
+  }
 }
