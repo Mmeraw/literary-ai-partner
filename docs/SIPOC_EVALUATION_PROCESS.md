@@ -2,6 +2,16 @@
 
 Status: Canonical certification index for **evaluation runtime spine only** (PR A, docs-only)
 
+## Normative Relationship
+
+This specification has a **binding companion document**:
+
+`docs/SIPOC_EVALUATION_VM_BOUNDARY_ADDENDUM.md`
+
+Both documents constitute a single authoritative Evaluation SIPOC and must always be interpreted together.
+
+Where historical renderer-boundary language conflicts with the addendum, the addendum is authoritative until the next consolidated SIPOC revision.
+
 ## Purpose
 
 Freeze the canonical certification spine for evaluation runtime execution so downstream fixture, harness, CI, and telemetry work (PR B–E) can be built against explicit stage contracts instead of inferred behavior.

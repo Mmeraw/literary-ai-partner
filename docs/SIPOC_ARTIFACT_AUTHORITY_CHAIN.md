@@ -9,6 +9,14 @@
 
 ---
 
+## Normative Relationship
+
+`docs/governance/AUTHORITY_CHAIN.md` is the **top-level binding doctrine**.
+
+This document is the artifact-level SIPOC/FIPOC execution specification for that doctrine.
+
+If any wording in this document conflicts with `docs/governance/AUTHORITY_CHAIN.md`, the governance doctrine is authoritative until this SIPOC is reconciled.
+
 ## Purpose
 
 This document is the **master governance SIPOC** for the RevisionGrade Artifact Authority Chain.

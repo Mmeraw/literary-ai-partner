@@ -7,6 +7,14 @@
 
 ---
 
+## Normative Relationship
+
+This document is a **normative extension** of `docs/SIPOC_EVALUATION_PROCESS.md`.
+
+Together they form one authoritative Evaluation SIPOC.
+
+Neither document should be interpreted independently.
+
 ## Purpose
 
 This addendum corrects and clarifies the Evaluation SIPOC renderer boundary after the Phase 4b ViewModel renderer work.
