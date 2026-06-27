@@ -23,25 +23,52 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Early exit: skip heavy build/test for docs/benchmark-only PRs
+      - name: Check PR scope
+        id: scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null || git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          NON_DOC=$(echo "$FILES" | grep -vE '^(docs/|archive/|\.github/PULL_REQUEST_TEMPLATE/|\.github/pr-bodies/|README\.md|CONTRIBUTING\.md|LICENSE)' || true)
+          if [ -z "$NON_DOC" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Docs/benchmark-only PR — skipping build and test."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Skip notice
+        if: steps.scope.outputs.skip == 'true'
+        run: echo "CI build and test skipped — no code changes in this PR."
+
       - name: Setup Node
+        if: steps.scope.outputs.skip != 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
 
       - name: Install
+        if: steps.scope.outputs.skip != 'true'
         run: npm ci
 
       - name: Lease write contract guard
+        if: steps.scope.outputs.skip != 'true'
         run: bash scripts/check-lease-writes.sh
 
       - name: Eval2 persistence boundary guard
+        if: steps.scope.outputs.skip != 'true'
         run: npm run guard:eval2-persistence-boundary
 
       - name: Hardening contract guard
+        if: steps.scope.outputs.skip != 'true'
         run: npm run guard:hardening-contract
 
       - name: Build
+        if: steps.scope.outputs.skip != 'true'
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
@@ -50,14 +77,17 @@ jobs:
           EVAL_PASS_TIMEOUT_MS: "180000"
 
       - name: Gate replay (strict codes)
+        if: steps.scope.outputs.skip != 'true'
         run: npm run gate:replay -- --run-dir tests/fixtures/gate-replay/ch11b_pass
 
       - name: Story Ledger gold fixture benchmark gate
+        if: steps.scope.outputs.skip != 'true'
         run: npm run test:benchmark:story-ledger-gold-fixtures
         env:
           CI: true
 
       - name: Test
+        if: steps.scope.outputs.skip != 'true'
         run: npm test -- --runInBand --no-coverage --bail
         env:
           CI: true
@@ -70,15 +100,43 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      # Early exit: skip governance checks for docs/benchmark-only PRs
+      - name: Check PR scope
+        id: scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null || git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          NON_DOC=$(echo "$FILES" | grep -vE '^(docs/|archive/|\.github/PULL_REQUEST_TEMPLATE/|\.github/pr-bodies/|README\.md|CONTRIBUTING\.md|LICENSE)' || true)
+          if [ -z "$NON_DOC" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Docs/benchmark-only PR — skipping governance checks."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Skip notice
+        if: steps.scope.outputs.skip == 'true'
+        run: echo "Governance checks skipped — no code changes in this PR."
+
       - uses: actions/setup-node@v5
+        if: steps.scope.outputs.skip != 'true'
         with:
           node-version: "24"
-      - run: npm ci
+      - name: Install
+        if: steps.scope.outputs.skip != 'true'
+        run: npm ci
       - name: Install ripgrep (required for canon-audit)
+        if: steps.scope.outputs.skip != 'true'
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Canon governance audit
+        if: steps.scope.outputs.skip != 'true'
         run: ./scripts/canon-audit.sh
       - name: A5 Day 2 verification (backpressure + cost)
+        if: steps.scope.outputs.skip != 'true'
         run: bash scripts/verify-phase-a5-day2.sh
 
   smoke-test:

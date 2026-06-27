@@ -60,8 +60,9 @@ describe('P1: REVISE_KICK_MATRIX runtime wiring', () => {
       'RS01_LEDGER_ASSEMBLY', 'RS02_QUEUE_ADMISSION', 'RS03_QUEUE_PRIORITIZATION',
       'RS04_WORKBENCH_LOAD', 'RS05_CANDIDATE_GENERATION', 'RS06_AUTHOR_DECISION',
       'RS07_LEDGER_SYNC', 'RS08_COMPLETION', 'RS09_CROSSCHECK_VERIFICATION', 'RS10_TRUSTEDPATH',
-      // Cross-pipeline kick target: backward kick to evaluation Phase 5 gate
+      // Cross-pipeline kick targets: backward kick to evaluation gates
       'S10b_PHASE5_AUTHOR_EXPOSURE_GATE',
+      'S10c_VIEWMODEL_BOUNDARY_GATE',
     ];
     for (const kick of REVISE_KICK_MATRIX) {
       expect(validStageIds).toContain(kick.targetStageId);
