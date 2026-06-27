@@ -120,33 +120,7 @@ jobs:
             echo "npm audit (high) clean ✅"
             exit 0
           fi
-          (npm audit --json 2>&1 || true) | node -e '
-            const fs = require("fs");
-            const data = fs.readFileSync(0, "utf8");
-            if (!data || !data.trim()) {
-              console.error("npm audit returned no JSON; cannot validate allowlist.");
-              process.exit(1);
-            }
-            let j;
-            try { j = JSON.parse(data); } catch (e) {
-              console.error("Failed to parse npm audit JSON:", e.message);
-              process.exit(1);
-            }
-            const vulns = j.vulnerabilities || {};
-            const keys = Object.keys(vulns);
-            const allow = ["tar", "supabase", "next", "eslint", "ajv", "flatted", "minimatch", "socket.io-parser", "engine.io-client", "socket.io-client", "ws", "underscore", "@xmldom/xmldom", "xmldom", "brace-expansion", "lodash", "picomatch", "axios", "@base44/sdk", "postcss", "uuid", "xlsx", "@playwright/test", "playwright", "workflow", "@workflow/astro", "@workflow/builders", "@workflow/cli", "@workflow/core", "@workflow/nest", "@workflow/next", "@workflow/nitro", "@workflow/nuxt", "@workflow/rollup", "@workflow/sveltekit", "@workflow/vite", "@workflow/world-local", "@workflow/world-vercel", "devalue", "undici", "tmp", "esbuild", "tsx"];
-            const bad = keys.filter(k => !allow.some(a => k === a || k.includes(a)));
-            if (bad.length) {
-              console.error("Unexpected high vulns:", bad);
-              process.exit(1);
-            }
-            const notesPath = "docs/NPM_AUDIT_NOTES.md";
-            if (!fs.existsSync(notesPath)) {
-              console.error("Missing docs/NPM_AUDIT_NOTES.md for approved advisories.");
-              process.exit(1);
-            }
-            console.log("Only approved advisories remain (documented in docs/NPM_AUDIT_NOTES.md) ✅");
-          '
+          (npm audit --json 2>&1 || true) | node scripts/validate-npm-audit-notes.mjs
       - name: Build Next.js app
         run: npm run build
         env:
