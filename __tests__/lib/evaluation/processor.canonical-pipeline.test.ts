@@ -897,6 +897,18 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       ),
     ).toBe(false);
 
+    const persistedArtifactTypes = (upsertEvaluationArtifactMock.mock.calls as any[]).map(
+      (call: any[]) => call[0]?.artifactType,
+    );
+    expect(persistedArtifactTypes).toEqual(
+      expect.arrayContaining([
+        "post_qg_effective_snapshot_v1",
+        "unified_evaluation_document_v1",
+        "report_render_manifest_v1",
+        "author_exposure_certification_v1",
+      ]),
+    );
+
     const postQgSnapshotCall = (upsertEvaluationArtifactMock.mock.calls as any[]).find(
       (call: any[]) => call[0]?.artifactType === "post_qg_effective_snapshot_v1",
     );
