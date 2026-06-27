@@ -258,6 +258,16 @@ export function getFailureRecoveryDefinition(failureCode: string): FailureRecove
   return FAILURE_RECOVERY_DEFINITION_BY_CODE.get(failureCode);
 }
 
+export function getFailureRecoveryDefinitionsForCodes(failureCodes: readonly string[]): FailureRecoveryDefinition[] {
+  return failureCodes.map((failureCode) => {
+    const definition = getFailureRecoveryDefinition(failureCode);
+    if (!definition) {
+      throw new Error(`Missing failure recovery definition for ${failureCode}`);
+    }
+    return definition;
+  });
+}
+
 export function getFailureRecoveryPolicy(input: {
   failureCode: string;
   hasKick: boolean;

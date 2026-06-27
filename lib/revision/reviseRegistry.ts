@@ -13,6 +13,8 @@
  * Authority:  AI_GOVERNANCE.md (binding)
  */
 
+import { getFailureRecoveryDefinitionsForCodes, type FailureRecoveryDefinition } from '../governance/failureRecoveryPolicy';
+
 // ─── Authority Source Families ──────────────────────────────────────────────
 
 export type ReviseAuthorityFamily =
@@ -160,6 +162,7 @@ export type ReviseStage = {
   dirtyDataRules: string[];
   retryBudget: number;
   failureCodes: string[];
+  failureDefinitions: FailureRecoveryDefinition[];
   consumers: string[];
   uiExposed: boolean;
   certificationStatus: ReviseCertificationStatus;
@@ -167,7 +170,9 @@ export type ReviseStage = {
   notes: string;
 };
 
-export const REVISE_PROCESS_REGISTRY: readonly ReviseStage[] = [
+type ReviseStageSource = Omit<ReviseStage, 'failureDefinitions'>;
+
+const REVISE_PROCESS_REGISTRY_SOURCE: readonly ReviseStageSource[] = [
   {
     sequence: 10,
     phase: 'Ledger Assembly',
@@ -429,6 +434,11 @@ export const REVISE_PROCESS_REGISTRY: readonly ReviseStage[] = [
     notes: 'TrustedPath auto-apply uses source="trustedpath-auto-apply" on every ledger entry. Feature designed for time-pressed authors with large queues of verified repairs.',
   },
 ];
+
+export const REVISE_PROCESS_REGISTRY: readonly ReviseStage[] = REVISE_PROCESS_REGISTRY_SOURCE.map((stage) => ({
+  ...stage,
+  failureDefinitions: getFailureRecoveryDefinitionsForCodes(stage.failureCodes),
+}));
 
 // ─── Artifact Registry ───────────────────────────────────────────────────────
 

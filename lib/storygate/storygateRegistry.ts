@@ -11,6 +11,8 @@
  * Authority:  docs/SIPOC_ARTIFACT_AUTHORITY_CHAIN.md
  */
 
+import { getFailureRecoveryDefinitionsForCodes, type FailureRecoveryDefinition } from '../governance/failureRecoveryPolicy';
+
 export type StorygateActiveState = 'active' | 'planned_required' | 'deferred';
 export type StorygateCertificationStatus = 'proven' | 'partial' | 'emerging' | 'missing_critical';
 export type StorygateFitGapStatus = 'ok' | 'gap' | 'critical';
@@ -70,6 +72,7 @@ export interface StorygateProcessEntry {
   backwardKick: string;
   dirtyDataRules: string[];
   failureCodes: string[];
+  failureDefinitions: FailureRecoveryDefinition[];
   consumers: string[];
   uiExposed: boolean;
   certificationStatus: StorygateCertificationStatus;
@@ -77,7 +80,9 @@ export interface StorygateProcessEntry {
   notes: string;
 }
 
-export const STORYGATE_PROCESS_REGISTRY: readonly StorygateProcessEntry[] = [
+type StorygateProcessEntrySource = Omit<StorygateProcessEntry, 'failureDefinitions'>;
+
+const STORYGATE_PROCESS_REGISTRY_SOURCE: readonly StorygateProcessEntrySource[] = [
   {
     sequence: 1,
     stageId: 'SG01_CREATOR_SUBMISSION',
@@ -374,6 +379,11 @@ export const STORYGATE_PROCESS_REGISTRY: readonly StorygateProcessEntry[] = [
     notes: 'Structured audit, SLA, and revocation persistence remain missing-critical.',
   },
 ] as const;
+
+export const STORYGATE_PROCESS_REGISTRY: readonly StorygateProcessEntry[] = STORYGATE_PROCESS_REGISTRY_SOURCE.map((stage) => ({
+  ...stage,
+  failureDefinitions: getFailureRecoveryDefinitionsForCodes(stage.failureCodes),
+}));
 
 export interface StorygateArtifactEntry {
   artifact: string;

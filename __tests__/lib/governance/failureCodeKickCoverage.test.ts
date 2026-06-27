@@ -25,6 +25,7 @@ type StageLike = {
   outputMetrics: readonly string[];
   dirtyDataRules: readonly string[];
   failureCodes: readonly string[];
+  failureDefinitions: readonly { failureCode: string }[];
 };
 
 type KickLike = Record<string, unknown>;
@@ -343,14 +344,23 @@ describe('failure-code → kick-matrix coverage audit', () => {
       expect(stage.outputMetrics.length).toBeGreaterThan(0);
       expect(stage.dirtyDataRules.length).toBeGreaterThan(0);
       expect(stage.failureCodes.length).toBeGreaterThan(0);
+      expect(stage.failureDefinitions.length).toBe(stage.failureCodes.length);
     }
   });
 
-  test.each(FAMILY_AUDITS)('$family stage failure codes have explicit failure recovery definitions', (audit) => {
-    for (const code of stageFailureCodes(audit.stages)) {
-      const definition = getFailureRecoveryDefinition(code);
-      expect(definition).toBeDefined();
-      expect(definition!.failureCode).toBe(code);
+  test.each(FAMILY_AUDITS)('$family stage contracts own explicit failure recovery definitions', (audit) => {
+    for (const stage of audit.stages) {
+      expect(stage.failureDefinitions.map((definition) => definition.failureCode)).toEqual(stage.failureCodes);
+    }
+  });
+
+  test.each(FAMILY_AUDITS)('$family stage-owned failure definitions are registered with central governance validator', (audit) => {
+    for (const stage of audit.stages) {
+      for (const stageDefinition of stage.failureDefinitions) {
+        const definition = getFailureRecoveryDefinition(stageDefinition.failureCode);
+        expect(definition).toBeDefined();
+        expect(definition).toEqual(stageDefinition);
+      }
     }
   });
 

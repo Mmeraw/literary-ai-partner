@@ -17,6 +17,8 @@
  * Export format canonical values:   txt | docx
  */
 
+import { getFailureRecoveryDefinitionsForCodes, type FailureRecoveryDefinition } from '../governance/failureRecoveryPolicy';
+
 // ─── Shared Enumerations ────────────────────────────────────────────────────
 
 export type AgentReadinessActiveState =
@@ -75,6 +77,7 @@ export interface AgentReadinessProcessEntry {
   backwardKick: string;
   dirtyDataRules: string[];
   failureCodes: string[];
+  failureDefinitions: FailureRecoveryDefinition[];
   consumers: string[];
   uiExposed: boolean;
   certificationStatus: AgentReadinessCertificationStatus;
@@ -82,7 +85,9 @@ export interface AgentReadinessProcessEntry {
   notes: string;
 }
 
-export const AGENT_READINESS_PROCESS_REGISTRY: readonly AgentReadinessProcessEntry[] = [
+type AgentReadinessProcessEntrySource = Omit<AgentReadinessProcessEntry, 'failureDefinitions'>;
+
+const AGENT_READINESS_PROCESS_REGISTRY_SOURCE: readonly AgentReadinessProcessEntrySource[] = [
   {
     sequence: 1,
     stageId: 'AR01_MANUSCRIPT_ELIGIBILITY',
@@ -349,6 +354,11 @@ export const AGENT_READINESS_PROCESS_REGISTRY: readonly AgentReadinessProcessEnt
     notes: 'Package persistence is a known future seam. Until package records exist, history page is a placeholder.',
   },
 ] as const;
+
+export const AGENT_READINESS_PROCESS_REGISTRY: readonly AgentReadinessProcessEntry[] = AGENT_READINESS_PROCESS_REGISTRY_SOURCE.map((stage) => ({
+  ...stage,
+  failureDefinitions: getFailureRecoveryDefinitionsForCodes(stage.failureCodes),
+}));
 
 // ─── Artifact Registry ──────────────────────────────────────────────────────
 

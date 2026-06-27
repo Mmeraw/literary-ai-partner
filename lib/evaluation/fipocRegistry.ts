@@ -7,6 +7,8 @@
  * than rediscovering process/artifact/field ownership ad hoc.
  */
 
+import { getFailureRecoveryDefinitionsForCodes, type FailureRecoveryDefinition } from '../governance/failureRecoveryPolicy';
+
 export type FipocActiveState = 'active' | 'long_form_active' | 'planned_required' | 'deferred';
 export type FipocCertificationStatus = 'proven' | 'partial' | 'emerging' | 'high_risk' | 'active_partial' | 'missing_critical';
 export type FipocFitGapStatus = 'ok' | 'gap' | 'critical';
@@ -31,6 +33,7 @@ export interface ProcessRegistryEntry {
   dirtyDataRules: string[];
   retryBudget: number | 'none' | 'fail_closed';
   failureCodes: string[];
+  failureDefinitions: FailureRecoveryDefinition[];
   consumers: string[];
   uiExposed: boolean;
   reviseHandoff: boolean;
@@ -38,6 +41,8 @@ export interface ProcessRegistryEntry {
   fitGapStatus: FipocFitGapStatus;
   notes: string;
 }
+
+type ProcessRegistryEntrySource = Omit<ProcessRegistryEntry, 'failureDefinitions'>;
 
 export interface ArtifactRegistryEntry {
   artifact: string;
@@ -374,7 +379,7 @@ export const AUTHORITY_SOURCE_REGISTRY: AuthoritySourceRegistryEntry[] = [
   },
 ];
 
-export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
+const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
   {
     sequence: 10,
     phase: 'Phase 0',
@@ -1105,6 +1110,11 @@ export const PROCESS_REGISTRY: ProcessRegistryEntry[] = [
     notes: 'Revise is a consume-and-repair surface, not a second evaluator. Queue size is evidence-driven; caps are not targets.',
   },
 ];
+
+export const PROCESS_REGISTRY: ProcessRegistryEntry[] = PROCESS_REGISTRY_SOURCE.map((stage) => ({
+  ...stage,
+  failureDefinitions: getFailureRecoveryDefinitionsForCodes(stage.failureCodes),
+}));
 
 export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
   {
