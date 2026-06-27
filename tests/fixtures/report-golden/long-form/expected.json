@@ -1,0 +1,80 @@
+{
+  "schema_version": "report_golden_fixture_v1",
+  "fixture_id": "long-form-glass-river",
+  "mode": "long_form_evaluation",
+  "route": "LONG_FORM",
+  "word_count_band": "25000-74999",
+  "manuscript_profile": {
+    "title": "Glass River",
+    "word_count": 42000,
+    "genre": "upmarket eco-suspense",
+    "target_audience": "Adult upmarket suspense readers with environmental-fiction crossover interest"
+  },
+  "required_surfaces": ["view_model", "txt", "html_pdf", "docx"],
+  "expected_section_order": [
+    "title_block",
+    "market_position",
+    "executive_summary",
+    "score_dashboard",
+    "strengths_risks_recommendations",
+    "criteria_score_grid",
+    "criterion_details",
+    "revision_priority_plan",
+    "confidence_explanation",
+    "author_disclaimer"
+  ],
+  "required_public_strings": [
+    "Glass River",
+    "Long-Form Evaluation",
+    "upmarket eco-suspense",
+    "Adult upmarket suspense readers with environmental-fiction crossover interest",
+    "81 / 100",
+    "Revise",
+    "The river contamination mystery gives the manuscript a strong external engine while the family inheritance plot supplies emotional pressure.",
+    "The opening establishes water as both evidence and threat.",
+    "The midpoint investigation repeats similar clue-gathering beats without enough escalation.",
+    "Concept & Core Premise",
+    "Narrative Drive & Momentum",
+    "Character Depth & Psychological Coherence",
+    "Scene Construction & Function",
+    "Professional Readiness & Market Positioning",
+    "The water tasted metallic before the fish began to surface.",
+    "Escalate the contamination evidence by tying each discovery to a new personal cost.",
+    "Compress repeated river-testing scenes into one decisive sequence.",
+    "Deepen the protagonist's family stakes before the second-act investigation widens.",
+    "Revision Priority Plan",
+    "Market Readiness Confidence",
+    "Author retains ownership of manuscript content"
+  ],
+  "required_criterion_keys": [
+    "conceptAndCorePremise",
+    "narrativeDrive",
+    "character",
+    "sceneConstruction",
+    "marketReadiness"
+  ],
+  "required_diagnostic_fields": [
+    "anchor_snippet",
+    "symptom",
+    "mechanism",
+    "specific_fix",
+    "reader_effect",
+    "mistake_proofing"
+  ],
+  "mode_boundary_assertions": {
+    "must_not_collapse_to_short_form": true,
+    "must_not_require_full_dream_multi_layer_sections": true,
+    "if_runtime_maps_long_form_to_multi_layer": "document the intentional mapping in the test name and expected fixture instead of inventing a retired mode"
+  },
+  "forbidden_public_strings": [
+    "DREAM Cognitive Initialization Protocol",
+    "Story Ledger answer key",
+    "Final External Audit",
+    "Golden Spine",
+    "revision_opportunity_ledger",
+    "revision_canon_metadata",
+    "provider_response",
+    "raw_prompt",
+    "chain_of_thought"
+  ]
+}
