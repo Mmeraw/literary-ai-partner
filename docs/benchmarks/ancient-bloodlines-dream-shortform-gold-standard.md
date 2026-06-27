@@ -3,7 +3,7 @@ benchmark-schema: short-form-evaluation-v1
 evaluation-mode: short_form_evaluation
 title: Ancient Bloodlines Short-Form Evaluation Gold Standard Benchmark
 manuscript: Ancient Bloodlines — Love Between Species (Complete)
-author: Michael J. Me Raw
+author: Michael J. Meraw
 scope: full-manuscript
 route: SHORT_FORM
 output-mode: standard_short_form
@@ -17,7 +17,7 @@ word-count: 12200
 
 # Ancient Bloodlines — Short-Form Evaluation Gold Standard Benchmark
 
-This is the canonical short-form evaluation benchmark for *Ancient Bloodlines: Love Between Species* by Michael J. Me Raw.
+This is the canonical short-form evaluation benchmark for *Ancient Bloodlines: Love Between Species* by Michael J. Meraw.
 
 ---
 
@@ -25,6 +25,8 @@ This is the canonical short-form evaluation benchmark for *Ancient Bloodlines: L
 
 ```text
 # Evaluation Report: Ancient Bloodlines — Love Between Species
+
+Reference ID: ab-shortform-gold-001
 
 Report Type: Short-Form Evaluation
 Overall Score: 68/100
@@ -39,6 +41,7 @@ Submitted Word Count: 12200
 Estimated Manuscript Pages: 49 at 250 words/page
 Reading Grade Level: 5.8 (Flesch-Kincaid)
 Dialogue/Narrative Ratio: 35% dialogue / 65% narrative
+Date Generated: June 27, 2026
 ```
 
 ---

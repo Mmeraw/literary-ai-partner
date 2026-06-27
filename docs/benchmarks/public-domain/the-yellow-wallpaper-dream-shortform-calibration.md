@@ -26,6 +26,8 @@ This is a calibration-tier short-form evaluation benchmark for *The Yellow Wallp
 ```text
 # Evaluation Report: The Yellow Wallpaper
 
+Reference ID: yw-shortform-calibration-001
+
 Report Type: Short-Form Evaluation
 Overall Score: 88/100
 Overall Score Confidence: Very High Confidence
@@ -39,6 +41,7 @@ Submitted Word Count: 6100
 Estimated Manuscript Pages: 24 at 250 words/page
 Reading Grade Level: 7.2 (Flesch-Kincaid)
 Dialogue/Narrative Ratio: 12% dialogue / 88% narrative
+Date Generated: June 27, 2026
 ```
 
 ---
