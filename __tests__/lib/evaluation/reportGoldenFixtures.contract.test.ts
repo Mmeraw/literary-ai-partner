@@ -24,13 +24,11 @@ type ReportGoldenFixture = {
     must_render_clean_display_text: boolean;
     forbidden_raw_tokens: string[];
   };
-  mode_boundary_assertions?: Record<string, unknown>;
 };
 
 const FIXTURE_ROOT = join(process.cwd(), 'tests/fixtures/report-golden');
-const FIXTURES = [
+const ACTIVE_FIXTURES = [
   ['short form', 'short-form/expected.json', 'short_form_evaluation'],
-  ['long form', 'long-form/expected.json', 'long_form_evaluation'],
   ['long-form multi-layer', 'long-form-multi-layer/expected.json', 'long_form_multi_layer_evaluation'],
 ] as const;
 
@@ -41,30 +39,32 @@ function loadFixture(relativePath: string): ReportGoldenFixture {
 }
 
 describe('report golden fixture package', () => {
-  test('declares the three product-mode golden fixtures', () => {
+  test('declares exactly the two active product-mode golden fixtures', () => {
     expect(existsSync(join(FIXTURE_ROOT, 'README.md'))).toBe(true);
+    expect(existsSync(join(FIXTURE_ROOT, 'long-form/expected.json'))).toBe(false);
 
-    for (const [, relativePath, expectedMode] of FIXTURES) {
+    for (const [, relativePath, expectedMode] of ACTIVE_FIXTURES) {
       const fixture = loadFixture(relativePath);
       expect(fixture.schema_version).toBe('report_golden_fixture_v1');
       expect(fixture.mode).toBe(expectedMode);
+      expect(fixture.mode).not.toBe('long_form_evaluation');
       expect(fixture.route).toMatch(/^(SHORT_FORM|LONG_FORM)$/);
       expect(fixture.fixture_id).toBeTruthy();
       expect(fixture.word_count_band).toBeTruthy();
     }
   });
 
-  test('requires all renderer surfaces for every golden fixture', () => {
+  test('requires all renderer surfaces for every active golden fixture', () => {
     const requiredSurfaces = ['view_model', 'txt', 'html_pdf', 'docx'];
 
-    for (const [, relativePath] of FIXTURES) {
+    for (const [, relativePath] of ACTIVE_FIXTURES) {
       const fixture = loadFixture(relativePath);
       expect(fixture.required_surfaces).toEqual(requiredSurfaces);
     }
   });
 
-  test('each fixture has enough public content to function as a product golden', () => {
-    for (const [, relativePath] of FIXTURES) {
+  test('each active fixture has enough public content to function as a product golden', () => {
+    for (const [, relativePath] of ACTIVE_FIXTURES) {
       const fixture = loadFixture(relativePath);
       expect(fixture.manuscript_profile.title).toBeTruthy();
       expect(fixture.manuscript_profile.word_count).toBeGreaterThan(0);
@@ -99,18 +99,6 @@ describe('report golden fixture package', () => {
     ]));
   });
 
-  test('standard long form fixture locks the middle route boundary', () => {
-    const fixture = loadFixture('long-form/expected.json');
-
-    expect(fixture.mode).toBe('long_form_evaluation');
-    expect(fixture.route).toBe('LONG_FORM');
-    expect(fixture.manuscript_profile.word_count).toBeGreaterThanOrEqual(25_000);
-    expect(fixture.manuscript_profile.word_count).toBeLessThan(75_000);
-    expect(fixture.mode_boundary_assertions?.must_not_collapse_to_short_form).toBe(true);
-    expect(fixture.mode_boundary_assertions?.must_not_require_full_dream_multi_layer_sections).toBe(true);
-    expect(fixture.expected_section_order).toContain('revision_priority_plan');
-  });
-
   test('DREAM fixture requires the full multi-layer surface and clean revision queue display', () => {
     const fixture = loadFixture('long-form-multi-layer/expected.json');
 
@@ -136,7 +124,7 @@ describe('report golden fixture package', () => {
   });
 
   test('forbidden leakage vocabulary is never also required public content', () => {
-    for (const [name, relativePath] of FIXTURES) {
+    for (const [name, relativePath] of ACTIVE_FIXTURES) {
       const fixture = loadFixture(relativePath);
       const required = new Set(fixture.required_public_strings);
       const overlap = fixture.forbidden_public_strings.filter((value) => required.has(value));
