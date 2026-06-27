@@ -19,6 +19,7 @@
  */
 
 import OpenAI from 'openai';
+import { buildCompactCognitiveInitializationBlock } from '@/lib/evaluation/dreamTemplateLoader';
 import { buildEnglishVariantPromptBlock } from '@/lib/evaluation/englishVariant';
 import {
   buildHydrationFailureRecord,
@@ -228,6 +229,7 @@ function operationInstruction(operation?: string): string {
 
 function buildUserMessage(opportunities: HydrationOpportunity[]): string {
   const englishVariantBlock = buildEnglishVariantPromptBlock(opportunities[0]?.english_variant);
+  const dcipBlock = buildCompactCognitiveInitializationBlock();
   const items = opportunities
     .map(
       (o, i) =>
@@ -246,7 +248,11 @@ function buildUserMessage(opportunities: HydrationOpportunity[]): string {
 
   return `For each opportunity below, produce exactly 3 distinct, manuscript-ready prose candidates.
 
-${englishVariantBlock}
+${dcipBlock ? `DREAM COGNITIVE INITIALIZATION PROTOCOL (Constitutional Authority)
+Apply this protocol as mandatory constitutional behavior for revision candidate generation.
+${dcipBlock}
+
+` : ''}${englishVariantBlock}
 
 Hard rules:
 - Return prose only inside candidate_a/b/c. Do not return advice, diagnosis, rationale, summary, bullets, labels, or explanations.
@@ -258,6 +264,7 @@ Hard rules:
 - For insert operations, write only the insertable bridge/beat, not a rewritten version of the selected excerpt.
 - For replacement/compression operations, rewrite only the selected excerpt.
 - In TESTIMONY/memoir mode, never invent direct dialogue unless direct dialogue exists in the excerpt/context.
+- Constitutional compliance is mandatory: if any instruction conflicts with the DREAM Cognitive Initialization Protocol block, follow DCIP.
 
 ${items}
 

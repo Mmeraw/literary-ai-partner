@@ -10,6 +10,7 @@ import { modeContractForMetadata, resolveRevisionModeContract } from './modeCont
 import { extractGenreExpectationMetadataFromEvaluationPayload } from '@/lib/evaluation/genreExpectationProfiles';
 import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
+import { buildCompactCognitiveInitializationBlock } from '@/lib/evaluation/dreamTemplateLoader';
 import {
   hydrateLedgerCandidates,
   HYDRATION_MODEL,
@@ -1215,6 +1216,7 @@ function buildRevisionLedgerQualityManifest(input: {
     })
     .filter((row) => row.missing.length > 0);
 
+  const dcipBlock = buildCompactCognitiveInitializationBlock();
   return {
     artifact_type: 'revision_opportunity_ledger_v1',
     producer_stage_id: registry?.producerStageId ?? 'ADJACENT_REVISION_LEDGER',
@@ -1241,6 +1243,12 @@ function buildRevisionLedgerQualityManifest(input: {
       manuscript_location_coverage: total === 0 ? 0 : withLocation / total,
       revision_operation_coverage: total === 0 ? 0 : withOperation / total,
       candidate_option_coverage: total === 0 ? 0 : withCandidateSet / total,
+    },
+    dcip_compliance: {
+      status: dcipBlock ? 'pass' : 'fail',
+      canonical_path: 'docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md',
+      block_hash: dcipBlock ? canonicalJsonSha256(dcipBlock) : null,
+      reasons: dcipBlock ? [] : ['dcip_block_unavailable'],
     },
     context_quality: input.contextQualityDecision.status,
     gate_ready_status: input.contextQualityDecision.gate_ready_status,

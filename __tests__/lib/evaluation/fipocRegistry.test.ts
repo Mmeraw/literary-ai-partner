@@ -74,6 +74,9 @@ describe('executable FIPOC registry', () => {
       'author_exposure_certification_v1',
       'report_render_manifest_v1',
     ]));
+    expect(phase5?.outputRequiredFields).toEqual(expect.arrayContaining([
+      'dcip_compliance',
+    ]));
     expect(phase5?.failureCodes).toEqual(expect.arrayContaining([
       'PHASE5_TEMPLATE_CONTRACT_FAIL',
       'PHASE5_RENDER_PARITY_FAIL',
@@ -116,6 +119,10 @@ describe('executable FIPOC registry', () => {
       expect(artifact.accuracyMetric.length).toBeGreaterThan(0);
       expect(artifact.dirtyDataRule.length).toBeGreaterThan(0);
     }
+
+    expect(getArtifact('author_exposure_certification_v1')?.requiredFields).toEqual(expect.arrayContaining([
+      'dcip_compliance',
+    ]));
   });
 
   test('artifact consumers point to registered processes or explicitly external surfaces', () => {

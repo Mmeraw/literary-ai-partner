@@ -122,6 +122,12 @@ jest.mock("@/lib/evaluation/reportRenderParity", () => ({
     schema_version: "author_exposure_certification_v1",
     decision: "certified",
     blocking_reasons: [],
+    dcip_compliance: {
+      status: "pass",
+      canonical_path: "docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md",
+      evidence: ["mocked_canonical_pipeline"],
+      reasons: [],
+    },
   }),
 }));
 

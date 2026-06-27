@@ -26,6 +26,7 @@ type CertificationShape = {
   certified_at?: unknown;
   blocking_reasons?: unknown;
   parity_results?: unknown;
+  dcip_compliance?: unknown;
   final_external_audit?: unknown;
 };
 
@@ -87,6 +88,16 @@ function blockForFinalExternalAudit(): AuthorExposureDecision {
   };
 }
 
+function dcipCompliancePasses(value: unknown): boolean {
+  const record = asRecord(value);
+  if (!record) return false;
+  const status = typeof record.status === 'string' ? record.status.trim().toLowerCase() : null;
+  if (status !== 'pass') return false;
+  const reasons = record.reasons;
+  if (!Array.isArray(reasons)) return false;
+  return reasons.length === 0;
+}
+
 export function evaluateAuthorExposureCertification(content: unknown): AuthorExposureDecision {
   const certification = asCertificationShape(content);
   if (!certification) {
@@ -121,6 +132,14 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
       exposable: false,
       reason: 'parity_check_failed',
       details: 'parity_results contains blocking/failure signal',
+    };
+  }
+
+  if (!dcipCompliancePasses(certification.dcip_compliance)) {
+    return {
+      exposable: false,
+      reason: 'parity_check_failed',
+      details: 'dcip_compliance missing, malformed, or failing',
     };
   }
 

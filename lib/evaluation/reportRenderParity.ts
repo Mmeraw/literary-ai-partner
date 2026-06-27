@@ -85,6 +85,12 @@ export type AuthorExposureCertificationV1 = {
   decision: 'certified' | 'blocked';
   certified_at: string | null;
   blocking_reasons: string[];
+  dcip_compliance: {
+    status: 'pass' | 'fail';
+    canonical_path: string;
+    evidence: string[];
+    reasons: string[];
+  };
   parity_results: {
     overall: { status: 'pass' | 'fail'; reasons: string[] };
     webpage: { status: 'pass' | 'fail'; missing_required_fields: string[]; derived_canonical_fields: string[] };
@@ -363,6 +369,21 @@ export function buildAuthorExposureCertificationV1FromManifest(
   const parityPass = manifest.parity.status === 'pass';
   const reasons = parityPass ? [] : manifest.parity.reasons;
 
+  const canonicalDcipPath = 'docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md';
+  const dcipEvidence = [
+    `template_mode:${manifest.template.mode}`,
+    `template_path:${manifest.template.template_path}`,
+    `unified_document_hash:${manifest.unified_document_hash}`,
+  ];
+  const dcipReasons: string[] = [];
+  if (!manifest.template.template_path || manifest.template.template_path.trim().length === 0) {
+    dcipReasons.push('dcip_missing_template_path');
+  }
+  if (!manifest.unified_document_hash || manifest.unified_document_hash.trim().length === 0) {
+    dcipReasons.push('dcip_missing_unified_document_hash');
+  }
+  const dcipPass = dcipReasons.length === 0;
+
   const mkSurface = (surface: RendererSurface) => {
     const hasSurfaceIssues =
       manifest.surfaces[surface].missing_required_fields.length > 0 ||
@@ -374,21 +395,32 @@ export function buildAuthorExposureCertificationV1FromManifest(
     };
   };
 
+  const certified = parityPass && dcipPass;
+
   return {
     schema_version: 'author_exposure_certification_v1',
     generated_from_artifact: 'report_render_manifest_v1',
     generated_at: new Date().toISOString(),
     active_template_path: manifest.template.template_path,
     unified_document_hash: manifest.unified_document_hash,
-    decision: parityPass ? 'certified' : 'blocked',
-    certified_at: parityPass ? new Date().toISOString() : null,
-    blocking_reasons: parityPass
-      ? []
-      : [
-          ...manifest.parity.missing_required_fields,
-          ...manifest.parity.mismatched_fields,
-          ...manifest.parity.derived_canonical_fields,
-        ],
+    decision: certified ? 'certified' : 'blocked',
+    certified_at: certified ? new Date().toISOString() : null,
+    blocking_reasons: [
+      ...(parityPass
+        ? []
+        : [
+            ...manifest.parity.missing_required_fields,
+            ...manifest.parity.mismatched_fields,
+            ...manifest.parity.derived_canonical_fields,
+          ]),
+      ...dcipReasons,
+    ],
+    dcip_compliance: {
+      status: dcipPass ? 'pass' : 'fail',
+      canonical_path: canonicalDcipPath,
+      evidence: dcipEvidence,
+      reasons: dcipReasons,
+    },
     parity_results: {
       overall: {
         status: manifest.parity.status,

@@ -1800,6 +1800,11 @@ describe('E2E Chain 11: Short-Form Renderer Parity — Webpage + PDF/DOCX/TXT', 
     expect(cert.schema_version).toBe('author_exposure_certification_v1');
     expect(cert.decision).toBe('certified');
     expect(cert.blocking_reasons).toHaveLength(0);
+    expect(cert.dcip_compliance).toEqual(expect.objectContaining({
+      status: 'pass',
+      canonical_path: 'docs/governance/DREAM-COGNITIVE-INITIALIZATION-PROTOCOL-V1.md',
+      reasons: [],
+    }));
     expect(cert.parity_results.overall.status).toBe('pass');
     expect(cert.parity_results.webpage.status).toBe('pass');
     expect(cert.parity_results.pdf.status).toBe('pass');
@@ -1859,6 +1864,8 @@ describe('E2E Chain 11: Short-Form Renderer Parity — Webpage + PDF/DOCX/TXT', 
     const cert = buildAuthorExposureCertificationV1FromManifest(manifest);
     expect(cert.decision).toBe('certified');
     expect(cert.active_template_path).toContain('short-form');
+    expect(cert.dcip_compliance.status).toBe('pass');
+    expect(cert.dcip_compliance.reasons).toHaveLength(0);
   });
 });
 

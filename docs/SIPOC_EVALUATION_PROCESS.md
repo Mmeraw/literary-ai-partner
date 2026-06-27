@@ -796,6 +796,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Output acceptance metrics:**
   - active template path persisted in the render manifest
   - `UnifiedEvaluationDocument` hash captured
+  - `dcip_compliance` present and passing in `author_exposure_certification_v1`
   - author exposure decision is `certified` before web/PDF/DOCX/TXT/print exposure
   - renderer parity diagnostics pass for every registered field
   - `revision_opportunity_ledger_v1` handoff requirement recorded for Revise
@@ -953,7 +954,7 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 | Render parity from shared ViewModel | All output formats produce identical logical content (scores, rec counts, executive summary, section order, confidence) from the same `evaluation_report_view_model_v1` | S10c, S11a, S11b |
 | Cross-medium template-backed source of truth | All renderers (webpage, PDF, DOCX, TXT) must consume `evaluation_report_view_model_v1` derived from Phase 5-certified `UnifiedEvaluationDocument`; `evaluation_result_v2` remains canonical artifact input, but templates govern author-facing report shape | S10b, S10c, S11a, S11b, ADJACENT_DREAM |
 | Authority source surfacing | Canon, governance, reference, benchmark, template, DREAM, GOLD standard, exemplar, SIPOC, and registry authority docs must appear in executable registry and SIPOC UI | ADJACENT_PHASE_0, ADJACENT_DREAM, S10b, S11a, S11b, ADJACENT_REVISION_LEDGER, ADJACENT_REVISE |
-| Phase 5 template contract | Active template path, `UnifiedEvaluationDocument` hash, renderer parity, and author exposure decision must be certified before release | S10b |
+| Phase 5 template contract | Active template path, `UnifiedEvaluationDocument` hash, `dcip_compliance`, renderer parity, and author exposure decision must be certified before release | S10b |
 | Recommendation prose quality | every author-facing recommendation has: complete sentences, evidence anchor, actionable specificity | S06b, S07 |
 | Handoff prose completeness | Pass 1/2 output contains no scaffold residue, broken modals, or generic language before reaching synthesis | S06b |
 | Gate-failure telemetry coverage | all gate failures emit required diagnostics | S09–S10 |

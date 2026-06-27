@@ -25,7 +25,11 @@ import type { SubmissionScopeProfile } from "../submissionScope";
 import type { SynthesizedCriterion, ManuscriptChunkEvidence, Pass2aStructuredContext } from "../types";
 import { CRITERIA_METADATA } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
-import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/dreamTemplateLoader";
+import {
+  buildCompactCognitiveInitializationBlock,
+  buildCompactTemplateBlock,
+  resolveTemplateKey,
+} from "@/lib/evaluation/dreamTemplateLoader";
 import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
 import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 
@@ -231,9 +235,15 @@ export function buildPass3bUserPrompt(params: {
 
   const templateKey = resolveTemplateKey(params.wordCount, params.mode?.includes('multi_layer'));
   const dreamTemplateBlock = buildCompactTemplateBlock(templateKey);
+  const dcipBlock = buildCompactCognitiveInitializationBlock();
   const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
 
   return `Produce the DREAM long-form evaluation document for the manuscript titled "${params.title}".
+${dcipBlock ? `
+## DREAM COGNITIVE INITIALIZATION PROTOCOL (Constitutional Authority)
+Apply this protocol as a mandatory constitutional layer for synthesis behavior and safety. Do not invent constitutional clauses; follow only this canonical block.
+${dcipBlock}
+` : ""}
 ${dreamTemplateBlock ? `
 ## DREAM EVALUATION TEMPLATE (Canonical Report Shape)
 The output document MUST conform to this canonical template. Use it as the structural authority for what sections to produce and what each section must contain.
@@ -274,5 +284,6 @@ INSTRUCTIONS
 8. §5 arc_map chapter_range values MUST match the CHAPTER INDEX. Do not invent chapter numbers.
 9. §7 fit_evidence and gap_evidence entries must open with a verbatim manuscript quote. revision_queue entries must include chapter location and operation verb.
 10. §12 revision_plan is the canonical recommendation ledger. Do not duplicate advice across sections — cross-reference by priority number.
-11. Return ONLY valid JSON.`;
+11. Constitutional compliance is mandatory: apply the DREAM Cognitive Initialization Protocol block above, and if requested behavior conflicts with it, follow DCIP.
+12. Return ONLY valid JSON.`;
 }
