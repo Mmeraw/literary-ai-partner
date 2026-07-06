@@ -142,7 +142,16 @@ function displayCriterion(key: string): string {
   try {
     return getCriterionDisplayLabel(key as never);
   } catch {
-    return key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim() || 'General';
+    // Fallback for non-canonical keys: split camelCase/snake_case and title-case
+    // each word so no raw key ever surfaces to the author.
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/_/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ') || 'General';
   }
 }
 

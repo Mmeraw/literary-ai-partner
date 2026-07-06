@@ -1,4 +1,7 @@
-import { buildCanonicalOpportunityLedger } from '@/lib/evaluation/canonicalOpportunityLedger';
+import {
+  buildCanonicalOpportunityLedger,
+  formatOpportunityForTopRecommendation,
+} from '@/lib/evaluation/canonicalOpportunityLedger';
 import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import { buildUnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
 import type { ShortFormResultLike } from '@/lib/evaluation/shortFormReportDocument';
@@ -70,6 +73,46 @@ function buildResultWithDuplicateOpportunities(): ShortFormResultLike {
 }
 
 describe('canonical opportunity duplicate collapse', () => {
+  it('formats top recommendation criterion citations without raw internal keys', () => {
+    const baseOpportunity = {
+      id: 'OPP-001',
+      related_criteria: [],
+      severity: 'medium' as const,
+      evidence: 'Mara watched the road until the last truck vanished beyond the bridge.',
+      location: 'Chapter 4 midpoint scene',
+      symptom: 'The scene pressure remains abstract.',
+      cause: 'The stakes are named without a concrete consequence.',
+      fix_direction: 'Make the midpoint deadline concrete.',
+      reader_effect: 'Readers understand what is lost if the protagonist waits.',
+      deduped_from: [],
+      is_action_item_candidate: true,
+      issue_type: 'scene_stakes',
+      action: 'Make the midpoint deadline concrete.',
+      expected_impact: 'Readers understand what is lost if the protagonist waits.',
+    };
+
+    expect(formatOpportunityForTopRecommendation({
+      ...baseOpportunity,
+      primary_criterion: 'narrativeDrive',
+    })).toContain('(Narrative Drive & Momentum).');
+    expect(formatOpportunityForTopRecommendation({
+      ...baseOpportunity,
+      primary_criterion: 'characterization',
+    })).toContain('(Characterization).');
+    expect(formatOpportunityForTopRecommendation({
+      ...baseOpportunity,
+      primary_criterion: 'character_depth',
+    })).toContain('(Character Depth).');
+
+    const fallbackCamelCase = formatOpportunityForTopRecommendation({
+      ...baseOpportunity,
+      primary_criterion: 'stakesPressure',
+    });
+
+    expect(fallbackCamelCase).toContain('(Stakes Pressure).');
+    expect(fallbackCamelCase).not.toContain('(stakesPressure).');
+  });
+
   it('collapses same cause + fix/effect + region before UED/ViewModel normalization', () => {
     const result = buildResultWithDuplicateOpportunities();
     const ledger = buildCanonicalOpportunityLedger(result);
