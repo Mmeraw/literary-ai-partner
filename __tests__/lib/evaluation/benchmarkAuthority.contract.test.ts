@@ -41,9 +41,12 @@ type BenchmarkContract = {
 type ManifestEntry = {
   id: string;
   mode: string;
+  tier: string;
+  runtime_authority: boolean;
   dir: string;
   contract_file?: string;
   contract_only?: boolean;
+  benchmark_status?: string;
 };
 
 type BenchmarkManifest = { contracts: ManifestEntry[] };
@@ -312,5 +315,74 @@ describe('benchmark authority contract package', () => {
     // CMOS: em dashes carry no surrounding spaces in any public string.
     const spacedEmDash = contract.required_public_strings.filter((value) => / \u2014 /.test(value));
     expect(spacedEmDash).toEqual([]);
+  });
+
+  // ─── Nomenclature Invariant Tests ───────────────────────────────────────────
+  // Enforces the controlled vocabulary from docs/benchmarks/BENCHMARK_NOMENCLATURE.md
+
+  const ALLOWED_TIERS = ['required-gold', 'required-gold-candidate', 'calibration', 'calibration-only'];
+  const ALLOWED_MODES = ['short_form_evaluation', 'long_form_multi_layer_evaluation'];
+
+  test('manifest uses only allowed tier values', () => {
+    const manifest = loadManifest();
+    for (const entry of manifest.contracts) {
+      expect(ALLOWED_TIERS).toContain(entry.tier);
+    }
+  });
+
+  test('manifest uses only allowed mode values', () => {
+    const manifest = loadManifest();
+    for (const entry of manifest.contracts) {
+      expect(ALLOWED_MODES).toContain(entry.mode);
+    }
+  });
+
+  test('calibration-only entries cannot have runtime_authority true', () => {
+    const manifest = loadManifest();
+    const calibOnly = manifest.contracts.filter((e) => e.tier === 'calibration-only');
+    expect(calibOnly.length).toBeGreaterThan(0);
+    for (const entry of calibOnly) {
+      expect(entry.runtime_authority).toBe(false);
+    }
+  });
+
+  test('required-gold entries must have runtime_authority true', () => {
+    const manifest = loadManifest();
+    const reqGold = manifest.contracts.filter((e) => e.tier === 'required-gold');
+    expect(reqGold.length).toBeGreaterThan(0);
+    for (const entry of reqGold) {
+      expect(entry.runtime_authority).toBe(true);
+    }
+  });
+
+  test('required-gold-candidate entries must have benchmark_status "candidate"', () => {
+    const manifest = loadManifest();
+    const candidates = manifest.contracts.filter((e) => e.tier === 'required-gold-candidate');
+    for (const entry of candidates) {
+      expect(entry.benchmark_status).toBe('candidate');
+    }
+  });
+
+  test('calibration entries must have runtime_authority false', () => {
+    const manifest = loadManifest();
+    const calib = manifest.contracts.filter((e) => e.tier === 'calibration');
+    for (const entry of calib) {
+      expect(entry.runtime_authority).toBe(false);
+    }
+  });
+
+  test('contract_only entries are skipped by renderer (no builder required), others require builders', () => {
+    const manifest = loadManifest();
+    const contractOnlyEntries = manifest.contracts.filter((e) => e.contract_only === true);
+    const renderedEntries = manifest.contracts.filter((e) => !e.contract_only);
+
+    // At least one contract_only and one rendered entry must exist.
+    expect(contractOnlyEntries.length).toBeGreaterThan(0);
+    expect(renderedEntries.length).toBeGreaterThan(0);
+
+    // contract_only entries must not claim runtime_authority.
+    for (const entry of contractOnlyEntries) {
+      expect(entry.runtime_authority).toBe(false);
+    }
   });
 });
