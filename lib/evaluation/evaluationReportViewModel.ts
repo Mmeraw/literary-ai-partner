@@ -34,7 +34,7 @@
  */
 
 import type { UnifiedEvaluationDocument, CanonicalEvaluationMode } from '@/lib/evaluation/unifiedEvaluationDocument';
-import { correctScopeLanguage, mistakeProofText, getRenumberedAuthorFacingRevisionPlan, filterAuthorFacingTextList, getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety';
+import { correctScopeLanguage, mistakeProofText, getRenumberedAuthorFacingRevisionPlan, filterAuthorFacingTextList, getCriterionDisplayLabel, isGenericOpportunityFallbackText, normalizeEvidenceSnippet } from '@/lib/evaluation/reportRenderSafety';
 import type { EvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 import { getEvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
@@ -506,7 +506,7 @@ export function normalizeEvaluationReportViewModel({
     recommendations: (detail.recommendations ?? []).map(rec => ({
       opportunity_id: rec.opportunity_id,
       priority: rec.priority,
-      anchor_snippet: rec.anchor_snippet ? sanitizeText(rec.anchor_snippet, isLongForm) : undefined,
+      anchor_snippet: rec.anchor_snippet ? normalizeEvidenceSnippet(sanitizeText(rec.anchor_snippet, isLongForm)) : undefined,
       anchor_type: rec.anchor_type,
       symptom: rec.symptom ? sanitizeText(rec.symptom, isLongForm) : undefined,
       mechanism: rec.mechanism ? sanitizeText(rec.mechanism, isLongForm) : undefined,
@@ -514,7 +514,16 @@ export function normalizeEvaluationReportViewModel({
       reader_effect: rec.reader_effect ? sanitizeText(rec.reader_effect, isLongForm) : undefined,
       mistake_proofing: rec.mistake_proofing ? sanitizeText(rec.mistake_proofing, isLongForm) : undefined,
       collapsed_from_criteria: rec.collapsed_from_criteria,
-    })),
+    })).filter(rec => {
+      // Root-cause filter: strip recommendations whose fields are all generic
+      // fallback prose. The VM must be clean before renderers see it.
+      const fields = [rec.symptom, rec.mechanism, rec.specific_fix, rec.reader_effect, rec.mistake_proofing];
+      const nonEmpty = fields.filter((f): f is string => typeof f === 'string' && f.trim().length > 0);
+      if (nonEmpty.length === 0) return true; // keep recommendations with no detail fields (action-only)
+      // If ALL non-empty detail fields are generic fallback, discard the entire recommendation
+      const allFallback = nonEmpty.every(f => isGenericOpportunityFallbackText(f));
+      return !allFallback;
+    }),
   }));
 
   const confidenceExplanation = sanitizeText(

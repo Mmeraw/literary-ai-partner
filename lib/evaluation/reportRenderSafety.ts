@@ -444,6 +444,30 @@ function stripLeadingNumberPrefix(text: string): string {
   return text.replace(/^\d+[\.\)\-:]\s*/, '').trim();
 }
 
+// ── Generic opportunity fallback detection ──────────────────────────────────
+// The pipeline may produce boilerplate prose when it cannot surface a genuine
+// craft-specific recommendation. Rather than filtering this at the renderer
+// (a band-aid), we detect it here so the ViewModel itself stays clean.
+const GENERIC_OPPORTUNITY_FALLBACK_FRAGMENTS = [
+  'the evaluation identified a concrete craft issue',
+  'premise remains abstract rather than grounded',
+];
+
+export function isGenericOpportunityFallbackText(value: string): boolean {
+  const normalized = value.replace(/\s+/g, ' ').trim().toLowerCase();
+  return GENERIC_OPPORTUNITY_FALLBACK_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+}
+
+/**
+ * Strip wrapping quote characters from an evidence snippet so renderers can
+ * apply their own formatting without double-quoting.
+ */
+export function normalizeEvidenceSnippet(value: string): string {
+  let cleaned = value.trim();
+  cleaned = cleaned.replace(/^[\s"'"\u201c\u201d\u2018\u2019`]+/, '').replace(/[\s"'"\u201c\u201d\u2018\u2019`]+$/, '');
+  return cleaned;
+}
+
 export function filterAuthorFacingTextList(value: unknown): string[] {
   return getDisplayDreamList(value)
     .filter((entry) => !isInternalDiagnosticText(entry))

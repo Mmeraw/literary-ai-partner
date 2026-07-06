@@ -312,4 +312,175 @@ describe('normalizeEvaluationReportViewModel', () => {
       expect(webVm).toEqual(downloadVm);
     });
   });
+
+  describe('root-cause: VM strips generic fallback prose from recommendations', () => {
+    it('filters entire recommendation when ALL detail fields are generic fallback', () => {
+      const ued = buildMinimalUed({
+        criterionDetails: [
+          {
+            key: 'prose_voice',
+            label: 'Prose & Voice',
+            scoreLabel: '9/10',
+            confidenceLabel: 'High',
+            supportLabel: null,
+            rationaleText: 'Good prose.',
+            recommendations: [
+              {
+                opportunity_id: 'OPP-FALLBACK',
+                priority: 'medium',
+                symptom: 'The evaluation identified a concrete craft issue that warrants attention.',
+                mechanism: 'Premise remains abstract rather than grounded in textual evidence.',
+                specific_fix: undefined,
+                reader_effect: undefined,
+                mistake_proofing: undefined,
+              },
+              {
+                opportunity_id: 'OPP-REAL',
+                priority: 'high',
+                symptom: 'Sentence openings repeat "He" six times in chapter 3.',
+                mechanism: 'Monotonous syntactic pattern reduces flow.',
+                specific_fix: 'Vary clause structure: subordinate, participial, nominative absolute.',
+                reader_effect: 'Improved rhythmic variety keeps reader engaged.',
+                mistake_proofing: undefined,
+              },
+            ],
+          },
+        ] as any,
+      });
+
+      const vm = normalizeEvaluationReportViewModel({ ued });
+      const recs = vm.criterionDetails[0].recommendations;
+
+      // Generic fallback recommendation should be stripped at VM level
+      expect(recs.find(r => r.opportunity_id === 'OPP-FALLBACK')).toBeUndefined();
+      // Real recommendation preserved
+      expect(recs.find(r => r.opportunity_id === 'OPP-REAL')).toBeDefined();
+      expect(recs.find(r => r.opportunity_id === 'OPP-REAL')!.symptom).toContain('Sentence openings repeat');
+    });
+
+    it('keeps recommendation when only SOME fields contain fallback (partial real content)', () => {
+      const ued = buildMinimalUed({
+        criterionDetails: [
+          {
+            key: 'pacing_structure',
+            label: 'Pacing & Structure',
+            scoreLabel: '6/10',
+            confidenceLabel: 'Moderate',
+            supportLabel: null,
+            rationaleText: 'Middle act sags.',
+            recommendations: [
+              {
+                opportunity_id: 'OPP-PARTIAL',
+                priority: 'high',
+                symptom: 'The evaluation identified a concrete craft issue that warrants attention.',
+                mechanism: 'Chapters 4-7 lack escalating stakes.',
+                specific_fix: 'Insert midpoint reversal at chapter 5 break.',
+                reader_effect: undefined,
+                mistake_proofing: undefined,
+              },
+            ],
+          },
+        ] as any,
+      });
+
+      const vm = normalizeEvaluationReportViewModel({ ued });
+      const recs = vm.criterionDetails[0].recommendations;
+
+      // Kept because mechanism + specific_fix are real content
+      expect(recs).toHaveLength(1);
+      expect(recs[0].mechanism).toContain('Chapters 4-7');
+    });
+
+    it('VM recommendation fields never contain known fallback phrases', () => {
+      const FALLBACK_PHRASES = [
+        'the evaluation identified a concrete craft issue',
+        'premise remains abstract rather than grounded',
+      ];
+      const ued = buildMinimalUed();
+      const vm = normalizeEvaluationReportViewModel({ ued });
+
+      for (const criterion of vm.criterionDetails) {
+        for (const rec of criterion.recommendations) {
+          const fields = [rec.symptom, rec.mechanism, rec.specific_fix, rec.reader_effect, rec.mistake_proofing];
+          for (const field of fields) {
+            if (!field) continue;
+            for (const phrase of FALLBACK_PHRASES) {
+              expect(field.toLowerCase()).not.toContain(phrase);
+            }
+          }
+        }
+      }
+    });
+  });
+
+  describe('root-cause: VM normalizes evidence snippets (no wrapping quotes)', () => {
+    it('strips outer quotes from anchor_snippet before renderers see it', () => {
+      const ued = buildMinimalUed({
+        criterionDetails: [
+          {
+            key: 'prose_voice',
+            label: 'Prose & Voice',
+            scoreLabel: '9/10',
+            confidenceLabel: 'High',
+            supportLabel: null,
+            rationaleText: 'Good prose.',
+            recommendations: [
+              {
+                opportunity_id: 'OPP-QUOTED',
+                priority: 'medium',
+                anchor_snippet: '\u201cThe river ran cold beneath the bridge.\u201d',
+                anchor_type: 'quote',
+                symptom: 'Overuse of pathetic fallacy.',
+                mechanism: undefined,
+                specific_fix: undefined,
+                reader_effect: undefined,
+                mistake_proofing: undefined,
+              },
+            ],
+          },
+        ] as any,
+      });
+
+      const vm = normalizeEvaluationReportViewModel({ ued });
+      const snippet = vm.criterionDetails[0].recommendations[0].anchor_snippet!;
+
+      // Should not start or end with any quote character
+      expect(snippet).not.toMatch(/^[\u201c\u201d"'`]/);
+      expect(snippet).not.toMatch(/[\u201c\u201d"'`]$/);
+      // Content preserved
+      expect(snippet).toContain('The river ran cold beneath the bridge');
+    });
+
+    it('passes through clean evidence unchanged', () => {
+      const ued = buildMinimalUed({
+        criterionDetails: [
+          {
+            key: 'prose_voice',
+            label: 'Prose & Voice',
+            scoreLabel: '9/10',
+            confidenceLabel: 'High',
+            supportLabel: null,
+            rationaleText: 'Good prose.',
+            recommendations: [
+              {
+                opportunity_id: 'OPP-CLEAN',
+                priority: 'medium',
+                anchor_snippet: 'The river ran cold beneath the bridge.',
+                anchor_type: 'quote',
+                symptom: 'Overuse of pathetic fallacy.',
+                mechanism: undefined,
+                specific_fix: undefined,
+                reader_effect: undefined,
+                mistake_proofing: undefined,
+              },
+            ],
+          },
+        ] as any,
+      });
+
+      const vm = normalizeEvaluationReportViewModel({ ued });
+      const snippet = vm.criterionDetails[0].recommendations[0].anchor_snippet!;
+      expect(snippet).toBe('The river ran cold beneath the bridge.');
+    });
+  });
 });
