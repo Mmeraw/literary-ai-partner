@@ -170,6 +170,8 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(docxText).toContain('RevisionGrade');
     expect(docxText).toContain('One-Paragraph Pitch');
     expect(docxText).toContain('Submitted Word Count');
+    expect(docxText).toContain('Estimated Pages');
+    expect(docxText).toContain('Dialogue/Narrative Ratio');
     expect(docxText).toContain('Confidentiality');
   });
 

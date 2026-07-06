@@ -1376,6 +1376,75 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       ],
     });
 
+  const makeMetadataRow = (label: string, value: string): TableRow =>
+    new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 36, type: WidthType.PERCENTAGE },
+          borders: {
+            top: DOCX_NONE_BORDER,
+            left: DOCX_NONE_BORDER,
+            right: DOCX_NONE_BORDER,
+            bottom: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
+          },
+          shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+          children: [
+            new Paragraph({
+              spacing: { before: 30, after: 30 },
+              children: [new TextRun({ text: label, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })],
+            }),
+          ],
+        }),
+        new TableCell({
+          width: { size: 64, type: WidthType.PERCENTAGE },
+          borders: {
+            top: DOCX_NONE_BORDER,
+            left: DOCX_NONE_BORDER,
+            right: DOCX_NONE_BORDER,
+            bottom: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
+          },
+          shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+          children: [
+            new Paragraph({
+              spacing: { before: 30, after: 30 },
+              children: [new TextRun({ text: value, size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })],
+            }),
+          ],
+        }),
+      ],
+    });
+
+  const makeOpportunityDetailRow = (label: string, value: string): TableRow => {
+    const isEvidence = label === 'Evidence';
+    const isDiagnostic = label === 'Observation' || label === 'Diagnostic Basis';
+    const valueColor = isDiagnostic ? RG.textMuted : RG.textPrimary;
+
+    return new TableRow({
+      children: [
+        new TableCell({
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
+            left: DOCX_NONE_BORDER,
+            right: DOCX_NONE_BORDER,
+            bottom: DOCX_NONE_BORDER,
+          },
+          shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+          children: [
+            new Paragraph({
+              spacing: { before: 25, after: 55, line: 300 },
+              children: [
+                new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }),
+                isEvidence
+                  ? new TextRun({ text: `\u201c${value}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })
+                  : new TextRun({ text: value, size: 19, color: docxHex(valueColor), font: 'Calibri' }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+  };
+
   const metadataTableRows: TableRow[] = [
     ...(jobId ? [['Reference ID', jobId] as [string, string]] : []),
     ['Report Type', vm.titleBlock.reportType],
@@ -1390,24 +1459,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     ['Dialogue/Narrative Ratio', vm.titleBlock.dialogueNarrativeRatio],
     ['Date Generated', vm.titleBlock.dateGenerated],
     ['Confidentiality', 'Prepared for author/editorial use.'],
-  ].map(
-    ([label, value]) =>
-      new TableRow({
-        children: [
-          new TableCell({
-            width: { size: 36, type: WidthType.PERCENTAGE },
-            borders: DOCX_NO_BORDERS,
-            shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
-            children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })],
-          }),
-          new TableCell({
-            width: { size: 64, type: WidthType.PERCENTAGE },
-            borders: DOCX_NO_BORDERS,
-            children: [new Paragraph({ children: [new TextRun({ text: value, size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })],
-          }),
-        ],
-      }),
-  );
+  ].map(([label, value]) => makeMetadataRow(label, value));
 
   const children: (Paragraph | Table)[] = [
     new Paragraph({
@@ -1618,15 +1670,23 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
                 children: [new Paragraph({ children: [new TextRun({ text: `${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood), font: 'Calibri' })] })],
               })],
             }),
-            ...(rows.length > 0 ? rows.map(([label, value]) => {
-            if (label === 'Evidence') {
-              return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: `\u201c${value}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })] })] });
-            }
-            if (label === 'Observation' || label === 'Diagnostic Basis') {
-              return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: value, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })] })] })] });
-            }
-            return new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }), new TextRun({ text: value, size: 19, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] })] });
-          }) : [new TableRow({ children: [new TableCell({ borders: DOCX_NO_BORDERS, children: [new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: rec.specific_fix ?? 'No action provided.', size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })] })] })] })]),
+            ...(rows.length > 0
+              ? rows.map(([label, value]) => makeOpportunityDetailRow(label, value))
+              : [new TableRow({
+                  children: [new TableCell({
+                    borders: {
+                      top: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
+                      left: DOCX_NONE_BORDER,
+                      right: DOCX_NONE_BORDER,
+                      bottom: DOCX_NONE_BORDER,
+                    },
+                    shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+                    children: [new Paragraph({
+                      spacing: { before: 25, after: 55, line: 300 },
+                      children: [new TextRun({ text: rec.specific_fix ?? 'No action provided.', size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })],
+                    })],
+                  })],
+                })]),
           ],
         }));
       });
