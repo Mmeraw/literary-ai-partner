@@ -221,13 +221,37 @@
     padding: 0 !important;
   }
 
+  /* Soft pagination: large sections/cards may split across pages. */
   .reportRoute header,
   .reportRoute section,
   .reportRoute article,
   .reportRoute :global(.border) {
+    break-inside: auto;
+    page-break-inside: auto;
+    overflow: visible !important;
+  }
+
+  /* Keep only compact blocks intact. */
+  .reportRoute header,
+  .reportRoute header aside,
+  .reportRoute tr {
     break-inside: avoid;
     page-break-inside: avoid;
-    overflow: visible !important;
+  }
+
+  /* No orphaned headings at page bottoms. */
+  .reportRoute h1,
+  .reportRoute h2,
+  .reportRoute h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .reportRoute p,
+  .reportRoute li,
+  .reportRoute dd {
+    orphans: 3;
+    widows: 3;
   }
 
   .reportRoute header {
