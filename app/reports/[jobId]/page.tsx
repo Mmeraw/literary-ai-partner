@@ -502,16 +502,16 @@ export default async function ReportPage({
           </div>
 
           {/* ── Metadata grid (secondary — below the hero) ── */}
-          <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden border border-[#D9D0C3] bg-[#D9D0C3] text-sm sm:grid-cols-3 lg:grid-cols-4">
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.genre}{vm.titleBlock.genreConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.genreConfidenceLabel})</span> : null}</dd></div>
-            <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}{vm.titleBlock.targetAudience}{vm.titleBlock.audienceConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.audienceConfidenceLabel})</span> : null}</dd></div>
-            {vm.titleBlock.shelf ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.shelf}{vm.titleBlock.shelfConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.shelfConfidenceLabel})</span> : null}</dd></div> : null}
-            {vm.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.submittedWordCount}</dd></div> : null}
-            {vm.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.estimatedPages}</dd></div> : null}
-            {vm.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.readingGradeLevel}</dd></div> : null}
-            {vm.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Dialogue/Narrative Ratio</dt><dd className="mt-1 font-semibold text-[#1C1814]">{vm.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
-            {vm.titleBlock.genreExpectationSummary ? <div className="bg-white p-3 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre Expectations</dt><dd className="mt-1 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genreExpectationSummary}{vm.titleBlock.genreExpectationProfileLabels.length > 0 ? <><br /><span className="text-xs font-normal text-[#5C5549]">Reader emphasis: {vm.titleBlock.genreExpectationProfileLabels.join(', ')}</span></> : null}</dd></div> : null}
-            <div className="bg-white p-3"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Confidentiality</dt><dd className="mt-1 font-semibold text-[#1C1814]">Prepared for author/editorial use.</dd></div>
+          <dl className="mt-6 grid grid-cols-2 auto-rows-fr gap-px overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#D9D0C3] text-sm sm:grid-cols-3 lg:grid-cols-4">
+            <div className="bg-white p-3.5"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genre}{vm.titleBlock.genreConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.genreConfidenceLabel})</span> : null}</dd></div>
+            <div className="bg-white p-3.5 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}{vm.titleBlock.targetAudience}{vm.titleBlock.audienceConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.audienceConfidenceLabel})</span> : null}</dd></div>
+            {vm.titleBlock.shelf ? <div className="bg-white p-3.5"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.shelf}{vm.titleBlock.shelfConfidenceLabel ? <span className="ml-1 text-xs font-normal text-[#5C5549]">({vm.titleBlock.shelfConfidenceLabel})</span> : null}</dd></div> : null}
+            {vm.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3.5"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.submittedWordCount}</dd></div> : null}
+            {vm.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3.5"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.estimatedPages}</dd></div> : null}
+            {vm.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3.5"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.readingGradeLevel}</dd></div> : null}
+            {vm.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div className="bg-white p-3.5"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Dialogue/Narrative Ratio</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
+            {vm.titleBlock.genreExpectationSummary ? <div className="bg-white p-3.5 sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre Expectations</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genreExpectationSummary}{vm.titleBlock.genreExpectationProfileLabels.length > 0 ? <><br /><span className="text-xs font-normal text-[#5C5549]">Reader emphasis: {vm.titleBlock.genreExpectationProfileLabels.join(', ')}</span></> : null}</dd></div> : null}
+            <div className="bg-white p-3.5"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Confidentiality</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">Prepared for author/editorial use.</dd></div>
           </dl>
         </header>
 
@@ -671,10 +671,10 @@ export default async function ReportPage({
           <h2 className="mb-6 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">
             13 Criteria Score Grid
           </h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-sm border border-[#D9D0C3] bg-white">
             <table className="min-w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-[#D9D0C3] text-left text-xs uppercase tracking-wide text-[#5C5549]">
+                <tr className="border-b border-[#D9D0C3] bg-[#F7F1E6] text-left text-xs uppercase tracking-wide text-[#5C5549]">
                   <th className="px-3 py-2 font-semibold">Criterion</th>
                   <th className="px-3 py-2 font-semibold text-right">Score</th>
                   <th className="px-3 py-2 font-semibold text-right">Confidence</th>
@@ -682,8 +682,8 @@ export default async function ReportPage({
               </thead>
               <tbody>
                 {vm.criteriaScoreGrid.map((row, idx) => (
-                  <tr key={`${row.label}-${idx}`} className="border-b border-[#E6DED2]">
-                    <td className="px-3 py-2 text-[#1C1814]">{row.label}</td>
+                  <tr key={`${row.label}-${idx}`} className={`border-b border-[#E6DED2] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#FFFDF9]'}`}>
+                    <td className="px-3 py-2 text-[#1C1814] [overflow-wrap:anywhere]">{row.label}</td>
                     <td className="px-3 py-2 text-right font-semibold text-[#1C1814] whitespace-nowrap">{row.scoreLabel}</td>
                     <td className="px-3 py-2 text-right text-[#5C5549] whitespace-nowrap">{row.confidenceLabel}</td>
                   </tr>

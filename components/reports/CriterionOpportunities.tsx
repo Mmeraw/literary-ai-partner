@@ -52,17 +52,17 @@ function OpportunityCard({ opp, idx }: { opp: Opportunity; idx: number }) {
   }
 
   return (
-    <div className={`border border-[#D9D0C3] border-l-4 ${accent} bg-white`}>
-      <div className={`px-3 py-1.5 border-b border-[#E6DED2] ${labelColor}`}>
+    <div className={`overflow-hidden rounded-sm border border-[#D9D0C3] border-l-4 ${accent} bg-white shadow-[0_1px_0_rgba(28,24,20,0.03)]`}>
+      <div className={`px-3 py-2 border-b border-[#E6DED2] bg-[#FAF7F2] ${labelColor}`}>
         <span className="text-[10px] font-bold uppercase tracking-wider">
           {label} #{idx + 1}
         </span>
       </div>
       <div className="divide-y divide-[#EDE7DE]">
         {rows.map(([k, v, isQuote]) => (
-          <div key={k} className="flex gap-3 px-3 py-2 text-xs">
-            <span className="w-28 shrink-0 font-semibold uppercase tracking-wide text-[#5C5549]">{k}</span>
-            <span className="text-[#1C1814] leading-relaxed">
+          <div key={k} className="grid grid-cols-1 gap-1.5 px-3 py-2.5 text-xs sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3">
+            <span className="font-semibold uppercase tracking-wide text-[#5C5549]">{k}</span>
+            <span className="text-[#1C1814] leading-relaxed [overflow-wrap:anywhere]">
               {isQuote ? <>&ldquo;{v}&rdquo;</> : v}
             </span>
           </div>
