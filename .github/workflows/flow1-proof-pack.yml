@@ -79,23 +79,40 @@ jobs:
       - name: Start Supabase (local)
         if: steps.scope.outputs.skip != 'true'
         shell: bash
-        timeout-minutes: 25
+        timeout-minutes: 35
         run: |
           set -euo pipefail
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6; do
             if supabase start; then
               exit 0
             fi
 
-            if [ "$attempt" -lt 5 ]; then
-              WAIT=$(( attempt * 30 ))
-              echo "::warning::supabase start failed (attempt ${attempt}/5); waiting ${WAIT}s then retrying."
-              supabase stop || true
-              docker system prune -f || true
+            if [ "$attempt" -lt 6 ]; then
+              WAIT=$(( attempt * 20 ))
+              echo "::warning::supabase start failed (attempt ${attempt}/6); targeted cleanup, waiting ${WAIT}s, then retrying."
+
+              # IMPORTANT: avoid `docker system prune -f` here.
+              # Pruning wipes freshly-pulled layers on cold runners and causes
+              # repeated large image downloads, amplifying flakes and delays.
+              supabase stop --no-backup || supabase stop || true
+
+              # Remove only stale Supabase containers/networks from prior attempts.
+              docker ps -aq --filter "name=supabase_" | xargs -r docker rm -f || true
+              docker network ls --format '{{.Name}}' | grep -E '^supabase_' | xargs -r docker network rm || true
+
+              echo "::notice::Docker disk snapshot before retry"
+              docker system df || true
               sleep $WAIT
             fi
           done
-          echo "::error::supabase start failed after 5 attempts."
+
+          echo "::error::supabase start failed after 6 attempts."
+          echo "::group::Supabase diagnostics"
+          supabase --version || true
+          supabase status || true
+          docker ps -a || true
+          docker system df || true
+          echo "::endgroup::"
           exit 1
 
       - name: Export LOCAL Supabase env for CI
