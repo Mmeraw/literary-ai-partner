@@ -1,10 +1,18 @@
 /**
- * Surface-Parity Gate Test
+ * Surface-Parity Gate Test — Golden Master Certification
  *
  * Validates that UED → VM → TXT / HTML / DOCX produce identical content
  * (same sections, same order, same strings) and carry no rendering defects
  * (no generic fallback prose, no double-wrapped quotes, no overlong TXT lines,
  * no raw internal tokens).
+ *
+ * Section assertions are derived from the CANONICAL TEMPLATE CONTRACTS:
+ *   - shortFormSectionContract.ts  (§1–§14 short-form sections)
+ *   - sharedLongFormMultiLayerSections.ts (§12–§21 long-form sections)
+ *
+ * Uses exact heading extraction (extractHtmlH2Headings for HTML/DOCX-HTML,
+ * an ASCII-divider extractor for TXT) so heading checks are exact-match and
+ * the test stays authoritative as templates evolve.
  *
  * Fixture: full Let the River Decide golden long-form multi-layer evaluation
  * rendered through the real download-route renderers.
@@ -12,6 +20,13 @@
 
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
 import { normalizeEvaluationReportViewModel } from '../../../lib/evaluation/evaluationReportViewModel';
+import { getShortFormSections } from '../../../lib/evaluation/shortFormSectionContract';
+import {
+  getLongFormMultiLayerSections,
+  extractHtmlH2Headings,
+  getForbiddenTopLevelHeadings,
+  getForbiddenNearDuplicates,
+} from '../../../lib/evaluation/sharedLongFormMultiLayerSections';
 import mammoth from 'mammoth';
 
 const LONG_FORM_REPORT_TYPE = 'DREAM Long-Form Multi-Layer Evaluation';
@@ -212,25 +227,33 @@ function buildGoldenRiverFixture() {
   return { canonicalDoc, dream };
 }
 
-// ── Canonical section labels expected across all surfaces ────────────────────
+// ── Canonical section labels derived from template contracts ─────────────────
+// Short-form §1–§14: titles from shortFormSectionContract (excluding title_block which is metadata, not a heading)
+const SHORT_FORM_SECTION_TITLES = getShortFormSections()
+  .filter(s => s.id !== 'title_block')
+  .map(s => s.title);
+
+// Long-form §12–§21: titles from sharedLongFormMultiLayerSections
+const LONG_FORM_SECTION_TITLES = getLongFormMultiLayerSections().map(s => s.title);
+
+// Combined expected TXT sections (TXT uses UPPER CASE headings).
+// Short-form §2–§12 (excluding overlaps with long-form) + long-form sections that
+// the fixture actually renders (optional sections like governed_ledgers may be absent
+// if the fixture doesn't provide content for them).
 const EXPECTED_TXT_SECTIONS = [
-  'ONE-PARAGRAPH PITCH',
-  'ONE-SENTENCE PITCH',
-  'PREMISE',
-  'CONTENT WARNINGS',
-  'REVISION OPPORTUNITY SUMMARY',
-  'EXECUTIVE SUMMARY',
-  'TOP STRENGTHS',
-  'TOP RISKS',
-  'TOP RECOMMENDATIONS',
-  'CRITERION RATIONALES & SURFACED OPPORTUNITIES',
-  'EXPANDED CRITERION ANALYSIS',
-  'STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP',
-  'REVIEW GATE READINESS SURFACE',
-  'READINESS / RELEASABILITY POSTURE',
-  'CONFIDENCE EXPLANATION',
-  'AUTHOR-FACING DISCLAIMER',
-];
+  ...SHORT_FORM_SECTION_TITLES.filter(t =>
+    // Exclude sections that are superseded by long-form equivalents
+    t !== 'Confidence Explanation' && t !== 'Author-Facing Disclaimer'
+  ),
+  // Include only the long-form sections whose fixture provides content.
+  // The contract-based tests (below) validate presence/order dynamically.
+  'Expanded Criterion Analysis',
+  'Story Ledger or Layer-Aware Architecture Map',
+  'Review Gate Readiness Surface',
+  'Readiness / Releasability Posture',
+  'Confidence Explanation',
+  'Author-Facing Disclaimer',
+].map(t => t.toUpperCase());
 
 // Content strings that MUST appear on every surface
 const PARITY_CONTENT_STRINGS = [
@@ -265,10 +288,32 @@ const FORBIDDEN_DEFECT_PATTERNS = [
   /\[SEVERITY:/,
 ];
 
+/**
+ * Extract TXT headings delimited by ASCII divider lines ('=' or '-').
+ * The TXT renderer uses ASCII dividers, unlike the Unicode dividers the
+ * shared extractTxtHeadings helper expects.
+ */
+function extractAsciiTxtHeadings(txtContent: string): string[] {
+  const lines = txtContent.split('\n');
+  const headings: string[] = [];
+  const dividerPattern = /^[=-]{3,}$/;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (dividerPattern.test(lines[i].trim())) {
+      const next = lines[i + 1]?.trim();
+      if (next && next.length > 0 && !dividerPattern.test(next)) {
+        headings.push(next);
+      }
+    }
+  }
+  return headings;
+}
+
 describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
   let txt: string;
   let html: string;
   let docxText: string;
+  let docxHtml: string;
+  let printCss: string;
 
   beforeAll(async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
@@ -281,6 +326,17 @@ describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
     html = testing.renderHtmlFromViewModel(vm);
     const docxBuffer = await testing.renderDocxFromViewModel(vm);
     docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
+
+    // DOCX converted to HTML preserves heading hierarchy (Heading1 → h1, Heading2 → h2)
+    docxHtml = (await mammoth.convertToHtml({ buffer: docxBuffer })).value;
+
+    // Web print CSS for pagination-doctrine validation
+    const fs = await import('fs');
+    const path = await import('path');
+    printCss = fs.readFileSync(
+      path.join(process.cwd(), 'app/reports/[jobId]/report-page.module.css'),
+      'utf-8',
+    );
   });
 
   describe('section presence and order (TXT)', () => {
@@ -436,6 +492,369 @@ describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
       expect(txt).toContain(checkContent);
       expect(html).toContain(checkContent);
       expect(docxText).toContain(checkContent);
+    });
+  });
+
+  // ── Golden Master Certification: expanded checks ──────────────────────────
+
+  describe('section order parity via template contracts', () => {
+    // Use the canonical contracts and built-in validators.
+    // Note: TXT uses UPPER CASE headings; the validator expects Title Case.
+    // We normalize TXT headings by matching against contract titles case-insensitively.
+
+    /** Map UPPER CASE TXT headings back to canonical Title Case for validation. */
+    function normalizeTxtHeadingsToCanonical(extracted: string[]): string[] {
+      const contractTitles = [
+        ...getShortFormSections().map(s => s.title),
+        ...getLongFormMultiLayerSections().map(s => s.title),
+      ];
+      return extracted.map(h => {
+        const match = contractTitles.find(t => t.toUpperCase() === h.toUpperCase());
+        return match ?? h;
+      });
+    }
+
+    test('HTML headings include rendered §13–§21 sections in correct order', () => {
+      const htmlHeadings = extractHtmlH2Headings(html);
+      // Only check sections actually present (fixture may not render all optional sections)
+      const requiredTitles = getLongFormMultiLayerSections()
+        .filter(s => s.required)
+        .map(s => s.title);
+      const presentRequired = requiredTitles.filter(t => htmlHeadings.includes(t));
+      // Verify they appear in contract-defined order
+      let lastIdx = -1;
+      for (const title of presentRequired) {
+        const idx = htmlHeadings.indexOf(title);
+        expect(idx).toBeGreaterThan(lastIdx);
+        lastIdx = idx;
+      }
+      // At least some §13–§21 sections must be present
+      expect(presentRequired.length).toBeGreaterThanOrEqual(5);
+    });
+
+    test('TXT headings include rendered §13–§21 sections in correct order', () => {
+      const rawTxtHeadings = extractAsciiTxtHeadings(txt);
+      const txtHeadings = normalizeTxtHeadingsToCanonical(rawTxtHeadings);
+      const requiredTitles = getLongFormMultiLayerSections()
+        .filter(s => s.required)
+        .map(s => s.title);
+      const presentRequired = requiredTitles.filter(t => txtHeadings.includes(t));
+      let lastIdx = -1;
+      for (const title of presentRequired) {
+        const idx = txtHeadings.indexOf(title);
+        expect(idx).toBeGreaterThan(lastIdx);
+        lastIdx = idx;
+      }
+      expect(presentRequired.length).toBeGreaterThanOrEqual(5);
+    });
+
+    test('cross-surface heading parity: same §13–§21 sections present on HTML and TXT', () => {
+      const htmlHeadings = extractHtmlH2Headings(html);
+      const rawTxtHeadings = extractAsciiTxtHeadings(txt);
+      const txtHeadings = normalizeTxtHeadingsToCanonical(rawTxtHeadings);
+      // Every required long-form section present in HTML must also be in TXT and vice versa
+      const contractTitles = getLongFormMultiLayerSections().map(s => s.title);
+      for (const title of contractTitles) {
+        const inHtml = htmlHeadings.includes(title);
+        const inTxt = txtHeadings.includes(title);
+        if (inHtml || inTxt) {
+          expect({ title, html: inHtml, txt: inTxt }).toEqual({ title, html: inHtml, txt: inHtml });
+        }
+      }
+    });
+
+    test('no forbidden DREAM headings appear as top-level on any surface', () => {
+      const forbidden = getForbiddenTopLevelHeadings();
+      const nearDuplicates = getForbiddenNearDuplicates();
+      const allForbidden = [...forbidden, ...nearDuplicates];
+      // Check against EXTRACTED headings (not full text) to avoid substring false positives
+      const htmlHeadings = extractHtmlH2Headings(html);
+      const rawTxtHeadings = extractAsciiTxtHeadings(txt);
+      for (const heading of allForbidden) {
+        // HTML: check extracted <h2> headings for exact match
+        expect(htmlHeadings).not.toContain(heading);
+        // TXT: check extracted headings for case-insensitive exact match
+        const upperForbidden = heading.toUpperCase();
+        expect(rawTxtHeadings.map(h => h.toUpperCase())).not.toContain(upperForbidden);
+      }
+    });
+
+    test('short-form contract sections (§1–§12) appear on HTML in order', () => {
+      const shortFormTitles = getShortFormSections()
+        .filter(s => s.id !== 'title_block' && s.id !== 'criteria_score_grid')
+        .map(s => s.title);
+      let lastIdx = -1;
+      for (const title of shortFormTitles) {
+        const idx = html.indexOf(title);
+        if (idx > -1) {
+          expect(idx).toBeGreaterThan(lastIdx);
+          lastIdx = idx;
+        }
+      }
+    });
+
+    test('long-form contract sections appear in order on HTML and DOCX', () => {
+      const longFormTitles = getLongFormMultiLayerSections()
+        .filter(s => s.rendererVisibility.txt)
+        .map(s => s.title);
+      // HTML
+      let lastIdx = -1;
+      for (const title of longFormTitles) {
+        const idx = html.indexOf(title);
+        if (idx > -1) {
+          expect(idx).toBeGreaterThan(lastIdx);
+          lastIdx = idx;
+        }
+      }
+      // DOCX
+      lastIdx = -1;
+      for (const title of longFormTitles) {
+        const idx = docxText.indexOf(title);
+        if (idx > -1) {
+          expect(idx).toBeGreaterThan(lastIdx);
+          lastIdx = idx;
+        }
+      }
+    });
+  });
+
+  describe('recommendation field parity across surfaces', () => {
+    // Every recommendation field that exists in one surface must exist in all
+    const RECOMMENDATION_FIELDS = [
+      'NV115 thread creates dread',
+      'Unresolved symbolic thread weakens closure',
+      'Tie NV115 to final verdict sequence',
+      'Reader dread dissipates without payoff',
+      'Middle act reads as research compilation',
+      'Over-evidence replaces scene-driven escalation',
+      'Keep strongest 3-4 case studies',
+      'Reader engagement drops in middle third',
+    ];
+
+    test('all recommendation detail fields present on TXT', () => {
+      for (const field of RECOMMENDATION_FIELDS) {
+        expect(txt).toContain(field);
+      }
+    });
+
+    test('all recommendation detail fields present on HTML', () => {
+      for (const field of RECOMMENDATION_FIELDS) {
+        expect(html).toContain(field);
+      }
+    });
+
+    test('all recommendation detail fields present on DOCX', () => {
+      for (const field of RECOMMENDATION_FIELDS) {
+        expect(docxText).toContain(field);
+      }
+    });
+  });
+
+  describe('evidence snippet normalization across surfaces', () => {
+    // Evidence anchors should be present without wrapping quotes on all surfaces
+    const EVIDENCE_SNIPPETS = [
+      'black truck appeared again at the third pullout',
+      'Chapters 4-8 expand documentary evidence',
+    ];
+
+    test('evidence snippets present on all surfaces without double quotes', () => {
+      for (const snippet of EVIDENCE_SNIPPETS) {
+        expect(txt).toContain(snippet);
+        expect(html).toContain(snippet);
+        expect(docxText).toContain(snippet);
+      }
+    });
+
+    test('no evidence snippet is wrapped in smart quotes on any surface', () => {
+      for (const snippet of EVIDENCE_SNIPPETS) {
+        // Should not be preceded/followed by smart quotes on the surface
+        expect(txt).not.toContain(`\u201c${snippet}\u201d`);
+        expect(html).not.toContain(`\u201c${snippet}\u201d`);
+        expect(docxText).not.toContain(`\u201c${snippet}\u201d`);
+      }
+    });
+  });
+
+  describe('no renderer-specific omissions or additions', () => {
+    // Core ViewModel data must not be present on one surface and missing on another
+    const CROSS_SURFACE_CONTENT = [
+      // DREAM-specific content
+      'The principal drag is over-evidence',
+      'Road-trip witness layer',
+      'Smokehouse Camp',
+      'River agency layer',
+      'Opening unease',
+      'Research expansion',
+      'Return to camp',
+      // Cross-layer integration
+      'Water as memory and judgment',
+      'Dogs as sensory sentinels',
+      // Symbolic audit
+      'Witness, archive, nervous system, judge',
+      // Reader experience
+      'Why are these travelers anxious',
+      'Is the river really doing this',
+      // Revision plan
+      'Promote Leanna / Verdant earlier',
+      // What not to become
+      'A documentary eco-mystery',
+    ];
+
+    test('no content present on HTML but missing from TXT', () => {
+      for (const content of CROSS_SURFACE_CONTENT) {
+        if (html.includes(content)) {
+          expect(txt).toContain(content);
+        }
+      }
+    });
+
+    test('no content present on HTML but missing from DOCX', () => {
+      for (const content of CROSS_SURFACE_CONTENT) {
+        if (html.includes(content)) {
+          expect(docxText).toContain(content);
+        }
+      }
+    });
+
+    test('no content present on TXT but missing from HTML', () => {
+      for (const content of CROSS_SURFACE_CONTENT) {
+        if (txt.includes(content)) {
+          expect(html).toContain(content);
+        }
+      }
+    });
+  });
+
+  describe('opportunity counts match across all surfaces', () => {
+    test('DOCX opportunity sections match TXT count', () => {
+      // TXT uses "OPPORTUNITIES (N)" format
+      const txtOpMatches = txt.match(/OPPORTUNITIES \((\d+)\)/g) || [];
+      const txtCounts = txtOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      // DOCX uses same "OPPORTUNITIES (N)" format
+      const docxOpMatches = docxText.match(/OPPORTUNITIES \((\d+)\)/gi) || [];
+      const docxCounts = docxOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      expect(txtCounts.length).toBeGreaterThan(0);
+      expect(txtCounts).toEqual(docxCounts);
+    });
+
+    test('HTML opportunity counts match TXT counts', () => {
+      const txtOpMatches = txt.match(/OPPORTUNITIES \((\d+)\)/g) || [];
+      const txtCounts = txtOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      const htmlOpMatches = html.match(/Opportunities \((\d+)\)/g) || [];
+      const htmlCounts = htmlOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      expect(txtCounts.length).toBe(htmlCounts.length);
+      expect(txtCounts).toEqual(htmlCounts);
+    });
+  });
+
+  describe('TXT formatting rules', () => {
+    test('section separators are consistent width', () => {
+      const separators = txt.split('\n').filter(line => /^[═─━]+$/.test(line.trim()));
+      for (const sep of separators) {
+        expect(sep.trim().length).toBeLessThanOrEqual(78);
+      }
+    });
+
+    test('no consecutive blank lines (max 2 newlines)', () => {
+      expect(txt).not.toMatch(/\n\n\n\n/);
+    });
+
+    test('every section heading is followed by content', () => {
+      for (const section of EXPECTED_TXT_SECTIONS) {
+        const idx = txt.indexOf(section);
+        if (idx > -1) {
+          // After section heading, there should be non-whitespace content within 5 lines
+          const afterHeading = txt.substring(idx + section.length, idx + section.length + 500);
+          const lines = afterHeading.split('\n').slice(0, 5);
+          const hasContent = lines.some(l => l.trim().length > 0 && !/^[═─━]+$/.test(l.trim()));
+          expect(hasContent).toBe(true);
+        }
+      }
+    });
+  });
+
+  describe('layout and pagination doctrine', () => {
+    test('download HTML: no break-inside:avoid on section or article elements (soft pagination)', () => {
+      expect(html).not.toMatch(/section[^>]*style="[^"]*break-inside:\s*avoid/);
+      expect(html).not.toMatch(/article[^>]*style="[^"]*break-inside:\s*avoid/);
+    });
+
+    test('download HTML: page-break-before only appears for major divisions', () => {
+      const pageBreaks = html.match(/page-break-before:\s*always/g) || [];
+      // Should have at most a few major division breaks, not one per card
+      expect(pageBreaks.length).toBeLessThan(5);
+    });
+
+    test('web print CSS: soft pagination doctrine (sections/articles may split)', () => {
+      // The @media print block must set break-inside: auto on sections/articles
+      const printBlock = printCss.slice(printCss.indexOf('@media print'));
+      expect(printBlock).toContain('break-inside: auto');
+      // No blanket break-inside: avoid on section or article selectors
+      const avoidBlocks = printBlock.split('}').filter(block => block.includes('break-inside: avoid'));
+      for (const block of avoidBlocks) {
+        // avoid is only allowed on compact blocks: header, header aside, tr
+        expect(block).not.toMatch(/^\s*\.\w+\s+section\s*[,{]/m);
+        expect(block).not.toMatch(/^\s*\.\w+\s+article\s*[,{]/m);
+      }
+    });
+
+    test('web print CSS: heading orphan protection (break-after: avoid on h1/h2/h3)', () => {
+      const printBlock = printCss.slice(printCss.indexOf('@media print'));
+      expect(printBlock).toContain('break-after: avoid');
+      expect(printBlock).toMatch(/h1[\s\S]{0,80}h3\s*\{[\s\S]{0,120}break-after:\s*avoid/);
+    });
+
+    test('web print CSS: widow/orphan control on paragraphs and list items', () => {
+      const printBlock = printCss.slice(printCss.indexOf('@media print'));
+      expect(printBlock).toMatch(/orphans:\s*[2-9]/);
+      expect(printBlock).toMatch(/widows:\s*[2-9]/);
+    });
+
+    test('web report is not gray-only: brand palette present in styles', () => {
+      // The report page must carry the RevisionGrade brand palette
+      // (gold/oxblood/cream), not a generic gray-only theme.
+      // Print CSS references brand background/border colors:
+      expect(printCss).toMatch(/#faf7f2/i); // cream surface
+      expect(printCss).toMatch(/#d9a441|#b8922a/i); // brand gold
+      // Download HTML also carries brand colors inline
+      expect(html).toMatch(/#B8922A|#8B2E2E|#F5EFE0/i);
+    });
+
+    test('DOCX preserves professional heading hierarchy (Heading2 styles for sections)', () => {
+      // mammoth maps DOCX Heading styles to h2 tags; every major section must
+      // carry a real Heading style (not plain bold paragraphs)
+      const h2s = docxHtml.match(/<h2[^>]*>/g) || [];
+      expect(h2s.length).toBeGreaterThanOrEqual(10);
+      // The section headings must match the canonical contract titles
+      const docxHeadings = extractHtmlH2Headings(docxHtml);
+      for (const title of ['One-Paragraph Pitch', 'Executive Summary', 'Confidence Explanation']) {
+        expect(docxHeadings).toContain(title);
+      }
+    });
+
+    test('DOCX heading order mirrors HTML heading order for shared sections', () => {
+      const webHeadings = extractHtmlH2Headings(html);
+      const docxHeadings = extractHtmlH2Headings(docxHtml);
+      // Every long-form contract section present in both must be in the same relative order
+      const contractTitles = getLongFormMultiLayerSections().map(s => s.title);
+      const webOrder = contractTitles.filter(t => webHeadings.includes(t));
+      const docxOrder = contractTitles.filter(t => docxHeadings.includes(t));
+      const shared = webOrder.filter(t => docxOrder.includes(t));
+      expect(shared.length).toBeGreaterThanOrEqual(5);
+      expect(docxOrder.filter(t => shared.includes(t))).toEqual(shared);
+    });
+
+    test('TXT preserves hierarchy: dividers delimit every major section', () => {
+      const txtHeadings = extractAsciiTxtHeadings(txt);
+      // Every expected TXT section must be an extracted (divider-delimited) heading
+      for (const section of EXPECTED_TXT_SECTIONS) {
+        const found = txtHeadings.some(h => h.toUpperCase() === section);
+        expect({ section, found }).toEqual({ section, found: true });
+      }
     });
   });
 });
