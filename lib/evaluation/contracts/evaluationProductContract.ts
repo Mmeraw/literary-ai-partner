@@ -41,6 +41,13 @@ export type SectionDefinition = {
   rendererVisibility: Record<RendererSurface, boolean>;
 };
 
+export type ViewModelFieldBinding = {
+  sectionId: string;
+  sectionTitle: string;
+  viewModelPaths: string[];
+  rendererMaySynthesize: false;
+};
+
 export type RevisionSurfaceRule = {
   sectionId: string;
   sectionTitle: string;
@@ -84,6 +91,9 @@ export type EvaluationContract = {
   optionalSections: SectionDefinition[];
   forbiddenHeadings: readonly string[];
   forbiddenRevisionInventoryLabels: readonly string[];
+
+  viewModelFieldBindings: ViewModelFieldBinding[];
+  forbiddenRendererInputs: readonly string[];
 
   revisionSurfaceRules: RevisionSurfaceRule[];
   requiredOpportunityFields: string[];
@@ -129,6 +139,19 @@ export const CONTRACT_REGISTRY_PATH = 'lib/evaluation/contracts/evaluationContra
 export const UED_BUILDER_PATH = 'lib/evaluation/unifiedEvaluationDocument.ts' as const;
 export const ALL_SURFACES: RendererSurface[] = ['web', 'pdf', 'docx', 'txt'];
 
+export const FORBIDDEN_RENDERER_INPUTS: readonly string[] = [
+  'UnifiedEvaluationDocument',
+  'LongformDreamDocument',
+  'evaluation_result',
+  'dreamDoc',
+  'sanitizeAuthorFacingDisplayValue',
+  'mistakeProofText',
+  'correctScopeLanguage',
+  'actionItems',
+  'quickWins',
+  'strategicRevisions',
+];
+
 export function sectionIdFromTitle(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
@@ -162,6 +185,25 @@ export function buildRevisionSurfaceRules(sections: readonly SectionDefinition[]
       // Preserve misspelled legacy property for existing tests/consumers.
       mustTraceToCanonicaLedger: section.mustReferenceRevisionOpportunityLedger,
     }));
+}
+
+export function buildViewModelFieldBindings(
+  sections: readonly SectionDefinition[],
+  sectionIdToViewModelPaths: Record<string, string[]>,
+): ViewModelFieldBinding[] {
+  return sections.map((section) => {
+    const viewModelPaths = sectionIdToViewModelPaths[section.id];
+    if (!viewModelPaths || viewModelPaths.length === 0) {
+      throw new Error(`Missing ViewModel field binding for section ${section.id} (${section.title})`);
+    }
+
+    return {
+      sectionId: section.id,
+      sectionTitle: section.title,
+      viewModelPaths,
+      rendererMaySynthesize: false,
+    };
+  });
 }
 
 export function inferRevisionRole(title: string): string {
