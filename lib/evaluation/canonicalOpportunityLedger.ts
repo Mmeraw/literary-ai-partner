@@ -215,7 +215,32 @@ function compactFingerprint(value: string, maxWords = 12): string {
   return normalizeText(value).split(' ').filter(Boolean).slice(0, maxWords).join(' ');
 }
 
+function canonicalRegion(raw: RawOpportunity): string {
+  const location = normalizeText(raw.location);
+  if (location && !/recommendation$/.test(location)) return location;
+  return normalizeText(raw.criterion || raw.issue_type || 'general');
+}
+
+function duplicateCollapseKey(raw: RawOpportunity): string {
+  const causeKey = compactFingerprint(raw.cause || raw.symptom || raw.issue_type, 12);
+  const fixEffectKey = compactFingerprint([
+    raw.fix_direction || raw.action,
+    raw.reader_effect || raw.expected_impact,
+  ].join(' '), 18);
+  const regionKey = canonicalRegion(raw);
+
+  return [
+    raw.issue_type,
+    causeKey,
+    fixEffectKey,
+    regionKey,
+  ].filter(Boolean).join(':');
+}
+
 function clusterKey(raw: RawOpportunity): string {
+  const duplicateKey = duplicateCollapseKey(raw);
+  if (duplicateKey.length >= 20) return `duplicate:${duplicateKey}`;
+
   const evidenceKey = compactFingerprint(raw.evidence, 14);
   const locationKey = normalizeText(raw.location);
   const fixKey = compactFingerprint(raw.fix_direction || raw.action, 10);
@@ -223,6 +248,20 @@ function clusterKey(raw: RawOpportunity): string {
   if (evidenceKey.length >= 20) return `evidence:${evidenceKey}`;
   if (locationKey && !/recommendation$/.test(locationKey)) return `location:${locationKey}:${raw.issue_type}`;
   return `intent:${raw.issue_type}:${fixKey}`;
+}
+
+function sameDuplicateOpportunity(a: RawOpportunity, b: RawOpportunity): boolean {
+  if (duplicateCollapseKey(a) && duplicateCollapseKey(a) === duplicateCollapseKey(b)) return true;
+  if (a.issue_type !== b.issue_type) return false;
+  if (canonicalRegion(a) !== canonicalRegion(b)) return false;
+
+  const causeOverlap = jaccard(words(a.cause || a.symptom), words(b.cause || b.symptom));
+  const fixOverlap = jaccard(
+    words([a.fix_direction || a.action, a.reader_effect || a.expected_impact].join(' ')),
+    words([b.fix_direction || b.action, b.reader_effect || b.expected_impact].join(' ')),
+  );
+
+  return causeOverlap >= 0.7 && fixOverlap >= 0.7;
 }
 
 function specificityScore(value: string): number {
@@ -390,6 +429,7 @@ export function buildCanonicalOpportunityLedger(result: EvaluationLike): Canonic
       cluster = clusters.find((candidate) => {
         const representative = candidate[0];
         if (!representative) return false;
+        if (sameDuplicateOpportunity(representative, item)) return true;
         if (representative.issue_type !== item.issue_type) return false;
         if (normalizeText(representative.evidence) === normalizeText(item.evidence)) return true;
         if (normalizeText(representative.location) && normalizeText(representative.location) === normalizeText(item.location)) return true;
