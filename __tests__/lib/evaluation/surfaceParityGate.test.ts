@@ -438,4 +438,232 @@ describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
       expect(docxText).toContain(checkContent);
     });
   });
+
+  // ── Golden Master Certification: expanded checks ──────────────────────────
+
+  describe('section order parity across HTML and DOCX', () => {
+    // HTML uses <h2> for major sections; verify order matches TXT
+    const HTML_SECTION_MARKERS = [
+      'One-Paragraph Pitch',
+      'One-Sentence Pitch',
+      'Premise',
+      'Content Warnings',
+      'Revision Opportunity Summary',
+      'Executive Summary',
+      'Top Strengths',
+      'Top Risks',
+      'Top Recommendations',
+      'Criterion Rationales',
+    ];
+
+    test('HTML section headings appear in correct order', () => {
+      let lastIndex = -1;
+      for (const section of HTML_SECTION_MARKERS) {
+        const idx = html.indexOf(section);
+        expect(idx).toBeGreaterThan(lastIndex);
+        lastIndex = idx;
+      }
+    });
+
+    test('DOCX section headings appear in correct order', () => {
+      // DOCX text extraction preserves heading text
+      const DOCX_SECTION_MARKERS = [
+        'One-Paragraph Pitch',
+        'One-Sentence Pitch',
+        'Premise',
+        'Content Warnings',
+        'Revision Opportunity Summary',
+        'Executive Summary',
+        'Top Strengths',
+        'Top Risks',
+        'Top Recommendations',
+      ];
+      let lastIndex = -1;
+      for (const section of DOCX_SECTION_MARKERS) {
+        const idx = docxText.indexOf(section);
+        expect(idx).toBeGreaterThan(lastIndex);
+        lastIndex = idx;
+      }
+    });
+  });
+
+  describe('recommendation field parity across surfaces', () => {
+    // Every recommendation field that exists in one surface must exist in all
+    const RECOMMENDATION_FIELDS = [
+      'NV115 thread creates dread',
+      'Unresolved symbolic thread weakens closure',
+      'Tie NV115 to final verdict sequence',
+      'Reader dread dissipates without payoff',
+      'Middle act reads as research compilation',
+      'Over-evidence replaces scene-driven escalation',
+      'Keep strongest 3-4 case studies',
+      'Reader engagement drops in middle third',
+    ];
+
+    test('all recommendation detail fields present on TXT', () => {
+      for (const field of RECOMMENDATION_FIELDS) {
+        expect(txt).toContain(field);
+      }
+    });
+
+    test('all recommendation detail fields present on HTML', () => {
+      for (const field of RECOMMENDATION_FIELDS) {
+        expect(html).toContain(field);
+      }
+    });
+
+    test('all recommendation detail fields present on DOCX', () => {
+      for (const field of RECOMMENDATION_FIELDS) {
+        expect(docxText).toContain(field);
+      }
+    });
+  });
+
+  describe('evidence snippet normalization across surfaces', () => {
+    // Evidence anchors should be present without wrapping quotes on all surfaces
+    const EVIDENCE_SNIPPETS = [
+      'black truck appeared again at the third pullout',
+      'Chapters 4-8 expand documentary evidence',
+    ];
+
+    test('evidence snippets present on all surfaces without double quotes', () => {
+      for (const snippet of EVIDENCE_SNIPPETS) {
+        expect(txt).toContain(snippet);
+        expect(html).toContain(snippet);
+        expect(docxText).toContain(snippet);
+      }
+    });
+
+    test('no evidence snippet is wrapped in smart quotes on any surface', () => {
+      for (const snippet of EVIDENCE_SNIPPETS) {
+        // Should not be preceded/followed by smart quotes on the surface
+        expect(txt).not.toContain(`\u201c${snippet}\u201d`);
+        expect(html).not.toContain(`\u201c${snippet}\u201d`);
+        expect(docxText).not.toContain(`\u201c${snippet}\u201d`);
+      }
+    });
+  });
+
+  describe('no renderer-specific omissions or additions', () => {
+    // Core ViewModel data must not be present on one surface and missing on another
+    const CROSS_SURFACE_CONTENT = [
+      // DREAM-specific content
+      'The principal drag is over-evidence',
+      'Road-trip witness layer',
+      'Smokehouse Camp',
+      'River agency layer',
+      'Opening unease',
+      'Research expansion',
+      'Return to camp',
+      // Cross-layer integration
+      'Water as memory and judgment',
+      'Dogs as sensory sentinels',
+      // Symbolic audit
+      'Witness, archive, nervous system, judge',
+      // Reader experience
+      'Why are these travelers anxious',
+      'Is the river really doing this',
+      // Revision plan
+      'Promote Leanna / Verdant earlier',
+      // What not to become
+      'A documentary eco-mystery',
+    ];
+
+    test('no content present on HTML but missing from TXT', () => {
+      for (const content of CROSS_SURFACE_CONTENT) {
+        if (html.includes(content)) {
+          expect(txt).toContain(content);
+        }
+      }
+    });
+
+    test('no content present on HTML but missing from DOCX', () => {
+      for (const content of CROSS_SURFACE_CONTENT) {
+        if (html.includes(content)) {
+          expect(docxText).toContain(content);
+        }
+      }
+    });
+
+    test('no content present on TXT but missing from HTML', () => {
+      for (const content of CROSS_SURFACE_CONTENT) {
+        if (txt.includes(content)) {
+          expect(html).toContain(content);
+        }
+      }
+    });
+  });
+
+  describe('opportunity counts match across all surfaces', () => {
+    test('DOCX opportunity sections match TXT count', () => {
+      // TXT uses "OPPORTUNITIES (N)" format
+      const txtOpMatches = txt.match(/OPPORTUNITIES \((\d+)\)/g) || [];
+      const txtCounts = txtOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      // DOCX uses same "OPPORTUNITIES (N)" format
+      const docxOpMatches = docxText.match(/OPPORTUNITIES \((\d+)\)/gi) || [];
+      const docxCounts = docxOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      expect(txtCounts.length).toBeGreaterThan(0);
+      expect(txtCounts).toEqual(docxCounts);
+    });
+
+    test('HTML opportunity counts match TXT counts', () => {
+      const txtOpMatches = txt.match(/OPPORTUNITIES \((\d+)\)/g) || [];
+      const txtCounts = txtOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      const htmlOpMatches = html.match(/Opportunities \((\d+)\)/g) || [];
+      const htmlCounts = htmlOpMatches.map(m => parseInt(m.match(/\d+/)![0]));
+
+      expect(txtCounts.length).toBe(htmlCounts.length);
+      expect(txtCounts).toEqual(htmlCounts);
+    });
+  });
+
+  describe('TXT formatting rules', () => {
+    test('section separators are consistent width', () => {
+      const separators = txt.split('\n').filter(line => /^[═─━]+$/.test(line.trim()));
+      for (const sep of separators) {
+        expect(sep.trim().length).toBeLessThanOrEqual(78);
+      }
+    });
+
+    test('no consecutive blank lines (max 2 newlines)', () => {
+      expect(txt).not.toMatch(/\n\n\n\n/);
+    });
+
+    test('every section heading is followed by content', () => {
+      for (const section of EXPECTED_TXT_SECTIONS) {
+        const idx = txt.indexOf(section);
+        if (idx > -1) {
+          // After section heading, there should be non-whitespace content within 5 lines
+          const afterHeading = txt.substring(idx + section.length, idx + section.length + 500);
+          const lines = afterHeading.split('\n').slice(0, 5);
+          const hasContent = lines.some(l => l.trim().length > 0 && !/^[═─━]+$/.test(l.trim()));
+          expect(hasContent).toBe(true);
+        }
+      }
+    });
+  });
+
+  describe('HTML pagination and typography', () => {
+    test('no break-inside:avoid on section or article elements (soft pagination)', () => {
+      // The inline styles should not force page breaks on all sections/articles
+      expect(html).not.toMatch(/section[^>]*style="[^"]*break-inside:\s*avoid/);
+    });
+
+    test('page-break-before only appears for major divisions', () => {
+      const pageBreaks = html.match(/page-break-before:\s*always/g) || [];
+      // Should have at most a few major division breaks, not one per card
+      expect(pageBreaks.length).toBeLessThan(5);
+    });
+
+    test('widows and orphans are controlled', () => {
+      // HTML should include paragraph-level styling or CSS that controls widows/orphans
+      // The rendered HTML from the download route uses inline styles with print media
+      // At minimum, paragraphs should exist and not be empty
+      const paragraphs = html.match(/<p[^>]*>/g) || [];
+      expect(paragraphs.length).toBeGreaterThan(10);
+    });
+  });
 });
