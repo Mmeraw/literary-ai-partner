@@ -1054,7 +1054,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
             const detailHtml = rows.length > 0
               ? renderOpportunityFields(rows)
               : `<p class="opp-row">${escapeHtml(r.specific_fix ?? 'No action provided.')}</p>`;
-            return `<div style="margin-bottom:10px"><p class="opp-row" style="font-weight:700;color:#8B2E2E;margin-bottom:4px">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
+            return `<div class="opp-recommendation"><p class="opp-row opp-severity">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
           }).join('')}</div>`
         : '';
       return `
@@ -1230,18 +1230,22 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     .readiness-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D;color:#1A1A1A}.readiness-card.readiness-watch{background:#FFF6E8;border-color:#D9A441;color:#1A1A1A}.readiness-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A;color:#1A1A1A}.readiness-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3;color:#1A1A1A}
     .readiness-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}.readiness-card .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px;color:#1A1A1A}.readiness-card .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#1A1A1A;letter-spacing:.04em}
     .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
+    .title-metadata-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 11px}
+    .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}
     .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
     .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
     section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:18px 21px;margin:0 0 14px;break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
     h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:16pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11pt} small{font-weight:normal;color:#5C5549}
     ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
-    table{width:100%;border-collapse:collapse}.score-grid-table{table-layout:fixed}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:7px 8px;text-align:left;vertical-align:top}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%}
+    table{width:100%;border-collapse:collapse}.score-grid-table{table-layout:fixed;border:1px solid #E6DED2;border-radius:8px;overflow:hidden}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;background:#F8F3EA}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:8px 9px;text-align:left;vertical-align:top}.score-grid-table tbody tr:nth-child(even){background:#FFFDF9}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%;overflow-wrap:anywhere}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%;white-space:nowrap}
     .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
     .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:7px;color:#1C1814}
     .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
     .opp-block{margin-top:10px;background:#FFFDF9;border:1px solid #E6DED2;border-left:3px solid #C8A96E;padding:12px 14px;border-radius:8px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
     .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8B2E2E;margin-bottom:6px}
     .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
+    .opp-recommendation{margin-bottom:10px;padding:8px 9px;border:1px solid #EDE7DE;background:#FFFFFF;border-radius:6px}
+    .opp-severity{font-weight:700;color:#8B2E2E;margin-bottom:5px}
     .opp-row strong{color:#5C5549}
     .opp-row em{color:#6B5E52;font-style:normal}.opp-field{margin-top:8px;padding-top:6px;border-top:1px solid #EDE7DE;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;margin-bottom:2px}.opp-val{display:block;width:100%;font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#1C1814;line-height:1.45;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
@@ -1265,7 +1269,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
           ${vm.titleBlock.marketReadinessConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
         </aside>
       </div>
-      <div class="grid">
+      <div class="grid title-metadata-grid">
         <div class="metric"><strong>Genre</strong><div>${escapeHtml(vm.titleBlock.genre)}${vm.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.genreConfidenceLabel)}">${escapeHtml(vm.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
         <div class="metric"><strong>Target Audience</strong><div>${vm.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(vm.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.audienceConfidenceLabel)}">${escapeHtml(vm.titleBlock.audienceConfidenceLabel)}</span></div></div>
         <div class="metric"><strong>Submitted Word Count</strong><div>${escapeHtml(vm.titleBlock.submittedWordCount)}</div></div>
@@ -1283,7 +1287,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(vm.oneSentencePitch)}</p></section>
     ${vm.premise ? `<section><h2>Premise</h2><p>${escapeHtml(vm.premise)}</p></section>` : ''}
     <section><h2>Content Warnings</h2>${list(vm.contentWarnings)}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
-    <section><h2>Revision Opportunity Summary</h2><div class="grid"><div class="metric"><strong>Total</strong><div>${vm.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${vm.revisionOpportunitySummary.recommended}</div></div><div class="metric"><strong>Optional</strong><div>${vm.revisionOpportunitySummary.optional}</div></div><div class="metric"><strong>Consider</strong><div>${vm.revisionOpportunitySummary.consider}</div></div></div></section>
+    <section><h2>Revision Opportunity Summary</h2><div class="grid summary-grid"><div class="metric"><strong>Total</strong><div>${vm.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${vm.revisionOpportunitySummary.recommended}</div></div><div class="metric"><strong>Optional</strong><div>${vm.revisionOpportunitySummary.optional}</div></div><div class="metric"><strong>Consider</strong><div>${vm.revisionOpportunitySummary.consider}</div></div></div></section>
     <section><h2>Executive Summary</h2><p>${escapeHtml(vm.executiveSummary)}</p></section>
     <section><h2>Top Strengths</h2>${list(vm.topStrengths, { ordered: true })}</section>
     <section><h2>Top Risks</h2>${list(vm.topRisks, { ordered: true })}</section>

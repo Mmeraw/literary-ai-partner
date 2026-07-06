@@ -159,6 +159,8 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(html).toContain('Pacing drift');
     expect(html).toContain('RevisionGrade™ Evaluation Report');
     expect(html).toContain('class="cover"');
+    expect(html).toContain('class="grid title-metadata-grid"');
+    expect(html).toContain('class="grid summary-grid"');
     expect(html).toContain('Submitted Word Count');
 
     const docxBuffer = await testing.renderDocxFromViewModel(vm);
@@ -273,6 +275,8 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(html).toContain('class="readiness-card readiness-risk"');
     expect(html).toContain('class="opp-field"');
     expect(html).toContain('class="opp-val"');
+    expect(html).toContain('class="opp-recommendation"');
+    expect(html).toContain('class="opp-row opp-severity"');
     expect(html).toContain(longEvidence);
     expect(html).toContain('Stakes or decision pressure diffuses before reaching the reader.');
     expect(html).toContain('Mid-chapter tension release without replacement hook.');
@@ -536,6 +540,8 @@ describe('download adapters parity (ViewModel renderers)', () => {
 
     // Short-form: score-grid table MUST have scoped class
     expect(html).toContain('class="score-grid-table"');
+    expect(html).toContain('class="grid summary-grid"');
+    expect(html).toContain('class="grid title-metadata-grid"');
 
     // Short-form: nth-child column rules scoped to .score-grid-table, not global
     const sfStyleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/);
@@ -554,6 +560,7 @@ describe('download adapters parity (ViewModel renderers)', () => {
     // opp-val CSS allows wrapping
     expect(html).toContain('white-space:normal');
     expect(html).toContain('overflow-wrap:anywhere');
+    expect(html).toContain('score-grid-table tbody tr:nth-child(even)');
 
     // Long evidence text is fully present (not truncated)
     expect(html).toContain('The long corridor stretched endlessly');
