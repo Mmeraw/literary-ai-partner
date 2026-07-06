@@ -1,0 +1,147 @@
+{
+  "schema_version": "benchmark_authority_contract_v1",
+  "contract_id": "long-form-multi-layer-wizard-of-oz",
+  "mode": "long_form_multi_layer_evaluation",
+  "route": "LONG_FORM",
+  "benchmark_tier": "calibration-only",
+  "runtime_authority": false,
+  "score_authority": "calibration-benchmark",
+  "scores_are_authoritative": false,
+  "score_source": "docs/benchmarks/public-domain/the-wonderful-wizard-of-oz-dream-calibration.md",
+  "word_count": null,
+  "word_count_band": "25000-75000",
+  "manuscript_profile": {
+    "title": "The Wonderful Wizard of Oz",
+    "submission_scope": "full_manuscript",
+    "genre": "Children's Portal Fantasy / Quest Novel",
+    "target_audience": "Readers of children's portal fantasy, quest novel, fairy tale, and archetypal adventure"
+  },
+  "required_surfaces": ["view_model", "txt", "html_pdf", "docx"],
+  "expected_section_order": [
+    "title_block",
+    "executive_verdict",
+    "dream_scores",
+    "market_shelf",
+    "what_not_to_become",
+    "structural_stack",
+    "arc_map",
+    "criterion_analyses",
+    "layer_analyses",
+    "cross_layer_integration",
+    "symbolic_audit",
+    "reader_experience",
+    "revision_plan",
+    "releasability",
+    "acceptance_checks",
+    "calibration_notes",
+    "manuscript_integrity_issues",
+    "author_disclaimer"
+  ],
+  "required_public_strings": [
+    "The Wonderful Wizard of Oz",
+    "Concept & Core Premise",
+    "Narrative Drive & Momentum",
+    "Character Depth & Psychological Coherence",
+    "Point of View & Voice Control",
+    "Scene Construction & Function",
+    "Dialogue Authenticity & Subtext",
+    "Thematic Integration",
+    "World-Building & Environmental Logic",
+    "Pacing & Structural Balance",
+    "Prose Control & Line-Level Craft",
+    "Tonal Authority & Consistency",
+    "Narrative Closure & Promises Kept",
+    "Professional Readiness & Market Positioning"
+  ],
+  "surface_required_strings": {
+    "txt": [
+      "DREAM Long-Form Multi-Layer Evaluation",
+      "Children's Portal Fantasy / Quest Novel",
+      "A highly durable portal quest: a displaced child seeks home through a strange land with symbolic companions.",
+      "It should not be evaluated as failed adult psychological realism.",
+      "Portal-quest architecture",
+      "Companion-recruitment structure",
+      "86",
+      "94",
+      "Author retains ownership of manuscript content"
+    ],
+    "html": [
+      "DREAM Long-Form Multi-Layer Evaluation",
+      "Children's Portal Fantasy / Quest Novel",
+      "A highly durable portal quest: a displaced child seeks home through a strange land with symbolic companions.",
+      "It should not be evaluated as failed adult psychological realism.",
+      "Portal-quest architecture",
+      "Companion-recruitment structure",
+      "86",
+      "94",
+      "Author retains ownership of manuscript content"
+    ],
+    "docx": [
+      "DREAM Long-Form Multi-Layer Evaluation",
+      "Children's Portal Fantasy / Quest Novel",
+      "A highly durable portal quest: a displaced child seeks home through a strange land with symbolic companions.",
+      "It should not be evaluated as failed adult psychological realism.",
+      "Portal-quest architecture",
+      "Companion-recruitment structure",
+      "Author retains ownership of manuscript content"
+    ]
+  },
+  "optional_public_strings": [
+    "Children's Fantasy / Quest Novel / Fairy Tale / Archetypal Adventure",
+    "Dorothy's homeward quest",
+    "Simplicity, accessibility, archetype, and wonder can be excellent when structurally coherent.",
+    "Episodic looseness and archetypal simplicity limit adult psychological complexity."
+  ],
+  "source_only_strings": [
+    "The Wonderful Wizard of Oz is a benchmark quest novel because it demonstrates that simplicity and accessibility can be structurally sound.",
+    "Do not treat archetypal companions as automatically flat or defective."
+  ],
+  "forbidden_public_strings": [
+    "revision_opportunity_ledger",
+    "revision_canon_metadata",
+    "internal_check_id",
+    "provider_response",
+    "raw_prompt",
+    "chain_of_thought",
+    "[LOCATION:",
+    "[OPERATION:",
+    "WAVE"
+  ],
+  "required_dream_keys": [
+    "executive_verdict",
+    "dream_scores",
+    "market_shelf",
+    "what_not_to_become",
+    "structural_stack",
+    "arc_map",
+    "criterion_analyses",
+    "layer_analyses",
+    "cross_layer_integration",
+    "symbolic_audit",
+    "reader_experience",
+    "revision_plan",
+    "releasability",
+    "acceptance_checks",
+    "calibration_notes",
+    "manuscript_integrity_issues"
+  ],
+  "required_criterion_keys": [
+    "concept",
+    "narrativeDrive",
+    "character",
+    "voice",
+    "sceneConstruction",
+    "dialogue",
+    "theme",
+    "worldbuilding",
+    "pacing",
+    "proseControl",
+    "tone",
+    "narrativeClosure",
+    "marketability"
+  ],
+  "required_revision_queue_display_rule": {
+    "must_render_clean_display_text": true,
+    "forbidden_raw_tokens": ["[LOCATION:", "[OPERATION:"]
+  }
+}

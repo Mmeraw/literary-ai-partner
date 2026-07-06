@@ -1,0 +1,151 @@
+{
+  "schema_version": "benchmark_authority_contract_v1",
+  "contract_id": "long-form-multi-layer-dracula",
+  "mode": "long_form_multi_layer_evaluation",
+  "route": "LONG_FORM",
+  "benchmark_tier": "calibration-only",
+  "runtime_authority": false,
+  "score_authority": "calibration-benchmark",
+  "scores_are_authoritative": false,
+  "score_source": "docs/benchmarks/public-domain/dracula-dream-calibration.md",
+  "word_count": null,
+  "word_count_band": "75000+",
+  "manuscript_profile": {
+    "title": "Dracula",
+    "submission_scope": "full_manuscript",
+    "genre": "Adult Gothic Horror / Epistolary Supernatural Thriller",
+    "target_audience": "Adult readers of Gothic horror, epistolary supernatural thriller, Victorian literature, and documentary terror"
+  },
+  "required_surfaces": ["view_model", "txt", "html_pdf", "docx"],
+  "expected_section_order": [
+    "title_block",
+    "executive_verdict",
+    "dream_scores",
+    "market_shelf",
+    "what_not_to_become",
+    "structural_stack",
+    "arc_map",
+    "criterion_analyses",
+    "layer_analyses",
+    "cross_layer_integration",
+    "symbolic_audit",
+    "reader_experience",
+    "revision_plan",
+    "releasability",
+    "acceptance_checks",
+    "calibration_notes",
+    "manuscript_integrity_issues",
+    "author_disclaimer"
+  ],
+  "required_public_strings": [
+    "Dracula",
+    "Concept & Core Premise",
+    "Narrative Drive & Momentum",
+    "Character Depth & Psychological Coherence",
+    "Point of View & Voice Control",
+    "Scene Construction & Function",
+    "Dialogue Authenticity & Subtext",
+    "Thematic Integration",
+    "World-Building & Environmental Logic",
+    "Pacing & Structural Balance",
+    "Prose Control & Line-Level Craft",
+    "Tonal Authority & Consistency",
+    "Narrative Closure & Promises Kept",
+    "Professional Readiness & Market Positioning"
+  ],
+  "surface_required_strings": {
+    "txt": [
+      "DREAM Long-Form Multi-Layer Evaluation",
+      "Adult Gothic Horror / Epistolary Supernatural Thriller",
+      "Gothic Horror / Epistolary Supernatural Thriller / Victorian Literature",
+      "One of the strongest genre premises in Gothic fiction: ancient predation enters modern bureaucratic, medical, legal, and technological England.",
+      "It should not be evaluated as a simple vampire adventure; its true architecture is documentary terror.",
+      "Epistolary evidence-assembly architecture",
+      "Multi-document, multi-voice form",
+      "Castle opening and Lucy/Mina escalation",
+      "87",
+      "94",
+      "Author retains ownership of manuscript content"
+    ],
+    "html": [
+      "DREAM Long-Form Multi-Layer Evaluation",
+      "Adult Gothic Horror / Epistolary Supernatural Thriller",
+      "Gothic Horror / Epistolary Supernatural Thriller / Victorian Literature",
+      "One of the strongest genre premises in Gothic fiction: ancient predation enters modern bureaucratic, medical, legal, and technological England.",
+      "It should not be evaluated as a simple vampire adventure; its true architecture is documentary terror.",
+      "Epistolary evidence-assembly architecture",
+      "Multi-document, multi-voice form",
+      "Castle opening and Lucy/Mina escalation",
+      "87",
+      "94",
+      "Author retains ownership of manuscript content"
+    ],
+    "docx": [
+      "DREAM Long-Form Multi-Layer Evaluation",
+      "Adult Gothic Horror / Epistolary Supernatural Thriller",
+      "Gothic Horror / Epistolary Supernatural Thriller / Victorian Literature",
+      "One of the strongest genre premises in Gothic fiction: ancient predation enters modern bureaucratic, medical, legal, and technological England.",
+      "It should not be evaluated as a simple vampire adventure; its true architecture is documentary terror.",
+      "Epistolary evidence-assembly architecture",
+      "Multi-document, multi-voice form",
+      "Castle opening and Lucy/Mina escalation",
+      "Author retains ownership of manuscript content"
+    ]
+  },
+  "optional_public_strings": [
+    "Form can be plot: the dossier is not packaging; it is the engine.",
+    "Middle-act procedural drag after the central threat is understood."
+  ],
+  "source_only_strings": [
+    "Dracula is a benchmark long-form Gothic novel because its terror is not carried by plot alone, but by document architecture.",
+    "Genre fame must not inflate every score: pacing drag still needs to be named."
+  ],
+  "forbidden_public_strings": [
+    "revision_opportunity_ledger",
+    "revision_canon_metadata",
+    "internal_check_id",
+    "provider_response",
+    "raw_prompt",
+    "chain_of_thought",
+    "[LOCATION:",
+    "[OPERATION:",
+    "WAVE"
+  ],
+  "required_dream_keys": [
+    "executive_verdict",
+    "dream_scores",
+    "market_shelf",
+    "what_not_to_become",
+    "structural_stack",
+    "arc_map",
+    "criterion_analyses",
+    "layer_analyses",
+    "cross_layer_integration",
+    "symbolic_audit",
+    "reader_experience",
+    "revision_plan",
+    "releasability",
+    "acceptance_checks",
+    "calibration_notes",
+    "manuscript_integrity_issues"
+  ],
+  "required_criterion_keys": [
+    "concept",
+    "narrativeDrive",
+    "character",
+    "voice",
+    "sceneConstruction",
+    "dialogue",
+    "theme",
+    "worldbuilding",
+    "pacing",
+    "proseControl",
+    "tone",
+    "narrativeClosure",
+    "marketability"
+  ],
+  "required_revision_queue_display_rule": {
+    "must_render_clean_display_text": true,
+    "forbidden_raw_tokens": ["[LOCATION:", "[OPERATION:"]
+  }
+}

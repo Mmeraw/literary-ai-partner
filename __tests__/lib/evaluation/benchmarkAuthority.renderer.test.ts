@@ -1331,6 +1331,738 @@ function buildGoldenMythoamphibiaFixture() {
   return { canonicalDoc, dream };
 }
 
+function buildGoldenDraculaFixture() {
+  const canonicalDoc = buildLongFormMultiLayerDocument({
+    displayTitle: 'Dracula',
+    result: {
+      generated_at: '2026-07-05T10:00:00.000Z',
+      overview: {
+        overall_score_0_100: 87,
+        verdict: 'publish',
+        one_paragraph_summary:
+          'Dracula is a benchmark long-form Gothic novel because its terror is not carried by plot alone, but by document architecture. The novel is built as a curated dossier: journals, letters, newspaper cuttings, diaries, phonograph records, memoranda, travel notes, and medical/legal evidence are arranged to make an impossible supernatural event feel procedurally verified.',
+        top_3_strengths: [
+          'Epistolary evidence-assembly architecture.',
+          'Multi-document, multi-voice form.',
+          'Castle opening and Lucy/Mina escalation.',
+        ],
+        top_3_risks: [
+          'Middle-act procedural drag after the central threat is understood.',
+          'Some late teamwork dialogue becomes explanatory.',
+          'Dracula remains more symbolic predator than psychologically developed antagonist.',
+        ],
+      },
+      enrichment: {
+        premise:
+          'A foreign aristocratic predator enters modern England and is defeated by a coalition of lovers, doctors, lawyers, investigators, religious knowledge, and documentary evidence.',
+        trigger_warnings: ['violence', 'blood', 'death', 'predation', 'possession'],
+      },
+      metrics: {
+        manuscript: {
+          title: 'Dracula',
+          word_count: 160000,
+          genre: 'Adult Gothic Horror / Epistolary Supernatural Thriller',
+          target_audience: 'Adult readers of Gothic horror, epistolary supernatural thriller, Victorian literature, and documentary terror',
+        },
+      },
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 9.5,
+          confidence_level: 'high',
+          rationale: 'One of the strongest genre premises in Gothic fiction: ancient predation enters modern bureaucratic, medical, legal, and technological England.',
+          recommendations: [],
+        },
+        {
+          key: 'narrativeDrive',
+          score_0_10: 8,
+          confidence_level: 'high',
+          rationale: 'Castle opening and Lucy/Mina escalation are superb; middle evidence-gathering has purposeful but real drag.',
+          recommendations: [],
+        },
+      ],
+    },
+  });
+
+  const dream = {
+    dream_scores: { quality: 87, readiness: 94, commercial: null, literary: null },
+    executive_verdict:
+      'Dracula is a benchmark long-form Gothic novel because its terror is not carried by plot alone, but by document architecture. The novel fuses ancient contamination myth with modern evidence systems: shorthand, trains, maps, phonographs, typewriting, legal documents, medical diagnosis, blood transfusion logic, newspaper evidence, shipping logs, and property records all become tools in a fight against a premodern predator.',
+    market_shelf: {
+      best_shelf: 'Gothic Horror / Epistolary Supernatural Thriller / Victorian Literature',
+      marketable_hook: 'One of the strongest genre premises in Gothic fiction: ancient predation enters modern bureaucratic, medical, legal, and technological England.',
+      shelf_neighbors: ['Gothic horror', 'Epistolary novel', 'Victorian supernatural thriller'],
+      comparison_space: ['Documentary terror', 'Vampire literature'],
+      market_danger: 'The book can be misread as simple vampire adventure; its true architecture is documentary terror.',
+    },
+    what_not_to_become: [
+      'It should not be evaluated as a simple vampire adventure; its true architecture is documentary terror.',
+      'A generic supernatural action novel that ignores the epistolary evidence-assembly form.',
+    ],
+    structural_stack: [
+      {
+        layer_name: 'Epistolary evidence-assembly architecture',
+        status: 'exceptional',
+        function: 'The novel is built as a curated dossier: journals, letters, newspaper cuttings, diaries, phonograph records, memoranda.',
+        revision_note: 'The form is the engine, not decoration.',
+      },
+      {
+        layer_name: 'Multi-document, multi-voice form',
+        status: 'exceptional',
+        function: 'Multiple narrators create triangulated evidence of impossible events.',
+        revision_note: 'Each document adds a distinct voice and evidentiary weight.',
+      },
+      {
+        layer_name: 'Castle opening and Lucy/Mina escalation',
+        status: 'strong',
+        function: 'Gothic dread, domestic invasion, and contamination arc.',
+        revision_note: 'Maintains urgency through personal danger.',
+      },
+      {
+        layer_name: 'Middle-act procedural pursuit',
+        status: 'purposeful but drag-prone',
+        function: 'Evidence-gathering and team-coordination after threat is identified.',
+        revision_note: 'Middle dossier/pursuit mechanics are occasionally over-extended.',
+      },
+    ],
+    arc_map: [
+      {
+        act_name: 'Act I\u2014Castle and Journey',
+        chapter_range: '1-4',
+        primary_function: 'Jonathan Harker enters Dracula\u2019s domain; escalating dread and imprisonment.',
+        revision_priority: 'Maintain atmospheric tension.',
+      },
+      {
+        act_name: 'Act II\u2014Lucy and Domestic Invasion',
+        chapter_range: '5-14',
+        primary_function: 'Dracula arrives in England; Lucy\u2019s contamination and decline.',
+        revision_priority: 'Sustain dread through medical/romantic frame.',
+      },
+      {
+        act_name: 'Act III\u2014Pursuit and Evidence Assembly',
+        chapter_range: '15-27',
+        primary_function: 'Team assembles evidence, tracks earth boxes, pursues Dracula back to Transylvania.',
+        revision_priority: 'Maintain propulsion despite procedural detail.',
+      },
+    ],
+    criterion_analyses: [
+      { key: 'concept', score: 9.5, confidence: 'high', fit_evidence: ['Ancient predation meets modern bureaucratic/medical/legal England.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeDrive', score: 8, confidence: 'high', fit_evidence: ['Castle opening and Lucy/Mina escalation are superb.'], gap_evidence: ['Middle evidence-gathering has purposeful but real drag.'], revision_queue: [] },
+      { key: 'character', score: 8, confidence: 'high', fit_evidence: ['Mina, Jonathan, Seward, Lucy, Van Helsing, Renfield, Dracula perform distinct roles.'], gap_evidence: ['Some men become functionally grouped in pursuit phase.'], revision_queue: [] },
+      { key: 'voice', score: 9.5, confidence: 'high', fit_evidence: ['Multi-document, multi-voice form is the novel\u2019s defining craft triumph.'], gap_evidence: [], revision_queue: [] },
+      { key: 'sceneConstruction', score: 8.5, confidence: 'high', fit_evidence: ['Major scenes carry dread, evidence, symbolic escalation, and plot movement.'], gap_evidence: ['Some procedural scenes are thinner as drama.'], revision_queue: [] },
+      { key: 'dialogue', score: 7.5, confidence: 'moderate-high', fit_evidence: ['Dracula, Van Helsing, Renfield, and the social voices are distinct.'], gap_evidence: ['Some late teamwork dialogue becomes explanatory.'], revision_queue: [] },
+      { key: 'theme', score: 9, confidence: 'high', fit_evidence: ['Blood, purity, contagion, empire, gender, faith, science, foreignness, technology, and appetite interlock.'], gap_evidence: [], revision_queue: [] },
+      { key: 'worldbuilding', score: 8.5, confidence: 'high', fit_evidence: ['Vampire rules, thresholds, earth boxes, garlic, crucifix, host, daylight, wolves, fog, and blood logic remain coherent.'], gap_evidence: [], revision_queue: [] },
+      { key: 'pacing', score: 7.5, confidence: 'high', fit_evidence: ['Opening and ending are powerful.'], gap_evidence: ['Middle dossier/pursuit mechanics are occasionally over-extended.'], revision_queue: [] },
+      { key: 'proseControl', score: 8.5, confidence: 'high', fit_evidence: ['Strong Gothic atmospherics, especially landscape, animal sound, blood/body horror, and dread escalation.'], gap_evidence: [], revision_queue: [] },
+      { key: 'tone', score: 9, confidence: 'high', fit_evidence: ['Sustains dread, moral seriousness, scientific urgency, and religious terror with remarkable control.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeClosure', score: 8.5, confidence: 'high', fit_evidence: ['The pursuit resolves the central threat and Mina\u2019s contamination ledger.'], gap_evidence: ['Dracula himself remains more symbolic predator than psychologically developed antagonist.'], revision_queue: [] },
+      { key: 'marketability', score: 10, confidence: 'high', fit_evidence: ['Genre-defining, culturally durable, structurally teachable benchmark text.'], gap_evidence: [], revision_queue: [] },
+    ],
+    layer_analyses: [
+      { layer_name: 'Documentary evidence layer', status: 'exceptional', needed_revision: 'None needed; this is the defining structural achievement.' },
+      { layer_name: 'Gothic contamination layer', status: 'strong', needed_revision: 'Maintain balance between symbolic terror and procedural pursuit.' },
+      { layer_name: 'Pursuit/team layer', status: 'purposeful but drag-prone', needed_revision: 'Middle pursuit could be compressed without losing evidentiary weight.' },
+    ],
+    cross_layer_integration: [
+      { motif: 'Blood/transfusion', description: 'Medical intervention carries symbolic, romantic, and contamination weight.', integration_quality: 'strong', revision_note: 'Blood is never merely physical.' },
+      { motif: 'Document/evidence', description: 'Every document type carries different evidentiary and emotional authority.', integration_quality: 'exceptional', revision_note: 'Form is plot.' },
+    ],
+    symbolic_audit: {
+      preserved_symbols: [
+        { symbol: 'Earth boxes', current_function: 'Tactical constraint and spatial governance of the vampire.', revision_instruction: 'Maintain as plot-functional, not decorative.' },
+        { symbol: 'Mina\u2019s typewriter', current_function: 'Modern evidence technology opposing ancient predation.', revision_instruction: 'Technology as weapon and witness.' },
+      ],
+      doctrine_strengths: ['Documentary form as terror engine.', 'Multi-voice evidence assembly.'],
+      doctrine_risks: ['Middle procedural detail can dilute dread.'],
+      audit_conclusion: 'Symbolic architecture is genre-defining; primary risk is procedural expansion in middle act.',
+    },
+    reader_experience: {
+      first_act: { reader_question: 'Can Jonathan escape the castle?', emotional_state: 'Escalating Gothic dread.', risk: 'None\u2014this is among the strongest openings in Gothic fiction.' },
+      middle: { reader_question: 'Can the team assemble enough evidence to stop Dracula?', emotional_state: 'Procedural urgency mixed with contamination anxiety.', risk: 'Evidence-gathering may slow dread.' },
+      final_act: { reader_question: 'Can they reach Dracula before Mina\u2019s contamination is irreversible?', emotional_state: 'Chase urgency and spiritual danger.', risk: 'Pursuit is well-governed but Dracula\u2019s interiority remains symbolic.' },
+      aftertaste: 'Form can be plot: the dossier is not packaging; it is the engine.',
+    },
+    revision_plan: [
+      { priority: 'P1', title: 'Maintain documentary form integrity', goal: 'Preserve the epistolary evidence-assembly architecture.', actions: ['No revision needed\u2014calibration benchmark.'], acceptance_check: 'Documentary form remains the primary engine.' },
+    ],
+    releasability: [
+      { dimension: 'Concept', current_status: 'Genre-defining', verdict: 'Strong' },
+      { dimension: 'Epistolary evidence-assembly architecture', current_status: 'Exceptional and structurally teachable', verdict: 'Strong' },
+      { dimension: 'Publication readiness', current_status: 'Canonical benchmark text', verdict: 'Strong' },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        'Epistolary evidence-assembly architecture',
+        'Multi-document, multi-voice form',
+        'Castle opening and Lucy/Mina escalation',
+        'Gothic contamination and blood logic',
+      ],
+      failure_conditions: [
+        'Fails if evaluated as simple vampire adventure.',
+        'Fails if documentary form is treated as decoration.',
+      ],
+    },
+    calibration_notes: [
+      'Scores derived from the Dracula DREAM public-domain calibration benchmark.',
+      'Benchmark tier is calibration-only; does not govern production runtime.',
+    ],
+    manuscript_integrity_issues: [],
+  } as any;
+
+  return { canonicalDoc, dream };
+}
+
+function buildGoldenGreatExpectationsFixture() {
+  const canonicalDoc = buildLongFormMultiLayerDocument({
+    displayTitle: 'Great Expectations',
+    result: {
+      generated_at: '2026-07-05T10:00:00.000Z',
+      overview: {
+        overall_score_0_100: 89,
+        verdict: 'publish',
+        one_paragraph_summary:
+          'Great Expectations is a benchmark bildungsroman because its architecture converts class aspiration into moral revelation and repair. An orphan\u2019s sudden rise into gentlemanly expectations exposes the cruelty of class shame, the false glamour of status, and the saving force of loyalty, remorse, and chosen kinship.',
+        top_3_strengths: [
+          'Shame/class/moral-education architecture.',
+          'Retrospective first-person voice fuses adult irony with child perception.',
+          'Magwitch reveal and final pursuit.',
+        ],
+        top_3_risks: [
+          'Serial-middle expansion occasionally slows the central shame/revelation engine.',
+          'Estella ending remains softened/ambiguous depending on edition.',
+          'Some serial breadth exceeds core pressure.',
+        ],
+      },
+      enrichment: {
+        premise:
+          'An orphan\u2019s social ascent reveals the corruption of shame and the hidden nobility of loyalty, labor, and remorse.',
+        trigger_warnings: ['violence', 'child abuse', 'class shame', 'grief'],
+      },
+      metrics: {
+        manuscript: {
+          title: 'Great Expectations',
+          word_count: 183000,
+          genre: 'Adult Literary Bildungsroman / Social-Moral Novel',
+          target_audience: 'Adult readers of literary bildungsroman, social-moral novel, classic coming-of-age, class/identity novel, and moral psychological fiction',
+        },
+      },
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 9.5,
+          confidence_level: 'high',
+          rationale: 'A powerful moral premise: an orphan\u2019s social ascent reveals the corruption of shame and the hidden nobility of loyalty, labor, and remorse.',
+          recommendations: [],
+        },
+        {
+          key: 'narrativeDrive',
+          score_0_10: 8,
+          confidence_level: 'high',
+          rationale: 'The opening, Satis House initiation, expectations announcement, Magwitch reveal, and final pursuit provide strong propulsion; some serial middle material dilates.',
+          recommendations: [],
+        },
+      ],
+    },
+  });
+
+  const dream = {
+    dream_scores: { quality: 89, readiness: 95, commercial: null, literary: null },
+    executive_verdict:
+      'Great Expectations is a benchmark bildungsroman because its architecture converts class aspiration into moral revelation and repair. Pip\u2019s shame, self-deception, guilt, tenderness, vanity, fear, remorse, and moral recovery are deeply coherent. The retrospective first-person voice fuses adult irony with child perception and moral self-indictment.',
+    market_shelf: {
+      best_shelf: 'Literary Bildungsroman / Social-Moral Novel / Class/Identity Fiction',
+      marketable_hook: 'A powerful moral premise: an orphan\u2019s social ascent reveals the corruption of shame and the hidden nobility of loyalty, labor, and remorse.',
+      shelf_neighbors: ['Literary bildungsroman', 'Social-moral novel', 'Classic coming-of-age'],
+      comparison_space: ['Class/identity novel', 'Moral psychological fiction'],
+      market_danger: 'The book can be misread as simple rise-and-fall social mobility plot.',
+    },
+    what_not_to_become: [
+      'It should not be evaluated as a simple rise-and-fall social mobility plot; its real engine is shame, misrecognition, and moral education.',
+      'It should not reduce Miss Havisham to Gothic eccentricity; she is a wound-system that manufactures Estella and miseducates Pip.',
+    ],
+    structural_stack: [
+      {
+        layer_name: 'Shame/class/moral-education architecture',
+        status: 'exceptional',
+        function: 'The novel converts class aspiration into moral revelation and repair.',
+        revision_note: 'This is the defining structural achievement.',
+      },
+      {
+        layer_name: 'Retrospective first-person voice fuses adult irony with child perception',
+        status: 'exceptional',
+        function: 'Voice carries moral self-indictment, comedy, and compassion simultaneously.',
+        revision_note: 'Voice is never merely stylistic; it is moral architecture.',
+      },
+      {
+        layer_name: 'Magwitch reveal and final pursuit',
+        status: 'strong',
+        function: 'Transforms the expectation plot into moral reversal and recognition.',
+        revision_note: 'The reveal restructures every prior event.',
+      },
+      {
+        layer_name: 'Serial-middle expansion',
+        status: 'purposeful but occasionally dilating',
+        function: 'Social breadth and London life build class texture.',
+        revision_note: 'Some serial breadth exceeds core pressure.',
+      },
+    ],
+    arc_map: [
+      {
+        act_name: 'Act I\u2014Forge, Marsh, and Satis House',
+        chapter_range: '1-19',
+        primary_function: 'Pip\u2019s childhood: convict encounter, class shame initiation, Satis House miseducation.',
+        revision_priority: 'Maintain moral injury and comic precision.',
+      },
+      {
+        act_name: 'Act II\u2014London Expectations',
+        chapter_range: '20-39',
+        primary_function: 'Gentlemanly London life: shame denial, spending, social performance, growing moral vacancy.',
+        revision_priority: 'Compress serial expansion without losing class texture.',
+      },
+      {
+        act_name: 'Act III\u2014Magwitch, Revelation, and Moral Recovery',
+        chapter_range: '40-59',
+        primary_function: 'The true benefactor revealed; shame becomes gratitude; moral education completes.',
+        revision_priority: 'Sustain moral pressure through pursuit and trial.',
+      },
+    ],
+    criterion_analyses: [
+      { key: 'concept', score: 9.5, confidence: 'high', fit_evidence: ['Powerful moral premise converting class aspiration into moral revelation.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeDrive', score: 8, confidence: 'high', fit_evidence: ['Opening, Satis House, expectations announcement, Magwitch reveal provide strong propulsion.'], gap_evidence: ['Serial middle material dilates.'], revision_queue: [] },
+      { key: 'character', score: 9.5, confidence: 'high', fit_evidence: ['Pip\u2019s shame, self-deception, guilt, tenderness, vanity, fear, remorse, and moral recovery are deeply coherent.'], gap_evidence: [], revision_queue: [] },
+      { key: 'voice', score: 9.5, confidence: 'high', fit_evidence: ['Retrospective first-person voice fuses adult irony with child perception and moral self-indictment.'], gap_evidence: [], revision_queue: [] },
+      { key: 'sceneConstruction', score: 9, confidence: 'high', fit_evidence: ['Major scenes perform multiple functions: plot, class pressure, symbolic setup, voice, moral injury.'], gap_evidence: [], revision_queue: [] },
+      { key: 'dialogue', score: 9, confidence: 'high', fit_evidence: ['Joe, Jaggers, Wemmick, Miss Havisham, Estella, Magwitch, and Pip all speak from distinct pressures.'], gap_evidence: [], revision_queue: [] },
+      { key: 'theme', score: 9.5, confidence: 'high', fit_evidence: ['Shame, gratitude, class, justice, money, gentility, guilt, love, labor, and moral education interlock.'], gap_evidence: [], revision_queue: [] },
+      { key: 'worldbuilding', score: 8.5, confidence: 'high', fit_evidence: ['Marsh, forge, Satis House, London law offices, Barnard\u2019s Inn, Newgate, river pursuit form coherent social geography.'], gap_evidence: [], revision_queue: [] },
+      { key: 'pacing', score: 8, confidence: 'moderate-high', fit_evidence: ['Serial breadth is a strength and a drag.'], gap_evidence: ['The novel\u2019s middle occasionally expands beyond core pressure.'], revision_queue: [] },
+      { key: 'proseControl', score: 9.5, confidence: 'high', fit_evidence: ['Extraordinary comic, tactile, visual, and moral prose control; the opening marsh sequence is a masterclass.'], gap_evidence: [], revision_queue: [] },
+      { key: 'tone', score: 9, confidence: 'high', fit_evidence: ['Satire, terror, comedy, sentiment, legal coldness, social shame, and moral tenderness remain governed.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeClosure', score: 8.5, confidence: 'high', fit_evidence: ['Pip\u2019s moral ledger closes strongly.'], gap_evidence: ['Estella ending remains softened/ambiguous depending on edition.'], revision_queue: [] },
+      { key: 'marketability', score: 10, confidence: 'high', fit_evidence: ['Canonical, culturally durable, structurally teachable novel of moral education and class illusion.'], gap_evidence: [], revision_queue: [] },
+    ],
+    layer_analyses: [
+      { layer_name: 'Shame/moral-education layer', status: 'exceptional', needed_revision: 'None\u2014this is the defining structural achievement.' },
+      { layer_name: 'Class/money/aspiration layer', status: 'strong', needed_revision: 'Some serial expansion could be compressed.' },
+      { layer_name: 'Criminal/legal/justice layer', status: 'strong', needed_revision: 'Magwitch and Newgate material is powerful.' },
+    ],
+    cross_layer_integration: [
+      { motif: 'Hands', description: 'Pip\u2019s shame about his hands carries class, labor, guilt, and moral recognition.', integration_quality: 'exceptional', revision_note: 'Hands are never merely descriptive.' },
+      { motif: 'Fire/forge', description: 'The forge represents honest labor, Joe\u2019s love, and the life Pip rejects then recovers.', integration_quality: 'strong', revision_note: 'Fire carries class dignity.' },
+    ],
+    symbolic_audit: {
+      preserved_symbols: [
+        { symbol: 'Satis House', current_function: 'Wound-system that manufactures Estella and miseducates Pip.', revision_instruction: 'Never reduce to Gothic eccentricity.' },
+        { symbol: 'The convict leg-iron', current_function: 'Hidden connection between shame, gratitude, crime, and gentility.', revision_instruction: 'The iron links childhood to revelation.' },
+      ],
+      doctrine_strengths: ['Moral psychology as plot architecture.', 'Class shame as causal engine.'],
+      doctrine_risks: ['Serial middle can dilute shame pressure.'],
+      audit_conclusion: 'Symbolic architecture is exceptional; primary cost is serial-middle expansion.',
+    },
+    reader_experience: {
+      first_act: { reader_question: 'What will the expectations do to Pip?', emotional_state: 'Excitement poisoned by class shame.', risk: 'None\u2014opening is among the strongest in English fiction.' },
+      middle: { reader_question: 'Will Pip recognize his moral vacancy before it\u2019s too late?', emotional_state: 'Growing unease under London performance.', risk: 'Serial breadth may slow core pressure.' },
+      final_act: { reader_question: 'Can Pip recover moral clarity and repay what he owes?', emotional_state: 'Gratitude, remorse, and recognition.', risk: 'Estella ending softens consequence.' },
+      aftertaste: 'A DREAM evaluator must detect moral psychology as plot architecture, not merely character description.',
+    },
+    revision_plan: [
+      { priority: 'P1', title: 'Maintain shame/moral-education architecture', goal: 'Preserve the class-aspiration-to-moral-revelation structure.', actions: ['No revision needed\u2014calibration benchmark.'], acceptance_check: 'Moral education remains the plot engine.' },
+    ],
+    releasability: [
+      { dimension: 'Concept', current_status: 'Powerful moral premise', verdict: 'Strong' },
+      { dimension: 'Shame/class/moral-education architecture', current_status: 'Exceptional and structurally teachable', verdict: 'Strong' },
+      { dimension: 'Publication readiness', current_status: 'Canonical benchmark text', verdict: 'Strong' },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        'Shame/class/moral-education architecture',
+        'Retrospective first-person voice fuses adult irony with child perception',
+        'Magwitch reveal and final pursuit',
+        'Class aspiration converting into moral revelation',
+      ],
+      failure_conditions: [
+        'Fails if evaluated as simple social mobility plot.',
+        'Fails if Miss Havisham reduced to Gothic eccentricity.',
+      ],
+    },
+    calibration_notes: [
+      'Scores derived from the Great Expectations DREAM public-domain calibration benchmark.',
+      'Benchmark tier is calibration-only; does not govern production runtime.',
+    ],
+    manuscript_integrity_issues: [],
+  } as any;
+
+  return { canonicalDoc, dream };
+}
+
+function buildGoldenPrideAndPrejudiceFixture() {
+  const canonicalDoc = buildLongFormMultiLayerDocument({
+    displayTitle: 'Pride and Prejudice',
+    result: {
+      generated_at: '2026-07-05T10:00:00.000Z',
+      overview: {
+        overall_score_0_100: 92,
+        verdict: 'publish',
+        one_paragraph_summary:
+          'Pride and Prejudice is a benchmark social comedy / courtship novel in which an intelligent young woman and a proud aristocratic man must revise their judgments of each other while marriage economics, inheritance law, family reputation, class performance, and social gossip determine the stakes of every private feeling.',
+        top_3_strengths: [
+          'Social-perception architecture.',
+          'Free indirect discourse and ironic narration.',
+          'Elizabeth/Darcy reciprocal correction.',
+        ],
+        top_3_risks: [
+          'Late remediation of the Lydia/Wickham crisis is partly offstage.',
+          'Comic closure contains consequences more neatly than harsher realist treatment would.',
+          'Some repeated visit/report rhythms.',
+        ],
+      },
+      enrichment: {
+        premise:
+          'Marriage, money, rank, and misjudgment force moral education inside a comic courtship structure.',
+        trigger_warnings: ['social shame', 'elopement scandal', 'class pressure'],
+      },
+      metrics: {
+        manuscript: {
+          title: 'Pride and Prejudice',
+          word_count: 121762,
+          genre: 'Adult Literary Social Comedy / Courtship Novel',
+          target_audience: 'Adult readers of literary social comedy, courtship novel, Regency fiction, and moral/satirical novels of manners',
+        },
+      },
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 9,
+          confidence_level: 'high',
+          rationale: 'A brilliantly durable social premise: marriage, money, rank, and misjudgment force moral education inside a comic courtship structure.',
+          recommendations: [],
+        },
+        {
+          key: 'narrativeDrive',
+          score_0_10: 8.5,
+          confidence_level: 'high',
+          rationale: 'The novel generates propulsion through visits, proposals, letters, journeys, scandal, and social reversals.',
+          recommendations: [],
+        },
+      ],
+    },
+  });
+
+  const dream = {
+    dream_scores: { quality: 92, readiness: 96, commercial: null, literary: null },
+    executive_verdict:
+      'Pride and Prejudice is a benchmark social comedy because social perception can be plot, and dialogue, manners, letters, visits, houses, and reputation can carry full narrative causality. Elizabeth and Darcy undergo precise reciprocal correction while marriage economics, inheritance law, family reputation, and class performance determine the stakes of every private feeling.',
+    market_shelf: {
+      best_shelf: 'Literary Social Comedy / Courtship Novel / Novel of Manners',
+      marketable_hook: 'A brilliantly durable social premise: marriage, money, rank, and misjudgment force moral education inside a comic courtship structure.',
+      shelf_neighbors: ['Literary social comedy', 'Courtship novel', 'Regency fiction'],
+      comparison_space: ['Novel of manners', 'Moral/satirical social fiction'],
+      market_danger: 'The book can be misread as generic enemies-to-lovers romance.',
+    },
+    what_not_to_become: [
+      'It should not be evaluated as a generic enemies-to-lovers romance; the romance is inseparable from social intelligence, money, family exposure, and self-correction.',
+      'It should not treat marriage as decorative reward; marriage is the period\u2019s economic, social, and reputational pressure system.',
+    ],
+    structural_stack: [
+      {
+        layer_name: 'Social-perception architecture',
+        status: 'exceptional',
+        function: 'The novel converts seeing, judging, misreading, and revising judgment into the plot engine.',
+        revision_note: 'Perception is plot.',
+      },
+      {
+        layer_name: 'Free indirect discourse and ironic narration',
+        status: 'exceptional',
+        function: 'Narration carries Elizabeth-aligned misperception and authorial irony simultaneously.',
+        revision_note: 'Voice is controlled at master level.',
+      },
+      {
+        layer_name: 'Elizabeth/Darcy reciprocal correction',
+        status: 'exceptional',
+        function: 'Both protagonists must revise their social judgments through evidence, humiliation, and self-knowledge.',
+        revision_note: 'Correction is mutual, not one-directional.',
+      },
+      {
+        layer_name: 'Marriage-economy integration',
+        status: 'strong',
+        function: 'Every major relationship is shaped by economic and reputational constraints.',
+        revision_note: 'Marriage is never merely romantic.',
+      },
+    ],
+    arc_map: [
+      {
+        act_name: 'Act I\u2014First Impressions and Misjudgments',
+        chapter_range: '1-23',
+        primary_function: 'Balls, visits, proposals, and letters establish social geography and initial judgments.',
+        revision_priority: 'Maintain comic precision and social pressure.',
+      },
+      {
+        act_name: 'Act II\u2014Evidence Revision and Pemberley',
+        chapter_range: '24-42',
+        primary_function: 'Darcy\u2019s letter, Pemberley visit, and Wickham\u2019s exposure revise Elizabeth\u2019s judgment.',
+        revision_priority: 'Maintain revelation momentum.',
+      },
+      {
+        act_name: 'Act III\u2014Crisis, Remediation, and Resolution',
+        chapter_range: '43-61',
+        primary_function: 'Lydia/Wickham scandal, Darcy\u2019s intervention, and dual marriage resolution.',
+        revision_priority: 'Maintain stakes through comic closure.',
+      },
+    ],
+    criterion_analyses: [
+      { key: 'concept', score: 9, confidence: 'high', fit_evidence: ['Brilliantly durable social premise with marriage, money, rank, and misjudgment.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeDrive', score: 8.5, confidence: 'high', fit_evidence: ['Propulsion through visits, proposals, letters, journeys, scandal, and social reversals.'], gap_evidence: ['Some early visit/ball economy may feel low-action until consequences clarify.'], revision_queue: [] },
+      { key: 'character', score: 9.5, confidence: 'high', fit_evidence: ['Elizabeth and Darcy undergo precise reciprocal correction; each secondary character exposes a different pressure.'], gap_evidence: [], revision_queue: [] },
+      { key: 'voice', score: 10, confidence: 'high', fit_evidence: ['Free indirect discourse, ironic narration, and Elizabeth-aligned misperception controlled at master level.'], gap_evidence: [], revision_queue: [] },
+      { key: 'sceneConstruction', score: 9.5, confidence: 'high', fit_evidence: ['Major scenes perform courtship, class exposure, comic pressure, misdirection, evidence revision simultaneously.'], gap_evidence: [], revision_queue: [] },
+      { key: 'dialogue', score: 10, confidence: 'high', fit_evidence: ['Dialogue is the novel\u2019s combat system: self-revelation, class assertion, flirtation, evasion, coercion, and moral correction.'], gap_evidence: [], revision_queue: [] },
+      { key: 'theme', score: 9.5, confidence: 'high', fit_evidence: ['Pride, prejudice, rank, money, marriage, family failure, self-knowledge, reputation, and moral generosity are inseparable from plot.'], gap_evidence: [], revision_queue: [] },
+      { key: 'worldbuilding', score: 8.5, confidence: 'high', fit_evidence: ['Longbourn, Netherfield, Meryton, Rosings, Pemberley, London, Brighton form coherent social geography.'], gap_evidence: [], revision_queue: [] },
+      { key: 'pacing', score: 8.5, confidence: 'high', fit_evidence: ['Social-comedy pacing is tightly governed overall.'], gap_evidence: ['Late offstage remediation and some repeated visit/report rhythms.'], revision_queue: [] },
+      { key: 'proseControl', score: 9.5, confidence: 'high', fit_evidence: ['Exceptional compression, irony, sentence balance, comic timing, and psychological precision.'], gap_evidence: [], revision_queue: [] },
+      { key: 'tone', score: 9.5, confidence: 'high', fit_evidence: ['Sustains wit, moral seriousness, romance, satire, embarrassment, and social danger without tonal fracture.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeClosure', score: 9, confidence: 'high', fit_evidence: ['Elizabeth/Darcy, Jane/Bingley, Lydia/Wickham, Charlotte/Collins ledgers receive satisfying payoff.'], gap_evidence: ['Closure is intentionally harmonizing rather than punitive realism.'], revision_queue: [] },
+      { key: 'marketability', score: 10, confidence: 'high', fit_evidence: ['Canonical, culturally durable, structurally teachable social comedy / romance / moral education benchmark.'], gap_evidence: [], revision_queue: [] },
+    ],
+    layer_analyses: [
+      { layer_name: 'Social-perception layer', status: 'exceptional', needed_revision: 'None\u2014this is the defining structural achievement.' },
+      { layer_name: 'Marriage-economy layer', status: 'strong', needed_revision: 'Every relationship shaped by economic and reputational constraints.' },
+      { layer_name: 'Letter/reputation/revelation layer', status: 'strong', needed_revision: 'Letters, reports, rumors, and delayed disclosures revise the evidence field.' },
+    ],
+    cross_layer_integration: [
+      { motif: 'Letters', description: 'Darcy\u2019s letter is the pivot: it restructures Elizabeth\u2019s entire judgment field.', integration_quality: 'exceptional', revision_note: 'Letters carry evidentiary and moral weight.' },
+      { motif: 'Estates/houses', description: 'Pemberley, Rosings, Longbourn disclose character, class, and danger.', integration_quality: 'strong', revision_note: 'Place is moral geography.' },
+    ],
+    symbolic_audit: {
+      preserved_symbols: [
+        { symbol: 'Pemberley', current_function: 'Reveals Darcy\u2019s true character through domestic architecture and taste.', revision_instruction: 'Estate is evidence, not decoration.' },
+        { symbol: 'Darcy\u2019s letter', current_function: 'The structural pivot that forces Elizabeth\u2019s self-revision.', revision_instruction: 'Letter is revelation architecture.' },
+      ],
+      doctrine_strengths: ['Social perception as plot engine.', 'Dialogue as combat system.'],
+      doctrine_risks: ['Comic closure may soften consequence.'],
+      audit_conclusion: 'Symbolic architecture is exceptional; primary cost is harmonizing resolution.',
+    },
+    reader_experience: {
+      first_act: { reader_question: 'Who is right about whom?', emotional_state: 'Comic engagement with social misjudgment.', risk: 'Early visit economy may feel low-action.' },
+      middle: { reader_question: 'Will Elizabeth revise her judgment in time?', emotional_state: 'Growing recognition and humility.', risk: 'None\u2014Pemberley sequence is masterful.' },
+      final_act: { reader_question: 'Can the Lydia crisis be resolved without destroying the family?', emotional_state: 'Scandal anxiety resolved by generosity.', risk: 'Offstage remediation may feel convenient.' },
+      aftertaste: 'Social perception can be plot, and dialogue, manners, letters, visits, houses, and reputation can carry full narrative causality.',
+    },
+    revision_plan: [
+      { priority: 'P1', title: 'Maintain social-perception architecture', goal: 'Preserve the judgment-revision structure.', actions: ['No revision needed\u2014calibration benchmark.'], acceptance_check: 'Perception remains the plot engine.' },
+    ],
+    releasability: [
+      { dimension: 'Concept', current_status: 'Brilliantly durable social premise', verdict: 'Strong' },
+      { dimension: 'Social-perception architecture', current_status: 'Exceptional and structurally teachable', verdict: 'Strong' },
+      { dimension: 'Publication readiness', current_status: 'Canonical benchmark text', verdict: 'Strong' },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        'Social-perception architecture',
+        'Free indirect discourse and ironic narration',
+        'Elizabeth/Darcy reciprocal correction',
+        'Marriage-economy integration',
+      ],
+      failure_conditions: [
+        'Fails if evaluated as generic enemies-to-lovers romance.',
+        'Fails if marriage treated as decorative reward.',
+      ],
+    },
+    calibration_notes: [
+      'Scores derived from the Pride and Prejudice DREAM public-domain calibration benchmark.',
+      'Benchmark tier is calibration-only; does not govern production runtime.',
+    ],
+    manuscript_integrity_issues: [],
+  } as any;
+
+  return { canonicalDoc, dream };
+}
+
+function buildGoldenWizardOfOzFixture() {
+  const canonicalDoc = buildLongFormMultiLayerDocument({
+    displayTitle: 'The Wonderful Wizard of Oz',
+    result: {
+      generated_at: '2026-07-05T10:00:00.000Z',
+      overview: {
+        overall_score_0_100: 86,
+        verdict: 'publish',
+        one_paragraph_summary:
+          'The Wonderful Wizard of Oz is a benchmark quest novel because it demonstrates that simplicity and accessibility can be structurally sound. A displaced child seeks home through a strange land with symbolic companions, confronts deceptive power, and discovers that home, courage, heart, and intelligence are validated through action rather than external gifts.',
+        top_3_strengths: [
+          'Portal-quest architecture.',
+          'Companion-recruitment structure.',
+          'Dorothy\u2019s homeward quest.',
+        ],
+        top_3_risks: [
+          'Episodic looseness and archetypal simplicity limit adult psychological complexity.',
+          'Some episodes are thin or repetitive.',
+          'Dialogue is plain and functional rather than subtextually complex.',
+        ],
+      },
+      enrichment: {
+        premise:
+          'A displaced child seeks home through a strange land with symbolic companions.',
+        trigger_warnings: ['danger', 'captivity', 'violence against fantastical creatures'],
+      },
+      metrics: {
+        manuscript: {
+          title: 'The Wonderful Wizard of Oz',
+          word_count: 40000,
+          genre: "Children's Portal Fantasy / Quest Novel",
+          target_audience: "Readers of children's portal fantasy, quest novel, fairy tale, and archetypal adventure",
+        },
+      },
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 9,
+          confidence_level: 'high',
+          rationale: 'A highly durable portal quest: a displaced child seeks home through a strange land with symbolic companions.',
+          recommendations: [],
+        },
+        {
+          key: 'narrativeDrive',
+          score_0_10: 8.5,
+          confidence_level: 'high',
+          rationale: 'The road quest, companion recruitment, obstacles, Emerald City goal, witch conflict, and return-home promise create clear propulsion.',
+          recommendations: [],
+        },
+      ],
+    },
+  });
+
+  const dream = {
+    dream_scores: { quality: 86, readiness: 94, commercial: null, literary: null },
+    executive_verdict:
+      'The Wonderful Wizard of Oz is a benchmark quest novel demonstrating that simplicity, accessibility, archetype, and wonder can be excellent when structurally coherent. The novel\u2019s portal-quest architecture, companion-recruitment structure, and Dorothy\u2019s homeward quest create durable narrative propulsion within a children\u2019s fantasy register.',
+    market_shelf: {
+      best_shelf: "Children's Fantasy / Quest Novel / Fairy Tale / Archetypal Adventure",
+      marketable_hook: 'A highly durable portal quest: a displaced child seeks home through a strange land with symbolic companions.',
+      shelf_neighbors: ["Children's portal fantasy", 'Quest novel', 'Fairy tale', 'Archetypal adventure'],
+      comparison_space: ["Children's fantasy benchmark", 'Portal-quest literature'],
+      market_danger: 'The book can be misread as failed adult psychological realism.',
+    },
+    what_not_to_become: [
+      'It should not be evaluated as failed adult psychological realism.',
+      'It should not treat archetypal companions as automatically flat or defective.',
+    ],
+    structural_stack: [
+      {
+        layer_name: 'Portal-quest architecture',
+        status: 'strong',
+        function: 'Kansas displacement, Oz arrival, road quest, goal, return. Clean portal-quest skeleton.',
+        revision_note: 'Simplicity is intentional and structurally sound.',
+      },
+      {
+        layer_name: 'Companion-recruitment structure',
+        status: 'strong',
+        function: 'Scarecrow, Tin Woodman, Cowardly Lion each represent a perceived lack validated through action.',
+        revision_note: 'Archetypal companions are structurally functional.',
+      },
+      {
+        layer_name: "Dorothy's homeward quest",
+        status: 'strong',
+        function: 'The return-home promise is the governing emotional engine.',
+        revision_note: 'Home is never merely geographic; it is belonging and agency.',
+      },
+      {
+        layer_name: 'Episodic obstacle structure',
+        status: 'effective but occasionally loose',
+        function: 'Road episodes test companion qualities and extend world logic.',
+        revision_note: 'Some episodes are thin or repetitive.',
+      },
+    ],
+    arc_map: [
+      {
+        act_name: 'Act I\u2014Displacement and Road',
+        chapter_range: '1-8',
+        primary_function: 'Kansas, cyclone, Munchkin Country, road, companion recruitment.',
+        revision_priority: 'Maintain wonder and clarity.',
+      },
+      {
+        act_name: 'Act II\u2014Emerald City and Witch',
+        chapter_range: '9-16',
+        primary_function: 'Emerald City deception, Wicked Witch conflict, Dorothy\u2019s agency.',
+        revision_priority: 'Maintain danger within children\u2019s register.',
+      },
+      {
+        act_name: 'Act III\u2014Return and Recognition',
+        chapter_range: '17-24',
+        primary_function: 'Oz unmasked, companions validated, Dorothy\u2019s return home.',
+        revision_priority: 'Maintain emotional payoff.',
+      },
+    ],
+    criterion_analyses: [
+      { key: 'concept', score: 9, confidence: 'high', fit_evidence: ['Highly durable portal quest with symbolic companions.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeDrive', score: 8.5, confidence: 'high', fit_evidence: ['Road quest, companion recruitment, obstacles, Emerald City goal, witch conflict, and return-home promise.'], gap_evidence: [], revision_queue: [] },
+      { key: 'character', score: 7.5, confidence: 'high', fit_evidence: ['Characters are archetypal rather than psychologically deep, but each performs a coherent symbolic and emotional function.'], gap_evidence: ['Archetypal simplicity limits adult psychological complexity.'], revision_queue: [] },
+      { key: 'voice', score: 8.5, confidence: 'high', fit_evidence: ['Simple, steady, child-accessible narration supports wonder, danger, and clarity without tonal confusion.'], gap_evidence: [], revision_queue: [] },
+      { key: 'sceneConstruction', score: 8, confidence: 'high', fit_evidence: ['Episodes usually test companion qualities, extend world logic, or advance homeward quest.'], gap_evidence: ['Some episodes are thin or repetitive.'], revision_queue: [] },
+      { key: 'dialogue', score: 7.5, confidence: 'moderate-high', fit_evidence: ['Dialogue is plain and functional, calibrated for children\u2019s fantasy.'], gap_evidence: ['Not designed for adult subtext complexity.'], revision_queue: [] },
+      { key: 'theme', score: 8.5, confidence: 'high', fit_evidence: ['Home, self-trust, courage, intelligence, compassion, friendship, and illusion-versus-power are integrated through quest action.'], gap_evidence: [], revision_queue: [] },
+      { key: 'worldbuilding', score: 9, confidence: 'high', fit_evidence: ['Oz is vivid, accessible, color-coded, route-driven, and obstacle-rich without requiring heavy exposition.'], gap_evidence: [], revision_queue: [] },
+      { key: 'pacing', score: 8, confidence: 'high', fit_evidence: ['Strong quest momentum with episodic looseness.'], gap_evidence: ['Structure is simple but effective.'], revision_queue: [] },
+      { key: 'proseControl', score: 8, confidence: 'high', fit_evidence: ['Clear, direct, memorable children\u2019s prose; appropriately controlled.'], gap_evidence: ['Not ornate.'], revision_queue: [] },
+      { key: 'tone', score: 9, confidence: 'high', fit_evidence: ['Maintains wonder, danger, humor, tenderness, and moral clarity within a stable children\u2019s-register frame.'], gap_evidence: [], revision_queue: [] },
+      { key: 'narrativeClosure', score: 8.5, confidence: 'high', fit_evidence: ['Dorothy\u2019s return-home promise is paid off; companions\u2019 perceived lacks are resolved through recognition.'], gap_evidence: [], revision_queue: [] },
+      { key: 'marketability', score: 10, confidence: 'high', fit_evidence: ['Canonical children\u2019s fantasy / quest benchmark with durable cultural and structural value.'], gap_evidence: [], revision_queue: [] },
+    ],
+    layer_analyses: [
+      { layer_name: 'Portal-quest layer', status: 'strong', needed_revision: 'None\u2014clean structural skeleton.' },
+      { layer_name: 'Companion/archetype layer', status: 'strong', needed_revision: 'Archetypal companions are structurally functional.' },
+      { layer_name: 'Episodic obstacle layer', status: 'effective but occasionally loose', needed_revision: 'Some episodes could be tightened.' },
+    ],
+    cross_layer_integration: [
+      { motif: 'Silver shoes / ruby slippers', description: 'The means of return are present from the beginning; recognition is the real journey.', integration_quality: 'strong', revision_note: 'Power-you-already-have is thematic architecture.' },
+      { motif: 'Color-coded geography', description: 'Blue Munchkin, Yellow road, Green city, Red Quadling: world is navigable by color logic.', integration_quality: 'strong', revision_note: 'Color is spatial governance for children.' },
+    ],
+    symbolic_audit: {
+      preserved_symbols: [
+        { symbol: 'Silver shoes', current_function: 'The power to return home was always present; recognition is the real achievement.', revision_instruction: 'Never reduce to arbitrary magic.' },
+        { symbol: 'Emerald City spectacles', current_function: 'Perception can be manufactured; authority can be illusion.', revision_instruction: 'Deception-as-governance.' },
+      ],
+      doctrine_strengths: ['Simplicity as structural strength.', 'Archetype as function.'],
+      doctrine_risks: ['Episodic looseness.', 'Archetypal simplicity may be misread as deficiency.'],
+      audit_conclusion: 'Symbolic architecture is sound for its register; primary risk is adult-complexity bias in evaluation.',
+    },
+    reader_experience: {
+      first_act: { reader_question: 'How will Dorothy get home?', emotional_state: 'Wonder and displacement.', risk: 'None\u2014opening is iconic.' },
+      middle: { reader_question: 'Can Dorothy and her companions defeat the Witch?', emotional_state: 'Danger within safety of genre.', risk: 'Some episodes are thin.' },
+      final_act: { reader_question: 'Will Dorothy return home?', emotional_state: 'Satisfaction through recognition.', risk: 'None\u2014payoff is clean.' },
+      aftertaste: 'Simplicity, accessibility, archetype, and wonder can be excellent when structurally coherent.',
+    },
+    revision_plan: [
+      { priority: 'P1', title: 'Maintain portal-quest architecture', goal: 'Preserve the clean quest skeleton.', actions: ['No revision needed\u2014calibration benchmark.'], acceptance_check: 'Quest structure remains coherent.' },
+    ],
+    releasability: [
+      { dimension: 'Concept', current_status: 'Highly durable portal quest', verdict: 'Strong' },
+      { dimension: 'Portal-quest architecture', current_status: 'Clean and structurally teachable', verdict: 'Strong' },
+      { dimension: 'Publication readiness', current_status: 'Canonical benchmark text', verdict: 'Strong' },
+    ],
+    acceptance_checks: {
+      required_detection: [
+        'Portal-quest architecture',
+        'Companion-recruitment structure',
+        "Dorothy's homeward quest",
+        'Archetypal validation through action',
+      ],
+      failure_conditions: [
+        'Fails if evaluated as failed adult psychological realism.',
+        'Fails if archetypal companions treated as automatically defective.',
+      ],
+    },
+    calibration_notes: [
+      'Scores derived from The Wonderful Wizard of Oz DREAM public-domain calibration benchmark.',
+      'Benchmark tier is calibration-only; does not govern production runtime.',
+    ],
+    manuscript_integrity_issues: [],
+  } as any;
+
+  return { canonicalDoc, dream };
+}
+
 type FixtureResult = { canonicalDoc: unknown; dream?: unknown };
 
 /**
@@ -1349,6 +2081,10 @@ const FIXTURE_BUILDERS: Record<string, () => FixtureResult> = {
   'long-form-multi-layer-froggin-noggin': () => buildGoldenFrogginFixture(),
   'long-form-multi-layer-let-the-river-decide': () => buildGoldenRiverFixture(),
   'long-form-multi-layer-mythoamphibia': () => buildGoldenMythoamphibiaFixture(),
+  'long-form-multi-layer-dracula': () => buildGoldenDraculaFixture(),
+  'long-form-multi-layer-great-expectations': () => buildGoldenGreatExpectationsFixture(),
+  'long-form-multi-layer-pride-and-prejudice': () => buildGoldenPrideAndPrejudiceFixture(),
+  'long-form-multi-layer-wizard-of-oz': () => buildGoldenWizardOfOzFixture(),
 };
 
 describe('benchmark authority library manifest', () => {

@@ -51,6 +51,38 @@
       "runtime_authority": true,
       "dir": "long-form-multi-layer",
       "contract_file": "mythoamphibia.expected.json"
+    },
+    {
+      "id": "long-form-multi-layer-dracula",
+      "mode": "long_form_multi_layer_evaluation",
+      "tier": "calibration-only",
+      "runtime_authority": false,
+      "dir": "long-form-multi-layer",
+      "contract_file": "dracula.expected.json"
+    },
+    {
+      "id": "long-form-multi-layer-great-expectations",
+      "mode": "long_form_multi_layer_evaluation",
+      "tier": "calibration-only",
+      "runtime_authority": false,
+      "dir": "long-form-multi-layer",
+      "contract_file": "great-expectations.expected.json"
+    },
+    {
+      "id": "long-form-multi-layer-pride-and-prejudice",
+      "mode": "long_form_multi_layer_evaluation",
+      "tier": "calibration-only",
+      "runtime_authority": false,
+      "dir": "long-form-multi-layer",
+      "contract_file": "pride-and-prejudice.expected.json"
+    },
+    {
+      "id": "long-form-multi-layer-wizard-of-oz",
+      "mode": "long_form_multi_layer_evaluation",
+      "tier": "calibration-only",
+      "runtime_authority": false,
+      "dir": "long-form-multi-layer",
+      "contract_file": "wizard-of-oz.expected.json"
     }
   ]
 }
