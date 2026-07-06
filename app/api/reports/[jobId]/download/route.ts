@@ -253,10 +253,11 @@ function pushTxtListBlock(lines: string[], label: string, values: string[], opti
   lines.push(`${label}:`);
   items.forEach((item, idx) => {
     if (options.ordered) {
-      lines.push(`${idx + 1}. ${item}`);
+      const marker = `${idx + 1}. `;
+      pushWrapped(lines, item, { firstIndent: marker, nextIndent: ' '.repeat(marker.length) });
       return;
     }
-    lines.push(`• ${item}`);
+    pushWrapped(lines, item, { firstIndent: '• ', nextIndent: '  ' });
   });
 }
 
@@ -450,8 +451,25 @@ function pushTxtMetadata(lines: string[], label: string, value: string): void {
   pushWrapped(lines, `${label}: ${value}`, { nextIndent: ' '.repeat(label.length + 2) });
 }
 
+const GENERIC_OPPORTUNITY_FALLBACK_FRAGMENTS = [
+  'the evaluation identified a concrete craft issue',
+  'premise remains abstract rather than grounded',
+];
+
+function isGenericOpportunityFallbackText(value: string): boolean {
+  const normalized = value.replace(/\s+/g, ' ').trim().toLowerCase();
+  return GENERIC_OPPORTUNITY_FALLBACK_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+}
+
+function normalizeEvidenceSnippet(value: string): string {
+  let cleaned = value.trim();
+  cleaned = cleaned.replace(/^[\s"'“”‘’`]+/, '').replace(/[\s"'“”‘’`]+$/, '');
+  return cleaned;
+}
+
 function pushTxtOpportunityDetailRow(lines: string[], label: string, value: string): void {
-  const renderedValue = label === 'Evidence' ? `\u201c${value}\u201d` : value;
+  const valueForLabel = label === 'Evidence' ? normalizeEvidenceSnippet(value) : value;
+  const renderedValue = label === 'Evidence' ? `\u201c${valueForLabel}\u201d` : valueForLabel;
   const rendered = `${label}: ${renderedValue}`;
   const hangingLines = wrapIndentedLines(rendered, {
     firstIndent: '    ',
@@ -491,6 +509,8 @@ function toSafeEncoding(text: string): string {
 function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiLayerEvaluationViewModel): void {
   const sub = '-'.repeat(TXT_WRAP_WIDTH);
   const push = (s: string) => lines.push(s);
+  const pushLine = (text: string, options: { firstIndent?: string; nextIndent?: string } = {}) =>
+    pushWrapped(lines, text, options);
 
   // §12a Expanded Criterion Analysis
   if (lf.criterionAnalyses.length > 0) {
@@ -500,7 +520,7 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
     push(sub);
     lf.criterionAnalyses.forEach((a) => {
       push('');
-      push(`${a.displayLabel} — ${scoreLabel(a.score, 10)} (${formatConfidenceLabel(a.confidence)})`);
+      pushLine(`${a.displayLabel} — ${scoreLabel(a.score, 10)} (${formatConfidenceLabel(a.confidence)})`);
       pushTxtListBlock(lines, 'What Is Working', a.fitEvidence);
       pushTxtListBlock(lines, 'What Weakens Impact', a.gapEvidence);
       pushTxtListBlock(lines, 'Revision Queue', a.revisionQueue.map(r => r.displayText), { ordered: true });
@@ -521,9 +541,9 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
       push('Structural Architecture:');
       lf.structuralStack.forEach((layer) => {
         push('');
-        push(`${layer.layerName} — ${layer.status}`);
-        if (hasMeaningfulText(layer.function)) push(`Function: ${layer.function}`);
-        if (hasMeaningfulText(layer.revisionNote)) push(`Revision note: ${layer.revisionNote}`);
+        pushLine(`${layer.layerName} — ${layer.status}`);
+        if (hasMeaningfulText(layer.function)) pushLine(`Function: ${layer.function}`);
+        if (hasMeaningfulText(layer.revisionNote)) pushLine(`Revision note: ${layer.revisionNote}`);
       });
     }
     if (hasArcMap) {
@@ -531,9 +551,9 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
       push('Arc Map:');
       lf.arcMap.forEach((act) => {
         push('');
-        push(`${act.actName} (${act.chapterRange})`);
-        if (hasMeaningfulText(act.primaryFunction)) push(`Function: ${act.primaryFunction}`);
-        if (hasMeaningfulText(act.revisionPriority)) push(`Revision priority: ${act.revisionPriority}`);
+        pushLine(`${act.actName} (${act.chapterRange})`);
+        if (hasMeaningfulText(act.primaryFunction)) pushLine(`Function: ${act.primaryFunction}`);
+        if (hasMeaningfulText(act.revisionPriority)) pushLine(`Revision priority: ${act.revisionPriority}`);
       });
     }
     if (hasLayerAnalyses) {
@@ -541,8 +561,8 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
       push('Layer Analysis:');
       lf.layerAnalyses.forEach((layer) => {
         push('');
-        push(`${layer.layerName} — ${layer.status}`);
-        if (hasMeaningfulText(layer.neededRevision)) push(`Needed revision: ${layer.neededRevision}`);
+        pushLine(`${layer.layerName} — ${layer.status}`);
+        if (hasMeaningfulText(layer.neededRevision)) pushLine(`Needed revision: ${layer.neededRevision}`);
       });
     }
   }
@@ -559,12 +579,12 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
       if (required.length > 0) {
         push('');
         push('Required Detection:');
-        required.forEach((item) => push(`• ${item}`));
+        required.forEach((item) => pushLine(item, { firstIndent: '• ', nextIndent: '  ' }));
       }
       if (failures.length > 0) {
         push('');
         push('Failure Conditions:');
-        failures.forEach((item) => push(`• ${item}`));
+        failures.forEach((item) => pushLine(item, { firstIndent: '• ', nextIndent: '  ' }));
       }
     }
   }
@@ -585,23 +605,23 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
         push('');
         push('Preserved Symbols:');
         sa.preservedSymbols.forEach((sym) => {
-          push(`• ${sym.symbol} — ${sym.currentFunction}`);
-          if (sym.revisionInstruction) push(`    Revision: ${sym.revisionInstruction}`);
+          pushLine(`${sym.symbol} — ${sym.currentFunction}`, { firstIndent: '• ', nextIndent: '  ' });
+          if (sym.revisionInstruction) pushLine(`Revision: ${sym.revisionInstruction}`, { firstIndent: '  ', nextIndent: '  ' });
         });
       }
       if (sa.doctrineStrengths.length > 0) {
         push('');
         push('Doctrine Strengths:');
-        sa.doctrineStrengths.forEach((s) => push(`• ${s}`));
+        sa.doctrineStrengths.forEach((s) => pushLine(s, { firstIndent: '• ', nextIndent: '  ' }));
       }
       if (sa.doctrineRisks.length > 0) {
         push('');
         push('Doctrine Risks:');
-        sa.doctrineRisks.forEach((r) => push(`• ${r}`));
+        sa.doctrineRisks.forEach((r) => pushLine(r, { firstIndent: '• ', nextIndent: '  ' }));
       }
       if (hasMeaningfulText(sa.auditConclusion)) {
         push('');
-        push(`Audit Conclusion: ${sa.auditConclusion}`);
+        pushLine(`Audit Conclusion: ${sa.auditConclusion}`);
       }
     }
   }
@@ -618,10 +638,10 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
     push(sub);
     push('');
     if (hasScores) {
-      if (lf.scores.quality != null) push(`Quality: ${scoreLabel(lf.scores.quality, 100)}`);
-      if (lf.scores.readiness != null) push(`Readiness: ${scoreLabel(lf.scores.readiness, 100)}`);
-      if (lf.scores.commercial != null) push(`Commercial: ${scoreLabel(lf.scores.commercial, 100)}`);
-      if (lf.scores.literary != null) push(`Literary: ${scoreLabel(lf.scores.literary, 100)}`);
+      if (lf.scores.quality != null) pushLine(`Quality: ${scoreLabel(lf.scores.quality, 100)}`);
+      if (lf.scores.readiness != null) pushLine(`Readiness: ${scoreLabel(lf.scores.readiness, 100)}`);
+      if (lf.scores.commercial != null) pushLine(`Commercial: ${scoreLabel(lf.scores.commercial, 100)}`);
+      if (lf.scores.literary != null) pushLine(`Literary: ${scoreLabel(lf.scores.literary, 100)}`);
     }
     if (hasVerdict) {
       push('');
@@ -634,7 +654,7 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
       push('Cross-Layer Integration:');
       lf.crossLayerIntegration.forEach((item) => {
         push('');
-        push(`${item.motif} — ${item.integrationQuality}`);
+        pushLine(`${item.motif} — ${item.integrationQuality}`);
         if (hasMeaningfulText(item.description)) pushWrapped(lines, `Description: ${item.description}`, { firstIndent: '  ', nextIndent: '  ' });
         if (hasMeaningfulText(item.revisionNote)) pushWrapped(lines, `Revision note: ${item.revisionNote}`, { firstIndent: '  ', nextIndent: '  ' });
       });
@@ -647,17 +667,17 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
         if (!act) return;
         if (!hasMeaningfulText(act.readerQuestion) && !hasMeaningfulText(act.emotionalState) && !hasMeaningfulText(act.risk)) return;
         push('');
-        push(`${title}:`);
-        if (hasMeaningfulText(act.readerQuestion)) push(`  Reader question: ${act.readerQuestion}`);
-        if (hasMeaningfulText(act.emotionalState)) push(`  Emotional state: ${act.emotionalState}`);
-        if (hasMeaningfulText(act.risk)) push(`  Risk: ${act.risk}`);
+        pushLine(`${title}:`);
+        if (hasMeaningfulText(act.readerQuestion)) pushWrapped(lines, `Reader question: ${act.readerQuestion}`, { firstIndent: '  ', nextIndent: '  ' });
+        if (hasMeaningfulText(act.emotionalState)) pushWrapped(lines, `Emotional state: ${act.emotionalState}`, { firstIndent: '  ', nextIndent: '  ' });
+        if (hasMeaningfulText(act.risk)) pushWrapped(lines, `Risk: ${act.risk}`, { firstIndent: '  ', nextIndent: '  ' });
       };
       addAct('First Act', re.firstAct);
       addAct('Middle', re.middle);
       addAct('Final Act', re.finalAct);
       if (hasMeaningfulText(re.aftertaste)) {
         push('');
-        push(`Aftertaste: ${re.aftertaste}`);
+        pushLine(`Aftertaste: ${re.aftertaste}`);
       }
     }
   }
@@ -670,10 +690,10 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
     push(sub);
     lf.revisionPlan.forEach((item) => {
       push('');
-      push(`Priority ${item.displayPriority}: ${item.title}`);
-      push(`Goal: ${item.goal}`);
+      pushLine(`Priority ${item.displayPriority}: ${item.title}`);
+      pushLine(`Goal: ${item.goal}`);
       pushTxtListBlock(lines, 'Actions', item.actions, { ordered: true });
-      if (item.acceptanceCheck) push(`Acceptance check: ${item.acceptanceCheck}`);
+      if (item.acceptanceCheck) pushLine(`Acceptance check: ${item.acceptanceCheck}`);
     });
   }
 
@@ -718,28 +738,28 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
     push('');
     if (hasReleasability) {
       lf.releasability.forEach((dim) => {
-        push(`${dim.dimension}: ${dim.currentStatus} [${dim.verdict}]`);
+        pushLine(`${dim.dimension}: ${dim.currentStatus} [${dim.verdict}]`);
       });
     }
     if (hasMarketShelf) {
       push('');
       push('Market Shelf:');
       const ms = lf.marketShelf;
-      if (hasMeaningfulText(ms.bestShelf)) push(`  Best Shelf: ${ms.bestShelf}`);
-      if (hasMeaningfulText(ms.marketableHook)) push(`  Marketable Hook: ${ms.marketableHook}`);
+      if (hasMeaningfulText(ms.bestShelf)) pushWrapped(lines, `Best Shelf: ${ms.bestShelf}`, { firstIndent: '  ', nextIndent: '  ' });
+      if (hasMeaningfulText(ms.marketableHook)) pushWrapped(lines, `Marketable Hook: ${ms.marketableHook}`, { firstIndent: '  ', nextIndent: '  ' });
       if (ms.shelfNeighbors.length > 0) {
         push('  Shelf Neighbors:');
-        ms.shelfNeighbors.forEach((item) => push(`    • ${item}`));
+        ms.shelfNeighbors.forEach((item) => pushWrapped(lines, item, { firstIndent: '    • ', nextIndent: '      ' }));
       }
       if (ms.comparisonSpace.length > 0) {
         push('  Comparison Space:');
-        ms.comparisonSpace.forEach((item) => push(`    • ${item}`));
+        ms.comparisonSpace.forEach((item) => pushWrapped(lines, item, { firstIndent: '    • ', nextIndent: '      ' }));
       }
       if (lf.whatNotToBecome.length > 0) {
         push('  What Not to Become:');
-        lf.whatNotToBecome.forEach((item) => push(`    • ${item}`));
+        lf.whatNotToBecome.forEach((item) => pushWrapped(lines, item, { firstIndent: '    • ', nextIndent: '      ' }));
       }
-      if (hasMeaningfulText(ms.marketDanger)) push(`  Market Danger: ${ms.marketDanger}`);
+      if (hasMeaningfulText(ms.marketDanger)) pushWrapped(lines, `Market Danger: ${ms.marketDanger}`, { firstIndent: '  ', nextIndent: '  ' });
     }
   }
 }
@@ -757,6 +777,7 @@ function vmOpportunityRows(rec: CriterionDetailViewModel['recommendations'][numb
 
   const rows = candidates.flatMap(([label, value]) => {
     if (typeof value !== 'string' || value.trim().length === 0) return [];
+    if (isGenericOpportunityFallbackText(value)) return [];
     return [[label, value] as [string, string]];
   });
   if (rec.collapsed_from_criteria && rec.collapsed_from_criteria.length > 0) {
@@ -935,15 +956,12 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
       lines.push('');
       lines.push(`OPPORTUNITIES (${detail.recommendations.length})`);
       detail.recommendations.forEach((rec, index) => {
-        lines.push(`${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`);
         const detailRows = vmOpportunityRows(rec);
-        if (detailRows.length > 0) {
-          detailRows.forEach(([label, value]) => {
-            pushTxtOpportunityDetailRow(lines, label, value);
-          });
-        } else {
-          pushWrapped(lines, rec.specific_fix ?? 'No action provided.', { firstIndent: '    ', nextIndent: '    ' });
-        }
+        if (detailRows.length === 0) return;
+        lines.push(`${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`);
+        detailRows.forEach(([label, value]) => {
+          pushTxtOpportunityDetailRow(lines, label, value);
+        });
       });
     }
   });
@@ -998,8 +1016,8 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
       lines.push(sub);
       lines.push('');
       vm.modeSpecific.revisionPriorityPlan.forEach((item) => {
-        lines.push(`Priority ${item.priority}: ${item.title}`);
-        lines.push(`Location: ${item.location}`);
+        pushWrapped(lines, `Priority ${item.priority}: ${item.title}`);
+        pushWrapped(lines, `Location: ${item.location}`);
         pushWrapped(lines, `Operation: ${item.operation}`);
         pushWrapped(lines, `Recommendation: ${item.recommendation}`);
         pushWrapped(lines, `Rationale: ${item.rationale}`);
@@ -1037,7 +1055,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
 
   const renderOpportunityFields = (rows: Array<[string, string]>) => rows
     .map(([label, value]) => {
-      const valHtml = label === 'Evidence' ? `\u201c${escapeHtml(value)}\u201d` : escapeHtml(value);
+      const valHtml = label === 'Evidence' ? `\u201c${escapeHtml(normalizeEvidenceSnippet(value))}\u201d` : escapeHtml(value);
       return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="opp-val">${valHtml}</div></div>`;
     })
     .join('');
@@ -1049,13 +1067,16 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
   const detailCards = vm.criterionDetails
     .map((detail) => {
       const recHtml = detail.recommendations.length > 0
-        ? `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${detail.recommendations.map((r, index) => {
-            const rows = vmOpportunityRows(r);
-            const detailHtml = rows.length > 0
-              ? renderOpportunityFields(rows)
-              : `<p class="opp-row">${escapeHtml(r.specific_fix ?? 'No action provided.')}</p>`;
-            return `<div class="opp-recommendation"><p class="opp-row opp-severity">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
-          }).join('')}</div>`
+        ? (() => {
+            const renderedRecommendations = detail.recommendations.map((r, index) => {
+              const rows = vmOpportunityRows(r);
+              if (rows.length === 0) return '';
+              const detailHtml = renderOpportunityFields(rows);
+              return `<div class="opp-recommendation"><p class="opp-row opp-severity">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
+            }).join('');
+            if (renderedRecommendations.length === 0) return '';
+            return `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${renderedRecommendations}</div>`;
+          })()
         : '';
       return `
       <article class="card">
@@ -1422,6 +1443,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     const isEvidence = label === 'Evidence';
     const isDiagnostic = label === 'Observation' || label === 'Diagnostic Basis';
     const valueColor = isDiagnostic ? RG.textMuted : RG.textPrimary;
+    const renderedValue = isEvidence ? normalizeEvidenceSnippet(value) : value;
 
     return new TableRow({
       children: [
@@ -1439,8 +1461,8 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
               children: [
                 new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }),
                 isEvidence
-                  ? new TextRun({ text: `\u201c${value}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })
-                  : new TextRun({ text: value, size: 19, color: docxHex(valueColor), font: 'Calibri' }),
+                  ? new TextRun({ text: `\u201c${renderedValue}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })
+                  : new TextRun({ text: renderedValue, size: 19, color: docxHex(valueColor), font: 'Calibri' }),
               ],
             }),
           ],
@@ -1664,6 +1686,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       }));
       detail.recommendations.forEach((rec, index) => {
         const rows = vmOpportunityRows(rec);
+        if (rows.length === 0) return;
         children.push(new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
           rows: [
@@ -1674,23 +1697,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
                 children: [new Paragraph({ children: [new TextRun({ text: `${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood), font: 'Calibri' })] })],
               })],
             }),
-            ...(rows.length > 0
-              ? rows.map(([label, value]) => makeOpportunityDetailRow(label, value))
-              : [new TableRow({
-                  children: [new TableCell({
-                    borders: {
-                      top: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
-                      left: DOCX_NONE_BORDER,
-                      right: DOCX_NONE_BORDER,
-                      bottom: DOCX_NONE_BORDER,
-                    },
-                    shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
-                    children: [new Paragraph({
-                      spacing: { before: 25, after: 55, line: 300 },
-                      children: [new TextRun({ text: rec.specific_fix ?? 'No action provided.', size: 20, color: docxHex(RG.textPrimary), font: 'Calibri' })],
-                    })],
-                  })],
-                })]),
+            ...rows.map(([label, value]) => makeOpportunityDetailRow(label, value)),
           ],
         }));
       });

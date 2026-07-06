@@ -302,6 +302,213 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(docxText).not.toContain('Action Items');
   });
 
+  test('filters generic fallback opportunity prose and avoids double-wrapped evidence quotes in TXT/HTML/DOCX', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+
+    const canonicalDoc = buildShortFormEvaluationDocument({
+      displayTitle: 'Fallback and Quote Guard',
+      result: {
+        generated_at: '2026-07-06T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 74,
+          verdict: 'revise',
+          one_paragraph_summary: 'Regression fixture for fallback suppression and quote normalization.',
+          top_3_strengths: ['Focused premise'],
+          top_3_risks: ['Generic revision language can leak'],
+        },
+        enrichment: {
+          premise: 'A witness rewrites a city memory.',
+          trigger_warnings: [],
+          reading_grade_level: 8,
+          dialogue_percentage: 35,
+          narrative_percentage: 65,
+        },
+        metrics: {
+          manuscript: {
+            title: 'Fallback and Quote Guard',
+            word_count: 42000,
+            genre: 'literary suspense',
+            target_audience: 'Adult readers',
+          },
+        },
+        criteria: [
+          {
+            key: 'narrativeDrive',
+            score_0_10: 7,
+            confidence_level: 'moderate',
+            rationale: 'Momentum exists but can become abstract.',
+            recommendations: [
+              {
+                priority: 'high',
+                action: 'The evaluation identified a concrete craft issue: premise remains abstract rather than grounded in scene evidence.',
+              },
+              {
+                priority: 'medium',
+                action: 'Anchor the midpoint in tangible cause-and-effect.',
+                anchor_snippet: '“Already quoted evidence.”',
+                symptom: 'Midpoint tension resolves before replacement pressure arrives.',
+                mechanism: 'Consequence language is deferred into summary rather than scene action.',
+                specific_fix: 'Move the consequence beat into the scene-ending paragraph.',
+                reader_effect: 'Readers maintain urgency through the midpoint turn.',
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const vm = buildVm(canonicalDoc);
+    const txt = testing.renderTxtFromViewModel(vm);
+    const html = testing.renderHtmlFromViewModel(vm);
+    const docxBuffer = await testing.renderDocxFromViewModel(vm);
+    const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
+
+    expect(txt.toLowerCase()).not.toContain('the evaluation identified a concrete craft issue');
+    expect(txt.toLowerCase()).not.toContain('premise remains abstract');
+    expect(html.toLowerCase()).not.toContain('the evaluation identified a concrete craft issue');
+    expect(html.toLowerCase()).not.toContain('premise remains abstract');
+    expect(docxText.toLowerCase()).not.toContain('the evaluation identified a concrete craft issue');
+    expect(docxText.toLowerCase()).not.toContain('premise remains abstract');
+
+    expect(txt).toContain('Evidence: “Already quoted evidence.”');
+    expect(txt).not.toContain('Evidence: ““Already quoted evidence.””');
+    expect(html).toContain('“Already quoted evidence.”');
+    expect(html).not.toContain('““Already quoted evidence.””');
+    expect(docxText).toContain('Already quoted evidence.');
+    expect(docxText).not.toMatch(/[“"]{2}Already quoted evidence/);
+  });
+
+  test('wraps long-form TXT sections to 78 chars including late multi-layer sections', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+
+    const canonicalDoc = buildShortFormEvaluationDocument({
+      displayTitle: 'Long-Form Wrap Guard',
+      result: {
+        generated_at: '2026-07-06T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 79,
+          verdict: 'revise',
+          one_paragraph_summary: 'Long-form wrapping regression fixture.',
+          top_3_strengths: ['Layer coherence'],
+          top_3_risks: ['Late-section line overflow'],
+        },
+        enrichment: {
+          premise: 'A layered manuscript under structured evaluation.',
+          trigger_warnings: [],
+          reading_grade_level: 9,
+          dialogue_percentage: 28,
+          narrative_percentage: 72,
+        },
+        metrics: {
+          manuscript: {
+            title: 'Long-Form Wrap Guard',
+            word_count: 98000,
+            genre: 'upmarket suspense',
+            target_audience: 'Adult readers',
+          },
+        },
+        criteria: [
+          {
+            key: 'structure',
+            score_0_10: 8,
+            confidence_level: 'high',
+            rationale: 'Structure is solid with targeted revision needs.',
+            recommendations: [],
+          },
+        ],
+      },
+    });
+
+    const dream = {
+      dream_scores: { quality: 88, readiness: 84, commercial: 81, literary: 86 },
+      executive_verdict: 'Executive verdict remains evidence grounded across late sections.',
+      structural_stack: [
+        {
+          layer_name: 'Structural Continuity Layer With A Very Long Label For Wrapping Coverage',
+          status: 'stable with minor drift in back-half dependency sequencing and causality carryover',
+          function: 'Maintain causal continuity across chapter boundaries while preserving suspense pressure through linked consequence statements.',
+          revision_note: 'Re-sequence chapter exits so each handoff includes one explicit unresolved consequence with reader-visible urgency.',
+        },
+      ],
+      arc_map: [
+        {
+          act_name: 'Act II Escalation Arc With Intentional Length For Wrap Validation',
+          chapter_range: '9-24 including interstitial bridge passages and mirrored callback beats',
+          primary_function: 'Sustain escalating constraint while proving irreversible cost at each major transition point.',
+          revision_priority: 'Strengthen the midpoint reversal so subsequent scenes inherit explicit consequence pressure.',
+        },
+      ],
+      criterion_analyses: [
+        {
+          key: 'structure',
+          score: 8,
+          confidence: 'high',
+          fit_evidence: ['Escalation remains visible across most scene transitions with clear consequence tracking.'],
+          gap_evidence: ['Late-act transitions compress setup and payoff into summary-heavy bridge language.'],
+          revision_queue: ['[LOCATION: Act II to III bridge] [OPERATION: re-sequence] Add visible consequence relay before chapter close.'],
+        },
+      ],
+      layer_analyses: [
+        {
+          layer_name: 'Reader Experience Layer',
+          status: 'moderate',
+          needed_revision: 'Clarify emotional trajectory markers at every act boundary using concrete scene-level signals.',
+        },
+      ],
+      cross_layer_integration: [
+        {
+          motif: 'River ledger motif',
+          description: 'Motif aligns memory evidence with accountability across disparate timeline slices.',
+          integration_quality: 'developing with uneven endpoint reinforcement',
+          revision_note: 'Echo motif language in the final bridge scene before verdict disclosure.',
+        },
+      ],
+      revision_plan: [
+        {
+          priority: 'P1',
+          title: 'Rebuild back-half consequence carryover with explicit scene relay language',
+          goal: 'Maintain forward pressure through the final third without abstraction drift.',
+          actions: ['Insert one explicit unresolved consequence line in every chapter ending across chapters 19 through 26.'],
+          acceptance_check: 'Every chapter close in the final third contains a clear unresolved consequence statement.',
+        },
+      ],
+      releasability: [
+        {
+          dimension: 'Narrative Cohesion and Reader Momentum',
+          current_status: 'strong foundation with late-stage relay variance requiring targeted edits',
+          verdict: 'Revise',
+        },
+      ],
+      market_shelf: {
+        best_shelf: 'Upmarket suspense with literary texture and consequence-forward pacing language.',
+        marketable_hook: 'A witness must choose between inherited silence and public accountability while memory itself becomes contested evidence.',
+        shelf_neighbors: ['The Push with layered consequence relay', 'The It Girl with stronger scene-end urgency continuity'],
+        comparison_space: ['Character-forward suspense with ethical consequence mechanics and layered memory evidence'],
+        market_danger: 'May read as emotionally diffuse if late-act consequence relay remains implicit rather than explicit.',
+      },
+      what_not_to_become: ['A beautifully phrased but consequence-light suspense narrative that diffuses urgency in bridge scenes.'],
+      acceptance_checks: {
+        required_detection: ['Detect explicit consequence relay in every final-third chapter ending with scene-level specificity.'],
+        failure_conditions: ['Fail if assessment language substitutes abstract summary for concrete scene evidence in late sections.'],
+      },
+    } as any;
+
+    const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream });
+    const txt = testing.renderTxtFromViewModel(vm);
+
+    const overlongLines = txt
+      .split('\n')
+      .map((line, idx) => ({ line, lineNumber: idx + 1 }))
+      .filter(({ line }) => line.length > 78);
+
+    expect(overlongLines).toEqual([]);
+    expect(txt).toContain('STORY LEDGER OR LAYER-AWARE ARCHITECTURE MAP');
+    expect(txt).toContain('READINESS / RELEASABILITY POSTURE');
+    expect(txt).toContain('LAYER-AWARE REVISION SEQUENCING');
+  });
+
   test('renders DREAM template sections and suppresses UED multi-layer fallback sections when dream is present', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
@@ -456,7 +663,9 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(txt).toContain('Memory Layer');
     expect(txt).toContain('Red shoes');
     expect(txt).toContain('Detect that the memory layer changes the thriller spine.');
-    expect(txt).toContain('Location: Midpoint | Operation: Tighten | Recommendation: Add consequence beat.');
+    expect(txt).toContain('Location: Midpoint');
+    expect(txt).toContain('Operation: Tighten');
+    expect(txt).toMatch(/Recommendation: Add consequence\s+beat\./);
     expect(txt).not.toContain('[LOCATION: Midpoint]');
     // Forbidden DREAM headings must not appear as top-level TXT divider sections
     expect(txt).not.toContain('NARRATIVE SYNTHESIS — HOLISTIC CRAFT ASSESSMENT');
