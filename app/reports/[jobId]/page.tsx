@@ -81,6 +81,19 @@ function hasMeaningfulText(value: unknown): boolean {
   return typeof value === 'string' ? value.trim().length > 0 : typeof value === 'number';
 }
 
+function renderNoIndentOrderedList(items: string[], itemClassName = 'text-[#5C5549]'): JSX.Element {
+  return (
+    <ol className="space-y-1">
+      {items.map((item, index) => (
+        <li key={`${index}-${item.slice(0, 24)}`} className={`flex items-start gap-2 ${itemClassName}`}>
+          <span className="mt-0.5 shrink-0 font-semibold text-[#8B2E2E]">{index + 1}.</span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 // sanitizeAuthorFacingDisplayValue REMOVED — the ViewModel now owns all
 // sanitization (mistakeProofText + correctScopeLanguage). Renderers must not
 // apply their own correction layer on VM-owned fields.
@@ -768,33 +781,27 @@ export default async function ReportPage({
             <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('expanded_criterion_analysis')}</h2>
             <div className="space-y-2">
               {lf.criterionAnalyses.map((analysis, idx) => (
-                  <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                  <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                     {analysis.key ? <p><span className="font-medium">Criterion:</span> {analysis.key}</p> : null}
                     {analysis.score ? <p><span className="font-medium">Score:</span> {analysis.score} / 10</p> : null}
                     {analysis.confidence ? <p><span className="font-medium">Confidence:</span> {analysis.confidence.charAt(0).toUpperCase() + analysis.confidence.slice(1)}</p> : null}
                     <div className="mt-2 space-y-2">
                       {analysis.fitEvidence.length > 0 ? (
                         <div>
-                          <p className="font-medium">What Is Working:</p>
-                          <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
-                            {analysis.fitEvidence.map((entry, i) => <li key={i}>{entry}</li>)}
-                          </ol>
+                          <p className="font-medium text-[#1C1814]">What Is Working:</p>
+                          {renderNoIndentOrderedList(analysis.fitEvidence)}
                         </div>
                       ) : null}
                       {analysis.gapEvidence.length > 0 ? (
                         <div>
-                          <p className="font-medium">What Weakens Impact:</p>
-                          <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
-                            {analysis.gapEvidence.map((entry, i) => <li key={i}>{entry}</li>)}
-                          </ol>
+                          <p className="font-medium text-[#1C1814]">What Weakens Impact:</p>
+                          {renderNoIndentOrderedList(analysis.gapEvidence)}
                         </div>
                       ) : null}
                       {analysis.revisionQueue.length > 0 ? (
                         <div>
-                          <p className="font-medium">Revision Queue:</p>
-                          <ol className="list-decimal list-inside space-y-0.5 text-gray-700">
-                            {analysis.revisionQueue.map((entry, i) => <li key={i}>{entry.displayText}</li>)}
-                          </ol>
+                          <p className="font-medium text-[#1C1814]">Revision Queue:</p>
+                          {renderNoIndentOrderedList(analysis.revisionQueue.map((entry) => entry.displayText))}
                         </div>
                       ) : null}
                     </div>
@@ -813,7 +820,7 @@ export default async function ReportPage({
                 <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Structural Architecture</h3>
                 <div className="space-y-2">
                   {lf.structuralStack.map((layer, idx) => (
-                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                    <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                       {layer.layerName ? <p><span className="font-medium">Layer:</span> {layer.layerName}</p> : null}
                       {layer.function ? <p><span className="font-medium">Function:</span> {layer.function}</p> : null}
                       {layer.status ? <p><span className="font-medium">Status:</span> {layer.status}</p> : null}
@@ -828,7 +835,7 @@ export default async function ReportPage({
                 <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Arc Map</h3>
                 <div className="space-y-2">
                   {lf.arcMap.map((arc, idx) => (
-                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                    <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                       {arc.actName ? <p><span className="font-medium">Act:</span> {arc.actName}</p> : null}
                       {arc.chapterRange ? <p><span className="font-medium">Chapter range:</span> {arc.chapterRange}</p> : null}
                       {arc.primaryFunction ? <p><span className="font-medium">Primary function:</span> {arc.primaryFunction}</p> : null}
@@ -848,7 +855,7 @@ export default async function ReportPage({
                 <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Layer Analysis</h3>
                 <div className="space-y-2">
                   {lf.layerAnalyses.map((layer, idx) => (
-                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                    <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                       <p><span className="font-medium">Layer:</span> {layer.layerName}</p>
                       <p><span className="font-medium">Status:</span> {layer.status}</p>
                       <p><span className="font-medium">Needed revision:</span> {layer.neededRevision}</p>
@@ -867,7 +874,7 @@ export default async function ReportPage({
             {lf.acceptanceChecks.requiredDetection.length > 0 ? (
               <div className="mb-2">
                 <h3 className="mb-1 text-sm font-semibold text-[#1C1814]">Required Detection</h3>
-                <ul className="space-y-0.5 text-sm text-gray-700">
+                <ul className="space-y-0.5 text-sm text-[#5C5549]">
                   {lf.acceptanceChecks.requiredDetection.map((item, idx) => <li key={idx}>• {item}</li>)}
                 </ul>
               </div>
@@ -875,7 +882,7 @@ export default async function ReportPage({
             {lf.acceptanceChecks.failureConditions.length > 0 ? (
               <div>
                 <h3 className="mb-1 text-sm font-semibold text-[#1C1814]">Failure Conditions</h3>
-                <ul className="space-y-0.5 text-sm text-gray-700">
+                <ul className="space-y-0.5 text-sm text-[#5C5549]">
                   {lf.acceptanceChecks.failureConditions.map((item, idx) => <li key={idx}>• {item}</li>)}
                 </ul>
               </div>
@@ -891,7 +898,7 @@ export default async function ReportPage({
             {lf.symbolicAudit.preservedSymbols.length > 0 ? (
               <div className="space-y-2 mb-2">
                 {lf.symbolicAudit.preservedSymbols.map((symbol, idx) => (
-                  <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                  <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                     {symbol.symbol ? <p><span className="font-medium">Symbol:</span> {symbol.symbol}</p> : null}
                     {symbol.currentFunction ? <p><span className="font-medium">Current function:</span> {symbol.currentFunction}</p> : null}
                     {symbol.revisionInstruction ? <p><span className="font-medium">Revision instruction:</span> {symbol.revisionInstruction}</p> : null}
@@ -899,9 +906,9 @@ export default async function ReportPage({
                 ))}
               </div>
             ) : null}
-            {lf.symbolicAudit.doctrineStrengths.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Doctrine strengths:</span> {lf.symbolicAudit.doctrineStrengths.join('; ')}</p> : null}
-            {lf.symbolicAudit.doctrineRisks.length > 0 ? <p className="text-sm text-gray-700"><span className="font-medium">Doctrine risks:</span> {lf.symbolicAudit.doctrineRisks.join('; ')}</p> : null}
-            {lf.symbolicAudit.auditConclusion ? <p className="text-sm text-gray-700"><span className="font-medium">Audit conclusion:</span> {lf.symbolicAudit.auditConclusion}</p> : null}
+            {lf.symbolicAudit.doctrineStrengths.length > 0 ? <p className="text-sm text-[#5C5549]"><span className="font-medium">Doctrine strengths:</span> {lf.symbolicAudit.doctrineStrengths.join('; ')}</p> : null}
+            {lf.symbolicAudit.doctrineRisks.length > 0 ? <p className="text-sm text-[#5C5549]"><span className="font-medium">Doctrine risks:</span> {lf.symbolicAudit.doctrineRisks.join('; ')}</p> : null}
+            {lf.symbolicAudit.auditConclusion ? <p className="text-sm text-[#5C5549]"><span className="font-medium">Audit conclusion:</span> {lf.symbolicAudit.auditConclusion}</p> : null}
           </section>
         )}
 
@@ -947,7 +954,7 @@ export default async function ReportPage({
                   <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Cross-Layer Integration</h3>
                   <div className="space-y-2">
                     {lf.crossLayerIntegration.map((row, idx) => (
-                      <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                      <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                         <p><span className="font-medium">Motif:</span> {row.motif}</p>
                         <p><span className="font-medium">Description:</span> {row.description}</p>
                         <p><span className="font-medium">Integration quality:</span> {row.integrationQuality}</p>
@@ -963,31 +970,31 @@ export default async function ReportPage({
                   <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Reader Experience</h3>
                   <div className="grid gap-3 text-sm md:grid-cols-3">
                     {lf.readerExperience.firstAct && (lf.readerExperience.firstAct.readerQuestion || lf.readerExperience.firstAct.emotionalState || lf.readerExperience.firstAct.risk) ? (
-                      <div className="rounded border border-gray-200 p-3">
-                        <p className="mb-1 font-medium text-gray-900">First Act</p>
+                      <div className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
+                        <p className="mb-1 font-medium text-[#1C1814]">First Act</p>
                         {lf.readerExperience.firstAct.readerQuestion ? <p>Reader question: {lf.readerExperience.firstAct.readerQuestion}</p> : null}
                         {lf.readerExperience.firstAct.emotionalState ? <p>Emotional state: {lf.readerExperience.firstAct.emotionalState}</p> : null}
                         {lf.readerExperience.firstAct.risk ? <p>Risk: {lf.readerExperience.firstAct.risk}</p> : null}
                       </div>
                     ) : null}
                     {lf.readerExperience.middle && (lf.readerExperience.middle.readerQuestion || lf.readerExperience.middle.emotionalState || lf.readerExperience.middle.risk) ? (
-                      <div className="rounded border border-gray-200 p-3">
-                        <p className="mb-1 font-medium text-gray-900">Middle</p>
+                      <div className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
+                        <p className="mb-1 font-medium text-[#1C1814]">Middle</p>
                         {lf.readerExperience.middle.readerQuestion ? <p>Reader question: {lf.readerExperience.middle.readerQuestion}</p> : null}
                         {lf.readerExperience.middle.emotionalState ? <p>Emotional state: {lf.readerExperience.middle.emotionalState}</p> : null}
                         {lf.readerExperience.middle.risk ? <p>Risk: {lf.readerExperience.middle.risk}</p> : null}
                       </div>
                     ) : null}
                     {lf.readerExperience.finalAct && (lf.readerExperience.finalAct.readerQuestion || lf.readerExperience.finalAct.emotionalState || lf.readerExperience.finalAct.risk) ? (
-                      <div className="rounded border border-gray-200 p-3">
-                        <p className="mb-1 font-medium text-gray-900">Final Act</p>
+                      <div className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
+                        <p className="mb-1 font-medium text-[#1C1814]">Final Act</p>
                         {lf.readerExperience.finalAct.readerQuestion ? <p>Reader question: {lf.readerExperience.finalAct.readerQuestion}</p> : null}
                         {lf.readerExperience.finalAct.emotionalState ? <p>Emotional state: {lf.readerExperience.finalAct.emotionalState}</p> : null}
                         {lf.readerExperience.finalAct.risk ? <p>Risk: {lf.readerExperience.finalAct.risk}</p> : null}
                       </div>
                     ) : null}
                   </div>
-                  {lf.readerExperience.aftertaste ? <p className="mt-2 text-sm text-gray-700"><span className="font-medium">Aftertaste:</span> {lf.readerExperience.aftertaste}</p> : null}
+                  {lf.readerExperience.aftertaste ? <p className="mt-2 text-sm text-[#5C5549]"><span className="font-medium">Aftertaste:</span> {lf.readerExperience.aftertaste}</p> : null}
                 </div>
               )}
             </div>
@@ -1000,18 +1007,14 @@ export default async function ReportPage({
             <h2 className="mb-3 font-serif text-2xl font-bold text-[#8B2E2E]">{webSectionTitle('revision_sequencing')}</h2>
             <div className="space-y-2">
               {lf.revisionPlan.map((planItem, idx) => (
-                <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                   <p><span className="font-medium">Priority:</span> {planItem.displayPriority}</p>
                   {planItem.title ? <p><span className="font-medium">Title:</span> {planItem.title}</p> : null}
                   {planItem.goal ? <p><span className="font-medium">Goal:</span> {planItem.goal}</p> : null}
                   {planItem.actions.length > 0 ? (
                     <div>
                       <p><span className="font-medium">Actions:</span></p>
-                      <ol className="mt-1 list-decimal list-inside space-y-0.5 text-gray-700">
-                        {planItem.actions.map((action, actionIdx) => (
-                          <li key={actionIdx}>{action}</li>
-                        ))}
-                      </ol>
+                      <div className="mt-1">{renderNoIndentOrderedList(planItem.actions)}</div>
                     </div>
                   ) : null}
                   {planItem.acceptanceCheck ? <p><span className="font-medium">Acceptance check:</span> {planItem.acceptanceCheck}</p> : null}
@@ -1037,11 +1040,11 @@ export default async function ReportPage({
                 if (item.revisionNote) continuityItems.push(`${item.motif}: ${item.revisionNote}`);
               });
               return continuityItems.length > 0 ? (
-                <ul className="space-y-1 text-sm text-gray-700">
+                <ul className="space-y-1 text-sm text-[#5C5549]">
                   {continuityItems.map((item, idx) => <li key={idx}>• {item}</li>)}
                 </ul>
               ) : (
-                <p className="text-sm text-gray-600 italic">
+                <p className="text-sm italic text-[#5C5549]">
                   Continuity coverage proof is provisionally grounded in the current canonical evaluation surfaces. Certify only evidence-backed findings present in canonical output.
                 </p>
               );
@@ -1058,7 +1061,7 @@ export default async function ReportPage({
                 <h3 className="mb-2 text-sm font-semibold text-[#1C1814]">Releasability Assessment</h3>
                 <div className="space-y-2">
                   {lf.releasability.map((row, idx) => (
-                    <div key={idx} className="rounded border border-gray-200 p-3 text-sm">
+                    <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                       {row.dimension ? <p><span className="font-medium">Dimension:</span> {row.dimension}</p> : null}
                       {row.currentStatus ? <p><span className="font-medium">Current status:</span> {row.currentStatus}</p> : null}
                       {row.verdict ? <p><span className="font-medium">Verdict:</span> {row.verdict}</p> : null}
@@ -1146,9 +1149,9 @@ export default async function ReportPage({
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Calibration Notes <span className="text-xs text-amber-700">(internal)</span></h3>
                 {lf.calibrationNotes.length > 0 ? (
-                  <ul className="list-disc list-inside space-y-1">
+                  <ul className="space-y-1">
                     {lf.calibrationNotes.map((note, idx) => (
-                      <li key={idx} className="text-sm text-gray-700">{note}</li>
+                      <li key={idx} className="flex items-start gap-2 text-sm text-gray-700"><span className="mt-0.5 shrink-0 text-amber-700">•</span><span>{note}</span></li>
                     ))}
                   </ul>
                 ) : (
