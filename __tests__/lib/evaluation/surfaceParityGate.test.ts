@@ -752,6 +752,14 @@ describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
   });
 
   describe('TXT formatting rules', () => {
+    test('no line exceeds 78 characters (canonical wrap enforcement)', () => {
+      const lines = txt.split('\n');
+      const overshoots = lines
+        .map((l, i) => ({ line: i + 1, length: l.length, text: l }))
+        .filter(({ length }) => length > 78);
+      expect(overshoots).toEqual([]);
+    });
+
     test('section separators are consistent width', () => {
       const separators = txt.split('\n').filter(line => /^[═─━]+$/.test(line.trim()));
       for (const sep of separators) {
@@ -812,6 +820,20 @@ describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
       const printBlock = printCss.slice(printCss.indexOf('@media print'));
       expect(printBlock).toMatch(/orphans:\s*[2-9]/);
       expect(printBlock).toMatch(/widows:\s*[2-9]/);
+    });
+
+    test('download HTML: no duplicate confidence label in cover scorecard', () => {
+      // When overallScoreConfidenceLabel === marketReadinessConfidenceLabel,
+      // the label should appear only once (not twice stacked).
+      const coverCard = html.match(/<aside class="readiness-card[^]*?<\/aside>/)?.[0] ?? '';
+      const labelDivs = coverCard.match(/<div class="label">[^<]+<\/div>/g) || [];
+      const labelTexts = labelDivs.map(d => d.replace(/<[^>]+>/g, ''));
+      // No two adjacent labels should be identical
+      for (let i = 1; i < labelTexts.length; i++) {
+        if (labelTexts[i] === labelTexts[i - 1]) {
+          expect({ duplicate: labelTexts[i], index: i }).toEqual({ duplicate: 'none', index: -1 });
+        }
+      }
     });
 
     test('web report is not gray-only: brand palette present in styles', () => {

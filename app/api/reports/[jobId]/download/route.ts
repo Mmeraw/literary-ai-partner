@@ -46,7 +46,7 @@ import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
   AlignmentType, ShadingType, Header, Footer,
-  PageNumber,
+  PageNumber, TableLayoutType, convertInchesToTwip,
 } from 'docx';
 
 export const dynamic = 'force-dynamic';
@@ -446,6 +446,19 @@ function pushWrapped(
   options: { width?: number; firstIndent?: string; nextIndent?: string } = {},
 ): void {
   lines.push(...wrapIndentedLines(text, options));
+}
+
+/**
+ * Canonical final wrap pass: every emitted TXT line must fit TXT_WRAP_WIDTH.
+ * Re-wraps any overlong line, preserving its leading indentation on
+ * continuation lines. Divider/table rows built via fitToWidth already comply.
+ */
+function enforceTxtWidth(lines: string[]): string[] {
+  return lines.flatMap((line) => {
+    if (line.length <= TXT_WRAP_WIDTH) return [line];
+    const indent = line.match(/^\s*/)?.[0] ?? '';
+    return wrapIndentedLines(line.trim(), { firstIndent: indent, nextIndent: indent });
+  });
 }
 
 function pushTxtMetadata(lines: string[], label: string, value: string): void {
@@ -1029,7 +1042,7 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
   lines.push('');
   pushWrapped(lines, vm.disclaimer);
 
-  return lines.join('\n');
+  return enforceTxtWidth(lines).join('\n');
 }
 
 
@@ -1277,7 +1290,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
           <div class="value ${scorePaletteClassFromLabel(vm.titleBlock.overallScoreLabel)}">${escapeHtml(vm.titleBlock.overallScoreLabel)}</div>
           ${vm.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
           <div class="verdict ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">${escapeHtml(vm.titleBlock.marketReadiness)}</div>
-          ${vm.titleBlock.marketReadinessConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
+          ${vm.titleBlock.marketReadinessConfidenceLabel && vm.titleBlock.marketReadinessConfidenceLabel !== vm.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
         </aside>
       </div>
       <div class="grid title-metadata-grid">
@@ -1330,25 +1343,27 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
   const makeHeading = (text: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
-      spacing: { before: 260, after: 90 },
+      spacing: { before: 320, after: 120 },
+      keepNext: true,
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: docxHex(RG.goldMid) } },
       children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 30, font: 'Georgia' })],
     });
 
+  // Native full-width rule via paragraph bottom border (spans the text column
+  // reliably in Word, unlike a shaded single-cell table).
   const makeDivider = () =>
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({
-              borders: DOCX_NO_BORDERS,
-              shading: { type: ShadingType.SOLID, color: docxHex(RG.goldMid) },
-              children: [new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: ' ', size: 4 })] })],
-            }),
-          ],
-        }),
-      ],
+    new Paragraph({
+      spacing: { before: 160, after: 240 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: docxHex(RG.goldMid) } },
+      children: [],
     });
+
+  const CELL_MARGINS = {
+    top: convertInchesToTwip(0.06),
+    bottom: convertInchesToTwip(0.06),
+    left: convertInchesToTwip(0.1),
+    right: convertInchesToTwip(0.1),
+  };
 
   // VM-aware paragraph helper — no cleanReportText (VM already sanitized)
   const vmPara = (text: string, opts: { bold?: boolean; color?: string; italics?: boolean } = {}) =>
@@ -1369,11 +1384,13 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
   const makeCallout = (heading: string, body: string, color: string = RG.surfaceAlt) =>
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
       rows: [
         new TableRow({
           children: [
             new TableCell({
               borders: DOCX_NO_BORDERS,
+              margins: CELL_MARGINS,
               shading: { type: ShadingType.SOLID, color: docxHex(color) },
               children: [
                 new Paragraph({
@@ -1403,6 +1420,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
             bottom: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
           },
           shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+          margins: CELL_MARGINS,
           children: [
             new Paragraph({
               spacing: { before: 30, after: 30 },
@@ -1419,6 +1437,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
             bottom: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
           },
           shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
+          margins: CELL_MARGINS,
           children: [
             new Paragraph({
               spacing: { before: 30, after: 30 },
@@ -1502,29 +1521,35 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     makeDivider(),
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
+      columnWidths: [convertInchesToTwip(3.25), convertInchesToTwip(3.25)],
       rows: [
         new TableRow({
           children: [
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: DOCX_NO_BORDERS,
+              margins: CELL_MARGINS,
               shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
               children: [
-                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Overall Score', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] }),
+                new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 60 }, children: [new TextRun({ text: 'Overall Score', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri', allCaps: true })] }),
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: vm.titleBlock.overallScoreLabel, bold: true, size: 34, color: docxHex(scorePaletteColorFromLabel(vm.titleBlock.overallScoreLabel)), font: 'Georgia' })],
+                  spacing: { after: 120 },
+                  children: [new TextRun({ text: vm.titleBlock.overallScoreLabel, bold: true, size: 40, color: docxHex(scorePaletteColorFromLabel(vm.titleBlock.overallScoreLabel)), font: 'Georgia' })],
                 }),
               ],
             }),
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: DOCX_NO_BORDERS,
+              margins: CELL_MARGINS,
               shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
               children: [
-                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Market Readiness', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri' })] }),
+                new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 60 }, children: [new TextRun({ text: 'Market Readiness', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri', allCaps: true })] }),
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
+                  spacing: { after: 120 },
                   children: [new TextRun({ text: vm.titleBlock.marketReadiness, bold: true, size: 30, color: docxHex(readinessPaletteColor(vm.titleBlock.marketReadiness)), font: 'Georgia' })],
                 }),
               ],
@@ -1533,16 +1558,18 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
         }),
       ],
     }),
-    new Paragraph({ spacing: { after: 140 }, children: [new TextRun({ text: ' ' })] }),
+    new Paragraph({ spacing: { after: 200 }, children: [] }),
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
+      columnWidths: [convertInchesToTwip(2.35), convertInchesToTwip(4.15)],
       rows: metadataTableRows,
     }),
     ...(vm.titleBlock.genreExpectationSummary
       ? [vmPara(`Genre Expectations: ${vm.titleBlock.genreExpectationSummary}${vm.titleBlock.genreExpectationProfileLabels.length > 0 ? ` \u2014 Reader emphasis: ${vm.titleBlock.genreExpectationProfileLabels.join(', ')}` : ''}`, { color: RG.textMuted })]
       : []),
-    new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: EXPORT_DISCLAIMER, size: 18, color: docxHex(RG.textMuted), italics: true })] }),
-    makeDivider(),
+    new Paragraph({ spacing: { before: 160, after: 120 }, children: [new TextRun({ text: EXPORT_DISCLAIMER, size: 18, color: docxHex(RG.textMuted), italics: true })] }),
+    new Paragraph({ pageBreakBefore: true, spacing: { after: 0 }, children: [] }),
     makeHeading('One-Paragraph Pitch'),
     makeCallout('Author-Facing Pitch', vm.oneParagraphPitch, RG.surfaceAlt),
     makeHeading('One-Sentence Pitch'),
@@ -1962,6 +1989,16 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
               }),
             ],
           }),
+        },
+        properties: {
+          page: {
+            margin: {
+              top: convertInchesToTwip(1),
+              bottom: convertInchesToTwip(1),
+              left: convertInchesToTwip(1),
+              right: convertInchesToTwip(1),
+            },
+          },
         },
         children,
       },
