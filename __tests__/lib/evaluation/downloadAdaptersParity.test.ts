@@ -276,7 +276,7 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(html).toContain('class="opp-field"');
     expect(html).toContain('class="opp-val"');
     expect(html).toContain('class="opp-recommendation"');
-    expect(html).toContain('class="opp-row opp-severity"');
+    expect(html).toContain('class="opp-severity"');
     expect(html).toContain(longEvidence);
     expect(html).toContain('Stakes or decision pressure diffuses before reaching the reader.');
     expect(html).toContain('Mid-chapter tension release without replacement hook.');

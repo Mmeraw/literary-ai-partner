@@ -1058,8 +1058,10 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
 
   const renderOpportunityFields = (rows: Array<[string, string]>) => rows
     .map(([label, value]) => {
-      const valHtml = label === 'Evidence' ? `\u201c${escapeHtml(normalizeEvidenceSnippet(value))}\u201d` : escapeHtml(value);
-      return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="opp-val">${valHtml}</div></div>`;
+      const isEvidence = label === 'Evidence';
+      const valHtml = isEvidence ? `\u201c${escapeHtml(normalizeEvidenceSnippet(value))}\u201d` : escapeHtml(value);
+      const valClass = isEvidence ? 'opp-val opp-val-evidence' : 'opp-val';
+      return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="${valClass}">${valHtml}</div></div>`;
     })
     .join('');
 
@@ -1075,7 +1077,9 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
               const rows = vmOpportunityRows(r);
               if (rows.length === 0) return '';
               const detailHtml = renderOpportunityFields(rows);
-              return `<div class="opp-recommendation"><p class="opp-row opp-severity">${escapeHtml(exportSeverity(r.priority)).toUpperCase()} #${index + 1}</p>${detailHtml}</div>`;
+              const severity = exportSeverity(r.priority).toUpperCase();
+              const badgeClass = severity === 'RECOMMENDED' ? 'opp-badge-high' : severity === 'OPTIONAL' ? 'opp-badge-medium' : 'opp-badge-consider';
+              return `<div class="opp-recommendation"><div class="opp-header"><p class="opp-severity">Revision Opportunity #${index + 1}</p><span class="opp-badge ${badgeClass}">${escapeHtml(severity)}</span></div>${detailHtml}</div>`;
             }).join('');
             if (renderedRecommendations.length === 0) return '';
             return `<div class="opp-block"><div class="opp-label">Opportunities (${detail.recommendations.length})</div>${renderedRecommendations}</div>`;
@@ -1273,13 +1277,18 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
     .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:7px;color:#1C1814}
     .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
-    .opp-block{margin-top:10px;background:#FFFDF9;border:1px solid #E6DED2;border-left:3px solid #C8A96E;padding:12px 14px;border-radius:8px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
-    .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8B2E2E;margin-bottom:6px}
-    .opp-row{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#3D3630;margin:3px 0;line-height:1.4}
-    .opp-recommendation{margin-bottom:10px;padding:8px 9px;border:1px solid #EDE7DE;background:#FFFFFF;border-radius:6px}
-    .opp-severity{font-weight:700;color:#8B2E2E;margin-bottom:5px}
-    .opp-row strong{color:#5C5549}
-    .opp-row em{color:#6B5E52;font-style:normal}.opp-field{margin-top:8px;padding-top:6px;border-top:1px solid #EDE7DE;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-key{font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;margin-bottom:2px}.opp-val{display:block;width:100%;font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#1C1814;line-height:1.45;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .opp-block{margin-top:14px;background:#FFFDF9;border:1px solid #E6DED2;border-radius:10px;padding:16px 18px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
+    .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#8B2E2E;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #E6DED2}
+    .opp-recommendation{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:8px;border-left:3.5px solid #C8A96E;break-inside:avoid;page-break-inside:avoid}
+    .opp-recommendation:last-child{margin-bottom:0}
+    .opp-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #F0EBE3}
+    .opp-severity{font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:9pt;color:#8B2E2E;margin:0;text-transform:uppercase;letter-spacing:.03em}
+    .opp-badge{display:inline-block;font-family:Helvetica,Arial,sans-serif;font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:4px}
+    .opp-badge-high{background:#F9E8E8;color:#8B2020}.opp-badge-medium{background:#FBF1DC;color:#8B5E1A}.opp-badge-low{background:#EBF4E6;color:#3A6B2A}.opp-badge-consider{background:#FAF7F2;color:#5C5549}
+    .opp-field{margin-top:10px;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-field:first-child{margin-top:0}
+    .opp-key{font-family:Helvetica,Arial,sans-serif;font-size:7.5pt;font-weight:700;text-transform:uppercase;color:#8B6D4A;letter-spacing:.05em;margin-bottom:3px}
+    .opp-val{display:block;width:100%;font-family:Georgia,'Times New Roman',serif;font-size:9.5pt;color:#1C1814;line-height:1.5;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+    .opp-val-evidence{font-style:italic;color:#5C5549;border-left:2px solid #D9D0C3;padding-left:10px;margin-left:2px}
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
     .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
@@ -1763,14 +1772,26 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       detail.recommendations.forEach((rec, index) => {
         const rows = vmOpportunityRows(rec);
         if (rows.length === 0) return;
+        const severity = exportSeverity(rec.priority).toUpperCase();
         children.push(new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
           rows: [
             new TableRow({
               children: [new TableCell({
-                borders: DOCX_NO_BORDERS,
+                borders: {
+                  top: DOCX_NONE_BORDER,
+                  bottom: { style: BorderStyle.SINGLE, size: 2, color: docxHex(RG.borderLight) },
+                  left: { style: BorderStyle.SINGLE, size: 8, color: docxHex(RG.goldMid) },
+                  right: DOCX_NONE_BORDER,
+                },
                 shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
-                children: [new Paragraph({ children: [new TextRun({ text: `${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood), font: 'Calibri' })] })],
+                children: [new Paragraph({
+                  spacing: { before: 60, after: 60 },
+                  children: [
+                    new TextRun({ text: `Revision Opportunity #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood), font: 'Calibri' }),
+                    new TextRun({ text: `  ${severity}`, bold: true, size: 16, color: severity === 'RECOMMENDED' ? docxHex(RG.oxblood) : docxHex(RG.textMuted), font: 'Calibri' }),
+                  ],
+                })],
               })],
             }),
             ...rows.map(([label, value]) => makeOpportunityDetailRow(label, value)),
