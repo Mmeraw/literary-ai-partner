@@ -1288,7 +1288,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     .opp-field{margin-top:10px;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-field:first-child{margin-top:0}
     .opp-key{font-family:Helvetica,Arial,sans-serif;font-size:7.5pt;font-weight:700;text-transform:uppercase;color:#8B6D4A;letter-spacing:.05em;margin-bottom:3px}
     .opp-val{display:block;width:100%;font-family:Georgia,'Times New Roman',serif;font-size:9.5pt;color:#1C1814;line-height:1.5;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
-    .opp-val-evidence{font-style:italic;color:#5C5549;border-left:2px solid #D9D0C3;padding-left:10px;margin-left:2px}
+    .opp-val-evidence{font-style:normal;color:#3D3630;border-left:2px solid #D9D0C3;padding:6px 12px;margin-left:2px;background:#FFFDF9;border-radius:0 4px 4px 0}
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
     .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
@@ -1501,7 +1501,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
               children: [
                 new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }),
                 isEvidence
-                  ? new TextRun({ text: `\u201c${renderedValue}\u201d`, italics: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })
+                  ? new TextRun({ text: `\u201c${renderedValue}\u201d`, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })
                   : new TextRun({ text: renderedValue, size: 19, color: docxHex(valueColor), font: 'Calibri' }),
               ],
             }),
