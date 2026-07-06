@@ -10,6 +10,15 @@ on:
     branches:
       - main
       - develop
+    paths-ignore:
+      - 'docs/**'
+      - 'archive/**'
+      - 'benchmarks/**'
+      - 'tests/fixtures/public-domain/**'
+      - 'tests/fixtures/benchmark*/**'
+      - '**/*.md'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+      - '.github/pr-bodies/**'
   workflow_dispatch:
 
 concurrency:
