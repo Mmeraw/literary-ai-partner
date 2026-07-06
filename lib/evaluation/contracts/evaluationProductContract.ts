@@ -92,8 +92,8 @@ export type EvaluationContract = {
   forbiddenHeadings: readonly string[];
   forbiddenRevisionInventoryLabels: readonly string[];
 
-  viewModelFieldBindings: ViewModelFieldBinding[];
-  forbiddenRendererInputs: readonly string[];
+  viewModelFieldBindings?: ViewModelFieldBinding[];
+  forbiddenRendererInputs?: readonly string[];
 
   revisionSurfaceRules: RevisionSurfaceRule[];
   requiredOpportunityFields: string[];
