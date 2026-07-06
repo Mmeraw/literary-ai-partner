@@ -450,6 +450,22 @@ function pushTxtMetadata(lines: string[], label: string, value: string): void {
   pushWrapped(lines, `${label}: ${value}`, { nextIndent: ' '.repeat(label.length + 2) });
 }
 
+function pushTxtOpportunityDetailRow(lines: string[], label: string, value: string): void {
+  const renderedValue = label === 'Evidence' ? `\u201c${value}\u201d` : value;
+  const rendered = `${label}: ${renderedValue}`;
+  const hangingLines = wrapIndentedLines(rendered, {
+    firstIndent: '    ',
+    nextIndent: ' '.repeat(4 + label.length + 2),
+  });
+
+  if (hangingLines.every((line) => line.length <= TXT_WRAP_WIDTH)) {
+    lines.push(...hangingLines);
+    return;
+  }
+
+  pushWrapped(lines, rendered, { firstIndent: '    ', nextIndent: '    ' });
+}
+
 function fitToWidth(value: string, maxWidth: number): string {
   if (value.length <= maxWidth) return value;
   if (maxWidth <= 1) return value.slice(0, maxWidth);
@@ -923,13 +939,7 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
         const detailRows = vmOpportunityRows(rec);
         if (detailRows.length > 0) {
           detailRows.forEach(([label, value]) => {
-            if (label === 'Evidence') {
-              pushWrapped(lines, `${label}: \u201c${value}\u201d`, { firstIndent: '    ', nextIndent: '    ' });
-            } else if (label === 'Observation' || label === 'Diagnostic Basis') {
-              pushWrapped(lines, `${label}: ${value}`, { firstIndent: '    ', nextIndent: '    ' });
-            } else {
-              pushWrapped(lines, `${label}: ${value}`, { firstIndent: '    ', nextIndent: '    ' });
-            }
+            pushTxtOpportunityDetailRow(lines, label, value);
           });
         } else {
           pushWrapped(lines, rec.specific_fix ?? 'No action provided.', { firstIndent: '    ', nextIndent: '    ' });

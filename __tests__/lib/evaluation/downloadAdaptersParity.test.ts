@@ -205,6 +205,16 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(txt).toContain('Reader effect: Sustains reader engagement and enhances narrative urgency.');
     expect(txt).toContain('Mistake-proofing: Check each scene break for forward-pull sentence.');
 
+    const txtLines = txt.split('\n');
+    const evidenceLine = txtLines.findIndex((line) => line.startsWith('    Evidence:'));
+    const evidenceContinuation = txtLines[evidenceLine + 1] ?? '';
+    const evidenceContinuationIndent = ' '.repeat('    Evidence: '.length);
+    const evidenceContinuationLeadingSpaces = evidenceContinuation.match(/^ */)?.[0].length ?? 0;
+
+    expect(evidenceLine).toBeGreaterThanOrEqual(0);
+    expect(evidenceContinuationLeadingSpaces).toBe(evidenceContinuationIndent.length);
+    expect(evidenceContinuation.trimStart()).toContain('identifier 123e4567-e89b-12d3-a456-426614174000');
+
     // TXT must NOT include Action Items (short-form per Revision Surface Ownership Contract)
     expect(txt).not.toContain('ACTION ITEMS');
     expect(txt).not.toContain('Strategic Revisions:');
