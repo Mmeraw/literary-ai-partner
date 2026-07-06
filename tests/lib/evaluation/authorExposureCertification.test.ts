@@ -1,5 +1,7 @@
 import { evaluateAuthorExposureCertification, getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
 
+const passingDcipCompliance = { status: 'pass', reasons: [] };
+
 describe('evaluateAuthorExposureCertification', () => {
   test('allows certified payload with empty blockers and passing parity', () => {
     const decision = evaluateAuthorExposureCertification({
@@ -7,6 +9,7 @@ describe('evaluateAuthorExposureCertification', () => {
       certified_at: '2026-02-22T00:00:00.000Z',
       blocking_reasons: [],
       parity_results: { status: 'pass' },
+      dcip_compliance: passingDcipCompliance,
     });
 
     expect(decision.exposable).toBe(true);
@@ -21,6 +24,7 @@ describe('evaluateAuthorExposureCertification', () => {
       certified_at: '2026-02-22T00:00:00.000Z',
       blocking_reasons: [],
       parity_results: { status: 'pass' },
+      dcip_compliance: passingDcipCompliance,
       final_external_audit: {
         artifact_type: 'final_external_audit_v1',
         status: 'pass',
@@ -35,6 +39,7 @@ describe('evaluateAuthorExposureCertification', () => {
       decision: 'certified',
       blocking_reasons: [],
       parity_results: { status: 'pass' },
+      dcip_compliance: passingDcipCompliance,
       final_external_audit: {
         artifact_type: 'final_external_audit_v1',
         status: 'warn',
@@ -49,6 +54,7 @@ describe('evaluateAuthorExposureCertification', () => {
       decision: 'certified',
       blocking_reasons: [],
       parity_results: { status: 'pass' },
+      dcip_compliance: passingDcipCompliance,
       final_external_audit: {
         artifact_type: 'final_external_audit_v1',
         status: 'block',
@@ -66,6 +72,7 @@ describe('evaluateAuthorExposureCertification', () => {
       decision: 'certified',
       blocking_reasons: [],
       parity_results: { status: 'pass' },
+      dcip_compliance: passingDcipCompliance,
       final_external_audit: { status: 'pass' },
     });
 
@@ -159,6 +166,7 @@ describe('evaluateAuthorExposureCertification', () => {
       decision: 'certified',
       blocking_reasons: [],
       parity_results: { status: 'pass' },
+      dcip_compliance: passingDcipCompliance,
     });
     expect(decision.exposable).toBe(true);
     if (decision.exposable) {
@@ -173,6 +181,7 @@ describe('evaluateAuthorExposureCertification', () => {
         certified_at: '2026-01-01T00:00:00.000Z',
         blocking_reasons: [],
         parity_results: { status: 'pass' },
+        dcip_compliance: passingDcipCompliance,
       },
     });
     expect(decision.exposable).toBe(true);
@@ -187,6 +196,7 @@ describe('evaluateAuthorExposureCertification', () => {
         decision: 'certified',
         blocking_reasons: [],
         parity_results: { status: 'pass' },
+        dcip_compliance: passingDcipCompliance,
         final_external_audit: {
           artifact_type: 'final_external_audit_v1',
           status: 'block',
@@ -336,6 +346,7 @@ describe('getAuthorExposureDecision', () => {
                         certified_at: '2026-02-22T00:00:00.000Z',
                         blocking_reasons: [],
                         parity_results: { status: 'pass' },
+                        dcip_compliance: passingDcipCompliance,
                       },
                     },
                     error: null,
@@ -369,6 +380,7 @@ describe('getAuthorExposureDecision', () => {
                         decision: 'certified',
                         blocking_reasons: [],
                         parity_results: { status: 'pass' },
+                        dcip_compliance: passingDcipCompliance,
                         final_external_audit: {
                           artifact_type: 'final_external_audit_v1',
                           status: 'block',
