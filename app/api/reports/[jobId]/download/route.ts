@@ -1249,6 +1249,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.28;font-size:11pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;orphans:3;widows:3}
     body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
     .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page;display:flex;flex-direction:column}
+    .cover-compact{min-height:auto}.cover-compact .title{font-size:28pt}.cover-compact .hero{margin-top:0.22in}.cover-compact .dashboard{margin-top:0.18in}.cover-compact .dash-card{padding:10px 8px}.cover-compact .dash-card .value{font-size:13pt}.cover-compact .dash-card .value.dash-score{font-size:22pt}.cover-compact .grid{margin-top:12px}
     .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
     .cover-watermark{position:absolute;top:52%;left:50%;transform:translate(-50%,-50%) rotate(-28deg);font-family:Georgia,'Times New Roman',serif;font-size:52pt;font-weight:700;color:rgba(139,46,46,.045);letter-spacing:.14em;white-space:nowrap;pointer-events:none;user-select:none}
     .cover-bottom{margin-top:auto;padding-top:0.24in}
@@ -1297,7 +1298,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     .sec-score{break-before:auto}.sec-detail{break-before:page;page-break-before:always;break-inside:auto;page-break-inside:auto}
     ul.rg-bullet-list li,ul.rg-ordered-list li{break-inside:avoid;page-break-inside:avoid}
   </style></head><body>
-    <header class="cover">
+    <header class="cover${(vm.titleBlock.displayTitle.length + vm.titleBlock.genre.length + vm.titleBlock.targetAudience.length > 170) ? ' cover-compact' : ''}">
       <div class="brand">RevisionGrade\u2122 Evaluation Report</div>
       <div class="tag">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
       <div class="cover-watermark">RevisionGrade\u2122</div>
@@ -1532,31 +1533,33 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     ['Confidentiality', 'Prepared for author/editorial use.'],
   ].map(([label, value]) => makeMetadataRow(label, value));
 
+  const coverCompact = vm.titleBlock.displayTitle.length + vm.titleBlock.genre.length + vm.titleBlock.targetAudience.length > 170;
+
   const children: (Paragraph | Table)[] = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
       heading: HeadingLevel.TITLE,
-      spacing: { before: 220, after: 80 },
+      spacing: { before: coverCompact ? 120 : 220, after: coverCompact ? 40 : 80 },
       children: [new TextRun({ text: 'RevisionGrade\u2122', bold: true, size: 48, color: docxHex(RG.oxblood), font: 'Georgia' })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 220 },
+      spacing: { after: coverCompact ? 120 : 220 },
       children: [new TextRun({ text: 'Editorial Readiness Assessment', size: 22, color: docxHex(RG.textMuted), font: 'Calibri', allCaps: true })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 80 },
-      children: [new TextRun({ text: vm.titleBlock.displayTitle, bold: true, size: 40, color: docxHex(RG.textPrimary), font: 'Georgia' })],
+      spacing: { after: coverCompact ? 40 : 80 },
+      children: [new TextRun({ text: vm.titleBlock.displayTitle, bold: true, size: coverCompact ? 32 : 40, color: docxHex(RG.textPrimary), font: 'Georgia' })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 80 },
+      spacing: { after: coverCompact ? 40 : 80 },
       children: [new TextRun({ text: vm.titleBlock.reportType, size: 22, color: docxHex(RG.textMuted), font: 'Calibri' })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 260 },
+      spacing: { after: coverCompact ? 140 : 260 },
       children: [new TextRun({ text: `Evaluated ${vm.titleBlock.dateGenerated}`, size: 20, color: docxHex(RG.textMuted), font: 'Calibri' })],
     }),
     makeDivider(),
@@ -1631,7 +1634,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
         }),
       ],
     }),
-    new Paragraph({ spacing: { after: 200 }, children: [] }),
+    new Paragraph({ spacing: { after: coverCompact ? 100 : 200 }, children: [] }),
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       layout: TableLayoutType.FIXED,
