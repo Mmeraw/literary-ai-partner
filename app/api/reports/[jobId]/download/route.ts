@@ -1246,7 +1246,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(vm.titleBlock.displayTitle)} - RevisionGrade Report</title><style>
     @page{size:Letter;margin:0.66in 0.68in 0.78in;@bottom-center{content:'RevisionGrade\u2122 | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
     *{box-sizing:border-box;min-width:0}
-    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.28;font-size:11pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.28;font-size:11pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;orphans:3;widows:3}
     body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
     .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page;display:flex;flex-direction:column}
     .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
@@ -1269,12 +1269,12 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}
     .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
     .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
-    section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:20px 22px;margin:0 0 16px;break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
+    section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:20px 22px;margin:0 0 16px;break-inside:avoid;page-break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
     section.sec-pitch{border-left:3.5px solid #C8A96E}section.sec-warning{border-left:3.5px solid #C97A7A}section.sec-summary{border-left:3.5px solid #8B2E2E}section.sec-score{border-left:3.5px solid #5C5549}section.sec-detail{border-left:3.5px solid #B8922A}section.sec-meta{border-left:3.5px solid #9DC79D}
-    h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:18pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11.5pt} small{font-weight:normal;color:#5C5549}
+    h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:18pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px;break-after:avoid;page-break-after:avoid} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11.5pt;break-after:avoid;page-break-after:avoid} small{font-weight:normal;color:#5C5549}
     ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
-    table{width:100%;border-collapse:collapse}.score-grid-table{table-layout:fixed;border:1px solid #E6DED2;border-radius:8px;overflow:hidden}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;background:#F8F3EA}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:8px 9px;text-align:left;vertical-align:top}.score-grid-table tbody tr:nth-child(even){background:#FFFDF9}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%;overflow-wrap:anywhere}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%;white-space:nowrap}
-    .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
+    table{width:100%;border-collapse:collapse;break-inside:avoid;page-break-inside:avoid}.score-grid-table{table-layout:fixed;border:1px solid #E6DED2;border-radius:8px;overflow:hidden}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;background:#F8F3EA}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:8px 9px;text-align:left;vertical-align:top}.score-grid-table tbody tr:nth-child(even){background:#FFFDF9}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%;overflow-wrap:anywhere}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%;white-space:nowrap}
+    .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid;page-break-inside:avoid}
     .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:7px;color:#1C1814}
     .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
     .opp-block{margin-top:14px;background:#FFFDF9;border:1px solid #E6DED2;border-radius:10px;padding:16px 18px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
@@ -1292,6 +1292,10 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
     .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
+    article.card{break-inside:avoid;page-break-inside:avoid}
+    p{orphans:3;widows:3}
+    .sec-score{break-before:auto}.sec-detail{break-before:page;page-break-before:always;break-inside:auto;page-break-inside:auto}
+    ul.rg-bullet-list li,ul.rg-ordered-list li{break-inside:avoid;page-break-inside:avoid}
   </style></head><body>
     <header class="cover">
       <div class="brand">RevisionGrade\u2122 Evaluation Report</div>
@@ -1400,6 +1404,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
   const vmPara = (text: string, opts: { bold?: boolean; color?: string; italics?: boolean } = {}) =>
     new Paragraph({
       spacing: { after: 115, line: 310 },
+      widowControl: true,
       children: [
         new TextRun({
           text,
@@ -1751,6 +1756,8 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     children.push(
       new Paragraph({
         spacing: { before: 100, after: 90 },
+        keepNext: true,
+        keepLines: true,
         shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
         border: { left: { style: BorderStyle.SINGLE, size: 12, color: docxHex(RG.oxblood) } },
         children: [
@@ -1767,6 +1774,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     if (detail.recommendations.length > 0) {
       children.push(new Paragraph({
         spacing: { before: 120, after: 60 },
+        keepNext: true,
         children: [new TextRun({ text: `OPPORTUNITIES (${detail.recommendations.length})`, bold: true, size: 18, color: docxHex(RG.textMuted) })],
       }));
       detail.recommendations.forEach((rec, index) => {
