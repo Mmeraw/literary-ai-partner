@@ -19,6 +19,10 @@ import {
   type EvaluationContract,
   type SectionDefinition,
 } from '@/lib/evaluation/contracts/evaluationProductContract';
+import {
+  buildLongFormMultiLayerViewModelFieldBindings,
+  getLongFormMultiLayerForbiddenRendererInputs,
+} from '@/lib/evaluation/contracts/longFormMultiLayerViewModelBindings';
 
 const TEMPLATE_PATH = 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
 const EXECUTABLE_CONTRACT_PATH = 'lib/evaluation/contracts/longFormMultiLayerContract.ts';
@@ -121,6 +125,9 @@ export function buildLongFormMultiLayerContract(): EvaluationContract {
     optionalSections: sectionDefs.filter((section) => !section.required),
     forbiddenHeadings: getForbiddenLongFormMultiLayerSections(),
     forbiddenRevisionInventoryLabels: getForbiddenRevisionInventoryLabels(),
+
+    viewModelFieldBindings: buildLongFormMultiLayerViewModelFieldBindings(sectionDefs),
+    forbiddenRendererInputs: getLongFormMultiLayerForbiddenRendererInputs(),
 
     revisionSurfaceRules: buildRevisionSurfaceRules(sectionDefs),
     requiredOpportunityFields: REQUIRED_OPPORTUNITY_FIELDS,
