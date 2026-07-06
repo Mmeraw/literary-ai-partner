@@ -34,7 +34,7 @@
  */
 
 import type { UnifiedEvaluationDocument, CanonicalEvaluationMode } from '@/lib/evaluation/unifiedEvaluationDocument';
-import { correctScopeLanguage, mistakeProofText, getRenumberedAuthorFacingRevisionPlan, filterAuthorFacingTextList, getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety';
+import { correctScopeLanguage, mistakeProofText, getRenumberedAuthorFacingRevisionPlan, filterAuthorFacingTextList, getCriterionDisplayLabel, isGenericOpportunityFallbackText, normalizeEvidenceSnippet } from '@/lib/evaluation/reportRenderSafety';
 import type { EvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 import { getEvaluationContract } from '@/lib/evaluation/contracts/evaluationContractRegistry';
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
@@ -503,18 +503,35 @@ export function normalizeEvaluationReportViewModel({
     supportLabel: detail.supportLabel ? sanitizeText(detail.supportLabel, isLongForm) : null,
     rationaleLabel: detail.rationaleLabel,
     rationaleText: sanitizeText(detail.rationaleText, isLongForm),
-    recommendations: (detail.recommendations ?? []).map(rec => ({
-      opportunity_id: rec.opportunity_id,
-      priority: rec.priority,
-      anchor_snippet: rec.anchor_snippet ? sanitizeText(rec.anchor_snippet, isLongForm) : undefined,
-      anchor_type: rec.anchor_type,
-      symptom: rec.symptom ? sanitizeText(rec.symptom, isLongForm) : undefined,
-      mechanism: rec.mechanism ? sanitizeText(rec.mechanism, isLongForm) : undefined,
-      specific_fix: rec.specific_fix ? sanitizeText(rec.specific_fix, isLongForm) : undefined,
-      reader_effect: rec.reader_effect ? sanitizeText(rec.reader_effect, isLongForm) : undefined,
-      mistake_proofing: rec.mistake_proofing ? sanitizeText(rec.mistake_proofing, isLongForm) : undefined,
-      collapsed_from_criteria: rec.collapsed_from_criteria,
-    })),
+    recommendations: (detail.recommendations ?? []).map(rec => {
+      // Sanitize each field first
+      const anchor_snippet = rec.anchor_snippet ? normalizeEvidenceSnippet(sanitizeText(rec.anchor_snippet, isLongForm)) : undefined;
+      const symptom = rec.symptom ? sanitizeText(rec.symptom, isLongForm) : undefined;
+      const mechanism = rec.mechanism ? sanitizeText(rec.mechanism, isLongForm) : undefined;
+      const specific_fix = rec.specific_fix ? sanitizeText(rec.specific_fix, isLongForm) : undefined;
+      const reader_effect = rec.reader_effect ? sanitizeText(rec.reader_effect, isLongForm) : undefined;
+      const mistake_proofing = rec.mistake_proofing ? sanitizeText(rec.mistake_proofing, isLongForm) : undefined;
+
+      return {
+        opportunity_id: rec.opportunity_id,
+        priority: rec.priority,
+        anchor_snippet,
+        anchor_type: rec.anchor_type,
+        // Per-field fallback cleanup: null out any field that is generic fallback prose
+        symptom: symptom && isGenericOpportunityFallbackText(symptom) ? undefined : symptom,
+        mechanism: mechanism && isGenericOpportunityFallbackText(mechanism) ? undefined : mechanism,
+        specific_fix: specific_fix && isGenericOpportunityFallbackText(specific_fix) ? undefined : specific_fix,
+        reader_effect: reader_effect && isGenericOpportunityFallbackText(reader_effect) ? undefined : reader_effect,
+        mistake_proofing: mistake_proofing && isGenericOpportunityFallbackText(mistake_proofing) ? undefined : mistake_proofing,
+        collapsed_from_criteria: rec.collapsed_from_criteria,
+      };
+    }).filter(rec => {
+      // Discard recommendation only if it has no meaningful displayable rows left
+      const displayableFields = [rec.anchor_snippet, rec.symptom, rec.mechanism, rec.specific_fix, rec.reader_effect, rec.mistake_proofing];
+      const hasDisplayableContent = displayableFields.some(f => typeof f === 'string' && f.trim().length > 0);
+      // Keep if it has any displayable content OR has collapsed_from_criteria (action-only)
+      return hasDisplayableContent || (rec.collapsed_from_criteria && rec.collapsed_from_criteria.length > 0);
+    }),
   }));
 
   const confidenceExplanation = sanitizeText(

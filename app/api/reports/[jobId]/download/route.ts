@@ -32,6 +32,7 @@ import {
 import { runRevisionSurfaceOwnershipGate, runRenderedOutputOwnershipGate, buildRevisionSurfaceOwnershipDiagnosis } from '@/lib/evaluation/revisionSurfaceOwnershipGate';
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
+import { isGenericOpportunityFallbackText, normalizeEvidenceSnippet } from '@/lib/evaluation/reportRenderSafety';
 import { getForbiddenShortFormSections } from '@/lib/evaluation/shortFormSectionContract';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
@@ -451,21 +452,10 @@ function pushTxtMetadata(lines: string[], label: string, value: string): void {
   pushWrapped(lines, `${label}: ${value}`, { nextIndent: ' '.repeat(label.length + 2) });
 }
 
-const GENERIC_OPPORTUNITY_FALLBACK_FRAGMENTS = [
-  'the evaluation identified a concrete craft issue',
-  'premise remains abstract rather than grounded',
-];
+// isGenericOpportunityFallbackText and normalizeEvidenceSnippet are now
+// imported from @/lib/evaluation/reportRenderSafety (root-cause: VM layer
+// applies them before renderers see data; retained here as defense-in-depth).
 
-function isGenericOpportunityFallbackText(value: string): boolean {
-  const normalized = value.replace(/\s+/g, ' ').trim().toLowerCase();
-  return GENERIC_OPPORTUNITY_FALLBACK_FRAGMENTS.some((fragment) => normalized.includes(fragment));
-}
-
-function normalizeEvidenceSnippet(value: string): string {
-  let cleaned = value.trim();
-  cleaned = cleaned.replace(/^[\s"'“”‘’`]+/, '').replace(/[\s"'“”‘’`]+$/, '');
-  return cleaned;
-}
 
 function pushTxtOpportunityDetailRow(lines: string[], label: string, value: string): void {
   const valueForLabel = label === 'Evidence' ? normalizeEvidenceSnippet(value) : value;
