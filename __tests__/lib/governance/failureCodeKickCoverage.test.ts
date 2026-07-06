@@ -260,8 +260,8 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
     },
     expectedNonKickRecoveryPolicyCounts: {
       rollback_to_certified_checkpoint: 0,
-      retry_then_terminal_block: 14,
-      terminal_block: 44,
+      retry_then_terminal_block: 18,
+      terminal_block: 40,
       log_only: 4,
     },
   },
@@ -335,7 +335,7 @@ describe('failure-code → kick-matrix coverage audit', () => {
   test('failure recovery definitions are unique and declaration-based', () => {
     const definitionCodes = FAILURE_RECOVERY_DEFINITIONS.map((definition) => definition.failureCode);
     expect(definitionCodes).toHaveLength(new Set(definitionCodes).size);
-    expect(definitionCodes.length).toBe(172);
+    expect(definitionCodes.length).toBe(177);
   });
 
   test.each(FAMILY_AUDITS)('$family stages declare input metrics, output metrics, dirty-data rules, and failure codes', (audit) => {
