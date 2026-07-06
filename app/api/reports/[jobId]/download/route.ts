@@ -446,6 +446,10 @@ function pushWrapped(
   lines.push(...wrapIndentedLines(text, options));
 }
 
+function pushTxtMetadata(lines: string[], label: string, value: string): void {
+  pushWrapped(lines, `${label}: ${value}`, { nextIndent: ' '.repeat(label.length + 2) });
+}
+
 function fitToWidth(value: string, maxWidth: number): string {
   if (value.length <= maxWidth) return value;
   if (maxWidth <= 1) return value.slice(0, maxWidth);
@@ -757,33 +761,33 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
   lines.push(sep);
   lines.push('REVISIONGRADE™ EVALUATION REPORT');
   lines.push(sep);
-  lines.push(`Manuscript Title: ${vm.titleBlock.displayTitle}`);
-  if (jobId) lines.push(`Reference ID: ${jobId}`);
-  lines.push(`Report Type: ${vm.titleBlock.reportType}`);
+  pushTxtMetadata(lines, 'Manuscript Title', vm.titleBlock.displayTitle);
+  if (jobId) pushTxtMetadata(lines, 'Reference ID', jobId);
+  pushTxtMetadata(lines, 'Report Type', vm.titleBlock.reportType);
   const genreConf = vm.titleBlock.genreConfidenceLabel ? ` (${vm.titleBlock.genreConfidenceLabel})` : '';
-  lines.push(`Genre: ${vm.titleBlock.genre}${genreConf}`);
+  pushTxtMetadata(lines, 'Genre', `${vm.titleBlock.genre}${genreConf}`);
   if (vm.titleBlock.genreExpectationSummary) {
-    pushWrapped(lines, `Genre Expectations: ${vm.titleBlock.genreExpectationSummary}`);
+    pushTxtMetadata(lines, 'Genre Expectations', vm.titleBlock.genreExpectationSummary);
     if (vm.titleBlock.genreExpectationProfileLabels.length > 0) {
-      lines.push(`Reader Emphasis: ${vm.titleBlock.genreExpectationProfileLabels.join(', ')}`);
+      pushTxtMetadata(lines, 'Reader Emphasis', vm.titleBlock.genreExpectationProfileLabels.join(', '));
     }
   }
   const audiencePrefix = vm.titleBlock.audienceTentative ? 'Tentative: ' : '';
-  pushWrapped(lines, `Target Audience: ${audiencePrefix}${vm.titleBlock.targetAudience} (${vm.titleBlock.audienceConfidenceLabel})`);
+  pushTxtMetadata(lines, 'Target Audience', `${audiencePrefix}${vm.titleBlock.targetAudience} (${vm.titleBlock.audienceConfidenceLabel})`);
   if (vm.titleBlock.shelf) {
     const shelfConf = vm.titleBlock.shelfConfidenceLabel ? ` (${vm.titleBlock.shelfConfidenceLabel})` : '';
-    lines.push(`Shelf: ${vm.titleBlock.shelf}${shelfConf}`);
+    pushTxtMetadata(lines, 'Shelf', `${vm.titleBlock.shelf}${shelfConf}`);
   }
-  lines.push(`Submitted Word Count: ${vm.titleBlock.submittedWordCount}`);
-  lines.push(`Estimated Manuscript Pages: ${vm.titleBlock.estimatedPages}`);
-  lines.push(`Reading Grade Level: ${vm.titleBlock.readingGradeLevel}`);
-  lines.push(`Dialogue/Narrative Ratio: ${vm.titleBlock.dialogueNarrativeRatio}`);
-  lines.push(`Date Generated: ${vm.titleBlock.dateGenerated}`);
+  pushTxtMetadata(lines, 'Submitted Word Count', vm.titleBlock.submittedWordCount);
+  pushTxtMetadata(lines, 'Estimated Manuscript Pages', vm.titleBlock.estimatedPages);
+  pushTxtMetadata(lines, 'Reading Grade Level', vm.titleBlock.readingGradeLevel);
+  pushTxtMetadata(lines, 'Dialogue/Narrative Ratio', vm.titleBlock.dialogueNarrativeRatio);
+  pushTxtMetadata(lines, 'Date Generated', vm.titleBlock.dateGenerated);
   const overallScoreConf = vm.titleBlock.overallScoreConfidenceLabel ? ` (${vm.titleBlock.overallScoreConfidenceLabel})` : '';
-  lines.push(`Overall Score: ${vm.titleBlock.overallScoreLabel}${overallScoreConf}`);
+  pushTxtMetadata(lines, 'Overall Score', `${vm.titleBlock.overallScoreLabel}${overallScoreConf}`);
   const marketConf = vm.titleBlock.marketReadinessConfidenceLabel ? ` (${vm.titleBlock.marketReadinessConfidenceLabel})` : '';
-  lines.push(`Market Readiness: ${vm.titleBlock.marketReadiness}${marketConf}`);
-  lines.push('Confidentiality: Prepared for author/editorial use.');
+  pushTxtMetadata(lines, 'Market Readiness', `${vm.titleBlock.marketReadiness}${marketConf}`);
+  pushTxtMetadata(lines, 'Confidentiality', 'Prepared for author/editorial use.');
   lines.push('');
 
   lines.push(sub);

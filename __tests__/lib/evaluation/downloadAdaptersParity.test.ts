@@ -6,6 +6,61 @@ const buildVm = (canonicalDoc: ReturnType<typeof buildShortFormEvaluationDocumen
   normalizeEvaluationReportViewModel({ ued: canonicalDoc as any });
 
 describe('download adapters parity (ViewModel renderers)', () => {
+  test('TXT title-block metadata uses hanging indents without changing field content', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+
+    const longAudience = 'Adult readers of literary eco-thriller, climate fiction, spiritual realism, road novels, family-inheritance fiction, and ethically complex environmental suspense';
+    const canonicalDoc = buildShortFormEvaluationDocument({
+      displayTitle: 'Long Metadata Fixture',
+      result: {
+        generated_at: '2026-07-06T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 82,
+          verdict: 'revise',
+          one_paragraph_summary: 'A concise summary for metadata formatting checks.',
+          top_3_strengths: ['Strong atmospheric premise.'],
+          top_3_risks: ['Some middle-act drift.'],
+        },
+        enrichment: {
+          premise: 'A river may remember what people try to forget.',
+          trigger_warnings: [],
+          reading_grade_level: 9,
+          dialogue_percentage: 30,
+          narrative_percentage: 70,
+        },
+        metrics: {
+          manuscript: {
+            title: 'Long Metadata Fixture',
+            word_count: 78500,
+            genre: 'Literary Eco-Thriller / Eco-Spiritual Road Novel',
+            target_audience: longAudience,
+          },
+        },
+        criteria: [
+          {
+            key: 'concept',
+            score_0_10: 8,
+            confidence_level: 'high',
+            rationale: 'The premise is distinctive and clear.',
+            recommendations: [],
+          },
+        ],
+      },
+    });
+
+    const txt = testing.renderTxtFromViewModel(buildVm(canonicalDoc));
+    const txtJoined = txt.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+    const lines = txt.split('\n');
+    const targetAudienceLine = lines.findIndex((line) => line.startsWith('Target Audience:'));
+    const targetAudienceContinuationIndent = ' '.repeat('Target Audience: '.length);
+
+    expect(txtJoined).toContain(longAudience);
+    expect(targetAudienceLine).toBeGreaterThanOrEqual(0);
+    expect(lines[targetAudienceLine + 1]).toMatch(new RegExp(`^${targetAudienceContinuationIndent}\\S`));
+    expect(lines.filter((line) => line.length > 78)).toEqual([]);
+  });
+
   test('TXT and HTML adapters include canonical section content in consistent order', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
