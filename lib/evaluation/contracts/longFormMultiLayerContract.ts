@@ -27,7 +27,8 @@ import {
 const TEMPLATE_PATH = 'docs/templates/evaluation/long-form-multi-layer-evaluation-template.md';
 const EXECUTABLE_CONTRACT_PATH = 'lib/evaluation/contracts/longFormMultiLayerContract.ts';
 
-const ALWAYS_PRODUCED_SECTION_TITLES = [
+// Template §1–§17: always produced for every 25k+ submission.
+const ALWAYS_PRODUCED_CORE_TITLES = [
   'Title Block',
   'One-Paragraph Pitch',
   'One-Sentence Pitch',
@@ -45,10 +46,9 @@ const ALWAYS_PRODUCED_SECTION_TITLES = [
   'Layer-Aware Revision Sequencing',
   'Long-Form Continuity and Coverage Proof',
   'Readiness / Releasability Posture',
-  'Confidence Explanation',
-  'Author-Facing Disclaimer',
 ] as const;
 
+// Template §18–§23: produced where the manuscript architecture requires them.
 const WHERE_APPLICABLE_SECTION_TITLES = [
   'Structural Stack',
   'Arc Map',
@@ -56,6 +56,12 @@ const WHERE_APPLICABLE_SECTION_TITLES = [
   'Cross-Layer Integration',
   'Review Gate readiness surface',
   'Governed ledgers or compact governed-ledger addenda',
+] as const;
+
+// Template §24–§25: closing sections — always produced, always last.
+const CLOSING_SECTION_TITLES = [
+  'Confidence Explanation',
+  'Author-Facing Disclaimer',
 ] as const;
 
 function revisionFlags(title: string): Pick<SectionDefinition,
@@ -93,20 +99,33 @@ function buildAlwaysProducedSection(title: string, index: number): SectionDefini
   });
 }
 
+
+
 function buildWhereApplicableSection(title: string, index: number): SectionDefinition {
   return buildSectionDefinition({
     title,
-    order: ALWAYS_PRODUCED_SECTION_TITLES.length + index + 1,
+    order: ALWAYS_PRODUCED_CORE_TITLES.length + index + 1,
     required: false,
     inclusionRule: 'where_applicable',
     ...revisionFlags(title),
   });
 }
 
+function buildClosingSection(title: string, index: number): SectionDefinition {
+  return buildSectionDefinition({
+    title,
+    order: ALWAYS_PRODUCED_CORE_TITLES.length + WHERE_APPLICABLE_SECTION_TITLES.length + index + 1,
+    required: true,
+    inclusionRule: 'always',
+    ...revisionFlags(title),
+  });
+}
+
 export function buildLongFormMultiLayerContract(): EvaluationContract {
   const sectionDefs = [
-    ...ALWAYS_PRODUCED_SECTION_TITLES.map(buildAlwaysProducedSection),
+    ...ALWAYS_PRODUCED_CORE_TITLES.map(buildAlwaysProducedSection),
     ...WHERE_APPLICABLE_SECTION_TITLES.map(buildWhereApplicableSection),
+    ...CLOSING_SECTION_TITLES.map(buildClosingSection),
   ];
 
   return {
