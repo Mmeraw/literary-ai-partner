@@ -2342,7 +2342,7 @@ function resolveReaderEffect(
 export function buildCriterionAwareMechanismDefault(criterionKey: SynthesizedCriterion["key"]): string {
   switch (criterionKey) {
     case "concept":
-      return "the premise remains abstract rather than grounded in a specific dramatic question, weakening reader buy-in";
+      return "the dramatic premise does not crystallize into a concrete question, weakening reader buy-in";
     case "character":
       return "the abstract phrasing diffuses motivation before the decision point, weakening character agency";
     case "sceneConstruction":
@@ -2454,7 +2454,10 @@ function buildSymptomFromContext(
     return `The passage ${cleaned.charAt(0).toLowerCase()}${cleaned.slice(1)}`;
   }
   // Criterion-aware default symptoms when nothing else is available.
+  // IMPORTANT: These must NOT match GENERIC_OPPORTUNITY_FALLBACK_FRAGMENTS.
   switch (criterionKey) {
+    case "concept":
+      return "The dramatic premise lacks a concrete question that compels the reader forward.";
     case "character":
       return "Character motivation or decision logic is unclear at this location, weakening reader trust.";
     case "sceneConstruction":
@@ -2473,11 +2476,14 @@ function buildSymptomFromContext(
       return "Sensory grounding is absent, leaving the reader unanchored in the setting.";
     case "tone":
       return "Tonal register shifts without a clear trigger, disrupting emotional continuity.";
+    case "proseControl":
+      return "Sentence-level clutter increases cognitive load, reducing reading fluency.";
+    case "narrativeClosure":
+      return "A dangling thread lacks resolution, leaving the reader without consequence.";
     case "marketability":
       return "Genre expectations are not established early enough, reducing submission alignment.";
     default:
-      return "A concrete craft issue weakens reader clarity or momentum at this location.";
-  }
+      return "Craft clarity or momentum weakens at this location in the manuscript.";  }
 }
 
 function extractIntentFragment(action: string): string {
@@ -2845,8 +2851,8 @@ function buildDensityRepairRecommendations(
       mechanism,
       specific_fix: specificFix,
       reader_effect: readerEffect,
-      // Populate structured fields so downstream doesn't collapse action -> rationale -> title/symptom
-      symptom: `The evaluation identified a concrete craft issue at this location that may weaken reader clarity or momentum.`,
+      // Derive symptom from criterion-aware context (root-cause: never emit generic fallback prose)
+      symptom: buildSymptomFromContext(mechanism, action, key),
       cause: mechanism,
       rationale: specificFix,
       fix_direction: specificFix,

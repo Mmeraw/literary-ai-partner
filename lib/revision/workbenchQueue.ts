@@ -1297,7 +1297,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     ]
 
     const inferredCauseFallback =
-      'The evaluation identified a concrete craft issue at this location that may weaken reader clarity or momentum.'
+      'Craft clarity or momentum weakens at this location in the manuscript.'
 
     const symptom = cleanAuthorFacingText(opportunity.symptom ?? opportunity.rationale, opportunity.rationale)
     const cause = cleanAuthorFacingText(opportunity.cause, inferredCauseFallback)
