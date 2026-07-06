@@ -389,6 +389,9 @@ describe('normalizeEvaluationReportViewModel', () => {
       // Kept because mechanism + specific_fix are real content
       expect(recs).toHaveLength(1);
       expect(recs[0].mechanism).toContain('Chapters 4-7');
+      expect(recs[0].specific_fix).toContain('Insert midpoint reversal');
+      // Fallback field is removed (set to undefined) at the VM level
+      expect(recs[0].symptom).toBeUndefined();
     });
 
     it('VM recommendation fields never contain known fallback phrases', () => {
