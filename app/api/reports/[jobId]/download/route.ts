@@ -1244,15 +1244,22 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     *{box-sizing:border-box;min-width:0}
     body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.5;font-size:10.3pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
-    .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page}
+    .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page;display:flex;flex-direction:column}
     .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
+    .cover-watermark{position:absolute;top:52%;left:50%;transform:translate(-50%,-50%) rotate(-28deg);font-family:Georgia,'Times New Roman',serif;font-size:52pt;font-weight:700;color:rgba(139,46,46,.045);letter-spacing:.14em;white-space:nowrap;pointer-events:none;user-select:none}
+    .cover-bottom{margin-top:auto;padding-top:0.24in}
     .brand{font-family:Georgia,'Times New Roman',serif;font-size:24pt;font-weight:700;color:#8B2E2E;letter-spacing:.01em}
     .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;color:#5C5549;margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
-    .hero{display:grid;grid-template-columns:minmax(0,1fr) 2.35in;gap:0.28in;margin-top:0.38in;align-items:start}
+    .hero{margin-top:0.38in}
+    .cover-date{font-family:Helvetica,Arial,sans-serif;font-size:10pt;color:#5C5549;margin:10px 0 0}
+    .dashboard{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-top:0.3in}
+    .dash-card{border:1.5px solid #D9D0C3;border-radius:10px;padding:14px 10px;text-align:center;background:#FFFFFF;box-shadow:0 6px 14px rgba(111,29,27,.05);break-inside:avoid}
+    .dash-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}
+    .dash-card .value{font-family:Georgia,'Times New Roman',serif;font-size:15pt;font-weight:700;line-height:1.15;margin-top:6px;color:#1C1814}
+    .dash-card .value.dash-score{font-size:26pt}
+    .dash-card .sub{margin-top:5px}
+    .dash-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D}.dash-card.readiness-watch{background:#FFF6E8;border-color:#D9A441}.dash-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A}.dash-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3}
     .title{font-size:31pt;line-height:1.08;color:#1C1814;margin:0 0 10px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:12pt;margin:0;text-transform:uppercase;letter-spacing:.05em}
-    .readiness-card{border:2px solid #D9D0C3;border-radius:10px;padding:0.22in 0.18in;color:#1A1A1A;text-align:center;box-shadow:0 8px 18px rgba(111,29,27,.06);break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
-    .readiness-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D;color:#1A1A1A}.readiness-card.readiness-watch{background:#FFF6E8;border-color:#D9A441;color:#1A1A1A}.readiness-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A;color:#1A1A1A}.readiness-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3;color:#1A1A1A}
-    .readiness-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}.readiness-card .value{font-size:36pt;font-weight:700;line-height:1.05;margin-top:4px;color:#1A1A1A}.readiness-card .verdict{margin-top:6px;font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;text-transform:uppercase;color:#1A1A1A;letter-spacing:.04em}
     .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
     .title-metadata-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 11px}
     .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}
@@ -1279,23 +1286,36 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     <header class="cover">
       <div class="brand">RevisionGrade\u2122 Evaluation Report</div>
       <div class="tag">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
+      <div class="cover-watermark">RevisionGrade\u2122</div>
       <div class="hero">
-        <div>
-          <h1 class="title">${escapeHtml(vm.titleBlock.displayTitle)}</h1>
-          <p class="subtitle">${escapeHtml(vm.titleBlock.reportType)}</p>
-          ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
-        </div>
-        <aside class="readiness-card ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">
+        <h1 class="title">${escapeHtml(vm.titleBlock.displayTitle)}</h1>
+        <p class="subtitle">${escapeHtml(vm.titleBlock.reportType)}</p>
+        <p class="cover-date">Evaluated ${escapeHtml(vm.titleBlock.dateGenerated)}</p>
+        ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
+      </div>
+      <div class="dashboard">
+        <div class="dash-card ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">
           <div class="label">Overall Score</div>
-          <div class="value ${scorePaletteClassFromLabel(vm.titleBlock.overallScoreLabel)}">${escapeHtml(vm.titleBlock.overallScoreLabel)}</div>
-          ${vm.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
-          <div class="verdict ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">${escapeHtml(vm.titleBlock.marketReadiness)}</div>
-          ${vm.titleBlock.marketReadinessConfidenceLabel && vm.titleBlock.marketReadinessConfidenceLabel !== vm.titleBlock.overallScoreConfidenceLabel ? `<div class="label">${escapeHtml(vm.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
-        </aside>
+          <div class="value dash-score ${scorePaletteClassFromLabel(vm.titleBlock.overallScoreLabel)}">${escapeHtml(vm.titleBlock.overallScoreLabel)}</div>
+          ${vm.titleBlock.overallScoreConfidenceLabel ? `<div class="label sub">${escapeHtml(vm.titleBlock.overallScoreConfidenceLabel)}</div>` : ''}
+        </div>
+        <div class="dash-card ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">
+          <div class="label">Market Readiness</div>
+          <div class="value">${escapeHtml(vm.titleBlock.marketReadiness)}</div>
+          ${vm.titleBlock.marketReadinessConfidenceLabel ? `<div class="label sub">${escapeHtml(vm.titleBlock.marketReadinessConfidenceLabel)}</div>` : ''}
+        </div>
+        <div class="dash-card">
+          <div class="label">Genre</div>
+          <div class="value">${escapeHtml(vm.titleBlock.genre)}</div>
+          ${vm.titleBlock.genreConfidenceLabel ? `<div class="sub"><span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.genreConfidenceLabel)}">${escapeHtml(vm.titleBlock.genreConfidenceLabel)}</span></div>` : ''}
+        </div>
+        <div class="dash-card">
+          <div class="label">Target Audience</div>
+          <div class="value" style="font-size:11pt">${vm.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(vm.titleBlock.targetAudience)}</div>
+          <div class="sub"><span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.audienceConfidenceLabel)}">${escapeHtml(vm.titleBlock.audienceConfidenceLabel)}</span></div>
+        </div>
       </div>
       <div class="grid title-metadata-grid">
-        <div class="metric"><strong>Genre</strong><div>${escapeHtml(vm.titleBlock.genre)}${vm.titleBlock.genreConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.genreConfidenceLabel)}">${escapeHtml(vm.titleBlock.genreConfidenceLabel)}</span>` : ''}</div></div>
-        <div class="metric"><strong>Target Audience</strong><div>${vm.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(vm.titleBlock.targetAudience)} <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.audienceConfidenceLabel)}">${escapeHtml(vm.titleBlock.audienceConfidenceLabel)}</span></div></div>
         <div class="metric"><strong>Submitted Word Count</strong><div>${escapeHtml(vm.titleBlock.submittedWordCount)}</div></div>
         <div class="metric"><strong>Estimated Pages</strong><div>${escapeHtml(vm.titleBlock.estimatedPages)}</div></div>
         <div class="metric"><strong>Reading Grade Level</strong><div>${escapeHtml(vm.titleBlock.readingGradeLevel)}</div></div>
@@ -1305,7 +1325,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
         ${vm.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(vm.titleBlock.shelf)}${vm.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.shelfConfidenceLabel)}">${escapeHtml(vm.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
         ${vm.titleBlock.genreExpectationSummary ? `<div class="metric"><strong>Genre Expectations</strong><div>${escapeHtml(vm.titleBlock.genreExpectationSummary)}${vm.titleBlock.genreExpectationProfileLabels.length > 0 ? `<br /><small>Reader emphasis: ${escapeHtml(vm.titleBlock.genreExpectationProfileLabels.join(', '))}</small>` : ''}</div></div>` : ''}
       </div>
-      <p class="footnote">${escapeHtml(EXPORT_DISCLAIMER)}</p>
+      <div class="cover-bottom"><p class="footnote" style="margin:0">${escapeHtml(EXPORT_DISCLAIMER)}</p></div>
     </header>
     <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(vm.oneParagraphPitch)}</p></section>
     <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(vm.oneSentencePitch)}</p></section>
@@ -1515,8 +1535,13 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 260 },
+      spacing: { after: 80 },
       children: [new TextRun({ text: vm.titleBlock.reportType, size: 22, color: docxHex(RG.textMuted), font: 'Calibri' })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 260 },
+      children: [new TextRun({ text: `Evaluated ${vm.titleBlock.dateGenerated}`, size: 20, color: docxHex(RG.textMuted), font: 'Calibri' })],
     }),
     makeDivider(),
     new Table({
@@ -1551,6 +1576,38 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
                   alignment: AlignmentType.CENTER,
                   spacing: { after: 120 },
                   children: [new TextRun({ text: vm.titleBlock.marketReadiness, bold: true, size: 30, color: docxHex(readinessPaletteColor(vm.titleBlock.marketReadiness)), font: 'Georgia' })],
+                }),
+              ],
+            }),
+          ],
+        }),
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              margins: CELL_MARGINS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [
+                new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 60 }, children: [new TextRun({ text: 'Genre', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri', allCaps: true })] }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 120 },
+                  children: [new TextRun({ text: vm.titleBlock.genre, bold: true, size: 26, color: docxHex(RG.textPrimary), font: 'Georgia' })],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              borders: DOCX_NO_BORDERS,
+              margins: CELL_MARGINS,
+              shading: { type: ShadingType.SOLID, color: docxHex(RG.surface) },
+              children: [
+                new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 60 }, children: [new TextRun({ text: 'Target Audience', bold: true, size: 18, color: docxHex(RG.textMuted), font: 'Calibri', allCaps: true })] }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { after: 120 },
+                  children: [new TextRun({ text: `${vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}${vm.titleBlock.targetAudience}`, bold: true, size: 22, color: docxHex(RG.textPrimary), font: 'Georgia' })],
                 }),
               ],
             }),
