@@ -272,7 +272,7 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(html).not.toContain('<table class="opp-table">');
     expect(html).not.toContain('<em>\u201c');
     expect(html).not.toContain('<em>"');
-    expect(html).toContain('class="readiness-card readiness-risk"');
+    expect(html).toContain('class="dash-card readiness-risk"');
     expect(html).toContain('class="opp-field"');
     expect(html).toContain('class="opp-val"');
     expect(html).toContain('class="opp-recommendation"');
