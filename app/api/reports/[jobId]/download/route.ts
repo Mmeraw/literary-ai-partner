@@ -1242,7 +1242,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(vm.titleBlock.displayTitle)} - RevisionGrade Report</title><style>
     @page{size:Letter;margin:0.66in 0.68in 0.78in;@bottom-center{content:'RevisionGrade\u2122 | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
     *{box-sizing:border-box;min-width:0}
-    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.5;font-size:10.3pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.28;font-size:11pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
     .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in;margin:0 0 16px;break-after:page;display:flex;flex-direction:column}
     .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:8px;background:#8B2E2E;border-radius:12px 0 0 12px}
@@ -1259,14 +1259,15 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     .dash-card .value.dash-score{font-size:26pt}
     .dash-card .sub{margin-top:5px}
     .dash-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D}.dash-card.readiness-watch{background:#FFF6E8;border-color:#D9A441}.dash-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A}.dash-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3}
-    .title{font-size:31pt;line-height:1.08;color:#1C1814;margin:0 0 10px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:12pt;margin:0;text-transform:uppercase;letter-spacing:.05em}
+    .title{font-size:36pt;line-height:1.08;color:#1C1814;margin:0 0 10px}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:12pt;margin:0;text-transform:uppercase;letter-spacing:.05em}
     .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
     .title-metadata-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 11px}
     .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}
     .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
     .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
-    section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:18px 21px;margin:0 0 14px;break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
-    h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:16pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11pt} small{font-weight:normal;color:#5C5549}
+    section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:20px 22px;margin:0 0 16px;break-inside:avoid;box-shadow:0 2px 8px rgba(28,24,20,.025)}
+    section.sec-pitch{border-left:3.5px solid #C8A96E}section.sec-warning{border-left:3.5px solid #C97A7A}section.sec-summary{border-left:3.5px solid #8B2E2E}section.sec-score{border-left:3.5px solid #5C5549}section.sec-detail{border-left:3.5px solid #B8922A}section.sec-meta{border-left:3.5px solid #9DC79D}
+    h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:18pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11.5pt} small{font-weight:normal;color:#5C5549}
     ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}
     table{width:100%;border-collapse:collapse}.score-grid-table{table-layout:fixed;border:1px solid #E6DED2;border-radius:8px;overflow:hidden}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;background:#F8F3EA}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:8px 9px;text-align:left;vertical-align:top}.score-grid-table tbody tr:nth-child(even){background:#FFFDF9}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%;overflow-wrap:anywhere}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%;white-space:nowrap}
     .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;break-inside:avoid}
@@ -1327,17 +1328,17 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
       </div>
       <div class="cover-bottom"><p class="footnote" style="margin:0">${escapeHtml(EXPORT_DISCLAIMER)}</p></div>
     </header>
-    <section><h2>One-Paragraph Pitch</h2><p>${escapeHtml(vm.oneParagraphPitch)}</p></section>
-    <section><h2>One-Sentence Pitch</h2><p>${escapeHtml(vm.oneSentencePitch)}</p></section>
-    ${vm.premise ? `<section><h2>Premise</h2><p>${escapeHtml(vm.premise)}</p></section>` : ''}
-    <section><h2>Content Warnings</h2>${list(vm.contentWarnings)}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
-    <section><h2>Revision Opportunity Summary</h2><div class="grid summary-grid"><div class="metric"><strong>Total</strong><div>${vm.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${vm.revisionOpportunitySummary.recommended}</div></div><div class="metric"><strong>Optional</strong><div>${vm.revisionOpportunitySummary.optional}</div></div><div class="metric"><strong>Consider</strong><div>${vm.revisionOpportunitySummary.consider}</div></div></div></section>
-    <section><h2>Executive Summary</h2><p>${escapeHtml(vm.executiveSummary)}</p></section>
-    <section><h2>Top Strengths</h2>${list(vm.topStrengths, { ordered: true })}</section>
-    <section><h2>Top Risks</h2>${list(vm.topRisks, { ordered: true })}</section>
-    <section><h2>Top Recommendations</h2>${vm.topRecommendations.length > 0 ? list(vm.topRecommendations, { ordered: true }) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
-    <section><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
-    <section><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
+    <section class="sec-pitch"><h2>One-Paragraph Pitch</h2><p>${escapeHtml(vm.oneParagraphPitch)}</p></section>
+    <section class="sec-pitch"><h2>One-Sentence Pitch</h2><p>${escapeHtml(vm.oneSentencePitch)}</p></section>
+    ${vm.premise ? `<section class="sec-pitch"><h2>Premise</h2><p>${escapeHtml(vm.premise)}</p></section>` : ''}
+    <section class="sec-warning"><h2>Content Warnings</h2>${list(vm.contentWarnings)}<p><em>Consider including content warnings in book marketing or front matter.</em></p></section>
+    <section class="sec-summary"><h2>Revision Opportunity Summary</h2><div class="grid summary-grid"><div class="metric"><strong>Total</strong><div>${vm.revisionOpportunitySummary.total}</div></div><div class="metric"><strong>Recommended</strong><div>${vm.revisionOpportunitySummary.recommended}</div></div><div class="metric"><strong>Optional</strong><div>${vm.revisionOpportunitySummary.optional}</div></div><div class="metric"><strong>Consider</strong><div>${vm.revisionOpportunitySummary.consider}</div></div></div></section>
+    <section class="sec-summary"><h2>Executive Summary</h2><p>${escapeHtml(vm.executiveSummary)}</p></section>
+    <section class="sec-meta"><h2>Top Strengths</h2>${list(vm.topStrengths, { ordered: true })}</section>
+    <section class="sec-warning"><h2>Top Risks</h2>${list(vm.topRisks, { ordered: true })}</section>
+    <section class="sec-summary"><h2>Top Recommendations</h2>${vm.topRecommendations.length > 0 ? list(vm.topRecommendations, { ordered: true }) : '<p>See per-criterion opportunities below for detailed revision guidance.</p>'}</section>
+    <section class="sec-score"><h2>13 Criteria Score Grid</h2><table class="score-grid-table"><thead><tr><th>Criterion</th><th>Score</th><th>Confidence</th></tr></thead><tbody>${criteriaRows}</tbody></table></section>
+    <section class="sec-detail"><h2>Criterion Rationales &amp; Surfaced Opportunities</h2>${detailCards}</section>
     ${lf ? lfSectionsHtml : ((vm.templateMode === 'long_form_evaluation' || vm.templateMode === 'long_form_multi_layer_evaluation') ? `
     ${vm.modeSpecific.manuscriptScaleContinuityFindings.length > 0 ? `<section><h2>Manuscript-Scale Continuity Findings</h2>${list(vm.modeSpecific.manuscriptScaleContinuityFindings)}</section>` : ''}
     ${vm.modeSpecific.storyLedgerArchitectureMap.length > 0 ? `<section><h2>${sectionTitle('story_ledger')}</h2>${list(vm.modeSpecific.storyLedgerArchitectureMap)}</section>` : ''}
@@ -1349,8 +1350,8 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     ${vm.modeSpecific.continuityCoverageProof.length > 0 ? `<section><h2>${sectionTitle('continuity_coverage')}</h2>${list(vm.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${vm.modeSpecific.readinessReleasabilityPosture.trim().length > 0 ? `<section><h2>${sectionTitle('readiness_posture')}</h2><p>${escapeHtml(vm.modeSpecific.readinessReleasabilityPosture)}</p></section>` : ''}
     ` : '')}
-    <section><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(vm.confidenceExplanation)}</p></section>
-    <section><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(vm.disclaimer)}</p></section>
+    <section class="sec-meta"><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(vm.confidenceExplanation)}</p></section>
+    <section class="sec-meta"><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(vm.disclaimer)}</p></section>
   </body></html>`;
 }
 
@@ -1360,13 +1361,14 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
 // cleanReportText on VM-owned fields (VM is the single sanitization boundary).
 // actionItems are NOT rendered (not ViewModel-owned author-facing output).
 async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''): Promise<Buffer> {
-  const makeHeading = (text: string) =>
+  const makeHeading = (text: string, opts: { pageBreak?: boolean } = {}) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
       spacing: { before: 320, after: 120 },
       keepNext: true,
+      pageBreakBefore: opts.pageBreak,
       border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: docxHex(RG.goldMid) } },
-      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 30, font: 'Georgia' })],
+      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 36, font: 'Georgia' })],
     });
 
   // Native full-width rule via paragraph bottom border (spans the text column
@@ -1732,7 +1734,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
   );
 
   children.push(makeDivider());
-  children.push(makeHeading('Criterion Rationales & Surfaced Opportunities'));
+  children.push(makeHeading('Criterion Rationales & Surfaced Opportunities', { pageBreak: true }));
   vm.criterionDetails.forEach((detail, detailIdx) => {
     if (detailIdx > 0) {
       children.push(new Paragraph({ spacing: { before: 160, after: 0 }, children: [new TextRun({ text: '' })] }));
@@ -1783,7 +1785,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
   if (lfDocx) {
     // §12a Expanded Criterion Analysis
     if (lfDocx.criterionAnalyses.length > 0) {
-      children.push(makeHeading(sectionTitle('expanded_criterion_analysis')));
+      children.push(makeHeading(sectionTitle('expanded_criterion_analysis'), { pageBreak: true }));
       lfDocx.criterionAnalyses.forEach(a => {
         const sc = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
         children.push(vmPara(`${a.displayLabel} \u2014 ${sc} (${formatConfidenceLabel(a.confidence)})`, { bold: true }));
@@ -2015,7 +2017,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       });
     }
   }
-  children.push(makeHeading(sectionTitle('confidence_explanation')));
+  children.push(makeHeading(sectionTitle('confidence_explanation'), { pageBreak: true }));
   children.push(vmPara(vm.confidenceExplanation));
 
   children.push(makeHeading(sectionTitle('disclaimer')));
