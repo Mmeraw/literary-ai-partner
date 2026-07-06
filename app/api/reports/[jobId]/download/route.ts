@@ -729,15 +729,15 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
       if (hasMeaningfulText(ms.marketableHook)) push(`  Marketable Hook: ${ms.marketableHook}`);
       if (ms.shelfNeighbors.length > 0) {
         push('  Shelf Neighbors:');
-        ms.shelfNeighbors.forEach((item) => push(`  • ${item}`));
+        ms.shelfNeighbors.forEach((item) => push(`    • ${item}`));
       }
       if (ms.comparisonSpace.length > 0) {
         push('  Comparison Space:');
-        ms.comparisonSpace.forEach((item) => push(`  • ${item}`));
+        ms.comparisonSpace.forEach((item) => push(`    • ${item}`));
       }
       if (lf.whatNotToBecome.length > 0) {
         push('  What Not to Become:');
-        lf.whatNotToBecome.forEach((item) => push(`  • ${item}`));
+        lf.whatNotToBecome.forEach((item) => push(`    • ${item}`));
       }
       if (hasMeaningfulText(ms.marketDanger)) push(`  Market Danger: ${ms.marketDanger}`);
     }
@@ -933,9 +933,9 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
 
     if (detail.recommendations.length > 0) {
       lines.push('');
-      lines.push(`  OPPORTUNITIES (${detail.recommendations.length})`);
+      lines.push(`OPPORTUNITIES (${detail.recommendations.length})`);
       detail.recommendations.forEach((rec, index) => {
-        lines.push(`  ${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`);
+        lines.push(`${exportSeverity(rec.priority).toUpperCase()} #${index + 1}`);
         const detailRows = vmOpportunityRows(rec);
         if (detailRows.length > 0) {
           detailRows.forEach(([label, value]) => {
