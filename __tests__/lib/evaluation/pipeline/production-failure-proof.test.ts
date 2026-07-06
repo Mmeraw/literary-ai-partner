@@ -199,7 +199,6 @@ describe("PROOF: Evaluation KICK_MATRIX is wired to runtime", () => {
   const kickEligibleCodes = [
     "TEMPLATE_COMPLETENESS_GATE_FAILED",
     "QG_EVIDENCE_FABRICATION",
-    "QG_DUPLICATE_REC",
     "QG_MISSING_RATIONALE",
     "QG_MISSING_EVIDENCE",
     "QG_DENSITY_FLOOR_VIOLATION",
@@ -212,6 +211,12 @@ describe("PROOF: Evaluation KICK_MATRIX is wired to runtime", () => {
       expect(isKickEligibleFailureCode(code)).toBe(true);
     });
   }
+
+  it("QG_DUPLICATE_REC is log-only per governance recovery policy (not kick-eligible)", () => {
+    // Explicit governance decision: duplicate-recommendation defects are
+    // passively observed at runtime (log_only), not rolled back or retried.
+    expect(isKickEligibleFailureCode("QG_DUPLICATE_REC")).toBe(false);
+  });
 
   it("non-kick codes return false", () => {
     expect(isKickEligibleFailureCode("PIPELINE_GLOBAL_SLA_EXCEEDED")).toBe(false);
