@@ -6,6 +6,48 @@ const buildVm = (canonicalDoc: ReturnType<typeof buildShortFormEvaluationDocumen
   normalizeEvaluationReportViewModel({ ued: canonicalDoc as any });
 
 describe('download adapters parity (ViewModel renderers)', () => {
+  test('TXT score grid renders Not scorable without truncation and no trailing spaces', async () => {
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+
+    const canonicalDoc = buildShortFormEvaluationDocument({
+      displayTitle: 'Score Grid Test',
+      result: {
+        generated_at: '2026-07-06T00:00:00.000Z',
+        overview: {
+          overall_score_0_100: 75,
+          verdict: 'revise',
+          one_paragraph_summary: 'Score grid presentation check.',
+          top_3_strengths: ['Strong premise.'],
+          top_3_risks: ['Pacing issues.'],
+        },
+        enrichment: { premise: 'A test.', trigger_warnings: [], reading_grade_level: 8, dialogue_percentage: 30, narrative_percentage: 70 },
+        metrics: { manuscript: { title: 'Score Grid Test', word_count: 5000, genre: 'Literary Fiction', target_audience: 'Adult readers' } },
+        criteria: [
+          { key: 'concept', score_0_10: 8, confidence_level: 'high', rationale: 'Strong.', recommendations: [] },
+          // A criterion with no score produces "Not scorable" (12 chars) — must not be truncated to 10
+          { key: 'voice', score_0_10: undefined as unknown as number, confidence_level: 'low', rationale: 'Insufficient evidence.', recommendations: [] },
+        ],
+      },
+    });
+
+    const txt = testing.renderTxtFromViewModel(buildVm(canonicalDoc));
+    const lines = txt.split('\n');
+    const gridLines = lines.filter((line) => line.includes('Not scor'));
+
+    expect(gridLines.length).toBeGreaterThan(0);
+    expect(gridLines[0]).toContain('Not scorable');
+    expect(gridLines[0]).not.toContain('Not scora…');
+
+    const gridSection = lines.filter((_, i) => {
+      const heading = lines.findIndex((l) => l.includes('CRITERIA SCORE GRID'));
+      const next = lines.findIndex((l, j) => j > heading && l.startsWith('-----'));
+      return i > heading && i < (next === -1 ? lines.length : next + 5);
+    });
+    expect(gridSection.filter((l) => / {2,}$/.test(l))).toEqual([]);
+    expect(lines.filter((l) => l.length > 78)).toEqual([]);
+  });
+
   test('TXT title-block metadata uses hanging indents without changing field content', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;

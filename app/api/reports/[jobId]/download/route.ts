@@ -897,7 +897,7 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
   lines.push('');
   const separatorWidth = 6;
   const scoreWidth = Math.min(
-    10,
+    12,
     Math.max(Math.max(...vm.criteriaScoreGrid.map((r) => r.scoreLabel.length), 'Score'.length), 5),
   );
   let confidenceWidth = Math.min(
@@ -911,10 +911,10 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
     labelWidth = TXT_WRAP_WIDTH - scoreWidth - confidenceWidth - separatorWidth;
   }
 
-  lines.push(`${fitToWidth('Criterion', labelWidth).padEnd(labelWidth)}   ${fitToWidth('Score', scoreWidth).padEnd(scoreWidth)}   ${fitToWidth('Confidence', confidenceWidth).padEnd(confidenceWidth)}`);
+  lines.push(`${fitToWidth('Criterion', labelWidth).padEnd(labelWidth)}   ${fitToWidth('Score', scoreWidth).padEnd(scoreWidth)}   ${fitToWidth('Confidence', confidenceWidth).padEnd(confidenceWidth)}`.trimEnd());
   lines.push(`${'\u2500'.repeat(labelWidth)}   ${'\u2500'.repeat(scoreWidth)}   ${'\u2500'.repeat(confidenceWidth)}`);
   vm.criteriaScoreGrid.forEach((row) => {
-    lines.push(`${fitToWidth(row.label, labelWidth).padEnd(labelWidth)}   ${fitToWidth(row.scoreLabel, scoreWidth).padEnd(scoreWidth)}   ${fitToWidth(row.confidenceLabel ?? '', confidenceWidth).padEnd(confidenceWidth)}`);
+    lines.push(`${fitToWidth(row.label, labelWidth).padEnd(labelWidth)}   ${fitToWidth(row.scoreLabel, scoreWidth).padEnd(scoreWidth)}   ${fitToWidth(row.confidenceLabel ?? '', confidenceWidth).padEnd(confidenceWidth)}`.trimEnd());
   });
   lines.push('');
 
