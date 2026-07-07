@@ -121,11 +121,11 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'QG_CONSEQUENCE_CONTRACT',
   'QG_MISSING_REQUIRED_EVIDENCE',
   'QG_SUMMARY_OMITS_WEAKNESS',
-  'QUALITY_GATE_NOT_PASSED',
+  'QUALITY_GATE_NOT_PASSED',          // governance alias: generic rollup; QG_* codes cover all runtime gate surfaces; redundant unless a non-QG_ gate surface is identified
   'REVIEW_GATE_QUALITY_HARD_FAIL',
   'REVIEW_GATE_REJECTED',
   'REVISE_HANDOFF_RENDERER_OUTPUT_INVALID',
-  'REVISION_LEDGER_EVIDENCE_MISSING',
+  'REVISION_LEDGER_EVIDENCE_MISSING', // governance alias: maps to bare LEDGER_EVIDENCE_MISSING already wired in REVISE_KICK_MATRIX; do not add a separate failures.ts bridge
   'RIGHTS_DECLARATION_MISSING',
   'RIGHTS_GATE_FAILED',
   'SCORE_BELOW_THRESHOLD',
