@@ -97,13 +97,13 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'FORBIDDEN_SCOPE_REQUESTED',
   'GATE15_EXECUTION_FAILED',
   'HANDOFF_GENERIC_LANGUAGE',
-  'INELIGIBLE_MANUSCRIPT',
+  'INELIGIBLE_MANUSCRIPT', // Separate-subsystem HTTP gate (Agent Readiness AR01, HTTP 422); not an evaluation job processor failure. No markFailed() path.
   'INVALID_FORMAT',
   'LEDGER_EVIDENCE_MISSING',
   'LEDGER_SYNC_DB_ERROR',
   'LEDGER_SYNC_VALIDATION_FAIL',
   'LISTING_ALREADY_EXISTS',
-  'MANUSCRIPT_NOT_FINAL',
+  'MANUSCRIPT_NOT_FINAL', // Separate-subsystem HTTP gate (Storygate SG08, HTTP 400); listing activation subsystem, not evaluation pipeline. Route uncertified in current snapshot.
   'MARKET_COMPARABLES_MISSING',
   'MISSING_CONTEXT',
   'MISSING_REQUIRED_FIELDS',
@@ -112,18 +112,18 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'OUTPUT_TOO_THIN',
   'PACKAGE_AUTHORITY_INVALID',
   'PACKAGE_GATE_FAILED',
-  'PHASE5_BANNED_ENTITY',
-  'PHASE5_MISSING_AUDIT',
+  'PHASE5_BANNED_ENTITY', // Certification return-value gate; enforced through validateDownloadParity() and author exposure certification, not a thrown runtime failure.
+  'PHASE5_MISSING_AUDIT', // Certification return-value gate; enforced through finalExternalAuditAllowsAuthorExposure() in author exposure certification, not a thrown runtime failure.
   'PHASE5_RENDER_PARITY_FAIL', // Certification return-value gate; enforced through author exposure certification, not a thrown runtime failure.
-  'PHASE5_TEMPLATE_CONTRACT_FAIL',
-  'PHASE5_UNCERTIFIED_OUTPUT',
+  'PHASE5_TEMPLATE_CONTRACT_FAIL', // Certification return-value gate; enforced through author exposure certification (decision_not_certified / blocking_reasons_present), not a thrown runtime failure.
+  'PHASE5_UNCERTIFIED_OUTPUT', // Certification return-value gate; enforced through author exposure certification (decision_not_certified), not a thrown runtime failure.
   'QG_ARTIFACT_GATE_FAIL',
   'QG_CONSEQUENCE_CONTRACT',
   'QG_MISSING_REQUIRED_EVIDENCE',
   'QG_SUMMARY_OMITS_WEAKNESS',
   'QUALITY_GATE_NOT_PASSED',          // governance alias: generic rollup; QG_* codes cover all runtime gate surfaces; redundant unless a non-QG_ gate surface is identified
-  'REVIEW_GATE_QUALITY_HARD_FAIL',
-  'REVIEW_GATE_REJECTED',
+  'REVIEW_GATE_QUALITY_HARD_FAIL', // Governance alias; kick-matrix label for degraded long-form layer scenario. No runtime emit site found.
+  'REVIEW_GATE_REJECTED', // Governance alias; runtime emits REVIEW_GATE_REJECTED_BY_AUTHOR on author rejection. No classifyError() path.
   'REVISE_HANDOFF_RENDERER_OUTPUT_INVALID',
   'REVISION_LEDGER_EVIDENCE_MISSING', // governance alias: maps to bare LEDGER_EVIDENCE_MISSING already wired in REVISE_KICK_MATRIX; do not add a separate failures.ts bridge
   'RIGHTS_DECLARATION_MISSING',
@@ -134,7 +134,7 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'STRUCTURED_AUDIT_FIELDS_MISSING',
   'TRUSTEDPATH_INELIGIBLE_VERDICT',
   'TRUSTEDPATH_LEDGER_WRITE_FAIL',
-  'UNAUTHENTICATED',
+  'UNAUTHENTICATED', // Platform HTTP gate; enforced by middleware (HTTP 401) across all subsystems. Never reaches evaluation job processor or markFailed().
   'UNRESOLVED_PLACEHOLDER',
   'UNVERIFIED_INDUSTRY_USER',
   'VERIFICATION_STATE_UNAUDITED',
