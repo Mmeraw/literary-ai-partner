@@ -181,3 +181,42 @@ describe("stampAnchorTypes", () => {
     expect(criteria[1].recommendations[0].anchor_type).toBe("editorial_diagnosis");
   });
 });
+
+describe("grounding_skipped — manuscriptText absent", () => {
+  const CRITERIA_WITH_RECS = [
+    {
+      key: "pacing",
+      recommendations: [
+        { anchor_snippet: "The diamond industry has lost its appeal" },
+        { anchor_snippet: "Cobalt, Calvin. That's where the money is now." },
+      ],
+    },
+  ];
+
+  it("runEvidenceGroundingGate: grounding_skipped is NOT set when manuscript is present", () => {
+    const report = runEvidenceGroundingGate(CRITERIA_WITH_RECS, SAMPLE_MANUSCRIPT);
+    expect(report.grounding_skipped).toBeFalsy();
+    expect(report.total_recommendations).toBe(2);
+  });
+
+  it("runEvidenceGroundingGate: grounding_skipped is NOT set when there are no recommendations (empty criteria)", () => {
+    const report = runEvidenceGroundingGate([], SAMPLE_MANUSCRIPT);
+    expect(report.grounding_skipped).toBeFalsy();
+    expect(report.total_recommendations).toBe(0);
+  });
+
+  it("stampAnchorTypes: grounding_skipped is NOT set when manuscript is present", () => {
+    const criteria = [
+      {
+        key: "voice",
+        recommendations: [
+          { anchor_snippet: "The diamond industry has lost its appeal", anchor_type: undefined as AnchorType | undefined },
+        ],
+      },
+    ];
+    const report = stampAnchorTypes(criteria, SAMPLE_MANUSCRIPT);
+    expect(report.grounding_skipped).toBeFalsy();
+    // Gate ran — anchor should be classified
+    expect(criteria[0].recommendations[0].anchor_type).toBe("verbatim_quote");
+  });
+});

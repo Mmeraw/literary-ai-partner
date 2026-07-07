@@ -50,6 +50,12 @@ export interface EvidenceGroundingReport {
   }>;
   /** True if ALL evidence is grounded (verbatim or paraphrased). */
   fully_grounded: boolean;
+  /**
+   * True when the grounding gate was skipped because manuscriptText was absent.
+   * Consumers must distinguish this from fully_grounded=true (which means the
+   * gate ran and all evidence passed).
+   */
+  grounding_skipped?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -352,3 +358,5 @@ export function stampAnchorTypes<
 
   return report;
 }
+
+

@@ -518,8 +518,33 @@ export function runQualityGate(
   // as verbatim_quote, paraphrased_observation, or editorial_diagnosis.
   // Recommendations with editorial_diagnosis anchors are flagged — they contain
   // fabricated "evidence" (LLM diagnostic text, not manuscript quotes).
+  // Advisory: if manuscriptText is absent, emit grounding_skipped so monitoring
+  // can distinguish "gate ran and passed" from "gate never ran".
   let evidenceGroundingReport: EvidenceGroundingReport | undefined;
-  if (manuscriptText && manuscriptText.trim().length > 0 && totalRecs > 0) {
+  if (!manuscriptText || manuscriptText.trim().length === 0) {
+    if (totalRecs > 0) {
+      // Gate cannot run — manuscript unavailable. Emit a visible advisory so
+      // monitoring surfaces the skip rather than silently treating all anchors as grounded.
+      evidenceGroundingReport = {
+        total_recommendations: totalRecs,
+        verbatim_count: 0,
+        paraphrased_count: 0,
+        diagnosis_count: 0,
+        ungrounded: [],
+        fully_grounded: false,
+        grounding_skipped: true,
+      };
+      checks.push({
+        check_id: "evidence_grounding",
+        passed: true,
+        error_code: undefined,
+        details: `Evidence grounding gate SKIPPED — manuscriptText unavailable for ${totalRecs} recommendation(s). Cannot distinguish grounded evidence from fabrication. Investigate upstream manuscript hydration.`,
+      });
+      console.warn("[QualityGate][GroundingGate] evidence grounding skipped — manuscriptText absent", {
+        total_recommendations: totalRecs,
+      });
+    }
+  } else if (totalRecs > 0) {
     evidenceGroundingReport = stampAnchorTypes(synthesis.criteria as never, manuscriptText);
     const { diagnosis_count, total_recommendations, ungrounded } = evidenceGroundingReport;
     // Evidence grounding gate: stamps anchor_type on each recommendation.
