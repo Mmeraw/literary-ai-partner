@@ -535,6 +535,21 @@ function computeScorabilityStatus(
   return "scorable";
 }
 
+/**
+ * Returns the maximum confidence_score_0_100 that is consistent with
+ * confidence_level === "low" for the given criterion key.
+ *
+ * This is the canonical authority for the low-confidence score ceiling.
+ * Callers must never hardcode their own threshold — import this instead.
+ *
+ * General:    ≤ 59  (MODERATE_MIN 60 − 1)
+ * proseControl: ≤ 54  (MODERATE_MIN_BY_KEY[proseControl] 55 − 1)
+ */
+export function maxLowConfidenceScore(key?: string | null): number {
+  const moderateMin = (typeof key === "string" ? MODERATE_MIN_BY_KEY[key] : undefined) ?? MODERATE_MIN;
+  return moderateMin - 1;
+}
+
 export function computeCriterionConfidence(
   criterion: CriterionConfidenceInput,
   sourceText?: string,

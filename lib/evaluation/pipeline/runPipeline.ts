@@ -50,7 +50,7 @@ import {
 import { buildScoreLedger } from "./buildScoreLedger";
 import { buildExcellenceFilter } from "./buildExcellenceFilter";
 import { buildAdvisoryPlan } from "./buildAdvisoryPlan";
-import { computeCriterionConfidence } from "./criterionConfidence";
+import { computeCriterionConfidence, maxLowConfidenceScore } from "./criterionConfidence";
 import type {
   PipelineResult,
   SinglePassOutput,
@@ -611,6 +611,39 @@ function enforceTextualAnchorConfidence(
       criterion.scorability_status === "non_scorable"
         ? "non_scorable"
         : "scorable_low_confidence",
+  };
+}
+
+/**
+ * Enforces the label⇔score invariant: a criterion with confidence_level==="low"
+ * must have a confidence_score_0_100 that is consistent with that label
+ * (i.e. below the moderate threshold for its criterion key).
+ *
+ * This is the single authoritative enforcement point for this invariant.
+ * It runs last in the V2 adapter chain, after computeCriterionConfidence and
+ * enforceTextualAnchorConfidence have both already executed.
+ *
+ * If the score is already in range this function is a no-op.
+ */
+function enforceConfidenceLevelPolicy(
+  criterion: EvaluationResultV2["criteria"][number],
+): EvaluationResultV2["criteria"][number] {
+  if (criterion.confidence_level !== "low") return criterion;
+
+  const cap = maxLowConfidenceScore(criterion.key);
+  const current = criterion.confidence_score_0_100 ?? cap;
+  if (current <= cap) return criterion;
+
+  const existingReasons = Array.isArray(criterion.confidence_reasons)
+    ? criterion.confidence_reasons
+    : [];
+
+  return {
+    ...criterion,
+    confidence_score_0_100: cap,
+    confidence_reasons: Array.from(
+      new Set([...existingReasons, "CONFIDENCE_LEVEL_SCORE_CLAMPED"]),
+    ),
   };
 }
 
@@ -2976,7 +3009,8 @@ export function synthesisToEvaluationResultV2(
         },
       ),
     )
-    .map(enforceTextualAnchorConfidence);
+    .map(enforceTextualAnchorConfidence)
+    .map(enforceConfidenceLevelPolicy);
 
   const ensureSubstantiveText = (value: string | undefined, minLength = 40): string | null => {
     const trimmed = typeof value === "string" ? value.trim() : "";
