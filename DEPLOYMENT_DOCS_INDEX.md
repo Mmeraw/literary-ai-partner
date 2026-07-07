@@ -41,6 +41,7 @@
 |----------|---------|------------|
 | [docs/PRODUCTION_SECRETS_DEPLOY.md](docs/PRODUCTION_SECRETS_DEPLOY.md) | Complete secrets + troubleshooting | Deep dive, debugging |
 | [DEPLOYMENT_QUICK_REFERENCE.md](DEPLOYMENT_QUICK_REFERENCE.md) | One-page cheat sheet | During deployment (copy-paste) |
+| [docs/operations/runbooks/RESCUE_STUCK_JOBS_DEPLOY_SCHEDULE_RUNBOOK.md](docs/operations/runbooks/RESCUE_STUCK_JOBS_DEPLOY_SCHEDULE_RUNBOOK.md) | Deploy/schedule `rescue-stuck-jobs` (Block 1 PR-2 ops) | Operationalizing independent rescue path |
 
 ### Change Documentation (Review if You're New to These Improvements)
 
