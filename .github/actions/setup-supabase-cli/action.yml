@@ -5,9 +5,9 @@ description: >
 
 inputs:
   version:
-    description: Supabase CLI version tag (e.g. v2.90.0)
+    description: Supabase CLI version tag (e.g. v2.109.1)
     required: false
-    default: "v2.90.0"
+    default: "v2.109.1"
 
 runs:
   using: composite
@@ -25,6 +25,7 @@ runs:
         # Checksum map — add new versions here when upgrading.
         declare -A CHECKSUMS=(
           ["v2.90.0"]="34e264108d0502f922f2a11c4481d512335e8a6b621c8d8c25524eb9f25e9576"
+          ["v2.109.1"]="36d87b7fe6b4bcfe89ac47a4354e526cff22480224de426d7b370f6934556976"
         )
 
         EXPECTED_SHA="${CHECKSUMS[$SUPABASE_VERSION]:-}"
