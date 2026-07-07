@@ -16,6 +16,7 @@ try {
 }
 
 const errors = [];
+const warnings = [];
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -28,6 +29,8 @@ const requireValue = (path, predicate, message) => {
     errors.push(`${path}: ${message}`);
   }
 };
+
+// ── Core proof assertions (required on all proofs) ───────────────────────────
 
 requireValue('job', isObject, 'missing object');
 requireValue('job.status', (value) => value === 'complete', 'must equal "complete" for closure proof');
@@ -116,6 +119,134 @@ if (g1 !== undefined && g1 !== null) {
   }
   if (!isNonEmptyString(g1.internal_gate_signal)) {
     errors.push('g1_comparison.internal_gate_signal: must document that gate signal is internal-only');
+  }
+}
+
+// ── RCA-U2-006: Pass 2 anchor enforcement (optional until schema migration complete) ──
+//
+// pass2EvidenceAnchors is emitted by collect-u2-proof.mjs v2+ (G2/G3 fix).
+// Older proof packs will not have this block — validation is skipped for them.
+// Once all active proof generators emit the new structure, flip the top-level
+// requireValue() to make the block mandatory.
+//
+// When present, this block proves:
+//   - criteria[].evidence[].snippet is the source (not recommendations[].anchor_snippet)
+//   - NO_TEXTUAL_ANCHOR in reason_codes[] means the Pass 2 score cap fired
+//   - Each criterion's anchor check outcome is individually recorded
+//
+// Complementary: see scripts/test-has-textual-anchor.mjs for deterministic
+// unit-level proof that all hasTextualAnchor() branches fire correctly (G1).
+
+const pass2Anchors = proof?.u2Proof?.pass2EvidenceAnchors;
+const pass2Summary = proof?.u2Proof?.pass2Summary;
+
+if (pass2Anchors !== undefined && pass2Anchors !== null) {
+  if (!Array.isArray(pass2Anchors)) {
+    errors.push('u2Proof.pass2EvidenceAnchors: must be an array when present');
+  } else {
+    // Each entry must have the required shape
+    pass2Anchors.forEach((entry, i) => {
+      if (!isObject(entry)) {
+        errors.push(`u2Proof.pass2EvidenceAnchors[${i}]: must be an object`);
+        return;
+      }
+      if (!Array.isArray(entry.evidenceSnippetLengths)) {
+        errors.push(`u2Proof.pass2EvidenceAnchors[${i}].evidenceSnippetLengths: must be an array`);
+      }
+      if (!Array.isArray(entry.pass2ReasonCodes)) {
+        errors.push(`u2Proof.pass2EvidenceAnchors[${i}].pass2ReasonCodes: must be an array`);
+      }
+      if (typeof entry.wouldPassAnchorCheck !== 'boolean') {
+        errors.push(`u2Proof.pass2EvidenceAnchors[${i}].wouldPassAnchorCheck: must be a boolean`);
+      }
+    });
+
+    // Warn (not error) if NO_TEXTUAL_ANCHOR has never fired — this is the G1 gap.
+    // The deterministic fixture (test-has-textual-anchor.mjs) closes G1 independently.
+    const anyNoTextualAnchor = pass2Anchors.some(
+      (c) => Array.isArray(c.pass2ReasonCodes) && c.pass2ReasonCodes.includes('NO_TEXTUAL_ANCHOR')
+    );
+    if (!anyNoTextualAnchor) {
+      warnings.push(
+        'u2Proof.pass2EvidenceAnchors: NO_TEXTUAL_ANCHOR has not fired in this proof job. ' +
+        'Pass 2 score cap is unexercised in production. ' +
+        'G1 closure requires scripts/test-has-textual-anchor.mjs to pass.'
+      );
+    }
+  }
+}
+
+if (pass2Summary !== undefined && pass2Summary !== null) {
+  if (!isObject(pass2Summary)) {
+    errors.push('u2Proof.pass2Summary: must be an object when present');
+  } else {
+    if (typeof pass2Summary.totalCriteria !== 'number') {
+      errors.push('u2Proof.pass2Summary.totalCriteria: must be a number');
+    }
+    if (typeof pass2Summary.allCriteriaHaveEvidence !== 'boolean') {
+      errors.push('u2Proof.pass2Summary.allCriteriaHaveEvidence: must be a boolean');
+    }
+    if (typeof pass2Summary.anyNoTextualAnchorFired !== 'boolean') {
+      errors.push('u2Proof.pass2Summary.anyNoTextualAnchorFired: must be a boolean');
+    }
+    if (typeof pass2Summary.anyScoreCapped !== 'boolean') {
+      errors.push('u2Proof.pass2Summary.anyScoreCapped: must be a boolean');
+    }
+  }
+}
+
+// ── RCA-U2-006: Artifact gate HOLD (optional until schema migration complete) ──
+//
+// artifactGate is emitted by collect-u2-proof.mjs v2+ (G3 fix).
+// Proves the artifact gate layer independently from Pass 2 enforcement.
+// EVIDENCE-MISSING-1 / INTERP-MISSING-1 are HOLD codes — they must not appear
+// in gateEnforcementReasonCodes (which is populated only on FAIL paths).
+//
+// When present:
+//   - holdFired: did the artifact gate emit a HOLD for this job?
+//   - reasonCodes: the HOLD reason codes (EVIDENCE-MISSING-1, INTERP-MISSING-1, ...)
+//   - gateEnforcementReasonCodes: must be [] on the PASS path
+
+const artifactGate = proof?.u2Proof?.artifactGate;
+
+if (artifactGate !== undefined && artifactGate !== null) {
+  if (!isObject(artifactGate)) {
+    errors.push('u2Proof.artifactGate: must be an object when present');
+  } else {
+    if (typeof artifactGate.holdFired !== 'boolean') {
+      errors.push('u2Proof.artifactGate.holdFired: must be a boolean');
+    }
+    if (!Array.isArray(artifactGate.reasonCodes)) {
+      errors.push('u2Proof.artifactGate.reasonCodes: must be an array');
+    }
+    if (!Array.isArray(artifactGate.gateEnforcementReasonCodes)) {
+      errors.push('u2Proof.artifactGate.gateEnforcementReasonCodes: must be an array');
+    }
+
+    // Structural invariant: HOLD codes must NOT appear in gateEnforcementReasonCodes.
+    // On the PASS path backwardRelook.reasonCodes is [], so these codes are only
+    // visible in governance.warnings — not in gate_enforcement.reason_codes.
+    const holdCodes = ['EVIDENCE-MISSING-1', 'INTERP-MISSING-1'];
+    const geCodes = Array.isArray(artifactGate.gateEnforcementReasonCodes)
+      ? artifactGate.gateEnforcementReasonCodes
+      : [];
+    const leakedCodes = holdCodes.filter((c) => geCodes.includes(c));
+    if (leakedCodes.length > 0) {
+      errors.push(
+        `u2Proof.artifactGate.gateEnforcementReasonCodes: HOLD codes ${JSON.stringify(leakedCodes)} ` +
+        'must not appear in gate_enforcement.reason_codes on the PASS path — ' +
+        'these are non-blocking HOLD codes surfaced only in governance.warnings'
+      );
+    }
+  }
+}
+
+// ── Results ──────────────────────────────────────────────────────────────────
+
+if (warnings.length > 0) {
+  console.warn('U2 proof warnings:');
+  for (const warning of warnings) {
+    console.warn(`⚠  ${warning}`);
   }
 }
 
