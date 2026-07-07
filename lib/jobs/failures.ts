@@ -17,6 +17,9 @@ export const FAILURE_CODES = [
   'LEASE_EXPIRED',           // transient: worker died; new worker may acquire a new lease
   'CLAIM_RPC_FAILED',         // transient: claim RPC unavailable; retry via existing machinery
   'DB_WRITE_FAILED',          // transient: artifact/DB write failed after internal retries
+  'SEED_GENERATION_FAILED',    // transient: seed generation incomplete or provider error
+  'WAVE_EXECUTION_TIMEOUT',    // transient: WAVE revision exceeded its execution window
+  'DREAM_TIMEOUT',             // transient: DREAM synthesis exceeded its execution window
   // Non-transient / terminal
   'EVALUATION_GATE_REJECTED',
   'MAX_RETRIES_EXCEEDED',
@@ -155,11 +158,17 @@ export function classifyError(error: Error): FailureCode {
   if (hasAny('invalid input', 'malformed'))
     return 'INVALID_INPUT';
 
-  // Retryable (transient) patterns
+  // Retryable (transient) patterns — specific before generic
   if (hasAny('claim_evaluation_jobs rpc failed', 'claim_evaluation_job_by_id rpc failed'))
     return 'CLAIM_RPC_FAILED';
   if (hasAny('artifactpersistence', 'upsert failed', 'upsert exhausted'))
     return 'DB_WRITE_FAILED';
+  if (hasAny('seed generation', 'semantic_seed_generation_incomplete', 'seed_artifact_read_failed', 'seed_fit_gap_blocked'))
+    return 'SEED_GENERATION_FAILED';
+  if (hasAny('wave_timeout', 'wave execution timeout'))
+    return 'WAVE_EXECUTION_TIMEOUT';
+  if (msg.includes('dream') && hasAny('timeout', 'timed out'))
+    return 'DREAM_TIMEOUT';
   if (hasAny('rate limit', '429'))                        return 'RATE_LIMITED';
   if (hasAny('timeout'))                                  return 'TIMEOUT';
   if (hasAny('network', 'econnreset', 'econnrefused'))
