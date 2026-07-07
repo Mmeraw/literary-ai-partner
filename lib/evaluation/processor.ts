@@ -5857,7 +5857,7 @@ export async function processEvaluationJob(
 
     if (!stripResult.sanitizedText || stripResult.sanitizedText.trim().length === 0) {
       const contentError = 'Manuscript text unavailable: neither manuscripts.content nor manuscript_chunks.content found';
-      await markFailed(contentError);
+      await markFailed(contentError, 'PIPELINE_INPUT_INVALID', { pipelineStage: 'phase_1a' });
 
       return { success: false, error: contentError };
     }
@@ -5866,7 +5866,7 @@ export async function processEvaluationJob(
       const shortContentError =
         `Manuscript text too short for reliable evaluation: ${stripResult.sanitizedText.trim().split(/\s+/).length} words ` +
         `(minimum ${evalMinManuscriptWords} words)`;
-      await markFailed(shortContentError);
+      await markFailed(shortContentError, 'PIPELINE_INPUT_INVALID', { pipelineStage: 'phase_1a' });
 
       return { success: false, error: shortContentError };
     }
@@ -5904,7 +5904,7 @@ export async function processEvaluationJob(
     ) {
       const bindingError =
         `Context binding failure: job.manuscript_id=${jobManuscriptId} does not match fetched manuscript.id=${fetchedManuscriptId}`;
-      await markFailed(bindingError);
+      await markFailed(bindingError, 'PIPELINE_INPUT_INVALID', { pipelineStage: 'phase_1a' });
       return { success: false, error: bindingError };
     }
 
