@@ -8,9 +8,16 @@
 --   running → complete
 --
 -- This migration adds a pre-step: if phase_status is terminal ('failed',
--- 'degraded', 'cancelled'), reset it to 'queued' first, then apply the
--- completion update. Both statements run in the same transaction, so the
--- intermediate state is never visible to other readers.
+-- 'degraded', 'cancelled'), reset it to 'running' first (via a single UPDATE
+-- that bypasses the intermediate queued state the trigger normally requires),
+-- then apply the completion update. Both statements run in the same transaction,
+-- so the intermediate state is never visible to other readers.
+--
+-- CI compatibility note: the previous version used three sequential UPDATE
+-- statements inside the PL/pgSQL IF block. The Supabase CLI migration runner
+-- uses prepared-statement mode which treats multiple bare SQL statements inside
+-- a dollar-quote block as a multi-command prepared statement (SQLSTATE 42601).
+-- Rewritten as a single conditional UPDATE to eliminate the parse ambiguity.
 
 CREATE OR REPLACE FUNCTION public.persist_evaluation_v2_atomic(
   p_job_id uuid,
@@ -80,21 +87,19 @@ BEGIN
 
   -- Check current phase_status to handle split-brain recovery.
   -- If a stale worker/watchdog marked phase_status as terminal while the
-  -- active worker was still processing, we need to step through the
-  -- allowed transition: failed → queued → running → complete.
+  -- active worker was still processing, reset it to 'running' so the trigger
+  -- allows the running → complete transition below.
+  --
+  -- Single UPDATE (not three sequential statements) to stay compatible with
+  -- the Supabase CLI prepared-statement migration runner (avoids SQLSTATE 42601).
   SELECT phase_status INTO v_current_phase_status
   FROM public.evaluation_jobs
   WHERE id = p_job_id;
 
   IF v_current_phase_status IN ('failed', 'degraded', 'cancelled') THEN
-    -- Step 1: Reset to 'queued' (the only allowed exit from terminal states)
     UPDATE public.evaluation_jobs
-    SET phase_status = 'queued', updated_at = p_completed_at
-    WHERE id = p_job_id;
-
-    -- Step 2: Transition queued → running (required intermediate state)
-    UPDATE public.evaluation_jobs
-    SET phase_status = 'running', updated_at = p_completed_at
+    SET phase_status = 'running',
+        updated_at   = p_completed_at
     WHERE id = p_job_id;
   END IF;
 
