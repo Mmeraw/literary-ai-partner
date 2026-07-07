@@ -178,28 +178,29 @@ describe("checkPass3EvidenceFidelity — concept dimension", () => {
   });
 
   it("does NOT flag concept regression when Pass 3 covers all Pass 2 concepts (even with fewer anchors)", () => {
-    // This is the key case: Pass 3 produces 2 merged anchors that contain all
-    // the semantic content from 3 Pass 2 anchors — count regression but not
-    // a concept regression. Count alone would wrongly flag this.
-    const sharedText = "repetitive sentence structure reduces rhythmic variety across prose passages pacing suffers when clause length lacks variation";
+    // Key case: Pass 3 merges two Pass 2 snippets into one longer anchor.
+    // count_delta fires (2 → 1) but concept regression must NOT fire because
+    // all Pass 2 4-gram vocabulary is present in the merged snippet.
+    // Note: the merged Pass 3 snippet must literally contain the same 4-gram
+    // sequences — adjacency matters. We use two Pass 2 snippets whose
+    // concatenation exactly matches the merged snippet.
     const pass2 = makePass2({
       proseControl: [
         "repetitive sentence structure reduces rhythmic variety",
         "across prose passages pacing suffers when clause length lacks variation",
-        "rhythmic variety is important for prose passages",
       ],
     });
     const pass3 = makePass3({
       proseControl: [
-        // One merged snippet covering both pass2 concepts
-        sharedText,
+        // Single merged snippet — contains all 4-grams from both Pass 2 snippets
+        "repetitive sentence structure reduces rhythmic variety across prose passages pacing suffers when clause length lacks variation",
       ],
     });
 
     const result = checkPass3EvidenceFidelity(pass2, pass3);
-    // count_delta = 2 (3 → 1), so count regression fires
+    // count_delta = 1 (2 → 1), so count regression fires
     expect(result.count_regression_criteria).toContain("proseControl");
-    // BUT concept regression should NOT fire — all Pass 2 concepts are present
+    // BUT concept regression should NOT fire — all Pass 2 4-gram concepts are present
     expect(result.concept_regression_criteria).not.toContain("proseControl");
     expect(entryFor(result, "proseControl").concept_coverage.missing_pass2_concepts.length).toBe(0);
   });
