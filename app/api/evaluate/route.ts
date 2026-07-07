@@ -225,10 +225,19 @@ export async function POST(req: Request) {
       narrativePreflightAudit = buildNarrativePreflightAudit(preflightDecision);
 
       sourceManuscriptText = existingText;
-      sourceManuscriptWordCount =
-        typeof existingManuscript.word_count === 'number'
-          ? existingManuscript.word_count
-          : existingText.split(/\s+/).filter(Boolean).length;
+
+      // Input integrity gate: compute actual word count from decoded text.
+      // Do not trust existingManuscript.word_count — it may be stale or set
+      // from a seed harness placeholder (e.g. hardcoded 1000 for a 6-word file).
+      const actualWordCount = existingText.split(/\s+/).filter(Boolean).length;
+      if (actualWordCount < 500) {
+        return jsonError(
+          `Input integrity check failed: manuscript text is too short for evaluation (actual ${actualWordCount} words, minimum 500). Stored word count may be stale.`,
+          400,
+          { code: 'INPUT_INTEGRITY_FAILED', actual_word_count: actualWordCount, minimum_word_count: 500 }
+        );
+      }
+      sourceManuscriptWordCount = actualWordCount;
     }
 
     if (!manuscriptId && trimmedText.length === 0) {
