@@ -27,12 +27,19 @@ const canReachSupabase = async (): Promise<boolean> => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return false;
+  // Suppress stderr during the reachability probe — the Supabase auth-js
+  // fetch library logs network errors to stderr before throwing, which Jest
+  // captures and causes the suite to appear failed even when all tests skip.
+  const originalConsoleError = console.error;
+  console.error = () => {};
   try {
     const client = createClient(url, key);
     const { error } = await client.auth.admin.listUsers({ page: 1, perPage: 1 });
     return !error;
   } catch {
     return false;
+  } finally {
+    console.error = originalConsoleError;
   }
 };
 

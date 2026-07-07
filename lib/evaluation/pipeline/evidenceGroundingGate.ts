@@ -86,6 +86,9 @@ function normalize(text: string): string {
     .toLowerCase()
     .replace(/[\u2018\u2019\u201c\u201d""''`]/g, "")
     .replace(/[—–-]/g, " ")
+    // Strip punctuation that does not affect word identity so that
+    // "jacket," and "jacket" compare as equal during n-gram overlap.
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
 }
