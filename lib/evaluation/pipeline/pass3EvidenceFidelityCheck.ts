@@ -38,6 +38,7 @@
 
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import type { SinglePassOutput, SynthesisOutput, EvidenceAnchor } from "./types";
+import type { CriteriaEvidenceGroundingReport } from "./evidenceGroundingGate";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -193,18 +194,44 @@ function analyzeConceptCoverage(
  * Returns an advisory result. Callers MUST NOT use this to block pipeline
  * execution. Emit as console.warn and let monitoring surface recurring patterns.
  *
- * G4 note: pass2_grounded_count and pass3_grounded_count are always null
- * until the criteria evidence grounding gate (G4) is implemented.
- * The fields are scaffolded here so G4 can populate them without changing
- * the result type.
+ * @param pass2 - Pass 2 output
+ * @param pass3 - Pass 3 synthesis output
+ * @param pass3CriteriaGrounding - Optional G4 grounding report for Pass 3
+ *   criteria evidence. When provided, populates pass3_grounded_count.
+ *   pass2_grounded_count remains null (Pass 2 criteria evidence is not
+ *   validated against manuscript — it is not in the synthesis output).
  */
 export function checkPass3EvidenceFidelity(
   pass2: SinglePassOutput,
   pass3: SynthesisOutput,
+  pass3CriteriaGrounding?: CriteriaEvidenceGroundingReport,
 ): Pass3EvidenceFidelityResult {
   const pass2ByKey = new Map(
     pass2.criteria.map((c) => [c.key as CriterionKey, c]),
   );
+
+  // Build per-criterion grounded snippet count from G4 report (when available).
+  // Counts are keyed by criterion_key from the ungrounded list + total.
+  // We derive grounded_count per criterion by subtracting ungrounded from total.
+  const pass3GroundedByKey = new Map<CriterionKey, number>();
+  const pass3TotalByKey = new Map<CriterionKey, number>();
+  if (pass3CriteriaGrounding && !pass3CriteriaGrounding.grounding_skipped) {
+    // Tally total snippets per criterion from pass3 output (not from grounding report)
+    for (const c of pass3.criteria) {
+      pass3TotalByKey.set(c.key as CriterionKey, c.evidence?.length ?? 0);
+    }
+    // Tally ungrounded per criterion
+    const ungroundedByKey = new Map<CriterionKey, number>();
+    for (const u of pass3CriteriaGrounding.ungrounded) {
+      const key = u.criterion_key as CriterionKey;
+      ungroundedByKey.set(key, (ungroundedByKey.get(key) ?? 0) + 1);
+    }
+    // grounded = total - ungrounded
+    for (const [key, total] of pass3TotalByKey.entries()) {
+      const ungrounded = ungroundedByKey.get(key) ?? 0;
+      pass3GroundedByKey.set(key, Math.max(0, total - ungrounded));
+    }
+  }
 
   const criteria: EvidenceFidelityEntry[] = [];
   const countRegressionCriteria: CriterionKey[] = [];
@@ -225,15 +252,21 @@ export function checkPass3EvidenceFidelity(
 
     const conceptCoverage = analyzeConceptCoverage(pass2Evidence, pass3Evidence);
 
+    // pass3_grounded_count: populated when G4 grounding report is provided.
+    // pass2_grounded_count: always null — Pass 2 criteria evidence is not in
+    // the synthesis output and is not validated against the manuscript.
+    const pass3GroundedCount = pass3GroundedByKey.size > 0
+      ? (pass3GroundedByKey.get(key) ?? null)
+      : null;
+
     const entry: EvidenceFidelityEntry = {
       criterion_key: key,
       pass2_evidence_count: pass2Count,
       pass3_evidence_count: pass3Count,
       count_delta: countDelta,
       concept_coverage: conceptCoverage,
-      // G4 not yet implemented — scaffolded as null
       pass2_grounded_count: null,
-      pass3_grounded_count: null,
+      pass3_grounded_count: pass3GroundedCount,
     };
 
     criteria.push(entry);

@@ -28,6 +28,7 @@ import { validatePass1OutputCompleteness, validatePass2OutputCompleteness, valid
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
 import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
 import { checkPass3EvidenceFidelity } from "./pass3EvidenceFidelityCheck";
+import { runCriteriaEvidenceGroundingGate } from "./evidenceGroundingGate";
 // runPass3bLongform runtime import removed — now called from /api/workers/process-dream (issue #543)
 import type { LongformDreamDocument } from "./runPass3bLongform";
 // Pass 4 cross-check call retired (feat/dual-model-parallel-scoring).
@@ -2380,15 +2381,18 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     // Let QG evaluate and provide its own diagnostic rather than double-blocking.
   }
 
-  // ── U2-004 G2: Pass 3 Evidence Fidelity Check (advisory-only) ───────────
-  // Extended fidelity diagnostic: count delta + concept coverage + grounding
-  // scaffold. Emits PASS3_EVIDENCE_DEPTH_REGRESSION when Pass 3 evidence is
-  // weaker than Pass 2 on count OR semantic concept coverage. Does NOT fail
-  // jobs. Data feeds the G1 decision: whether to add pass2_evidence to the
-  // comparison packet (Verdict C, 2026-07-07).
-  // See docs/governance/U2_PROVENANCE_GAP_LEDGER.md.
+  // ── U2-004 G2 + G4: Pass 3 Evidence Fidelity Check (advisory-only) ────────
+  // Extended fidelity diagnostic: count delta + concept coverage + grounding.
+  // G4 grounding report (criteria evidence) is pre-computed here so it can
+  // be passed into the fidelity check to populate pass3_grounded_count.
+  // QG re-runs G4 internally (idempotent, deterministic — no double cost).
+  // Does NOT fail jobs. See docs/governance/U2_PROVENANCE_GAP_LEDGER.md.
   {
-    const fidelityResult = checkPass3EvidenceFidelity(pass2Output, pass3Output);
+    const pass3CriteriaGrounding = runCriteriaEvidenceGroundingGate(
+      pass3Output.criteria as Array<{ key: string; evidence: Array<{ snippet: string }> }>,
+      opts.manuscriptText,
+    );
+    const fidelityResult = checkPass3EvidenceFidelity(pass2Output, pass3Output, pass3CriteriaGrounding);
     if (!fidelityResult.fidelity_intact) {
       console.warn("[Pipeline][U2-004/G2] PASS3_EVIDENCE_DEPTH_REGRESSION: Pass 3 evidence fidelity below Pass 2 (advisory)", {
         manuscript_id: opts.manuscriptId ?? null,

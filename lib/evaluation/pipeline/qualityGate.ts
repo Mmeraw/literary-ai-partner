@@ -79,7 +79,9 @@ import {
 import {
   runEvidenceGroundingGate,
   stampAnchorTypes,
+  runCriteriaEvidenceGroundingGate,
   type EvidenceGroundingReport,
+  type CriteriaEvidenceGroundingReport,
 } from "./evidenceGroundingGate";
 
 export const QG_MIN_REC_LENGTH = 50;
@@ -510,6 +512,43 @@ export function runQualityGate(
       warnings.push(
         `[P2_GENERIC_PRESCRIPTIONS][WARN] ${genericWorkshopRecs.length} recommendation(s) contain generic workshop language: ${genericWorkshopRecs.slice(0, 5).join("; ")}. Recommendations must be manuscript-specific.`,
       );
+    }
+  }
+
+  // ── Check 4b: Criteria Evidence Grounding Gate (U2-004 G4 — advisory-only) ─
+  // Validates criteria[].evidence[].snippet against manuscript text using the
+  // same classifyAnchor logic as recommendation anchors.
+  // Advisory-only: passed=true always. No job failure.
+  // Connects to G2: grounded_count populates pass3_grounded_count in
+  // EvidenceFidelityEntry once the fidelity check is extended.
+  // Promotion to blocking requires live-proof of systematic fabrication.
+  let criteriaEvidenceGroundingReport: CriteriaEvidenceGroundingReport | undefined;
+  {
+    criteriaEvidenceGroundingReport = runCriteriaEvidenceGroundingGate(
+      synthesis.criteria as Array<{ key: string; evidence: Array<{ snippet: string }> }>,
+      manuscriptText,
+    );
+    const { diagnosis_count, total_snippets, grounding_skipped } = criteriaEvidenceGroundingReport;
+    const details = grounding_skipped
+      ? `Criteria evidence grounding SKIPPED — manuscriptText unavailable for ${total_snippets} snippet(s)`
+      : diagnosis_count > 0
+        ? `${diagnosis_count}/${total_snippets} criteria evidence snippet(s) classified as editorial_diagnosis (advisory — not grounded in manuscript)`
+        : `All ${total_snippets} criteria evidence snippet(s) grounded in manuscript text`;
+    checks.push({
+      check_id: "criteria_evidence_grounding",
+      passed: true, // advisory-only: never blocks
+      details,
+    });
+    if (!grounding_skipped && diagnosis_count > 0) {
+      console.warn("[QualityGate][G4] criteria evidence grounding advisory: ungrounded snippets detected", {
+        diagnosis_count,
+        total_snippets,
+        fabrication_ratio: total_snippets > 0 ? (diagnosis_count / total_snippets).toFixed(2) : "0",
+        samples: criteriaEvidenceGroundingReport.ungrounded.slice(0, 3).map((u) => ({
+          criterion: u.criterion_key,
+          snippet: u.snippet.substring(0, 60),
+        })),
+      });
     }
   }
 
@@ -1422,6 +1461,7 @@ export function runQualityGate(
         }
       : {}),
     ...(evidenceGroundingReport ? { evidence_grounding_report: evidenceGroundingReport } : {}),
+    ...(criteriaEvidenceGroundingReport ? { criteria_evidence_grounding_report: criteriaEvidenceGroundingReport } : {}),
   };
 }
 

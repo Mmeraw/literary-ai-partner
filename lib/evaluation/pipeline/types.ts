@@ -423,6 +423,8 @@ export type QualityGateResult = {
   editorial_diagnostics?: EditorialDiagnostic[];
   editorial_diagnostics_summary?: EditorialDiagnosticsSummary;
   evidence_grounding_report?: import("./evidenceGroundingGate").EvidenceGroundingReport;
+  /** U2-004 G4 — advisory-only grounding report for criteria[].evidence[].snippet */
+  criteria_evidence_grounding_report?: import("./evidenceGroundingGate").CriteriaEvidenceGroundingReport;
 };
 
 // ── Completion capture / usage telemetry ───────────────────────────────────
