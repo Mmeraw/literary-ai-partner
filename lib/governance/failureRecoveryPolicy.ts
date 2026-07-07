@@ -64,10 +64,10 @@ const RETRY_THEN_TERMINAL_BLOCK_FAILURE_CODES = [
   'HANDOFF_MISSING_EVIDENCE_ANCHOR',
   'HANDOFF_ORPHANED_CONJUNCTION',
   'HANDOFF_DANGLING_REFERENCE',
-  'REVISE_AUTHOR_DECISION_NOT_PERSISTED',
-  'REVISE_SEED_GENERATION_FAILED',
-  'REVISION_LEDGER_ASSEMBLY_FAILED',
-  'REVOCATION_NOT_PERSISTED',
+  'REVISE_AUTHOR_DECISION_NOT_PERSISTED', // deferred: governance-only, no runtime emit site exists yet (Revise RS06 write path not yet throwing)
+  'REVISE_SEED_GENERATION_FAILED',         // deferred: governance-only, Revise-scoped seed failure; emit site pending RS05 hardening
+  'REVISION_LEDGER_ASSEMBLY_FAILED',       // deferred: governance-only, retry disposition declared but no throw site confirmed; see LEDGER_ASSEMBLY_FAILED (terminal) for RS01 coverage
+  'REVOCATION_NOT_PERSISTED',              // deferred: governance-only, persistence write failure in Revise revocation path; emit site not yet implemented
   'SEED_GENERATION_FAILED',
   'TRUSTEDPATH_UNAUTHENTICATED',
   'WAVE_EXECUTION_TIMEOUT',
