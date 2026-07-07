@@ -5,6 +5,12 @@ const certifiedPayload = {
   certified_at: '2026-02-22T00:00:00.000Z',
   blocking_reasons: [],
   parity_results: { status: 'pass' },
+  // Required since commit 9f95890936 (governance(dcip)): dcipCompliancePasses()
+  // gates evaluateAuthorExposureCertification before it reaches the Phase 4B
+  // audit check. Fixture must supply a clean dcip_compliance block or the base
+  // certification short-circuits with parity_check_failed before the Phase 4B
+  // audit is evaluated — making Phase 4B tests unreachable.
+  dcip_compliance: { status: 'pass', reasons: [] },
 }
 
 describe('evaluateAuthorExposureCertificationWithFinalExternalAudit', () => {
