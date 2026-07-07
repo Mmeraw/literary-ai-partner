@@ -1923,7 +1923,8 @@ const TERMINAL_FAILURE_EXACT = new Set<string>([
  */
 const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
   'TEMPLATE_COMPLETENESS_GATE_FAILED',
-  'QG_DUPLICATE_REC',
+  // QG_DUPLICATE_REC removed: recovery policy is log_only, which short-circuits isKickEligibleFailureCode()
+  // before this set is ever consulted. Entry was unreachable dead code.
   'QG_MISSING_RATIONALE',
   'QG_MISSING_EVIDENCE',
   'QG_DENSITY_FLOOR_VIOLATION',
