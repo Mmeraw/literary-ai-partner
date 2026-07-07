@@ -15,6 +15,8 @@ export const FAILURE_CODES = [
   'RATE_LIMITED',
   'INTERNAL_ERROR',
   'LEASE_EXPIRED',           // transient: worker died; new worker may acquire a new lease
+  'CLAIM_RPC_FAILED',         // transient: claim RPC unavailable; retry via existing machinery
+  'DB_WRITE_FAILED',          // transient: artifact/DB write failed after internal retries
   // Non-transient / terminal
   'EVALUATION_GATE_REJECTED',
   'MAX_RETRIES_EXCEEDED',
@@ -154,6 +156,10 @@ export function classifyError(error: Error): FailureCode {
     return 'INVALID_INPUT';
 
   // Retryable (transient) patterns
+  if (hasAny('claim_evaluation_jobs rpc failed', 'claim_evaluation_job_by_id rpc failed'))
+    return 'CLAIM_RPC_FAILED';
+  if (hasAny('artifactpersistence', 'upsert failed', 'upsert exhausted'))
+    return 'DB_WRITE_FAILED';
   if (hasAny('rate limit', '429'))                        return 'RATE_LIMITED';
   if (hasAny('timeout'))                                  return 'TIMEOUT';
   if (hasAny('network', 'econnreset', 'econnrefused'))

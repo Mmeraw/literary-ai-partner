@@ -167,7 +167,7 @@ describe('claimQueuedJobs', () => {
     const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
 
     await expect(claimQueuedJobs({ workerId: 'worker-abc' })).rejects.toMatchObject({
-      message: 'function claim_evaluation_jobs does not exist',
+      message: expect.stringContaining('function claim_evaluation_jobs does not exist'),
     });
     errorSpy.mockRestore();
   });
@@ -182,7 +182,7 @@ describe('claimQueuedJobs', () => {
     const { claimQueuedJobs } = await import('../../../lib/evaluation/processor');
 
     await expect(claimQueuedJobs({ workerId: 'worker-abc' })).rejects.toMatchObject({
-      message: 'connection refused',
+      message: expect.stringContaining('connection refused'),
     });
     errorSpy.mockRestore();
   });

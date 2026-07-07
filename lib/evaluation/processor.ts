@@ -11930,7 +11930,7 @@ export async function claimQueuedJobs(
 
   if (error) {
     console.error('[Processor] claim_evaluation_jobs RPC error:', error);
-    throw error;
+    throw new Error(`claim_evaluation_jobs RPC failed: ${error.message}`);
   }
 
   console.log('[Processor] claim_evaluation_jobs raw result', {
@@ -11994,7 +11994,7 @@ export async function claimQueuedJobById(
 
   if (error) {
     console.error('[Processor] claim_evaluation_job_by_id RPC error:', error);
-    throw error;
+    throw new Error(`claim_evaluation_job_by_id RPC failed: ${error.message}`);
   }
 
   if (!data || data.length === 0) {
