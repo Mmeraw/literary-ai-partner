@@ -192,7 +192,8 @@ else
 fi
 echo ""
 # Seed manuscript content for evaluation pipeline (prevents "Manuscript text unavailable" failures)
-SEED_CONTENT="The old harbour master watched the tide charts with growing unease. Three decades of service had taught him to read the water, but tonight the patterns defied every rule he knew. The barometric pressure had dropped twelve millibars in six hours. Fishing boats strained against their moorings as the wind shifted from southwest to due north without warning. He picked up the radio handset and called the coastguard station. Listen carefully, he said. Pull every vessel inside the breakwater. I have never seen readings like this. The dispatcher on the other end paused. Sir, the satellite data shows clear skies for the next forty-eight hours. The harbour master looked out at the darkening horizon. Your satellites are wrong, he said. Something is coming. He hung up and began securing the dock lines himself, moving with the methodical urgency of a man who trusted his instincts more than any instrument. By midnight, the first wave struck the outer wall."
+# export so the Node.js subprocess inherits it (process.env.SEED_CONTENT)
+export SEED_CONTENT="The old harbour master watched the tide charts with growing unease. Three decades of service had taught him to read the water, but tonight the patterns defied every rule he knew. The barometric pressure had dropped twelve millibars in six hours. Fishing boats strained against their moorings as the wind shifted from southwest to due north without warning. He picked up the radio handset and called the coastguard station. Listen carefully, he said. Pull every vessel inside the breakwater. I have never seen readings like this. The dispatcher on the other end paused. Sir, the satellite data shows clear skies for the next forty-eight hours. The harbour master looked out at the darkening horizon. Your satellites are wrong, he said. Something is coming. He hung up and began securing the dock lines himself, moving with the methodical urgency of a man who trusted his instincts more than any instrument. By midnight, the first wave struck the outer wall. He had seen squalls before. He had seen the autumn gales that turned the bay into a washing machine, had watched container ships hold station with engines at full ahead just to stand still. None of that prepared him for this. The wave that struck the outer wall was not a rogue swell or a tidal surge. It was a mountain of dark green water that appeared from nowhere and hit the breakwater with a sound like a cannon shot. The spray rose forty feet into the air and came down as rain across the entire dock. Mooring lines snapped. A small tender broke free and spun against the harbour wall until it found a gap and disappeared into the black water beyond. He ran. Not away from the water, but toward the dock office where the emergency broadcast equipment was stored. If the satellite data was wrong, every vessel still at sea was in mortal danger. He had one chance to reach them before the next wave arrived. Inside the office the radio crackled with static and the emergency frequency was empty. He keyed the handset and began transmitting on every channel he had. All vessels, all vessels, this is Hartfield Harbour. Severe sea conditions developing without warning. Return to port immediately or seek shelter. He repeated the message four times and then listened. Out of the static came a single reply. A fishing trawler, sixteen nautical miles out, her skipper asking for a bearing. The harbour master gave him the bearing, gave him the entry instructions for the narrow channel, and stayed on the frequency for the next two hours while the storm did what storms do. By dawn the trawler was safely berthed. The outer wall had a crack running three metres along its face. Two of the dock gates were damaged beyond use. But every vessel that had been at sea was accounted for. He filed his incident report, noted that the satellite forecast had given forty-eight hours of clear skies, and wrote in the remarks column: Instruments serve the observer. The observer serves the sea. Do not let one replace the other."
 echo "2) Seed manuscript in same project"
 MID=$(node - <<'NODEEOF'
 const { createClient } = require('@supabase/supabase-js');
@@ -217,7 +218,7 @@ const client = createClient(url, key, { auth: { persistSession: false, autoRefre
       tone_context: 'neutral',
       mood_context: 'calm',
       voice_mode: 'balanced',
-      word_count: 1000,
+      word_count: (process.env.SEED_CONTENT || "").split(/\s+/).filter(Boolean).length,
       file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,
       source: 'dashboard',
       english_variant: 'us',
@@ -229,14 +230,14 @@ const client = createClient(url, key, { auth: { persistSession: false, autoRefre
       title: 'Flow1 Evidence Seed Manuscript',
       created_by: owner,
       user_id: owner,
-      word_count: 1000,
+      word_count: (process.env.SEED_CONTENT || "").split(/\s+/).filter(Boolean).length,
       file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,
       work_type: 'novel',
     },
     {
       title: 'Flow1 Evidence Seed Manuscript',
       user_id: owner,
-      word_count: 1000,
+      word_count: (process.env.SEED_CONTENT || "").split(/\s+/).filter(Boolean).length,
       file_url: `data:text/plain;charset=utf-8,${encodeURIComponent(process.env.SEED_CONTENT || "Seed manuscript for Flow1 evidence testing.")}`,
       work_type: 'novel',
     },
