@@ -38,6 +38,14 @@ runs:
         curl -fsSL "$SUPABASE_URL" -o /tmp/$SUPABASE_TARBALL
         echo "${EXPECTED_SHA}  /tmp/${SUPABASE_TARBALL}" | sha256sum -c -
         tar -xzf /tmp/$SUPABASE_TARBALL -C /tmp
+
+        # v2.109.1+ ships as a shim (supabase) + a companion binary (supabase-go).
+        # Both must be installed to the same directory — the shim resolves supabase-go
+        # by looking for it alongside itself. Install supabase first so -go can follow.
         sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+        if [[ -f /tmp/supabase-go ]]; then
+          sudo install -m 0755 /tmp/supabase-go /usr/local/bin/supabase-go
+        fi
+
         supabase --version
         echo "✅ Supabase CLI ${SUPABASE_VERSION} installed"
