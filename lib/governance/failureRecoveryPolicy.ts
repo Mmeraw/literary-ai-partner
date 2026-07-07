@@ -114,7 +114,7 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'PACKAGE_GATE_FAILED',
   'PHASE5_BANNED_ENTITY',
   'PHASE5_MISSING_AUDIT',
-  'PHASE5_RENDER_PARITY_FAIL', // certification return-value gate; no thrown failure bridge
+  'PHASE5_RENDER_PARITY_FAIL', // Certification return-value gate; enforced through author exposure certification, not a thrown runtime failure.
   'PHASE5_TEMPLATE_CONTRACT_FAIL',
   'PHASE5_UNCERTIFIED_OUTPUT',
   'QG_ARTIFACT_GATE_FAIL',
@@ -138,7 +138,7 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'UNRESOLVED_PLACEHOLDER',
   'UNVERIFIED_INDUSTRY_USER',
   'VERIFICATION_STATE_UNAUDITED',
-  'VIEWMODEL_BOUNDARY_CONTAMINATION', // CI/static structural gate; no runtime bridge
+  'VIEWMODEL_BOUNDARY_CONTAMINATION', // CI/static structural gate; enforced by ViewModel boundary tests, not emitted at runtime.
   'WAVE_DERIVATION_EMPTY',
   'WORD_LIMIT_EXCEEDED',
   'WORKBENCH_ANCHOR_UNRESOLVABLE',
