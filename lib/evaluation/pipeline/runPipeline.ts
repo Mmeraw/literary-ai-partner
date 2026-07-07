@@ -27,6 +27,7 @@ import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate
 import { validatePass1OutputCompleteness, validatePass2OutputCompleteness, validatePass3OutputCompleteness } from "./passOutputCompletenessGate";
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
 import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
+import { checkPass3EvidenceFidelity } from "./pass3EvidenceFidelityCheck";
 // runPass3bLongform runtime import removed — now called from /api/workers/process-dream (issue #543)
 import type { LongformDreamDocument } from "./runPass3bLongform";
 // Pass 4 cross-check call retired (feat/dual-model-parallel-scoring).
@@ -2377,6 +2378,38 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     // QG INPUT gate is warn-only: if critical issues remain after all repairs,
     // they indicate a systemic problem the repair chain failed to fix.
     // Let QG evaluate and provide its own diagnostic rather than double-blocking.
+  }
+
+  // ── U2-004 G2: Pass 3 Evidence Fidelity Check (advisory-only) ───────────
+  // Extended fidelity diagnostic: count delta + concept coverage + grounding
+  // scaffold. Emits PASS3_EVIDENCE_DEPTH_REGRESSION when Pass 3 evidence is
+  // weaker than Pass 2 on count OR semantic concept coverage. Does NOT fail
+  // jobs. Data feeds the G1 decision: whether to add pass2_evidence to the
+  // comparison packet (Verdict C, 2026-07-07).
+  // See docs/governance/U2_PROVENANCE_GAP_LEDGER.md.
+  {
+    const fidelityResult = checkPass3EvidenceFidelity(pass2Output, pass3Output);
+    if (!fidelityResult.fidelity_intact) {
+      console.warn("[Pipeline][U2-004/G2] PASS3_EVIDENCE_DEPTH_REGRESSION: Pass 3 evidence fidelity below Pass 2 (advisory)", {
+        manuscript_id: opts.manuscriptId ?? null,
+        title: opts.title,
+        count_regression_criteria: fidelityResult.count_regression_criteria,
+        concept_regression_criteria: fidelityResult.concept_regression_criteria,
+        total_count_delta: fidelityResult.total_count_delta,
+        total_missing_concepts: fidelityResult.total_missing_concepts,
+        total_new_concepts: fidelityResult.total_new_concepts,
+        // Per-criterion detail (truncated to 5 to keep logs manageable)
+        criteria_sample: fidelityResult.criteria
+          .filter((c) => c.count_delta > 0 || c.concept_coverage.missing_pass2_concepts.length > 0)
+          .slice(0, 5)
+          .map((c) => ({
+            criterion: c.criterion_key,
+            count_delta: c.count_delta,
+            missing_concepts: c.concept_coverage.missing_pass2_concepts.length,
+            new_concepts: c.concept_coverage.new_unsupported_concepts.length,
+          })),
+      });
+    }
   }
 
   const pass4StartMs = nowMs();

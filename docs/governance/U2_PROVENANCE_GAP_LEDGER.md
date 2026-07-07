@@ -9,29 +9,35 @@
 
 ## Context
 
-A governance audit (RARA U2-004) identified a structural provenance chain between Pass 2 and Pass 3 synthesis. Pass 2 produces evidence per criterion; none of that evidence reaches the Pass 3 LLM context. This ledger tracks all identified provenance gaps, their severity, closure status, and implementation order.
+A governance audit (RARA U2-004) identified a structural provenance chain break between Pass 2 and Pass 3 synthesis. Pass 2 produces evidence per criterion; none of that evidence reaches the Pass 3 LLM context. This ledger tracks all identified provenance gaps, their severity, closure status, and implementation order.
 
 **Design constraint:** Do not add Pass 2 evidence to the Pass 3 LLM prompt until live diagnostic data (G2) proves a recurring regression. Verdict C applies (see G1 history verdict 2026-07-07).
 
+**Scale context:** 100,000 users target — all gaps must be closed or explicitly accepted before scale.
+
 ---
 
-## Provenance Loss Map
+## Provenance Loss Map — All 7 Breaks
 
-| Stage | What Is Lost |
-|-------|-------------|
-| `buildComparisonPacket()` | Pass 2 `evidence[]` entirely — dropped before LLM receives context |
-| `buildComparisonPacket()` | Pass 2 `recommendations[]` entirely — not in LLM context |
-| `buildComparisonPacket()` | Pass 2 rationale truncated to first sentence, ≤220 chars |
-| `buildComparisonPacket()` | Pass 1 evidence capped at 3 anchors — remaining anchors dropped |
-| `parseEvidenceArray()` | LLM-generated evidence has no provenance chain to Pass 1/2 anchors |
-| `parseRecommendations()` | `anchor_snippet` is LLM-generated — validated post-synthesis (U2-002), but original Pass 2 anchor is not referenced |
-| `synthesisToEvaluationResult()` | Confidence computed on Pass 3 output only — no signal from Pass 2 evidence depth |
+Each row is a distinct provenance break in the pipeline. All are tracked in this ledger.
+
+| # | Stage | What Is Lost | Gap | Severity |
+|---|-------|-------------|-----|----------|
+| PL-1 | `buildComparisonPacket()` | Pass 2 `evidence[]` entirely — dropped before LLM receives context | G1 | HIGH |
+| PL-2 | `buildComparisonPacket()` | Pass 2 `recommendations[]` entirely — not in LLM context | — | MEDIUM (future gap) |
+| PL-3 | `buildComparisonPacket()` | Pass 2 rationale truncated to first sentence, ≤220 chars | — | LOW (by design, may be acceptable) |
+| PL-4 | `buildComparisonPacket()` | Pass 1 evidence capped at 3 anchors — remaining anchors dropped | G3 | MEDIUM |
+| PL-5 | `parseEvidenceArray()` | LLM-generated evidence has no provenance chain to Pass 1/2 anchors | G2 | HIGH |
+| PL-6 | `parseRecommendations()` | `anchor_snippet` is LLM-generated — original Pass 2 anchor not referenced | G4 | MEDIUM |
+| PL-7 | `synthesisToEvaluationResult()` | Confidence computed on Pass 3 output only — no signal from Pass 2 evidence depth | G5 | LOW-MEDIUM |
+
+**PL-2 and PL-3 are not yet assigned gap IDs.** They are tracked here as provenance breaks. PL-2 (Pass 2 recommendations dropped) will be assessed after G2 live data is collected. PL-3 (rationale truncation) may be intentional by design — the 220-char truncation is a context budget decision, not clearly an error.
 
 ---
 
 ## Gap Registry
 
-### G1 — Pass 2 evidence structurally invisible to Pass 3
+### G1 — Pass 2 evidence structurally invisible to Pass 3 (PL-1)
 **Severity:** HIGH
 **Status:** VERDICT ISSUED — no implementation pending
 
@@ -45,26 +51,37 @@ A governance audit (RARA U2-004) identified a structural provenance chain betwee
 
 ---
 
-### G2 — No Pass 2 → Pass 3 evidence fidelity check
+### G2 — No Pass 2 → Pass 3 evidence fidelity check (PL-5)
 **Severity:** HIGH
 **Status:** IMPLEMENTING
 
 **Finding:** Pass 3 evidence is freshly LLM-generated with no check that it is consistent with what Pass 2 found. `propagationIntegrity.ts` measures current output health, not input-output transition fidelity.
 
-**Implementation:** `pass3EvidenceFidelityCheck.ts` — advisory-only check, post-Pass-3, pre-QG.
-- Check ID: `PASS3_EVIDENCE_DEPTH_REGRESSION`
-- Fires when `pass3.criteria[k].evidence.length < pass2.criteria[k].evidence.length`
-- `passed: true` always — warning only, no job failure
-- `console.warn` with full per-criterion breakdown
+**Metric design (extended per review 2026-07-07):**
+Count alone is a weak proxy. Pass 3 may produce fewer-but-stronger anchors (count regression, not a real problem) or more-but-vaguer anchors (count stable, fidelity degraded). The check therefore tracks three dimensions:
 
-**Files touched:**
-- `lib/evaluation/pipeline/pass3EvidenceFidelityCheck.ts` (new)
-- `lib/evaluation/pipeline/runPipeline.ts` (advisory call, pre-QG block)
-- `__tests__/lib/evaluation/pipeline/pass3EvidenceFidelityCheck.test.ts` (new)
+| Dimension | What it measures | Status |
+|-----------|-----------------|--------|
+| Count delta | `pass2_evidence_count - pass3_evidence_count` per criterion | Implemented |
+| Concept coverage | Pass 2 semantic n-grams (4-gram, ≥4-char tokens) absent from Pass 3 (`missing_pass2_concepts`); Pass 3 n-grams with no Pass 2 anchor (`new_unsupported_concepts`) | Implemented |
+| Grounded snippet count | Pass 2 and Pass 3 evidence snippets verified against manuscript text | Scaffolded (null) — populated when G4 lands |
+
+**`fidelity_intact = false`** fires when: count regression OR concept regression in any criterion.
+
+**Implementation:**
+- `lib/evaluation/pipeline/pass3EvidenceFidelityCheck.ts` (new) — pure function, deterministic
+- `lib/evaluation/pipeline/runPipeline.ts` — advisory call, post-repair, pre-QG block
+- `__tests__/lib/evaluation/pipeline/pass3EvidenceFidelityCheck.test.ts` — 10 cases
+
+**What does NOT change:**
+- `buildComparisonPacket` — packet structure unchanged
+- `ComparisonPacketCriterion` type — no `pass2_evidence` field added
+- Pass 3 LLM prompt — unchanged
+- Independence boundary — unchanged
 
 ---
 
-### G3 — Pass 1 evidence cap loses anchors for evidence-dense criteria
+### G3 — Pass 1 evidence cap loses anchors for evidence-dense criteria (PL-4)
 **Severity:** MEDIUM
 **Status:** PENDING (after G2 lands)
 
@@ -78,7 +95,7 @@ A governance audit (RARA U2-004) identified a structural provenance chain betwee
 
 ---
 
-### G4 — `criteria[].evidence[].snippet` has no post-synthesis grounding check
+### G4 — `criteria[].evidence[].snippet` has no post-synthesis grounding check (PL-6)
 **Severity:** MEDIUM
 **Status:** PENDING (after G2 lands)
 **Carry-forward from:** U2-002 G2
@@ -87,20 +104,23 @@ A governance audit (RARA U2-004) identified a structural provenance chain betwee
 
 **Risk:** A fabricated evidence snippet in `criteria[].evidence[]` reaches the artifact without grounding classification.
 
+**G2 dependency:** G4 will populate `pass2_grounded_count` and `pass3_grounded_count` in `EvidenceFidelityEntry`, completing the G2 metric's third dimension.
+
 **Implementation path:** Extend `evidenceGroundingGate.ts` to validate `criteria[].evidence[].snippet` using the same manuscript-grounding logic as recommendation anchors. Advisory-only during calibration, promote to blocking after live-proof.
 
 **Files touched:**
 - `lib/evaluation/pipeline/evidenceGroundingGate.ts`
+- `lib/evaluation/pipeline/pass3EvidenceFidelityCheck.ts` (populate grounded counts)
 - `lib/evaluation/pipeline/qualityGate.ts` (call site extension)
 - Tests
 
 ---
 
-### G5 — Spine confidence cap potentially overridden by `computeCriterionConfidence`
+### G5 — Spine confidence cap potentially overridden by `computeCriterionConfidence` (PL-7)
 **Severity:** LOW-MEDIUM
 **Status:** PENDING — investigation needed
 
-**Finding:** `applyWeakDiagnosticSpineConfidenceDegrade` caps `confidence_score_0_100` at 45 in `parsePass3Response`. `synthesisToEvaluationResult` then calls `computeCriterionConfidence` on the degraded criterion. If `computeCriterionConfidence` recomputes from scratch and can exceed 45, the spine guard is not end-to-end.
+**Finding:** `applyWeakDiagnosticSpineConfidenceDegrade` caps `confidence_score_0_100` at 45 in `parsePass3Response`. `synthesisToEvaluationResult` then calls `computeCriterionConfidence` on the degraded criterion. If `computeCriterionConfidence` recomputes from scratch and can exceed 45, the spine guard is not end-to-end. Confidence also carries no signal from Pass 2 evidence depth — a criterion with strong Pass 2 evidence but weak Pass 3 evidence can report high confidence.
 
 **Investigation needed:** Confirm whether `computeCriterionConfidence` respects a prior cap or recomputes from scratch. If it recomputes and can exceed 45, the spine guard leaks.
 
@@ -120,19 +140,36 @@ A governance audit (RARA U2-004) identified a structural provenance chain betwee
 
 ---
 
+## Unassigned Provenance Breaks (PL-2, PL-3)
+
+### PL-2 — Pass 2 recommendations[] dropped from LLM context
+**Severity assessment:** MEDIUM
+**Status:** Not yet a numbered gap. Pending G2 data.
+
+Pass 2 recommendations are produced per criterion and then entirely dropped from the comparison packet. Pass 3 generates recommendations independently. Whether Pass 3 synthesis would be improved by seeing Pass 2 recommendations is unknown. This break will be assessed after G2 live data clarifies how severe the evidence loss is. If Pass 3 evidence is consistently weaker, the recommendations loss compounds it.
+
+### PL-3 — Pass 2 rationale truncated to 220 chars
+**Severity assessment:** LOW — likely acceptable by design
+**Status:** Not yet a numbered gap. Accept pending review.
+
+`toFirstSentence(pass2Criterion.rationale, 220)` is a deliberate context budget decision — the first sentence is the editorial judgment signal; the rest is supporting argument. This may be an appropriate truncation. Flag for explicit acceptance decision before scale.
+
+---
+
 ## Implementation Order
 
 ```
-G2  →  G4  →  G5  →  G3  →  G6  →  [G1 if G2 proves regression]
+G2 (in progress) → G4 → G5 → G3 → G6 → [G1 if G2 proves regression]
 ```
 
-Rationale:
-- G2 first: provides live data that informs G1 decision and G3 threshold
-- G4 next: closes the U2-002 carry-forward, highest evidence-integrity risk
-- G5 next: closes the confidence cap leak (deterministic, no LLM risk)
-- G3 after: audit-only, uses G2 data to decide whether to raise cap
+**Rationale:**
+- G2 first: live data informs G1 and G3 decisions; also scaffolds the grounding dimension for G4
+- G4 next: closes U2-002 carry-forward; populates G2's grounded-count scaffold; highest evidence-integrity risk before scale
+- G5 next: deterministic investigation + fix; no LLM risk; confidence integrity matters at scale
+- G3 after: uses G2 live data to decide whether cap should be raised
 - G6 last: lowest risk, threshold refinement only
-- G1 only if G2 data proves Pass 3 systematically drops Pass 2 evidence
+- G1 only if G2 data proves systematic evidence loss across production runs
+- PL-2 (recommendations drop) assessed after G2 data; may become G7
 
 ---
 
