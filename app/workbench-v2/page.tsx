@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
+import { getWorkbenchQueue, type WorkbenchOpportunity, type WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
 import TrustedPathWorkbenchButton from "@/components/revision/TrustedPathWorkbenchButton";
 import ResetQueueButton from "@/components/revision/ResetQueueButton";
@@ -10,6 +10,41 @@ import { resolveWorkbenchRouteTargetForUser } from "@/lib/revision/workbenchQueu
 import SupportAccessToggle from "@/components/reports/SupportAccessToggle";
 import ReportConcernForm from "@/components/reports/ReportConcernForm";
 import styles from "./workbench-v2.module.css";
+
+function countVisibleOpportunities(opportunities: WorkbenchOpportunity[]) {
+  const totals: WorkbenchQueuePayload["totals"] = { must: 0, should: 0, could: 0 };
+  const scopes: WorkbenchQueuePayload["scopes"] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 };
+  const criteria: Record<string, number> = {};
+
+  for (const opportunity of opportunities) {
+    totals[opportunity.severity] += 1;
+    scopes[opportunity.scope] += 1;
+    criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1;
+  }
+
+  return { totals, scopes, criteria };
+}
+
+function operationalizeWorkbenchPayload(payload: WorkbenchQueuePayload): WorkbenchQueuePayload {
+  if (!payload.ok || payload.opportunities.length > 0 || payload.needsTargeting.length === 0) {
+    return payload;
+  }
+
+  const reviewable = payload.needsTargeting;
+  const { totals, scopes, criteria } = countVisibleOpportunities(reviewable);
+
+  return {
+    ...payload,
+    opportunities: reviewable,
+    needsTargeting: [],
+    totals,
+    scopes,
+    criteria,
+    synthesis: payload.synthesis
+      ? { ...payload.synthesis, admitted: reviewable.length, held: payload.withheldUnsupported.length }
+      : payload.synthesis,
+  };
+}
 
 export default async function WorkbenchV2Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const params = (await searchParams) ?? {};
@@ -25,7 +60,7 @@ export default async function WorkbenchV2Page({ searchParams }: { searchParams?:
     }
   }
 
-  const payload = await getWorkbenchQueue({ manuscriptId, evaluationJobId });
+  const payload = operationalizeWorkbenchPayload(await getWorkbenchQueue({ manuscriptId, evaluationJobId }));
 
   const finalReviewHref = manuscriptId && evaluationJobId
     ? `/workbench/final-review?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}`
