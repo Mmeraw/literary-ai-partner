@@ -581,24 +581,30 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
           <div className="mb-5 grid gap-3 md:grid-cols-3">
             {INPUT_METHODS.map((method, idx) => {
               const isActive = activeInputMethod === method.id;
-              const optionLabel = idx === 0 ? "Option A" : idx === 1 ? "Option B" : "Option C";
+              const optionLabels = ["Option A", "Option B", "Option C"];
+              const optionLabel = optionLabels[idx] || "Option";
+              const cardStyle = isActive
+                ? { border: "2px solid #8A5A00", backgroundColor: "#FFF8E8" }
+                : { border: "1px solid #D6D3D1", backgroundColor: "#FFFFFF" };
+              const labelStyle = { color: isActive ? "#7A2B1A" : "#8A5A00" };
               return (
                 <button
                   key={method.id}
                   type="button"
                   onClick={() => handleInputMethodChange(method.id)}
-                  className="relative min-h-[6.5rem] rounded-xl border p-4 text-left transition focus:outline-none"
-                  style={isActive
-                    ? { borderColor: '#8A5A00', backgroundColor: '#FFF8E8', boxShadow: '0 0 0 1px rgba(138,90,0,0.25)' }
-                    : { borderColor: '#D6D3D1', backgroundColor: '#FFFFFF' }}
+                  className="relative min-h-[6.5rem] rounded-xl p-4 text-left transition focus:outline-none"
+                  style={cardStyle}
                   aria-pressed={isActive}
                 >
                   {isActive && (
-                    <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 font-rg-mono text-[0.68rem] font-bold uppercase tracking-[0.08em] text-white" style={{backgroundColor:'#7A2B1A'}}>
+                    <span
+                      className="absolute right-3 top-3 rounded-full px-2 py-0.5 font-rg-mono text-[0.68rem] font-bold uppercase tracking-[0.08em]"
+                      style={{ backgroundColor: "#7A2B1A", color: "#FFFFFF" }}
+                    >
                       Selected
                     </span>
                   )}
-                  <span className="font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.14em]" style={{color: isActive ? '#7A2B1A' : '#8A5A00'}}>{optionLabel}</span>
+                  <span className="font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.14em]" style={labelStyle}>{optionLabel}</span>
                   <span className="mt-1.5 block font-rg-serif text-xl leading-tight text-stone-950">{method.label}</span>
                   <span className="mt-1 block text-sm leading-5 text-stone-700">{method.description}</span>
                 </button>
