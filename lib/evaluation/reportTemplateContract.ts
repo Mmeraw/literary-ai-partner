@@ -43,11 +43,18 @@ export function buildReportPitches(input: PitchInput): {
   const dedicatedOneSentence = clean(input.one_sentence_pitch);
   const dedicatedOneParagraph = clean(input.one_paragraph_pitch);
 
-  // Prefer dedicated fields; fall back to legacy derivation for backward compatibility.
+  // Pitch fallback chain: dedicated field → premise → generic placeholder.
+  // one_paragraph_summary (the executive summary / diagnostic judgment) is intentionally
+  // excluded from this fallback chain. It answers "why this score / what to fix" —
+  // reusing it as pitch copy collapses two semantically distinct sections into the
+  // same text. If neither a dedicated pitch field nor a premise is available, emit
+  // a neutral placeholder rather than surfacing diagnostic language as marketing copy.
   const oneParagraphPitch = dedicatedOneParagraph
-    || ((premise && summary) ? summary : (premise || summary || `RevisionGrade evaluated ${title}.`));
+    || premise
+    || `RevisionGrade evaluated ${title}.`;
   const oneSentencePitch = dedicatedOneSentence
-    || firstSentence((premise && summary) ? summary : (premise || summary)) || `RevisionGrade evaluated ${title}.`;
+    || firstSentence(premise)
+    || `RevisionGrade evaluated ${title}.`;
 
   return { oneParagraphPitch, oneSentencePitch };
 }
