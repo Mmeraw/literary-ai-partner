@@ -43,6 +43,7 @@
     "jobs:smoke:phase2": "node scripts/jobs-smoke-phase2.mjs",
     "jobs:smoke:real": "node scripts/jobs-smoke-real.mjs",
     "jobs:smoke:supabase": "node scripts/jobs-supabase-contract-smoke.mjs",
+    "jobs:smoke:short-form-kickback": "node scripts/jobs-smoke-short-form-kickback.mjs",
     "jobs:admin-retry:concurrency": "node scripts/jobs-admin-retry-concurrency.mjs",
     "jobs:check-migrations": "node scripts/check-ci-db-migrations.mjs",
     "jobs:validate": "node scripts/jobs-validate-invariants.mjs",
