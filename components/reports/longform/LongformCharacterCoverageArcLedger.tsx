@@ -2,8 +2,7 @@ import type {
   LongFormMultiLayerEvaluationViewModel,
   LongFormMultiLayerCriterionAnalysisViewModel,
 } from "@/lib/evaluation/evaluationReportViewModel";
-import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
-import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
+import { getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
 
 type Props = { vm: LongFormMultiLayerEvaluationViewModel; showInternalSections?: boolean };
 
@@ -186,17 +185,16 @@ export default function LongformCharacterCoverageArcLedger({ vm, showInternalSec
 // ── Shared sub-component ──────────────────────────────────────────────────────
 
 function CriterionMiniBlock({ criterion }: { criterion: LongFormMultiLayerCriterionAnalysisViewModel }) {
-  const confidenceLabel = formatCriterionConfidenceLabel(criterion.confidence, undefined);
-  const confidenceClasses = confidenceLabel
-    ? getConfidenceLabelClasses(confidenceLabel)
+  const confidenceClasses = criterion.confidenceLabel
+    ? getConfidenceLabelClasses(criterion.confidenceLabel)
     : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
 
   return (
     <div className="rounded-lg border border-gray-200 p-3 text-sm space-y-2">
       <div className="flex items-center gap-3">
-        <span className="text-lg font-bold text-indigo-700">{formatScoreFractionForDisplay(criterion.score, 10)}</span>
+        <span className="text-lg font-bold text-indigo-700">{criterion.scoreLabel}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${confidenceClasses}`}>
-          {confidenceLabel ?? `${criterion.confidence} confidence`}
+          {criterion.confidenceLabel}
         </span>
       </div>
       {criterion.fitEvidence?.length > 0 && (

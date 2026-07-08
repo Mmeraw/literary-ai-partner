@@ -765,8 +765,8 @@ export default async function ReportPage({
               {lf.criterionAnalyses.map((analysis, idx) => (
                   <div key={idx} className="rounded-sm border border-[#D9D0C3] bg-white p-3 text-sm text-[#1C1814] shadow-[0_1px_0_rgba(28,24,20,0.03)]">
                     {analysis.key ? <p><span className="font-medium">Criterion:</span> {analysis.key}</p> : null}
-                    {analysis.score ? <p><span className="font-medium">Score:</span> {analysis.score} / 10</p> : null}
-                    {analysis.confidence ? <p><span className="font-medium">Confidence:</span> {analysis.confidence.charAt(0).toUpperCase() + analysis.confidence.slice(1)}</p> : null}
+                    {analysis.scoreLabel ? <p><span className="font-medium">Score:</span> {analysis.scoreLabel}</p> : null}
+                    {analysis.confidenceLabel ? <p><span className="font-medium">Confidence:</span> {analysis.confidenceLabel}</p> : null}
                     <div className="mt-2 space-y-2">
                       {analysis.fitEvidence.length > 0 ? (
                         <div>

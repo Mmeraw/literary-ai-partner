@@ -1,10 +1,8 @@
 import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
 import {
-  formatCriterionConfidenceLabel,
   getConfidenceLabelClasses,
   type CanonicalConfidenceLabel,
 } from "@/lib/evaluation/confidenceFieldPolicy";
-import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
 
 type Props = { vm: LongFormMultiLayerEvaluationViewModel; showInternalSections?: boolean };
 
@@ -44,7 +42,7 @@ export default function LongformEvidenceDistributionGate({ vm, showInternalSecti
     "Insufficient Evidence": 0,
   };
   criteriaWithConfidence.forEach((c) => {
-    const confidenceLabel = formatCriterionConfidenceLabel(c.confidence, undefined);
+    const confidenceLabel = c.confidenceLabel as CanonicalConfidenceLabel | undefined;
     if (confidenceLabel) {
       confidenceCounts[confidenceLabel]++;
     }
@@ -84,9 +82,8 @@ export default function LongformEvidenceDistributionGate({ vm, showInternalSecti
           {/* Per-criterion confidence grid */}
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             {criteriaWithConfidence.map((c, i) => {
-              const confidenceLabel = formatCriterionConfidenceLabel(c.confidence, undefined);
-              const colorClass = confidenceLabel
-                ? getConfidenceLabelClasses(confidenceLabel)
+              const colorClass = c.confidenceLabel
+                ? getConfidenceLabelClasses(c.confidenceLabel as CanonicalConfidenceLabel)
                 : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
               return (
                 <div
@@ -102,10 +99,10 @@ export default function LongformEvidenceDistributionGate({ vm, showInternalSecti
                     <span
                       className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${colorClass}`}
                     >
-                      {confidenceLabel ?? c.confidence}
+                      {c.confidenceLabel}
                     </span>
                   </div>
-                  <span className="text-gray-700">{formatScoreFractionForDisplay(c.score, 10)}</span>
+                  <span className="text-gray-700">{c.scoreLabel}</span>
                   {c.hasDistributionGap && (
                     <p className="text-amber-700 mt-0.5 font-medium text-xs">Evidence gap flagged</p>
                   )}

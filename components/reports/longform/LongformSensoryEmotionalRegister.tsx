@@ -1,6 +1,5 @@
 import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
-import { formatCriterionConfidenceLabel, getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
-import { formatScoreFractionForDisplay } from "@/lib/ui/score-formatting";
+import { getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
 
 type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
@@ -163,17 +162,16 @@ export default function LongformSensoryEmotionalRegister({ vm }: Props) {
           </p>
           <div className="space-y-2">
             {toneOrProseCriteria.map((c, i) => {
-              const confidenceLabel = formatCriterionConfidenceLabel(c.confidence, undefined);
-              const confidenceClasses = confidenceLabel
-                ? getConfidenceLabelClasses(confidenceLabel)
+              const confidenceClasses = c.confidenceLabel
+                ? getConfidenceLabelClasses(c.confidenceLabel)
                 : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
               return (
                 <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="font-semibold text-gray-800">{c.displayLabel}</span>
-                    <span className="text-lg font-bold text-indigo-700">{formatScoreFractionForDisplay(c.score, 10)}</span>
+                    <span className="text-lg font-bold text-indigo-700">{c.scoreLabel}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${confidenceClasses}`}>
-                      {confidenceLabel ?? c.confidence}
+                      {c.confidenceLabel}
                     </span>
                   </div>
                   {c.fitEvidence?.length > 0 && (

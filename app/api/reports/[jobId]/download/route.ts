@@ -523,7 +523,7 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
     push(sub);
     lf.criterionAnalyses.forEach((a) => {
       push('');
-      pushLine(`${a.displayLabel} — ${scoreLabel(a.score, 10)} (${formatConfidenceLabel(a.confidence)})`);
+      pushLine(`${a.displayLabel} — ${a.scoreLabel} (${a.confidenceLabel})`);
       pushTxtListBlock(lines, 'What Is Working', a.fitEvidence);
       pushTxtListBlock(lines, 'What Weakens Impact', a.gapEvidence);
       pushTxtListBlock(lines, 'Revision Queue', a.revisionQueue.map(r => r.displayText), { ordered: true });
@@ -1104,8 +1104,8 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     // §12a Expanded Criterion Analysis
     const deepCriterionCards = lf.criterionAnalyses.length > 0
       ? lf.criterionAnalyses.map(a => {
-          const sc = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
-          const confLabel = formatConfidenceLabel(a.confidence);
+          const sc = a.scoreLabel;
+          const confLabel = a.confidenceLabel;
           const fitHtml = a.fitEvidence.length > 0
             ? `<p style="margin:10px 0 4px"><strong>What Is Working:</strong></p>${list(a.fitEvidence)}`
             : '';
@@ -1827,8 +1827,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     if (lfDocx.criterionAnalyses.length > 0) {
       children.push(makeHeading(sectionTitle('expanded_criterion_analysis'), { pageBreak: true }));
       lfDocx.criterionAnalyses.forEach(a => {
-        const sc = typeof a.score === 'number' ? scoreLabel(a.score, 10) : 'Not scored';
-        children.push(vmPara(`${a.displayLabel} \u2014 ${sc} (${formatConfidenceLabel(a.confidence)})`, { bold: true }));
+        children.push(vmPara(`${a.displayLabel} \u2014 ${a.scoreLabel} (${a.confidenceLabel})`, { bold: true }));
         if (a.fitEvidence.length > 0) {
           children.push(vmPara('What Is Working:', { bold: true }));
           a.fitEvidence.forEach(item => children.push(docxListPara(item)));

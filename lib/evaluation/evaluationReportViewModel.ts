@@ -40,6 +40,8 @@ import { getEvaluationContract } from '@/lib/evaluation/contracts/evaluationCont
 import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bLongform';
 import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
 import type { EvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
+import { formatCriterionConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
+import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 
 // ────────────────────────────────────────────────────────────────────────────
 // ViewModel Types
@@ -156,8 +158,9 @@ export type LongFormMultiLayerRevisionQueueItemViewModel = {
 export type LongFormMultiLayerCriterionAnalysisViewModel = {
   key: string;
   displayLabel: string;
-  score: number;
-  confidence: string;
+  score: number;           // raw numeric score — kept for numeric comparisons
+  scoreLabel: string;      // VM-owned display string e.g. "8/10" or "Not scored"
+  confidenceLabel: string; // VM-owned canonical label e.g. "High Confidence"
   fitEvidence: string[];
   gapEvidence: string[];
   revisionQueue: LongFormMultiLayerRevisionQueueItemViewModel[];
@@ -655,7 +658,8 @@ function normalizeLongFormMultiLayer(
     key: c.key,
     displayLabel: getCriterionDisplayLabel(s(c.key)),
     score: c.score,
-    confidence: s(c.confidence),
+    scoreLabel: formatScoreFractionForDisplay(c.score, 10),
+    confidenceLabel: formatCriterionConfidenceLabel(c.confidence, undefined) ?? s(c.confidence),
     fitEvidence: sl(c.fit_evidence ?? []),
     gapEvidence: sl(c.gap_evidence ?? []),
     revisionQueue: projectRevisionQueueList(c.revision_queue ?? [], isLongForm),
