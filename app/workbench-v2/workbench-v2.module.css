@@ -192,6 +192,49 @@
   white-space: nowrap !important;
 }
 
+@media (min-width: 1280px) {
+  .route :global(main > div > section:last-child) {
+    grid-template-columns: auto minmax(0, 1fr) 300px !important;
+    gap: 0.65rem !important;
+  }
+
+  .route :global(main > div > section:last-child > aside:first-child) {
+    position: relative !important;
+    width: 340px;
+    min-width: 3.25rem;
+    max-width: min(520px, 42vw);
+    resize: horizontal;
+    overflow: auto !important;
+    scrollbar-width: thin;
+  }
+
+  .route :global(main > div > section:last-child > aside:first-child)::before {
+    content: "";
+    position: absolute;
+    top: 0.55rem;
+    right: 0.12rem;
+    bottom: 0.55rem;
+    width: 0.28rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(200, 169, 110, 0.18), rgba(200, 169, 110, 0.46), rgba(200, 169, 110, 0.18));
+    pointer-events: none;
+  }
+
+  .route :global(main > div > section:last-child > aside:first-child)::after {
+    content: "drag";
+    position: absolute;
+    right: 0.45rem;
+    top: 0.62rem;
+    writing-mode: vertical-rl;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.55rem;
+    line-height: 1;
+    color: rgba(200, 169, 110, 0.58);
+    pointer-events: none;
+  }
+}
+
 @media (max-width: 1180px) {
   .route :global(main > div > header) {
     height: auto !important;
@@ -218,18 +261,5 @@
     right: 0.75rem !important;
     top: 78px !important;
     gap: 0.45rem !important;
-  }
-
-  .route :global(.workbench-v2-final-review-link),
-  .route :global(.workbench-v2-reset-queue button),
-  .route :global(.workbench-v2-trusted-path button) {
-    height: 2rem !important;
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
-    font-size: 0.6rem !important;
-  }
-
-  .route :global(main.flex.items-center.justify-center > div.max-w-lg) {
-    padding: 2.1rem 1.55rem !important;
   }
 }
