@@ -30,12 +30,21 @@ function firstSentence(value: string): string {
   return (match?.[1] ?? trimmed).trim();
 }
 
+function normalizeIdentity(value: string): string {
+  return clean(value).toLowerCase();
+}
+
+function buildMissingPitchPlaceholder(kind: 'sentence' | 'paragraph', title: string): string {
+  return kind === 'sentence'
+    ? `A distinct market hook was not generated for ${title}.`
+    : `A distinct story synopsis was not generated for ${title}.`;
+}
+
 export function buildReportPitches(input: PitchInput): {
   oneParagraphPitch: string;
   oneSentencePitch: string;
 } {
   const premise = clean(input.premise);
-  const summary = clean(input.summary);
   const title = clean(input.title) || 'the submitted work';
 
   // P1: Use dedicated pitch fields from Pass 3 when available.
@@ -43,7 +52,7 @@ export function buildReportPitches(input: PitchInput): {
   const dedicatedOneSentence = clean(input.one_sentence_pitch);
   const dedicatedOneParagraph = clean(input.one_paragraph_pitch);
 
-  // Pitch fallback chain: dedicated field → premise → generic placeholder.
+  // Pitch fallback chain: dedicated field → premise → explicit missing-pitch placeholder.
   // one_paragraph_summary (the executive summary / diagnostic judgment) is intentionally
   // excluded from this fallback chain. It answers "why this score / what to fix" —
   // reusing it as pitch copy collapses two semantically distinct sections into the
@@ -51,10 +60,20 @@ export function buildReportPitches(input: PitchInput): {
   // a neutral placeholder rather than surfacing diagnostic language as marketing copy.
   const oneParagraphPitch = dedicatedOneParagraph
     || premise
-    || `RevisionGrade evaluated ${title}.`;
-  const oneSentencePitch = dedicatedOneSentence
+    || buildMissingPitchPlaceholder('paragraph', title);
+
+  let oneSentencePitch = dedicatedOneSentence
     || firstSentence(premise)
-    || `RevisionGrade evaluated ${title}.`;
+    || buildMissingPitchPlaceholder('sentence', title);
+
+  // When Pass 3 did not provide dedicated pitch fields and the only fallback source
+  // is a one-sentence premise, the paragraph pitch and sentence pitch otherwise
+  // collapse into identical copy across every renderer. Keep the failure explicit
+  // and non-duplicative so ECG/report consumers see a missing pitch problem instead
+  // of a silently repeated premium surface.
+  if (!dedicatedOneSentence && normalizeIdentity(oneSentencePitch) === normalizeIdentity(oneParagraphPitch)) {
+    oneSentencePitch = buildMissingPitchPlaceholder('sentence', title);
+  }
 
   return { oneParagraphPitch, oneSentencePitch };
 }
