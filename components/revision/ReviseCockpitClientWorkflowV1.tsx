@@ -45,6 +45,30 @@ const LEDGER_FILTERS: Array<{ value: DecisionFilter; label: string }> = [
   { value: "pending", label: "Pending" },
 ];
 
+// ─── Design tokens (workbench dark surface) ──────────────────────────────────
+const W = {
+  bg:           "#0D0A05",   // page canvas
+  surface:      "#12100B",   // primary surface
+  surface2:     "#171209",   // raised surface
+  surface3:     "#1C160E",   // card / panel
+  border:       "#2E261A",   // primary border
+  borderFaint:  "#231D12",   // de-emphasized border
+  gold:         "#C8A96E",   // jewelry only: labels, selected states, active borders
+  goldDim:      "#7A6535",   // faint gold for secondary borders
+  cream:        "#F5EFE4",   // primary text
+  cream2:       "#E8D8BA",   // body text
+  muted:        "#A9987D",   // secondary / muted text
+  dim:          "#6B5E4A",   // fine print / metadata
+  oxblood:      "#7A2B1A",   // primary action fill
+  oxbloodBorder:"#9B3A26",   // oxblood hover border
+  forest:       "#4A7A3A",   // success / generate
+  forestText:   "#A8D99C",   // forest text on dark
+  danger:       "#7A1E1E",   // reject / destructive
+  dangerText:   "#F1B6A5",   // danger text
+} as const;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function normalize(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
@@ -73,11 +97,9 @@ function effectiveOperation(item: WorkbenchOpportunity): RevisionOperation {
     .map(normalize)
     .join(" ")
     .toLowerCase();
-
   if (current === "replace_selected_passage" && /\b(insert|add|include|introduce)\b/.test(haystack)) {
     return /\bbefore\b/.test(haystack) ? "insert_before_selected_passage" : "insert_after_selected_passage";
   }
-
   return current;
 }
 
@@ -94,11 +116,9 @@ function renderableCandidate(item: WorkbenchOpportunity, key: OptionKey): string
 function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: string): boolean {
   const operation = effectiveOperation(item);
   if (operation !== "insert_before_selected_passage" && operation !== "insert_after_selected_passage") return false;
-
   const source = compareText(sourceTextOf(item));
   const candidate = compareText(text);
   if (!source || !candidate) return false;
-
   const lead = source.split(/\s+/).slice(0, 6).join(" ");
   return lead.length >= 8 && candidate.startsWith(lead);
 }
@@ -109,19 +129,12 @@ function candidateText(item: WorkbenchOpportunity, key: OptionKey): string {
   return "";
 }
 
-// ─── Template residue detection (quality gate) ─────────────────────────────
-// Candidates containing pipeline template tokens are NOT manuscript-ready.
-// Fall back to "revision strategy" mode instead of showing residue.
 const TEMPLATE_TOKENS = /\b(LOCATION|OPERATION|CHARACTER|PROTAGONIST|ANTAGONIST)\b/;
 
 function hasTemplateResidue(text: string): boolean {
   return TEMPLATE_TOKENS.test(text);
 }
 
-// ─── Three-tier display mode ────────────────────────────────────────────────
-// ≤300 words: full original + full A/B/C replacement prose
-// 300–1200 words: anchor excerpt + A/B/C insertions/replacement chunks
-// >1200 words: anchor excerpt + diagnosis + rewrite strategy only
 type RevisionDisplayMode = "full_replacement" | "excerpt_insertion" | "strategy_only";
 
 function displayMode(item: WorkbenchOpportunity): RevisionDisplayMode {
@@ -179,16 +192,25 @@ function selectedDecisionFor(key: OptionKey): DecisionState {
   return "accepted_c";
 }
 
-function severityClass(severity: WorkbenchOpportunity["severity"]): string {
-  if (severity === "must") return "border-red-600 bg-red-700 text-white font-semibold";
-  if (severity === "should") return "border-amber-500 bg-amber-600 text-white font-semibold";
-  return "border-green-600 bg-green-700 text-white font-semibold";
-}
-
-function severityLabel(severity: WorkbenchOpportunity["severity"]): string {
-  if (severity === "must") return "Recommended";
-  if (severity === "should") return "Optional";
-  return "Consider";
+// ─── Severity badge — editorial tab style, not Bootstrap sticker ──────────────
+// Priority: must=Recommended(oxblood tint), should=Optional(amber tint), could=Consider(slate tint)
+function SeverityBadge({ severity, size = "sm" }: { severity: WorkbenchOpportunity["severity"]; size?: "sm" | "xs" }) {
+  const label = severity === "must" ? "Recommended" : severity === "should" ? "Optional" : "Consider";
+  const style: React.CSSProperties =
+    severity === "must"
+      ? { backgroundColor: "rgba(122,43,26,0.22)", color: "#F4B8A8", border: "1px solid rgba(122,43,26,0.55)" }
+      : severity === "should"
+      ? { backgroundColor: "rgba(160,122,54,0.18)", color: "#E8C97A", border: "1px solid rgba(160,122,54,0.45)" }
+      : { backgroundColor: "rgba(80,95,80,0.18)", color: "#A8C4A0", border: "1px solid rgba(80,95,80,0.45)" };
+  const px = size === "xs" ? "px-1.5 py-0" : "px-2 py-0.5";
+  return (
+    <span
+      className={`inline-block rounded-sm font-sans text-[10px] font-medium tracking-[0.08em] ${px}`}
+      style={style}
+    >
+      {label}
+    </span>
+  );
 }
 
 function compactGoal(item: WorkbenchOpportunity): string {
@@ -220,10 +242,9 @@ function diagnosticText(item: WorkbenchOpportunity, field: "symptom" | "cause" |
     mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing,
   }[field];
   const text = normalize(raw) || "Review the evidence and choose the least disruptive repair path.";
-  // Capitalize first letter (Chicago style) and ensure space after any run-together colon
   return text
     .replace(/^(\w)/, (c) => c.toUpperCase())
-    .replace(/([.,:;!?])([A-Za-z])/g, '$1 $2');
+    .replace(/([.,:;!?])([A-Za-z])/g, "$1 $2");
 }
 
 function optionSectionLabel(item: WorkbenchOpportunity): string {
@@ -233,6 +254,38 @@ function optionSectionLabel(item: WorkbenchOpportunity): string {
   if (op === "replace_selected_passage") return "Suggested replacements";
   return "Suggested revisions";
 }
+
+// ─── Small reusable pieces ────────────────────────────────────────────────────
+
+/** Gold eyebrow label — mono, uppercase, tracked */
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="font-mono text-[10px] uppercase tracking-[0.20em]" style={{ color: W.gold }}>
+      {children}
+    </p>
+  );
+}
+
+/** Thin rule — replaces borders as section separator */
+function Rule() {
+  return <div className="my-3" style={{ height: 1, backgroundColor: W.borderFaint }} />;
+}
+
+/** Diagnostic field — label on its own line, value below, generous spacing */
+function DiagField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: W.gold }}>
+        {label}
+      </p>
+      <p className="text-sm leading-[1.65]" style={{ color: W.cream2 }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: WorkbenchQueuePayload }) {
   const allInputItems = useMemo(() => payload.opportunities, [payload.opportunities]);
@@ -273,7 +326,6 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
         setMessage("Voice rewrites generated!");
         setTimeout(() => setMessage(null), 3000);
       } else {
-        // Store error persistently in cache so the UI shows it below the button
         const errMsg = data.error || "Rewrite generation failed";
         setRewriteCache((prev) => ({ ...prev, [item.id]: { a: "", b: "", c: "", error: errMsg } }));
         setMessage(errMsg);
@@ -412,9 +464,9 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
     setMessage("Choice removed — opportunity returned to queue");
   }
 
+  // ─── Empty state ─────────────────────────────────────────────────────────────
   if (!payload.ok || items.length === 0) {
-    const heldCount =
-      (payload.needsTargeting?.length ?? 0) + (payload.withheldUnsupported?.length ?? 0);
+    const heldCount = (payload.needsTargeting?.length ?? 0) + (payload.withheldUnsupported?.length ?? 0);
     let heading = "No revision queue available.";
     let detail: string | null = null;
     if (!payload.ok) {
@@ -422,21 +474,19 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
       detail = payload.error ?? "Please try reopening the report, or contact support if this persists.";
     } else if (heldCount > 0) {
       heading = `${heldCount} revision ${heldCount === 1 ? "opportunity" : "opportunities"} found, but none are ready to revise yet.`;
-      detail =
-        "These opportunities need targeting or additional grounding before RevisionGrade can offer copy-paste-ready rewrites. Re-run the evaluation or open Final Review to see the full ledger.";
+      detail = "These opportunities need targeting or additional grounding before RevisionGrade can offer copy-paste-ready rewrites. Re-run the evaluation or open Final Review to see the full ledger.";
     } else {
       heading = "No revision opportunities were found for this evaluation.";
-      detail =
-        "The manuscript passed the readiness checks that Revise targets, so there is nothing queued to revise.";
+      detail = "The manuscript passed the readiness checks that Revise targets, so there is nothing queued to revise.";
     }
     return (
       <main className="fixed inset-x-0 bottom-0 top-[72px] z-10 flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3">
         <div className="max-w-lg rounded-xl border border-[#C8A96E]/30 bg-[#1C160E] px-8 py-8 text-center shadow-2xl">
-          <p className="text-base font-bold" style={{color: '#F5EFE4'}}>{heading}</p>
-          {detail && <p className="mt-3 text-sm leading-relaxed" style={{color: '#D6C4A2'}}>{detail}</p>}
+          <p className="text-base font-bold" style={{ color: W.cream }}>{heading}</p>
+          {detail && <p className="mt-3 text-sm leading-relaxed" style={{ color: W.cream2 }}>{detail}</p>}
           {heldCount > 0 && (
-            <p className="mt-4 text-xs" style={{color: '#C8A96E'}}>
-              Use <strong style={{color: '#F5EFE4'}}>Final Review / Apply &amp; Export</strong> above to inspect the full ledger and export what is available.
+            <p className="mt-4 text-xs" style={{ color: W.gold }}>
+              Use <strong style={{ color: W.cream }}>Final Review / Apply &amp; Export</strong> above to inspect the full ledger and export what is available.
             </p>
           )}
         </div>
@@ -444,88 +494,255 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
     );
   }
 
+  // ─── Main render ──────────────────────────────────────────────────────────────
   return (
-    <main className="fixed inset-x-0 bottom-0 top-[72px] z-10 overflow-hidden bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">
-      <div className="mx-auto flex h-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-[#2E261A] bg-[#151008] shadow-2xl">
-        <header className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-[#2E261A] bg-[#151008] px-4 py-2">
+    <main
+      className="fixed inset-x-0 bottom-0 top-[72px] z-10 overflow-hidden"
+      style={{ backgroundColor: W.bg }}
+    >
+      <div
+        className="mx-auto flex h-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden"
+        style={{ border: `1px solid ${W.border}`, backgroundColor: W.surface }}
+      >
+
+        {/* ── Manuscript header ─────────────────────────────────────────────── */}
+        <header
+          className="flex shrink-0 min-h-11 items-center justify-between gap-3 px-5 py-2.5"
+          style={{ borderBottom: `1px solid ${W.border}`, backgroundColor: W.surface }}
+        >
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#C8A96E]">Revision Cockpit · up to 100 prioritized opportunities per pass</p>
-            <h1 className="text-sm font-semibold">{payload.manuscriptTitle}</h1>
+            <Eyebrow>Revision Cockpit · up to 100 prioritized opportunities per pass</Eyebrow>
+            <h1 className="mt-0.5 text-sm font-semibold" style={{ color: W.cream }}>
+              {payload.manuscriptTitle}
+            </h1>
           </div>
-          {message && <div className="flex flex-wrap justify-end gap-2 text-[11px]"><span className="rounded border border-[#5D4C31] px-2 py-1 text-[#A9987D]">{message}</span></div>}
+          {message && (
+            <span
+              className="shrink-0 rounded px-2.5 py-1 text-[11px]"
+              style={{ border: `1px solid ${W.border}`, color: W.muted }}
+            >
+              {message}
+            </span>
+          )}
         </header>
 
-        <nav className="flex shrink-0 items-center gap-1 border-b border-[#2E261A] bg-[#110D07] px-4 py-1.5">
-          {([ ["all", "All"], ["deep_craft", "Craft"], ["surface_polish", "Surface Polish"] ] as const).map(([value, label]) => (
-            <button key={value} type="button" onClick={() => setFilters((current) => ({ ...current, sourceFilter: value }))} className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${filters.sourceFilter === value ? "border border-[#C8A96E] bg-[#C8A96E]/20 text-[#F5EFE4]" : "border border-transparent text-[#A9987D] hover:text-[#F5EFE4]"}`}>
-              {label}{value === "surface_polish" && <span className="ml-1 rounded bg-[#B8922A]/20 px-1 py-0.5 text-[9px] text-[#C8A96E]">Polish</span>}
+        {/* ── Source filter nav ─────────────────────────────────────────────── */}
+        <nav
+          className="flex shrink-0 items-center gap-1 px-4 py-1.5"
+          style={{ borderBottom: `1px solid ${W.border}`, backgroundColor: W.surface }}
+        >
+          {([["all", "All"], ["deep_craft", "Craft"], ["surface_polish", "Surface Polish"]] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setFilters((f) => ({ ...f, sourceFilter: value }))}
+              className="rounded px-2.5 py-1 text-[11px] font-medium transition-colors"
+              style={
+                filters.sourceFilter === value
+                  ? { border: `1px solid ${W.gold}`, backgroundColor: "rgba(200,169,110,0.12)", color: W.cream }
+                  : { border: "1px solid transparent", color: W.muted }
+              }
+            >
+              {label}
+              {value === "surface_polish" && (
+                <span
+                  className="ml-1.5 rounded px-1 py-0.5 text-[9px]"
+                  style={{ backgroundColor: "rgba(200,169,110,0.15)", color: W.gold }}
+                >
+                  Polish
+                </span>
+              )}
             </button>
           ))}
         </nav>
 
-        <section className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[310px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col border-r border-[#2E261A] bg-[#110D07]">
-            <div className="space-y-2 border-b border-[#2E261A] p-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="rounded border border-[#C8A96E]/70 bg-[#C8A96E]/10 px-2 py-1 text-[11px] font-semibold text-[#F3E3C3]">Queue{"\u2003"}{filtered.length ? activeIndex + 1 : 0}/{filtered.length}</span>
+        {/* ── Two-column layout ─────────────────────────────────────────────── */}
+        <section className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[290px_minmax(0,1fr)]">
+
+          {/* ── LEFT: Queue sidebar ───────────────────────────────────────── */}
+          <aside
+            className="flex min-h-0 flex-col"
+            style={{ borderRight: `1px solid ${W.border}`, backgroundColor: W.surface }}
+          >
+            {/* Queue controls */}
+            <div className="space-y-2 px-3 py-3" style={{ borderBottom: `1px solid ${W.border}` }}>
+              {/* Counter */}
+              <div className="flex items-center justify-between">
+                <span
+                  className="rounded px-2.5 py-1 font-mono text-[11px] font-semibold"
+                  style={{
+                    border: `1px solid rgba(200,169,110,0.50)`,
+                    backgroundColor: "rgba(200,169,110,0.08)",
+                    color: W.cream2,
+                  }}
+                >
+                  Queue {filtered.length ? activeIndex + 1 : 0}/{filtered.length}
+                </span>
               </div>
-              <input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search queue" className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs" />
-              <div className="grid grid-cols-2 gap-2">
-                <select value={filters.priority} onChange={(event) => setFilters((current) => ({ ...current, priority: event.target.value as Filters["priority"] }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
-                  <option value="all">All priority</option><option value="must">Recommended</option><option value="should">Optional</option><option value="could">Consider</option>
+              {/* Search */}
+              <input
+                value={filters.search}
+                onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                placeholder="Search queue"
+                className="h-7 w-full rounded px-2 text-xs"
+                style={{
+                  border: `1px solid ${W.border}`,
+                  backgroundColor: W.bg,
+                  color: W.cream2,
+                }}
+              />
+              {/* Priority + Status filters */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <select
+                  value={filters.priority}
+                  onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value as Filters["priority"] }))}
+                  className="h-7 rounded px-2 text-[11px]"
+                  style={{ border: `1px solid ${W.border}`, backgroundColor: W.bg, color: W.muted }}
+                >
+                  <option value="all">All priority</option>
+                  <option value="must">Recommended</option>
+                  <option value="should">Optional</option>
+                  <option value="could">Consider</option>
                 </select>
-                <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as DecisionFilter }))} className="h-8 rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
-                  <option value="all">All status</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="custom">Custom</option><option value="kept_original">Author Kept Original</option><option value="rejected">Rejected</option><option value="deferred">Deferred</option>
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as DecisionFilter }))}
+                  className="h-7 rounded px-2 text-[11px]"
+                  style={{ border: `1px solid ${W.border}`, backgroundColor: W.bg, color: W.muted }}
+                >
+                  <option value="all">All status</option>
+                  <option value="pending">Pending</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="custom">Custom</option>
+                  <option value="kept_original">Author Kept</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="deferred">Deferred</option>
                 </select>
               </div>
-              <select value={filters.criterion} onChange={(event) => setFilters((current) => ({ ...current, criterion: event.target.value }))} className="h-8 w-full rounded border border-[#3A3022] bg-[#0D0A05] px-2 text-xs">
-                <option value="all">All Criteria</option>{criteria.map((criterion) => <option key={criterion} value={criterion}>{formatCriterion(criterion)}</option>)}
+              {/* Criteria filter */}
+              <select
+                value={filters.criterion}
+                onChange={(e) => setFilters((f) => ({ ...f, criterion: e.target.value }))}
+                className="h-7 w-full rounded px-2 text-[11px]"
+                style={{ border: `1px solid ${W.border}`, backgroundColor: W.bg, color: W.muted }}
+              >
+                <option value="all">All criteria</option>
+                {criteria.map((c) => <option key={c} value={c}>{formatCriterion(c)}</option>)}
               </select>
             </div>
 
-            <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-              {filtered.map((item, index) => (
-                <li key={item.id}>
-                  <button type="button" onClick={() => selectItem(item.id)} className={`w-full rounded-lg border p-2 text-left ${item.id === active?.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#161109]"}`}>
-                    <div className="mb-1 flex flex-wrap gap-0.5">
-                      <span className={`rounded px-1 py-0 text-[9px] font-semibold uppercase tracking-wide ${severityClass(item.severity)}`}>{severityLabel(item.severity)}</span>
-                      <span className="rounded border border-[#4E4333] px-1 py-0 text-[9px]" style={{color:'#A9987D'}}>{item.scope}</span>
-                    </div>
-                    <p className="line-clamp-2 text-[11px] leading-snug" style={{color:'#F0E8D5'}}>{index + 1}. {item.title}</p>
-                    <p className="mt-0.5 truncate text-[10px]" style={{color:'#8A7A68'}}>{formatCriterion(criterionOf(item))} · {item.anchor || item.meta}</p>
-                  </button>
-                </li>
-              ))}
+            {/* Queue items */}
+            <ol className="min-h-0 flex-1 overflow-y-auto py-2">
+              {filtered.map((item, index) => {
+                const isActive = item.id === active?.id;
+                return (
+                  <li key={item.id} className="px-2 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => selectItem(item.id)}
+                      className="w-full rounded px-3 py-2.5 text-left transition-colors"
+                      style={
+                        isActive
+                          ? { border: `1px solid ${W.gold}`, backgroundColor: "rgba(200,169,110,0.08)" }
+                          : { border: `1px solid ${W.borderFaint}`, backgroundColor: "transparent" }
+                      }
+                    >
+                      {/* Badge row */}
+                      <div className="mb-1.5 flex flex-wrap items-center gap-1">
+                        <SeverityBadge severity={item.severity} size="xs" />
+                        <span
+                          className="rounded-sm px-1.5 py-0 text-[10px]"
+                          style={{ color: W.dim, border: `1px solid ${W.borderFaint}` }}
+                        >
+                          {item.scope}
+                        </span>
+                      </div>
+                      {/* Title */}
+                      <p
+                        className="line-clamp-2 text-[11px] leading-[1.5]"
+                        style={{ color: isActive ? W.cream : W.cream2 }}
+                      >
+                        {index + 1}. {item.title}
+                      </p>
+                      {/* Criterion / anchor — fine print */}
+                      <p className="mt-1 truncate text-[10px]" style={{ color: W.dim }}>
+                        {formatCriterion(criterionOf(item))}
+                      </p>
+                    </button>
+                  </li>
+                );
+              })}
             </ol>
           </aside>
 
-          <section className="flex min-w-0 flex-col overflow-hidden bg-[#1C160E]">
+          {/* ── RIGHT: Workspace ──────────────────────────────────────────── */}
+          <section
+            className="flex min-w-0 flex-col overflow-hidden"
+            style={{ backgroundColor: W.surface3 }}
+          >
             {active ? (
               <>
-                <div className="shrink-0 border-b border-[#2E261A] px-2 pb-2 pt-1.5">
-                  <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wider">
-                    <span className={`rounded px-1.5 py-0.5 ${severityClass(active.severity)}`}>{severityLabel(active.severity)}</span>
-                    <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{formatCriterion(criterionOf(active))}</span>
-                    <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{active.scope}</span>
-                    <span className={`rounded border px-1.5 py-0.5 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
+                {/* ════════════════════════════════════════════════════
+                    DIAGNOSIS — hero section, dominates the page
+                ════════════════════════════════════════════════════ */}
+                <div
+                  className="shrink-0 px-6 pb-5 pt-5"
+                  style={{ borderBottom: `1px solid ${W.border}` }}
+                >
+                  <Eyebrow>Diagnosis &amp; Guardrails</Eyebrow>
+
+                  {/* Badge strip */}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <SeverityBadge severity={active.severity} />
+                    <span
+                      className="rounded-sm px-2 py-0.5 text-[11px]"
+                      style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                    >
+                      {formatCriterion(criterionOf(active))}
+                    </span>
+                    <span
+                      className="rounded-sm px-2 py-0.5 text-[11px]"
+                      style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                    >
+                      {active.scope}
+                    </span>
+                    <span
+                      className="rounded-sm px-2 py-0.5 text-[11px]"
+                      style={
+                        liveReady(active)
+                          ? { border: "1px solid rgba(74,122,58,0.55)", color: "#A8C89E" }
+                          : { border: `1px solid rgba(122,43,26,0.55)`, color: W.dangerText }
+                      }
+                    >
+                      {liveReady(active) ? "Ready" : "Needs Targeting"}
+                    </span>
                   </div>
-                  <h2 className="mt-1 truncate text-base font-semibold" style={{color:'#F5EFE4'}}>{active.title}</h2>
+
+                  {/* Opportunity title — larger, dominant */}
+                  <h2
+                    className="mt-3 text-lg font-semibold leading-[1.4]"
+                    style={{ color: W.cream }}
+                  >
+                    {active.title}
+                  </h2>
+
+                  {/* Six diagnostic fields — single column, label above value */}
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <DiagField label="Symptom" value={diagnosticText(active, "symptom")} />
+                    <DiagField label="Cause" value={diagnosticText(active, "cause")} />
+                    <DiagField label="Fix" value={diagnosticText(active, "fix")} />
+                    <DiagField label="Reader Effect" value={diagnosticText(active, "readerEffect")} />
+                    <DiagField label="Mistake-proofing" value={diagnosticText(active, "mistakeProofing")} />
+                    <DiagField label="Operation" value={operationLabels[effectiveOperation(active)]} />
+                  </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
-                  <section className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                    <div className="grid gap-x-4 gap-y-2 text-xs leading-relaxed xl:grid-cols-2" style={{color:'#F0E8D5'}}>
-                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Symptom: </span>{diagnosticText(active, "symptom")}</p>
-                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Cause: </span>{diagnosticText(active, "cause")}</p>
-                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Fix: </span>{diagnosticText(active, "fix")}</p>
-                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Reader effect: </span>{diagnosticText(active, "readerEffect")}</p>
-                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Mistake-proofing: </span>{diagnosticText(active, "mistakeProofing")}</p>
-                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Operation: </span>{operationLabels[effectiveOperation(active)]}</p>
-                    </div>
-                  </section>
+                {/* Scrollable workspace body */}
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
-                  {/* ── Three-tier display: passage + candidates ── */}
+                  {/* ════════════════════════════════════════════════════
+                      ORIGINAL PASSAGE + REVISION TASK — side by side
+                  ════════════════════════════════════════════════════ */}
                   {(() => {
                     const mode = displayMode(active);
                     const source = sourceTextOf(active);
@@ -537,56 +754,107 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
 
                     return (
                       <>
-                        {/* Original Passage — adapts by mode */}
-                        <section className="mt-1.5 grid gap-2 xl:grid-cols-2">
-                          <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Original Passage</p>
+                        <div className="grid gap-4 xl:grid-cols-2">
+                          {/* Original Passage — manuscript excerpt feel */}
+                          <div
+                            className="rounded px-5 py-4"
+                            style={{
+                              backgroundColor: "#19140C",
+                              border: `1px solid ${W.borderFaint}`,
+                              borderLeft: `3px solid ${W.goldDim}`,
+                            }}
+                          >
+                            <div className="flex items-baseline justify-between mb-3">
+                              <Eyebrow>Original Passage</Eyebrow>
                               {effectiveMode !== "full_replacement" && source && (
-                                <span className="text-[9px] text-[#A9987D]">
+                                <span className="font-mono text-[9px]" style={{ color: W.dim }}>
                                   {source.split(/\s+/).length} words
-                                  {effectiveMode === "excerpt_insertion" && " · excerpt shown"}
+                                  {effectiveMode === "excerpt_insertion" && " · excerpt"}
                                   {effectiveMode === "strategy_only" && " · anchor only"}
                                 </span>
                               )}
                             </div>
+
                             {effectiveMode === "full_replacement" ? (
-                              <p className="mt-1 max-h-24 overflow-y-auto text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{source || "No exact passage is available yet."}</p>
+                              <p
+                                className="max-h-28 overflow-y-auto text-sm leading-[1.75]"
+                                style={{ color: W.cream2, fontFamily: "Georgia, 'Times New Roman', serif" }}
+                              >
+                                {source || "No exact passage is available yet."}
+                              </p>
                             ) : (
                               <>
-                                <p className="mt-1 max-h-20 overflow-y-auto text-xs leading-relaxed" style={{color:'#F0E8D5'}}>
+                                <p
+                                  className="max-h-24 overflow-y-auto text-sm leading-[1.75]"
+                                  style={{ color: W.cream2, fontFamily: "Georgia, 'Times New Roman', serif" }}
+                                >
                                   {source ? excerptText(source, effectiveMode === "strategy_only" ? 2 : 3) : "No exact passage is available yet."}
                                 </p>
                                 {source && source.split(/\s+/).length > (effectiveMode === "strategy_only" ? 50 : 80) && (
-                                  <details className="mt-1">
-                                    <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">View full passage</summary>
-                                    <p className="mt-1 max-h-40 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{source}</p>
+                                  <details className="mt-2">
+                                    <summary className="cursor-pointer text-[10px]" style={{ color: W.gold }}>
+                                      View full passage
+                                    </summary>
+                                    <p
+                                      className="mt-2 max-h-40 overflow-y-auto rounded p-3 text-sm leading-[1.75]"
+                                      style={{
+                                        backgroundColor: W.bg,
+                                        border: `1px solid ${W.borderFaint}`,
+                                        color: W.cream2,
+                                        fontFamily: "Georgia, 'Times New Roman', serif",
+                                      }}
+                                    >
+                                      {source}
+                                    </p>
                                   </details>
                                 )}
                               </>
                             )}
-                            <p className="mt-0.5 text-[10px] text-[#A9987D]">{active.anchor || active.meta || "Location pending"}</p>
+                            {/* Location — fine print, clearly subordinate */}
+                            <p className="mt-3 font-mono text-[10px]" style={{ color: W.dim }}>
+                              {active.anchor || active.meta || "Location pending"}
+                            </p>
                           </div>
-                          <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                            <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
-                            <p className="mt-1 text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{operationInstruction(active)} {compactGoal(active)}</p>
-                          </div>
-                        </section>
 
-                        {/* A/B/C Candidates — full prose OR strategy mode */}
+                          {/* Revision Task */}
+                          <div
+                            className="rounded px-5 py-4"
+                            style={{ backgroundColor: W.surface, border: `1px solid ${W.borderFaint}` }}
+                          >
+                            <Eyebrow>Revision Task</Eyebrow>
+                            <p className="mt-3 text-sm font-medium leading-[1.5]" style={{ color: W.muted }}>
+                              {operationInstruction(active)}
+                            </p>
+                            <p className="mt-2 text-sm leading-[1.65]" style={{ color: W.cream2 }}>
+                              {compactGoal(active)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* ════════════════════════════════════════════════════
+                            STRATEGIES / A/B/C CANDIDATES
+                        ════════════════════════════════════════════════════ */}
                         {effectiveMode === "strategy_only" ? (
-                          <section className="mt-1.5 rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-2">
+                          <div>
                             {rewriteCache[active.id]?.error ? (
-                              // Persistent error state — shown until user retries
                               <>
-                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#E2B2A6]">Generation Failed</p>
-                                <p className="mb-2 rounded border border-[#7A2B1A]/60 bg-[#7A2B1A]/10 px-2 py-1.5 text-xs leading-relaxed text-[#F1B6A5]">{rewriteCache[active.id].error}</p>
+                                <Eyebrow>Generation Failed</Eyebrow>
+                                <p
+                                  className="mt-3 rounded px-4 py-3 text-sm leading-relaxed"
+                                  style={{ border: `1px solid rgba(122,43,26,0.5)`, backgroundColor: "rgba(122,43,26,0.08)", color: W.dangerText }}
+                                >
+                                  {rewriteCache[active.id].error}
+                                </p>
                                 {source && source.split(/\s+/).length <= 1200 && (
                                   <button
                                     type="button"
-                                    onClick={() => { setRewriteCache((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); void generateVoiceRewrite(active); }}
+                                    onClick={() => {
+                                      setRewriteCache((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
+                                      void generateVoiceRewrite(active);
+                                    }}
                                     disabled={rewriteLoading === active.id}
-                                    className="mt-1 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
+                                    className="mt-3 w-full rounded py-2.5 text-sm font-semibold disabled:opacity-50"
+                                    style={{ border: `1px solid ${W.forest}`, backgroundColor: "rgba(74,122,58,0.12)", color: W.forestText }}
                                   >
                                     {rewriteLoading === active.id ? "Retrying…" : "Retry Generate"}
                                   </button>
@@ -594,23 +862,41 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               </>
                             ) : rewriteCache[active.id]?.a ? (
                               <>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Voice-Generated Rewrites</p>
-                                  <span className="text-[9px] text-[#6B8F5E]">Generated in author voice</span>
+                                <div className="flex items-baseline justify-between mb-4">
+                                  <Eyebrow>Voice-Generated Rewrites</Eyebrow>
+                                  <span className="text-[10px]" style={{ color: "#6B8F5E" }}>Generated in author voice</span>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                   {OPTION_KEYS.map((key) => {
                                     const label = key === "A" ? "Recommended" : key === "B" ? "Quieter" : "Bolder";
                                     const rewrite = rewriteCache[active.id][key.toLowerCase() as "a" | "b" | "c"];
+                                    const isSelected = selectedOption === key;
                                     return (
-                                      <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
+                                      <div
+                                        key={key}
+                                        className="rounded px-4 py-3"
+                                        style={
+                                          isSelected
+                                            ? { border: `1px solid ${W.gold}`, backgroundColor: "rgba(200,169,110,0.06)" }
+                                            : { border: `1px solid ${W.borderFaint}` }
+                                        }
+                                      >
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
-                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{key} — {label}</span>
-                                          <p className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{rewrite}</p>
+                                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: W.gold }}>
+                                            {key} — {label}
+                                          </p>
+                                          <p className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap text-sm leading-[1.65]" style={{ color: W.cream2 }}>
+                                            {rewrite}
+                                          </p>
                                         </button>
-                                        <div className="mt-1 flex gap-1">
-                                          <button type="button" onClick={() => void navigator.clipboard.writeText(rewrite).then(() => setMessage("Copied"))} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] text-[#C8A96E]">Copy</button>
-                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => void navigator.clipboard.writeText(rewrite).then(() => setMessage("Copied"))}
+                                          className="mt-2 rounded px-2 py-0.5 text-[10px]"
+                                          style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                                        >
+                                          Copy
+                                        </button>
                                       </div>
                                     );
                                   })}
@@ -618,13 +904,13 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               </>
                             ) : (
                               <>
-                                <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E] mb-1.5">Revision Strategies</p>
-                                <p className="text-[10px] text-[#A9987D] mb-2">
+                                <Eyebrow>Revision Strategies</Eyebrow>
+                                <p className="mt-2 mb-4 text-sm" style={{ color: W.muted }}>
                                   {source && source.split(/\s+/).length > 1200
                                     ? "Passage too large for inline replacement. Choose a strategy approach:"
                                     : "Template residue detected. Choose a strategy approach or generate voice rewrites:"}
                                 </p>
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                   {OPTION_KEYS.map((key) => {
                                     const goal = compactGoal(active);
                                     const strategyMeta: Record<OptionKey, { label: string; approach: string }> = {
@@ -633,68 +919,124 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                       C: { label: "Bolder Shift", approach: `Reframe the structural context entirely — consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                     };
                                     const { label, approach } = strategyMeta[key];
+                                    const isSelected = selectedOption === key;
                                     return (
-                                      <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
+                                      <div
+                                        key={key}
+                                        className="rounded px-4 py-4"
+                                        style={
+                                          isSelected
+                                            ? { border: `1px solid ${W.gold}`, backgroundColor: "rgba(200,169,110,0.06)" }
+                                            : { border: `1px solid ${W.borderFaint}` }
+                                        }
+                                      >
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
-                                          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{color:'#C8A96E'}}>{key} — {label}</span>
-                                          <p className="mt-0.5 text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{approach}</p>
+                                          <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: W.gold }}>
+                                            {key} — {label}
+                                          </p>
+                                          <p className="mt-2 text-sm leading-[1.65]" style={{ color: W.cream2 }}>
+                                            {approach}
+                                          </p>
                                         </button>
                                       </div>
                                     );
                                   })}
                                 </div>
-                                {/* Generate in Voice button — only for ≤1200 word passages */}
                                 {source && source.split(/\s+/).length <= 1200 && (
                                   <button
                                     type="button"
                                     onClick={() => void generateVoiceRewrite(active)}
                                     disabled={rewriteLoading === active.id}
-                                    className="mt-2 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
+                                    className="mt-4 w-full rounded py-3 text-sm font-bold uppercase tracking-[0.10em] disabled:opacity-50 transition-opacity hover:opacity-85"
+                                    style={{ backgroundColor: W.oxblood, color: "#FFFFFF" }}
                                   >
                                     {rewriteLoading === active.id ? "Generating in author voice…" : "Generate Draft in Author Voice"}
                                   </button>
                                 )}
                               </>
                             )}
-                          </section>
+                          </div>
                         ) : (
-                          <section className="mt-1.5">
-                            <div className="mb-1 flex items-center gap-2">
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Compare A/B/C Options</p>
-                              {invalidCandidates && <span className="ml-auto text-[10px] text-[#E2B2A6]">Awaiting passage</span>}
+                          /* A/B/C full prose mode */
+                          <div>
+                            <div className="flex items-baseline justify-between mb-4">
+                              <Eyebrow>Compare A/B/C Options</Eyebrow>
+                              {invalidCandidates && (
+                                <span className="text-[10px]" style={{ color: W.dangerText }}>Awaiting passage</span>
+                              )}
                             </div>
-                            <div className="grid gap-2 xl:grid-cols-3">
+                            <div className="grid gap-3 xl:grid-cols-3">
                               {OPTION_KEYS.map((key) => {
                                 const text = candidateDisplayText(active, key);
                                 const ok = canSelectOption(active, key);
-                                const selected = selectedOption === key;
-                                const role = key === "A" ? "Recommended Repair" : key === "B" ? "Rhythm Variant" : "Bolder Rendering Shift";
+                                const isSelected = selectedOption === key;
+                                const role = key === "A" ? "Recommended Repair" : key === "B" ? "Rhythm Variant" : "Bolder Shift";
                                 return (
-                                  <article key={key} className={`rounded-lg border bg-[#12100B] px-2 py-2 ${selected ? "border-[#C8A96E]" : "border-[#2E261A]"}`}>
+                                  <article
+                                    key={key}
+                                    className="rounded px-4 py-4"
+                                    style={
+                                      isSelected
+                                        ? { border: `1px solid ${W.gold}`, backgroundColor: "rgba(200,169,110,0.06)" }
+                                        : { border: `1px solid ${W.borderFaint}`, backgroundColor: W.surface }
+                                    }
+                                  >
                                     <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C8A96E]">{key} — {role}</span>
+                                      {/* Strategy letter — large and clear */}
+                                      <div className="flex items-baseline gap-2 mb-1">
+                                        <span
+                                          className="font-mono text-lg font-bold leading-none"
+                                          style={{ color: isSelected ? W.gold : W.muted }}
+                                        >
+                                          {key}
+                                        </span>
+                                        <span className="text-[10px] uppercase tracking-[0.12em]" style={{ color: W.muted }}>
+                                          {role}
+                                        </span>
                                       </div>
-                                      <p className={`line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-xs leading-5 ${ok ? "" : "italic"}`} style={{color: ok ? '#F0E8D5' : '#A9987D'}}>
-                                        {text || "Prose not yet generated — click \u201cGenerate Distinct A/B/C Drafts\u201d below to create three different options."}
+                                      <p
+                                        className="line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-sm leading-[1.65]"
+                                        style={{ color: ok ? W.cream2 : W.dim, fontStyle: ok ? "normal" : "italic" }}
+                                      >
+                                        {text || "Prose not yet generated — click "Generate" below to create three distinct options."}
                                       </p>
                                     </button>
-                                    {text && text.length > 190 ? (
-                                      <details className="mt-1.5">
-                                        <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">Show full fix</summary>
-                                        <p className="mt-1 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-1.5 whitespace-pre-wrap text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{text}</p>
+                                    {text && text.length > 190 && (
+                                      <details className="mt-2">
+                                        <summary className="cursor-pointer text-[10px]" style={{ color: W.gold }}>
+                                          Show full fix
+                                        </summary>
+                                        <p
+                                          className="mt-1.5 max-h-28 overflow-y-auto rounded p-2.5 whitespace-pre-wrap text-sm leading-[1.65]"
+                                          style={{ backgroundColor: W.bg, border: `1px solid ${W.borderFaint}`, color: W.cream2 }}
+                                        >
+                                          {text}
+                                        </p>
                                       </details>
-                                    ) : null}
-                                    <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="mt-1.5 rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyText(text)}
+                                      disabled={!ok}
+                                      className="mt-2.5 rounded px-2.5 py-0.5 text-[10px] disabled:opacity-40"
+                                      style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                                    >
+                                      Copy
+                                    </button>
                                   </article>
                                 );
                               })}
                             </div>
-                            {/* Generate button when any option is missing prose */}
+                            {/* Generate button — primary focal action */}
                             {OPTION_KEYS.some((k) => !canSelectOption(active, k)) && (
                               <>
                                 {rewriteCache[active.id]?.error && (
-                                  <p className="mt-2 rounded border border-[#7A2B1A]/60 bg-[#7A2B1A]/10 px-2 py-1.5 text-xs leading-relaxed text-[#F1B6A5]">{rewriteCache[active.id].error}</p>
+                                  <p
+                                    className="mt-3 rounded px-4 py-2.5 text-sm leading-relaxed"
+                                    style={{ border: `1px solid rgba(122,43,26,0.5)`, backgroundColor: "rgba(122,43,26,0.08)", color: W.dangerText }}
+                                  >
+                                    {rewriteCache[active.id].error}
+                                  </p>
                                 )}
                                 <button
                                   type="button"
@@ -705,33 +1047,57 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                     void generateVoiceRewrite(active);
                                   }}
                                   disabled={rewriteLoading === active.id}
-                                  className="mt-2 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
+                                  className="mt-4 w-full rounded py-3 text-sm font-bold uppercase tracking-[0.10em] disabled:opacity-50 transition-opacity hover:opacity-85"
+                                  style={{ backgroundColor: W.oxblood, color: "#FFFFFF" }}
                                 >
                                   {rewriteLoading === active.id
                                     ? "Generating distinct A/B/C drafts in author voice…"
                                     : rewriteCache[active.id]?.error
-                                      ? "Retry Generate Distinct A/B/C Drafts"
-                                      : "Generate Distinct A/B/C Drafts in Author Voice"}
+                                    ? "Retry — Generate Distinct A/B/C Drafts"
+                                    : "Generate Distinct A/B/C Drafts in Author Voice"}
                                 </button>
                               </>
                             )}
-                          </section>
+                          </div>
                         )}
                       </>
                     );
                   })()}
 
+                  {/* Custom rewrite textarea */}
                   {customOpen && (
-                    <div className="mt-1.5 rounded-lg border border-[#C8A96E]/60 bg-[#120E08] px-2 py-1.5">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-[#C8A96E]">Author custom revision</p>
-                      <textarea value={customText} onChange={(event) => setCustomText(event.target.value)} rows={3} className="mt-1 w-full rounded border border-[#3A3022] bg-[#0D0A05] p-2 font-mono text-xs" />
-                      <button disabled={!customText.trim()} onClick={() => decide("custom", undefined, customText)} className="mt-1 rounded bg-[#C8A96E] px-2 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-50">Save custom</button>
+                    <div
+                      className="rounded px-5 py-4"
+                      style={{ border: `1px solid rgba(200,169,110,0.45)`, backgroundColor: W.surface }}
+                    >
+                      <Eyebrow>Author Custom Revision</Eyebrow>
+                      <textarea
+                        value={customText}
+                        onChange={(e) => setCustomText(e.target.value)}
+                        rows={4}
+                        className="mt-3 w-full rounded p-3 font-serif text-sm leading-[1.65]"
+                        style={{ border: `1px solid ${W.border}`, backgroundColor: W.bg, color: W.cream2 }}
+                      />
+                      <button
+                        disabled={!customText.trim()}
+                        onClick={() => decide("custom", undefined, customText)}
+                        className="mt-2 rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+                        style={{ backgroundColor: W.gold, color: W.bg }}
+                      >
+                        Save custom
+                      </button>
                     </div>
                   )}
                 </div>
 
-                <footer className="shrink-0 border-t border-[#2E261A] bg-[#120E08] px-2 py-1.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
+                {/* ════════════════════════════════════════════════════
+                    FOOTER TOOLBAR — primary action bar
+                ════════════════════════════════════════════════════ */}
+                <footer
+                  className="shrink-0 px-5 py-3"
+                  style={{ borderTop: `1px solid ${W.border}`, backgroundColor: W.surface }}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
                     {(() => {
                       const mode = displayMode(active);
                       const allResidue = OPTION_KEYS.every((k) => { const t = candidateText(active, k); return !t || hasTemplateResidue(t); });
@@ -744,34 +1110,168 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                           const rw = rewriteCache[active.id];
                           return (
                             <>
-                              <button onClick={() => decide("accepted_a", "A", rw.a)} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C]">Accept A</button>
-                              <button onClick={() => decide("accepted_b", "B", rw.b)} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs">Accept B</button>
-                              <button onClick={() => decide("accepted_c", "C", rw.c)} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs">Accept C</button>
-                              <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
-                              <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject All</button>
-                              <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                              <button onClick={() => { if (!customOpen) setCustomText(rw.a); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Custom Rewrite</button>
+                              {/* Primary */}
+                              <button
+                                onClick={() => decide("accepted_a", "A", rw.a)}
+                                className="rounded px-4 py-2 text-sm font-semibold"
+                                style={{ backgroundColor: W.oxblood, color: "#FFFFFF" }}
+                              >
+                                Accept A
+                              </button>
+                              {/* Secondary */}
+                              <button
+                                onClick={() => decide("accepted_b", "B", rw.b)}
+                                className="rounded px-3 py-2 text-sm"
+                                style={{ border: `1px solid ${W.border}`, color: W.cream2 }}
+                              >
+                                Accept B
+                              </button>
+                              <button
+                                onClick={() => decide("accepted_c", "C", rw.c)}
+                                className="rounded px-3 py-2 text-sm"
+                                style={{ border: `1px solid ${W.border}`, color: W.cream2 }}
+                              >
+                                Accept C
+                              </button>
+                              {/* Separator */}
+                              <div className="mx-1 h-4 w-px" style={{ backgroundColor: W.border }} />
+                              <button
+                                onClick={() => decide("keep_original", undefined, "Kept original")}
+                                className="rounded px-3 py-2 text-sm"
+                                style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                              >
+                                Keep Original
+                              </button>
+                              <button
+                                onClick={() => decide("deferred", undefined, "Deferred for later decision")}
+                                className="rounded px-3 py-2 text-sm"
+                                style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                              >
+                                Defer
+                              </button>
+                              <button
+                                onClick={() => { if (!customOpen) setCustomText(rw.a); setCustomOpen(true); }}
+                                className="rounded px-3 py-2 text-sm"
+                                style={{ border: `1px solid ${W.border}`, color: W.cream2 }}
+                              >
+                                Custom Rewrite
+                              </button>
+                              {/* Danger — visually separated */}
+                              <div className="ml-auto">
+                                <button
+                                  onClick={() => decide("reject", undefined, "Rejected suggestions")}
+                                  className="rounded px-3 py-2 text-sm"
+                                  style={{ border: `1px solid rgba(122,43,26,0.50)`, color: W.dangerText }}
+                                >
+                                  Reject All
+                                </button>
+                              </div>
                             </>
                           );
                         }
                         return (
                           <>
-                            <span className="rounded border border-[#5D4C31] px-2.5 py-1 text-xs text-[#A9987D]">Needs exact A/B/C prose before acceptance</span>
-                            <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject All</button>
-                            <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                            <button onClick={() => { if (!customOpen) setCustomText(""); setCustomOpen(true); }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">Custom Rewrite</button>
+                            <span
+                              className="rounded px-3 py-2 text-xs"
+                              style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                            >
+                              Needs A/B/C prose before acceptance
+                            </span>
+                            <button
+                              onClick={() => decide("deferred", undefined, "Deferred for later decision")}
+                              className="rounded px-3 py-2 text-sm"
+                              style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                            >
+                              Defer
+                            </button>
+                            <button
+                              onClick={() => { if (!customOpen) setCustomText(""); setCustomOpen(true); }}
+                              className="rounded px-3 py-2 text-sm"
+                              style={{ border: `1px solid ${W.border}`, color: W.cream2 }}
+                            >
+                              Custom Rewrite
+                            </button>
+                            <div className="ml-auto">
+                              <button
+                                onClick={() => decide("reject", undefined, "Rejected suggestions")}
+                                className="rounded px-3 py-2 text-sm"
+                                style={{ border: `1px solid rgba(122,43,26,0.50)`, color: W.dangerText }}
+                              >
+                                Reject All
+                              </button>
+                            </div>
                           </>
                         );
                       }
+
                       return (
                         <>
-                          <button onClick={() => decide("accepted_a", "A", candidateText(active, "A"))} disabled={!canSelectOption(active, "A")} className="rounded bg-[#C8A96E] px-2.5 py-1 text-xs font-semibold text-[#1A140C] disabled:opacity-40">{insertLabel} A</button>
-                          <button onClick={() => decide("accepted_b", "B", candidateText(active, "B"))} disabled={!canSelectOption(active, "B")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">{insertLabel} B</button>
-                          <button onClick={() => decide("accepted_c", "C", candidateText(active, "C"))} disabled={!canSelectOption(active, "C")} className="rounded border border-[#C8A96E] px-2.5 py-1 text-xs disabled:opacity-40">{insertLabel} C</button>
-                          <button onClick={() => decide("keep_original", undefined, "Kept original")} className="rounded border border-[#5D4C31] px-2 py-1 text-xs">Keep Original</button>
-                          <button onClick={() => decide("reject", undefined, "Rejected suggestions")} className="rounded border border-[#7A2B1A]/70 px-2 py-1 text-xs text-[#E2B2A6]">Reject All</button>
-                          <button onClick={() => decide("deferred", undefined, "Deferred for later decision")} className="rounded border border-[#5C5140] px-2 py-1 text-xs">Defer</button>
-                          <button onClick={() => { if (customOpen && customText.trim()) { decide("custom", undefined, customText); } else { if (!customOpen) setCustomText(selectedText); setCustomOpen(true); } }} className="rounded border border-[#C8A96E] bg-[#C8A96E]/10 px-2 py-1 text-xs">{customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Custom Rewrite")}</button>
+                          {/* Primary — Accept A */}
+                          <button
+                            onClick={() => decide("accepted_a", "A", candidateText(active, "A"))}
+                            disabled={!canSelectOption(active, "A")}
+                            className="rounded px-4 py-2 text-sm font-semibold disabled:opacity-40"
+                            style={{ backgroundColor: W.oxblood, color: "#FFFFFF" }}
+                          >
+                            {insertLabel} A
+                          </button>
+                          {/* Secondary */}
+                          <button
+                            onClick={() => decide("accepted_b", "B", candidateText(active, "B"))}
+                            disabled={!canSelectOption(active, "B")}
+                            className="rounded px-3 py-2 text-sm disabled:opacity-40"
+                            style={{ border: `1px solid ${W.border}`, color: W.cream2 }}
+                          >
+                            {insertLabel} B
+                          </button>
+                          <button
+                            onClick={() => decide("accepted_c", "C", candidateText(active, "C"))}
+                            disabled={!canSelectOption(active, "C")}
+                            className="rounded px-3 py-2 text-sm disabled:opacity-40"
+                            style={{ border: `1px solid ${W.border}`, color: W.cream2 }}
+                          >
+                            {insertLabel} C
+                          </button>
+                          {/* Separator */}
+                          <div className="mx-1 h-4 w-px" style={{ backgroundColor: W.border }} />
+                          <button
+                            onClick={() => decide("keep_original", undefined, "Kept original")}
+                            className="rounded px-3 py-2 text-sm"
+                            style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                          >
+                            Keep Original
+                          </button>
+                          <button
+                            onClick={() => decide("deferred", undefined, "Deferred for later decision")}
+                            className="rounded px-3 py-2 text-sm"
+                            style={{ border: `1px solid ${W.border}`, color: W.muted }}
+                          >
+                            Defer
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (customOpen && customText.trim()) {
+                                decide("custom", undefined, customText);
+                              } else {
+                                if (!customOpen) setCustomText(selectedText);
+                                setCustomOpen(true);
+                              }
+                            }}
+                            className="rounded px-3 py-2 text-sm"
+                            style={{ border: `1px solid ${W.border}`, color: W.cream2 }}
+                          >
+                            {customOpen && customText.trim() ? "Save Custom" : (customOperationLabels[effectiveOperation(active)] ?? "Custom Rewrite")}
+                          </button>
+                          {/* Danger — pushed to far right */}
+                          <div className="ml-auto">
+                            <button
+                              onClick={() => decide("reject", undefined, "Rejected suggestions")}
+                              className="rounded px-3 py-2 text-sm"
+                              style={{ border: `1px solid rgba(122,43,26,0.50)`, color: W.dangerText }}
+                            >
+                              Reject All
+                            </button>
+                          </div>
                         </>
                       );
                     })()}
@@ -779,17 +1279,84 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                 </footer>
               </>
             ) : (
-              <div className="m-3 rounded-xl border border-[#2E261A] bg-[#12100B] p-6 text-[#CBBDA4]">No open opportunities match the current filters.</div>
+              <div className="m-5 rounded px-5 py-5 text-sm" style={{ border: `1px solid ${W.border}`, color: W.muted }}>
+                No open opportunities match the current filters.
+              </div>
             )}
 
-            <section className="shrink-0 border-t border-[#2E261A] bg-[#0D0A05] px-3 pb-3 pt-3">
+            {/* ════════════════════════════════════════════════════
+                REVISION LEDGER — bottom strip
+            ════════════════════════════════════════════════════ */}
+            <section
+              className="shrink-0 px-5 pb-4 pt-3"
+              style={{ borderTop: `1px solid ${W.border}`, backgroundColor: W.bg }}
+            >
               {ledger.length === 0 ? (
-                <div className="flex gap-3 rounded border border-[#2E261A] bg-[#120E08] px-3 py-2 text-xs"><span className="uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span><span className="text-[#A9987D]">No decisions yet.</span></div>
+                <div className="flex gap-3 items-center">
+                  <Eyebrow>Revision Ledger</Eyebrow>
+                  <span className="text-xs" style={{ color: W.dim }}>No decisions yet.</span>
+                </div>
               ) : (
                 <>
-                  <div className="mb-2 flex flex-wrap gap-2 text-xs"><span className="mr-2 uppercase tracking-[0.16em] text-[#C8A96E]">Revision Ledger</span>{LEDGER_FILTERS.map((filter) => <button key={filter.value} type="button" onClick={() => setFilters((current) => ({ ...current, status: filter.value }))} className={`rounded border px-2 py-1 ${filters.status === filter.value ? "border-[#C8A96E] text-[#F5EFE4]" : "border-[#3A3022] text-[#A9987D]"}`}>{filter.label}</button>)}</div>
-                  <div className="max-h-32 overflow-y-auto rounded border border-[#2E261A]">
-                    <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-[#171006] text-[#C8A96E]"><tr><th className="px-2 py-1">Decision</th><th className="px-2 py-1">Criterion</th><th className="px-2 py-1">Item</th><th className="px-2 py-1">Status</th><th className="px-2 py-1">Action</th></tr></thead><tbody>{visibleLedger.map((entry) => <tr key={entry.id} className="border-t border-[#2E261A]"><td className="px-2 py-1">{decisionLabel(entry.decision)}{entry.option ? ` (${entry.option})` : ""}</td><td className="px-2 py-1">{entry.criterion}</td><td className="px-2 py-1">{entry.itemTitle}</td><td className="px-2 py-1">{entry.syncStatus}</td><td className="px-2 py-1"><button onClick={() => unselect(entry)} className="rounded border border-[#5D4C31] px-2 py-0.5 text-[#C8A96E]">Unselect</button></td></tr>)}</tbody></table>
+                  <div className="mb-2.5 flex flex-wrap gap-1.5 items-center">
+                    <Eyebrow>Revision Ledger</Eyebrow>
+                    <div className="ml-3 flex flex-wrap gap-1">
+                      {LEDGER_FILTERS.map((filter) => (
+                        <button
+                          key={filter.value}
+                          type="button"
+                          onClick={() => setFilters((f) => ({ ...f, status: filter.value }))}
+                          className="rounded px-2 py-0.5 text-[10px]"
+                          style={
+                            filters.status === filter.value
+                              ? { border: `1px solid ${W.gold}`, color: W.cream }
+                              : { border: `1px solid ${W.border}`, color: W.dim }
+                          }
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div
+                    className="max-h-28 overflow-y-auto rounded"
+                    style={{ border: `1px solid ${W.borderFaint}` }}
+                  >
+                    <table className="w-full text-left text-xs">
+                      <thead
+                        className="sticky top-0 text-[10px] uppercase tracking-[0.12em]"
+                        style={{ backgroundColor: W.surface, color: W.gold }}
+                      >
+                        <tr>
+                          <th className="px-3 py-1.5">Decision</th>
+                          <th className="px-3 py-1.5">Criterion</th>
+                          <th className="px-3 py-1.5">Item</th>
+                          <th className="px-3 py-1.5">Sync</th>
+                          <th className="px-3 py-1.5">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleLedger.map((entry) => (
+                          <tr key={entry.id} style={{ borderTop: `1px solid ${W.borderFaint}` }}>
+                            <td className="px-3 py-2" style={{ color: W.cream2 }}>
+                              {decisionLabel(entry.decision)}{entry.option ? ` (${entry.option})` : ""}
+                            </td>
+                            <td className="px-3 py-2" style={{ color: W.muted }}>{entry.criterion}</td>
+                            <td className="px-3 py-2" style={{ color: W.muted }}>{entry.itemTitle}</td>
+                            <td className="px-3 py-2" style={{ color: W.dim }}>{entry.syncStatus}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={() => unselect(entry)}
+                                className="rounded px-2 py-0.5 text-[10px]"
+                                style={{ border: `1px solid ${W.border}`, color: W.gold }}
+                              >
+                                Unselect
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </>
               )}
