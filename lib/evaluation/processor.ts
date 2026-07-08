@@ -5314,6 +5314,16 @@ export async function processEvaluationJob(
         progress_high_water: safeCompletedUnits,
         message,
         last_heartbeat_at: now,
+        // FIX: clear recovery death-flags on every successful worker claim.
+        // progressState carries these forward from the prior SLA-halted run;
+        // leaving them set causes the UI to show recovery banner forever and
+        // the watchdog to halt the job again immediately.
+        hard_stop_halted: false,
+        hard_stop_at: null,
+        hard_stop_code: null,
+        hard_stop_reason: null,
+        hard_stop_internal_reason: null,
+        dashboard_status: null,
       };
 
       Object.assign(progressState, nextProgress);
