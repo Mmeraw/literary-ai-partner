@@ -9,7 +9,6 @@ functions/
 
 # Archives and exports
 archive/
-base44-export/
 
 # Scripts (complex parsing)
 scripts/

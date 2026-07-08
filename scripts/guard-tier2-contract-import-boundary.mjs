@@ -18,7 +18,6 @@ const SOURCE_FILES = globSync("**/*.{ts,tsx,js,mjs,cjs}", {
     "dist/**",
     "build/**",
     "archive/**",
-    "base44-export/**",
   ],
 });
 

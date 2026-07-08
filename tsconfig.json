@@ -48,7 +48,6 @@
     "node_modules",
     ".next",
     "archive",
-    "base44-export",
     "functions",
     "supabase/functions/**",
     "**/*.deno.ts",

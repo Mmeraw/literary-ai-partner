@@ -24,7 +24,6 @@ export default [
       "supabase/**/functions/**",
       "functions/**",
       "archive/**",
-      "base44-export/**",
 
       // Optional: if this contains TS syntax but is .js, it will break parsing
       // "app/api/evaluate/route_old.js",
