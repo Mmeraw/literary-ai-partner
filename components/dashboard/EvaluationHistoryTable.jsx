@@ -1,4 +1,5 @@
 // ── Evaluation purpose detection ─────────────────────────────────────────────
+import HardResetRestartButton from '@/components/evaluation/HardResetRestartButton'
 import { formatScoreForDisplay } from '@/lib/ui/score-formatting'
 
 // Determines whether an evaluation is a normal author manuscript, a calibration
@@ -186,6 +187,10 @@ function isAgentReadinessEligible(row) {
   return row.status !== 'running' && row.status !== 'queued' && row.status !== 'stale' && row.status !== 'cancelled' && row.status !== 'failed'
 }
 
+function isRestartEligible(row) {
+  return row.status === 'failed' || row.status === 'stale'
+}
+
 // ── Table ─────────────────────────────────────────────────────────────────────
 
 export default function EvaluationHistoryTable({ rows }) {
@@ -236,6 +241,11 @@ export default function EvaluationHistoryTable({ rows }) {
                         ? 'View details'
                         : 'Open report'}
                     </a>
+                    {isRestartEligible(row) && (
+                      <div style={{ display: 'block', marginTop: '0.5rem' }}>
+                        <HardResetRestartButton jobId={row.jobId} compact label="Restart" />
+                      </div>
+                    )}
                     {!isNonAuthor && isAgentReadinessEligible(row) && (
                       <a className="rg-history-open" href={agentReadinessHref(row)} style={{ display: 'block', marginTop: '0.5rem' }}>
                         Build Agent Readiness Package
