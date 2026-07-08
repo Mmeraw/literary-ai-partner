@@ -200,15 +200,15 @@ const filterLabels = ["All", "Evaluation finding", "Criterion", "Severity", "Cha
 
 /* ── Severity badge — rg tokens, readable contrast ─────────────────────── */
 function severityClasses(severity: string): string {
-  if (severity === "must")     return "bg-red-800/70 text-red-100 border-red-600/50";
-  if (severity === "should")   return "bg-amber-700/60 text-amber-100 border-amber-500/50";
+  if (severity === "must")     return "bg-red-700 text-white border-red-500";
+  if (severity === "should")   return "bg-amber-600 text-white border-amber-400";
   if (severity === "could")    return "bg-rg-ink3 text-rg-cream2 border-rg-cream2/30";
   return "bg-rg-ink2 text-rg-dim border-rg-cream2/20";
 }
 
 function leverageClasses(leverage: string): string {
-  if (leverage === "Spine")  return "bg-red-800/50 text-red-200 border-red-600/40";
-  if (leverage === "High")   return "bg-amber-700/50 text-amber-200 border-amber-500/40";
+  if (leverage === "Spine")  return "bg-red-700 text-white border-red-500";
+  if (leverage === "High")   return "bg-amber-600 text-white border-amber-400";
   return "bg-rg-ink3 text-rg-cream2 border-rg-cream2/20";
 }
 
@@ -222,10 +222,10 @@ function decisionLabel(d: Decision): string {
 }
 
 function decisionBadgeClass(d: Decision): string {
-  if (d === "accepted") return "bg-green-800/60 text-green-200 border-green-600/40";
-  if (d === "kept")     return "bg-blue-800/50 text-blue-200 border-blue-600/40";
-  if (d === "rejected") return "bg-red-800/50 text-red-200 border-red-600/40";
-  if (d === "custom")   return "bg-purple-800/50 text-purple-200 border-purple-600/40";
+  if (d === "accepted") return "bg-green-700 text-white border-green-500";
+  if (d === "kept")     return "bg-blue-700 text-white border-blue-500";
+  if (d === "rejected") return "bg-red-700 text-white border-red-500";
+  if (d === "custom")   return "bg-purple-700 text-white border-purple-500";
   if (d === "deferred") return "bg-rg-ink3 text-rg-dim border-rg-cream2/20";
   return "";
 }
