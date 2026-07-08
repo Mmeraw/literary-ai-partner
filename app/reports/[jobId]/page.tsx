@@ -1236,6 +1236,7 @@ export default async function ReportPage({
 
         {/* ── Author-Facing Disclaimer ── */}
         <section className="border border-gray-200 rounded-lg p-5 mb-6 bg-gray-50">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-3">Author-Facing Disclaimer</h2>
           <p className="text-xs text-gray-500 leading-relaxed">
             {vm.disclaimer}
           </p>
