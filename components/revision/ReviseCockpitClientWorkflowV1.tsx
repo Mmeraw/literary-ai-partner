@@ -414,10 +414,15 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
         "The manuscript passed the readiness checks that Revise targets, so there is nothing queued to revise.";
     }
     return (
-      <main className="fixed inset-x-0 bottom-0 top-[72px] flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">
-        <div className="max-w-md rounded-xl border border-[#2E261A] bg-[#151008] px-6 py-6 text-center shadow-2xl">
-          <p className="text-sm font-semibold text-[#F5EFE4]">{heading}</p>
-          {detail && <p className="mt-2 text-sm leading-relaxed text-[#CBBDA4]">{detail}</p>}
+      <main className="fixed inset-x-0 bottom-0 top-[72px] z-10 flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3">
+        <div className="max-w-lg rounded-xl border border-[#C8A96E]/30 bg-[#1C160E] px-8 py-8 text-center shadow-2xl">
+          <p className="text-base font-bold" style={{color: '#F5EFE4'}}>{heading}</p>
+          {detail && <p className="mt-3 text-sm leading-relaxed" style={{color: '#D6C4A2'}}>{detail}</p>}
+          {heldCount > 0 && (
+            <p className="mt-4 text-xs" style={{color: '#C8A96E'}}>
+              Use <strong style={{color: '#F5EFE4'}}>Final Review / Apply &amp; Export</strong> above to inspect the full ledger and export what is available.
+            </p>
+          )}
         </div>
       </main>
     );
