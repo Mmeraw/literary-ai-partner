@@ -1,4 +1,4 @@
-"use client"; // cache-bust 2026-07-08T21:50-action-blue
+"use client"; // cache-bust 2026-07-08T21:07-design-system-v1
 
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
@@ -27,7 +27,6 @@ const PASTE_WORD_LIMIT = 250000;
 // ─── Brand tokens ────────────────────────────────────────────────────────────
 const C = {
   oxblood:      "#7A2B1A",
-  actionBlue:   "#1B4F8A",
   gold:         "#8A5A00",
   goldBorder:   "rgba(138,90,0,0.55)",
   cream:        "#FFF8E8",
@@ -1079,7 +1078,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                           onClick={triggerDashboardUpload}
                           disabled={isUploading || isSubmitting}
                           className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-bold shadow-sm disabled:opacity-60"
-                          style={{ backgroundColor: C.actionBlue, color: "#FFFFFF" }}
+                          style={{ backgroundColor: C.oxblood, color: "#FFFFFF" }}
                         >
                           {isUploading ? "Uploading…" : "Replace File"}
                         </button>
@@ -1103,7 +1102,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                         onClick={triggerDashboardUpload}
                         disabled={isUploading || isSubmitting}
                         className="min-h-[50px] rounded-xl px-6 py-3 font-rg-mono text-sm font-bold uppercase tracking-[0.14em] shadow-sm disabled:opacity-60"
-                        style={{ backgroundColor: C.actionBlue, color: "#FFFFFF" }}
+                        style={{ backgroundColor: C.oxblood, color: "#FFFFFF" }}
                       >
                         {isUploading ? "Uploading…" : "Choose File"}
                       </button>
@@ -1168,7 +1167,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                         type="button"
                         onClick={() => handleInputMethodChange("upload")}
                         className="mt-3 inline-flex min-h-[42px] items-center rounded-lg px-5 py-2 text-sm font-bold shadow-sm"
-                        style={{ backgroundColor: C.actionBlue, color: "#FFFFFF" }}
+                        style={{ backgroundColor: C.oxblood, color: "#FFFFFF" }}
                       >
                         Switch to Upload File
                       </button>
@@ -1385,7 +1384,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                 style={
                   isSubmitting || isUploading || !processingTermsAccepted || isOverPasteLimit
                     ? { backgroundColor: "#C4B8A8", color: "#7A6A52" }
-                    : { backgroundColor: C.actionBlue, color: "#FFFFFF" }
+                    : { backgroundColor: C.oxblood, color: "#FFFFFF" }
                 }
               >
                 {isSubmitting ? "Starting Evaluation…" : "Begin Editorial Evaluation"}

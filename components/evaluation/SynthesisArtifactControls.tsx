@@ -79,7 +79,7 @@ export function SynthesisArtifactControls({
         <button
           onClick={handleRetry}
           disabled={isLoading}
-          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50"
+          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50" style={{backgroundColor:"#7A2B1A",color:"#FFFFFF"}}
           title="Re-run the Narrative Synthesis worker"
         >
           {isLoading ? 'Processing...' : 'Retry Synthesis'}

@@ -228,10 +228,10 @@ export function FailedJobRecovery({
     // auto-resume request fails.
     if (resumeLoading && !resumeError) {
       return (
-        <div className="space-y-4 rounded-lg border border-blue-200 bg-blue-50 p-5">
+        <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-5">
           <div className="flex items-center gap-3">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-blue-700" />
-            <p className="text-sm font-medium text-blue-800">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-slate-700" />
+            <p className="text-sm font-medium text-slate-800">
               Automatically recovering from last checkpoint — please wait…
             </p>
           </div>
@@ -249,7 +249,7 @@ export function FailedJobRecovery({
           <button
             onClick={onResume}
             disabled={resumeLoading || resumed}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{backgroundColor:"#7A2B1A",color:"#FFFFFF"}}
           >
             {resumeLoading ? (
               <>
@@ -325,7 +325,7 @@ export function FailedJobRecovery({
               resumeMode === "phase2_handoff"
                 ? "border-green-300 bg-green-100 text-green-800"
                 : resumeMode === "chunk_checkpoint"
-                ? "border-blue-300 bg-blue-100 text-blue-800"
+                ? "border-slate-300 bg-slate-100 text-slate-800"
                 : "border-gray-300 bg-gray-100 text-gray-700"
             }`}
           >
@@ -356,7 +356,7 @@ export function FailedJobRecovery({
         <button
           onClick={onResume}
           disabled={resumeLoading || !checked || resumed}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50" style={{backgroundColor:"#7A2B1A",color:"#FFFFFF"}}
         >
           {resumeLoading ? (
             <>

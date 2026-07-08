@@ -223,7 +223,7 @@ function decisionLabel(d: Decision): string {
 
 function decisionBadgeClass(d: Decision): string {
   if (d === "accepted") return "bg-green-700 text-white border-green-500";
-  if (d === "kept")     return "bg-blue-700 text-white border-blue-500";
+  if (d === "kept")     return "bg-slate-700 text-white border-slate-500";
   if (d === "rejected") return "bg-red-700 text-white border-red-500";
   if (d === "custom")   return "bg-purple-700 text-white border-purple-500";
   if (d === "deferred") return "bg-rg-ink3 text-rg-dim border-rg-cream2/20";

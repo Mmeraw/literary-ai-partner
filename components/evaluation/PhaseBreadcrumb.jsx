@@ -90,7 +90,7 @@ export default function PhaseBreadcrumb({ phaseLog = [], job, compact = false })
 
         const dotColor =
           status === "passed"  ? "bg-green-500" :
-          status === "active"  ? "bg-blue-500 ring-2 ring-blue-200 animate-pulse" :
+          status === "active"  ? "bg-[#7A2B1A] ring-2 ring-[#7A2B1A]/30 animate-pulse" :
           status === "failed"  ? "bg-red-500" :
                                  "bg-gray-200";
 
@@ -101,7 +101,7 @@ export default function PhaseBreadcrumb({ phaseLog = [], job, compact = false })
 
         const labelColor =
           status === "passed"  ? "text-green-700" :
-          status === "active"  ? "text-blue-700 font-semibold" :
+          status === "active"  ? "text-[#7A2B1A] font-semibold" :
           status === "failed"  ? "text-red-600" :
                                  "text-gray-400";
 

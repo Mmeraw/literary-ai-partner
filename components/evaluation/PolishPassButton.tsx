@@ -9,7 +9,7 @@ interface PolishPassButtonProps {
 type PolishState = 'idle' | 'running' | 'done' | 'error';
 
 const productiveActionButtonClassName =
-  'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-[#7A2B1A] text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
 export function PolishPassButton({ jobId }: PolishPassButtonProps) {
   const [state, setState] = useState<PolishState>('idle');

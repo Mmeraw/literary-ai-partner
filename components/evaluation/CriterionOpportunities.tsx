@@ -142,7 +142,7 @@ export default function CriterionOpportunities({ recommendations }: { recommenda
         <button
           type="button"
           onClick={() => setShowMore(!showMore)}
-          className="mt-2 text-xs font-medium text-blue-600 transition-colors hover:text-blue-800 print:hidden"
+          className="mt-2 text-xs font-medium text-[#7A2B1A] transition-colors hover:text-[#5C1F12] print:hidden"
         >
           {showMore ? "Hide additional opportunities" : `Show ${additional.length} more opportunit${additional.length === 1 ? "y" : "ies"}`}
         </button>

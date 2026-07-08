@@ -70,10 +70,10 @@ function evalStatusLabel(job, purpose) {
 }
 
 function evalStatusTone(job, purpose) {
-  if (job.status === "complete" && purpose === "calibration") return "border-blue-300 bg-blue-50 text-blue-950";
+  if (job.status === "complete" && purpose === "calibration") return "border-slate-300 bg-slate-50 text-slate-900";
   if (job.status === "complete") return "border-green-300 bg-green-50 text-green-950";
   if (job.status === "failed") return "border-red-300 bg-red-50 text-red-950";
-  if (job.status === "running") return "border-blue-300 bg-blue-50 text-blue-950";
+  if (job.status === "running") return "border-slate-300 bg-slate-50 text-slate-900";
   if (job.status === "queued") return "border-amber-300 bg-amber-50 text-amber-950";
   return "border-stone-300 bg-stone-50 text-stone-900";
 }

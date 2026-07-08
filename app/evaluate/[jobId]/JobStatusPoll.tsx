@@ -322,7 +322,7 @@ export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobS
 
       {/* Active Job Message — only when running/queued and NOT at review gate */}
       {isActive && !isTerminal && !atReviewGate && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
             <div>
