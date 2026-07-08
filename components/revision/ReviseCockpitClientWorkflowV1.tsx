@@ -234,7 +234,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [rewriteCache, setRewriteCache] = useState<Record<string, { a: string; b: string; c: string }>>({});
+  const [rewriteCache, setRewriteCache] = useState<Record<string, { a: string; b: string; c: string; error?: string }>>({});
   const [rewriteLoading, setRewriteLoading] = useState<string | null>(null);
 
   const generateVoiceRewrite = useCallback(async (item: WorkbenchOpportunity) => {
@@ -262,14 +262,21 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
       if (data.ok && data.candidates) {
         setRewriteCache((prev) => ({ ...prev, [item.id]: data.candidates }));
         setMessage("Voice rewrites generated!");
+        setTimeout(() => setMessage(null), 3000);
       } else {
-        setMessage(data.error || "Rewrite generation failed");
+        // Store error persistently in cache so the UI shows it below the button
+        const errMsg = data.error || "Rewrite generation failed";
+        setRewriteCache((prev) => ({ ...prev, [item.id]: { a: "", b: "", c: "", error: errMsg } }));
+        setMessage(errMsg);
+        setTimeout(() => setMessage(null), 5000);
       }
     } catch {
-      setMessage("Network error generating rewrites");
+      const errMsg = "Network error — could not reach the rewrite API";
+      setRewriteCache((prev) => ({ ...prev, [item.id]: { a: "", b: "", c: "", error: errMsg } }));
+      setMessage(errMsg);
+      setTimeout(() => setMessage(null), 5000);
     } finally {
       setRewriteLoading(null);
-      setTimeout(() => setMessage(null), 3000);
     }
   }, [rewriteLoading, payload.evaluationJobId, payload.manuscriptId]);
 
@@ -501,13 +508,13 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
                   <section className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                    <div className="grid gap-x-3 gap-y-0.5 text-xs leading-4 xl:grid-cols-2">
-                      <p><span className="text-[#C8A96E]">Symptom:</span> {diagnosticText(active, "symptom")}</p>
-                      <p><span className="text-[#C8A96E]">Cause:</span> {diagnosticText(active, "cause")}</p>
-                      <p><span className="text-[#C8A96E]">Fix:</span> {diagnosticText(active, "fix")}</p>
-                      <p><span className="text-[#C8A96E]">Reader effect:</span> {diagnosticText(active, "readerEffect")}</p>
-                      <p><span className="text-[#C8A96E]">Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p>
-                      <p><span className="text-[#C8A96E]">Operation:</span> {operationLabels[effectiveOperation(active)]}</p>
+                    <div className="grid gap-x-4 gap-y-1.5 text-xs leading-relaxed xl:grid-cols-2">
+                      <p><span className="font-semibold text-[#D4A853]">Symptom:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "symptom")}</span></p>
+                      <p><span className="font-semibold text-[#D4A853]">Cause:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "cause")}</span></p>
+                      <p><span className="font-semibold text-[#D4A853]">Fix:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "fix")}</span></p>
+                      <p><span className="font-semibold text-[#D4A853]">Reader effect:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "readerEffect")}</span></p>
+                      <p><span className="font-semibold text-[#D4A853]">Mistake-proofing:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "mistakeProofing")}</span></p>
+                      <p><span className="font-semibold text-[#D4A853]">Operation:</span> <span className="text-[#E5D8BE]">{operationLabels[effectiveOperation(active)]}</span></p>
                     </div>
                   </section>
 
@@ -537,16 +544,16 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               )}
                             </div>
                             {effectiveMode === "full_replacement" ? (
-                              <p className="mt-1 max-h-24 overflow-y-auto text-xs leading-4">{source || "No exact passage is available yet."}</p>
+                              <p className="mt-1 max-h-24 overflow-y-auto text-xs leading-relaxed text-[#E5D8BE]">{source || "No exact passage is available yet."}</p>
                             ) : (
                               <>
-                                <p className="mt-1 max-h-20 overflow-y-auto text-xs leading-4 text-[#E5D8BE]">
+                                <p className="mt-1 max-h-20 overflow-y-auto text-xs leading-relaxed text-[#E5D8BE]">
                                   {source ? excerptText(source, effectiveMode === "strategy_only" ? 2 : 3) : "No exact passage is available yet."}
                                 </p>
                                 {source && source.split(/\s+/).length > (effectiveMode === "strategy_only" ? 50 : 80) && (
                                   <details className="mt-1">
                                     <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">View full passage</summary>
-                                    <p className="mt-1 max-h-40 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs leading-4">{source}</p>
+                                    <p className="mt-1 max-h-40 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs leading-relaxed text-[#E5D8BE]">{source}</p>
                                   </details>
                                 )}
                               </>
@@ -555,14 +562,30 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                           </div>
                           <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
                             <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
-                            <p className="mt-1 text-xs leading-4">{operationInstruction(active)} {compactGoal(active)}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-[#E5D8BE]">{operationInstruction(active)} {compactGoal(active)}</p>
                           </div>
                         </section>
 
                         {/* A/B/C Candidates — full prose OR strategy mode */}
                         {effectiveMode === "strategy_only" ? (
                           <section className="mt-1.5 rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-2">
-                            {rewriteCache[active.id] ? (
+                            {rewriteCache[active.id]?.error ? (
+                              // Persistent error state — shown until user retries
+                              <>
+                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#E2B2A6]">Generation Failed</p>
+                                <p className="mb-2 rounded border border-[#7A2B1A]/60 bg-[#7A2B1A]/10 px-2 py-1.5 text-xs leading-relaxed text-[#F1B6A5]">{rewriteCache[active.id].error}</p>
+                                {source && source.split(/\s+/).length <= 1200 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setRewriteCache((prev) => { const next = { ...prev }; delete next[active.id]; return next; }); void generateVoiceRewrite(active); }}
+                                    disabled={rewriteLoading === active.id}
+                                    className="mt-1 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
+                                  >
+                                    {rewriteLoading === active.id ? "Retrying…" : "Retry Generate"}
+                                  </button>
+                                )}
+                              </>
+                            ) : rewriteCache[active.id]?.a ? (
                               <>
                                 <div className="flex items-center justify-between mb-1.5">
                                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Voice-Generated Rewrites</p>
@@ -576,7 +599,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                       <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
                                           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
-                                          <p className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-4 text-[#E5D8BE]">{rewrite}</p>
+                                          <p className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-[#E5D8BE]">{rewrite}</p>
                                         </button>
                                         <div className="mt-1 flex gap-1">
                                           <button type="button" onClick={() => void navigator.clipboard.writeText(rewrite).then(() => setMessage("Copied"))} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] text-[#C8A96E]">Copy</button>
@@ -607,7 +630,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                       <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
                                           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
-                                          <p className="mt-0.5 text-xs leading-4 text-[#E5D8BE]">{approach}</p>
+                                          <p className="mt-0.5 text-xs leading-relaxed text-[#E5D8BE]">{approach}</p>
                                         </button>
                                       </div>
                                     );
@@ -653,7 +676,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                     {text && text.length > 190 ? (
                                       <details className="mt-1.5">
                                         <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">Show full fix</summary>
-                                        <p className="mt-1 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-1.5 whitespace-pre-wrap text-xs leading-4 text-[#E5D8BE]">{text}</p>
+                                        <p className="mt-1 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-1.5 whitespace-pre-wrap text-xs leading-relaxed text-[#E5D8BE]">{text}</p>
                                       </details>
                                     ) : null}
                                     <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="mt-1.5 rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
@@ -663,14 +686,28 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                             </div>
                             {/* Generate button when any option is missing prose */}
                             {OPTION_KEYS.some((k) => !canSelectOption(active, k)) && (
-                              <button
-                                type="button"
-                                onClick={() => void generateVoiceRewrite(active)}
-                                disabled={rewriteLoading === active.id}
-                                className="mt-2 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
-                              >
-                                {rewriteLoading === active.id ? "Generating distinct A/B/C drafts in author voice…" : "Generate Distinct A/B/C Drafts in Author Voice"}
-                              </button>
+                              <>
+                                {rewriteCache[active.id]?.error && (
+                                  <p className="mt-2 rounded border border-[#7A2B1A]/60 bg-[#7A2B1A]/10 px-2 py-1.5 text-xs leading-relaxed text-[#F1B6A5]">{rewriteCache[active.id].error}</p>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (rewriteCache[active.id]?.error) {
+                                      setRewriteCache((prev) => { const next = { ...prev }; delete next[active.id]; return next; });
+                                    }
+                                    void generateVoiceRewrite(active);
+                                  }}
+                                  disabled={rewriteLoading === active.id}
+                                  className="mt-2 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
+                                >
+                                  {rewriteLoading === active.id
+                                    ? "Generating distinct A/B/C drafts in author voice…"
+                                    : rewriteCache[active.id]?.error
+                                      ? "Retry Generate Distinct A/B/C Drafts"
+                                      : "Generate Distinct A/B/C Drafts in Author Voice"}
+                                </button>
+                              </>
                             )}
                           </section>
                         )}
@@ -696,7 +733,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                       const insertLabel = effectiveMode === "excerpt_insertion" ? "Insert" : "Accept";
 
                       if (effectiveMode === "strategy_only") {
-                        const hasVoiceRewrite = !!rewriteCache[active.id];
+                        const hasVoiceRewrite = !!(rewriteCache[active.id]?.a);
                         if (hasVoiceRewrite) {
                           const rw = rewriteCache[active.id];
                           return (

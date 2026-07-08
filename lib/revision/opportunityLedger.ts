@@ -2340,9 +2340,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       for (const o of opportunities) {
         const needsCandidates = !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c;
         const preflightAllowsHydration = o.preflight_status === 'passed' || o.preflight_status === 'limited_context';
-        const needsHydration = preflightAllowsHydration
-          && o.grounding_status !== 'supported'
-          && needsCandidates;
+        // KICKBACK FIX: hydrate whenever B or C are empty, regardless of grounding_status.
+        // The old condition (grounding_status !== 'supported') meant items that PASSED
+        // grounding but had empty B/C from the LLM never triggered hydration — silent gap.
+        // Now: any item with preflight passed AND missing any candidate fires hydration.
+        const needsHydration = preflightAllowsHydration && needsCandidates;
         if (!needsHydration) continue;
 
         const manuscriptContext = findChunkForAnchor(o.evidence_anchor);
