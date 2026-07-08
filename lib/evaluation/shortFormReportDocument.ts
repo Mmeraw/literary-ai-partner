@@ -575,7 +575,11 @@ export function buildShortFormEvaluationDocument(input: {
       readingGradeLevel: typeof readingGrade === 'number' ? `${Math.floor(readingGrade)} (Flesch-Kincaid)` : 'Not available',
       dialogueNarrativeRatio:
         typeof dialogue === 'number'
-          ? `${Math.floor(dialogue)}% dialogue / ${Math.floor(typeof narrative === 'number' ? narrative : computedNarrative ?? 0)}% narrative`
+          ? (() => {
+              const d = Math.floor(dialogue);
+              const n = 100 - d; // always sums to 100
+              return `${d}% dialogue / ${n}% narrative`;
+            })()
           : 'Not available',
       dateGenerated: formatDate(result.generated_at),
       // Suppress confidence badge when genre is a fallback ("Not specified") — absence is not uncertainty.
