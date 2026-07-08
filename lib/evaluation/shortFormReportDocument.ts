@@ -432,7 +432,9 @@ export function buildShortFormEvaluationDocument(input: {
   const overallScore = toFiniteNumber(result.overview?.overall_score_0_100);
   const pitches = buildReportPitches({
     premise: result.enrichment?.premise,
-    summary: result.overview?.one_paragraph_summary,
+    // one_paragraph_summary is intentionally NOT passed here. It feeds the Executive Summary
+    // section exclusively (see executiveSummarySource below). Passing it into the pitch
+    // builder caused the One-Paragraph Pitch and Executive Summary to render identical text.
     title: input.displayTitle,
     one_sentence_pitch: (result.overview as Record<string, unknown> | undefined)?.one_sentence_pitch as string | undefined,
     one_paragraph_pitch: (result.overview as Record<string, unknown> | undefined)?.one_paragraph_pitch as string | undefined,
