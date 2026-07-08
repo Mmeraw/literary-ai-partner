@@ -105,3 +105,74 @@ Recommended production values:
 EVAL_PASS_TIMEOUT_MS=720000
 EVAL_OPENAI_TIMEOUT_MS=720000
 ```
+
+---
+
+## Short-Form Evaluation Runtime (< 25,000 words)
+
+### Global SLA
+
+```
+SHORT_FORM_GLOBAL_SLA_MS = 15 * 60_000  (15 minutes)
+```
+
+Defined in `lib/evaluation/processor.ts`. Covers the full short-form job including any one FIPOC kick-back + retry.
+
+### Short-Form Route Activation
+
+Route: `short_form`
+Activation condition: `manuscript_word_count < 25,000`
+Read from: `progressSnapshot.manuscript_word_count`
+Set in: `processor.ts` chunk routing block
+
+Short-form jobs do NOT run: Golden Spine, Story Ledger extraction, long-form continuity proof, WAVE multi-layer ledgers, Phase 3B long-form synthesis.
+
+Short-form jobs DO run: Pass 1 (craft), Pass 2 (editorial), Pass 3 (synthesis), SHORT_FORM_FINAL_SANITY_CHECK at persist-time.
+
+### SHORT_FORM_FINAL_SANITY_CHECK Stage
+
+Runs in `persistEvaluationResultV2` before any evaluation artifact is written.
+- Target: < 100ms (deterministic regex scan)
+- Maximum: 500ms
+- Gate activation: `manuscript_word_count < 25,000`
+
+Violation codes: see `docs/SIPOC_SHORT_FORM_KICKBACK_ADDENDUM.md`
+
+Kick path: `lib/evaluation/persistEvaluationResultV2.ts` — backward kick to `phase_3 / queued` with retry instruction
+
+### Short-Form Auto-Approval at Review Gate
+
+Short-form jobs (< 25,000 words) are **auto-approved** at the review gate:
+
+```
+approved_by: 'system:auto_short_form_policy'
+gate_ready_status: 'auto_approved_short_form'
+```
+
+This bypasses the human review gate. All quality control is enforced by the SHORT_FORM_FINAL_SANITY_CHECK stage.
+
+### Template Sanitization
+
+`buildCompactTemplateBlock("short_form")` in `dreamTemplateLoader.ts` sanitizes the injected template before LLM call:
+
+| Original term | Sanitized to |
+|---|---|
+| `WAVE` | `[ADVANCED-TIER]` |
+| `Golden Spine` | `[SPINE-FEATURE]` |
+| `Phase 5` | `[RELEASE-GATE]` |
+| `long-form canon` | `[LONG-FORM-FEATURE]` |
+
+Purpose: prevent LLM from echoing long-form tier labels into short-form output before the sanity check even fires.
+
+### FIPOC Self-Correction (Kickback)
+
+Full details: `docs/SIPOC_SHORT_FORM_KICKBACK_ADDENDUM.md` and `docs/doctrine/SELF_CORRECTION_POLICY.md`
+
+| Code | Kick? | Budget |
+|---|---|---|
+| `SHORT_FORM_LONGFORM_ARTIFACT_LEAK` | YES | 1 attempt |
+| `SHORT_FORM_INTERNAL_PROCESS_LEAK` | YES | 1 attempt |
+| `SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM` | YES | 1 attempt |
+| All other SHORT_FORM_* codes | NO | Terminal fail |
+
+Budget exhausted or non-kickable code → `SHORT_FORM_FINAL_SANITY_BLOCKED` terminal fail.

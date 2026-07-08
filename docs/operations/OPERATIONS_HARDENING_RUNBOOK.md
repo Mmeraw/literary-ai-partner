@@ -368,3 +368,71 @@ Use exactly one of the following:
 ### No-go
 
 > Operations hardening verification incomplete or failed. One or more required packs did not pass, evidence is incomplete, or a no-go trigger fired. Release is blocked pending remediation and rerun.
+
+---
+
+## SHORT_FORM Self-Correction System (Added 2026-07-08)
+
+### Overview
+
+Short-form evaluations (< 25,000 words) now have a self-correction path for LLM terminology leakage. If the LLM echoes long-form tier terms (WAVE, Golden Spine, Phase 5) or internal pipeline labels into author-facing output, the system automatically kicks the job back to Phase 3 re-synthesis with an explicit prohibition instruction, rather than hard-failing.
+
+**Committed:** 8ebbd66 (fix), 70712c5 (unit tests), d8daf53 (defensive empty-codes test), 29728c1 (smoke test)  
+**Tests:** 22/22 green (4 suites)
+
+### Triage: `SHORT_FORM_FINAL_SANITY_BLOCKED` in Production
+
+This failure code means either:
+a) The kick fired and the retry also failed, or  
+b) The kick DB write itself failed, or  
+c) The violation code is non-kickable (MISSING_ANCHORS, FAKE_CERTAINTY, etc.)
+
+**Diagnostic steps:**
+
+1. Check `evaluation_artifacts` for `artifact_type = 'quarantine_short_form_sanity_v1'` with matching `job_id` — inspect what the LLM produced on the failing attempt
+2. Read `progress.kick_attempts` — if `{ "SHORT_FORM_LONGFORM_ARTIFACT_LEAK": 1 }` is present, the kick fired but the retry also failed
+3. Read `progress.last_kick_failure_code` and `progress.last_kick_violation_summary`
+4. Read `last_error` on the job — if it contains "kick requeue failed", the DB write on the kick itself failed (network issue)
+
+**Recovery:**
+
+If the automatic kick exhausted its budget and you want to force another attempt:
+1. In Supabase: find the job, reset `progress.kick_attempts` to `{}` (clears retry budget)
+2. Reset `status = 'queued'`, `phase = 'phase_3'`, `phase_status = 'queued'`, `failure_code = null`
+3. The `short_form_retry_instruction` already present in `progress` will be re-used on the next attempt
+
+### Triage: Job stuck at `phase: "phase_3", status: "queued"` unexpectedly
+
+Check `progress.last_kick_failure_code`. If populated, this is a **valid kick-back state** — the job was re-queued for re-synthesis. This is correct behavior. Wait for the next worker cycle to pick it up.
+
+If the worker is not picking it up, check:
+- Worker health at `app/api/workers/watchdog/route.ts`
+- Job `claimed_by` / `lease_until` (should both be null after a kick)
+
+### Monitoring: Key Progress Fields
+
+After the SHORT_FORM kickback system, these fields appear in `evaluation_jobs.progress` for kicked jobs:
+
+| Field | Meaning |
+|---|---|
+| `kick_attempts` | `{ code: attemptCount }` — tracks retry budget per violation code |
+| `last_kick_at` | ISO timestamp of most recent kick |
+| `last_kick_failure_code` | Which violation code triggered the kick |
+| `last_kick_violation_summary` | Human-readable description of the violation |
+| `short_form_retry_instruction` | Full prohibition injected into Pass 3 system prompt on retry |
+
+### Template Sanitization Health
+
+The template sanitizer in `dreamTemplateLoader.ts` is the **upstream prevention** layer. If `SHORT_FORM_LONGFORM_ARTIFACT_LEAK` fires frequently despite the sanitizer, it means the LLM is re-introducing these terms from training context rather than template injection. In that case, strengthen the retry prohibition rather than broadening the sanitizer.
+
+### Boundary Gate Regression Suite
+
+Any change to the short-form kickback system must pass:
+
+```bash
+./node_modules/.bin/jest "boundary-gate|short-form-kickback|short-form-empty-codes" --no-coverage --forceExit
+```
+
+Expected: **4/4 suites, 22/22 tests**.
+
+Do not ship changes to `persistEvaluationResultV2.ts`, `selfCorrectionPolicy.ts`, `fipocRegistry.ts`, `processor.ts` (KICK_ELIGIBLE_FAILURE_CODES), `runPipeline.ts` (_shortFormRetryInstruction), or `runPass3Synthesis.ts` without this suite passing.

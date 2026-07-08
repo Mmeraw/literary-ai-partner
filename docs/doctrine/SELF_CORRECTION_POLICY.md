@@ -1,145 +1,188 @@
-# Self-Correction Policy
+# Self-Correction Policy — Canonical Doctrine
 
-**Canon authority:** Runtime Doctrine #11, #13; Volume III §III.PL5; SIPOC S06b, S07, S09, S11b  
-**Effective:** Upon merge  
-**Status:** Normative
+> **Status:** Active  
+> **Code authority:** `lib/evaluation/pipeline/selfCorrectionPolicy.ts`  
+> **FIPOC registry:** `lib/evaluation/fipocRegistry.ts` — `KICK_MATRIX`  
+> **Kickback mechanics:** `docs/SIPOC_SHORT_FORM_KICKBACK_ADDENDUM.md`  
+> **Parent governance:** `docs/governance/AUTHORITY_CHAIN.md`
 
-## Purpose
+---
 
-This document defines what happens when any pipeline gate detects a violation. It is the enforcement complement to the operating rules — where operating rules say _what must be true_, this policy says _what happens when it isn't_.
+## Doctrine Statement
 
-## Core Principle
+> **The system MUST self-correct.** Terminal failures caused by LLM terminology echo, pipeline label leakage, or scope violations in short-form output are system defects, not manuscript defects. The evaluation pipeline must detect, quarantine, and retry these failures without operator intervention.
 
-> **The system must never persist, render, or deliver malformed content to the author.**
-> When a gate fails, the system self-corrects or fails closed. There is no third option.
+This policy defines when a gate failure triggers a backward kick to re-synthesis versus an immediate terminal fail. It governs all present and future gate failure codes in the evaluation pipeline.
 
-## Policy Sequence
+---
 
-When any gate detects a violation:
+## Policy Authority
 
-```
-1. QUARANTINE  — isolate the bad content (do not persist as final artifact)
-2. RETRY ONCE  — re-invoke the failing pass with explicit failure context
-3. FAIL CLOSED — if retry also fails, mark the job FAILED with admin-visible diagnostics
-4. NOTIFY      — provide admin-visible error code + user-safe message
-```
+All gate failure policy is resolved through `getGateFailurePolicy(errorCode: string)` in `selfCorrectionPolicy.ts`.
 
-### Step 1: Quarantine
-
-Bad content is **never persisted as a deliverable artifact**. Specifically:
-
-- The pipeline does NOT write `evaluation_result_v2` for a failed job
-- The pipeline does NOT advance the job to `complete` status
-- Failed intermediate outputs MAY be persisted as diagnostic artifacts (prefixed `quarantine_`) for admin inspection, but MUST NOT be served to the author
-- Quarantined artifacts are tagged with the gate that caught them and the violation codes
-
-### Step 2: Retry Once
-
-The system retries the failing pass **exactly once** with:
-
-- The original input (unchanged)
-- An explicit `retry_context` block containing:
-  - Which gate failed
-  - Which violation codes were raised
-  - Which specific fields/criteria violated
-  - A prose instruction: "Your previous output was rejected for: [violation summary]. Regenerate without these defects."
-
-Retry is only attempted for LLM-generated content failures. Deterministic gate failures (scaffold residue, broken modals) that originate from the LLM output are retryable because the LLM may produce clean output on a second attempt. Infrastructure failures are handled by the existing `maxSelfRecoveryAttemptsForFailureCode` mechanism.
-
-### Step 3: Fail Closed
-
-If the retry also fails the gate:
-
-- The job transitions to `FAILED` status
-- The failure is classified as **terminal** (no further automatic retries)
-- The `failure_details` payload contains full gate diagnostics
-- No partial artifact is served to the author
-
-### Step 4: Notify
-
-Two notification channels:
-
-#### Admin-Visible (pipeline_progress / failure_details)
-
-```json
-{
-  "error_code": "HANDOFF_SCAFFOLD_RESIDUE",
-  "failed_at": "pass2",
-  "failure_details": {
-    "handoff_gate": {
-      "total_violations": 3,
-      "pass1_violations": 1,
-      "pass2_violations": 2,
-      "check_summary": { "HANDOFF_SCAFFOLD_RESIDUE": 2, "HANDOFF_BROKEN_MODAL": 1 },
-      "first_violations": [...]
-    }
-  },
-  "retry_attempted": true,
-  "retry_also_failed": true
+```typescript
+export interface GateFailurePolicy {
+  max_retries: number;          // 0 = fail closed immediately; >0 = kick-eligible
+  persist_quarantine_artifact: boolean; // write failing output to evaluation_artifacts before kick
+  user_safe_message: string;    // safe to surface to author if needed
+  severity: "low" | "medium" | "high" | "critical";
 }
 ```
 
-#### User-Safe (author-facing error page)
+**Default (unknown code):**
 
-The author sees:
+```typescript
+{ max_retries: 0, persist_quarantine_artifact: false, severity: "medium" }
+```
 
-> "Your evaluation encountered a quality issue and could not be completed. Our team has been notified. Please try again or contact support."
+All unregistered codes fail closed with zero retries. There is no optimistic default.
 
-The author **never** sees:
-- Internal error codes
-- Violation details
-- Raw pipeline diagnostics
-- Stack traces
+---
 
-## Gate-Specific Policies
+## Current Policy Table
 
-### S06b — Pass 1/2 Handoff Gate
+| Error Code | max_retries | persist_quarantine | severity | Notes |
+|---|---|---|---|---|
+| `SHORT_FORM_LONGFORM_ARTIFACT_LEAK` | 1 | true | high | LLM echoed WAVE/Golden Spine/Phase 5 |
+| `SHORT_FORM_INTERNAL_PROCESS_LEAK` | 1 | true | high | LLM echoed Pass N / Phase N labels |
+| `SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM` | 1 | true | high | LLM made whole-manuscript scope claims |
+| All other codes (handoff, rec-integrity, etc.) | 0 | false | medium | Fail closed — no retry |
+| Unknown / unregistered code | 0 | false | medium | Fail closed — conservative default |
 
-| Violation | Retryable? | Terminal after retry? | Notes |
-|-----------|-----------|----------------------|-------|
-| `HANDOFF_SCAFFOLD_RESIDUE` | Yes (1x) | Yes | LLM may produce clean output on retry |
-| `HANDOFF_INCOMPLETE_SENTENCE` | Yes (1x) | Yes | Same |
-| `HANDOFF_BROKEN_MODAL` | Yes (1x) | Yes | Same |
-| `HANDOFF_GENERIC_LANGUAGE` | Yes (1x) | Yes | Same |
-| `HANDOFF_MISSING_EVIDENCE_ANCHOR` | Yes (1x) | Yes | Same |
+---
 
-### S07 — Recommendation Integrity Gate
+## Retry Context Builder
 
-| Violation | Retryable? | Terminal after retry? | Notes |
-|-----------|-----------|----------------------|-------|
-| `REC_INTEGRITY_MALFORMED` | Yes (1x) | Yes | Pass 3 may synthesize cleanly on retry |
-| `REC_INTEGRITY_GENERIC` | Yes (1x) | Yes | Same |
-| `REC_INTEGRITY_NO_EVIDENCE` | Yes (1x) | Yes | Same |
+When `max_retries > 0` and budget is available, `buildRetryContext()` constructs the injection payload:
 
-### S09 — QualityGateV2
+```typescript
+{
+  failed_gate: "SHORT_FORM_FINAL_SANITY_CHECK",
+  stage_id: "S07_PASS3",
+  violation_codes: ["SHORT_FORM_LONGFORM_ARTIFACT_LEAK"],
+  affected_fields: ["overview", "criteria[*].rationale"],
+  attempt_number: 1,
+  retry_instruction: "Your previous output was rejected by SHORT_FORM_FINAL_SANITY_CHECK for: [violation summary]. Regenerate without these defects. ..."
+}
+```
 
-| Violation | Retryable? | Terminal after retry? | Notes |
-|-----------|-----------|----------------------|-------|
-| `QG_*` | No | Yes (immediately) | Deterministic gate on deterministic input — retry won't help |
+The `retry_instruction` string is:
+1. Written to `progress.short_form_retry_instruction` in the DB
+2. Read by `processor.ts` on next Phase 3 execution
+3. Forwarded as `_shortFormRetryInstruction` through `runPipeline` → `_runPass3` → `runPass3Synthesis`
+4. Appended to the **effective system prompt** as a mandatory prohibition block
 
-### S11b — Download Pipeline
+**Violation code cap:** At most 5 violation codes are described in the retry instruction to prevent prompt bloat.
 
-| Violation | Retryable? | Terminal after retry? | Notes |
-|-----------|-----------|----------------------|-------|
-| `DOWNLOAD_SANITIZER_FAILED` | No | Yes | Deterministic code failure — needs code fix |
-| `DOWNLOAD_PARITY_FAILED` | No | Yes | Same |
-| `DOWNLOAD_RENDER_FAILED` | No | Yes | Same |
+---
 
-## Invariants
+## Violation Code Descriptions (User-Facing Language)
 
-1. **No partial success:** A job is either `complete` (all gates passed) or `failed` (any gate failed after retry). There is no "complete with warnings" status for gate-critical violations.
+| Code | Description injected into retry instruction |
+|---|---|
+| `SHORT_FORM_LONGFORM_ARTIFACT_LEAK` | output contains long-form tier terms (WAVE / Golden Spine / Phase 5) — regenerate without these words |
+| `SHORT_FORM_INTERNAL_PROCESS_LEAK` | output contains internal pipeline stage labels (Pass N / Phase N) — regenerate without pipeline terminology |
+| `SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM` | output makes whole-manuscript scope claims not supported by the submitted excerpt — scope all claims to the submitted text only |
+| `HANDOFF_SCAFFOLD_RESIDUE` | placeholder/template text found in output |
+| `HANDOFF_INCOMPLETE_SENTENCE` | rationale or action lacks complete sentence structure |
+| `HANDOFF_BROKEN_MODAL` | garbled modal phrase detected |
+| `HANDOFF_GENERIC_LANGUAGE` | generic workshop advice without specific manuscript evidence |
+| `HANDOFF_MISSING_EVIDENCE_ANCHOR` | recommendation lacks manuscript quotation reference |
+| `REC_INTEGRITY_MALFORMED` | malformed recommendation text |
+| `REC_INTEGRITY_GENERIC` | generic recommendation without specificity |
+| `REC_INTEGRITY_NO_EVIDENCE` | recommendation lacks supporting evidence |
 
-2. **Idempotent retry:** Retrying a pass with the same input + retry_context must not produce side effects beyond the pass output itself.
+---
 
-3. **Diagnostic preservation:** Every gate failure produces a persistent diagnostic artifact that admins can inspect via `/admin/pipeline-health`.
+## Quarantine Artifact Contract
 
-4. **Monotonic strictness:** Gates may become stricter over time (new patterns added, thresholds lowered) but MUST NOT become more permissive without explicit canon amendment.
+When `persist_quarantine_artifact: true` and a kick fires, a quarantine artifact is written **before** the kick DB update:
 
-5. **Author trust boundary:** The author never sees internal failure mechanics. The error page is generic and supportive. Specifics are for admins only.
+```typescript
+{
+  artifact_type: "quarantine_short_form_sanity_v1",
+  job_id: "<job UUID>",
+  content: {
+    // Full EvaluationResultV2 that triggered the violation
+    schema_version: "quarantine_short_form_sanity_v1",
+    gate: "SHORT_FORM_FINAL_SANITY_CHECK",
+    stage_id: "S07_PASS3",
+    violation_codes: ["..."],
+    attempt_number: 1,
+    content: { ...evaluationResult }
+  },
+  created_at: "<ISO>"
+}
+```
 
-## Implementation Notes
+Written to: `evaluation_artifacts` table.
 
-- `HANDOFF_*` codes are registered in `TERMINAL_FAILURE_PREFIXES` in `processor.ts` — they are terminal after one retry attempt
-- `maxSelfRecoveryAttemptsForFailureCode` returns `1` for all `HANDOFF_*` codes (retry once, then terminal)
-- Retry context is injected via `_retryContext` field on pass options, consumed by the prompt builder
-- Quarantined artifacts use the existing `evaluation_artifacts` table with `artifact_type = 'quarantine_pass1'` / `'quarantine_pass2'`
+**Important:** Quarantine artifact persistence is **best-effort**. A DB write failure on the quarantine artifact does not prevent the kick from proceeding. The kick itself is the primary recovery action; the quarantine is for admin inspection only.
+
+---
+
+## Budget Tracking
+
+Kick attempts are tracked per-code in `progress.kick_attempts`:
+
+```json
+{
+  "kick_attempts": {
+    "SHORT_FORM_LONGFORM_ARTIFACT_LEAK": 1
+  }
+}
+```
+
+On each kick, the counter for the triggering code is incremented. On the next phase_3 execution:
+- If `kick_attempts[code] >= max_retries`: budget exhausted → terminal fail
+- If `kick_attempts[code] < max_retries`: kick still available
+
+The counter persists across job re-execution because it is stored in the `progress` JSONB column, not recomputed from scratch.
+
+---
+
+## Operator Guidance
+
+### When you see `SHORT_FORM_FINAL_SANITY_BLOCKED` in production:
+
+This means:
+1. The kick fired (attempt 1 used)
+2. The retry also failed the sanity check, OR
+3. The kick DB write itself failed (see `last_error` for "kick requeue failed")
+
+**Check:**
+- `evaluation_artifacts` for `artifact_type = 'quarantine_short_form_sanity_v1'` — inspect what the LLM produced
+- `progress.kick_attempts` — confirms whether the kick fired before the terminal fail
+- `progress.last_kick_failure_code` — which code triggered the kick
+- `progress.last_kick_violation_summary` — the retry instruction that was injected
+
+### When you see a job at `phase: "phase_3", status: "queued"` unexpectedly:
+
+This may be a valid kick-back state. Check `progress.last_kick_failure_code` — if present, the job was kicked back for re-synthesis. This is correct behavior, not a stuck job.
+
+### Admin retry after terminal fail:
+
+If the system self-correction path fails and you want to force a retry:
+1. Clear `progress.kick_attempts` (reset budget)
+2. Reset job to `phase_3 / queued`
+3. The retry instruction is still in `progress.short_form_retry_instruction` — it will be picked up again
+
+---
+
+## Governance Rules for Future Additions
+
+1. Any new gate failure code that should be kick-eligible MUST be added to `getGateFailurePolicy()` with explicit `max_retries > 0` before the kick path in `persistEvaluationResultV2` will recognize it.
+2. Any new kickable code MUST also be added to `KICK_MATRIX` in `fipocRegistry.ts`.
+3. Any new kickable code MUST be added to `KICK_ELIGIBLE_FAILURE_CODES` in `processor.ts`.
+4. Any new kick that injects a prompt instruction MUST have a `describeViolationCode()` case in `selfCorrectionPolicy.ts`.
+5. Unit tests MUST cover: kick fires, budget tracks, budget exhaustion → terminal fail, DB failure fallthrough.
+
+**Checklist for adding a new kickable code:**
+
+- [ ] `getGateFailurePolicy()` case added with `max_retries > 0`
+- [ ] `describeViolationCode()` case added
+- [ ] `KICK_MATRIX` entry added in `fipocRegistry.ts`
+- [ ] `KICK_ELIGIBLE_FAILURE_CODES` updated in `processor.ts`
+- [ ] Unit test: kick fires
+- [ ] Unit test: budget exhaustion → terminal fail
+- [ ] This doc updated with new code in policy table
