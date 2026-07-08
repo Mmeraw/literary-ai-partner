@@ -190,7 +190,29 @@ export type ArtifactType =
   /** Compact final verification rail for long-form report readiness. */
   | "final_external_audit_v1"
   /** U3-001: deterministic summary ↔ criterion consistency gate result (PASS/WARN/BLOCK). */
-  | "summary_criterion_consistency_v1";
+  | "summary_criterion_consistency_v1"
+  /**
+   * U4-003 additions: artifact types actively persisted by the processor that
+   * were missing from this union. All are written via writeArtifact() or raw
+   * Supabase upserts. Adding them here makes ArtifactType the single type
+   * authority for all runtime-persisted artifact names.
+   */
+  /** Full-context story ledger — extended context window story layer built in Phase 0.5A. */
+  | "full_context_story_ledger_v1"
+  /** Seed fit-gap report — completeness gate run against Phase 0.5 seeds. */
+  | "seed_fit_gap_report_v1"
+  /** Phase 1A story layer — raw story layer artifact written by Phase 1A sweep. */
+  | "pass1a_story_layer_v1"
+  /** Pass 2 chunk cache — per-chunk Pass 2 results for resume-from-checkpoint. */
+  | "pass2_chunk_cache_v1"
+  /** Revise admission result — admission gate outcome for a revision candidate. */
+  | "revise_admission_result_v1"
+  /** Revise candidate validation — validation outcome for an admission candidate. */
+  | "revise_candidate_validation_v1"
+  /** Revise queue package — packaged revision opportunity set for the workbench queue. */
+  | "revise_queue_package_v1"
+  /** Job checkpoint manifest — per-job checkpoint state for resume-on-restart. */
+  | "job_checkpoint_manifest_v1";
 
 /**
  * Compute SHA256 hex digest of input string
