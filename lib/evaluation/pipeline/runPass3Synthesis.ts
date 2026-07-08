@@ -827,6 +827,22 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     dominantCraftEngine: deriveDominantCraftEngineFromPasses(opts.pass1, opts.pass2),
   });
 
+  // Compute arithmetic-projected overall score from Pass 1 + Pass 2 criterion averages.
+  // This is injected into the prompt as a hard grounding constraint so the LLM cannot
+  // invent a different score in the executive summary (one_paragraph_summary).
+  const projectedOverallScore = (() => {
+    const scoredCriteria = comparisonPacket.criteria.filter(
+      (c) => typeof c.pass1_score === 'number' || typeof c.pass2_score === 'number',
+    );
+    if (scoredCriteria.length === 0) return undefined;
+    const total = scoredCriteria.reduce((sum, c) => {
+      const avg = ((c.pass1_score ?? c.pass2_score ?? 0) + (c.pass2_score ?? c.pass1_score ?? 0)) / 2;
+      return sum + avg;
+    }, 0);
+    const avgCriterion = total / scoredCriteria.length;
+    return Math.min(100, Math.max(10, Math.floor(avgCriterion * 10)));
+  })();
+
   const userPrompt = buildPass3UserPrompt({
     comparisonPacketJson,
     pass2aStructuredContext: opts.pass2aStructuredContext,
@@ -841,6 +857,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
     // readAheadResult deliberately NOT forwarded — Pass 3A is now the independent reader.
     compactPreflightSummary: opts.compactPreflightSummary,
     expectationContext,
+    projectedOverallScore,
   });
   assertPass3PromptTripwires(userPrompt);
 

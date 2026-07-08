@@ -1385,6 +1385,19 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 36, font: 'Georgia' })],
     });
 
+  // Heading1 used for top-level navigation sections — Word Navigation Pane shows Heading1 by default.
+  // Visual appearance matches makeHeading (same gold border, Georgia bold oxblood) but uses HEADING_1
+  // so the Navigation Pane renders a clickable outline. Only applied to the 4–5 major document sections.
+  const makeSection = (text: string, opts: { pageBreak?: boolean } = {}) =>
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      spacing: { before: 320, after: 120 },
+      keepNext: true,
+      pageBreakBefore: opts.pageBreak,
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: docxHex(RG.goldMid) } },
+      children: [new TextRun({ text, bold: true, color: docxHex(RG.oxblood), size: 36, font: 'Georgia' })],
+    });
+
   // Native full-width rule via paragraph bottom border (spans the text column
   // reliably in Word, unlike a shaded single-cell table).
   const makeDivider = () =>
@@ -1647,6 +1660,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       : []),
     new Paragraph({ spacing: { before: 160, after: 120 }, children: [new TextRun({ text: EXPORT_DISCLAIMER, size: 18, color: docxHex(RG.textMuted), italics: true })] }),
     new Paragraph({ pageBreakBefore: true, spacing: { after: 0 }, children: [] }),
+    makeSection('Editorial Pitches'),
     makeHeading('One-Paragraph Pitch'),
     makeCallout('Author-Facing Pitch', vm.oneParagraphPitch, RG.surfaceAlt),
     makeHeading('One-Sentence Pitch'),
@@ -1671,6 +1685,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     spacing: { after: 115, line: 310 },
     children: [new TextRun({ text: `Recommended: ${vm.revisionOpportunitySummary.recommended}  |  Optional: ${vm.revisionOpportunitySummary.optional}  |  Consider: ${vm.revisionOpportunitySummary.consider}`, size: 22, font: 'Calibri', color: docxHex(RG.textPrimary) })],
   }));
+  children.push(makeSection('Editorial Assessment'));
   children.push(makeHeading('Executive Summary'));
   children.push(makeCallout('Executive Editorial Assessment', vm.executiveSummary, RG.surfaceAlt));
   children.push(makeHeading('Top Strengths'));
@@ -1684,12 +1699,12 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
     children.push(vmPara('See per-criterion opportunities below for detailed revision guidance.'));
   }
 
+  children.push(makeSection('Criteria Scores & Rationales', { pageBreak: true }));
   children.push(
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
-      spacing: { before: 320, after: 120 },
+      spacing: { before: 120, after: 120 },
       keepNext: true,
-      pageBreakBefore: true,
       border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: docxHex(RG.goldMid) } },
       children: [new TextRun({ text: '13 Criteria Score Grid', bold: true, color: docxHex(RG.oxblood), size: 36, font: 'Georgia' })],
     }),
@@ -1759,7 +1774,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
   );
 
   children.push(makeDivider());
-  children.push(makeHeading('Criterion Rationales & Surfaced Opportunities', { pageBreak: true }));
+  children.push(makeSection('Criterion Rationales & Surfaced Opportunities', { pageBreak: true }));
   vm.criterionDetails.forEach((detail, detailIdx) => {
     if (detailIdx > 0) {
       children.push(new Paragraph({ spacing: { before: 160, after: 0 }, children: [new TextRun({ text: '' })] }));
@@ -2056,7 +2071,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       });
     }
   }
-  children.push(makeHeading(sectionTitle('confidence_explanation'), { pageBreak: true }));
+  children.push(makeSection(sectionTitle('confidence_explanation'), { pageBreak: true }));
   children.push(vmPara(vm.confidenceExplanation));
 
   children.push(makeHeading(sectionTitle('disclaimer')));

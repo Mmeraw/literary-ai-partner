@@ -652,6 +652,13 @@ export function buildPass3UserPrompt(params: {
    * This is explicit structured input, not implied helper behavior.
    */
   expectationContext?: ResolvedExpectationContext;
+  /**
+   * Arithmetic projected overall score (0–100) derived from Pass 1 + Pass 2 criterion averages
+   * before the LLM call. When provided, the prompt injects it as a SCORE GROUNDING CONSTRAINT
+   * so the LLM cannot invent a different score in the executive summary (one_paragraph_summary).
+   * This is the single most reliable fix for "solid 80/100" vs. "74/100" mismatches.
+   */
+  projectedOverallScore?: number;
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
@@ -725,7 +732,18 @@ Expectation-profile guard rules (REQUIRED):
 `
     : "";
 
-  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".${dualModelBlock}${expectationProfileBlock}
+  const scoreGroundingBlock = typeof params.projectedOverallScore === 'number'
+    ? `
+
+## SCORE GROUNDING CONSTRAINT (HARD REQUIREMENT)
+The arithmetic projection from Pass 1 + Pass 2 criterion averages yields an overall score of **${params.projectedOverallScore}/100**.
+RULES (non-negotiable):
+- Your \`overall_score_0_100\` MUST equal ${params.projectedOverallScore}. Do NOT substitute a different value.
+- Your \`one_paragraph_summary\` MUST reference this exact score. If it names any score, it must be ${params.projectedOverallScore}/100 — not a rounded, estimated, or invented figure.
+- Do NOT write phrases like "solid 80/100" or "strong 85/100" when the arithmetic score is ${params.projectedOverallScore}. Reference the actual score.`
+    : "";
+
+  return `Synthesize these two independent evaluation passes for the manuscript titled "${params.title}".${dualModelBlock}${expectationProfileBlock}${scoreGroundingBlock}
 
 ${buildDiagnosticSpinePromptBlock()}
 

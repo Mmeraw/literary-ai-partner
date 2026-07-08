@@ -30,29 +30,45 @@ function firstSentence(value: string): string {
   return (match?.[1] ?? trimmed).trim();
 }
 
-function normalizeIdentity(value: string): string {
-  return clean(value).toLowerCase();
-}
-
-function buildMissingPitchPlaceholder(kind: 'sentence' | 'paragraph', title: string): string {
-  return kind === 'sentence'
-    ? `A distinct market hook was not generated for ${title}.`
-    : `A distinct story synopsis was not generated for ${title}.`;
-}
-
 export function buildReportPitches(input: PitchInput): {
   oneParagraphPitch: string;
   oneSentencePitch: string;
 } {
   const premise = clean(input.premise);
+  // summary intentionally excluded from fallback chain (see below)
+  void input.summary;
   const title = clean(input.title) || 'the submitted work';
 
   // P1: Use dedicated pitch fields from Pass 3 when available.
   // These are semantically distinct from one_paragraph_summary (diagnostic) and premise (factual setup).
-  const dedicatedOneSentence = clean(input.one_sentence_pitch);
-  const dedicatedOneParagraph = clean(input.one_paragraph_pitch);
+  let dedicatedOneSentence = clean(input.one_sentence_pitch);
+  let dedicatedOneParagraph = clean(input.one_paragraph_pitch);
 
-  // Pitch fallback chain: dedicated field → premise → explicit missing-pitch placeholder.
+  // DEDUPLICATION GUARD: If the LLM returned one_sentence_pitch and one_paragraph_pitch
+  // that are character-for-character identical to each other or to premise, treat them
+  // as a generation failure and fall through to the premise-based fallback.
+  // This catches the failure mode where Pass 3 emits the same text in all three pitch fields.
+  function normalize(s: string): string {
+    return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+  const normPremise = normalize(premise);
+  const normParagraph = normalize(dedicatedOneParagraph);
+  const normSentence = normalize(dedicatedOneSentence);
+
+  // If paragraph pitch === premise (or is empty), treat as generation failure
+  if (normParagraph.length > 0 && normParagraph === normPremise) {
+    dedicatedOneParagraph = '';
+  }
+  // If sentence pitch === premise first-sentence (or === paragraph pitch, or is empty), treat as generation failure
+  const normPremiseFirstSentence = normalize(firstSentence(premise));
+  if (
+    normSentence.length > 0 &&
+    (normSentence === normPremiseFirstSentence || normSentence === normParagraph || normSentence === normPremise)
+  ) {
+    dedicatedOneSentence = '';
+  }
+
+  // Pitch fallback chain: dedicated field (if distinct) → premise → generic placeholder.
   // one_paragraph_summary (the executive summary / diagnostic judgment) is intentionally
   // excluded from this fallback chain. It answers "why this score / what to fix" —
   // reusing it as pitch copy collapses two semantically distinct sections into the
@@ -60,19 +76,15 @@ export function buildReportPitches(input: PitchInput): {
   // a neutral placeholder rather than surfacing diagnostic language as marketing copy.
   const oneParagraphPitch = dedicatedOneParagraph
     || premise
-    || buildMissingPitchPlaceholder('paragraph', title);
-
+    || `A distinct story synopsis was not generated for ${title}.`;
   let oneSentencePitch = dedicatedOneSentence
     || firstSentence(premise)
-    || buildMissingPitchPlaceholder('sentence', title);
+    || `A distinct market hook was not generated for ${title}.`;
 
-  // When Pass 3 did not provide dedicated pitch fields and the only fallback source
-  // is a one-sentence premise, the paragraph pitch and sentence pitch otherwise
-  // collapse into identical copy across every renderer. Keep the failure explicit
-  // and non-duplicative so ECG/report consumers see a missing pitch problem instead
-  // of a silently repeated premium surface.
-  if (!dedicatedOneSentence && normalizeIdentity(oneSentencePitch) === normalizeIdentity(oneParagraphPitch)) {
-    oneSentencePitch = buildMissingPitchPlaceholder('sentence', title);
+  // Final guard: if sentence pitch and paragraph pitch are still identical after all
+  // fallbacks (e.g. premise was a single sentence), make the duplication explicit.
+  if (normalize(oneSentencePitch) === normalize(oneParagraphPitch)) {
+    oneSentencePitch = `A distinct market hook was not generated for ${title}.`;
   }
 
   return { oneParagraphPitch, oneSentencePitch };
