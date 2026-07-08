@@ -922,9 +922,7 @@ export function runEvaluationCertificationGate(input: ECGInput): ECGResult {
   }
 
   const summary =
-    status === 'SKIPPED'
-      ? 'ECG_MODE=OFF — gate skipped.'
-      : status === 'CERTIFIED' && fatal.length === 0
+    status === 'CERTIFIED' && fatal.length === 0
       ? `ECG CERTIFIED (mode=${mode}) — 0 fatal, ${advisory.length} advisory. Score=${input.canonicalScore}.`
       : status === 'CERTIFIED' && mode === 'WARN_ONLY'
       ? `ECG WARN_ONLY — ${fatal.length} fatal (not enforced), ${advisory.length} advisory. Score=${input.canonicalScore}. Fatals: ${fatal.map(v => v.code).join(', ')}.`
