@@ -397,7 +397,30 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
   }
 
   if (!payload.ok || items.length === 0) {
-    return <main className="fixed inset-x-0 bottom-0 top-[72px] flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">No revision queue available.</main>;
+    const heldCount =
+      (payload.needsTargeting?.length ?? 0) + (payload.withheldUnsupported?.length ?? 0);
+    let heading = "No revision queue available.";
+    let detail: string | null = null;
+    if (!payload.ok) {
+      heading = "Revise workbench couldn't load this evaluation.";
+      detail = payload.error ?? "Please try reopening the report, or contact support if this persists.";
+    } else if (heldCount > 0) {
+      heading = `${heldCount} revision ${heldCount === 1 ? "opportunity" : "opportunities"} found, but none are ready to revise yet.`;
+      detail =
+        "These opportunities need targeting or additional grounding before RevisionGrade can offer copy-paste-ready rewrites. Re-run the evaluation or open Final Review to see the full ledger.";
+    } else {
+      heading = "No revision opportunities were found for this evaluation.";
+      detail =
+        "The manuscript passed the readiness checks that Revise targets, so there is nothing queued to revise.";
+    }
+    return (
+      <main className="fixed inset-x-0 bottom-0 top-[72px] flex items-center justify-center bg-[#0D0A05] px-4 pb-5 pt-3 text-[#F5EFE4]">
+        <div className="max-w-md rounded-xl border border-[#2E261A] bg-[#151008] px-6 py-6 text-center shadow-2xl">
+          <p className="text-sm font-semibold text-[#F5EFE4]">{heading}</p>
+          {detail && <p className="mt-2 text-sm leading-relaxed text-[#CBBDA4]">{detail}</p>}
+        </div>
+      </main>
+    );
   }
 
   return (
