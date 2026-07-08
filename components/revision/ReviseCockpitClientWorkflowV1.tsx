@@ -7,7 +7,6 @@ import {
   customOperationLabels,
   getRenderableCandidateText,
   operationLabels,
-  REVISION_OPTION_LABELS,
 } from "@/lib/revision/reviseCardContract";
 import type { RevisionOperation } from "@/lib/revision/reviseCardContract";
 
@@ -516,13 +515,13 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
                   <section className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                    <div className="grid gap-x-4 gap-y-1.5 text-xs leading-relaxed xl:grid-cols-2" style={{color:'#F0E8D5'}}>
-                      <p><span className="font-bold" style={{color:'#F0C060'}}>Symptom:</span> {diagnosticText(active, "symptom")}</p>
-                      <p><span className="font-bold" style={{color:'#F0C060'}}>Cause:</span> {diagnosticText(active, "cause")}</p>
-                      <p><span className="font-bold" style={{color:'#F0C060'}}>Fix:</span> {diagnosticText(active, "fix")}</p>
-                      <p><span className="font-bold" style={{color:'#F0C060'}}>Reader effect:</span> {diagnosticText(active, "readerEffect")}</p>
-                      <p><span className="font-bold" style={{color:'#F0C060'}}>Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p>
-                      <p><span className="font-bold" style={{color:'#F0C060'}}>Operation:</span> {operationLabels[effectiveOperation(active)]}</p>
+                    <div className="grid gap-x-4 gap-y-2 text-xs leading-relaxed xl:grid-cols-2" style={{color:'#F0E8D5'}}>
+                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Symptom: </span>{diagnosticText(active, "symptom")}</p>
+                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Cause: </span>{diagnosticText(active, "cause")}</p>
+                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Fix: </span>{diagnosticText(active, "fix")}</p>
+                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Reader effect: </span>{diagnosticText(active, "readerEffect")}</p>
+                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Mistake-proofing: </span>{diagnosticText(active, "mistakeProofing")}</p>
+                      <p className="mb-0.5"><span className="font-bold" style={{color:'#F0C060'}}>Operation: </span>{operationLabels[effectiveOperation(active)]}</p>
                     </div>
                   </section>
 
@@ -674,8 +673,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                   <article key={key} className={`rounded-lg border bg-[#12100B] px-2 py-2 ${selected ? "border-[#C8A96E]" : "border-[#2E261A]"}`}>
                                     <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
                                       <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]}</span>
-                                        <span className="text-[9px] text-[#A9987D]">{role}</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C8A96E]">{key} — {role}</span>
                                       </div>
                                       <p className={`line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-xs leading-5 ${ok ? "" : "italic"}`} style={{color: ok ? '#F0E8D5' : '#A9987D'}}>
                                         {text || "Prose not yet generated — click \u201cGenerate Distinct A/B/C Drafts\u201d below to create three different options."}
