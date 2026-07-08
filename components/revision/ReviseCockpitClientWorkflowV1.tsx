@@ -186,6 +186,12 @@ function severityClass(severity: WorkbenchOpportunity["severity"]): string {
   return "border-green-600 bg-green-700 text-white font-semibold";
 }
 
+function severityLabel(severity: WorkbenchOpportunity["severity"]): string {
+  if (severity === "must") return "Recommended";
+  if (severity === "should") return "Optional";
+  return "Consider";
+}
+
 function compactGoal(item: WorkbenchOpportunity): string {
   const source = normalize(item.fixDirection || item.diagnostic?.fixStrategy || item.issueStatement || item.title);
   if (!source) return "Revise this targeted span.";
@@ -479,7 +485,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                 <li key={item.id}>
                   <button type="button" onClick={() => selectItem(item.id)} className={`w-full rounded-lg border p-2 text-left ${item.id === active?.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#161109]"}`}>
                     <div className="mb-1 flex flex-wrap gap-1">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{item.severity}</span>
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{severityLabel(item.severity)}</span>
                       <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px]">{item.scope}</span>
                       <span className={`rounded border px-1.5 py-0.5 text-[10px] ${liveReady(item) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(item) ? "Ready" : "Needs Targeting"}</span>
                       <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span>
@@ -498,7 +504,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                 <div className="shrink-0 border-b border-[#2E261A] px-2 pb-2 pt-1.5">
                   <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Diagnosis & Guardrails</p>
                   <div className="flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-wider">
-                    <span className={`rounded px-1.5 py-0.5 ${severityClass(active.severity)}`}>{active.severity}</span>
+                    <span className={`rounded px-1.5 py-0.5 ${severityClass(active.severity)}`}>{severityLabel(active.severity)}</span>
                     <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{formatCriterion(criterionOf(active))}</span>
                     <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{active.scope}</span>
                     <span className={`rounded border px-1.5 py-0.5 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
@@ -509,12 +515,12 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
                   <section className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
                     <div className="grid gap-x-4 gap-y-1.5 text-xs leading-relaxed xl:grid-cols-2">
-                      <p><span className="font-semibold text-[#D4A853]">Symptom:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "symptom")}</span></p>
-                      <p><span className="font-semibold text-[#D4A853]">Cause:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "cause")}</span></p>
-                      <p><span className="font-semibold text-[#D4A853]">Fix:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "fix")}</span></p>
-                      <p><span className="font-semibold text-[#D4A853]">Reader effect:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "readerEffect")}</span></p>
-                      <p><span className="font-semibold text-[#D4A853]">Mistake-proofing:</span> <span className="text-[#E5D8BE]">{diagnosticText(active, "mistakeProofing")}</span></p>
-                      <p><span className="font-semibold text-[#D4A853]">Operation:</span> <span className="text-[#E5D8BE]">{operationLabels[effectiveOperation(active)]}</span></p>
+                      <p><span className="font-bold text-[#F0C060]">Symptom:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "symptom")}</span></p>
+                      <p><span className="font-bold text-[#F0C060]">Cause:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "cause")}</span></p>
+                      <p><span className="font-bold text-[#F0C060]">Fix:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "fix")}</span></p>
+                      <p><span className="font-bold text-[#F0C060]">Reader effect:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "readerEffect")}</span></p>
+                      <p><span className="font-bold text-[#F0C060]">Mistake-proofing:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "mistakeProofing")}</span></p>
+                      <p><span className="font-bold text-[#F0C060]">Operation:</span> <span className="text-[#F0E8D5]">{operationLabels[effectiveOperation(active)]}</span></p>
                     </div>
                   </section>
 
