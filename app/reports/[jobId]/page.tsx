@@ -358,7 +358,7 @@ export default async function ReportPage({
               Report unavailable
             </p>
           </header>
-          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <section className="rounded-lg p-6 mb-6" style={{background:"#FFFAF2",border:"1px solid #E6DED2"}}>
             <h2 className="text-2xl font-semibold text-gray-900 mb-3">
               Compliance Hold
             </h2>
@@ -407,7 +407,7 @@ export default async function ReportPage({
               Report unavailable
             </p>
           </header>
-          <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <section className="rounded-lg p-6 mb-6" style={{background:"#FFFAF2",border:"1px solid #E6DED2"}}>
             <h2 className="text-2xl font-semibold text-gray-900 mb-3">
               Compliance Hold
             </h2>
@@ -1229,7 +1229,7 @@ export default async function ReportPage({
             data via the admin pipeline-health dashboard or direct DB queries only. */}
 
         {/* ── Confidence Explanation (template section 13) ── */}
-        <section className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <section className="rounded-lg p-6 mb-6" style={{background:"#FFFAF2",border:"1px solid #E6DED2"}}>
           <h2 className="text-2xl font-semibold text-gray-900 mb-3">Confidence Explanation</h2>
           <p className="text-gray-700 whitespace-pre-line">{vm.confidenceExplanation}</p>
         </section>

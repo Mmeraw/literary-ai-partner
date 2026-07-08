@@ -2,40 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-/* === Revise CTA standard === */
-/* Bright blue with white lettering — high-visibility primary action. */
+/* === Revise CTA standard — Design System v1.0: oxblood primary action === */
 .rg-revise-cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
-  border: 1px solid #1D4ED8 !important;
+  border: 1px solid #5C1F12 !important;
   border-radius: 0.25rem;
-  background: #2563EB !important;
+  background: #7A2B1A !important;
   color: #FFFFFF !important;
   padding: 0.75rem 1.25rem;
   font-weight: 800 !important;
   line-height: 1.1;
   text-decoration: none !important;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 8px 18px rgba(122, 43, 26, 0.22);
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .rg-revise-cta:hover,
 .rg-revise-cta:focus-visible {
-  background: #1D4ED8 !important;
-  border-color: #1E40AF !important;
+  background: #5C1F12 !important;
+  border-color: #4A1810 !important;
   color: #FFFFFF !important;
-  box-shadow: 0 10px 22px rgba(29, 78, 216, 0.28);
+  box-shadow: 0 10px 22px rgba(92, 31, 18, 0.28);
 }
 
 .rg-revise-cta:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline: 3px solid rgba(122, 43, 26, 0.35);
   outline-offset: 3px;
 }
 
 /* Long report pages can be very large. Render offscreen sections lazily to
    reduce interaction blocking and Chrome INP warnings on first clicks/scrolls. */
+.rg-report-page {
+  background: #F5EFE0;
+}
+
+/* Web report sections: typographic separation, no heavy boxes */
+.rg-report-page section.bg-white {
+  background: #FFFAF2 !important;
+  box-shadow: none !important;
+  border: 1px solid #E6DED2;
+}
+
 .rg-report-page section {
   content-visibility: auto;
   contain-intrinsic-size: 1px 640px;
@@ -47,7 +57,18 @@
 }
 
 @media print {
-  .rg-report-page section {
+  .rg-report-page {
+  background: #F5EFE0;
+}
+
+/* Web report sections: typographic separation, no heavy boxes */
+.rg-report-page section.bg-white {
+  background: #FFFAF2 !important;
+  box-shadow: none !important;
+  border: 1px solid #E6DED2;
+}
+
+.rg-report-page section {
     content-visibility: visible;
     contain-intrinsic-size: auto;
   }
