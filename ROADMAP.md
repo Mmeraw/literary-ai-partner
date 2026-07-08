@@ -1,7 +1,7 @@
 # RevisionGrade Roadmap
 
 **Status date:** 2026-07-07  
-**Current baseline:** `24c8c3a8`  
+**Current baseline:** `60feab38`  
 **Authority:** This file is the single canonical roadmap for the repository.
 
 All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summaries, and archived planning artifacts are non-authoritative. They must not be used to determine current execution order.
@@ -16,6 +16,7 @@ All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summa
 | U2 implementation | COMPLETE | All six U2 RCA implementation surfaces appear present individually: U2-001 score/confidence enforcement + VM display authority; U2-002 Pass3 anti-washing; U2-003 confidence derivation; U2-004 propagation; U2-005 UI authority lock; U2-006 evidence anchor enforcement. |
 | U2 enforcement proof | COMPLETE | `24c8c3a8` added the synthetic four-layer U2 Enforcement Proof covering gate firing, persistence path, ViewModel reflection, and TXT/HTML/DOCX/web renderer consistency. |
 | CI state | GREEN at handoff | Reported green after `24c8c3a8`; continue to treat CI as the source of truth before merging further roadmap changes. |
+| U3 implementation | COMPLETE | U3-001: deterministic summary↔criterion consistency gate (`d307dbc1`). U3-002: removed dead `contradicted` status from `seedConsistencyReport` (`60feab38`). U3-003 and U3-004 deferred by design. |
 
 ---
 
@@ -23,42 +24,50 @@ All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summa
 
 ```text
 U2: ENFORCED
-U3: NEXT
+U3: ENFORCED
 ```
 
 U2 is enforcement-complete because the implementation surfaces are present and the U2 Enforcement Proof now verifies that the critical pieces work together end-to-end.
 
-U3 may begin only as an inspection-first unit. Do not implement contradiction-detection changes until the U3 inspection report identifies the exact correctness gap, scope, tests, and non-goals.
+U3 is enforcement-complete. U3-001 added the deterministic summary↔criterion consistency gate (`summaryCriterionConsistencyGate.ts`, 14 tests, `d307dbc1`). U3-002 removed the unreachable `contradicted` dead branch from `seedConsistencyReport.ts` (16 tests, `60feab38`). U3-003 (dual-surface convergence) deferred — requires production evidence. U3-004 (cross-criterion attribution UX) deferred — reclassified as renderer UX, not a correctness gap.
 
 ---
 
 ## Next Work
 
-### 1. U3 — Contradiction Detection / Consistency Authority
+### 1. U4 — Next Unit (inspection-first)
 
 **Status:** NEXT — inspection only.  
-**Goal:** identify where the system can produce internally contradictory evaluation claims, recommendation claims, confidence claims, or renderer claims after U2 enforcement.
+**Goal:** identify the next highest-priority correctness gap after U3 enforcement.
 
 Required starting instruction:
 
 ```text
-Start U3 inspection only.
-Find all contradiction-detection / consistency-authority surfaces.
-Identify the highest-priority correctness gap.
+Start U4 inspection only.
 No implementation until findings are reviewed.
 ```
 
-### 2. Follow-up: `summaryMentionsBottomWeakness` adversarial tests
+### 2. Deferred from U3: `contradicted` detection (future feature)
+
+**Status:** DEFERRED.  
+Property-level contradiction detection in `seedConsistencyReport` requires extending the call contract to pass seed entity properties alongside names. Removed as dead code in U3-002 (`60feab38`). Design as a new feature when production evidence justifies it.
+
+### 3. Deferred from U3: Cross-criterion attribution UX (U3-004)
+
+**Status:** DEFERRED — UX.  
+Expose `collapsed_from_criteria` in the renderer so users can see which criteria collapsed into a shared recommendation. Not a correctness gap.
+
+### 4. Follow-up: `summaryMentionsBottomWeakness` adversarial tests
 
 **Status:** FOLLOW-UP.  
-The current anti-washing check is lexical/token based. Add adversarial tests for paraphrased weakness language after U3 entry is planned, unless U3 inspection makes it the primary gap.
+The current anti-washing check is lexical/token based. Add adversarial tests for paraphrased weakness language.
 
-### 3. Follow-up: `LLR_POST_STRUCTURAL_BLOCK` subtype classification
+### 5. Follow-up: `LLR_POST_STRUCTURAL_BLOCK` subtype classification
 
 **Status:** DIAGNOSTIC FOLLOW-UP.  
 Classify recurring post-structural blockers as `MODEL_OUTPUT_INVALID`, `RULE_TOO_STRICT`, or `REGISTRY_DRIFT`.
 
-### 4. Follow-up: PHASE_1_OBSERVABILITY proof capture
+### 6. Follow-up: PHASE_1_OBSERVABILITY proof capture
 
 **Status:** EMPIRICAL FOLLOW-UP.  
 Code is patched; still needs a controlled runtime proof row when convenient.
