@@ -32,6 +32,18 @@ U3 may begin only as an inspection-first unit. Do not implement contradiction-de
 
 ---
 
+## Temporary CI Guard Compatibility
+
+The current `scripts/guard-u3-prereq.sh` still greps for the old block sentinel. Until that guard is revised in a separate code change, keep this compatibility line exactly as-is:
+
+```text
+U3: BLOCKED UNTIL U2 ENFORCED
+```
+
+This compatibility line is not roadmap authority. The authoritative promotion state is the `U2: ENFORCED` / `U3: NEXT` block above.
+
+---
+
 ## Next Work
 
 ### 1. U3 — Contradiction Detection / Consistency Authority
