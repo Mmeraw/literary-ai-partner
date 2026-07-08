@@ -1,41 +1,90 @@
 /**
- * Unit tests for the Evaluation Certification Gate (ECG).
+ * Unit tests — Artifact Certification Authority (ECG)
  *
- * Coverage report:
- * ┌─────────────────────────────────────────────┬───────────────────────────────────┬────────────────────────────┐
- * │ Invariant                                   │ Code                              │ Test                       │
- * ├─────────────────────────────────────────────┼───────────────────────────────────┼────────────────────────────┤
- * │ Score authority: overview ≠ canonical       │ ECG_AUTH_SCORE_MISMATCH           │ score authority             │
- * │ Score authority: exec summary wrong score   │ ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH│ score authority           │
- * │ Score authority: criterion out of range     │ ECG_AUTH_CRITERION_SCORE_RANGE    │ score authority             │
- * │ Identity: one_sentence = one_paragraph      │ ECG_IDENT_DUPLICATION             │ identity separation         │
- * │ Identity: pitch ≈ summary                  │ ECG_IDENT_DUPLICATION             │ identity separation         │
- * │ Identity: pitch ≈ premise                  │ ECG_IDENT_DUPLICATION             │ identity separation         │
- * │ Exec summary missing                        │ ECG_EXEC_MISSING                  │ exec summary contract       │
- * │ Exec summary has pitch language             │ ECG_EXEC_PITCH_LANGUAGE           │ exec summary contract       │
- * │ Exec summary no eval language               │ ECG_EXEC_NO_EVAL_LANGUAGE         │ exec summary contract       │
- * │ Exec summary truncated word                 │ ECG_TEXT_TRUNCATED_WORD           │ text integrity              │
- * │ Placeholder text                            │ ECG_TEXT_PLACEHOLDER              │ text integrity              │
- * │ Rec: lowercase start                        │ ECG_REC_LOWERCASE_START           │ rec integrity (repairable)  │
- * │ Rec: missing terminal punct                 │ ECG_REC_MISSING_TERMINAL_PUNCT    │ rec integrity (repairable)  │
- * │ Rec: too short                              │ ECG_REC_TOO_SHORT                 │ rec integrity               │
- * │ Artifact: missing pitch fields              │ ECG_ART_MISSING_*                 │ artifact completeness       │
- * │ Artifact: no recommendations                │ ECG_ART_MISSING_RECOMMENDATIONS   │ artifact completeness       │
- * │ Repair: score injection into exec summary   │ ECG_NORM_SCORE_INJECT             │ auto-repair                 │
- * │ Repair: capitalize rec action               │ ECG_NORM_REC_TEXT                 │ auto-repair                 │
- * │ Clean artifact certifies                    │ (none)                            │ happy path                  │
- * └─────────────────────────────────────────────┴───────────────────────────────────┴────────────────────────────┘
+ * Tests prove:
+ *   1. CERTIFICATION_REGISTRY: all 7 domains present, each entry has required
+ *      provenance fields (code, domain, severity, authority, section, tags).
+ *   2. normalizeArtifact(): only cosmetic changes — scores and text meaning
+ *      are never altered.
+ *   3. ECG does not mutate its input (deep-equal before/after).
+ *   4. ECG_MODE=WARN_ONLY: fatal violations logged but status === CERTIFIED,
+ *      summary contains violation codes.
+ *   5. ECG_MODE=ENFORCE: FATAL violations → CERTIFICATION_FAILED.
+ *   6. ECG_MODE=OFF: gate skipped, status === SKIPPED, no checks run.
+ *   7. Score mismatch is diagnostic only — exec summary text is never
+ *      patched, never repaired, never silently corrected.
+ *   8. All invariant codes are covered by at least one test.
+ *
+ * Coverage table:
+ * ┌──────────────────────────────────────────────┬─────────────────────────────────────────┬────────────────────────────────────┐
+ * │ Domain        │ Code                          │ Test group                              │
+ * ├───────────────┼───────────────────────────────┼─────────────────────────────────────────┤
+ * │ AUTHORITY     │ ECG_AUTH_SCORE_MISMATCH        │ score authority                         │
+ * │ AUTHORITY     │ ECG_AUTH_EXEC_SUMMARY_SCORE_*  │ score authority / score mismatch        │
+ * │ AUTHORITY     │ ECG_AUTH_CRITERION_SCORE_RANGE │ score authority                         │
+ * │ IDENTITY      │ ECG_IDENT_PITCH_DUPLICATION    │ identity separation                     │
+ * │ IDENTITY      │ ECG_IDENT_PITCH_SUMMARY_OVERLAP│ identity separation                     │
+ * │ IDENTITY      │ ECG_IDENT_PITCH_PREMISE_OVERLAP│ identity separation                     │
+ * │ SUMMARY       │ ECG_EXEC_MISSING               │ executive summary contract              │
+ * │ SUMMARY       │ ECG_EXEC_PITCH_LANGUAGE        │ executive summary contract              │
+ * │ SUMMARY       │ ECG_EXEC_NO_EVAL_LANGUAGE      │ executive summary contract              │
+ * │ SUMMARY       │ ECG_EXEC_SCORE_ABSENT          │ executive summary contract              │
+ * │ TEXT          │ ECG_TEXT_TRUNCATED_WORD        │ text integrity                          │
+ * │ TEXT          │ ECG_TEXT_PLACEHOLDER           │ text integrity                          │
+ * │ RECOMMEND     │ ECG_REC_TOO_SHORT              │ recommendation integrity                │
+ * │ RECOMMEND     │ ECG_REC_PLACEHOLDER            │ recommendation integrity                │
+ * │ RECOMMEND     │ ECG_REC_LOWERCASE_START        │ recommendation integrity (advisory)     │
+ * │ RECOMMEND     │ ECG_REC_MISSING_TERMINAL_PUNCT │ recommendation integrity (advisory)     │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_EXEC_SUMMARY   │ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_SENTENCE_PITCH │ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_PARAGRAPH_PITCH│ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_PREMISE        │ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_STRENGTHS      │ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_RISKS          │ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_RATIONALE      │ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_CONFIDENCE     │ artifact completeness                   │
+ * │ COMPLETENESS  │ ECG_ART_MISSING_RECOMMENDATIONS│ artifact completeness                   │
+ * │ RENDERER      │ ECG_RENDERER_VERDICT_UNKNOWN   │ renderer contracts                      │
+ * │ RENDERER      │ ECG_RENDERER_GENRE_MISSING     │ renderer contracts (advisory)           │
+ * │ RENDERER      │ ECG_RENDERER_AUDIENCE_MISSING  │ renderer contracts (advisory)           │
+ * │ RENDERER      │ ECG_RENDERER_SCORE_LABEL_MISMATCH│ renderer contracts                   │
+ * └───────────────┴───────────────────────────────┴─────────────────────────────────────────┘
  */
 
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import {
   runEvaluationCertificationGate,
   buildECGInput,
-  normalizeRecommendationText,
-  injectCanonicalScore,
   trimAtWordBoundary,
+  CERTIFICATION_REGISTRY,
+  getCertificationCoverage,
+  getRegistryEntry,
+  getRegistryByDomain,
   type ECGInput,
+  type InvariantDomain,
 } from "@/lib/evaluation/pipeline/evaluationCertificationGate";
+import {
+  normalizeArtifact,
+} from "@/lib/evaluation/pipeline/normalizeArtifact";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ECG_MODE isolation helper
+// Controls process.env.ECG_MODE per-test without cross-contamination.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function withECGMode(mode: string, fn: () => void) {
+  const original = process.env.ECG_MODE;
+  process.env.ECG_MODE = mode;
+  try {
+    fn();
+  } finally {
+    if (original === undefined) {
+      delete process.env.ECG_MODE;
+    } else {
+      process.env.ECG_MODE = original;
+    }
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixture helpers
@@ -44,23 +93,32 @@ import {
 const CANONICAL_SCORE = 74;
 
 const CLEAN_EXEC_SUMMARY =
-  "The manuscript earns a 74/100 on the strength of its Concept & Premise and Character Depth, with high marks for the Calvin–Monty dynamic. The author should preserve the sardonic Tonal Authority and the textured Antwerp worldbuilding. The principal blocker is Pacing & Structural Balance, where overlong exposition interrupts momentum. Tightening the mid-chapter expository passages should be the first revision priority.";
+  "The manuscript earns a 74/100 on the strength of its Concept & Premise and Character Depth, " +
+  "with high marks for the Calvin–Monty dynamic. The author should preserve the sardonic Tonal " +
+  "Authority and textured Antwerp worldbuilding. The principal blocker is Pacing & Structural " +
+  "Balance, where overlong exposition interrupts momentum. Tightening the mid-chapter expository " +
+  "passages should be the first revision priority.";
 
 const CLEAN_SENTENCE_PITCH =
-  "A sardonic Antwerp diamond dealer's retirement evening becomes a reckoning with cobalt, blood money, and a lifelong friendship.";
+  "A sardonic Antwerp diamond dealer's retirement evening becomes a reckoning with cobalt, " +
+  "blood money, and a lifelong friendship.";
 
 const CLEAN_PARAGRAPH_PITCH =
-  "Calvin, a burned-out diamond trader, joins his old friend Monty in Antwerp's SkyNooz penthouse for a farewell evening that turns into an ultimatum: join a high-stakes cobalt operation in the Democratic Republic of Congo, or watch a twenty-five-year friendship dissolve.";
+  "Calvin, a burned-out diamond trader, joins his old friend Monty in Antwerp's SkyNooz penthouse " +
+  "for a farewell evening that turns into an ultimatum: join a high-stakes cobalt operation in " +
+  "the Democratic Republic of Congo, or watch a twenty-five-year friendship dissolve.";
 
 const CLEAN_PREMISE =
-  "A burned-out Antwerp diamond trader facing the collapse of his industry lures his cautious Canadian friend into a lavish SkyNooz penthouse evening where a risky cobalt job forces them to confront how much they will risk for money, status, and friendship.";
+  "A burned-out Antwerp diamond trader facing the collapse of his industry lures his cautious " +
+  "Canadian friend into a lavish SkyNooz penthouse evening where a risky cobalt job forces them " +
+  "to confront how much they will risk for money, status, and friendship.";
 
 function makeCleanInput(overrides: Partial<ECGInput> = {}): ECGInput {
   return {
     canonicalScore: CANONICAL_SCORE,
     overview: {
       overall_score_0_100: CANONICAL_SCORE,
-      verdict: "revise",
+      verdict: "not_market_ready",
       one_paragraph_summary: CLEAN_EXEC_SUMMARY,
       one_sentence_pitch: CLEAN_SENTENCE_PITCH,
       one_paragraph_pitch: CLEAN_PARAGRAPH_PITCH,
@@ -84,15 +142,16 @@ function makeCleanInput(overrides: Partial<ECGInput> = {}): ECGInput {
       quick_wins: [
         {
           action:
-            "Compress the most repetitive sentences in the mid-chapter diamond and vanity exposition so the narrative reaches the GeoCam offer a page sooner without sacrificing the core ideas.",
-          why: "Tightening exposition will increase narrative momentum.",
+            "Compress the most repetitive sentences in the mid-chapter diamond and vanity exposition " +
+            "so the narrative reaches the GeoCam offer a page sooner without sacrificing the core ideas.",
         },
       ],
       strategic_revisions: [
         {
           action:
-            "Introduce one or two small physical beats in the penthouse scene that use the windows or Macallan bottle to echo Monty's emotional state whenever the conversation about the Democratic Republic of Congo reaches a new turning point.",
-          why: "Action beats help readers track emotional shifts through environment.",
+            "Introduce one or two small physical beats in the penthouse scene that use the windows " +
+            "or Macallan bottle to echo Monty's emotional state whenever the conversation about " +
+            "the Democratic Republic of Congo reaches a new turning point.",
         },
       ],
     },
@@ -101,13 +160,13 @@ function makeCleanInput(overrides: Partial<ECGInput> = {}): ECGInput {
         key: "concept",
         final_score_0_10: 8,
         final_rationale:
-          "The concept linking diamond industry collapse to cobalt mining and personal ethics is fresh and commercially relevant.",
+          "The concept linking diamond industry collapse to cobalt mining and personal ethics is fresh.",
       },
       {
         key: "narrativeDrive",
         final_score_0_10: 7,
         final_rationale:
-          "Momentum flows through the escalating penthouse conversation but stalls during the mid-chapter expository passages.",
+          "Momentum flows through the escalating penthouse conversation but stalls during exposition.",
       },
     ],
     governance: {
@@ -118,366 +177,737 @@ function makeCleanInput(overrides: Partial<ECGInput> = {}): ECGInput {
   };
 }
 
+/** Deep clone to detect any mutation of input by the gate. */
+function deepClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Happy path
+// 1. CERTIFICATION_REGISTRY structural contracts
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("ECG — happy path", () => {
-  it("certifies a clean artifact with no violations", () => {
-    const input = makeCleanInput();
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFIED");
-    expect(result.fatal).toHaveLength(0);
-    expect(result.violations).toHaveLength(0);
+describe("CERTIFICATION_REGISTRY", () => {
+  const REQUIRED_DOMAINS: InvariantDomain[] = [
+    "AUTHORITY", "IDENTITY", "SUMMARY", "TEXT", "RECOMMEND", "COMPLETENESS", "RENDERER",
+  ];
+
+  it("contains at least 29 invariants", () => {
+    expect(CERTIFICATION_REGISTRY.length).toBeGreaterThanOrEqual(29);
+  });
+
+  it("covers all 7 required domains", () => {
+    const domains = new Set(CERTIFICATION_REGISTRY.map(e => e.domain));
+    for (const d of REQUIRED_DOMAINS) {
+      expect(domains.has(d)).toBe(true);
+    }
+  });
+
+  it("every entry has all required provenance fields", () => {
+    for (const entry of CERTIFICATION_REGISTRY) {
+      expect(entry.code).toBeTruthy();
+      expect(entry.domain).toBeTruthy();
+      expect(entry.severity).toMatch(/^(FATAL|ADVISORY)$/);
+      expect(entry.description).toBeTruthy();
+      expect(entry.authority).toBeTruthy(); // provenance
+      expect(entry.section).toBeTruthy();
+      expect(Array.isArray(entry.tags)).toBe(true);
+      expect(entry.tags.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("all codes are unique", () => {
+    const codes = CERTIFICATION_REGISTRY.map(e => e.code);
+    const unique = new Set(codes);
+    expect(unique.size).toBe(codes.length);
+  });
+
+  it("all AUTHORITY domain entries have a weighted score authority", () => {
+    const authEntries = getRegistryByDomain("AUTHORITY");
+    expect(authEntries.length).toBeGreaterThanOrEqual(3);
+    for (const entry of authEntries) {
+      expect(entry.authority).toMatch(/computeWeightedScore|Pass 1|Pass 2/i);
+    }
+  });
+
+  it("score mismatch invariants reference the canonical score authority", () => {
+    const scoreMismatch = getRegistryEntry("ECG_AUTH_SCORE_MISMATCH");
+    expect(scoreMismatch).toBeDefined();
+    expect(scoreMismatch!.authority).toContain("computeWeightedScore");
+    expect(scoreMismatch!.severity).toBe("FATAL");
+
+    const execMismatch = getRegistryEntry("ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
+    expect(execMismatch).toBeDefined();
+    expect(execMismatch!.authority).toContain("computeWeightedScore");
+    expect(execMismatch!.severity).toBe("FATAL");
+  });
+
+  it("getCertificationCoverage() returns non-zero counts for all 7 domains", () => {
+    const coverage = getCertificationCoverage();
+    for (const domain of REQUIRED_DOMAINS) {
+      expect(coverage[domain].total).toBeGreaterThan(0);
+    }
+  });
+
+  it("COMPLETENESS domain has at least 9 entries covering all required fields", () => {
+    const completeness = getRegistryByDomain("COMPLETENESS");
+    expect(completeness.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("RENDERER domain declares market_readiness_calculator as authority for verdict", () => {
+    const verdictEntry = getRegistryEntry("ECG_RENDERER_VERDICT_UNKNOWN");
+    expect(verdictEntry).toBeDefined();
+    expect(verdictEntry!.authority).toContain("market_readiness_calculator");
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Score authority
+// 2. normalizeArtifact() — cosmetic only, never semantic
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("ECG — score authority", () => {
-  it("FATAL when overview score ≠ canonical score", () => {
-    const input = makeCleanInput();
-    input.overview.overall_score_0_100 = 80; // diverges from canonicalScore=74
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_AUTH_SCORE_MISMATCH");
+describe("normalizeArtifact()", () => {
+  function makeSynthesis(overrides: {
+    one_paragraph_summary?: string;
+    one_sentence_pitch?: string;
+    one_paragraph_pitch?: string;
+  } = {}) {
+    return {
+      overall: {
+        one_paragraph_summary: overrides.one_paragraph_summary ?? CLEAN_EXEC_SUMMARY,
+        one_sentence_pitch: overrides.one_sentence_pitch ?? CLEAN_SENTENCE_PITCH,
+        one_paragraph_pitch: overrides.one_paragraph_pitch ?? CLEAN_PARAGRAPH_PITCH,
+      },
+      criteria: [
+        {
+          recommendations: [{ action: "add more tension at the climax." }],
+        },
+      ],
+    };
+  }
+
+  it("capitalizes a lowercase recommendation action", () => {
+    const synthesis = makeSynthesis();
+    const quickWins = [{ action: "compress the mid-chapter exposition for better pacing." }];
+    const strategicRevisions: Array<{ action?: string }> = [];
+    normalizeArtifact(synthesis, quickWins, strategicRevisions);
+    expect(quickWins[0].action).toMatch(/^Compress/);
   });
 
-  it("FATAL when exec summary references wrong score (80 vs canonical 74)", () => {
+  it("adds terminal punctuation to a recommendation action that lacks it", () => {
+    const synthesis = makeSynthesis();
+    const quickWins = [{ action: "Compress the mid-chapter exposition for better pacing" }];
+    normalizeArtifact(synthesis, quickWins, []);
+    expect(quickWins[0].action).toMatch(/\.$/);
+  });
+
+  it("collapses multiple whitespace in a recommendation action", () => {
+    const synthesis = makeSynthesis();
+    const quickWins = [{ action: "Compress  the   exposition." }];
+    normalizeArtifact(synthesis, quickWins, []);
+    expect(quickWins[0].action).toBe("Compress the exposition.");
+  });
+
+  it("trims one_paragraph_summary at a word boundary when over 750 chars", () => {
+    const longSummary = "The manuscript earns a 74/100 " + "a".repeat(800);
+    const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
+    normalizeArtifact(synthesis, [], []);
+    expect(synthesis.overall.one_paragraph_summary.length).toBeLessThanOrEqual(750);
+    // Must end with ellipsis, not a mid-word cut
+    expect(synthesis.overall.one_paragraph_summary).toMatch(/…$/);
+  });
+
+  it("does NOT alter the score, summary meaning, or pitch text (clean inputs)", () => {
+    const synthesis = makeSynthesis();
+    const quickWins = [{ action: "Compress the mid-chapter exposition for better pacing." }];
+    const summaryBefore = synthesis.overall.one_paragraph_summary;
+    const pitchBefore = synthesis.overall.one_sentence_pitch;
+    normalizeArtifact(synthesis, quickWins, []);
+    // Summary and pitch unchanged (already clean)
+    expect(synthesis.overall.one_paragraph_summary).toBe(summaryBefore);
+    expect(synthesis.overall.one_sentence_pitch).toBe(pitchBefore);
+    // Rec action unchanged (already clean — capitalize is already done, punct present)
+    expect(quickWins[0].action).toBe("Compress the mid-chapter exposition for better pacing.");
+  });
+
+  it("never injects or replaces score values", () => {
+    // If summary says 80/100, normalizeArtifact must leave it untouched.
+    // The ECG (not normalization) will flag it as a FATAL violation.
+    const summaryWithWrongScore =
+      "The manuscript earns a solid 80/100 on the strength of its Concept & Premise. " +
+      "The principal blocker is Pacing & Structural Balance.";
+    const synthesis = makeSynthesis({ one_paragraph_summary: summaryWithWrongScore });
+    normalizeArtifact(synthesis, [], []);
+    // Score must be exactly as-is — normalization must NOT touch it
+    expect(synthesis.overall.one_paragraph_summary).toContain("80/100");
+    expect(synthesis.overall.one_paragraph_summary).not.toContain("74/100");
+  });
+
+  it("never modifies summary text that is already within 750 chars", () => {
+    const synthesis = makeSynthesis();
+    const before = synthesis.overall.one_paragraph_summary;
+    expect(before.length).toBeLessThan(750);
+    normalizeArtifact(synthesis, [], []);
+    expect(synthesis.overall.one_paragraph_summary).toBe(before);
+  });
+
+  it("returns a log of normalizations applied", () => {
+    const synthesis = makeSynthesis();
+    const quickWins = [{ action: "compress the exposition" }]; // lowercase, no punct
+    const result = normalizeArtifact(synthesis, quickWins, []);
+    expect(result.normalizations.length).toBeGreaterThanOrEqual(2); // capitalize + terminal_punct
+    const ops = result.normalizations.map(n => n.operation);
+    expect(ops).toContain("capitalize");
+    expect(ops).toContain("terminal_punct");
+  });
+
+  it("logs trimming when summary exceeds limit", () => {
+    const longSummary = "The manuscript earns a 74/100 score on its craft. " + "word ".repeat(200);
+    const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
+    const result = normalizeArtifact(synthesis, [], []);
+    const trimLog = result.normalizations.find(n => n.operation === "trim_word_boundary");
+    expect(trimLog).toBeDefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. ECG does not mutate its input
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("ECG — input immutability", () => {
+  it("does not mutate a clean input in WARN_ONLY mode", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      const snapshot = deepClone(input);
+      runEvaluationCertificationGate(input);
+      expect(input).toEqual(snapshot);
+    });
+  });
+
+  it("does not mutate a clean input in ENFORCE mode", () => {
+    withECGMode("ENFORCE", () => {
+      const input = makeCleanInput();
+      const snapshot = deepClone(input);
+      runEvaluationCertificationGate(input);
+      expect(input).toEqual(snapshot);
+    });
+  });
+
+  it("does not mutate input that has fatal violations", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.overall_score_0_100 = 80; // FATAL
+      const snapshot = deepClone(input);
+      runEvaluationCertificationGate(input);
+      // overview.overall_score_0_100 must remain 80 — ECG does not correct it
+      expect(input.overview.overall_score_0_100).toBe(80);
+      expect(input).toEqual(snapshot);
+    });
+  });
+
+  it("does not mutate exec summary even when it contains a wrong score", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      const wrongSummary =
+        "This manuscript earns a solid 80/100 on the strength of its Concept & Premise. " +
+        "The principal blocker is Pacing & Structural Balance. " +
+        "Tightening the mid-chapter exposition is the first revision priority.";
+      input.overview.one_paragraph_summary = wrongSummary;
+      runEvaluationCertificationGate(input);
+      // Summary must be exactly unchanged — no score injection
+      expect(input.overview.one_paragraph_summary).toBe(wrongSummary);
+      expect(input.overview.one_paragraph_summary).toContain("80/100");
+      expect(input.overview.one_paragraph_summary).not.toContain("74/100");
+    });
+  });
+
+  it("does not mutate recommendation actions", () => {
+    withECGMode("WARN_ONLY", () => {
+      const lowercaseAction =
+        "add one concrete resolution beat that closes the dangling thread for Narrative Closure.";
+      const input = makeCleanInput();
+      input.recommendations!.quick_wins = [{ action: lowercaseAction }];
+      runEvaluationCertificationGate(input);
+      // Must not capitalize — that is normalizeArtifact()'s job, not ECG's
+      expect(input.recommendations!.quick_wins![0].action).toBe(lowercaseAction);
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. ECG_MODE=WARN_ONLY
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("ECG_MODE=WARN_ONLY", () => {
+  it("returns CERTIFIED even when fatal violations are present", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.overall_score_0_100 = 80; // FATAL
+      const result = runEvaluationCertificationGate(input);
+      expect(result.status).toBe("CERTIFIED");
+      expect(result.mode).toBe("WARN_ONLY");
+    });
+  });
+
+  it("populates fatal[] with all FATAL violations found", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.overall_score_0_100 = 80; // ECG_AUTH_SCORE_MISMATCH
+      const result = runEvaluationCertificationGate(input);
+      expect(result.fatal.length).toBeGreaterThan(0);
+      expect(result.fatal.map(v => v.code)).toContain("ECG_AUTH_SCORE_MISMATCH");
+    });
+  });
+
+  it("summary string contains WARN_ONLY and violation codes", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.overall_score_0_100 = 80;
+      const result = runEvaluationCertificationGate(input);
+      expect(result.summary).toContain("WARN_ONLY");
+      expect(result.summary).toContain("ECG_AUTH_SCORE_MISMATCH");
+    });
+  });
+
+  it("returns CERTIFIED with zero violations on a clean artifact", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      const result = runEvaluationCertificationGate(input);
+      expect(result.status).toBe("CERTIFIED");
+      expect(result.fatal).toHaveLength(0);
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. ECG_MODE=ENFORCE
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("ECG_MODE=ENFORCE", () => {
+  it("returns CERTIFICATION_FAILED when fatal violations are present", () => {
+    withECGMode("ENFORCE", () => {
+      const input = makeCleanInput();
+      input.overview.overall_score_0_100 = 80; // FATAL
+      const result = runEvaluationCertificationGate(input);
+      expect(result.status).toBe("CERTIFICATION_FAILED");
+      expect(result.mode).toBe("ENFORCE");
+    });
+  });
+
+  it("returns CERTIFIED when no fatal violations exist (clean artifact)", () => {
+    withECGMode("ENFORCE", () => {
+      const input = makeCleanInput();
+      const result = runEvaluationCertificationGate(input);
+      expect(result.status).toBe("CERTIFIED");
+      expect(result.fatal).toHaveLength(0);
+    });
+  });
+
+  it("summary names the failing codes", () => {
+    withECGMode("ENFORCE", () => {
+      const input = makeCleanInput();
+      input.overview.overall_score_0_100 = 80;
+      const result = runEvaluationCertificationGate(input);
+      expect(result.summary).toContain("ECG_AUTH_SCORE_MISMATCH");
+      expect(result.summary).toContain("CERTIFICATION_FAILED");
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. ECG_MODE=OFF
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("ECG_MODE=OFF", () => {
+  it("returns SKIPPED immediately without running any checks", () => {
+    withECGMode("OFF", () => {
+      const input = makeCleanInput();
+      // Deliberately corrupt the input
+      input.overview.overall_score_0_100 = 0;
+      input.overview.one_paragraph_summary = "";
+      input.recommendations = { quick_wins: [], strategic_revisions: [] };
+      const result = runEvaluationCertificationGate(input);
+      expect(result.status).toBe("SKIPPED");
+      expect(result.violations).toHaveLength(0);
+      expect(result.fatal).toHaveLength(0);
+    });
+  });
+
+  it("mode field reflects OFF", () => {
+    withECGMode("OFF", () => {
+      const input = makeCleanInput();
+      const result = runEvaluationCertificationGate(input);
+      expect(result.mode).toBe("OFF");
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Score mismatch: diagnostic only, never repaired
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Score mismatch — diagnostic only, never repaired", () => {
+  const WRONG_SUMMARY =
+    "This manuscript earns a solid 80/100 on the strength of its Concept & Core Premise and " +
+    "Character Depth, with especially high marks for the Calvin–Monty dynamic. " +
+    "The principal blocker is Pacing & Structural Balance. " +
+    "Tightening the mid-chapter exposition is the first revision priority.";
+
+  it("FATAL in WARN_ONLY mode when exec summary says 80 but canonical score is 74", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.one_paragraph_summary = WRONG_SUMMARY;
+      const result = runEvaluationCertificationGate(input);
+      expect(result.fatal.map(v => v.code)).toContain("ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
+      // But in WARN_ONLY, still CERTIFIED
+      expect(result.status).toBe("CERTIFIED");
+    });
+  });
+
+  it("FATAL in ENFORCE mode when exec summary says 80 but canonical score is 74", () => {
+    withECGMode("ENFORCE", () => {
+      const input = makeCleanInput();
+      input.overview.one_paragraph_summary = WRONG_SUMMARY;
+      const result = runEvaluationCertificationGate(input);
+      expect(result.fatal.map(v => v.code)).toContain("ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
+      expect(result.status).toBe("CERTIFICATION_FAILED");
+    });
+  });
+
+  it("exec summary text is UNCHANGED after gate runs — no 80→74 replacement", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.one_paragraph_summary = WRONG_SUMMARY;
+      runEvaluationCertificationGate(input);
+      // Text must be exactly as-is — ECG never patches content
+      expect(input.overview.one_paragraph_summary).toBe(WRONG_SUMMARY);
+      expect(input.overview.one_paragraph_summary).toContain("80/100");
+      expect(input.overview.one_paragraph_summary).not.toContain("74/100");
+    });
+  });
+
+  it("passes when exec summary contains the canonical score correctly", () => {
+    withECGMode("ENFORCE", () => {
+      const input = makeCleanInput(); // summary already has "74/100"
+      const result = runEvaluationCertificationGate(input);
+      const scoreCodes = result.fatal.map(v => v.code).filter(c => c.includes("SCORE"));
+      expect(scoreCodes).toHaveLength(0);
+    });
+  });
+
+  it("violation message names both the wrong score and the canonical score", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.one_paragraph_summary = WRONG_SUMMARY;
+      const result = runEvaluationCertificationGate(input);
+      const v = result.fatal.find(v => v.code === "ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
+      expect(v).toBeDefined();
+      expect(v!.message).toContain("80");
+      expect(v!.message).toContain("74");
+    });
+  });
+
+  it("violation has the correct provenance authority (computeWeightedScore)", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      input.overview.one_paragraph_summary = WRONG_SUMMARY;
+      const result = runEvaluationCertificationGate(input);
+      const v = result.fatal.find(v => v.code === "ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
+      expect(v!.authority).toContain("computeWeightedScore");
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Individual invariant coverage — all 29 codes triggered
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("ECG — individual invariant coverage", () => {
+  function runWarn(input: ECGInput) {
+    process.env.ECG_MODE = "WARN_ONLY";
+    const result = runEvaluationCertificationGate(input);
+    return result;
+  }
+
+  it("ECG_AUTH_SCORE_MISMATCH", () => {
+    const input = makeCleanInput();
+    input.overview.overall_score_0_100 = 80;
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_AUTH_SCORE_MISMATCH");
+  });
+
+  it("ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH", () => {
     const input = makeCleanInput();
     input.overview.one_paragraph_summary =
-      "This chapter earns a solid 80/100 on the strength of its Concept & Core Premise and Character Depth, with especially high marks for the Calvin–Monty dynamic. The principal blocker is Pacing & Structural Balance. Tightening the mid-chapter exposition should be the first revision priority.";
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain(
-      "ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH",
-    );
+      "A solid 80/100 score reflects strong Concept & Premise. Revision should focus on pacing and narrative drive.";
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
   });
 
-  it("FATAL when a criterion score is out of 0–10 range", () => {
+  it("ECG_AUTH_CRITERION_SCORE_RANGE", () => {
     const input = makeCleanInput();
-    input.criteria = [{ key: "concept", final_score_0_10: 11, final_rationale: "Strong concept." }];
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_AUTH_CRITERION_SCORE_RANGE");
+    input.criteria = [{ key: "concept", final_score_0_10: 11, final_rationale: "Strong." }];
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_AUTH_CRITERION_SCORE_RANGE");
   });
 
-  it("passes when exec summary references canonical score correctly", () => {
+  it("ECG_IDENT_PITCH_DUPLICATION", () => {
     const input = makeCleanInput();
-    // Summary already contains "74/100" — should pass
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFIED");
-    expect(result.fatal.map((v) => v.code)).not.toContain(
-      "ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH",
-    );
+    input.overview.one_sentence_pitch = CLEAN_PARAGRAPH_PITCH; // same as paragraph pitch
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_IDENT_PITCH_DUPLICATION");
   });
-});
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Identity separation
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("ECG — identity separation", () => {
-  it("FATAL when one_sentence_pitch = one_paragraph_pitch (exact)", () => {
+  it("ECG_IDENT_PITCH_SUMMARY_OVERLAP", () => {
     const input = makeCleanInput();
-    input.overview.one_sentence_pitch = CLEAN_PARAGRAPH_PITCH;
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    const codes = result.fatal.map((v) => v.code);
-    expect(codes).toContain("ECG_IDENT_DUPLICATION");
+    input.overview.one_sentence_pitch = CLEAN_EXEC_SUMMARY; // overlaps summary
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_IDENT_PITCH_SUMMARY_OVERLAP");
   });
 
-  it("FATAL when one_paragraph_pitch ≈ premise (high Jaccard)", () => {
+  it("ECG_IDENT_PITCH_PREMISE_OVERLAP", () => {
     const input = makeCleanInput();
-    // Make them identical
-    input.overview.one_paragraph_pitch = CLEAN_PREMISE;
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_IDENT_DUPLICATION");
+    input.overview.one_paragraph_pitch = CLEAN_PREMISE; // same as premise
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_IDENT_PITCH_PREMISE_OVERLAP");
   });
 
-  it("FATAL when all three pitch-like fields are identical (real Diamonds bug)", () => {
-    const identical =
-      "A burned-out Antwerp diamond trader facing the collapse of his industry lures his cautious Canadian friend into a lavish penthouse where a cobalt job forces them to confront how much they will risk.";
-    const input = makeCleanInput();
-    input.overview.one_sentence_pitch = identical;
-    input.overview.one_paragraph_pitch = identical;
-    input.enrichment!.premise = identical;
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    const identDups = result.fatal.filter((v) => v.code === "ECG_IDENT_DUPLICATION");
-    // At minimum: sentence=paragraph, sentence=premise, paragraph=premise
-    expect(identDups.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("passes when fields are semantically distinct", () => {
-    const input = makeCleanInput();
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFIED");
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Executive summary contract
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("ECG — executive summary contract", () => {
-  it("FATAL when exec summary is absent", () => {
+  it("ECG_EXEC_MISSING", () => {
     const input = makeCleanInput();
     input.overview.one_paragraph_summary = "";
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_EXEC_MISSING");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_EXEC_MISSING");
   });
 
-  it("FATAL when exec summary has no evaluation language", () => {
+  it("ECG_EXEC_PITCH_LANGUAGE", () => {
     const input = makeCleanInput();
     input.overview.one_paragraph_summary =
-      "Calvin and Monty share a wonderful evening in Antwerp discussing diamonds over Macallan whisky. The friendship between the two men is heartwarming and authentic. Readers will enjoy the banter and the vivid atmosphere of the SkyNooz penthouse.";
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_EXEC_NO_EVAL_LANGUAGE");
+      "This manuscript is a must-read page-turner that will grab readers from the first page. " +
+      "The narrative craft is exceptional and the character voice is distinctive throughout.";
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_EXEC_PITCH_LANGUAGE");
   });
-});
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Text integrity
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("ECG — text integrity", () => {
-  it("FATAL when exec summary contains a truncated word ('occasiona')", () => {
+  it("ECG_EXEC_NO_EVAL_LANGUAGE", () => {
     const input = makeCleanInput();
     input.overview.one_paragraph_summary =
-      "The manuscript earns a 74/100 on the strength of its Concept & Premise. The author should preserve the sardonic tonal authority. The principal blocker is Pacing & Structural Balance, where overlong exposition and occasiona";
-    // Note: ends mid-word without ellipsis
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_TEXT_TRUNCATED_WORD");
+      "Calvin and Monty spend an evening in Antwerp discussing the diamond trade. " +
+      "Their friendship feels authentic. The Antwerp setting is atmospheric and detailed. " +
+      "The ending leaves something to be desired but overall the writing is pleasant.";
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_EXEC_NO_EVAL_LANGUAGE");
   });
 
-  it("FATAL when a field contains placeholder text", () => {
+  it("ECG_EXEC_SCORE_ABSENT (advisory — does not block)", () => {
+    withECGMode("WARN_ONLY", () => {
+      const input = makeCleanInput();
+      // Remove score reference from summary
+      input.overview.one_paragraph_summary =
+        "The manuscript scores well on its Concept & Premise and Character Depth, " +
+        "with high marks for the Calvin–Monty dynamic. The author should preserve the " +
+        "sardonic tonal authority. The principal blocker is Pacing & Structural Balance. " +
+        "Tightening the mid-chapter exposition should be the first revision priority.";
+      const result = runEvaluationCertificationGate(input);
+      const v = result.advisory.find(v => v.code === "ECG_EXEC_SCORE_ABSENT");
+      expect(v).toBeDefined();
+      // Advisory — never fatal
+      expect(result.fatal.map(v => v.code)).not.toContain("ECG_EXEC_SCORE_ABSENT");
+    });
+  });
+
+  it("ECG_TEXT_TRUNCATED_WORD", () => {
+    const input = makeCleanInput();
+    input.overview.one_paragraph_summary =
+      "The manuscript earns a 74/100 on the strength of its Concept & Premise. " +
+      "The principal blocker is Pacing & Structural Balance, where overlong exposition occasiona";
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_TEXT_TRUNCATED_WORD");
+  });
+
+  it("ECG_TEXT_PLACEHOLDER", () => {
     const input = makeCleanInput();
     input.overview.one_sentence_pitch = "[insert one-sentence pitch here]";
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_TEXT_PLACEHOLDER");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_TEXT_PLACEHOLDER");
   });
 
-  it("passes when summary ends with proper ellipsis (upstream trimmed correctly)", () => {
-    const input = makeCleanInput();
-    input.overview.one_paragraph_summary =
-      "The manuscript earns a 74/100 on the strength of its Concept & Premise and Character Depth, with the Calvin–Monty dynamic as the strongest craft element. The principal blocker is Pacing & Structural Balance. Tightening the mid-chapter exposition is the first revision priority\u2026";
-    const result = runEvaluationCertificationGate(input, false);
-    // Should not flag truncation for a properly ellipsis-terminated summary
-    const truncViolations = result.fatal.filter((v) => v.code === "ECG_TEXT_TRUNCATED_WORD");
-    expect(truncViolations).toHaveLength(0);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recommendation integrity
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("ECG — recommendation integrity", () => {
-  it("REPAIRABLE when recommendation starts with lowercase (real Diamonds rec #3 bug)", () => {
-    const input = makeCleanInput();
-    input.recommendations!.quick_wins = [
-      {
-        action:
-          "add one concrete resolution beat that closes the dangling thread and signals consequence to the reader, reducing the feeling of dangling threads (Narrative Closure & Promises Kept).",
-      },
-    ];
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFIED"); // repairable — does not block
-    const lowerViolations = result.violations.filter((v) => v.code === "ECG_REC_LOWERCASE_START");
-    expect(lowerViolations.length).toBeGreaterThan(0);
-    expect(lowerViolations[0].severity).toBe("REPAIRABLE");
-  });
-
-  it("FATAL when recommendation is too short", () => {
+  it("ECG_REC_TOO_SHORT", () => {
     const input = makeCleanInput();
     input.recommendations!.quick_wins = [{ action: "Fix pacing." }];
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_REC_TOO_SHORT");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_REC_TOO_SHORT");
   });
 
-  it("FATAL when recommendation contains placeholder text", () => {
+  it("ECG_REC_PLACEHOLDER", () => {
     const input = makeCleanInput();
     input.recommendations!.quick_wins = [
       { action: "[insert actionable recommendation about pacing and exposition here for criterion]" },
     ];
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_REC_PLACEHOLDER");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_REC_PLACEHOLDER");
   });
-});
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Artifact completeness
-// ─────────────────────────────────────────────────────────────────────────────
+  it("ECG_REC_LOWERCASE_START (advisory)", () => {
+    const input = makeCleanInput();
+    input.recommendations!.quick_wins = [
+      {
+        action:
+          "add one concrete resolution beat that closes the dangling thread and signals " +
+          "consequence to the reader, reducing the feeling of unresolved narrative tension.",
+      },
+    ];
+    const { advisory } = runWarn(input);
+    expect(advisory.map(v => v.code)).toContain("ECG_REC_LOWERCASE_START");
+  });
 
-describe("ECG — artifact completeness", () => {
-  it("FATAL when one_sentence_pitch is absent", () => {
+  it("ECG_REC_MISSING_TERMINAL_PUNCT (advisory)", () => {
+    const input = makeCleanInput();
+    input.recommendations!.quick_wins = [
+      {
+        action:
+          "Compress the most repetitive sentences in the mid-chapter diamond and vanity exposition " +
+          "so the narrative reaches the GeoCam offer a page sooner without sacrificing the core ideas",
+      },
+    ];
+    const { advisory } = runWarn(input);
+    expect(advisory.map(v => v.code)).toContain("ECG_REC_MISSING_TERMINAL_PUNCT");
+  });
+
+  it("ECG_ART_MISSING_EXEC_SUMMARY", () => {
+    const input = makeCleanInput();
+    input.overview.one_paragraph_summary = "";
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_EXEC_SUMMARY");
+  });
+
+  it("ECG_ART_MISSING_SENTENCE_PITCH", () => {
     const input = makeCleanInput();
     input.overview.one_sentence_pitch = "";
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_ART_MISSING_SENTENCE_PITCH");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_SENTENCE_PITCH");
   });
 
-  it("FATAL when one_paragraph_pitch is absent", () => {
+  it("ECG_ART_MISSING_PARAGRAPH_PITCH", () => {
     const input = makeCleanInput();
     input.overview.one_paragraph_pitch = "";
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_ART_MISSING_PARAGRAPH_PITCH");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_PARAGRAPH_PITCH");
   });
 
-  it("FATAL when premise is absent", () => {
+  it("ECG_ART_MISSING_PREMISE", () => {
     const input = makeCleanInput();
     input.enrichment!.premise = "";
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_ART_MISSING_PREMISE");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_PREMISE");
   });
 
-  it("FATAL when no recommendations exist", () => {
+  it("ECG_ART_MISSING_STRENGTHS", () => {
     const input = makeCleanInput();
-    input.recommendations = { quick_wins: [], strategic_revisions: [] };
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_ART_MISSING_RECOMMENDATIONS");
+    input.overview.top_3_strengths = [];
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_STRENGTHS");
   });
 
-  it("FATAL when a scored criterion has no rationale", () => {
+  it("ECG_ART_MISSING_RISKS", () => {
+    const input = makeCleanInput();
+    input.overview.top_3_risks = [];
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_RISKS");
+  });
+
+  it("ECG_ART_MISSING_RATIONALE", () => {
     const input = makeCleanInput();
     input.criteria = [{ key: "concept", final_score_0_10: 8, final_rationale: "" }];
-    const result = runEvaluationCertificationGate(input, false);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.fatal.map((v) => v.code)).toContain("ECG_ART_MISSING_RATIONALE");
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_RATIONALE");
+  });
+
+  it("ECG_ART_MISSING_CONFIDENCE", () => {
+    const input = makeCleanInput();
+    input.governance = { confidence: undefined, confidence_label: "High Confidence" };
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_CONFIDENCE");
+  });
+
+  it("ECG_ART_MISSING_RECOMMENDATIONS", () => {
+    const input = makeCleanInput();
+    input.recommendations = { quick_wins: [], strategic_revisions: [] };
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_RECOMMENDATIONS");
+  });
+
+  it("ECG_RENDERER_VERDICT_UNKNOWN", () => {
+    const input = makeCleanInput();
+    input.overview.verdict = "unknown_verdict_string";
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_RENDERER_VERDICT_UNKNOWN");
+  });
+
+  it("ECG_RENDERER_GENRE_MISSING (advisory)", () => {
+    const input = makeCleanInput();
+    input.enrichment!.diagnosed_genre = "";
+    const { advisory } = runWarn(input);
+    expect(advisory.map(v => v.code)).toContain("ECG_RENDERER_GENRE_MISSING");
+  });
+
+  it("ECG_RENDERER_AUDIENCE_MISSING (advisory)", () => {
+    const input = makeCleanInput();
+    input.enrichment!.target_audience = "";
+    const { advisory } = runWarn(input);
+    expect(advisory.map(v => v.code)).toContain("ECG_RENDERER_AUDIENCE_MISSING");
+  });
+
+  it("ECG_RENDERER_SCORE_LABEL_MISMATCH", () => {
+    const input = makeCleanInput();
+    input.governance = { confidence: 0.82, confidence_label: "" };
+    const { violations } = runWarn(input);
+    expect(violations.map(v => v.code)).toContain("ECG_RENDERER_SCORE_LABEL_MISMATCH");
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Auto-repair
+// trimAtWordBoundary (shared utility)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("ECG — auto-repair", () => {
-  it("injects canonical score into exec summary when score reference is wrong", () => {
-    const input = makeCleanInput();
-    input.overview.one_paragraph_summary =
-      "The manuscript earns a solid 80/100 on the strength of its Concept & Core Premise and Character Depth. The principal blocker is Pacing & Structural Balance. Tightening exposition is the first revision priority.";
-    // The gate will detect ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH as FATAL — repair runs only on CERTIFIED.
-    // So first we test the repair helper directly:
-    const repaired = injectCanonicalScore(input.overview.one_paragraph_summary, 74);
-    expect(repaired).toContain("74/100");
-    expect(repaired).not.toContain("80/100");
+describe("trimAtWordBoundary()", () => {
+  it("returns original when under limit", () => {
+    expect(trimAtWordBoundary("Short text.", 100)).toBe("Short text.");
   });
 
-  it("capitalizes and adds period to lowercase rec action when repair=true", () => {
-    const input = makeCleanInput();
-    input.overview.one_paragraph_summary = CLEAN_EXEC_SUMMARY; // has 74/100 — no score mismatch
-    input.recommendations!.quick_wins = [
-      {
-        action:
-          "compress the mid-chapter diamond exposition so the narrative reaches the GeoCam offer a page sooner without sacrificing the core ideas",
-      },
-    ];
-    const result = runEvaluationCertificationGate(input, true);
-    // Should be certified (lowercase rec is REPAIRABLE only)
-    expect(result.status).toBe("CERTIFIED");
-    const repairCodes = result.repairs.map((r) => r.code);
-    expect(repairCodes).toContain("ECG_NORM_REC_TEXT");
-    // Verify the action was fixed in-place
-    expect(input.recommendations!.quick_wins![0].action).toMatch(/^Compress/);
-    expect(input.recommendations!.quick_wins![0].action).toMatch(/\.$/);
-  });
-
-  it("does NOT apply repairs when fatal violations exist", () => {
-    const input = makeCleanInput();
-    input.overview.overall_score_0_100 = 80; // FATAL — score mismatch
-    input.recommendations!.quick_wins = [
-      {
-        action:
-          "add one concrete resolution beat that signals consequence to the reader reducing dangling threads (Narrative Closure & Promises Kept)",
-      },
-    ];
-    const result = runEvaluationCertificationGate(input, true);
-    expect(result.status).toBe("CERTIFICATION_FAILED");
-    expect(result.repairs).toHaveLength(0);
-    // Rec action should NOT have been modified
-    expect(input.recommendations!.quick_wins![0].action).toMatch(/^add/);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utility helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("normalizeRecommendationText", () => {
-  it("capitalizes first letter", () => {
-    expect(normalizeRecommendationText("add more tension.")).toBe("Add more tension.");
-  });
-
-  it("adds terminal period when missing", () => {
-    expect(normalizeRecommendationText("Tighten the exposition")).toBe(
-      "Tighten the exposition.",
-    );
-  });
-
-  it("does not add period when ending in question mark", () => {
-    expect(normalizeRecommendationText("Is this the right approach?")).toBe(
-      "Is this the right approach?",
-    );
-  });
-
-  it("collapses multiple spaces", () => {
-    expect(normalizeRecommendationText("Fix  the  spacing.")).toBe("Fix the spacing.");
-  });
-});
-
-describe("trimAtWordBoundary", () => {
-  it("trims at last word boundary and appends ellipsis", () => {
-    const text =
-      "This manuscript earns a solid score on the strength of its Concept and Character Depth.";
+  it("trims at a word boundary and appends ellipsis", () => {
+    const text = "The manuscript earns a solid score on the strength of its Concept and Character Depth.";
     const trimmed = trimAtWordBoundary(text, 50);
     expect(trimmed.endsWith("…")).toBe(true);
     expect(trimmed.length).toBeLessThanOrEqual(50);
-    // Should not cut mid-word
-    const withoutEllipsis = trimmed.slice(0, -1);
-    expect(withoutEllipsis).not.toMatch(/[a-z]$/i); // ends at word boundary or on punctuation
+    // No mid-word cut
+    const body = trimmed.slice(0, -1);
+    expect(body).not.toMatch(/[a-zA-Z]$/); // ends on punctuation or space was trimmed
   });
 
-  it("returns original when under limit", () => {
-    const text = "Short text.";
-    expect(trimAtWordBoundary(text, 100)).toBe(text);
+  it("never produces a mid-word cut on a realistic 750-char boundary", () => {
+    const text = "a".repeat(200) + " The manuscript earns" + " extraword".repeat(60);
+    const trimmed = trimAtWordBoundary(text, 750);
+    expect(trimmed.length).toBeLessThanOrEqual(750);
+    // The last real char before ellipsis should be a space-trimmed word end, not mid-alpha
+    const body = trimmed.slice(0, -1).trimEnd();
+    // Must not end on a vowel-only fragment like "occasiona"
+    expect(body).not.toMatch(/[aeiou]{2,}$/i);
   });
 });
 
-describe("buildECGInput", () => {
-  it("builds a valid ECGInput from a partial result object", () => {
-    const result = {
-      overview: {
-        overall_score_0_100: 74,
-        one_paragraph_summary: CLEAN_EXEC_SUMMARY,
-        one_sentence_pitch: CLEAN_SENTENCE_PITCH,
-        one_paragraph_pitch: CLEAN_PARAGRAPH_PITCH,
-        top_3_strengths: ["Strength one.", "Strength two.", "Strength three."],
-        top_3_risks: ["Risk one.", "Risk two.", "Risk three."],
-      },
-      enrichment: { premise: CLEAN_PREMISE },
-      recommendations: {
-        quick_wins: [{ action: "Tighten the mid-chapter exposition to improve pacing." }],
-      },
-      criteria: [{ key: "concept", final_score_0_10: 8, final_rationale: "Strong concept." }],
-      governance: { confidence: 0.82 },
-    };
-    const ecgInput = buildECGInput(result, 74);
-    expect(ecgInput.canonicalScore).toBe(74);
-    expect(ecgInput.overview.overall_score_0_100).toBe(74);
-    expect(ecgInput.enrichment?.premise).toBe(CLEAN_PREMISE);
+// ─────────────────────────────────────────────────────────────────────────────
+// buildECGInput
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("buildECGInput()", () => {
+  it("sets canonicalScore correctly", () => {
+    const input = buildECGInput({ overview: { overall_score_0_100: 74 } }, 74);
+    expect(input.canonicalScore).toBe(74);
+  });
+
+  it("handles missing optional fields gracefully", () => {
+    const input = buildECGInput({}, 74);
+    expect(input.canonicalScore).toBe(74);
+    expect(input.overview).toEqual({});
+    expect(input.enrichment).toBeNull();
+    expect(input.criteria).toBeNull();
   });
 });
