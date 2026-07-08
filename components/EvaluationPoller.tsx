@@ -558,8 +558,47 @@ export function EvaluationPoller({
           </div>
         </div>
 
-                {/* Progress Bar — driven 100% from backend phase, no client-side drift */}
-        {(() => {
+                {/* FIX: recovery_in_progress state — show a clear message instead of a frozen bar */}
+        {(job.status === 'queued' || job.status === 'running') &&
+          job.dashboard_status === 'recovery_in_progress' && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-400 border-t-amber-700 flex-shrink-0" />
+              <p className="text-sm font-semibold text-amber-900">
+                Evaluation delayed — recovery is in progress
+              </p>
+            </div>
+            <p className="text-sm text-amber-800 leading-relaxed">
+              Your writing and all completed analysis have been preserved.
+              RevisionGrade is automatically resuming from the last checkpoint.
+              This page will update when the evaluation restarts.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isRefreshing}
+                onClick={handleManualRefresh}
+                className={`inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition-colors ${
+                  isRefreshing ? 'cursor-wait opacity-60' : 'hover:bg-amber-50'
+                }`}
+              >
+                <span className={isRefreshing ? 'animate-spin inline-block' : ''}>↻</span>
+                {isRefreshing ? 'Checking...' : 'Check now'}
+              </button>
+              {showCancelAction && (
+                <CancelEvaluationButton
+                  jobId={jobId}
+                  label="Cancel"
+                  returnHref="/evaluate"
+                  buttonClassName="inline-flex items-center rounded-md bg-red-800 border border-red-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-900"
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Progress Bar — driven 100% from backend phase, no client-side drift */}
+        {job.dashboard_status !== 'recovery_in_progress' && (() => {
           // For completion animation: use displayProgress (sweeps 0→100 client-side).
           // For all other states: use pd.percentage directly (deterministic, phase-driven).
           const pd = getProgressDisplay({

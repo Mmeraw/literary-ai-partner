@@ -263,11 +263,17 @@ export function resolveEffectiveRuntimeStartMs(job: Pick<QueueHardStopCandidate,
   const progress = job.progress ?? {};
   const resumeAt = typeof progress.resume_requested_at === 'string' ? progress.resume_requested_at : null;
   const retryAt = typeof progress.retry_requested_at === 'string' ? progress.retry_requested_at : null;
+  // FIX: sla_timer_reset_at is written on every SLA auto-requeue so the SLA
+  // clock restarts from the requeue moment rather than from job creation.
+  // This prevents cumulative time across requeue attempts from exhausting the
+  // SLA budget before a worker has had a fair chance to complete the work.
+  const slaResetAt = typeof progress.sla_timer_reset_at === 'string' ? progress.sla_timer_reset_at : null;
 
   const candidates = [
     toIsoMs(job.created_at ?? job.updated_at),
     toIsoMs(resumeAt),
     toIsoMs(retryAt),
+    toIsoMs(slaResetAt),
   ].filter((ms): ms is number => ms !== null);
 
   return candidates.length > 0 ? Math.max(...candidates) : null;

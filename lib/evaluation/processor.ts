@@ -4184,10 +4184,14 @@ async function terminalizeQueuedHardStops(): Promise<{
           ...existingProgress,
           sla_auto_requeue_count: slaRequeueCount + 1,
           sla_auto_requeued_at: nowIso,
+          // FIX: reset claim timestamp so SLA timer restarts from now, not job creation
+          sla_timer_reset_at: nowIso,
           dashboard_status: 'recovery_in_progress',
           recovery_message: 'Evaluation delayed — recovery is in progress.',
           hard_stop_code: decision.code,
           hard_stop_internal_reason: decision.internalReason ?? null,
+          // FIX: clear hard_stop_halted so the next worker can claim this job
+          hard_stop_halted: false,
           phase: row.phase,
           phase_status: 'queued',
         };
