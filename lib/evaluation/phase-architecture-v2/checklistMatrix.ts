@@ -64,6 +64,11 @@ export const CHECKLIST_ARTIFACT_TYPES = [
 
   // Failure Path — deterministic diagnosis written on job-failure finalization
   'failure_diagnosis_v1',
+
+  // U3-001 — Summary ↔ Criterion Consistency Gate (additive, 2026-07-07)
+  // Written unconditionally (PASS/WARN/BLOCK) before the existing artifact
+  // consistency gate. BLOCK emits failure code QG_SUMMARY_CRITERION_CONTRADICTION.
+  'summary_criterion_consistency_v1',
 ] as const;
 
 export type ChecklistArtifactType = (typeof CHECKLIST_ARTIFACT_TYPES)[number];

@@ -188,7 +188,9 @@ export type ArtifactType =
   /** Deterministic admin-readable failure packet persisted at job-failure finalization time. */
   | "failure_diagnosis_v1"
   /** Compact final verification rail for long-form report readiness. */
-  | "final_external_audit_v1";
+  | "final_external_audit_v1"
+  /** U3-001: deterministic summary ↔ criterion consistency gate result (PASS/WARN/BLOCK). */
+  | "summary_criterion_consistency_v1";
 
 /**
  * Compute SHA256 hex digest of input string

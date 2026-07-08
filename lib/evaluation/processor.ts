@@ -82,6 +82,7 @@ import {
   TEMPLATE_COMPLETENESS_FAILURE_CODE,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
 import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
+import { runSummaryCriterionConsistencyGate } from '@/lib/evaluation/pipeline/summaryCriterionConsistencyGate';
 import { lookupKicksForStage } from '@/lib/evaluation/fipocRegistry';
 import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
 import { getFailureRecoveryDefinition } from '@/lib/governance/failureRecoveryPolicy';
@@ -11192,6 +11193,62 @@ export async function processEvaluationJob(
     // Runs after QG normalization and template completeness, but before the
     // evaluation_result_v2 artifact becomes canonical. Complete-but-inconsistent
     // output must fail closed here instead of being certified downstream.
+    // ── Summary ↔ Criterion Consistency Gate (U3-001) ─────────────────────────
+    // Deterministic gate: detects cases where the overview summary praises a
+    // criterion that the criterion's own score and rationale characterise as weak.
+    // Additive — does not replace or modify the artifact consistency gate below.
+    // Graduated: 1 contradiction → WARN (continue), 2+ → BLOCK.
+    // Failure code QG_SUMMARY_CRITERION_CONTRADICTION written on BLOCK only.
+    const summaryCriterionConsistencyResult = runSummaryCriterionConsistencyGate({
+      effectiveQGResult: effectiveEvaluationResult,
+    });
+    const summaryCriterionConsistencyHash = stableSourceHash({
+      manuscriptId: manuscript.id,
+      jobId: job.id,
+      userId: manuscriptWithContent.user_id,
+      manuscriptText,
+      promptVersion: `${promptVersion}:summary_criterion_consistency_v1`,
+      model,
+    });
+    await upsertEvaluationArtifact({
+      supabase,
+      jobId: job.id,
+      manuscriptId: job.manuscript_id,
+      artifactType: 'summary_criterion_consistency_v1',
+      artifactVersion: 'summary_criterion_consistency_v1',
+      sourceHash: summaryCriterionConsistencyHash,
+      content: summaryCriterionConsistencyResult,
+    });
+
+    if (summaryCriterionConsistencyResult.blocking) {
+      console.error(
+        `[Processor] ${jobId}: Summary↔Criterion consistency gate BLOCKED — ${summaryCriterionConsistencyResult.contradiction_count} contradiction(s): ${summaryCriterionConsistencyResult.contradictions.map((c) => c.criterion_key).join(', ')}`,
+        summaryCriterionConsistencyResult.contradictions,
+      );
+
+      await markFailed(
+        'Evaluation summary is inconsistent with criterion-level results. Support has been alerted.',
+        'QG_SUMMARY_CRITERION_CONTRADICTION',
+        {
+          pipelineStage: 'summary_criterion_consistency_gate',
+          reasonCodes: [summaryCriterionConsistencyResult.check_id],
+          diagnostics: summaryCriterionConsistencyResult,
+        },
+      );
+
+      return {
+        success: false,
+        error: `Summary↔Criterion consistency gate blocked: ${summaryCriterionConsistencyResult.reason}`,
+      };
+    }
+
+    if (summaryCriterionConsistencyResult.verdict === 'WARN') {
+      console.warn(
+        `[Processor] ${jobId}: Summary↔Criterion consistency gate WARN — ${summaryCriterionConsistencyResult.contradiction_count} contradiction(s), job continues`,
+        summaryCriterionConsistencyResult.contradictions.map((c) => c.criterion_key),
+      );
+    }
+
     const artifactConsistencyGateV1 = evaluateArtifactConsistencyGateV1({
       sourceResult: evaluationResult,
       effectiveQGResult: effectiveEvaluationResult,
