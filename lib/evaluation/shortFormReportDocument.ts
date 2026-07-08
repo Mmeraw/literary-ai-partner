@@ -432,7 +432,9 @@ export function buildShortFormEvaluationDocument(input: {
   const overallScore = toFiniteNumber(result.overview?.overall_score_0_100);
   const pitches = buildReportPitches({
     premise: result.enrichment?.premise,
-    summary: result.overview?.one_paragraph_summary,
+    // one_paragraph_summary is intentionally NOT passed here. It feeds the Executive Summary
+    // section exclusively (see executiveSummarySource below). Passing it into the pitch
+    // builder caused the One-Paragraph Pitch and Executive Summary to render identical text.
     title: input.displayTitle,
     one_sentence_pitch: (result.overview as Record<string, unknown> | undefined)?.one_sentence_pitch as string | undefined,
     one_paragraph_pitch: (result.overview as Record<string, unknown> | undefined)?.one_paragraph_pitch as string | undefined,
@@ -575,7 +577,11 @@ export function buildShortFormEvaluationDocument(input: {
       readingGradeLevel: typeof readingGrade === 'number' ? `${Math.floor(readingGrade)} (Flesch-Kincaid)` : 'Not available',
       dialogueNarrativeRatio:
         typeof dialogue === 'number'
-          ? `${Math.floor(dialogue)}% dialogue / ${Math.floor(typeof narrative === 'number' ? narrative : computedNarrative ?? 0)}% narrative`
+          ? (() => {
+              const d = Math.floor(dialogue);
+              const n = 100 - d; // always sums to 100
+              return `${d}% dialogue / ${n}% narrative`;
+            })()
           : 'Not available',
       dateGenerated: formatDate(result.generated_at),
       // Suppress confidence badge when genre is a fallback ("Not specified") — absence is not uncertainty.
