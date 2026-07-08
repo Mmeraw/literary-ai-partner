@@ -106,6 +106,52 @@ describe('processor runtime governance flow', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_CONSEQUENCE_CONTRACT')).toBe(1);
   });
 
+  test('SHORT_FORM_* codes are kick-eligible with budget=1 and not terminal', () => {
+    const kickableCodes = [
+      'SHORT_FORM_LONGFORM_ARTIFACT_LEAK',
+      'SHORT_FORM_INTERNAL_PROCESS_LEAK',
+      'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM',
+    ];
+    for (const code of kickableCodes) {
+      expect(isKickEligibleFailureCode(code)).toBe(true);
+      expect(isTerminalFailureCode(code)).toBe(false);
+      expect(maxSelfRecoveryAttemptsForFailureCode(code)).toBe(1);
+    }
+  });
+
+  test('non-kickable SHORT_FORM_* codes are terminal (no retry path)', () => {
+    // These gate on structural evidence absence — re-synthesis cannot manufacture anchors
+    const terminalCodes = [
+      'SHORT_FORM_MISSING_ANCHORS',
+      'SHORT_FORM_FAKE_CERTAINTY',
+      'SHORT_FORM_PLACEHOLDER_SCORE_CLUSTER',
+      'SHORT_FORM_SCORE_SUMMARY_CONTRADICTION',
+    ];
+    for (const code of terminalCodes) {
+      expect(isKickEligibleFailureCode(code)).toBe(false);
+    }
+  });
+
+  test('processor source reads short_form_retry_instruction from progress and passes as _shortFormRetryInstruction to runPipeline', () => {
+    // This is the critical seam: the kicked job's progress.short_form_retry_instruction
+    // MUST be forwarded into runPipeline so Pass 3 synthesis receives the prohibition.
+    // Verify by static source inspection — both the read and the spread are present.
+    const processorSource = readFileSync(`${process.cwd()}/lib/evaluation/processor.ts`, 'utf8');
+    // The read: typeof progressState.short_form_retry_instruction === 'string'
+    expect(processorSource).toMatch(/short_form_retry_instruction/);
+    // The forward: _shortFormRetryInstruction: ...
+    expect(processorSource).toMatch(/_shortFormRetryInstruction/);
+    // runPipeline source accepts it
+    const pipelineSource = readFileSync(`${process.cwd()}/lib/evaluation/pipeline/runPipeline.ts`, 'utf8');
+    expect(pipelineSource).toMatch(/_shortFormRetryInstruction/);
+    expect(pipelineSource).toMatch(/shortFormRetryInstruction/);
+    // runPass3Synthesis source injects it into effectiveSystemPrompt
+    const pass3Source = readFileSync(`${process.cwd()}/lib/evaluation/pipeline/runPass3Synthesis.ts`, 'utf8');
+    expect(pass3Source).toMatch(/shortFormRetryInstruction/);
+    expect(pass3Source).toMatch(/SHORT-FORM RE-SYNTHESIS PROHIBITION/);
+    expect(pass3Source).toMatch(/effectiveSystemPrompt/);
+  });
+
   test('latency guard: processor runtime does not import CI registry-wide audit surfaces', () => {
     const processorSource = readFileSync(`${process.cwd()}/lib/evaluation/processor.ts`, 'utf8');
 
