@@ -59,7 +59,16 @@ module.exports = {
                     'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
                     border: 'hsl(var(--sidebar-border))',
                     ring: 'hsl(var(--sidebar-ring))'
-                }
+                },
+                // RevisionGrade design tokens
+                'rg-ink':   '#0D0A05',
+                'rg-ink2':  '#1A1208',
+                'rg-ink3':  '#261A0A',
+                'rg-cream': '#F5EFE0',
+                'rg-cream2':'#C8BEA8',
+                'rg-gold':  '#A07A36',
+                'rg-red':   '#7A2B1A',
+                'rg-dim':   '#6B6560',
             },
             keyframes: {
                 'accordion-down': {
@@ -75,28 +84,9 @@ module.exports = {
                 'accordion-down': 'accordion-down 0.2s ease-out',
                 'accordion-up': 'accordion-up 0.2s ease-out'
             },
-            // ── RevisionGrade design tokens ────────────────────────────────
-            // Derived from the canonical landing page design language.
-            // rg-ink:   primary background — warm near-black
-            // rg-ink2:  card background — slightly lighter panel
-            // rg-cream: primary text — warm off-white
-            // rg-cream2: secondary text — muted warm cream
-            // rg-gold:  accent — editorial amber (italic pull-words, highlights)
-            // rg-red:   editorial red — underlines only (red-pen metaphor)
-            // rg-dim:   tertiary text — dim gray for helper copy
             fontFamily: {
                 'rg-serif': ['Georgia', 'Cambria', '"Times New Roman"', 'serif'],
                 'rg-mono': ['"Courier New"', 'Courier', 'monospace'],
-            },
-            colors: {
-                'rg-ink':   '#0D0A05',
-                'rg-ink2':  '#1A1208',
-                'rg-ink3':  '#261A0A',
-                'rg-cream': '#F5EFE0',
-                'rg-cream2':'#C8BEA8',
-                'rg-gold':  '#A07A36',
-                'rg-red':   '#7A2B1A',
-                'rg-dim':   '#6B6560',
             },
         }
     },
