@@ -182,7 +182,7 @@ export default function HeaderNav() {
           <span className="hidden text-rg-cream font-rg-serif text-sm tracking-wide sm:block">RevisionGrade&#8482;</span>
         </Link>
 
-        <nav className="hidden min-w-0 items-center justify-center gap-3 xl:flex xl:flex-1 2xl:gap-4">
+        <nav className="hidden min-w-0 items-center justify-between gap-4 xl:flex xl:flex-1 2xl:gap-6 xl:px-6">
           {isAuthed && <NavLink href="/dashboard">Dashboard</NavLink>}
           {isAuthed && <NavLink href="/manuscripts">Manuscripts</NavLink>}
 
@@ -239,7 +239,7 @@ export default function HeaderNav() {
             <button
               type="button"
               onClick={() => { setSgOpen((v) => !v); setArpOpen(false); setResourcesOpen(false); setReviseOpen(false); }}
-              className="whitespace-nowrap font-rg-mono text-[0.8rem] font-bold normal-case tracking-[0.03em] transition-colors duration-150 hover:opacity-90 xl:text-[0.86rem]"
+              className="whitespace-nowrap font-rg-mono text-[0.8rem] font-semibold normal-case tracking-[0.02em] transition-colors duration-150 hover:opacity-90 xl:text-[0.86rem]"
               style={{ color: "#FF0000", textShadow: "0 0 6px rgba(255,0,0,0.4)" }}
               aria-expanded={sgOpen}
               aria-haspopup="menu"
