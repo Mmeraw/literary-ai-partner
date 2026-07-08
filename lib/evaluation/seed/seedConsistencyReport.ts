@@ -10,10 +10,19 @@
  * Deviations from the seed are classified as:
  *   - confirmed:        seed entity found in extraction
  *   - missed:           seed entity not found in extraction (potential gap)
- *   - contradicted:     seed entity found but with materially different properties
  *   - contaminated:     extraction contains pseudo-entities (pronoun/descriptor fragments)
  *   - novel_justified:  new entity not in seed, with evidence anchor
  *   - novel_unjustified: new entity not in seed, without evidence anchor
+ *
+ * NOTE on 'contradicted' status (removed in U3-002, 2026-07-07):
+ * The original design intended to detect same-entity-different-properties
+ * contradictions (e.g. seed says protagonist, extraction returns antagonist).
+ * However, the call site passes only entity names — no role or property data.
+ * Without property data at the call boundary, contradicted can never be
+ * emitted. The status was removed rather than left as dead unreachable code.
+ * If property-level contradiction detection is needed in the future, it
+ * requires extending the call contract to pass seed entity properties
+ * alongside names, and should be designed as a new feature at that point.
  *
  * The report is persisted as seed_contradiction_report_v1 for audit trail.
  */
@@ -22,8 +31,7 @@ import { isEntityTypingContaminated } from '@/lib/evaluation/phase1a/buildLedger
 
 export type SeedEntityStatus =
   | 'confirmed'
-  | 'missed'
-  | 'contradicted';
+  | 'missed';
 
 export type ExtractionEntityStatus =
   | 'from_seed'
@@ -59,7 +67,6 @@ export type SeedContradictionReportV1 = {
   extraction_entity_count: number;
   confirmed_count: number;
   missed_count: number;
-  contradicted_count: number;
   contaminated_count: number;
   novel_justified_count: number;
   novel_unjustified_count: number;
@@ -190,7 +197,6 @@ export function buildSeedConsistencyReport(args: {
   // Phase 3: Compute metrics
   const confirmedCount = seedEntities.filter((e) => e.status === 'confirmed').length;
   const missedCount = seedEntities.filter((e) => e.status === 'missed').length;
-  const contradictedCount = seedEntities.filter((e) => e.status === 'contradicted').length;
   const contaminatedCount = extractionEntities.filter((e) => e.status === 'contaminated').length;
   const novelJustifiedCount = extractionEntities.filter((e) => e.status === 'novel_justified').length;
   const novelUnjustifiedCount = extractionEntities.filter((e) => e.status === 'novel_unjustified').length;
@@ -199,7 +205,7 @@ export function buildSeedConsistencyReport(args: {
   const extractionCount = args.extractedEntityNames.length;
 
   const driftRatio = seedCount > 0
-    ? (missedCount + contradictedCount) / seedCount
+    ? missedCount / seedCount
     : 0;
 
   const contaminationRatio = extractionCount > 0
@@ -252,7 +258,6 @@ export function buildSeedConsistencyReport(args: {
     extraction_entity_count: extractionCount,
     confirmed_count: confirmedCount,
     missed_count: missedCount,
-    contradicted_count: contradictedCount,
     contaminated_count: contaminatedCount,
     novel_justified_count: novelJustifiedCount,
     novel_unjustified_count: novelUnjustifiedCount,
