@@ -122,7 +122,11 @@ describe("detectDuplicateChapters", () => {
     expect(result.duplicates[0].type).toBe("exact");
   });
 
-  it("performance: handles 40 chapters in <100ms", () => {
+  it("performance: handles 40 chapters within CI budget", () => {
+    // Budget is 500ms — generous enough to absorb CI runner load variance
+    // while still catching a genuine O(n²) regression (which would take ~5-10s).
+    // Local baseline: ~55ms. CI worst-case observed: ~106ms.
+    const PERFORMANCE_BUDGET_MS = 500;
     const sections = Array.from({ length: 40 }, (_, i) =>
       makeSection(i, `Chapter ${i + 1}`, `Unique narrative content for chapter ${i + 1}. `.repeat(500), i * 10000),
     );
@@ -132,6 +136,6 @@ describe("detectDuplicateChapters", () => {
     const elapsed = performance.now() - start;
 
     expect(result.duplicates).toHaveLength(0);
-    expect(elapsed).toBeLessThan(100);
+    expect(elapsed).toBeLessThan(PERFORMANCE_BUDGET_MS);
   });
 });

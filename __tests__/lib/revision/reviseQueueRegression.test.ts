@@ -656,28 +656,33 @@ describe('E2E: Revise Queue → Summary → QG Gate (v2_summary_weakness_presenc
     expect(secondRun.pass).toBe(true);
   });
 
-  it('randomized bottom-2 criteria: repair always makes QG pass', () => {
-    // Run 5 randomized iterations
-    for (let iteration = 0; iteration < 5; iteration++) {
+  it('deterministic bottom-2 criteria: repair always makes QG pass', () => {
+    // Fixed score distributions — previously randomized, now deterministic.
+    // Each case sets 2 criteria deliberately low against a high baseline,
+    // guaranteeing QG fails before repair and passes after. No Math.random().
+    const cases: Array<{ bottom: [string, string]; baseScore: number; bottomScore: number }> = [
+      { bottom: ['dialogue', 'voice'],            baseScore: 8, bottomScore: 2 },
+      { bottom: ['pacing', 'theme'],              baseScore: 7, bottomScore: 3 },
+      { bottom: ['character', 'proseControl'],    baseScore: 9, bottomScore: 2 },
+      { bottom: ['concept', 'narrativeClosure'],  baseScore: 8, bottomScore: 3 },
+      { bottom: ['worldbuilding', 'marketability'], baseScore: 7, bottomScore: 2 },
+    ];
+
+    for (const { bottom, baseScore, bottomScore } of cases) {
       const scores: Partial<Record<string, number>> = {};
       for (const key of CRITERIA_KEYS) {
-        scores[key] = Math.floor(Math.random() * 7) + 4; // 4-10 range ensures scorable
+        scores[key] = baseScore;
       }
-
-      // Pick 2 random criteria and set them very low (2-4)
-      const shuffled = [...CRITERIA_KEYS].sort(() => Math.random() - 0.5);
-      const bottom2Keys = shuffled.slice(0, 2);
-      for (const key of bottom2Keys) {
-        scores[key] = Math.floor(Math.random() * 3) + 2; // 2-4 (guaranteed bottom)
+      for (const key of bottom) {
+        scores[key] = bottomScore;
       }
 
       const fixture = makeE2EFixture(scores);
 
-      // QG should fail (summary doesn't mention the bottom criteria)
+      // QG must fail before repair (summary doesn't mention the bottom criteria)
       const firstRun = runQualityGateV2(fixture);
-
-      // If it already passes (criteria too close in score), skip this iteration
-      if (firstRun.pass) continue;
+      // If it already passes for this fixture the case is misconfigured — fail loudly
+      expect(firstRun.pass).toBe(false);
 
       // Apply deterministic repair
       const propagation = summarizePropagationIntegrity(fixture.criteria);

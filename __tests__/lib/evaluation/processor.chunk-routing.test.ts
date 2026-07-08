@@ -759,9 +759,10 @@ describe("processEvaluationJob long-form chunk routing", () => {
     expect(result.error).toMatch(/char_count=50000/);
     expect(ensureChunksFromTextMock).toHaveBeenCalledTimes(1);
     expect(runPipelineMock).not.toHaveBeenCalled();
-    // Must fail closed in well under the 720s LONG_FORM_TIMEOUT_FLOOR_MS.
-    // Use a sub-second upper bound to avoid host-load flake while preserving intent.
-    expect(elapsedMs).toBeLessThan(1000);
+    // Must fail closed well short of the 720s LONG_FORM_TIMEOUT_FLOOR_MS.
+    // 10s ceiling: proves fast-fail semantics without CI load sensitivity.
+    // The deterministic proof is runPipelineMock.not.toHaveBeenCalled() above.
+    expect(elapsedMs).toBeLessThan(10_000);
 
     const failureUpdate = supabaseStub.evaluationJobUpdates.find((payload) => {
       const progress = payload.progress as
