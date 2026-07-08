@@ -220,7 +220,11 @@ function diagnosticText(item: WorkbenchOpportunity, field: "symptom" | "cause" |
     readerEffect: item.readerEffect || item.diagnostic?.readerImpact,
     mistakeProofing: item.mistakeProofing || item.diagnostic?.mistakeProofing,
   }[field];
-  return normalize(raw) || "Review the evidence and choose the least disruptive repair path.";
+  const text = normalize(raw) || "Review the evidence and choose the least disruptive repair path.";
+  // Capitalize first letter (Chicago style) and ensure space after any run-together colon
+  return text
+    .replace(/^(\w)/, (c) => c.toUpperCase())
+    .replace(/([.,:;!?])([A-Za-z])/g, '$1 $2');
 }
 
 function optionSectionLabel(item: WorkbenchOpportunity): string {
@@ -484,14 +488,12 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
               {filtered.map((item, index) => (
                 <li key={item.id}>
                   <button type="button" onClick={() => selectItem(item.id)} className={`w-full rounded-lg border p-2 text-left ${item.id === active?.id ? "border-[#C8A96E] bg-[#221B11]" : "border-[#2B241A] bg-[#161109]"}`}>
-                    <div className="mb-1 flex flex-wrap gap-1">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${severityClass(item.severity)}`}>{severityLabel(item.severity)}</span>
-                      <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px]">{item.scope}</span>
-                      <span className={`rounded border px-1.5 py-0.5 text-[10px] ${liveReady(item) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(item) ? "Ready" : "Needs Targeting"}</span>
-                      <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span>
+                    <div className="mb-1 flex flex-wrap gap-0.5">
+                      <span className={`rounded px-1 py-0 text-[9px] font-semibold uppercase tracking-wide ${severityClass(item.severity)}`}>{severityLabel(item.severity)}</span>
+                      <span className="rounded border border-[#4E4333] px-1 py-0 text-[9px]" style={{color:'#A9987D'}}>{item.scope}</span>
                     </div>
-                    <p className="line-clamp-2 text-xs leading-snug" style={{color:'#F0E8D5'}}>{index + 1}. {item.title}</p>
-                    <p className="mt-1 truncate text-[11px] text-[#A9987D]">{formatCriterion(criterionOf(item))} · {item.anchor || item.meta}</p>
+                    <p className="line-clamp-2 text-[11px] leading-snug" style={{color:'#F0E8D5'}}>{index + 1}. {item.title}</p>
+                    <p className="mt-0.5 truncate text-[10px]" style={{color:'#8A7A68'}}>{formatCriterion(criterionOf(item))} · {item.anchor || item.meta}</p>
                   </button>
                 </li>
               ))}
@@ -604,7 +606,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                     return (
                                       <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
-                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
+                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{key} — {label}</span>
                                           <p className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{rewrite}</p>
                                         </button>
                                         <div className="mt-1 flex gap-1">
@@ -627,15 +629,15 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                   {OPTION_KEYS.map((key) => {
                                     const goal = compactGoal(active);
                                     const strategyMeta: Record<OptionKey, { label: string; approach: string }> = {
-                                      A: { label: "Recommended Repair—Conservative", approach: `Implement the fix at minimum scope: ${goal}` },
-                                      B: { label: "Rhythm Variant—Scene-Driven", approach: `Anchor the same repair in concrete action or sensory detail rather than exposition. ${goal}` },
-                                      C: { label: "Bolder Rendering Shift—Structural", approach: `Reframe the structural context entirely: consider a different order, a cut, or a tonal pivot. ${goal}` },
+                                      A: { label: "Recommended", approach: `Implement the fix at minimum scope. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
+                                      B: { label: "Rhythm Variant", approach: `Anchor the same repair in concrete action or sensory detail rather than exposition. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
+                                      C: { label: "Bolder Shift", approach: `Reframe the structural context entirely — consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                     };
                                     const { label, approach } = strategyMeta[key];
                                     return (
                                       <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
-                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
+                                          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{color:'#C8A96E'}}>{key} — {label}</span>
                                           <p className="mt-0.5 text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{approach}</p>
                                         </button>
                                       </div>
