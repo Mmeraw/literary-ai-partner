@@ -10,6 +10,7 @@ import { sortJobsByCreatedAtDesc } from "../../lib/jobs/ui-helpers";
 import ManuscriptSubmissionForm from "./ManuscriptSubmissionForm";
 import CompletionBanner from "./CompletionBanner";
 import { CancelEvaluationButton } from "./CancelEvaluationButton";
+import HardResetRestartButton from "./HardResetRestartButton";
 
 const evaluationModes = [
   {
@@ -82,6 +83,18 @@ function getReportHref(job) {
   return job.status === "complete" ? `/reports/${job.id}` : `/evaluate/${job.id}`;
 }
 
+function SelfCorrectionNotice({ job }) {
+  const progress = job.progress ?? {};
+  const hasKickback = Boolean(progress.last_kick_failure_code || progress.short_form_retry_instruction);
+  if (!hasKickback || (job.status !== "queued" && job.status !== "running")) return null;
+
+  return (
+    <div className="mt-2 max-w-[20rem] rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-900">
+      RevisionGrade caught an issue and is correcting it automatically from the safest saved point.
+    </div>
+  );
+}
+
 function EvaluationHistoryTable({ jobs }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-stone-300 bg-white">
@@ -111,8 +124,7 @@ function EvaluationHistoryRow({ job }) {
   const title = job.manuscript_title || "Untitled Manuscript";
   const purpose = detectPurpose(title);
   const isComplete = job.status === "complete";
-  const isQueued = job.status === "queued";
-  const isRunning = job.status === "running";
+  const isRecoverable = job.status === "failed" || job.status === "stale";
   const showCancelAction = canShowCancelEvaluation({
     status: job.status,
     dashboardStatus: job.progress?.dashboard_status,
@@ -124,21 +136,22 @@ function EvaluationHistoryRow({ job }) {
 
   return (
     <tr className="align-middle transition hover:bg-[#FBFAF7]">
-      <td className="whitespace-nowrap px-5 py-4">
+      <td className="whitespace-nowrap px-5 py-4 align-top">
         <span className={`inline-flex rounded-full border px-4 py-2 text-base font-bold leading-5 sm:text-lg ${evalStatusTone(job, purpose)}`}>
           {evalStatusLabel(job, purpose)}
         </span>
+        <SelfCorrectionNotice job={job} />
       </td>
-      <td className="px-5 py-4">
+      <td className="px-5 py-4 align-top">
         <Link href={reportHref} className="block max-w-[30rem] text-base font-bold leading-6 text-stone-950 underline-offset-4 hover:underline">
           {title}
         </Link>
         <span className="font-mono text-sm text-stone-600" title={job.id}>{job.id.slice(0, 8)}…</span>
       </td>
-      <td className="whitespace-nowrap px-5 py-4 text-base font-medium text-stone-800" title={job.created_at ? new Date(job.created_at).toLocaleString() : undefined}>
+      <td className="whitespace-nowrap px-5 py-4 align-top text-base font-medium text-stone-800" title={job.created_at ? new Date(job.created_at).toLocaleString() : undefined}>
         {formatSubmittedAt(job.created_at)}
       </td>
-      <td className="whitespace-nowrap px-5 py-4 text-base">
+      <td className="whitespace-nowrap px-5 py-4 align-top text-base">
         {isComplete ? (
           <Link
             href={reportHref}
@@ -151,11 +164,14 @@ function EvaluationHistoryRow({ job }) {
               <span className="font-medium text-stone-500">—</span>
             )}
       </td>
-      <td className="whitespace-nowrap px-5 py-4 text-right">
-        <div className="flex items-center justify-end gap-2">
+      <td className="whitespace-nowrap px-5 py-4 align-top text-right">
+        <div className="flex items-start justify-end gap-2">
           <Link href={detailHref} className="inline-flex min-h-[40px] items-center rounded-lg border border-stone-300 bg-stone-50 px-4 py-2 font-rg-mono text-sm font-bold uppercase tracking-[0.08em] text-stone-900 transition hover:bg-stone-100">
             Details
           </Link>
+          {isRecoverable && (
+            <HardResetRestartButton jobId={job.id} compact label="Restart" />
+          )}
           {showCancelAction && (
             <CancelEvaluationButton
               jobId={job.id}
