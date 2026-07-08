@@ -1937,6 +1937,8 @@ const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
   'QG_FIDELITY_SCORE_CONFIDENCE_MISMATCH',
   'QG_MISSING_REQUIRED_EVIDENCE',
   'QG_CONSEQUENCE_CONTRACT',
+  // U3-001 consistency gate: content-driven, re-synthesis may produce consistent reasoning.
+  'QG_SUMMARY_CRITERION_CONTRADICTION',
 ]);
 
 /**

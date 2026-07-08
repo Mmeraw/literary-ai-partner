@@ -193,6 +193,16 @@ describe('Self-recovery attempt count policy', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_SUMMARY_OMITS_WEAKNESS')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_REQUIRED_EVIDENCE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_CONSEQUENCE_CONTRACT')).toBe(1);
+    // U4-001: U3-001 summary↔criterion consistency gate is synthesis-repairable (1 retry).
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_SUMMARY_CRITERION_CONTRADICTION')).toBe(1);
+  });
+
+  it('QG_SUMMARY_CRITERION_CONTRADICTION is kick-eligible and NOT terminal (U4-001)', () => {
+    // Content-driven: re-synthesis may produce consistent reasoning.
+    // Mirrors QG_SUMMARY_OMITS_WEAKNESS policy.
+    expect(isKickEligibleFailureCode('QG_SUMMARY_CRITERION_CONTRADICTION')).toBe(true);
+    expect(isTerminalFailureCode('QG_SUMMARY_CRITERION_CONTRADICTION')).toBe(false);
+    expect(maxSelfRecoveryAttemptsForFailureCode('QG_SUMMARY_CRITERION_CONTRADICTION')).toBe(1);
   });
 
   it('log_only quality diagnostics get 0 retries and do not block runtime flow', () => {

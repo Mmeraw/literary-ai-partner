@@ -121,6 +121,9 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'QG_CONSEQUENCE_CONTRACT',
   'QG_MISSING_REQUIRED_EVIDENCE',
   'QG_SUMMARY_OMITS_WEAKNESS',
+  // U4-001: U3-001 summary↔criterion consistency gate — kick-eligible, 1 retry (U4-001, 2026-07-07).
+  // Re-synthesis may produce consistent reasoning. Mirrors QG_SUMMARY_OMITS_WEAKNESS policy.
+  'QG_SUMMARY_CRITERION_CONTRADICTION',
   'QUALITY_GATE_NOT_PASSED',          // governance alias: generic rollup; QG_* codes cover all runtime gate surfaces; redundant unless a non-QG_ gate surface is identified
   'REVIEW_GATE_QUALITY_HARD_FAIL', // Governance alias; kick-matrix label for degraded long-form layer scenario. No runtime emit site found.
   'REVIEW_GATE_REJECTED', // Governance alias; runtime emits REVIEW_GATE_REJECTED_BY_AUTHOR on author rejection. No classifyError() path.
