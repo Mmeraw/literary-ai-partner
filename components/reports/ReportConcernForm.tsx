@@ -125,7 +125,7 @@ export default function ReportConcernForm({ jobId, page }: ReportConcernFormProp
       <p className="text-sm font-medium text-gray-900">Report a Concern</p>
       <p className="mt-0.5 text-xs text-gray-600 leading-relaxed">
         Describe what you&apos;re seeing. We&apos;ll review and respond at{" "}
-        <a href="mailto:support@revisiongrade.com" className="underline text-blue-600">support@revisiongrade.com</a>.
+        <a href="mailto:support@revisiongrade.com" className="underline" style={{color:"#7A2B1A"}}>support@revisiongrade.com</a>.
       </p>
 
       <textarea

@@ -324,14 +324,14 @@ export function JobStatusPoll({ jobId, initialJob, isLedgerAdmin = false }: JobS
       {isActive && !isTerminal && !atReviewGate && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-3">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
             <div>
-              <p className="text-sm font-medium text-blue-900">
+              <p className="text-sm font-medium text-slate-800">
                 {job.status === "queued"
                   ? "Job is queued and will start soon"
                   : "Evaluation in progress"}
               </p>
-              <p className="mt-1 text-xs text-blue-700">
+              <p className="mt-1 text-xs text-slate-600">
                 This page updates automatically every{" "}
                 {POLL_INTERVAL_MS / 1000} seconds.
               </p>
@@ -387,7 +387,7 @@ function StatusBadge({
 }) {
   const styles = {
     queued: "bg-gray-100 text-gray-800 border-gray-300",
-    running: "bg-blue-100 text-blue-800 border-blue-300",
+    running: "bg-slate-100 text-slate-700 border-slate-300",
     complete: "bg-green-100 text-green-800 border-green-300",
     failed: "bg-red-100 text-red-800 border-red-300",
   };

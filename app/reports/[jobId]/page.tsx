@@ -518,7 +518,7 @@ export default async function ReportPage({
         {/* Published / calibration work context disclaimer — hidden in print/PDF */}
         {/\(TEST FILE\)|CALIBRATION|BENCHMARK|REFERENCE\s+EVAL|PUBLIC[- ]DOMAIN|TEST\s+RUN/i.test(displayTitle ?? '') && (
           <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-gray-700 leading-relaxed print-hidden">
-            <span className="font-semibold text-blue-800">Published Work Context</span>{' '}
+            <span className="font-semibold" style={{color:"#5C4A32"}}>Published Work Context</span>{' '}
             This appears to be a published, classic, or reference work. RevisionGrade is evaluating the submitted text
             against its manuscript-readiness criteria, not against the work&apos;s historical importance, sales record,
             cultural influence, or existing reputation. A score below the current agent-readiness threshold does not

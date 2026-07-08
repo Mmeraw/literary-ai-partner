@@ -29,7 +29,7 @@ export default function InsightCards({ mostImproved, stillBlocking, recentWins }
     <section className="grid gap-4 md:grid-cols-3">
       <Card card={mostImproved} accentColor="text-emerald-600" />
       <Card card={stillBlocking} accentColor="text-amber-700" />
-      <Card card={recentWins} accentColor="text-blue-600" />
+      <Card card={recentWins} accentColor="text-amber-800" />
     </section>
   )
 }

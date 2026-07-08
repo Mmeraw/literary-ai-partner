@@ -62,7 +62,7 @@ export default function ActivityHistoryPage() {
   return (
     <main className="p-6 max-w-5xl mx-auto">
       <div className="mb-4">
-        <Link href="/dashboard" className="text-blue-600 underline text-sm">
+        <Link href="/dashboard" className="text-sm underline" style={{color:"#7A2B1A"}}>
           &larr; Back to Dashboard
         </Link>
       </div>
@@ -115,7 +115,7 @@ export default function ActivityHistoryPage() {
                   <td className="px-4 py-3 text-gray-600 break-all">{item.detail ?? item.route ?? "—"}</td>
                   <td className="px-4 py-3">
                     {item.href ? (
-                      <Link href={item.href} className="text-blue-600 underline">
+                      <Link href={item.href} className="underline" style={{color:"#7A2B1A"}}>
                         {item.linkLabel ?? "Open"}
                       </Link>
                     ) : (
