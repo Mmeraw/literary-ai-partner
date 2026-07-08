@@ -26,22 +26,27 @@ function countVisibleOpportunities(opportunities: WorkbenchOpportunity[]) {
 }
 
 function operationalizeWorkbenchPayload(payload: WorkbenchQueuePayload): WorkbenchQueuePayload {
-  if (!payload.ok || payload.opportunities.length > 0 || payload.needsTargeting.length === 0) {
+  if (!payload.ok || payload.opportunities.length > 0) {
     return payload;
   }
 
-  const reviewable = payload.needsTargeting;
+  const reviewable = [...payload.needsTargeting, ...payload.withheldUnsupported];
+  if (reviewable.length === 0) {
+    return payload;
+  }
+
   const { totals, scopes, criteria } = countVisibleOpportunities(reviewable);
 
   return {
     ...payload,
     opportunities: reviewable,
     needsTargeting: [],
+    withheldUnsupported: [],
     totals,
     scopes,
     criteria,
     synthesis: payload.synthesis
-      ? { ...payload.synthesis, admitted: reviewable.length, held: payload.withheldUnsupported.length }
+      ? { ...payload.synthesis, admitted: reviewable.length, held: 0 }
       : payload.synthesis,
   };
 }
