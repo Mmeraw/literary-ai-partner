@@ -998,7 +998,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                         className="line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-sm leading-[1.65]"
                                         style={{ color: ok ? W.cream2 : W.dim, fontStyle: ok ? "normal" : "italic" }}
                                       >
-                                        {text || "Prose not yet generated — click "Generate" below to create three distinct options."}
+                                        {text || "Prose not yet generated — click \u201cGenerate\u201d below to create three distinct options."}
                                       </p>
                                     </button>
                                     {text && text.length > 190 && (
