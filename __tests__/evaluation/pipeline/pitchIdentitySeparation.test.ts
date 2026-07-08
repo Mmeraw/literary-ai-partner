@@ -31,19 +31,21 @@ describe('P1: Pitch Identity Separation', () => {
       );
     });
 
-    it('falls back to legacy derivation when dedicated fields are absent', () => {
+    it('falls back without reusing diagnostic summary as pitch copy', () => {
       const pitches = buildReportPitches({
         premise: 'A diamond dealer faces mortality.',
         summary: 'The chapter delivers strong voice but pacing falters.',
         title: 'Diamonds Aren\'t Forever',
       });
-      // Legacy: when both premise and summary exist, uses summary for paragraph pitch
-      expect(pitches.oneParagraphPitch).toBe('The chapter delivers strong voice but pacing falters.');
-      // Legacy: first sentence of summary for one-sentence
-      expect(pitches.oneSentencePitch).toBe('The chapter delivers strong voice but pacing falters.');
+      expect(pitches.oneParagraphPitch).toBe('A diamond dealer faces mortality.');
+      expect(pitches.oneSentencePitch).toBe(
+        'A distinct market hook was not generated for Diamonds Aren\'t Forever.',
+      );
+      expect(pitches.oneParagraphPitch).not.toBe('The chapter delivers strong voice but pacing falters.');
+      expect(pitches.oneSentencePitch).not.toBe(pitches.oneParagraphPitch);
     });
 
-    it('falls back to legacy when dedicated fields are empty strings', () => {
+    it('keeps empty dedicated fields from collapsing all pitch surfaces', () => {
       const pitches = buildReportPitches({
         premise: 'A diamond dealer faces mortality.',
         summary: 'Strong voice carries the narrative.',
@@ -51,9 +53,10 @@ describe('P1: Pitch Identity Separation', () => {
         one_sentence_pitch: '',
         one_paragraph_pitch: '   ',
       });
-      // Empty/whitespace should trigger fallback
-      expect(pitches.oneSentencePitch).toBe('Strong voice carries the narrative.');
-      expect(pitches.oneParagraphPitch).toBe('Strong voice carries the narrative.');
+      expect(pitches.oneParagraphPitch).toBe('A diamond dealer faces mortality.');
+      expect(pitches.oneSentencePitch).toBe('A distinct market hook was not generated for Test.');
+      expect(pitches.oneSentencePitch).not.toBe(pitches.oneParagraphPitch);
+      expect(pitches.oneParagraphPitch).not.toBe('Strong voice carries the narrative.');
     });
 
     it('dedicated pitch is independent of one_paragraph_summary', () => {
@@ -74,23 +77,26 @@ describe('P1: Pitch Identity Separation', () => {
   });
 
   describe('buildReportPitches — backward compatibility', () => {
-    it('handles null/undefined gracefully', () => {
+    it('handles null/undefined gracefully without duplicating pitch fields', () => {
       const pitches = buildReportPitches({
         premise: null,
         summary: null,
         title: 'My Novel',
       });
-      expect(pitches.oneParagraphPitch).toBe('RevisionGrade evaluated My Novel.');
-      expect(pitches.oneSentencePitch).toBe('RevisionGrade evaluated My Novel.');
+      expect(pitches.oneParagraphPitch).toBe('A distinct story synopsis was not generated for My Novel.');
+      expect(pitches.oneSentencePitch).toBe('A distinct market hook was not generated for My Novel.');
+      expect(pitches.oneSentencePitch).not.toBe(pitches.oneParagraphPitch);
     });
 
-    it('uses premise when summary is missing', () => {
+    it('uses premise for paragraph pitch when summary is missing but keeps hook separate', () => {
       const pitches = buildReportPitches({
         premise: 'A warrior queen must choose between revenge and peace.',
         summary: null,
         title: 'The Throne',
       });
       expect(pitches.oneParagraphPitch).toBe('A warrior queen must choose between revenge and peace.');
+      expect(pitches.oneSentencePitch).toBe('A distinct market hook was not generated for The Throne.');
+      expect(pitches.oneSentencePitch).not.toBe(pitches.oneParagraphPitch);
     });
   });
 });
