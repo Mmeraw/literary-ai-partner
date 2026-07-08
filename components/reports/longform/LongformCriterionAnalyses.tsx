@@ -9,10 +9,10 @@ import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const CONFIDENCE_BADGE: Record<string, string> = {
-  High: "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400",
-  "Moderate-High": "bg-teal-200 text-teal-900 ring-1 ring-teal-400",
-  Moderate: "bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400",
-  Low: "bg-rose-200 text-rose-900 ring-1 ring-rose-400",
+  "High Confidence": "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400",
+  "Moderate Confidence": "bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400",
+  "Low Confidence": "bg-rose-200 text-rose-900 ring-1 ring-rose-400",
+  "Insufficient Evidence": "bg-gray-200 text-gray-700 ring-1 ring-gray-400",
 };
 
 function EvidenceList({ items, label, accent }: { items: string[]; label: string; accent: string }) {
@@ -34,7 +34,7 @@ function EvidenceList({ items, label, accent }: { items: string[]; label: string
 
 function CriterionCard({ a }: { a: LongFormMultiLayerCriterionAnalysisViewModel }) {
   const [open, setOpen] = useState(true);
-  const badge = CONFIDENCE_BADGE[a.confidence] ?? "bg-gray-100 text-gray-600";
+  const badge = CONFIDENCE_BADGE[a.confidenceLabel] ?? "bg-gray-100 text-gray-600";
   // score can be null (e.g. proseControl in insufficient-signal state) — guard
   const safeScore = a.score ?? null;
   const scoreColor =
@@ -57,7 +57,7 @@ function CriterionCard({ a }: { a: LongFormMultiLayerCriterionAnalysisViewModel 
             {a.displayLabel}
           </span>
           <span className={`hidden sm:inline-block px-2 py-0.5 rounded text-xs font-medium ${badge}`}>
-            {a.confidence}
+            {a.confidenceLabel}
           </span>
         </div>
         <span className="text-gray-600 text-xs">{open ? "▲" : "▼"}</span>

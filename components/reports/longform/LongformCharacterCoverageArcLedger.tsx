@@ -2,7 +2,10 @@ import type {
   LongFormMultiLayerEvaluationViewModel,
   LongFormMultiLayerCriterionAnalysisViewModel,
 } from "@/lib/evaluation/evaluationReportViewModel";
-import { getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
+import {
+  getConfidenceLabelClasses,
+  type CanonicalConfidenceLabel,
+} from "@/lib/evaluation/confidenceFieldPolicy";
 
 type Props = { vm: LongFormMultiLayerEvaluationViewModel; showInternalSections?: boolean };
 
@@ -186,7 +189,7 @@ export default function LongformCharacterCoverageArcLedger({ vm, showInternalSec
 
 function CriterionMiniBlock({ criterion }: { criterion: LongFormMultiLayerCriterionAnalysisViewModel }) {
   const confidenceClasses = criterion.confidenceLabel
-    ? getConfidenceLabelClasses(criterion.confidenceLabel)
+    ? getConfidenceLabelClasses(criterion.confidenceLabel as CanonicalConfidenceLabel)
     : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
 
   return (

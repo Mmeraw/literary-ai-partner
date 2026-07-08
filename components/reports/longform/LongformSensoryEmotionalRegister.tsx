@@ -1,5 +1,8 @@
 import type { LongFormMultiLayerEvaluationViewModel } from "@/lib/evaluation/evaluationReportViewModel";
-import { getConfidenceLabelClasses } from "@/lib/evaluation/confidenceFieldPolicy";
+import {
+  getConfidenceLabelClasses,
+  type CanonicalConfidenceLabel,
+} from "@/lib/evaluation/confidenceFieldPolicy";
 
 type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
@@ -163,7 +166,7 @@ export default function LongformSensoryEmotionalRegister({ vm }: Props) {
           <div className="space-y-2">
             {toneOrProseCriteria.map((c, i) => {
               const confidenceClasses = c.confidenceLabel
-                ? getConfidenceLabelClasses(c.confidenceLabel)
+                ? getConfidenceLabelClasses(c.confidenceLabel as CanonicalConfidenceLabel)
                 : "bg-stone-200 text-stone-700 ring-1 ring-stone-300";
               return (
                 <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">

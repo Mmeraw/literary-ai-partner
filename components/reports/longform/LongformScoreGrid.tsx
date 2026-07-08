@@ -4,10 +4,10 @@ import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 type Props = { vm: LongFormMultiLayerEvaluationViewModel };
 
 const CONFIDENCE_BADGE: Record<string, string> = {
-  High: "bg-emerald-100 text-emerald-700",
-  "Moderate-High": "bg-teal-100 text-teal-700",
-  Moderate: "bg-amber-100 text-amber-700",
-  Low: "bg-rose-100 text-rose-700",
+  "High Confidence": "bg-emerald-100 text-emerald-700",
+  "Moderate Confidence": "bg-amber-100 text-amber-700",
+  "Low Confidence": "bg-rose-100 text-rose-700",
+  "Insufficient Evidence": "bg-gray-100 text-gray-600",
 };
 
 function scoreBar(score: number | null) {
@@ -57,7 +57,7 @@ export default function LongformScoreGrid({ vm }: Props) {
         </thead>
         <tbody>
           {analyses.map((a, i) => {
-            const badge = CONFIDENCE_BADGE[a.confidence] ?? "bg-gray-100 text-gray-600";
+            const badge = CONFIDENCE_BADGE[a.confidenceLabel] ?? "bg-gray-100 text-gray-600";
             const summary = a.fitEvidence?.[0] ?? "—";
             return (
               <tr key={i} className="border-b border-gray-100 align-top">
@@ -69,7 +69,7 @@ export default function LongformScoreGrid({ vm }: Props) {
                   <span
                     className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${badge}`}
                   >
-                    {a.confidence}
+                    {a.confidenceLabel}
                   </span>
                 </td>
                 <td className="py-2.5 text-gray-600 text-xs leading-relaxed">{summary}</td>
