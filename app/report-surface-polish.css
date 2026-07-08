@@ -1,0 +1,120 @@
+/* Premium report surface polish.
+ * Loaded after existing global guards so user-facing report pages get a calmer,
+ * publication-grade rhythm without changing the UED -> VM data boundary.
+ */
+
+.rg-report-page {
+  --rg-report-bg: #f6f1ea;
+  --rg-report-surface: #fffdf9;
+  --rg-report-card: #ffffff;
+  --rg-report-ink: #1c1814;
+  --rg-report-muted: #5c5549;
+  --rg-report-border: #d9d0c3;
+  --rg-report-gold: #b8922a;
+  --rg-report-oxblood: #8b2e2e;
+  color: var(--rg-report-ink);
+}
+
+.rg-report-page :is(header, section, article, aside, dl) {
+  color: var(--rg-report-ink);
+  text-rendering: optimizeLegibility;
+}
+
+.rg-report-page :is(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+.rg-report-page :is(p, li, dd) {
+  max-width: 82ch;
+  line-height: 1.72;
+  overflow-wrap: break-word;
+}
+
+.rg-report-page section {
+  border-color: var(--rg-report-border);
+  box-shadow: 0 10px 28px rgba(28, 24, 20, 0.055);
+}
+
+.rg-report-page article {
+  break-inside: avoid;
+}
+
+.rg-report-page table {
+  table-layout: fixed;
+}
+
+.rg-report-page th:first-child,
+.rg-report-page td:first-child {
+  width: 56%;
+}
+
+.rg-report-page th:nth-child(2),
+.rg-report-page td:nth-child(2) {
+  width: 18%;
+  white-space: nowrap;
+}
+
+.rg-report-page th:nth-child(3),
+.rg-report-page td:nth-child(3) {
+  width: 26%;
+  white-space: nowrap;
+}
+
+.rg-report-page .print-hidden {
+  break-inside: avoid;
+}
+
+@media print {
+  body:has(.rg-report-page) {
+    background: #ffffff !important;
+  }
+
+  .rg-report-page {
+    background: #ffffff !important;
+    color: #1c1814 !important;
+    overflow-wrap: break-word;
+  }
+
+  .rg-report-page > div {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .rg-report-page :is(header, section, article, aside, dl) {
+    box-shadow: none !important;
+  }
+
+  .rg-report-page section {
+    page-break-inside: auto;
+    break-inside: auto;
+    margin-bottom: 0.22in;
+    padding: 0.18in 0.22in !important;
+  }
+
+  .rg-report-page section > h2,
+  .rg-report-page article > h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .rg-report-page article,
+  .rg-report-page dl > div,
+  .rg-report-page li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .rg-report-page table {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  .rg-report-page tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .rg-report-page .print-hidden {
+    display: none !important;
+  }
+}
