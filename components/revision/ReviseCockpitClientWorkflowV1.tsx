@@ -181,9 +181,9 @@ function selectedDecisionFor(key: OptionKey): DecisionState {
 }
 
 function severityClass(severity: WorkbenchOpportunity["severity"]): string {
-  if (severity === "must") return "border-[#7A2B1A]/70 bg-[#7A2B1A]/25 text-[#F1B6A5]";
-  if (severity === "should") return "border-[#C8A96E]/60 bg-[#C8A96E]/15 text-[#EAD8AE]";
-  return "border-[#48603F]/70 bg-[#2D3B2A]/35 text-[#BBD8B4]";
+  if (severity === "must") return "border-red-600 bg-red-700 text-white font-semibold";
+  if (severity === "should") return "border-amber-500 bg-amber-600 text-white font-semibold";
+  return "border-green-600 bg-green-700 text-white font-semibold";
 }
 
 function compactGoal(item: WorkbenchOpportunity): string {
@@ -596,14 +596,18 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                 </p>
                                 <div className="space-y-2">
                                   {OPTION_KEYS.map((key) => {
-                                    const label = key === "A" ? "Conservative" : key === "B" ? "Scene-driven" : "Bolder";
-                                    const text = candidateDisplayText(active, key);
-                                    const strategyText = text || compactGoal(active);
+                                    const goal = compactGoal(active);
+                                    const strategyMeta: Record<OptionKey, { label: string; approach: string }> = {
+                                      A: { label: "Recommended Repair—Conservative", approach: `Implement the fix at minimum scope: ${goal}` },
+                                      B: { label: "Rhythm Variant—Scene-Driven", approach: `Anchor the same repair in concrete action or sensory detail rather than exposition. ${goal}` },
+                                      C: { label: "Bolder Rendering Shift—Structural", approach: `Reframe the structural context entirely: consider a different order, a cut, or a tonal pivot. ${goal}` },
+                                    };
+                                    const { label, approach } = strategyMeta[key];
                                     return (
                                       <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
                                           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
-                                          <p className="mt-0.5 text-xs leading-4 text-[#E5D8BE]">{strategyText}</p>
+                                          <p className="mt-0.5 text-xs leading-4 text-[#E5D8BE]">{approach}</p>
                                         </button>
                                       </div>
                                     );
@@ -636,27 +640,38 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                 const selected = selectedOption === key;
                                 const role = key === "A" ? "Recommended Repair" : key === "B" ? "Rhythm Variant" : "Bolder Rendering Shift";
                                 return (
-                                  <article key={key} className={`rounded-lg border bg-[#12100B] px-2 py-1.5 ${selected ? "border-[#C8A96E]" : "border-[#2E261A]"}`}>
+                                  <article key={key} className={`rounded-lg border bg-[#12100B] px-2 py-2 ${selected ? "border-[#C8A96E]" : "border-[#2E261A]"}`}>
                                     <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]}</span>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]}</span>
                                         <span className="text-[9px] text-[#A9987D]">{role}</span>
                                       </div>
-                                      <p className={`mt-1 line-clamp-3 min-h-[3rem] whitespace-pre-wrap text-xs leading-4 ${ok ? "text-[#E5D8BE]" : "text-[#E2B2A6]"}`}>
-                                        {text || "No candidate prose available. Route this item to Needs Targeting."}
+                                      <p className={`line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-xs leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#A9987D] italic"}`}>
+                                        {text || "Prose not yet generated — click \u201cGenerate Distinct A/B/C Drafts\u201d below to create three different options."}
                                       </p>
                                     </button>
                                     {text && text.length > 190 ? (
-                                      <details className="mt-1">
+                                      <details className="mt-1.5">
                                         <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">Show full fix</summary>
                                         <p className="mt-1 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-1.5 whitespace-pre-wrap text-xs leading-4 text-[#E5D8BE]">{text}</p>
                                       </details>
                                     ) : null}
-                                    <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="mt-1 rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
+                                    <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="mt-1.5 rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
                                   </article>
                                 );
                               })}
                             </div>
+                            {/* Generate button when any option is missing prose */}
+                            {OPTION_KEYS.some((k) => !canSelectOption(active, k)) && (
+                              <button
+                                type="button"
+                                onClick={() => void generateVoiceRewrite(active)}
+                                disabled={rewriteLoading === active.id}
+                                className="mt-2 w-full rounded border border-[#6B8F5E] bg-[#6B8F5E]/10 px-3 py-1.5 text-xs font-semibold text-[#A8D99C] hover:bg-[#6B8F5E]/20 disabled:opacity-50"
+                              >
+                                {rewriteLoading === active.id ? "Generating distinct A/B/C drafts in author voice…" : "Generate Distinct A/B/C Drafts in Author Voice"}
+                              </button>
+                            )}
                           </section>
                         )}
                       </>
