@@ -1,44 +1,62 @@
 /**
- * Evaluation Certification Gate (ECG)
+ * Artifact Certification Authority (ACA) — Evaluation Certification Gate (ECG)
  *
  * The single certification authority that every completed evaluation must pass
  * before it becomes a customer-visible artifact.
  *
- * Design principles:
- *   1. Single source of truth — no downstream component may invent authoritative data.
- *   2. Renderer is presentation only — renderers may never repair, infer, or calculate.
- *   3. Dirty data never reaches customers — reject before persistence, not after.
+ * ╔══════════════════════════════════════════════════════════════════╗
+ * ║  DESIGN INVARIANT: The ACA is a referee, never an editor.       ║
+ * ║  It emits CERTIFIED or NOT CERTIFIED and nothing else.          ║
+ * ║  It never mutates, repairs, or regenerates evaluation content.  ║
+ * ╚══════════════════════════════════════════════════════════════════╝
  *
- * Runs immediately before evaluation_result_v2 and unified_evaluation_document_v1
- * are persisted. If status !== "CERTIFIED" the processor must not persist, must not
- * expose downloads, and must not expose Revise.
+ * Pipeline order:
+ *   Pass 3 output
+ *       │
+ *       ▼
+ *   normalizeArtifact()        ← SEPARATE pre-stage (cosmetic, deterministic)
+ *       │
+ *       ▼
+ *   runEvaluationCertificationGate()   ← THIS FILE — verdict only
+ *       │
+ *       ├── ECG_MODE=OFF        → skip gate, always CERTIFIED
+ *       ├── ECG_MODE=WARN_ONLY  → run all checks, log failures, still CERTIFIED
+ *       └── ECG_MODE=ENFORCE    → run all checks, FATAL → CERTIFICATION_FAILED → job fails
+ *
+ * ECG_MODE env var (default: WARN_ONLY):
+ *   OFF        — gate disabled; use during initial deploy / backward compat
+ *   WARN_ONLY  — runs all 28 invariants, emits logs, persists regardless (measure before enforce)
+ *   ENFORCE    — FATAL violations block persistence; forces Pass 3 regeneration
  *
  * Invariant taxonomy:
- *   FATAL      — block certification; require regeneration of the affected section.
- *   REPAIRABLE — auto-normalize inline; do not block certification.
+ *   FATAL      — blocks certification in ENFORCE mode; logs in WARN_ONLY.
+ *                Requires regeneration of the affected section — never silent repair.
+ *   ADVISORY   — always logged; never blocks. Cosmetic issues caught post-normalization.
+ *
+ * CERTIFICATION_REGISTRY: all 28 invariants declared with domain, code, severity,
+ * authority source (provenance), and test coverage tags. Queryable by domain for
+ * coverage reporting analogous to SIPOC gap tracking.
  *
  * Error code prefix convention:
- *   ECG_AUTH_*   — authority / score consistency
+ *   ECG_AUTH_*   — score authority / provenance consistency
  *   ECG_IDENT_*  — identity separation between sections
- *   ECG_EXEC_*   — executive summary contract
- *   ECG_OPP_*    — opportunity integrity
- *   ECG_TEXT_*   — text integrity
+ *   ECG_EXEC_*   — executive summary editorial contract
+ *   ECG_TEXT_*   — text integrity (truncation, placeholders)
  *   ECG_REC_*    — recommendation integrity
- *   ECG_ART_*    — artifact completeness
- *   ECG_NORM_*   — repairable normalization (not fatal)
+ *   ECG_ART_*    — artifact completeness (required fields)
  */
+
+import { getECGMode, type ECGMode } from '@/lib/evaluation/policy';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
 
 /** Minimum Jaccard similarity that triggers an identity duplication fatal. */
 const IDENTITY_OVERLAP_THRESHOLD = 0.72;
 
 /** Minimum chars for a meaningful text field. */
 const MIN_MEANINGFUL_LENGTH = 20;
-
-/** Regex that matches a score-like number that does NOT equal the canonical score. */
-const SCORE_MENTION_RE = /\b(\d{1,3})\/100\b/g;
-
-/** Broken-word detector: non-whitespace chars run that ends mid-word (no punctuation, not end of string). */
-const TRUNCATED_WORD_RE = /[a-z]{4,}[^a-z\s.!?,;:'")\]}\-—–]\s/i;
 
 /** Placeholder phrases that indicate unfilled template slots. */
 const PLACEHOLDER_PATTERNS = [
@@ -52,46 +70,434 @@ const PLACEHOLDER_PATTERNS = [
   /\bnull\b/,
 ];
 
-export type ECGSeverity = 'FATAL' | 'REPAIRABLE';
+// ─────────────────────────────────────────────────────────────────────────────
+// CERTIFICATION_REGISTRY
+// ─────────────────────────────────────────────────────────────────────────────
 
-export interface ECGInvariant {
-  /** Unique invariant identifier. */
+export type InvariantDomain =
+  | 'AUTHORITY'    // Score provenance and consistency
+  | 'IDENTITY'     // Separation between distinct content sections
+  | 'SUMMARY'      // Executive summary editorial contract
+  | 'TEXT'         // Text integrity (truncation, placeholders)
+  | 'RECOMMEND'    // Recommendation structure
+  | 'COMPLETENESS' // Required field presence
+  | 'RENDERER';    // Future: presentation-layer contracts
+
+export type InvariantSeverity = 'FATAL' | 'ADVISORY';
+
+export interface InvariantRegistryEntry {
+  /** Unique code, stable across versions. */
   code: string;
-  severity: ECGSeverity;
-  /** Human-readable failure message. */
-  message: string;
-  /** Section of the artifact that failed. */
+  domain: InvariantDomain;
+  severity: InvariantSeverity;
+  /** Human-readable description of what this invariant enforces. */
+  description: string;
+  /**
+   * Provenance: the authoritative source that OWNS this value.
+   * Any mismatch between this source and the artifact field is a certification failure.
+   */
+  authority: string;
+  /** Which artifact section this invariant guards. */
   section: string;
+  /** Tags for coverage reporting (analogous to SIPOC rows). */
+  tags: string[];
 }
 
-export interface ECGRepair {
-  /** Which ECG_NORM_* code was auto-applied. */
+/**
+ * CERTIFICATION_REGISTRY — the canonical list of all 28 invariants.
+ * Query by domain for coverage reporting; query by code for test linkage.
+ */
+export const CERTIFICATION_REGISTRY: InvariantRegistryEntry[] = [
+  // ── AUTHORITY domain (score provenance) ─────────────────────────────────
+  {
+    code: 'ECG_AUTH_SCORE_MISMATCH',
+    domain: 'AUTHORITY',
+    severity: 'FATAL',
+    description: 'overview.overall_score_0_100 must equal weighted.overall_score_0_100 from the scoring engine.',
+    authority: 'weighted.overall_score_0_100 (computeWeightedScore)',
+    section: 'overview.overall_score_0_100',
+    tags: ['score', 'provenance', 'authority-chain'],
+  },
+  {
+    code: 'ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH',
+    domain: 'AUTHORITY',
+    severity: 'FATAL',
+    description: 'Executive summary may not reference a score value that differs from the canonical score. Score hallucination by Pass 3 must cause regeneration, not silent repair.',
+    authority: 'weighted.overall_score_0_100 (computeWeightedScore)',
+    section: 'overview.one_paragraph_summary',
+    tags: ['score', 'provenance', 'pass3', 'exec-summary'],
+  },
+  {
+    code: 'ECG_AUTH_CRITERION_SCORE_RANGE',
+    domain: 'AUTHORITY',
+    severity: 'FATAL',
+    description: 'Every criterion score must be an integer in [0, 10].',
+    authority: 'Pass 1 + Pass 2 scoring (computeWeightedScore)',
+    section: 'criteria[].final_score_0_10',
+    tags: ['score', 'criteria', 'range'],
+  },
+
+  // ── IDENTITY domain (content separation) ────────────────────────────────
+  {
+    code: 'ECG_IDENT_PITCH_DUPLICATION',
+    domain: 'IDENTITY',
+    severity: 'FATAL',
+    description: 'one_sentence_pitch and one_paragraph_pitch must be editorially distinct. They serve different market purposes: hook vs. synopsis.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_sentence_pitch / overview.one_paragraph_pitch',
+    tags: ['pitch', 'identity', 'pass3'],
+  },
+  {
+    code: 'ECG_IDENT_PITCH_SUMMARY_OVERLAP',
+    domain: 'IDENTITY',
+    severity: 'FATAL',
+    description: 'Pitch fields must not substantially duplicate the executive summary. Executive summary is editorial; pitches are market-facing.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_sentence_pitch / overview.one_paragraph_summary',
+    tags: ['pitch', 'identity', 'exec-summary'],
+  },
+  {
+    code: 'ECG_IDENT_PITCH_PREMISE_OVERLAP',
+    domain: 'IDENTITY',
+    severity: 'FATAL',
+    description: 'Pitch fields must not be copied from enrichment.premise. Premise is a raw descriptor; pitches are crafted editorial text.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_paragraph_pitch / enrichment.premise',
+    tags: ['pitch', 'premise', 'identity'],
+  },
+
+  // ── SUMMARY domain (executive summary contract) ──────────────────────────
+  {
+    code: 'ECG_EXEC_MISSING',
+    domain: 'SUMMARY',
+    severity: 'FATAL',
+    description: 'Executive summary must be present and substantive. It must answer: why this score, strongest craft elements, principal blocker, first revision priority.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_paragraph_summary',
+    tags: ['exec-summary', 'completeness'],
+  },
+  {
+    code: 'ECG_EXEC_PITCH_LANGUAGE',
+    domain: 'SUMMARY',
+    severity: 'FATAL',
+    description: 'Executive summary must not contain marketing or jacket-copy language. It is an editorial diagnostic, not a sales pitch.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_paragraph_summary',
+    tags: ['exec-summary', 'tone'],
+  },
+  {
+    code: 'ECG_EXEC_NO_EVAL_LANGUAGE',
+    domain: 'SUMMARY',
+    severity: 'FATAL',
+    description: 'Executive summary must contain evaluation language (criterion names, score references, or revision direction). It must diagnose, not describe.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_paragraph_summary',
+    tags: ['exec-summary', 'content'],
+  },
+  {
+    code: 'ECG_EXEC_SCORE_ABSENT',
+    domain: 'SUMMARY',
+    severity: 'ADVISORY',
+    description: 'Executive summary does not reference the canonical score. Recommended but not required.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_paragraph_summary',
+    tags: ['exec-summary', 'score', 'advisory'],
+  },
+
+  // ── TEXT domain (integrity) ───────────────────────────────────────────────
+  {
+    code: 'ECG_TEXT_TRUNCATED_WORD',
+    domain: 'TEXT',
+    severity: 'FATAL',
+    description: 'A text field contains a truncated word or incomplete sentence. Likely caused by a hard character-count cut mid-token. Use trimAtWordBoundary before persistence.',
+    authority: 'normalizeArtifact() pre-stage',
+    section: 'any text field',
+    tags: ['truncation', 'text-integrity'],
+  },
+  {
+    code: 'ECG_TEXT_PLACEHOLDER',
+    domain: 'TEXT',
+    severity: 'FATAL',
+    description: 'A text field contains placeholder text ([insert], TBD, N/A, etc.). All template slots must be filled before certification.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'any text field',
+    tags: ['placeholder', 'text-integrity'],
+  },
+
+  // ── RECOMMEND domain (recommendation structure) ──────────────────────────
+  {
+    code: 'ECG_REC_TOO_SHORT',
+    domain: 'RECOMMEND',
+    severity: 'FATAL',
+    description: 'Recommendation action is shorter than 50 chars. Recommendations must be actionable editorial directives.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'recommendations[].action',
+    tags: ['recommendations', 'length'],
+  },
+  {
+    code: 'ECG_REC_PLACEHOLDER',
+    domain: 'RECOMMEND',
+    severity: 'FATAL',
+    description: 'Recommendation action contains placeholder text. Must be fully generated.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'recommendations[].action',
+    tags: ['recommendations', 'placeholder'],
+  },
+  {
+    code: 'ECG_REC_LOWERCASE_START',
+    domain: 'RECOMMEND',
+    severity: 'ADVISORY',
+    description: 'Recommendation action starts with a lowercase letter. normalizeArtifact() should have fixed this before certification.',
+    authority: 'normalizeArtifact() pre-stage',
+    section: 'recommendations[].action',
+    tags: ['recommendations', 'typography', 'advisory'],
+  },
+  {
+    code: 'ECG_REC_MISSING_TERMINAL_PUNCT',
+    domain: 'RECOMMEND',
+    severity: 'ADVISORY',
+    description: 'Recommendation action does not end with terminal punctuation. normalizeArtifact() should have fixed this.',
+    authority: 'normalizeArtifact() pre-stage',
+    section: 'recommendations[].action',
+    tags: ['recommendations', 'typography', 'advisory'],
+  },
+
+  // ── COMPLETENESS domain (required fields) ────────────────────────────────
+  {
+    code: 'ECG_ART_MISSING_EXEC_SUMMARY',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'overview.one_paragraph_summary is absent or empty.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_paragraph_summary',
+    tags: ['completeness', 'exec-summary'],
+  },
+  {
+    code: 'ECG_ART_MISSING_SENTENCE_PITCH',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'overview.one_sentence_pitch is absent or empty. Pass 3 must generate a distinct market hook.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_sentence_pitch',
+    tags: ['completeness', 'pitch'],
+  },
+  {
+    code: 'ECG_ART_MISSING_PARAGRAPH_PITCH',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'overview.one_paragraph_pitch is absent or empty. Pass 3 must generate a distinct story synopsis.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.one_paragraph_pitch',
+    tags: ['completeness', 'pitch'],
+  },
+  {
+    code: 'ECG_ART_MISSING_PREMISE',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'enrichment.premise is absent or empty.',
+    authority: 'Pass 3 enrichment (computeEnrichment)',
+    section: 'enrichment.premise',
+    tags: ['completeness', 'enrichment'],
+  },
+  {
+    code: 'ECG_ART_MISSING_STRENGTHS',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'top_3_strengths is absent or has no meaningful entries.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.top_3_strengths',
+    tags: ['completeness', 'strengths'],
+  },
+  {
+    code: 'ECG_ART_MISSING_RISKS',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'top_3_risks is absent or has no meaningful entries.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview.top_3_risks',
+    tags: ['completeness', 'risks'],
+  },
+  {
+    code: 'ECG_ART_MISSING_RATIONALE',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'One or more scored criteria are missing their final_rationale.',
+    authority: 'Pass 2 + Pass 3 scoring',
+    section: 'criteria[].final_rationale',
+    tags: ['completeness', 'criteria', 'rationale'],
+  },
+  {
+    code: 'ECG_ART_MISSING_CONFIDENCE',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'governance.confidence is absent. Must be set before certification.',
+    authority: 'criterionConfidence.ts (computeCriterionConfidence)',
+    section: 'governance.confidence',
+    tags: ['completeness', 'governance', 'confidence'],
+  },
+  {
+    code: 'ECG_ART_MISSING_RECOMMENDATIONS',
+    domain: 'COMPLETENESS',
+    severity: 'FATAL',
+    description: 'No quick_wins or strategic_revisions present. Every evaluation must produce at least one actionable recommendation.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'recommendations',
+    tags: ['completeness', 'recommendations'],
+  },
+
+  // ── RENDERER domain (presentation contracts) ─────────────────────────────
+  {
+    code: 'ECG_RENDERER_VERDICT_UNKNOWN',
+    domain: 'RENDERER',
+    severity: 'FATAL',
+    description: 'overview.verdict must be a recognized value (e.g. "market_ready", "not_market_ready", "conditional"). Unknown values will cause renderer failures.',
+    authority: 'market_readiness_calculator',
+    section: 'overview.verdict',
+    tags: ['renderer', 'verdict'],
+  },
+  {
+    code: 'ECG_RENDERER_GENRE_MISSING',
+    domain: 'RENDERER',
+    severity: 'ADVISORY',
+    description: 'enrichment.diagnosed_genre is absent. Genre is displayed on the report header.',
+    authority: 'Pass 3 enrichment (computeEnrichment)',
+    section: 'enrichment.diagnosed_genre',
+    tags: ['renderer', 'enrichment', 'advisory'],
+  },
+  {
+    code: 'ECG_RENDERER_AUDIENCE_MISSING',
+    domain: 'RENDERER',
+    severity: 'ADVISORY',
+    description: 'enrichment.target_audience is absent. Audience context is displayed on the report.',
+    authority: 'Pass 3 enrichment (computeEnrichment)',
+    section: 'enrichment.target_audience',
+    tags: ['renderer', 'enrichment', 'advisory'],
+  },
+  {
+    code: 'ECG_RENDERER_SCORE_LABEL_MISMATCH',
+    domain: 'RENDERER',
+    severity: 'FATAL',
+    description: 'governance.confidence_label must be present when confidence is set. The renderer cannot display a confidence badge without a label.',
+    authority: 'criterionConfidence.ts (computeCriterionConfidence)',
+    section: 'governance.confidence_label',
+    tags: ['renderer', 'governance', 'confidence'],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Registry helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Look up a registry entry by code. Returns undefined if not found (unknown code). */
+export function getRegistryEntry(code: string): InvariantRegistryEntry | undefined {
+  return CERTIFICATION_REGISTRY.find((e) => e.code === code);
+}
+
+/** Return all registry entries for a given domain. */
+export function getRegistryByDomain(domain: InvariantDomain): InvariantRegistryEntry[] {
+  return CERTIFICATION_REGISTRY.filter((e) => e.domain === domain);
+}
+
+/** Produce a coverage summary analogous to SIPOC gap tracking. */
+export function getCertificationCoverage(): Record<InvariantDomain, { total: number; fatal: number; advisory: number }> {
+  const domains: InvariantDomain[] = ['AUTHORITY', 'IDENTITY', 'SUMMARY', 'TEXT', 'RECOMMEND', 'COMPLETENESS', 'RENDERER'];
+  return Object.fromEntries(
+    domains.map((d) => {
+      const entries = getRegistryByDomain(d);
+      return [d, {
+        total: entries.length,
+        fatal: entries.filter((e) => e.severity === 'FATAL').length,
+        advisory: entries.filter((e) => e.severity === 'ADVISORY').length,
+      }];
+    }),
+  ) as Record<InvariantDomain, { total: number; fatal: number; advisory: number }>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Input shape
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ECGOverview {
+  overall_score_0_100?: number | null;
+  verdict?: string | null;
+  one_paragraph_summary?: string | null;
+  one_sentence_pitch?: string | null;
+  one_paragraph_pitch?: string | null;
+  top_3_strengths?: string[] | null;
+  top_3_risks?: string[] | null;
+}
+
+export interface ECGEnrichment {
+  premise?: string | null;
+  diagnosed_genre?: string | null;
+  target_audience?: string | null;
+}
+
+export interface ECGRecommendation {
+  action?: string | null;
+}
+
+export interface ECGRecommendations {
+  quick_wins?: ECGRecommendation[] | null;
+  strategic_revisions?: ECGRecommendation[] | null;
+}
+
+export interface ECGCriterion {
+  key?: string | null;
+  final_score_0_10?: number | null;
+  final_rationale?: string | null;
+}
+
+export interface ECGGovernance {
+  confidence?: number | null;
+  confidence_label?: string | null;
+}
+
+export interface ECGInput {
+  /** The computed canonical overall score — the only score authority. */
+  canonicalScore: number;
+  overview: ECGOverview;
+  enrichment?: ECGEnrichment | null;
+  recommendations?: ECGRecommendations | null;
+  criteria?: ECGCriterion[] | null;
+  governance?: ECGGovernance | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Output shape
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ECGStatus = 'CERTIFIED' | 'CERTIFICATION_FAILED' | 'SKIPPED';
+
+export interface ECGViolation {
   code: string;
-  field: string;
-  before: string;
-  after: string;
+  domain: InvariantDomain;
+  severity: InvariantSeverity;
+  /** Human-readable failure message with context values. */
+  message: string;
+  /** Artifact section that failed. */
+  section: string;
+  /** Authority source that owns the correct value. */
+  authority: string;
 }
-
-export type ECGStatus = 'CERTIFIED' | 'CERTIFICATION_FAILED';
 
 export interface ECGResult {
   status: ECGStatus;
-  /** All invariant violations found, fatal and repairable. */
-  violations: ECGInvariant[];
-  /** Auto-applied cosmetic repairs (only when status === CERTIFIED). */
-  repairs: ECGRepair[];
-  /** Subset of violations with severity FATAL. */
-  fatal: ECGInvariant[];
-  /** Subset of violations with severity REPAIRABLE (applied inline). */
-  repairable: ECGInvariant[];
-  /** ISO timestamp of certification attempt. */
+  mode: ECGMode;
+  /** All violations found (FATAL + ADVISORY). */
+  violations: ECGViolation[];
+  /** FATAL violations only. Empty → certifiable. */
+  fatal: ECGViolation[];
+  /** ADVISORY violations only. Never block certification. */
+  advisory: ECGViolation[];
+  /** ISO timestamp. */
   certified_at: string;
-  /** Summary string for logging. */
+  /** One-line summary for logging and governance.warnings. */
   summary: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Utility helpers
+// Utility helpers (internal — not exported, no mutation)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function norm(text: string | null | undefined): string {
@@ -120,63 +526,13 @@ function isSubstantiallyIdentical(a: string, b: string): boolean {
   return jaccardWords(a, b) >= IDENTITY_OVERLAP_THRESHOLD;
 }
 
-function firstChar(text: string): string {
-  return (text ?? '').trim().charAt(0);
-}
-
-function lastChar(text: string): string {
-  const t = (text ?? '').trim();
-  return t.charAt(t.length - 1);
-}
-
-function capitalizeFirst(text: string): string {
-  const t = (text ?? '').trim();
-  if (!t) return t;
-  return t.charAt(0).toUpperCase() + t.slice(1);
-}
-
-function ensureTerminalPunctuation(text: string): string {
-  const t = (text ?? '').trim();
-  if (!t) return t;
-  const last = t.charAt(t.length - 1);
-  if ('.!?'.includes(last)) return t;
-  return t + '.';
-}
-
-function hasTruncatedWord(text: string): boolean {
-  // Check for words ending mid-token — common sign of a 750-char substr truncation.
-  // Look for: a word that ends without space/punctuation before end-of-string,
-  // and the string ends on a non-sentence-ending character.
-  const t = (text ?? '').trim();
-  if (!t) return false;
-  const lastChar2 = t.charAt(t.length - 1);
-  // If it ends with ellipsis we already repaired it upstream — pass.
-  if (t.endsWith('…') || t.endsWith('...')) return false;
-  // If it ends in a letter and the last "word" is suspiciously short or cut, flag it.
-  if (/[a-z]$/i.test(lastChar2)) {
-    // Last token — check if the final word looks complete (has vowels, reasonable length)
-    const tokens = t.split(/\s+/);
-    const last = tokens[tokens.length - 1];
-    // A word ending mid-token: fewer than 3 chars or ends abruptly on a consonant cluster
-    if (last.length < 3) return true;
-    // If the string ends on a recognizable fragment like "occasiona" (vowel-ending abbreviation)
-    // We check: does the last word pass a basic dictionary-suffix heuristic?
-    // Simple heuristic: if the last char is 'a','e','i','o','u' and the word is 5+ chars,
-    // it might be truncated (e.g. "occasiona", "particula", "specifica").
-    if (last.length >= 5 && /[aeiou]$/i.test(last) && !/(?:tion|ance|ence|ure|age|ive|ize|ise|ate|ous|ful|ness|ment|ity|ary|ory|ery|ery|ing|ed|er|est|al|ic|ical)$/i.test(last)) {
-      return true;
-    }
-  }
-  return TRUNCATED_WORD_RE.test(text);
-}
-
 function hasPlaceholder(text: string): boolean {
   return PLACEHOLDER_PATTERNS.some((p) => p.test(text));
 }
 
 function extractScoreMentions(text: string): number[] {
   const matches: number[] = [];
-  const re = new RegExp(SCORE_MENTION_RE.source, 'g');
+  const re = /\b(\d{1,3})\/100\b/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     matches.push(parseInt(m[1], 10));
@@ -184,553 +540,410 @@ function extractScoreMentions(text: string): number[] {
   return matches;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Input shape (subset of evaluation_result_v2 we need to certify)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface ECGOverview {
-  overall_score_0_100?: number | null;
-  verdict?: string | null;
-  one_paragraph_summary?: string | null;
-  one_sentence_pitch?: string | null;
-  one_paragraph_pitch?: string | null;
-  top_3_strengths?: string[] | null;
-  top_3_risks?: string[] | null;
-}
-
-export interface ECGEnrichment {
-  premise?: string | null;
-  diagnosed_genre?: string | null;
-  target_audience?: string | null;
-}
-
-export interface ECGRecommendation {
-  action?: string | null;
-  why?: string | null;
-}
-
-export interface ECGRecommendations {
-  quick_wins?: ECGRecommendation[] | null;
-  strategic_revisions?: ECGRecommendation[] | null;
-}
-
-export interface ECGCriterion {
-  key?: string | null;
-  final_score_0_10?: number | null;
-  final_rationale?: string | null;
-  recommendations?: Array<{ action?: string | null }> | null;
-}
-
-export interface ECGGovernance {
-  confidence?: number | null;
-  confidence_label?: string | null;
-}
-
-export interface ECGInput {
-  /** The computed canonical overall score — the only authority. */
-  canonicalScore: number;
-  overview: ECGOverview;
-  enrichment?: ECGEnrichment | null;
-  recommendations?: ECGRecommendations | null;
-  criteria?: ECGCriterion[] | null;
-  governance?: ECGGovernance | null;
-  /** Raw manuscript text for anchor verification (optional — ECG degrades gracefully). */
-  manuscriptText?: string | null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Normalization helpers (REPAIRABLE auto-repairs)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Normalize a recommendation action string:
- *   - Capitalize first letter
- *   - Ensure terminal punctuation
- *   - Collapse multiple spaces
- */
-export function normalizeRecommendationText(text: string): string {
-  if (!text || typeof text !== 'string') return text;
-  let t = text.trim().replace(/\s+/g, ' ');
-  t = capitalizeFirst(t);
-  t = ensureTerminalPunctuation(t);
-  return t;
-}
-
-/**
- * Rewrite score mentions in the executive summary to match the canonical score.
- * Only touches /\d{1,3}\/100/ patterns — never alters surrounding prose.
- */
-export function injectCanonicalScore(summary: string, canonicalScore: number): string {
-  if (!summary) return summary;
-  return summary.replace(/\b\d{1,3}\/100\b/g, `${canonicalScore}/100`);
-}
-
-/**
- * Trim a text string to at most `maxLength` chars at a word boundary,
- * appending an ellipsis. Never cuts mid-word.
- */
-export function trimAtWordBoundary(text: string, maxLength: number): string {
-  if (!text || text.length <= maxLength) return text;
-  // Find the last space before maxLength - 1 (leave room for ellipsis char)
-  const candidate = text.substring(0, maxLength - 1);
-  const lastSpace = candidate.lastIndexOf(' ');
-  if (lastSpace > maxLength * 0.6) {
-    // Trim trailing punctuation before ellipsis
-    return candidate.substring(0, lastSpace).replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
+function hasTruncatedWord(text: string): boolean {
+  const t = (text ?? '').trim();
+  if (!t) return false;
+  if (t.endsWith('…') || t.endsWith('...')) return false;
+  const lastCharVal = t.charAt(t.length - 1);
+  if (/[a-z]$/i.test(lastCharVal)) {
+    const tokens = t.split(/\s+/);
+    const last = tokens[tokens.length - 1];
+    if (last.length < 3) return true;
+    if (
+      last.length >= 5 &&
+      /[aeiou]$/i.test(last) &&
+      !/(?:tion|ance|ence|ure|age|ive|ize|ise|ate|ous|ful|ness|ment|ity|ary|ory|ery|ing|ed|er|est|al|ic|ical|ia|ea)$/i.test(last)
+    ) {
+      return true;
+    }
   }
-  // No good space found — trim at boundary and append ellipsis
-  return candidate.replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
+  return /[a-z]{4,}[^a-z\s.!?,;:'")\]}\-—–]\s/i.test(text);
+}
+
+/** Build a violation from a registry entry + runtime context message. */
+function violation(code: string, message: string): ECGViolation {
+  const entry = getRegistryEntry(code);
+  return {
+    code,
+    domain: entry?.domain ?? 'COMPLETENESS',
+    severity: entry?.severity ?? 'FATAL',
+    message,
+    section: entry?.section ?? 'unknown',
+    authority: entry?.authority ?? 'unknown',
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Individual invariant checkers
+// Invariant checkers (pure — read-only, no mutation)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function checkScoreAuthority(input: ECGInput): ECGInvariant[] {
-  const violations: ECGInvariant[] = [];
+function checkAuthority(input: ECGInput): ECGViolation[] {
+  const vs: ECGViolation[] = [];
   const reported = input.overview.overall_score_0_100;
 
   // AUTH-1: Overview score must equal canonical
   if (reported !== input.canonicalScore) {
-    violations.push({
-      code: 'ECG_AUTH_SCORE_MISMATCH',
-      severity: 'FATAL',
-      message: `Overview score ${reported} does not equal canonical score ${input.canonicalScore}. These must be identical.`,
-      section: 'overview.overall_score_0_100',
-    });
+    vs.push(violation(
+      'ECG_AUTH_SCORE_MISMATCH',
+      `overview.overall_score_0_100 is ${reported} but canonical score is ${input.canonicalScore}. ` +
+      `Authority: weighted.overall_score_0_100 (computeWeightedScore). ` +
+      `Do not patch the score — fix the assembly that writes overview.overall_score_0_100.`,
+    ));
   }
 
   // AUTH-2: Executive summary must not reference a different score
   const summary = input.overview.one_paragraph_summary ?? '';
-  const mentions = extractScoreMentions(summary);
-  const wrongMentions = mentions.filter((s) => s !== input.canonicalScore);
-  if (wrongMentions.length > 0) {
-    violations.push({
-      code: 'ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH',
-      severity: 'FATAL',
-      message: `Executive summary references score(s) ${wrongMentions.join(', ')}/100 but canonical score is ${input.canonicalScore}/100. Executive summary may not independently determine the score.`,
-      section: 'overview.one_paragraph_summary',
-    });
+  if (summary) {
+    const mentions = extractScoreMentions(summary);
+    const wrong = mentions.filter((s) => s !== input.canonicalScore);
+    if (wrong.length > 0) {
+      vs.push(violation(
+        'ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH',
+        `Executive summary references ${wrong.map(s => `${s}/100`).join(', ')} but canonical score is ${input.canonicalScore}/100. ` +
+        `Pass 3 hallucinated a score. Regenerate Pass 3 with explicit score grounding — do not patch the text.`,
+      ));
+    }
   }
 
-  // AUTH-3: Criterion scores must be in valid range
-  const badCriteria = (input.criteria ?? []).filter((c) => {
+  // AUTH-3: Criterion scores must be integers 0–10
+  const bad = (input.criteria ?? []).filter((c) => {
     const s = c.final_score_0_10;
     return s !== null && s !== undefined && (!Number.isInteger(s) || s < 0 || s > 10);
   });
-  if (badCriteria.length > 0) {
-    violations.push({
-      code: 'ECG_AUTH_CRITERION_SCORE_RANGE',
-      severity: 'FATAL',
-      message: `${badCriteria.length} criterion/criteria have scores outside 0–10 integer range: ${badCriteria.map((c) => `${c.key}=${c.final_score_0_10}`).join(', ')}.`,
-      section: 'criteria[].final_score_0_10',
-    });
+  if (bad.length > 0) {
+    vs.push(violation(
+      'ECG_AUTH_CRITERION_SCORE_RANGE',
+      `${bad.length} criterion/criteria have scores outside integer [0, 10]: ${bad.map(c => `${c.key}=${c.final_score_0_10}`).join(', ')}.`,
+    ));
   }
 
-  return violations;
+  return vs;
 }
 
-function checkIdentitySeparation(input: ECGInput): ECGInvariant[] {
-  const violations: ECGInvariant[] = [];
-  const summary = input.overview.one_paragraph_summary ?? '';
+function checkIdentity(input: ECGInput): ECGViolation[] {
+  const vs: ECGViolation[] = [];
   const sentence = input.overview.one_sentence_pitch ?? '';
   const paragraph = input.overview.one_paragraph_pitch ?? '';
+  const summary = input.overview.one_paragraph_summary ?? '';
   const premise = input.enrichment?.premise ?? '';
 
-  // Only check non-empty pairs — empty fields are caught by completeness checks.
-  const pairs: Array<[string, string, string, string]> = [
-    [sentence, paragraph, 'one_sentence_pitch', 'one_paragraph_pitch'],
-    [sentence, summary, 'one_sentence_pitch', 'one_paragraph_summary'],
-    [paragraph, summary, 'one_paragraph_pitch', 'one_paragraph_summary'],
-    [sentence, premise, 'one_sentence_pitch', 'premise'],
-    [paragraph, premise, 'one_paragraph_pitch', 'premise'],
+  type Pair = [string, string, string, string];
+  const pairs: Pair[] = [
+    [sentence, paragraph,  'one_sentence_pitch',  'one_paragraph_pitch'],
+    [sentence, summary,    'one_sentence_pitch',  'one_paragraph_summary'],
+    [paragraph, summary,   'one_paragraph_pitch', 'one_paragraph_summary'],
+    [sentence, premise,    'one_sentence_pitch',  'premise'],
+    [paragraph, premise,   'one_paragraph_pitch', 'premise'],
   ];
 
   for (const [a, b, aLabel, bLabel] of pairs) {
     if (!meaningful(a) || !meaningful(b)) continue;
-    if (isSubstantiallyIdentical(a, b)) {
-      violations.push({
-        code: 'ECG_IDENT_DUPLICATION',
-        severity: 'FATAL',
-        message: `"${aLabel}" and "${bLabel}" are substantially identical (Jaccard ≥ ${IDENTITY_OVERLAP_THRESHOLD} or containment). These fields serve distinct editorial purposes and must not share content.`,
-        section: `${aLabel} / ${bLabel}`,
-      });
+    if (!isSubstantiallyIdentical(a, b)) continue;
+
+    // Map pair to correct registry code
+    let code = 'ECG_IDENT_PITCH_DUPLICATION';
+    if (bLabel === 'one_paragraph_summary' || aLabel === 'one_paragraph_summary') {
+      code = 'ECG_IDENT_PITCH_SUMMARY_OVERLAP';
+    } else if (bLabel === 'premise' || aLabel === 'premise') {
+      code = 'ECG_IDENT_PITCH_PREMISE_OVERLAP';
     }
+
+    vs.push(violation(
+      code,
+      `"${aLabel}" and "${bLabel}" are substantially identical (Jaccard ≥ ${IDENTITY_OVERLAP_THRESHOLD} or containment). ` +
+      `These fields serve distinct editorial purposes. Regenerate the offending Pass 3 field — do not deduplicate algorithmically.`,
+    ));
   }
 
-  return violations;
+  return vs;
 }
 
-function checkExecutiveSummaryContract(input: ECGInput): ECGInvariant[] {
-  const violations: ECGInvariant[] = [];
+function checkSummary(input: ECGInput): ECGViolation[] {
+  const vs: ECGViolation[] = [];
   const summary = (input.overview.one_paragraph_summary ?? '').trim();
 
   if (!meaningful(summary)) {
-    violations.push({
-      code: 'ECG_EXEC_MISSING',
-      severity: 'FATAL',
-      message: 'Executive summary (one_paragraph_summary) is absent or too short. It must answer: why this score, strongest craft elements, principal blocker, first revision priority.',
-      section: 'overview.one_paragraph_summary',
-    });
-    return violations;
+    vs.push(violation('ECG_EXEC_MISSING',
+      'overview.one_paragraph_summary is absent or too short. Must answer: why this score, strongest craft elements, principal blocker, first revision priority.'));
+    return vs; // remaining checks meaningless without a summary
   }
 
-  // EXEC-2: Must not read like a pitch (marketing / back-cover language)
   const pitchPhrases = [
-    /\ba\s+\w+[\w\s]+\b(must|will|can)\b/i,
     /\bgrab\b.*\breader\b/i,
     /\bpage-turner\b/i,
     /\bcan't put it down\b/i,
+    /\bmust[- ]read\b/i,
   ];
-  const hasPitchLanguage = pitchPhrases.some((p) => p.test(summary));
-  if (hasPitchLanguage) {
-    violations.push({
-      code: 'ECG_EXEC_PITCH_LANGUAGE',
-      severity: 'FATAL',
-      message: 'Executive summary contains marketing/pitch language. It must be an editorial diagnostic, not jacket copy.',
-      section: 'overview.one_paragraph_summary',
-    });
+  if (pitchPhrases.some((p) => p.test(summary))) {
+    vs.push(violation('ECG_EXEC_PITCH_LANGUAGE',
+      'Executive summary contains marketing/jacket-copy language. Must be an editorial diagnostic, not a pitch.'));
   }
 
-  // EXEC-3: Should contain evaluation language (criterion reference, score language)
-  const hasEvalLanguage = /\b(criterion|criteria|score|revision|craft|narrative|prose|pacing|voice|dialogue|character)\b/i.test(summary);
-  if (!hasEvalLanguage) {
-    violations.push({
-      code: 'ECG_EXEC_NO_EVAL_LANGUAGE',
-      severity: 'FATAL',
-      message: 'Executive summary does not contain evaluation language (criterion names, score references, or revision direction). It must diagnose, not describe.',
-      section: 'overview.one_paragraph_summary',
-    });
+  const hasEvalLang = /\b(criterion|criteria|score|revision|craft|narrative|prose|pacing|voice|dialogue|character)\b/i.test(summary);
+  if (!hasEvalLang) {
+    vs.push(violation('ECG_EXEC_NO_EVAL_LANGUAGE',
+      'Executive summary lacks evaluation language (criterion names, score references, revision direction). Must diagnose, not describe.'));
   }
 
-  // EXEC-4: Truncation check
+  // ADVISORY: score mention present (encouraged but not required)
+  const mentions = extractScoreMentions(summary);
+  if (mentions.length === 0) {
+    vs.push(violation('ECG_EXEC_SCORE_ABSENT',
+      `Executive summary does not reference the canonical score (${input.canonicalScore}/100). Recommended for reader orientation.`));
+  }
+
   if (hasTruncatedWord(summary)) {
-    violations.push({
-      code: 'ECG_TEXT_TRUNCATED_WORD',
-      severity: 'FATAL',
-      message: `Executive summary appears to contain a truncated word or incomplete sentence. Likely caused by a hard character-count cut mid-token. Regenerate or trim at a word boundary.`,
-      section: 'overview.one_paragraph_summary',
-    });
+    vs.push(violation('ECG_TEXT_TRUNCATED_WORD',
+      `Executive summary appears truncated mid-word. normalizeArtifact() must trim at word boundary before gate runs.`));
   }
 
-  // EXEC-5: Placeholder text
   if (hasPlaceholder(summary)) {
-    violations.push({
-      code: 'ECG_TEXT_PLACEHOLDER',
-      severity: 'FATAL',
-      message: 'Executive summary contains placeholder text (e.g. [insert], TBD, N/A). Replace with generated content.',
-      section: 'overview.one_paragraph_summary',
-    });
+    vs.push(violation('ECG_TEXT_PLACEHOLDER',
+      `Executive summary contains placeholder text. All template slots must be filled before certification.`));
   }
 
-  return violations;
+  return vs;
 }
 
-function checkTextIntegrity(input: ECGInput): ECGInvariant[] {
-  const violations: ECGInvariant[] = [];
+function checkText(input: ECGInput): ECGViolation[] {
+  const vs: ECGViolation[] = [];
 
-  const textFields: Array<{ label: string; value: string | null | undefined }> = [
-    { label: 'one_sentence_pitch', value: input.overview.one_sentence_pitch },
-    { label: 'one_paragraph_pitch', value: input.overview.one_paragraph_pitch },
-    { label: 'premise', value: input.enrichment?.premise },
-    ...(input.overview.top_3_strengths ?? []).map((s, i) => ({ label: `top_3_strengths[${i}]`, value: s })),
-    ...(input.overview.top_3_risks ?? []).map((s, i) => ({ label: `top_3_risks[${i}]`, value: s })),
+  const fields: Array<[string, string | null | undefined]> = [
+    ['one_sentence_pitch', input.overview.one_sentence_pitch],
+    ['one_paragraph_pitch', input.overview.one_paragraph_pitch],
+    ['premise', input.enrichment?.premise],
+    ...(input.overview.top_3_strengths ?? []).map((s, i) => [`top_3_strengths[${i}]`, s] as [string, string]),
+    ...(input.overview.top_3_risks ?? []).map((s, i) => [`top_3_risks[${i}]`, s] as [string, string]),
   ];
 
-  for (const { label, value } of textFields) {
+  for (const [label, value] of fields) {
     if (!value?.trim()) continue;
     if (hasTruncatedWord(value)) {
-      violations.push({
-        code: 'ECG_TEXT_TRUNCATED_WORD',
-        severity: 'FATAL',
-        message: `Field "${label}" appears to contain a truncated word or incomplete sentence. Trim at a word boundary before persistence.`,
-        section: label,
-      });
+      vs.push(violation('ECG_TEXT_TRUNCATED_WORD',
+        `"${label}" appears to contain a truncated word. Run trimAtWordBoundary in normalizeArtifact() before certification.`));
     }
     if (hasPlaceholder(value)) {
-      violations.push({
-        code: 'ECG_TEXT_PLACEHOLDER',
-        severity: 'FATAL',
-        message: `Field "${label}" contains placeholder text. Replace with generated content.`,
-        section: label,
-      });
+      vs.push(violation('ECG_TEXT_PLACEHOLDER',
+        `"${label}" contains placeholder text. Fill all template slots before certification.`));
     }
   }
 
-  // Criterion rationales
-  for (const criterion of input.criteria ?? []) {
-    const r = criterion.final_rationale ?? '';
-    if (r.trim().length > 0 && hasPlaceholder(r)) {
-      violations.push({
-        code: 'ECG_TEXT_PLACEHOLDER',
-        severity: 'FATAL',
-        message: `Criterion "${criterion.key}" rationale contains placeholder text.`,
-        section: `criteria[${criterion.key}].final_rationale`,
-      });
+  for (const c of input.criteria ?? []) {
+    if ((c.final_rationale ?? '').trim() && hasPlaceholder(c.final_rationale!)) {
+      vs.push(violation('ECG_TEXT_PLACEHOLDER',
+        `Criterion "${c.key}" rationale contains placeholder text.`));
     }
   }
 
-  return violations;
+  return vs;
 }
 
-function checkRecommendationIntegrity(input: ECGInput): ECGInvariant[] {
-  const violations: ECGInvariant[] = [];
-  const allRecs: Array<{ action: string; source: string }> = [];
+function checkRecommendations(input: ECGInput): ECGViolation[] {
+  const vs: ECGViolation[] = [];
 
-  for (const rec of input.recommendations?.quick_wins ?? []) {
-    if (rec.action?.trim()) allRecs.push({ action: rec.action.trim(), source: 'quick_wins' });
-  }
-  for (const rec of input.recommendations?.strategic_revisions ?? []) {
-    if (rec.action?.trim()) allRecs.push({ action: rec.action.trim(), source: 'strategic_revisions' });
-  }
+  const allRecs: Array<[ECGRecommendation, string]> = [
+    ...(input.recommendations?.quick_wins ?? []).map(r => [r, 'quick_wins'] as [ECGRecommendation, string]),
+    ...(input.recommendations?.strategic_revisions ?? []).map(r => [r, 'strategic_revisions'] as [ECGRecommendation, string]),
+  ];
 
-  for (const { action, source } of allRecs) {
-    // REC-1: Must start with capital letter (after normalization — warn only if somehow still wrong)
-    if (firstChar(action) !== firstChar(action).toUpperCase()) {
-      violations.push({
-        code: 'ECG_REC_LOWERCASE_START',
-        severity: 'REPAIRABLE',
-        message: `Recommendation in "${source}" starts with a lowercase letter: "${action.substring(0, 60)}…". Capitalizing automatically.`,
-        section: `recommendations.${source}[].action`,
-      });
-    }
+  for (const [rec, source] of allRecs) {
+    const action = (rec.action ?? '').trim();
+    if (!action) continue;
 
-    // REC-2: Must end with punctuation
-    const last = lastChar(action);
-    if (!'.!?)'.includes(last)) {
-      violations.push({
-        code: 'ECG_REC_MISSING_TERMINAL_PUNCT',
-        severity: 'REPAIRABLE',
-        message: `Recommendation in "${source}" does not end with punctuation: "…${action.substring(Math.max(0, action.length - 40))}". Adding period automatically.`,
-        section: `recommendations.${source}[].action`,
-      });
-    }
-
-    // REC-3: Must be substantive (min length)
     if (action.length < 50) {
-      violations.push({
-        code: 'ECG_REC_TOO_SHORT',
-        severity: 'FATAL',
-        message: `Recommendation in "${source}" is shorter than 50 chars: "${action}". Must be actionable.`,
-        section: `recommendations.${source}[].action`,
-      });
+      vs.push(violation('ECG_REC_TOO_SHORT',
+        `Recommendation in "${source}" is ${action.length} chars (min 50): "${action}"`));
     }
-
-    // REC-4: Must not be a placeholder
     if (hasPlaceholder(action)) {
-      violations.push({
-        code: 'ECG_REC_PLACEHOLDER',
-        severity: 'FATAL',
-        message: `Recommendation in "${source}" contains placeholder text: "${action.substring(0, 80)}".`,
-        section: `recommendations.${source}[].action`,
-      });
+      vs.push(violation('ECG_REC_PLACEHOLDER',
+        `Recommendation in "${source}" contains placeholder text: "${action.substring(0, 80)}"`));
+    }
+    // ADVISORY: typography normalization should have handled these
+    if (action.charAt(0) !== action.charAt(0).toUpperCase()) {
+      vs.push(violation('ECG_REC_LOWERCASE_START',
+        `Recommendation in "${source}" starts lowercase. normalizeArtifact() should have corrected this: "${action.substring(0, 60)}"`));
+    }
+    if (!/[.!?…)]$/.test(action)) {
+      vs.push(violation('ECG_REC_MISSING_TERMINAL_PUNCT',
+        `Recommendation in "${source}" lacks terminal punctuation. normalizeArtifact() should have corrected this: "…${action.slice(-40)}"`));
     }
   }
 
-  return violations;
+  return vs;
 }
 
-function checkArtifactCompleteness(input: ECGInput): ECGInvariant[] {
-  const violations: ECGInvariant[] = [];
+function checkCompleteness(input: ECGInput): ECGViolation[] {
+  const vs: ECGViolation[] = [];
 
-  // ART-1: Required overview fields
-  if (!meaningful(input.overview.one_paragraph_summary)) {
-    violations.push({
-      code: 'ECG_ART_MISSING_EXEC_SUMMARY',
-      severity: 'FATAL',
-      message: 'Required field overview.one_paragraph_summary is absent or empty.',
-      section: 'overview.one_paragraph_summary',
-    });
-  }
-  if (!meaningful(input.overview.one_sentence_pitch)) {
-    violations.push({
-      code: 'ECG_ART_MISSING_SENTENCE_PITCH',
-      severity: 'FATAL',
-      message: 'Required field overview.one_sentence_pitch is absent or empty. Pass 3 must generate a distinct market hook.',
-      section: 'overview.one_sentence_pitch',
-    });
-  }
-  if (!meaningful(input.overview.one_paragraph_pitch)) {
-    violations.push({
-      code: 'ECG_ART_MISSING_PARAGRAPH_PITCH',
-      severity: 'FATAL',
-      message: 'Required field overview.one_paragraph_pitch is absent or empty. Pass 3 must generate a distinct story synopsis.',
-      section: 'overview.one_paragraph_pitch',
-    });
-  }
-  if (!meaningful(input.enrichment?.premise)) {
-    violations.push({
-      code: 'ECG_ART_MISSING_PREMISE',
-      severity: 'FATAL',
-      message: 'Required field enrichment.premise is absent or empty.',
-      section: 'enrichment.premise',
-    });
-  }
+  if (!meaningful(input.overview.one_paragraph_summary))
+    vs.push(violation('ECG_ART_MISSING_EXEC_SUMMARY', 'overview.one_paragraph_summary is absent or empty.'));
+  if (!meaningful(input.overview.one_sentence_pitch))
+    vs.push(violation('ECG_ART_MISSING_SENTENCE_PITCH', 'overview.one_sentence_pitch is absent or empty. Pass 3 must generate a distinct market hook.'));
+  if (!meaningful(input.overview.one_paragraph_pitch))
+    vs.push(violation('ECG_ART_MISSING_PARAGRAPH_PITCH', 'overview.one_paragraph_pitch is absent or empty. Pass 3 must generate a distinct story synopsis.'));
+  if (!meaningful(input.enrichment?.premise))
+    vs.push(violation('ECG_ART_MISSING_PREMISE', 'enrichment.premise is absent or empty.'));
 
-  // ART-2: Strengths and risks
-  const strengths = (input.overview.top_3_strengths ?? []).filter((s) => meaningful(s));
-  if (strengths.length < 1) {
-    violations.push({
-      code: 'ECG_ART_MISSING_STRENGTHS',
-      severity: 'FATAL',
-      message: 'top_3_strengths is absent or has no meaningful entries.',
-      section: 'overview.top_3_strengths',
-    });
-  }
-  const risks = (input.overview.top_3_risks ?? []).filter((s) => meaningful(s));
-  if (risks.length < 1) {
-    violations.push({
-      code: 'ECG_ART_MISSING_RISKS',
-      severity: 'FATAL',
-      message: 'top_3_risks is absent or has no meaningful entries.',
-      section: 'overview.top_3_risks',
-    });
-  }
+  const strengths = (input.overview.top_3_strengths ?? []).filter(s => meaningful(s));
+  if (strengths.length < 1)
+    vs.push(violation('ECG_ART_MISSING_STRENGTHS', 'top_3_strengths is absent or has no meaningful entries.'));
+  const risks = (input.overview.top_3_risks ?? []).filter(s => meaningful(s));
+  if (risks.length < 1)
+    vs.push(violation('ECG_ART_MISSING_RISKS', 'top_3_risks is absent or has no meaningful entries.'));
 
-  // ART-3: Criteria rationales
   const criteriaWithoutRationale = (input.criteria ?? []).filter(
-    (c) => c.final_score_0_10 !== null && c.final_score_0_10 !== undefined && !meaningful(c.final_rationale),
+    c => c.final_score_0_10 !== null && c.final_score_0_10 !== undefined && !meaningful(c.final_rationale),
   );
-  if (criteriaWithoutRationale.length > 0) {
-    violations.push({
-      code: 'ECG_ART_MISSING_RATIONALE',
-      severity: 'FATAL',
-      message: `${criteriaWithoutRationale.length} scored criterion/criteria missing rationale: ${criteriaWithoutRationale.map((c) => c.key).join(', ')}.`,
-      section: 'criteria[].final_rationale',
-    });
-  }
+  if (criteriaWithoutRationale.length > 0)
+    vs.push(violation('ECG_ART_MISSING_RATIONALE',
+      `${criteriaWithoutRationale.length} scored criterion/criteria missing rationale: ${criteriaWithoutRationale.map(c => c.key).join(', ')}.`));
 
-  // ART-4: Governance confidence must be present
-  if (input.governance?.confidence === null || input.governance?.confidence === undefined) {
-    violations.push({
-      code: 'ECG_ART_MISSING_CONFIDENCE',
-      severity: 'FATAL',
-      message: 'governance.confidence is absent. Confidence must be set before certification.',
-      section: 'governance.confidence',
-    });
-  }
+  if (input.governance?.confidence === null || input.governance?.confidence === undefined)
+    vs.push(violation('ECG_ART_MISSING_CONFIDENCE', 'governance.confidence is absent.'));
 
-  // ART-5: At least one recommendation
   const totalRecs =
     (input.recommendations?.quick_wins?.length ?? 0) +
     (input.recommendations?.strategic_revisions?.length ?? 0);
-  if (totalRecs === 0) {
-    violations.push({
-      code: 'ECG_ART_MISSING_RECOMMENDATIONS',
-      severity: 'FATAL',
-      message: 'No quick_wins or strategic_revisions present. Every evaluation must produce at least one actionable recommendation.',
-      section: 'recommendations',
-    });
+  if (totalRecs === 0)
+    vs.push(violation('ECG_ART_MISSING_RECOMMENDATIONS', 'No quick_wins or strategic_revisions present. At least one actionable recommendation is required.'));
+
+  return vs;
+}
+
+function checkRenderer(input: ECGInput): ECGViolation[] {
+  const vs: ECGViolation[] = [];
+
+  const KNOWN_VERDICTS = new Set([
+    'market_ready', 'not_market_ready', 'conditional', 'not_evaluable',
+    'coverage_limited', 'withheld',
+  ]);
+  const verdict = input.overview.verdict ?? '';
+  if (verdict && !KNOWN_VERDICTS.has(verdict)) {
+    vs.push(violation('ECG_RENDERER_VERDICT_UNKNOWN',
+      `overview.verdict "${verdict}" is not a recognized value. Known: ${[...KNOWN_VERDICTS].join(', ')}. The renderer will fail to display the verdict badge.`));
   }
 
-  return violations;
+  // ADVISORY: enrichment fields
+  if (!meaningful(input.enrichment?.diagnosed_genre)) {
+    vs.push(violation('ECG_RENDERER_GENRE_MISSING', 'enrichment.diagnosed_genre is absent. Genre is displayed on the report header.'));
+  }
+  if (!meaningful(input.enrichment?.target_audience)) {
+    vs.push(violation('ECG_RENDERER_AUDIENCE_MISSING', 'enrichment.target_audience is absent. Audience context is displayed on the report.'));
+  }
+
+  // governance.confidence_label required when confidence is set
+  if (
+    input.governance?.confidence !== null &&
+    input.governance?.confidence !== undefined &&
+    !meaningful(input.governance?.confidence_label)
+  ) {
+    vs.push(violation('ECG_RENDERER_SCORE_LABEL_MISMATCH',
+      'governance.confidence is set but governance.confidence_label is absent. The renderer cannot display a confidence badge without a label.'));
+  }
+
+  return vs;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Auto-repair pass (REPAIRABLE invariants only)
+// Public: trimAtWordBoundary (also used by normalizeArtifact pre-stage)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Apply all safe (REPAIRABLE) normalizations to the input in-place.
- * Returns a list of repairs made.
- *
- * Called only when there are no FATAL violations — we do not repair dirty artifacts.
+ * Trim a text string to at most `maxLength` chars at a word boundary,
+ * appending an ellipsis. Never cuts mid-word. Exported for use in
+ * normalizeArtifact() and qualityGate.ts.
  */
-export function applyECGRepairs(input: ECGInput): ECGRepair[] {
-  const repairs: ECGRepair[] = [];
-
-  // Repair recommendation capitalization + terminal punctuation
-  function repairRecs(recs: ECGRecommendation[] | null | undefined, source: string) {
-    for (const rec of recs ?? []) {
-      if (!rec.action?.trim()) continue;
-      const before = rec.action;
-      const after = normalizeRecommendationText(before);
-      if (after !== before) {
-        rec.action = after;
-        repairs.push({ code: 'ECG_NORM_REC_TEXT', field: `recommendations.${source}[].action`, before, after });
-      }
-    }
+export function trimAtWordBoundary(text: string, maxLength: number): string {
+  if (!text || text.length <= maxLength) return text;
+  const candidate = text.substring(0, maxLength - 1);
+  const lastSpace = candidate.lastIndexOf(' ');
+  if (lastSpace > maxLength * 0.6) {
+    return candidate.substring(0, lastSpace).replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
   }
-
-  repairRecs(input.recommendations?.quick_wins, 'quick_wins');
-  repairRecs(input.recommendations?.strategic_revisions, 'strategic_revisions');
-
-  // Repair exec summary score references — inject canonical score
-  const rawSummary = input.overview.one_paragraph_summary ?? '';
-  if (rawSummary) {
-    const repaired = injectCanonicalScore(rawSummary, input.canonicalScore);
-    if (repaired !== rawSummary) {
-      input.overview.one_paragraph_summary = repaired;
-      repairs.push({
-        code: 'ECG_NORM_SCORE_INJECT',
-        field: 'overview.one_paragraph_summary',
-        before: rawSummary,
-        after: repaired,
-      });
-    }
-  }
-
-  return repairs;
+  return candidate.replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main gate function
+// Main gate function — verdict only, no mutation
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Run the Evaluation Certification Gate.
+ * Run the Artifact Certification Authority gate.
  *
- * @param input  - Subset of evaluation_result_v2 needed for certification.
- * @param repair - When true, auto-apply REPAIRABLE normalizations to `input` in-place
- *                 (only when no FATAL violations exist). Default: true.
+ * The gate is a REFEREE. It reads `input`, runs all invariant checkers,
+ * and emits a verdict. It NEVER mutates `input`.
  *
- * @returns ECGResult — check `status` first. Only persist when status === 'CERTIFIED'.
+ * Behaviour is controlled by ECG_MODE (from environment via policy.ts):
+ *   OFF        → returns SKIPPED immediately (no checks run)
+ *   WARN_ONLY  → runs all checks, always returns CERTIFIED, logs violations
+ *   ENFORCE    → runs all checks, FATAL violations → CERTIFICATION_FAILED
+ *
+ * @param input   Read-only snapshot of the assembled evaluation artifact.
+ * @returns ECGResult with status, violations, and summary.
  */
-export function runEvaluationCertificationGate(
-  input: ECGInput,
-  repair = true,
-): ECGResult {
+export function runEvaluationCertificationGate(input: ECGInput): ECGResult {
   const certified_at = new Date().toISOString();
-  const violations: ECGInvariant[] = [];
+  const mode = getECGMode();
 
-  // ── Run all invariant checkers ──────────────────────────────────────────
-  violations.push(...checkScoreAuthority(input));
-  violations.push(...checkIdentitySeparation(input));
-  violations.push(...checkExecutiveSummaryContract(input));
-  violations.push(...checkTextIntegrity(input));
-  violations.push(...checkRecommendationIntegrity(input));
-  violations.push(...checkArtifactCompleteness(input));
-
-  const fatal = violations.filter((v) => v.severity === 'FATAL');
-  const repairable = violations.filter((v) => v.severity === 'REPAIRABLE');
-
-  // ── Apply repairs only when no fatal violations ─────────────────────────
-  let repairs: ECGRepair[] = [];
-  if (fatal.length === 0 && repair) {
-    repairs = applyECGRepairs(input);
+  if (mode === 'OFF') {
+    return {
+      status: 'SKIPPED',
+      mode,
+      violations: [],
+      fatal: [],
+      advisory: [],
+      certified_at,
+      summary: 'ECG_MODE=OFF — gate skipped, artifact not certified.',
+    };
   }
 
-  const status: ECGStatus = fatal.length === 0 ? 'CERTIFIED' : 'CERTIFICATION_FAILED';
+  // ── Run all invariant checkers (pure, read-only) ─────────────────────────
+  const allViolations: ECGViolation[] = [
+    ...checkAuthority(input),
+    ...checkIdentity(input),
+    ...checkSummary(input),
+    ...checkText(input),
+    ...checkRecommendations(input),
+    ...checkCompleteness(input),
+    ...checkRenderer(input),
+  ];
+
+  const fatal    = allViolations.filter(v => v.severity === 'FATAL');
+  const advisory = allViolations.filter(v => v.severity === 'ADVISORY');
+
+  // ── Determine status based on mode ──────────────────────────────────────
+  let status: ECGStatus;
+  if (mode === 'WARN_ONLY') {
+    // Always CERTIFIED in WARN_ONLY — violations are logged, not enforced.
+    status = 'CERTIFIED';
+  } else {
+    // ENFORCE: any FATAL violation blocks certification.
+    status = fatal.length === 0 ? 'CERTIFIED' : 'CERTIFICATION_FAILED';
+  }
 
   const summary =
-    status === 'CERTIFIED'
-      ? `ECG CERTIFIED — ${repairs.length} cosmetic repair(s) applied. Score=${input.canonicalScore}.`
-      : `ECG CERTIFICATION_FAILED — ${fatal.length} fatal violation(s), ${repairable.length} repairable. Score=${input.canonicalScore}. Fatal: ${fatal.map((v) => v.code).join(', ')}.`;
+    status === 'SKIPPED'
+      ? 'ECG_MODE=OFF — gate skipped.'
+      : status === 'CERTIFIED' && fatal.length === 0
+      ? `ECG CERTIFIED (mode=${mode}) — 0 fatal, ${advisory.length} advisory. Score=${input.canonicalScore}.`
+      : status === 'CERTIFIED' && mode === 'WARN_ONLY'
+      ? `ECG WARN_ONLY — ${fatal.length} fatal (not enforced), ${advisory.length} advisory. Score=${input.canonicalScore}. Fatals: ${fatal.map(v => v.code).join(', ')}.`
+      : `ECG CERTIFICATION_FAILED (mode=${mode}) — ${fatal.length} fatal, ${advisory.length} advisory. Score=${input.canonicalScore}. Fatals: ${fatal.map(v => v.code).join(', ')}.`;
 
   return {
     status,
-    violations,
-    repairs,
+    mode,
+    violations: allViolations,
     fatal,
-    repairable,
+    advisory,
     certified_at,
     summary,
   };
 }
 
 /**
- * Build an ECGInput from a fully-assembled evaluation_result_v2 object
- * and the canonicalScore computed by the weighted scoring engine.
+ * Build an ECGInput from the assembled evaluation data.
+ * This is the ONLY place where ECGInput is constructed — keeps the mapping centralized.
  */
 export function buildECGInput(
   result: {
@@ -741,7 +954,6 @@ export function buildECGInput(
     governance?: ECGGovernance | null;
   },
   canonicalScore: number,
-  manuscriptText?: string | null,
 ): ECGInput {
   return {
     canonicalScore,
@@ -750,6 +962,5 @@ export function buildECGInput(
     recommendations: result.recommendations ?? null,
     criteria: result.criteria ?? null,
     governance: result.governance ?? null,
-    manuscriptText: manuscriptText ?? null,
   };
 }

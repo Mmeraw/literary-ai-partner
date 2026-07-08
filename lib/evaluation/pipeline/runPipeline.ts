@@ -149,9 +149,9 @@ import { classifyPhase1aFailure } from "./phase1aFailureClassification";
 import {
   runEvaluationCertificationGate,
   buildECGInput,
-  applyECGRepairs,
   trimAtWordBoundary,
 } from "./evaluationCertificationGate";
+import { normalizeArtifact } from "./normalizeArtifact";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the chunked path MUST engage — see runPipeline guard below.
@@ -3231,13 +3231,28 @@ export function synthesisToEvaluationResultV2(
     );
   }
 
-  // ── Evaluation Certification Gate ─────────────────────────────────────────
-  // Runs immediately before artifact assembly. Repairs auto-fixable invariants
-  // (rec capitalisation, score injection) in-place on synthesis, then checks
-  // all 28 invariants. FATAL failures throw so the job lands in FAILED state
-  // rather than persisting a corrupted artifact.
-  // Build ECGInput from synthesis + weighted score (SynthesisOutput uses .overall, ECG uses .overview)
-  const buildECGInputFromSynthesis = () => buildECGInput(
+  // ── Stage 1: Artifact Normalization (cosmetic, deterministic, no semantic change) ──
+  // Runs BEFORE the Certification Authority.
+  // Permitted: capitalize rec actions, add terminal punctuation, trim at word boundary.
+  // Forbidden: score injection, summary rewriting, field deduplication.
+  const normResult = normalizeArtifact(
+    synthesis,
+    quickWins as Array<{ action?: string }>,
+    strategicRevisions as Array<{ action?: string }>,
+  );
+  if (normResult.normalizations.length > 0) {
+    // Log normalizations for observability — not surfaced to users.
+    console.info(
+      `[normalizeArtifact] ${normResult.normalizations.length} cosmetic normalization(s) applied before ECG:`,
+      normResult.normalizations.map(n => `${n.field} (${n.operation})`).join(', '),
+    );
+  }
+
+  // ── Stage 2: Artifact Certification Authority (verdict only — no mutation) ─
+  // The ACA is a referee. It reads the normalized artifact and emits
+  // CERTIFIED, CERTIFICATION_FAILED, or SKIPPED based on ECG_MODE.
+  // It never patches, repairs, or regenerates content.
+  const ecgInput = buildECGInput(
     {
       overview: {
         overall_score_0_100: weighted.overall_score_0_100,
@@ -3256,39 +3271,55 @@ export function synthesisToEvaluationResultV2(
           }
         : null,
       recommendations: {
-        quick_wins: quick_wins?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
-        strategic_revisions: strategic_revisions?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
+        quick_wins: quickWins?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
+        strategic_revisions: strategicRevisions?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
       },
       criteria: synthesis.criteria.map(c => ({
         key: c.key,
         final_score_0_10: c.final_score_0_10,
         final_rationale: c.final_rationale,
-        recommendations: c.recommendations?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
       })),
-      governance: null,
+      governance: {
+        confidence: weighted.scored_count === 0 ? 0.55 : derivedConfidence.confidence,
+        confidence_label: weighted.scored_count === 0 ? 'withheld' : derivedConfidence.confidenceLabel,
+      },
     },
     weighted.overall_score_0_100,
-    opts.manuscriptText,
   );
-  // Build ECG input, apply in-place repairs, then certify.
-  // applyECGRepairs mutates `ecgInput` in-place (rec.action, overview.one_paragraph_summary).
-  // After repairs we propagate the score-injected summary back to synthesis so the
-  // assembled artifact picks up the corrected text.
-  const ecgInput = buildECGInputFromSynthesis();
-  void applyECGRepairs(ecgInput); // mutates ecgInput in-place (returns repair log, side-effect is the point)
-  // Propagate the (possibly score-injected) overview summary back to synthesis
-  if (ecgInput.overview.one_paragraph_summary !== synthesis.overall.one_paragraph_summary) {
-    synthesis.overall.one_paragraph_summary = ecgInput.overview.one_paragraph_summary ?? synthesis.overall.one_paragraph_summary;
-  }
-  // Certify against the repaired input
   const ecgResult = runEvaluationCertificationGate(ecgInput);
-  if (ecgResult.status !== 'CERTIFIED') {
-    const fatalCodes = ecgResult.invariants
-      .filter(inv => !inv.passed && inv.severity === 'FATAL')
-      .map(inv => inv.code)
-      .join(', ');
+
+  // Log ECG result always — violations feed into governance.warnings below.
+  if (ecgResult.violations.length > 0) {
+    console.warn(`[ECG] ${ecgResult.summary}`);
+    for (const v of ecgResult.fatal) {
+      console.warn(`  [ECG FATAL] ${v.code} (${v.section}): ${v.message}`);
+    }
+    for (const v of ecgResult.advisory) {
+      console.info(`  [ECG ADVISORY] ${v.code} (${v.section}): ${v.message}`);
+    }
+  } else {
+    console.info(`[ECG] ${ecgResult.summary}`);
+  }
+
+  // ── ECG_MODE routing ──────────────────────────────────────────────────────
+  // ENFORCE mode: FATAL violations block persistence.
+  // WARN_ONLY: all violations logged above; always continues to persist.
+  // OFF: gate was skipped; ecgResult.status === 'SKIPPED'.
+  if (ecgResult.status === 'CERTIFICATION_FAILED') {
+    // Only reachable in ENFORCE mode.
     throw new Error(
-      `ECG certification failed [${fatalCodes}]: evaluation artifact does not meet consistency standards and cannot be persisted.`
+      `ECG CERTIFICATION_FAILED [${ecgResult.fatal.map(v => v.code).join(', ')}]: ` +
+      `evaluation artifact does not meet consistency standards. ` +
+      `Regenerate the affected Pass 3 section — do not patch content manually.`,
+    );
+  }
+
+  // Surface ECG violations into governance.warnings so they are preserved in
+  // the stored artifact and visible to operators and the UI governance banner.
+  if (ecgResult.fatal.length > 0) {
+    governanceWarnings.push(
+      `ECG_WARN_ONLY: ${ecgResult.fatal.length} certification violation(s) detected but not enforced ` +
+      `(ECG_MODE=${ecgResult.mode}): ${ecgResult.fatal.map(v => v.code).join(', ')}`,
     );
   }
 

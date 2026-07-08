@@ -339,3 +339,35 @@ export function getCanonicalPolishModel(overrideModel?: string): string {
 export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
   return getEvaluationRuntimeConfig().adjudicationMode;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ECG_MODE — Artifact Certification Authority rollout control
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * ECG enforcement level.
+ *
+ *   OFF        — Gate disabled. Use during initial deploy or backward-compat windows.
+ *                The ACA does not run; all evaluations pass through unchecked.
+ *
+ *   WARN_ONLY  — Gate runs all 28 invariants. Violations are logged and surfaced in
+ *                governance.warnings but persistence is never blocked.
+ *                Default: deploy here first to measure how many evaluations would fail
+ *                before flipping to ENFORCE.
+ *
+ *   ENFORCE    — Gate runs all invariants. FATAL violations block persistence.
+ *                The job is marked FAILED and the error_code is 'ECG_CERTIFICATION_FAILED'.
+ *                This forces Pass 3 regeneration — the gate never patches content.
+ */
+export type ECGMode = 'OFF' | 'WARN_ONLY' | 'ENFORCE';
+
+/**
+ * Read ECG_MODE from environment.
+ * Default: WARN_ONLY — safe to deploy without blocking existing traffic.
+ */
+export function getECGMode(): ECGMode {
+  const raw = (process.env.ECG_MODE ?? 'WARN_ONLY').trim().toUpperCase();
+  if (raw === 'OFF' || raw === 'WARN_ONLY' || raw === 'ENFORCE') return raw as ECGMode;
+  console.warn(`[policy] Unknown ECG_MODE="${raw}", falling back to WARN_ONLY`);
+  return 'WARN_ONLY';
+}
