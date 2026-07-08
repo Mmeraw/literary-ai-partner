@@ -30,7 +30,7 @@ function operationalizeWorkbenchPayload(payload: WorkbenchQueuePayload): Workben
     return payload;
   }
 
-  const reviewable = [...payload.needsTargeting, ...payload.withheldUnsupported];
+  const reviewable = [...(payload.needsTargeting ?? []), ...(payload.withheldUnsupported ?? [])];
   if (reviewable.length === 0) {
     return payload;
   }
