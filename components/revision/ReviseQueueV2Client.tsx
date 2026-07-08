@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope, WorkbenchSource } from "@/lib/revision/workbenchQueue";
 import { getRenderableCandidateText, REVISION_OPTION_LABELS } from "@/lib/revision/reviseCardContract";
@@ -406,6 +406,58 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedClusters, setExpandedClusters] = useState<Record<string, boolean>>({});
   const [isRetryingFailedSync, setIsRetryingFailedSync] = useState(false);
+
+  // --- Queue panel resize / collapse ---
+  const QUEUE_PANEL_LS_KEY = "revisiongrade:workbench-v2:left-panel";
+  const [queueWidth, setQueueWidth] = useState(340);
+  const [isQueueCollapsed, setIsQueueCollapsed] = useState(false);
+  const isDraggingRef = useRef(false);
+
+  // Load persisted panel state on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem(QUEUE_PANEL_LS_KEY);
+      if (saved) {
+        const { queueWidth: w, isQueueCollapsed: c } = JSON.parse(saved) as { queueWidth: number; isQueueCollapsed: boolean };
+        if (typeof w === "number" && w >= 200 && w <= 560) setQueueWidth(w);
+        if (typeof c === "boolean") setIsQueueCollapsed(c);
+      }
+    } catch {
+      // ignore malformed cache
+    }
+  }, []);
+
+  // Persist panel state whenever it changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      QUEUE_PANEL_LS_KEY,
+      JSON.stringify({ queueWidth, isQueueCollapsed }),
+    );
+  }, [queueWidth, isQueueCollapsed]);
+
+  const startQueueResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    isDraggingRef.current = true;
+    const startX = event.clientX;
+    const startWidth = queueWidth;
+
+    function onMove(moveEvent: PointerEvent) {
+      const next = Math.min(520, Math.max(260, startWidth + (moveEvent.clientX - startX)));
+      setQueueWidth(next);
+      if (next > 200) setIsQueueCollapsed(false);
+    }
+
+    function onUp() {
+      isDraggingRef.current = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [queueWidth]);
 
   const [filters, setFilters] = useState<Filters>({
     searchText: "",
@@ -1102,21 +1154,57 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
           </div>
         </section>
 
-        <section className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_300px]">
-          <aside className="min-h-0 overflow-y-auto rounded-xl border border-[#3A3022] bg-[#161109] p-4">
+        <section
+          className="grid min-h-0 flex-1"
+          style={{
+            gridTemplateColumns: isQueueCollapsed
+              ? `44px 6px minmax(0,1fr) 300px`
+              : `${queueWidth}px 6px minmax(0,1fr) 300px`,
+          }}
+        >
+          <aside
+            className="min-h-0 overflow-y-auto rounded-xl border border-[#3A3022] bg-[#161109]"
+            style={{ padding: isQueueCollapsed ? "8px 4px" : "16px" }}
+          >
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">First Revision Set</h2>
-              <button
-                type="button"
-                onClick={() => updateFilter("evidence", "missing_evidence")}
-                className="rounded border border-[#7A2B1A]/60 px-2 py-1 text-[11px] text-[#E9B19F] hover:bg-[#7A2B1A]/20"
-              >
-                Needs evidence ({summary.evidenceCounts.missingEvidence})
-              </button>
+              {!isQueueCollapsed && (
+                <>
+                  <h2 className="flex-1 text-sm uppercase tracking-[0.18em] text-[#D7C4A1]">First Revision Set</h2>
+                  <button
+                    type="button"
+                    onClick={() => updateFilter("evidence", "missing_evidence")}
+                    className="rounded border border-[#7A2B1A]/60 px-2 py-1 text-[11px] text-[#E9B19F] hover:bg-[#7A2B1A]/20"
+                  >
+                    Needs evidence ({summary.evidenceCounts.missingEvidence})
+                  </button>
+                  <button
+                    type="button"
+                    title="Collapse queue panel"
+                    onClick={() => setIsQueueCollapsed(true)}
+                    className="ml-1 flex h-6 w-6 items-center justify-center rounded text-[#C8A96E] hover:bg-[#2A2218] hover:text-[#F2E7D4]"
+                    style={{ fontSize: 16, lineHeight: 1 }}
+                  >
+                    ‹
+                  </button>
+                </>
+              )}
+              {isQueueCollapsed && (
+                <button
+                  type="button"
+                  title="Open queue panel"
+                  onClick={() => setIsQueueCollapsed(false)}
+                  className="mx-auto flex flex-col items-center gap-1 text-[#C8A96E] hover:text-[#F2E7D4]"
+                >
+                  <span style={{ fontSize: 18 }}>›</span>
+                  <span style={{ fontSize: 9, writingMode: "vertical-rl", letterSpacing: "0.12em", textTransform: "uppercase", color: "#9D8D72", marginTop: 4 }}>Queue</span>
+                </button>
+              )}
             </div>
+            {!isQueueCollapsed && (
             <p className="mb-4 text-xs text-[#A9987D]">Showing {queueNodes.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + BATCH_SIZE, queueNodes.length)} of {queueNodes.length} opportunities</p>
+            )}
 
-            <ol className="space-y-3">
+            {!isQueueCollapsed && (<ol className="space-y-3">
               {pageNodes.map((node) => {
                 if (node.kind === "item") {
                   const item = node.item;
@@ -1185,8 +1273,9 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                   </li>
                 );
               })}
-            </ol>
+            </ol>)}
 
+            {!isQueueCollapsed && (
             <div className="mt-4 flex items-center justify-between text-xs">
               <button
                 type="button"
@@ -1206,7 +1295,26 @@ export default function ReviseQueueV2Client({ payload }: { payload: WorkbenchQue
                 Next
               </button>
             </div>
+            )}
           </aside>
+
+          {/* Drag handle — resizes queue panel; double-click to collapse/expand */}
+          <div
+            onPointerDown={startQueueResize}
+            onDoubleClick={() => setIsQueueCollapsed((v) => !v)}
+            title={isQueueCollapsed ? "Double-click to open queue" : "Drag to resize · Double-click to collapse"}
+            className="flex cursor-col-resize items-center justify-center self-stretch rounded"
+            style={{ background: "transparent" }}
+            aria-label={isQueueCollapsed ? "Open queue panel" : "Resize or collapse queue panel"}
+            role="separator"
+          >
+            <div
+              className="h-full w-[3px] rounded-full transition-colors"
+              style={{ background: "#2A2218" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#A07A36")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#2A2218")}
+            />
+          </div>
 
           <article className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#3A3022] bg-[#1C160E]">
             <div className="flex-1 overflow-y-auto p-4">
