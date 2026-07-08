@@ -840,7 +840,12 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       return sum + avg;
     }, 0);
     const avgCriterion = total / scoredCriteria.length;
-    return Math.min(100, Math.max(10, Math.floor(avgCriterion * 10)));
+    // Use Math.round to match computeWeightedScore's rounding authority (criterionObservability.ts).
+    // Math.floor risks off-by-one vs. the canonical displayed score (e.g. 73 instead of 74),
+    // which would cause ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH on the very mismatch we're preventing.
+    // Note: this is still a pre-Pass-3 estimate on raw P1/P2 scores — it cannot be the exact
+    // post-governance canonical score, but rounding alignment minimises divergence in the common case.
+    return Math.min(100, Math.max(10, Math.round(avgCriterion * 10)));
   })();
 
   const userPrompt = buildPass3UserPrompt({
