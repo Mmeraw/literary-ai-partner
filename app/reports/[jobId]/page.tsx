@@ -11,12 +11,9 @@ import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertif
 import { EvaluationResultV1, isEvaluationResultV1, hasD2TransparencyFields } from '@/schemas/evaluation-result-v1';
 import { isEvaluationResultV2, EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarketClaims';
-import {
-  getCertifiedCriteriaSummary,
-  getCriterionPrimaryBadge,
-  getCriterionRationalePresentation,
-  getCriterionSupportLabel,
-} from '@/lib/evaluation/reportCriterionDisplay';
+// reportCriterionDisplay helpers removed — all criterion display fields are
+// owned by the ViewModel (vm.criterionDetails.*). Dead imports eliminated
+// as part of U2-005 authority hardening.
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import {
   getDisplayText,
@@ -98,24 +95,9 @@ function renderNoIndentOrderedList(items: string[], itemClassName = 'text-[#5C55
 // sanitization (mistakeProofText + correctScopeLanguage). Renderers must not
 // apply their own correction layer on VM-owned fields.
 
-function getConfidenceBadge(criterion: EvaluationResultV1["criteria"][number]): {
-  label: string;
-  classes: string;
-} | null {
-  if (criterion.confidence_level === "high" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 80)) {
-    return { label: "High Confidence", classes: "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-400" };
-  }
-
-  if (criterion.confidence_level === "moderate" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 60)) {
-    return { label: "Moderate Confidence", classes: "bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400" };
-  }
-
-  if (criterion.confidence_level === "low" || (typeof criterion.confidence_score_0_100 === "number" && criterion.confidence_score_0_100 >= 0)) {
-    return { label: "Low Confidence", classes: "bg-rose-200 text-rose-900 ring-1 ring-rose-400" };
-  }
-
-  return null;
-}
+// getConfidenceBadge removed — confidence display is owned by the ViewModel
+// (vm.criterionDetails[n].confidenceLabel, vm.criteriaScoreGrid[n].confidenceLabel).
+// Raw V1 criteria reads eliminated as part of U2-005 authority hardening.
 
 function extractManuscriptTitle(manuscripts: unknown): string | null {
   const relation = Array.isArray(manuscripts) ? manuscripts[0] : manuscripts;
