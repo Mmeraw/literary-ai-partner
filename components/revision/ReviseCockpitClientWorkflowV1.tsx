@@ -490,7 +490,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                       <span className={`rounded border px-1.5 py-0.5 text-[10px] ${liveReady(item) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(item) ? "Ready" : "Needs Targeting"}</span>
                       <span className="rounded border border-[#4E4333] px-1.5 py-0.5 text-[10px] text-[#A9987D]">pending</span>
                     </div>
-                    <p className="line-clamp-2 text-xs leading-4">{index + 1}. {item.title}</p>
+                    <p className="line-clamp-2 text-xs leading-snug" style={{color:'#F0E8D5'}}>{index + 1}. {item.title}</p>
                     <p className="mt-1 truncate text-[11px] text-[#A9987D]">{formatCriterion(criterionOf(item))} · {item.anchor || item.meta}</p>
                   </button>
                 </li>
@@ -509,18 +509,18 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                     <span className="rounded border border-[#5A4B33] px-1.5 py-0.5">{active.scope}</span>
                     <span className={`rounded border px-1.5 py-0.5 ${liveReady(active) ? "border-[#48603F] text-[#BBD8B4]" : "border-[#7A2B1A] text-[#F1B6A5]"}`}>{liveReady(active) ? "Ready" : "Needs Targeting"}</span>
                   </div>
-                  <h2 className="mt-1 truncate text-base font-semibold">{active.title}</h2>
+                  <h2 className="mt-1 truncate text-base font-semibold" style={{color:'#F5EFE4'}}>{active.title}</h2>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
                   <section className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
-                    <div className="grid gap-x-4 gap-y-1.5 text-xs leading-relaxed xl:grid-cols-2">
-                      <p><span className="font-bold text-[#F0C060]">Symptom:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "symptom")}</span></p>
-                      <p><span className="font-bold text-[#F0C060]">Cause:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "cause")}</span></p>
-                      <p><span className="font-bold text-[#F0C060]">Fix:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "fix")}</span></p>
-                      <p><span className="font-bold text-[#F0C060]">Reader effect:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "readerEffect")}</span></p>
-                      <p><span className="font-bold text-[#F0C060]">Mistake-proofing:</span> <span className="text-[#F0E8D5]">{diagnosticText(active, "mistakeProofing")}</span></p>
-                      <p><span className="font-bold text-[#F0C060]">Operation:</span> <span className="text-[#F0E8D5]">{operationLabels[effectiveOperation(active)]}</span></p>
+                    <div className="grid gap-x-4 gap-y-1.5 text-xs leading-relaxed xl:grid-cols-2" style={{color:'#F0E8D5'}}>
+                      <p><span className="font-bold" style={{color:'#F0C060'}}>Symptom:</span> {diagnosticText(active, "symptom")}</p>
+                      <p><span className="font-bold" style={{color:'#F0C060'}}>Cause:</span> {diagnosticText(active, "cause")}</p>
+                      <p><span className="font-bold" style={{color:'#F0C060'}}>Fix:</span> {diagnosticText(active, "fix")}</p>
+                      <p><span className="font-bold" style={{color:'#F0C060'}}>Reader effect:</span> {diagnosticText(active, "readerEffect")}</p>
+                      <p><span className="font-bold" style={{color:'#F0C060'}}>Mistake-proofing:</span> {diagnosticText(active, "mistakeProofing")}</p>
+                      <p><span className="font-bold" style={{color:'#F0C060'}}>Operation:</span> {operationLabels[effectiveOperation(active)]}</p>
                     </div>
                   </section>
 
@@ -550,16 +550,16 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               )}
                             </div>
                             {effectiveMode === "full_replacement" ? (
-                              <p className="mt-1 max-h-24 overflow-y-auto text-xs leading-relaxed text-[#E5D8BE]">{source || "No exact passage is available yet."}</p>
+                              <p className="mt-1 max-h-24 overflow-y-auto text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{source || "No exact passage is available yet."}</p>
                             ) : (
                               <>
-                                <p className="mt-1 max-h-20 overflow-y-auto text-xs leading-relaxed text-[#E5D8BE]">
+                                <p className="mt-1 max-h-20 overflow-y-auto text-xs leading-relaxed" style={{color:'#F0E8D5'}}>
                                   {source ? excerptText(source, effectiveMode === "strategy_only" ? 2 : 3) : "No exact passage is available yet."}
                                 </p>
                                 {source && source.split(/\s+/).length > (effectiveMode === "strategy_only" ? 50 : 80) && (
                                   <details className="mt-1">
                                     <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">View full passage</summary>
-                                    <p className="mt-1 max-h-40 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs leading-relaxed text-[#E5D8BE]">{source}</p>
+                                    <p className="mt-1 max-h-40 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-2 text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{source}</p>
                                   </details>
                                 )}
                               </>
@@ -568,7 +568,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                           </div>
                           <div className="rounded-lg border border-[#2E261A] bg-[#12100B] px-2 py-1.5">
                             <p className="text-[10px] uppercase tracking-[0.18em] text-[#C8A96E]">Revision Task</p>
-                            <p className="mt-1 text-xs leading-relaxed text-[#E5D8BE]">{operationInstruction(active)} {compactGoal(active)}</p>
+                            <p className="mt-1 text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{operationInstruction(active)} {compactGoal(active)}</p>
                           </div>
                         </section>
 
@@ -605,7 +605,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                       <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
                                           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
-                                          <p className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-[#E5D8BE]">{rewrite}</p>
+                                          <p className="mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{rewrite}</p>
                                         </button>
                                         <div className="mt-1 flex gap-1">
                                           <button type="button" onClick={() => void navigator.clipboard.writeText(rewrite).then(() => setMessage("Copied"))} className="rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] text-[#C8A96E]">Copy</button>
@@ -636,7 +636,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                       <div key={key} className={`rounded border px-2 py-1.5 ${selectedOption === key ? "border-[#C8A96E] bg-[#1A140C]" : "border-[#2E261A]"}`}>
                                         <button type="button" onClick={() => setSelectedOption(key)} className="w-full text-left">
                                           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]} — {label}</span>
-                                          <p className="mt-0.5 text-xs leading-relaxed text-[#E5D8BE]">{approach}</p>
+                                          <p className="mt-0.5 text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{approach}</p>
                                         </button>
                                       </div>
                                     );
@@ -675,14 +675,14 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#C8A96E]">{REVISION_OPTION_LABELS[key]}</span>
                                         <span className="text-[9px] text-[#A9987D]">{role}</span>
                                       </div>
-                                      <p className={`line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-xs leading-5 ${ok ? "text-[#E5D8BE]" : "text-[#A9987D] italic"}`}>
+                                      <p className={`line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-xs leading-5 ${ok ? "" : "italic"}`} style={{color: ok ? '#F0E8D5' : '#A9987D'}}>
                                         {text || "Prose not yet generated — click \u201cGenerate Distinct A/B/C Drafts\u201d below to create three different options."}
                                       </p>
                                     </button>
                                     {text && text.length > 190 ? (
                                       <details className="mt-1.5">
                                         <summary className="cursor-pointer text-[10px] text-[#C8A96E] hover:text-[#F3E3C3]">Show full fix</summary>
-                                        <p className="mt-1 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-1.5 whitespace-pre-wrap text-xs leading-relaxed text-[#E5D8BE]">{text}</p>
+                                        <p className="mt-1 max-h-28 overflow-y-auto rounded border border-[#2E261A] bg-[#0D0A05] p-1.5 whitespace-pre-wrap text-xs leading-relaxed" style={{color:'#F0E8D5'}}>{text}</p>
                                       </details>
                                     ) : null}
                                     <button type="button" onClick={() => void copyText(text)} disabled={!ok} className="mt-1.5 rounded border border-[#5D4C31] px-1.5 py-0.5 text-[10px] disabled:opacity-40">Copy</button>
