@@ -108,25 +108,34 @@
   line-height: 1.24rem !important;
 }
 
+.route :global(.workbench-v2-action-rail) {
+  align-items: center !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 0.65rem !important;
+}
+
 .route :global(.workbench-v2-final-review-link) {
   position: static !important;
   min-width: auto !important;
   width: auto !important;
   height: 2.15rem !important;
-  padding: 0.26rem 0.65rem !important;
+  padding: 0.26rem 0.72rem !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
   font-size: 0.66rem !important;
   line-height: 0.78rem !important;
+  white-space: nowrap !important;
 }
 
 .route :global(.workbench-v2-reset-queue button) {
   height: 2.15rem !important;
-  padding: 0.26rem 0.65rem !important;
+  padding: 0.26rem 0.72rem !important;
   font-size: 0.66rem !important;
   line-height: 0.78rem !important;
+  white-space: nowrap !important;
 }
 
 .route :global(.workbench-v2-trusted-path) {
@@ -139,12 +148,48 @@
 .route :global(.workbench-v2-trusted-path button) {
   width: auto !important;
   height: 2.15rem !important;
-  padding: 0.26rem 0.65rem !important;
+  padding: 0.26rem 0.72rem !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   font-size: 0.66rem !important;
   line-height: 0.78rem !important;
+  white-space: nowrap !important;
+}
+
+.route :global(main.flex.items-center.justify-center > div.max-w-lg) {
+  width: min(36rem, calc(100vw - 2rem)) !important;
+  max-width: 36rem !important;
+  padding: 2.6rem 3rem !important;
+}
+
+.route :global(main.flex.items-center.justify-center > div.max-w-lg > p:first-child) {
+  margin: 0 auto !important;
+  max-width: 24rem !important;
+  font-size: 1.08rem !important;
+  line-height: 1.26 !important;
+}
+
+.route :global(main.flex.items-center.justify-center > div.max-w-lg > p:nth-child(2)) {
+  margin: 1.45rem auto 0 !important;
+  max-width: 29rem !important;
+  font-size: 0.98rem !important;
+  line-height: 1.58 !important;
+}
+
+.route :global(main.flex.items-center.justify-center > div.max-w-lg > p:nth-child(3)) {
+  margin: 1.7rem auto 0 !important;
+  max-width: 29rem !important;
+  font-size: 0.9rem !important;
+  line-height: 1.48 !important;
+}
+
+.route :global(main.flex.items-center.justify-center > div.max-w-lg > p:nth-child(3) strong) {
+  display: block !important;
+  margin: 0.32rem 0 !important;
+  font-size: 1rem !important;
+  line-height: 1.22 !important;
+  white-space: nowrap !important;
 }
 
 @media (max-width: 1180px) {
@@ -165,5 +210,26 @@
     padding-right: 0 !important;
     gap: 0.75rem !important;
     transform: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .route :global(.workbench-v2-action-rail) {
+    right: 0.75rem !important;
+    top: 78px !important;
+    gap: 0.45rem !important;
+  }
+
+  .route :global(.workbench-v2-final-review-link),
+  .route :global(.workbench-v2-reset-queue button),
+  .route :global(.workbench-v2-trusted-path button) {
+    height: 2rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    font-size: 0.6rem !important;
+  }
+
+  .route :global(main.flex.items-center.justify-center > div.max-w-lg) {
+    padding: 2.1rem 1.55rem !important;
   }
 }
