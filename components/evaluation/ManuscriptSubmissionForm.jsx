@@ -587,19 +587,18 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                   key={method.id}
                   type="button"
                   onClick={() => handleInputMethodChange(method.id)}
-                  className={`relative min-h-[6.5rem] rounded-xl border p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-[#8A5A00]/30 ${
-                    isActive
-                      ? "border-[#8A5A00] bg-[#FFF8E8] shadow-sm ring-1 ring-[#8A5A00]/25"
-                      : "border-stone-300 bg-white hover:border-stone-400 hover:bg-stone-50"
-                  }`}
+                  className="relative min-h-[6.5rem] rounded-xl border p-4 text-left transition focus:outline-none"
+                  style={isActive
+                    ? { borderColor: '#8A5A00', backgroundColor: '#FFF8E8', boxShadow: '0 0 0 1px rgba(138,90,0,0.25)' }
+                    : { borderColor: '#D6D3D1', backgroundColor: '#FFFFFF' }}
                   aria-pressed={isActive}
                 >
                   {isActive && (
-                    <span className="absolute right-3 top-3 rounded-full bg-[#7A2B1A] px-2 py-0.5 font-rg-mono text-[0.68rem] font-bold uppercase tracking-[0.08em] text-white">
+                    <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 font-rg-mono text-[0.68rem] font-bold uppercase tracking-[0.08em] text-white" style={{backgroundColor:'#7A2B1A'}}>
                       Selected
                     </span>
                   )}
-                  <span className={`font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.14em] ${isActive ? "text-[#7A2B1A]" : "text-[#8A5A00]"}`}>{optionLabel}</span>
+                  <span className="font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.14em]" style={{color: isActive ? '#7A2B1A' : '#8A5A00'}}>{optionLabel}</span>
                   <span className="mt-1.5 block font-rg-serif text-xl leading-tight text-stone-950">{method.label}</span>
                   <span className="mt-1 block text-sm leading-5 text-stone-700">{method.description}</span>
                 </button>
@@ -725,13 +724,12 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                                 toggleManuscriptSelection(doc.id);
                               }
                             }}
-                            className={`cursor-pointer rounded-xl border p-3.5 transition focus:outline-none focus:ring-2 focus:ring-blue-600/25 ${
-                              isSelected ? "border-blue-600 bg-blue-50 shadow-sm" : "border-stone-300 bg-white hover:border-stone-400"
-                            }`}
+                            className="cursor-pointer rounded-lg border p-2.5 transition focus:outline-none"
+                            style={isSelected ? {borderColor: '#8A5A00', backgroundColor: '#FFF8E8'} : {borderColor: '#E7E5E4', backgroundColor: '#FFFFFF'}}
                           >
                             <div className="flex items-center gap-2.5 py-0.5">
                               {/* selection indicator — no radio button, whole row is clickable */}
-                              <span className={`h-2 w-2 shrink-0 rounded-full ${isSelected ? "bg-[#7A2B1A]" : "border border-stone-400 bg-transparent"}`} aria-hidden="true" />
+                              <span className="h-2 w-2 shrink-0 rounded-full" style={isSelected ? {backgroundColor: '#7A2B1A'} : {border: '1px solid #A8A29E', backgroundColor: 'transparent'}} aria-hidden="true" />
                               <div className="min-w-0 flex-1">
                                 <div className="truncate text-sm font-semibold leading-5 text-stone-950">{getDisplayTitle(doc)}</div>
                                 <div className="text-xs leading-4 text-stone-500">{formatWordCount(doc.word_count)} words · {doc.source ?? "saved"}</div>
@@ -1094,8 +1092,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                 <p className="mt-2 text-base leading-6 text-stone-800">{submissionSourceSummary.body}</p>
               </div>
 
-              <div className={`rounded-2xl border p-4 ${activeWordCount ? "border-[#8A5A00]/60 bg-[#FFF8E8]" : "border-stone-200 bg-stone-50"}`}>
-                <p className={`font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] ${activeWordCount ? "text-[#8A5A00]" : "text-stone-500"}`}>Estimated mode</p>
+              <div className="rounded-2xl border p-4" style={activeWordCount ? {borderColor: 'rgba(138,90,0,0.6)', backgroundColor: '#FFF8E8'} : {borderColor: '#E7E5E4', backgroundColor: '#FAFAF9'}}>
+                <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em]" style={{color: activeWordCount ? '#8A5A00' : '#78716C'}}>Estimated mode</p>
                 <h4 className="mt-1.5 font-rg-serif text-xl leading-tight text-stone-950">{evaluationMode.label}</h4>
                 <p className="mt-2 text-base font-bold text-stone-950">{evaluationMode.summary}</p>
                 <p className="mt-2 text-base leading-6 text-stone-800">{evaluationMode.detail}</p>
