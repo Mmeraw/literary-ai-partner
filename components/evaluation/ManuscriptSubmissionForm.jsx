@@ -584,8 +584,8 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
               const optionLabels = ["Option A", "Option B", "Option C"];
               const optionLabel = optionLabels[idx] || "Option";
               const cardStyle = isActive
-                ? { border: "2px solid #8A5A00", backgroundColor: "#FFF8E8" }
-                : { border: "1px solid #D6D3D1", backgroundColor: "#FFFFFF" };
+                ? { outline: "2px solid #8A5A00", outlineOffset: "-2px", backgroundColor: "#FFF8E8" }
+                : { outline: "1px solid #D6D3D1", outlineOffset: "-1px", backgroundColor: "#FFFFFF" };
               const labelStyle = { color: isActive ? "#7A2B1A" : "#8A5A00" };
               return (
                 <button
