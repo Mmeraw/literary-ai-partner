@@ -579,28 +579,29 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
         <form onSubmit={handleSubmit}>
           <div className="mb-5 grid gap-3 md:grid-cols-3">
-            {INPUT_METHODS.map((method) => {
+            {INPUT_METHODS.map((method, idx) => {
               const isActive = activeInputMethod === method.id;
+              const optionLabel = idx === 0 ? "Option A" : idx === 1 ? "Option B" : "Option C";
               return (
                 <button
                   key={method.id}
                   type="button"
                   onClick={() => handleInputMethodChange(method.id)}
-                  className={`relative min-h-[7.25rem] rounded-2xl border p-5 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${
+                  className={`relative min-h-[6.5rem] rounded-xl border p-4 text-left transition focus:outline-none focus:ring-2 focus:ring-[#8A5A00]/30 ${
                     isActive
-                      ? "border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600/20"
+                      ? "border-[#8A5A00] bg-[#FFF8E8] shadow-sm ring-1 ring-[#8A5A00]/25"
                       : "border-stone-300 bg-white hover:border-stone-400 hover:bg-stone-50"
                   }`}
                   aria-pressed={isActive}
                 >
                   {isActive && (
-                    <span className="absolute right-4 top-4 rounded-full bg-blue-700 px-2.5 py-1 font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.08em] text-white">
+                    <span className="absolute right-3 top-3 rounded-full bg-[#7A2B1A] px-2 py-0.5 font-rg-mono text-[0.68rem] font-bold uppercase tracking-[0.08em] text-white">
                       Selected
                     </span>
                   )}
-                  <span className="font-rg-mono text-[0.75rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Step 1</span>
-                  <span className="mt-2 block font-rg-serif text-2xl leading-tight text-stone-950">{method.label}</span>
-                  <span className="mt-1.5 block text-base leading-6 text-stone-800">{method.description}</span>
+                  <span className={`font-rg-mono text-[0.72rem] font-bold uppercase tracking-[0.14em] ${isActive ? "text-[#7A2B1A]" : "text-[#8A5A00]"}`}>{optionLabel}</span>
+                  <span className="mt-1.5 block font-rg-serif text-xl leading-tight text-stone-950">{method.label}</span>
+                  <span className="mt-1 block text-sm leading-5 text-stone-700">{method.description}</span>
                 </button>
               );
             })}
@@ -640,48 +641,18 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
 
               {activeInputMethod === "saved" && (
                 <div className="rounded-2xl border border-stone-300 bg-[#FBFAF7] p-4 md:p-5">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
-                      <h3 className="font-rg-serif text-3xl leading-tight text-stone-950">Saved documents</h3>
-                      <p className="mt-1 text-base leading-6 text-stone-800">Choose one manuscript from your workspace.</p>
+                      <h3 className="font-rg-serif text-xl leading-tight text-stone-950">Saved documents</h3>
+                      <p className="mt-0.5 text-sm text-stone-600">Click a manuscript to select it.</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {unnamedDashboardManuscripts.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setError(null);
-                            setDeleteNotice(null);
-                            setPendingDeleteManuscriptId(null);
-                            setPendingBulkDeleteMode("unnamed");
-                          }}
-                          disabled={isUploading || isSubmitting}
-                          className="min-h-[42px] rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-                        >
-                          Delete unnamed ({unnamedDashboardManuscripts.length})
-                        </button>
-                      )}
-                      {visibleDashboardManuscripts.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setError(null);
-                            setDeleteNotice(null);
-                            setPendingDeleteManuscriptId(null);
-                            setPendingBulkDeleteMode("shown");
-                          }}
-                          disabled={isUploading || isSubmitting}
-                          className="min-h-[42px] rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-                        >
-                          Delete all shown
-                        </button>
-                      )}
+                    <div className="flex flex-wrap gap-1.5">
                       {hiddenManuscriptIds.length > 0 && (
                         <button
                           type="button"
                           onClick={restoreAllInThisWindow}
                           disabled={isUploading || isSubmitting}
-                          className="min-h-[42px] rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-50 disabled:opacity-60"
+                          className="rounded border border-stone-300 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-60"
                         >
                           Restore hidden
                         </button>
@@ -728,7 +699,7 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                     </div>
                   )}
 
-                  <div className="mb-3 max-h-[24rem] min-h-[12rem] space-y-2 overflow-y-auto pr-1">
+                  <div className="mb-2 max-h-[16rem] min-h-[6rem] space-y-1 overflow-y-auto pr-1">
                     {isLoadingDashboard ? (
                       <div className="text-base text-stone-700">Loading saved manuscripts...</div>
                     ) : visibleDashboardManuscripts.length === 0 ? (
@@ -758,42 +729,29 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                               isSelected ? "border-blue-600 bg-blue-50 shadow-sm" : "border-stone-300 bg-white hover:border-stone-400"
                             }`}
                           >
-                            <div className="flex min-h-[3.65rem] items-center gap-3">
-                              <input
-                                type="radio"
-                                name="dashboard-manuscript"
-                                checked={isSelected}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (selectedManuscriptId === doc.id) {
-                                    event.preventDefault();
-                                    toggleManuscriptSelection(doc.id);
-                                  }
-                                }}
-                                onChange={() => {
-                                  if (selectedManuscriptId !== doc.id) toggleManuscriptSelection(doc.id);
-                                }}
-                                className="h-5 w-5 shrink-0 accent-blue-700"
-                                aria-label={`Select ${getDisplayTitle(doc)}`}
-                              />
+                            <div className="flex items-center gap-2.5 py-0.5">
+                              {/* selection indicator — no radio button, whole row is clickable */}
+                              <span className={`h-2 w-2 shrink-0 rounded-full ${isSelected ? "bg-[#7A2B1A]" : "border border-stone-400 bg-transparent"}`} aria-hidden="true" />
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-base font-bold leading-6 text-stone-950">{getDisplayTitle(doc)}</div>
-                                <div className="text-[0.95rem] leading-5 text-stone-700">{formatWordCount(doc.word_count)} words · {doc.source ?? "saved manuscript"}</div>
+                                <div className="truncate text-sm font-semibold leading-5 text-stone-950">{getDisplayTitle(doc)}</div>
+                                <div className="text-xs leading-4 text-stone-500">{formatWordCount(doc.word_count)} words · {doc.source ?? "saved"}</div>
                               </div>
-                              <div className="flex shrink-0 gap-1.5">
+                              <div className="flex shrink-0 gap-1">
                                 <button
                                   type="button"
+                                  title="Hide from this list"
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
                                     hideManuscriptHere(doc.id);
                                   }}
-                                  className="min-h-[38px] rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                                  className="rounded border border-stone-300 bg-white px-2 py-1 text-xs text-stone-600 hover:bg-stone-50"
                                 >
                                   Hide
                                 </button>
                                 <button
                                   type="button"
+                                  title="Delete from workspace"
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
@@ -802,9 +760,9 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                                     setPendingBulkDeleteMode(null);
                                     setPendingDeleteManuscriptId(doc.id);
                                   }}
-                                  className="min-h-[38px] rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                                  className="rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                                 >
-                                  Delete
+                                  ✕
                                 </button>
                               </div>
                             </div>
@@ -851,15 +809,35 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {visibleDashboardManuscripts.length > 0 && (
                       <button
                         type="button"
                         onClick={clearThisWindow}
                         disabled={isUploading || isSubmitting}
-                        className="min-h-[40px] rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50 disabled:opacity-60"
+                        className="rounded border border-stone-300 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-60"
                       >
-                        Hide all from this window
+                        Hide all
+                      </button>
+                    )}
+                    {unnamedDashboardManuscripts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setError(null); setDeleteNotice(null); setPendingDeleteManuscriptId(null); setPendingBulkDeleteMode("unnamed"); }}
+                        disabled={isUploading || isSubmitting}
+                        className="rounded border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        Delete unnamed ({unnamedDashboardManuscripts.length})
+                      </button>
+                    )}
+                    {visibleDashboardManuscripts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => { setError(null); setDeleteNotice(null); setPendingDeleteManuscriptId(null); setPendingBulkDeleteMode("shown"); }}
+                        disabled={isUploading || isSubmitting}
+                        className="rounded border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        Delete all shown
                       </button>
                     )}
                   </div>
@@ -1101,31 +1079,31 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
               <button
                 type="submit"
                 disabled={isSubmitting || isUploading || !processingTermsAccepted || isOverPasteLimit}
-                className="min-h-[56px] w-full rounded-xl bg-blue-700 px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.16em] text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-700 disabled:opacity-100"
+                className="min-h-[60px] w-full rounded-xl bg-[#7A2B1A] px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.18em] text-white shadow-md transition hover:bg-[#8E3320] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:opacity-100 disabled:shadow-none"
               >
                 {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}
               </button>
             </section>
 
-            <aside className="space-y-4">
-              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-5">
+            <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-4">
                 <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Selected writing</p>
-                <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">{submissionSourceSummary.title}</h4>
+                <h4 className="mt-1.5 font-rg-serif text-xl leading-tight text-stone-950">{submissionSourceSummary.title}</h4>
                 <p className="mt-2 text-sm font-bold uppercase tracking-[0.08em] text-stone-800">{submissionSourceSummary.label}</p>
                 <p className="mt-2 text-base font-bold text-stone-950">{submissionSourceSummary.meta}</p>
                 <p className="mt-2 text-base leading-6 text-stone-800">{submissionSourceSummary.body}</p>
               </div>
 
-              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-5">
-                <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Estimated mode</p>
-                <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">{evaluationMode.label}</h4>
+              <div className={`rounded-2xl border p-4 ${activeWordCount ? "border-[#8A5A00]/60 bg-[#FFF8E8]" : "border-stone-200 bg-stone-50"}`}>
+                <p className={`font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] ${activeWordCount ? "text-[#8A5A00]" : "text-stone-500"}`}>Estimated mode</p>
+                <h4 className="mt-1.5 font-rg-serif text-xl leading-tight text-stone-950">{evaluationMode.label}</h4>
                 <p className="mt-2 text-base font-bold text-stone-950">{evaluationMode.summary}</p>
                 <p className="mt-2 text-base leading-6 text-stone-800">{evaluationMode.detail}</p>
                 <p className="mt-4 text-base font-bold text-stone-950">Detected/selected words: {formatWordCount(activeWordCount)}</p>
               </div>
 
-              <div className="rounded-2xl border border-stone-300 bg-white p-5">
-                <h4 className="font-rg-serif text-2xl text-stone-950">Guidance</h4>
+              <div className="rounded-2xl border border-stone-300 bg-white p-4">
+                <h4 className="font-rg-serif text-xl text-stone-950">Guidance</h4>
                 <p className="mt-2 text-base leading-7 text-stone-800">
                   RevisionGrade diagnoses readiness before revision. It does not assume every submission needs the same depth of analysis.
                 </p>
@@ -1136,9 +1114,9 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
                 </ul>
               </div>
 
-              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-5">
+              <div className="rounded-2xl border border-[#A36A00]/45 bg-[#FFF8E8] p-4">
                 <p className="font-rg-mono text-[0.78rem] font-bold uppercase tracking-[0.14em] text-[#8A5A00]">Document eligibility</p>
-                <h4 className="mt-2 font-rg-serif text-2xl leading-tight text-stone-950">What can be evaluated</h4>
+                <h4 className="mt-1.5 font-rg-serif text-xl leading-tight text-stone-950">What can be evaluated</h4>
                 <p className="mt-2 text-base leading-7 text-stone-800">
                   RevisionGrade evaluates manuscripts and serious narrative excerpts: novels, novellas, book-length memoirs, narrative nonfiction manuscripts, and substantial fiction/nonfiction excerpts.
                 </p>
