@@ -146,6 +146,12 @@ import { getConfiguredChunkCap } from "./chunkCap";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 import { resolvedEnglishVariantLabel } from "@/lib/evaluation/englishVariant";
 import { classifyPhase1aFailure } from "./phase1aFailureClassification";
+import {
+  runEvaluationCertificationGate,
+  buildECGInput,
+  applyECGRepairs,
+  trimAtWordBoundary,
+} from "./evaluationCertificationGate";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the chunked path MUST engage — see runPipeline guard below.
@@ -3147,9 +3153,8 @@ export function synthesisToEvaluationResultV2(
 
   const rawOverviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
   // Hard cap at 750 chars — generous limit so LLM writes substantive summaries.
-  const overviewSummary = rawOverviewSummary.length > 750
-    ? rawOverviewSummary.substring(0, 747).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026"
-    : rawOverviewSummary;
+  // trimAtWordBoundary ensures we never cut mid-word (fixes "occasiona" truncation).
+  const overviewSummary = trimAtWordBoundary(rawOverviewSummary, 750);
 
   const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {
     const label = getCriterionDisplayLabel(criterion.key);
@@ -3223,6 +3228,67 @@ export function synthesisToEvaluationResultV2(
         ("reason" in externalAdjudication && externalAdjudication.reason
           ? `, reason=${externalAdjudication.reason})`
           : ")"),
+    );
+  }
+
+  // ── Evaluation Certification Gate ─────────────────────────────────────────
+  // Runs immediately before artifact assembly. Repairs auto-fixable invariants
+  // (rec capitalisation, score injection) in-place on synthesis, then checks
+  // all 28 invariants. FATAL failures throw so the job lands in FAILED state
+  // rather than persisting a corrupted artifact.
+  // Build ECGInput from synthesis + weighted score (SynthesisOutput uses .overall, ECG uses .overview)
+  const buildECGInputFromSynthesis = () => buildECGInput(
+    {
+      overview: {
+        overall_score_0_100: weighted.overall_score_0_100,
+        verdict: synthesis.overall.verdict,
+        one_paragraph_summary: synthesis.overall.one_paragraph_summary,
+        one_sentence_pitch: synthesis.overall.one_sentence_pitch ?? null,
+        one_paragraph_pitch: synthesis.overall.one_paragraph_pitch ?? null,
+        top_3_strengths: synthesis.overall.top_3_strengths ?? null,
+        top_3_risks: synthesis.overall.top_3_risks ?? null,
+      },
+      enrichment: resolvedLlmEnrichment
+        ? {
+            premise: resolvedLlmEnrichment.premise ?? null,
+            diagnosed_genre: resolvedLlmEnrichment.diagnosed_genre ?? null,
+            target_audience: resolvedLlmEnrichment.target_audience ?? null,
+          }
+        : null,
+      recommendations: {
+        quick_wins: quick_wins?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
+        strategic_revisions: strategic_revisions?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
+      },
+      criteria: synthesis.criteria.map(c => ({
+        key: c.key,
+        final_score_0_10: c.final_score_0_10,
+        final_rationale: c.final_rationale,
+        recommendations: c.recommendations?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
+      })),
+      governance: null,
+    },
+    weighted.overall_score_0_100,
+    opts.manuscriptText,
+  );
+  // Build ECG input, apply in-place repairs, then certify.
+  // applyECGRepairs mutates `ecgInput` in-place (rec.action, overview.one_paragraph_summary).
+  // After repairs we propagate the score-injected summary back to synthesis so the
+  // assembled artifact picks up the corrected text.
+  const ecgInput = buildECGInputFromSynthesis();
+  void applyECGRepairs(ecgInput); // mutates ecgInput in-place (returns repair log, side-effect is the point)
+  // Propagate the (possibly score-injected) overview summary back to synthesis
+  if (ecgInput.overview.one_paragraph_summary !== synthesis.overall.one_paragraph_summary) {
+    synthesis.overall.one_paragraph_summary = ecgInput.overview.one_paragraph_summary ?? synthesis.overall.one_paragraph_summary;
+  }
+  // Certify against the repaired input
+  const ecgResult = runEvaluationCertificationGate(ecgInput);
+  if (ecgResult.status !== 'CERTIFIED') {
+    const fatalCodes = ecgResult.invariants
+      .filter(inv => !inv.passed && inv.severity === 'FATAL')
+      .map(inv => inv.code)
+      .join(', ');
+    throw new Error(
+      `ECG certification failed [${fatalCodes}]: evaluation artifact does not meet consistency standards and cannot be persisted.`
     );
   }
 

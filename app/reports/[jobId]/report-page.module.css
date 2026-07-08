@@ -21,7 +21,7 @@
 .reportRoute span {
   overflow-wrap: anywhere;
   word-break: normal;
-  hyphens: auto;
+  hyphens: none;
 }
 
 .reportRoute p,

@@ -195,7 +195,16 @@ export function sanitizeCMOSRecommendation<T extends Record<string, unknown>>(re
   ];
   for (const field of textFields) {
     if (typeof result[field] === "string") {
-      (result as Record<string, unknown>)[field] = sanitizeCMOS(result[field] as string);
+      let value = sanitizeCMOS(result[field] as string);
+      // The `action` field is author-facing prose that must start with a capital
+      // letter and end with terminal punctuation (CMOS §6.13, ECG ECG_REC_LOWERCASE_START).
+      if (field === "action" && value.length > 0) {
+        value = value.charAt(0).toUpperCase() + value.slice(1);
+        if (!/[.!?\u2026]$/.test(value)) {
+          value = value + ".";
+        }
+      }
+      (result as Record<string, unknown>)[field] = value;
     }
   }
   return result;

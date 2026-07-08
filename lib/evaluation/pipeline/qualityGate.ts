@@ -83,6 +83,7 @@ import {
   type EvidenceGroundingReport,
   type CriteriaEvidenceGroundingReport,
 } from "./evidenceGroundingGate";
+import { trimAtWordBoundary } from "./evaluationCertificationGate";
 
 export const QG_MIN_REC_LENGTH = 50;
 /** Pathological runaway cap for the recommendation action body. Display teasers rendered from
@@ -631,8 +632,11 @@ export function runQualityGate(
   // 751-800: auto-repair by trimming at word boundary. >800: hard fail (true runaway).
   let overviewLen = synthesis.overall.one_paragraph_summary.length;
   if (overviewLen > QG_MAX_OVERVIEW_LENGTH && overviewLen <= QG_OVERVIEW_HARD_CEILING) {
-    synthesis.overall.one_paragraph_summary =
-      synthesis.overall.one_paragraph_summary.substring(0, QG_MAX_OVERVIEW_LENGTH - 3).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026";
+    // trimAtWordBoundary prevents mid-word cuts (e.g. "occasiona" truncation bug)
+    synthesis.overall.one_paragraph_summary = trimAtWordBoundary(
+      synthesis.overall.one_paragraph_summary,
+      QG_MAX_OVERVIEW_LENGTH,
+    );
     overviewLen = synthesis.overall.one_paragraph_summary.length;
   }
   checks.push({
