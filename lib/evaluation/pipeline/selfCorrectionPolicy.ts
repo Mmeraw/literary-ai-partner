@@ -95,6 +95,22 @@ export function getGateFailurePolicy(errorCode: string): GateFailurePolicy {
     };
   }
 
+  // SHORT_FORM_FINAL_SANITY_CHECK — LLM echoes of long-form terms or pipeline labels.
+  // Re-synthesis with an explicit prohibition instruction has a reasonable chance of
+  // producing clean output; grant exactly 1 retry before failing closed.
+  if (
+    errorCode === "SHORT_FORM_LONGFORM_ARTIFACT_LEAK" ||
+    errorCode === "SHORT_FORM_INTERNAL_PROCESS_LEAK" ||
+    errorCode === "SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM"
+  ) {
+    return {
+      max_retries: 1,
+      persist_quarantine_artifact: true,
+      user_safe_message: USER_SAFE_QUALITY_MESSAGE,
+      severity: "high",
+    };
+  }
+
   // Default: unknown gate code — fail conservative
   return {
     max_retries: 0,
@@ -156,6 +172,12 @@ function describeViolationCode(code: string): string {
       return "generic recommendation without specificity";
     case "REC_INTEGRITY_NO_EVIDENCE":
       return "recommendation lacks supporting evidence";
+    case "SHORT_FORM_LONGFORM_ARTIFACT_LEAK":
+      return "output contains long-form tier terms (WAVE / Golden Spine / Phase 5) — regenerate without these words";
+    case "SHORT_FORM_INTERNAL_PROCESS_LEAK":
+      return "output contains internal pipeline stage labels (Pass N / Phase N) — regenerate without pipeline terminology";
+    case "SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM":
+      return "output makes whole-manuscript scope claims not supported by the submitted excerpt — scope all claims to the submitted text only";
     default:
       return code.toLowerCase().replace(/_/g, " ");
   }

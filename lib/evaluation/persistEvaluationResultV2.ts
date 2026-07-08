@@ -1,4 +1,5 @@
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
+import { getGateFailurePolicy, buildRetryContext, buildQuarantineArtifact } from '@/lib/evaluation/pipeline/selfCorrectionPolicy';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EvaluationResultV2, ScoreAdjustmentV2 } from "@/schemas/evaluation-result-v2";
 import { JOB_STATUS, type JobStatus } from "@/lib/jobs/types";
@@ -514,6 +515,128 @@ export async function persistEvaluationResultV2(params: {
 
   if (shortFormReadiness.blockingReason) {
     const rejectedAt = new Date().toISOString();
+    const sanityResult = evaluationResult.governance?.transparency?.short_form_final_sanity_check as Record<string, unknown> | undefined;
+    const violationCodes: string[] = Array.isArray(sanityResult?.codes) ? (sanityResult.codes as string[]) : [];
+
+    // ── FIPOC KICK_MATRIX: attempt backward kick to phase_3 re-synthesis ────────────
+    // For recoverable short-form sanity violations (LLM echoes of long-form terms),
+    // re-queue the job for Phase 3 re-synthesis with an explicit prohibition
+    // instruction. Budget: 1 kick per violation code (tracked in progress.kick_attempts).
+    const kickableCodes = violationCodes.filter((code) => {
+      const policy = getGateFailurePolicy(code);
+      return policy.max_retries > 0;
+    });
+
+    if (kickableCodes.length > 0) {
+      const progressState = params.progressSnapshot as Record<string, unknown>;
+      const kickAttempts =
+        typeof progressState.kick_attempts === 'object' && progressState.kick_attempts !== null
+          ? (progressState.kick_attempts as Record<string, number>)
+          : {};
+
+      // Check whether any kickable code still has budget remaining
+      const codeWithBudget = kickableCodes.find((code) => (kickAttempts[code] ?? 0) < 1);
+
+      if (codeWithBudget) {
+        const policy = getGateFailurePolicy(codeWithBudget);
+        const attemptNumber = (kickAttempts[codeWithBudget] ?? 0) + 1;
+        const retryCtx = buildRetryContext({
+          gate: 'SHORT_FORM_FINAL_SANITY_CHECK',
+          stageId: 'S07_PASS3',
+          violationCodes: kickableCodes,
+          affectedFields: ['overview', 'criteria[*].rationale'],
+          attemptNumber,
+        });
+
+        const updatedKickAttempts = { ...kickAttempts, [codeWithBudget]: attemptNumber };
+        const kickNow = new Date().toISOString();
+
+        // Persist quarantine artifact so admin can inspect the failing output
+        if (policy.persist_quarantine_artifact) {
+          const quarantineArtifact = buildQuarantineArtifact({
+            gate: 'SHORT_FORM_FINAL_SANITY_CHECK',
+            stageId: 'S07_PASS3',
+            violationCodes: kickableCodes,
+            attemptNumber,
+            content: evaluationResult,
+          });
+          // Best-effort — don't block the kick if artifact persistence fails
+          await params.supabase
+            .from('evaluation_artifacts')
+            .insert({
+              job_id: params.jobId,
+              artifact_type: quarantineArtifact.artifact_type,
+              content: quarantineArtifact,
+              created_at: kickNow,
+            })
+            .then(({ error }) => {
+              if (error) console.warn(`[ShortFormSanityKick] quarantine artifact persist failed: ${error.message}`);
+            });
+        }
+
+        const { error: kickErr } = await params.supabase
+          .from('evaluation_jobs')
+          .update({
+            status: JOB_STATUS.QUEUED,
+            phase: 'phase_3',
+            phase_status: JOB_STATUS.QUEUED,
+            claimed_by: null,
+            claimed_at: null,
+            lease_token: null,
+            lease_until: null,
+            last_heartbeat_at: null,
+            last_heartbeat: null,
+            worker_pulse_at: null,
+            failure_code: null,
+            last_error: null,
+            updated_at: kickNow,
+            progress: {
+              ...progressState,
+              phase: 'phase_3',
+              phase_status: JOB_STATUS.QUEUED,
+              message: `Backward kick: re-queued for synthesis after ${codeWithBudget}`,
+              kick_attempts: updatedKickAttempts,
+              last_kick_at: kickNow,
+              last_kick_failure_code: codeWithBudget,
+              last_kick_violation_summary: retryCtx.retry_instruction,
+              short_form_retry_instruction: retryCtx.retry_instruction,
+            },
+          })
+          .eq('id', params.jobId);
+
+        if (!kickErr) {
+          console.warn(
+            `[ShortFormSanityKick] ${params.jobId}: backward kick to phase_3 after ${codeWithBudget} ` +
+            `(attempt ${attemptNumber}/1) — retry instruction injected`,
+          );
+          return {
+            persisted: false,
+            completedAt: kickNow,
+            gateDecision: "FAIL",
+            validationResult: "FAIL",
+            confidence: deriveConfidence({
+              criterionCompletenessPassed: false,
+              anchorIntegrityPassed: false,
+              governancePassed: false,
+              passConvergencePassed: false,
+              hasMaterialPassDisagreement: false,
+              pass1UnresolvedWarningCount: 0,
+              usedFallbackPath: false,
+              executionDegraded: false,
+              invalidOutput: false,
+              quarantinedOutput: true,
+              evidenceCoverage: "thin",
+            }),
+            reason: `[ShortFormSanityKick] kicked back to phase_3 for re-synthesis (${codeWithBudget})`,
+          };
+        }
+
+        // If the kick DB write fails, fall through to terminal fail below
+        console.error(`[ShortFormSanityKick] ${params.jobId}: kick requeue failed: ${kickErr.message} — falling through to terminal fail`);
+      }
+    }
+    // ── End FIPOC kick path ────────────────────────────────────────────────────
+
     const failedStatus = normalizeEvaluationJobStatus(JOB_STATUS.FAILED) as JobStatus;
     const invalidValidity = normalizeEvaluationValidityStatus("invalid");
     const failurePayloadBase = {

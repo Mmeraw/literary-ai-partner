@@ -1939,6 +1939,11 @@ const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
   'QG_CONSEQUENCE_CONTRACT',
   // U3-001 consistency gate: content-driven, re-synthesis may produce consistent reasoning.
   'QG_SUMMARY_CRITERION_CONTRADICTION',
+  // SHORT_FORM sanity gate: LLM echoed long-form terminology into a short-form output.
+  // Re-synthesis with an explicit prohibition instruction clears the violation.
+  'SHORT_FORM_LONGFORM_ARTIFACT_LEAK',
+  'SHORT_FORM_INTERNAL_PROCESS_LEAK',
+  'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM',
 ]);
 
 /**
@@ -6661,6 +6666,10 @@ export async function processEvaluationJob(
             _llrRecoveryMode: llrRecoveryMode,
             _storyLedgerContextBlock: phase23LedgerContextBlock,
             _canonicalEntityNames: phase23CanonicalEntityNames,
+            // SHORT_FORM FIPOC kick-back: propagate retry instruction from progress state into Pass 3 system prompt
+            ...(typeof (progressState as Record<string, unknown>).short_form_retry_instruction === 'string'
+              ? { _shortFormRetryInstruction: (progressState as Record<string, unknown>).short_form_retry_instruction as string }
+              : {}),
             onHeartbeat: async (stage) => {
               await assertJobWithinSla({
                 supabase,

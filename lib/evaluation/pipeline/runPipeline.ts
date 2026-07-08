@@ -278,6 +278,14 @@ export interface RunPipelineOptions {
    * blocked character name references with canonical names.
    */
   _canonicalEntityNames?: string[];
+  /**
+   * Short-form retry instruction injected into the Pass 3 system prompt
+   * when the job is kicked back due to SHORT_FORM_LONGFORM_ARTIFACT_LEAK or
+   * related short-form sanity violations. Contains explicit prohibitions against
+   * the long-form terms that triggered the previous kick.
+   * Written by persistEvaluationResultV2 into progress.short_form_retry_instruction.
+   */
+  _shortFormRetryInstruction?: string;
 }
 
 const DEFAULT_MAX_MANUSCRIPT_CHARS = 3_000_000;
@@ -2182,6 +2190,8 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         storyLedgerContextBlock: opts._storyLedgerContextBlock,
         // Canonical entity names for deterministic character name sanitization
         canonicalEntityNames: opts._canonicalEntityNames,
+        // SHORT_FORM FIPOC kick-back: inject explicit prohibition into Pass 3 system prompt
+        shortFormRetryInstruction: opts._shortFormRetryInstruction,
         manuscriptText: opts.manuscriptText,
         manuscriptChunks: opts.manuscriptChunks,
         title: opts.title,

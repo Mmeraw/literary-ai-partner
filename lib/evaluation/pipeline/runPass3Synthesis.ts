@@ -449,6 +449,13 @@ export interface RunPass3Options {
    * character name references in synthesis output with canonical names.
    */
   canonicalEntityNames?: string[];
+  /**
+   * Short-form retry instruction appended to the system prompt on FIPOC kick-back.
+   * When present, Pass 3 re-synthesis is told to avoid the exact long-form
+   * terms that triggered SHORT_FORM_LONGFORM_ARTIFACT_LEAK on the previous attempt.
+   * Written by persistEvaluationResultV2 via buildRetryContext().
+   */
+  shortFormRetryInstruction?: string;
 }
 
 const LEDGER_UNAVAILABLE_WARNING =
@@ -932,9 +939,16 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   const retryMaxTokens = Math.max(originalMaxTokens + 4000, originalMaxTokens * 3);
 
   // Inject full-context story ledger ground truth into system prompt when available
-  const effectiveSystemPrompt = opts.storyLedgerContextBlock
+  const baseSystemPrompt = opts.storyLedgerContextBlock
     ? `${PASS3_SYSTEM_PROMPT}\n\n${opts.storyLedgerContextBlock}\n\nAny synthesis recommendation that contradicts the STORY LEDGER GROUND TRUTH above is INVALID. Do not recommend scenes for dead characters, do not claim stationary objects move, do not misattribute cosmology as geography.\n\nNAME AUTHORITY ENFORCEMENT: The CANONICAL CHARACTER NAME AUTHORITY section above is binding. In ALL output fields (final_rationale, recommendations, strengths, risks, summaries, pitches), refer to characters ONLY by the canonical names listed. NEVER use a blocked word (No, Yes, Oh, Hey, Well, So, etc.) as a character name or possessive (e.g. "No's"), even if the manuscript text appears to use it. Substitute the correct canonical name instead.`
     : PASS3_SYSTEM_PROMPT;
+
+  // On SHORT_FORM FIPOC kick-back, append explicit prohibition against the long-form
+  // terms that triggered the previous violation. This instruction overrides any
+  // incidental terminology echoed from the template or comparison packet.
+  const effectiveSystemPrompt = opts.shortFormRetryInstruction
+    ? `${baseSystemPrompt}\n\n## SHORT-FORM RE-SYNTHESIS PROHIBITION (FIPOC KICK-BACK — MANDATORY)\n${opts.shortFormRetryInstruction}\n\nThis is a retry after a SHORT_FORM_LONGFORM_ARTIFACT_LEAK violation. The prohibition above is ABSOLUTE. Any output containing the flagged long-form terms will be rejected again. Produce a clean short-form evaluation only.`
+    : baseSystemPrompt;
 
   const invokePass3Completion = (maxTokensForCall: number) =>
     createCompletion({

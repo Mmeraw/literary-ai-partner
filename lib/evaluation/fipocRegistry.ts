@@ -1914,6 +1914,40 @@ export const KICK_MATRIX: KickMatrixEntry[] = [
     failureCode: 'REVISION_LEDGER_EVIDENCE_MISSING',
     blocksAuthorExposure: false,
   },
+  // ── Short-form sanity check failures ──────────────────────────────────
+  // These run at persist-time after Pass 3 synthesis. Detected terms (WAVE,
+  // Golden Spine, Phase 5) are LLM echoes from template injection context;
+  // re-synthesis with an explicit prohibition instruction is recovery-eligible.
+  {
+    dirtyDataDetectedAt: 'SHORT_FORM_FINAL_SANITY_CHECK',
+    failure: 'Short-form output contains long-form artifact terms (WAVE / Golden Spine / Phase 5)',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Regenerate Pass 3 synthesis with explicit prohibition: never emit WAVE, Golden Spine, Phase 5, or long-form canon terminology in any user-facing text field.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'SHORT_FORM_LONGFORM_ARTIFACT_LEAK',
+    blocksAuthorExposure: true,
+  },
+  {
+    dirtyDataDetectedAt: 'SHORT_FORM_FINAL_SANITY_CHECK',
+    failure: 'Short-form output contains internal pipeline process labels (Pass N / Phase N / WAVE internals)',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Regenerate Pass 3 synthesis with explicit prohibition: never reference internal pipeline stage names in user-facing text.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'SHORT_FORM_INTERNAL_PROCESS_LEAK',
+    blocksAuthorExposure: true,
+  },
+  {
+    dirtyDataDetectedAt: 'SHORT_FORM_FINAL_SANITY_CHECK',
+    failure: 'Short-form output makes whole-manuscript claims not supportable from submitted excerpt',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Regenerate Pass 3 synthesis scoped strictly to submitted text; remove whole-manuscript scope claims.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM',
+    blocksAuthorExposure: true,
+  },
 ];
 
 export const RENDERER_CONSUMPTION_MATRIX: RendererConsumptionEntry[] = [

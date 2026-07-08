@@ -395,11 +395,27 @@ export function buildCompactTemplateBlock(key: DreamTemplateKey): string {
       ? "LONG-FORM MULTI-LAYER"
       : "LONG-FORM";
 
+  const joined = sections.join("\n");
+  // ── Prompt-injection sanitization (short_form only) ──────────────────────
+  // The short-form template references long-form tier names (WAVE, Golden Spine,
+  // Phase 5, long-form canon) in its prohibition clauses. If these strings are
+  // injected verbatim into the LLM prompt the model may echo them in output prose,
+  // triggering SHORT_FORM_LONGFORM_ARTIFACT_LEAK. Replace them with neutral
+  // placeholders before injection. The canonical template files are NOT modified.
+  const sanitized = key === "short_form"
+    ? joined
+        .replace(/\bWAVE\b/g, "[ADVANCED-TIER]")
+        .replace(/\bGolden Spine\b/gi, "[SPINE-FEATURE]")
+        .replace(/\bPhase\s*5\b/gi, "[RELEASE-GATE]")
+        .replace(/\blong-form canon\b/gi, "[LONG-FORM-FEATURE]")
+        .replace(/\blong[- ]form multi[- ]layer\b/gi, "[LONG-FORM-FEATURE]")
+    : joined;
+
   return [
     `DREAM ${label} EVALUATION TEMPLATE (canonical report shape):`,
     "The evaluation output MUST follow this structure. Sections listed below are REQUIRED unless marked optional.",
     "",
-    ...sections,
+    sanitized,
   ].join("\n");
 }
 
