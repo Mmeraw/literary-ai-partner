@@ -1,4 +1,4 @@
-"use client";
+"use client"; // cache-bust 2026-07-08T20:07
 
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
@@ -1077,7 +1077,10 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
               <button
                 type="submit"
                 disabled={isSubmitting || isUploading || !processingTermsAccepted || isOverPasteLimit}
-                className="min-h-[60px] w-full rounded-xl bg-[#7A2B1A] px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.18em] text-white shadow-md transition hover:bg-[#8E3320] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:text-stone-500 disabled:opacity-100 disabled:shadow-none"
+                className="min-h-[60px] w-full rounded-xl px-6 py-4 font-rg-mono text-base font-bold uppercase tracking-[0.18em] text-white shadow-md transition disabled:cursor-not-allowed disabled:shadow-none"
+                style={isSubmitting || isUploading || !processingTermsAccepted || isOverPasteLimit
+                  ? {backgroundColor: '#A8A29E', color: '#57534E'}
+                  : {backgroundColor: '#7A2B1A'}}
               >
                 {isSubmitting ? "Starting Evaluation..." : "Begin Editorial Evaluation"}
               </button>
