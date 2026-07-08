@@ -35,6 +35,9 @@ const MIME_TYPES: Record<Format, string> = {
   txt: 'text/plain',
 };
 
+// Estimated pixel height of the dropdown menu (3 options × ~56px each)
+const DROPDOWN_HEIGHT_EST = 180;
+
 export default function DownloadReportButton({
   jobId,
   disabled,
@@ -44,6 +47,8 @@ export default function DownloadReportButton({
   const [status, setStatus] = useState<JobStatus>('unknown');
   const [downloading, setDownloading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // true = open upward (dropup), false = open downward (default)
+  const [dropUp, setDropUp] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -76,6 +81,14 @@ export default function DownloadReportButton({
   }, [jobId]);
 
   const resolvedDisabled = disabled ?? status !== 'complete';
+
+  // Determine dropup vs dropdown based on remaining viewport space below button
+  function measureDropDirection() {
+    if (!wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setDropUp(spaceBelow < DROPDOWN_HEIGHT_EST + 16);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -137,6 +150,11 @@ export default function DownloadReportButton({
     }
   }
 
+  // Dropdown position classes: upward when near bottom of viewport
+  const menuPositionClass = dropUp
+    ? 'absolute right-0 bottom-full mb-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-[200]'
+    : 'absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-[200]';
+
   return (
     <div ref={wrapperRef} className="relative inline-block">
       <button
@@ -144,6 +162,7 @@ export default function DownloadReportButton({
         onClick={() => {
           if (!resolvedDisabled && !downloading) {
             setErrorMessage(null);
+            measureDropDirection();
             setOpen((v) => !v);
           }
         }}
@@ -161,13 +180,13 @@ export default function DownloadReportButton({
         {resolvedDisabled ? (
           <span className="text-xs font-normal text-gray-500">{unavailableLabel}</span>
         ) : !downloading ? (
-          <span aria-hidden="true">{'▾'}</span>
+          <span aria-hidden="true">{dropUp && open ? '▴' : '▾'}</span>
         ) : null}
       </button>
       {!resolvedDisabled && open && !downloading && (
         <div
           role="menu"
-          className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-10"
+          className={menuPositionClass}
         >
           {OPTIONS.map((opt) => (
             <button
@@ -175,15 +194,14 @@ export default function DownloadReportButton({
               type="button"
               role="menuitem"
               onClick={() => void handleSelect(opt.format)}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              className="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100"
             >
               <span className="block font-medium">{opt.label}</span>
               {opt.description && (
-                <span className="block text-xs text-gray-500 leading-snug">{opt.description}</span>
+                <span className="block text-xs text-gray-500 leading-snug mt-0.5">{opt.description}</span>
               )}
             </button>
           ))}
-
         </div>
       )}
       {errorMessage && (

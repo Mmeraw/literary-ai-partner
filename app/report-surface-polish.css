@@ -1,56 +1,94 @@
-/* Premium report surface polish.
- * Loaded after existing global guards so user-facing report pages get a calmer,
- * publication-grade rhythm without changing the UED -> VM data boundary.
- */
+/* ═══════════════════════════════════════════════════════════════════════
+ * RevisionGrade™ — Report Surface Polish  (v2 — ultra-premium)
+ * Loaded after global guards. Controls the callibre, spacing, and
+ * typographic rhythm of the user-facing evaluation report surface.
+ * Data boundary (UED → VM) is untouched.
+ * ═══════════════════════════════════════════════════════════════════════ */
 
+/* ── Design tokens ─────────────────────────────────────────────────── */
 .rg-report-page {
-  --rg-report-bg: #f6f1ea;
-  --rg-report-surface: #fffdf9;
-  --rg-report-card: #ffffff;
-  --rg-report-ink: #1c1814;
-  --rg-report-muted: #5c5549;
-  --rg-report-border: #d9d0c3;
-  --rg-report-gold: #b8922a;
-  --rg-report-oxblood: #8b2e2e;
+  --rg-report-bg:        #f6f1ea;
+  --rg-report-surface:   #fffdf9;
+  --rg-report-card:      #ffffff;
+  --rg-report-ink:       #1c1814;
+  --rg-report-muted:     #5c5549;
+  --rg-report-faint:     #9a9087;
+  --rg-report-border:    #d9d0c3;
+  --rg-report-border2:   #e6ded2;
+  --rg-report-gold:      #b8922a;
+  --rg-report-oxblood:   #8b2e2e;
+  --rg-report-header-bg: #f7f1e6;
+
   color: var(--rg-report-ink);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* ── Section colour propagation ────────────────────────────────────── */
 .rg-report-page :is(header, section, article, aside, dl) {
   color: var(--rg-report-ink);
   text-rendering: optimizeLegibility;
 }
 
+/* ── Headings ───────────────────────────────────────────────────────── */
 .rg-report-page :is(h1, h2, h3) {
   text-wrap: balance;
+  letter-spacing: -0.01em;
 }
 
+/* Section h2: gold-rule underline on every section header for premium rhythm */
+.rg-report-page section > h2 {
+  border-bottom: 1.5px solid #C8A96E;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+/* ── Body text: FULL-WIDTH paragraphs, premium line height
+ *    max-width REMOVED — the criterion rationale must match ledger width.
+ *    Line length is governed by the outer max-w-6xl page container.
+ * ──────────────────────────────────────────────────────────────────── */
 .rg-report-page :is(p, li, dd) {
-  max-width: 82ch;
-  line-height: 1.72;
+  max-width: none;
+  line-height: 1.78;
   overflow-wrap: break-word;
 }
 
+/* ── Section cards: clean elevated surface ──────────────────────────── */
 .rg-report-page section {
   border-color: var(--rg-report-border);
-  box-shadow: 0 10px 28px rgba(28, 24, 20, 0.055);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 6px 24px rgba(28, 24, 20, 0.045);
 }
 
+/* ── Criterion articles: premium card rhythm ────────────────────────── */
 .rg-report-page article {
   break-inside: avoid;
 }
 
+/* Give criterion article header a faint gold-left rule */
+.rg-report-page article > .rg-report-criterion-header {
+  border-left: 3px solid var(--rg-report-gold);
+}
+
+/* Ensure rationale prose FILLS the criterion article width */
+.rg-report-page article p {
+  max-width: none;
+}
+
+/* ── 13-criteria score table columns ────────────────────────────────── */
 .rg-report-page table {
   table-layout: fixed;
 }
 
 .rg-report-page th:first-child,
 .rg-report-page td:first-child {
-  width: 56%;
+  width: 58%;
 }
 
 .rg-report-page th:nth-child(2),
 .rg-report-page td:nth-child(2) {
-  width: 18%;
+  width: 16%;
   white-space: nowrap;
 }
 
@@ -60,10 +98,14 @@
   white-space: nowrap;
 }
 
+/* ── Print-hidden break ─────────────────────────────────────────────── */
 .rg-report-page .print-hidden {
   break-inside: avoid;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * PRINT / PDF MEDIA
+ * ═══════════════════════════════════════════════════════════════════════ */
 @media print {
   body:has(.rg-report-page) {
     background: #ffffff !important;
@@ -116,5 +158,12 @@
 
   .rg-report-page .print-hidden {
     display: none !important;
+  }
+
+  /* Gold criterion header rule prints correctly */
+  .rg-report-page article > .rg-report-criterion-header {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    border-left: 3px solid #b8922a !important;
   }
 }

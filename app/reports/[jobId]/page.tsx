@@ -451,7 +451,7 @@ export default async function ReportPage({
           </div>
 
           {/* ── Hero: title + score card side by side ── */}
-          <div className="flex flex-col items-stretch gap-5 sm:flex-row sm:items-start sm:gap-6">
+          <div className="flex flex-col items-stretch gap-5 sm:flex-row sm:items-start sm:gap-6" style={{alignItems:'flex-start'}}>
             {/* Title column */}
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-3xl font-bold leading-tight text-[#1C1814] sm:text-4xl">{displayTitle}</h1>
@@ -471,7 +471,7 @@ export default async function ReportPage({
             </div>
 
             {/* Score card — always visible without scrolling */}
-            <aside className={`w-full rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
+            <aside className={`w-full self-start rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
               vm.titleBlock.marketReadinessPalette === 'ready' ? 'border-[#9DC79D] bg-[#EEF7EF]' :
               vm.titleBlock.marketReadinessPalette === 'near' ? 'border-[#D9A441] bg-[#FFF6E8]' :
               vm.titleBlock.marketReadinessPalette === 'not_ready' ? 'border-[#C97A7A] bg-[#FDEEEE]' :
@@ -497,7 +497,7 @@ export default async function ReportPage({
           </div>
 
           {/* ── Metadata grid (secondary — below the hero) ── */}
-          <dl className="mt-6 grid grid-cols-2 auto-rows-fr overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] text-sm sm:grid-cols-3 lg:grid-cols-4">
+          <dl className="mt-6 grid grid-cols-2 overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] text-sm sm:grid-cols-3 lg:grid-cols-4">
             <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genre}</dd>{vm.titleBlock.genreConfidenceLabel ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">({vm.titleBlock.genreConfidenceLabel})</p> : null}</div>
             <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3] sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}{vm.titleBlock.targetAudience}</dd>{vm.titleBlock.audienceConfidenceLabel ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">({vm.titleBlock.audienceConfidenceLabel})</p> : null}</div>
             {vm.titleBlock.shelf ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.shelf}</dd>{vm.titleBlock.shelfConfidenceLabel ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">({vm.titleBlock.shelfConfidenceLabel})</p> : null}</div> : null}
@@ -573,26 +573,26 @@ export default async function ReportPage({
 
         {/* ── Revision Opportunity Summary ── */}
         <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
-          <h2 className="mb-4 border-b border-[#D9D0C3] pb-2 font-serif text-2xl font-bold text-[#8B2E2E]">Revision Opportunity Summary</h2>
+          <h2 className="mb-5 font-serif text-2xl font-bold text-[#8B2E2E]" style={{borderBottom:'1.5px solid #C8A96E',paddingBottom:'10px'}}>Revision Opportunity Summary</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="border border-[#D9D0C3] bg-white p-4 text-center">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Total</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.total}</p>
+            <div className="rounded-sm border border-[#D9D0C3] bg-white p-4 text-center" style={{borderTop:'2px solid #D9D0C3'}}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#5C5549]">Total</p>
+              <p className="mt-2 font-serif text-3xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.total}</p>
             </div>
-            <div className="border border-[#D9D0C3] bg-[#EEF7EF] p-4 text-center">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Recommended</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.recommended}</p>
+            <div className="rounded-sm border border-[#C97A7A] bg-[#FDF0F0] p-4 text-center" style={{borderTop:'2px solid #8B2E2E'}}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#8B2E2E]">Recommended</p>
+              <p className="mt-2 font-serif text-3xl font-bold text-[#8B2E2E]">{vm.revisionOpportunitySummary.recommended}</p>
             </div>
-            <div className="border border-[#D9D0C3] bg-[#EEF3F8] p-4 text-center">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Optional</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.optional}</p>
+            <div className="rounded-sm border border-[#D9A441] bg-[#FFF8EC] p-4 text-center" style={{borderTop:'2px solid #B8922A'}}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#B8922A]">Optional</p>
+              <p className="mt-2 font-serif text-3xl font-bold text-[#B8922A]">{vm.revisionOpportunitySummary.optional}</p>
             </div>
-            <div className="border border-[#D9D0C3] bg-[#FFF6E8] p-4 text-center">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#5C5549]">Consider</p>
-              <p className="mt-1 text-2xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.consider}</p>
+            <div className="rounded-sm border border-[#9DC79D] bg-[#EEF7EF] p-4 text-center" style={{borderTop:'2px solid #437A22'}}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#437A22]">Consider</p>
+              <p className="mt-2 font-serif text-3xl font-bold text-[#437A22]">{vm.revisionOpportunitySummary.consider}</p>
             </div>
           </div>
-          <p className="mt-3 text-xs text-[#5C5549]">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
+          <p className="mt-3 text-xs text-[#9A9087]">Recommendation tiers indicate the suggested urgency of each revision opportunity.</p>
         </section>
 
         {/* ── Executive Summary (template section 7) + Top Strengths (8) + Top Risks (9) ── */}
@@ -702,29 +702,39 @@ export default async function ReportPage({
                     <span className="border-l border-[#C8A96E]/60 pl-2 font-medium !text-[#5C5549]">{detail.confidenceLabel}</span>
                   </div>
                 </div>
-                <div className="space-y-3 p-4">
-                  {detail.supportLabel ? (
-                    <p className="text-xs font-medium !text-[#5C5549]">{detail.supportLabel}</p>
-                  ) : null}
-                  {detail.rationaleLabel ? (
-                    <p className="text-xs font-semibold tracking-[0.06em] !text-[#8B2E2E]">{detail.rationaleLabel}</p>
-                  ) : null}
-                  <p className="text-sm leading-relaxed !text-[#1C1814]">{detail.rationaleText}</p>
-                  {detail.recommendations.length > 0 ? (
-                    <CriterionOpportunities
-                      recommendations={detail.recommendations as Array<{
-                        priority?: string;
-                        anchor_snippet?: string;
-                        anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
-                        symptom?: string;
-                        mechanism?: string;
-                        specific_fix?: string;
-                        reader_effect?: string;
-                        mistake_proofing?: string;
-                        collapsed_from_criteria?: string[];
-                      }>}
-                    />
-                  ) : null}
+                <div className="p-4 lg:p-5">
+                  {/* Support / rationale labels */}
+                  {(detail.supportLabel || detail.rationaleLabel) && (
+                    <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1">
+                      {detail.supportLabel ? (
+                        <p className="text-xs font-medium !text-[#5C5549]">{detail.supportLabel}</p>
+                      ) : null}
+                      {detail.rationaleLabel ? (
+                        <p className="text-xs font-semibold tracking-[0.06em] !text-[#8B2E2E] uppercase">{detail.rationaleLabel}</p>
+                      ) : null}
+                    </div>
+                  )}
+                  {/* Two-column layout on lg+: rationale left, ledger opportunity right */}
+                  <div className={detail.recommendations.length > 0 ? 'lg:grid lg:grid-cols-[1fr_340px] lg:gap-6' : ''}>
+                    <p className="text-sm leading-relaxed !text-[#1C1814]">{detail.rationaleText}</p>
+                    {detail.recommendations.length > 0 ? (
+                      <div className="mt-4 lg:mt-0">
+                        <CriterionOpportunities
+                          recommendations={detail.recommendations as Array<{
+                            priority?: string;
+                            anchor_snippet?: string;
+                            anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
+                            symptom?: string;
+                            mechanism?: string;
+                            specific_fix?: string;
+                            reader_effect?: string;
+                            mistake_proofing?: string;
+                            collapsed_from_criteria?: string[];
+                          }>}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </article>
             ))}
@@ -1229,19 +1239,16 @@ export default async function ReportPage({
             data via the admin pipeline-health dashboard or direct DB queries only. */}
 
         {/* ── Confidence Explanation (template section 13) ── */}
-        <section className="rounded-lg p-6 mb-6" style={{background:"#FFFAF2",border:"1px solid #E6DED2"}}>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-3">Confidence Explanation</h2>
-          <p className="text-gray-700 whitespace-pre-line">{vm.confidenceExplanation}</p>
+        <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
+          <h2 className="font-serif text-2xl font-bold text-[#8B2E2E]">Confidence Explanation</h2>
+          <p className="text-sm leading-relaxed text-[#1C1814]">{vm.confidenceExplanation}</p>
         </section>
 
         {/* ── Author-Facing Disclaimer ── */}
-        <section className="border border-gray-200 rounded-lg p-5 mb-6 bg-gray-50">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-3">Author-Facing Disclaimer</h2>
-          <p className="text-xs text-gray-500 leading-relaxed">
+        <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#F7F1E6] p-6 shadow-sm">
+          <h2 className="font-serif text-2xl font-bold text-[#8B2E2E]">Author-Facing Disclaimer</h2>
+          <p className="text-xs leading-relaxed text-[#5C5549]">
             {vm.disclaimer}
-          </p>
-          <p className="mt-3 text-xs text-gray-400 leading-relaxed">
-            Generated by RevisionGrade™. Author retains ownership of manuscript content. This report is an editorial diagnostic and does not guarantee publication, representation, or commercial outcome.
           </p>
         </section>
 
@@ -1281,7 +1288,7 @@ export default async function ReportPage({
           </section>
         )}
 
-        <div className="mt-6 space-y-4 print-hidden">
+        <div className="mt-6 space-y-4 pb-24 print-hidden">
           <SupportAccessToggle jobId={params.jobId} />
           <div className="flex justify-end">
             <DownloadReportButton jobId={params.jobId} />
