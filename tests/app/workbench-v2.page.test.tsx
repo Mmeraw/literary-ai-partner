@@ -83,7 +83,7 @@ describe("/workbench-v2 page", () => {
     expect(findWorkbenchPayload(element)?.opportunities.map((o) => o.id)).toEqual(["op-1"]);
   });
 
-  it("promotes held opportunities into the visible queue when nothing is copy-paste ready", async () => {
+  it("passes held buckets through to the client when nothing is copy-paste ready", async () => {
     (getWorkbenchQueue as jest.Mock).mockResolvedValue(
       basePayload({
         opportunities: [],
@@ -100,9 +100,11 @@ describe("/workbench-v2 page", () => {
     });
 
     const payload = findWorkbenchPayload(element);
-    expect(payload?.opportunities.map((o) => o.id)).toEqual(["held-1", "held-2", "held-3"]);
-    expect(payload?.needsTargeting).toEqual([]);
-    expect(payload?.withheldUnsupported).toEqual([]);
+    // The page passes the queue payload unchanged to the client component.
+    // Held-item promotion is the client's responsibility, not the server page's.
+    expect(payload?.opportunities).toEqual([]);
+    expect(payload?.needsTargeting?.map((o) => o.id)).toEqual(["held-1", "held-2"]);
+    expect(payload?.withheldUnsupported?.map((o) => o.id)).toEqual(["held-3"]);
   });
 
   it("does not crash when held buckets are missing from the payload", async () => {
