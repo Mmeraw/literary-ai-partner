@@ -1,85 +1,251 @@
-# RevisionGrade Roadmap
+# RevisionGrade Final Architecture Roadmap
 
-**Status date:** 2026-07-07  
-**Current baseline:** `60feab38`  
-**Authority:** This file is the single canonical roadmap for the repository.
+- **Status date:** 2026-07-09
+- **Current baseline:** `3d3acaa0`
+- **Authority:** This file is the single canonical roadmap for the repository.
 
-All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summaries, and archived planning artifacts are non-authoritative. They must not be used to determine current execution order.
-
----
-
-## Current State
-
-| Area | Status | Evidence |
-|---|---:|---|
-| Legacy purge | COMPLETE | `e7c0002b` removed stale phase/session/archive material; `149e37a8` restored the required quarantined `OPENAI_INTEGRATION.md` stub; `0200192b` fully removed Base44 legacy references and dead Vite/Base44 app material. |
-| U2 implementation | COMPLETE | All six U2 RCA implementation surfaces appear present individually: U2-001 score/confidence enforcement + VM display authority; U2-002 Pass3 anti-washing; U2-003 confidence derivation; U2-004 propagation; U2-005 UI authority lock; U2-006 evidence anchor enforcement. |
-| U2 enforcement proof | COMPLETE | `24c8c3a8` added the synthetic four-layer U2 Enforcement Proof covering gate firing, persistence path, ViewModel reflection, and TXT/HTML/DOCX/web renderer consistency. |
-| CI state | GREEN at handoff | Reported green after `24c8c3a8`; continue to treat CI as the source of truth before merging further roadmap changes. |
-| U3 implementation | COMPLETE | U3-001: deterministic summary↔criterion consistency gate (`d307dbc1`). U3-002: removed dead `contradicted` status from `seedConsistencyReport` (`60feab38`). U3-003 and U3-004 deferred by design. |
+All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summaries, archived planning artifacts, and stale branch audits are non-authoritative. They must not be used to determine current execution order.
 
 ---
 
-## Promotion State
+## Governing Principle
+
+> **No new authority. Only stronger proof of existing authority.**
+
+The remaining roadmap must strengthen proof, enforcement, parity, and presentation of the existing canonical evaluation architecture. It must not introduce competing sources of truth, renderer-owned semantics, or convenience fallbacks that bypass governance.
+
+---
+
+## Archived Promotion Sentinel
+
+The prior U2/U3 promotion work remains complete and enforced. This sentinel is retained for existing CI governance continuity and is not a new roadmap phase.
 
 ```text
 U2: ENFORCED
 U3: ENFORCED
 ```
 
-U2 is enforcement-complete because the implementation surfaces are present and the U2 Enforcement Proof now verifies that the critical pieces work together end-to-end.
+---
 
-U3 is enforcement-complete. U3-001 added the deterministic summary↔criterion consistency gate (`summaryCriterionConsistencyGate.ts`, 14 tests, `d307dbc1`). U3-002 removed the unreachable `contradicted` dead branch from `seedConsistencyReport.ts` (16 tests, `60feab38`). U3-003 (dual-surface convergence) deferred — requires production evidence. U3-004 (cross-criterion attribution UX) deferred — reclassified as renderer UX, not a correctness gap.
+## Roadmap Summary
+
+```text
+1219 ✓
+1223 ✓
+1224 ✓
+
+↓
+
+1220
+↓
+1222
+
+────────────────────────────
+
+1225
+Semantic Parity Proof
++
+Semantic Golden Masters
+
+────────────────────────────
+
+Presentation Governance
+
+↓
+
+Renderer Completion
+
+↓
+
+Presentation Golden Masters
+
+↓
+
+Production Readiness
+
+↓
+
+Launch
+```
 
 ---
 
-## Next Work
+## Phase 0 — Complete Integrity
 
-### 1. U4 — Next Unit (inspection-first)
+**Goal:** The canonical evaluation cannot be fabricated, silently altered, or partially enforced.
 
-**Status:** NEXT — inspection only.  
-**Goal:** identify the next highest-priority correctness gap after U3 enforcement.
+### Completed
 
-Required starting instruction:
+- ✅ #1219 — Workbench integrity
+- ✅ #1223 — Withheld-card visibility
+- ✅ #1224 — Normalization hardening
+
+### Remaining
+
+- ⏳ #1220 — Remaining RevisionPackage padding
+- ⏳ #1222 — Certification ENFORCE rollout
+
+### Exit Criteria
+
+- No fabricated diagnostics.
+- No inferred filler where certification requires evidence.
+- Certification policy is fully enforced.
+- Integrity tests are green in CI.
+
+---
+
+## Phase 1 — Proof of Canonical Semantics
+
+- **Issue:** #1225
+- **Goal:** Prove there is one canonical evaluation rendered four different ways.
 
 ```text
-Start U4 inspection only.
-No implementation until findings are reviewed.
+UED
+↓
+ViewModel
+↓
+Web
+PDF
+DOCX
+TXT
+↓
+Identical semantics
 ```
 
-### 2. Deferred from U3: `contradicted` detection (future feature)
+### Deliverables
 
-**Status:** DEFERRED.  
-Property-level contradiction detection in `seedConsistencyReport` requires extending the call contract to pass seed entity properties alongside names. Removed as dead code in U3-002 (`60feab38`). Design as a new feature when production evidence justifies it.
+- ViewModel completeness proof.
+- Renderer semantic parity harness.
+- Canonical accessor usage for renderer-facing fields.
+- Missing-field fail-closed behavior.
+- Semantic Golden Masters.
+- CI parity verification.
 
-### 3. Deferred from U3: Cross-criterion attribution UX (U3-004)
+### Exit Criteria
 
-**Status:** DEFERRED — UX.  
-Expose `collapsed_from_criteria` in the renderer so users can see which criteria collapsed into a shared recommendation. Not a correctness gap.
+- Every required UED field reaches the ViewModel.
+- Every renderer consumes the same canonical field set.
+- No renderer silently drops, renames, reinterprets, repairs, or fabricates semantic fields.
+- Missing required semantic fields fail closed.
+- Semantic Golden Masters pass in CI.
 
-### 4. Follow-up: `summaryMentionsBottomWeakness` adversarial tests
+### Claim Unlocked
 
-**Status:** FOLLOW-UP.  
-The current anti-washing check is lexical/token based. Add adversarial tests for paraphrased weakness language.
+> There is one canonical evaluation, rendered four different ways.
 
-### 5. Follow-up: `LLR_POST_STRUCTURAL_BLOCK` subtype classification
+---
 
-**Status:** DIAGNOSTIC FOLLOW-UP.  
-Classify recurring post-structural blockers as `MODEL_OUTPUT_INVALID`, `RULE_TOO_STRICT`, or `REGISTRY_DRIFT`.
+## Phase 2 — Presentation Governance
 
-### 6. Follow-up: PHASE_1_OBSERVABILITY proof capture
+**Goal:** Define the premium presentation contract before changing renderers.
 
-**Status:** EMPIRICAL FOLLOW-UP.  
-Code is patched; still needs a controlled runtime proof row when convenient.
+This phase produces specification, not renderer implementation. It is the presentation equivalent of the ViewModel boundary: a shared contract each renderer must obey in a medium-appropriate way.
+
+### Specify
+
+- Typography hierarchy.
+- Spacing tokens.
+- Section hierarchy.
+- Component anatomy.
+- Executive dashboard rules.
+- Opportunity card presentation.
+- Recommendation card presentation.
+- PDF pagination rules.
+- DOCX style rules.
+- TXT readability rules.
+- Navigation and CTA treatment.
+- Premium editorial copy rules.
+
+### Rule
+
+No renderer invents presentation behavior outside the approved presentation specification.
+
+---
+
+## Phase 3 — Renderer Completion
+
+**Goal:** Implement the presentation contract across every author-facing report surface.
+
+### Renderers
+
+- Web
+- PDF
+- DOCX
+- TXT
+
+### Rule
+
+Every renderer consumes the same proven semantics and applies the approved presentation contract for its medium.
+
+---
+
+## Phase 4 — Presentation Golden Masters
+
+**Goal:** Lock visual and presentation expectations after renderer completion.
+
+Presentation Golden Masters protect quality, not semantic authority.
+
+### Protect
+
+- Typography.
+- Whitespace.
+- Hierarchy.
+- Card rendering.
+- Pagination.
+- Navigation.
+- Premium appearance.
+
+---
+
+## Phase 5 — Production Readiness
+
+**Goal:** Certify the system for launch after integrity, semantic parity, and presentation completion.
+
+### Final Certification Covers
+
+- Semantic correctness.
+- Renderer parity.
+- Presentation quality.
+- Accessibility.
+- Performance.
+- Regression coverage.
+- Premium editorial quality.
+- Deployment readiness.
+
+The presentation layer is considered frozen only after this phase passes.
+
+---
+
+## Governing Principles
+
+1. **Single Source of Truth**
+   UED remains authoritative.
+
+2. **Single Presentation Model**
+   ViewModel remains the only renderer input.
+
+3. **No Renderer Authority**
+   Renderers format; they never invent, reinterpret, repair, or fabricate semantics.
+
+4. **Fail Closed**
+   Missing required information results in certification failure or kick-back, never silent omission.
+
+5. **Proof Before Polish**
+   Semantic correctness precedes presentation improvements.
+
+6. **No New Authority**
+   Remaining work strengthens proof and presentation only; it does not introduce competing sources of truth.
 
 ---
 
 ## Non-Goals
 
 - Do not recreate Base44 files or Base44 references.
-- Do not use deleted roadmap CSVs, old workbooks, phase files, or session summaries as authority.
+- Do not use deleted roadmap CSVs, old workbooks, phase files, session summaries, archived planning artifacts, or stale branch audits as authority.
 - Do not add another roadmap file.
-- Do not start benchmark-novel work as a substitute for U3.
+- Do not introduce new roadmap phases outside this sequence without explicitly updating this file.
+- Do not introduce renderer-owned semantic authority.
+- Do not start presentation polish before semantic parity proof is complete.
 - Do not treat Golden Spine, benchmark authority, or DREAM references as roadmap state.
 
 ---
