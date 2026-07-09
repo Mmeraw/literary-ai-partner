@@ -101,7 +101,9 @@ export function getGateFailurePolicy(errorCode: string): GateFailurePolicy {
   if (
     errorCode === "SHORT_FORM_LONGFORM_ARTIFACT_LEAK" ||
     errorCode === "SHORT_FORM_INTERNAL_PROCESS_LEAK" ||
-    errorCode === "SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM"
+    errorCode === "SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM" ||
+    errorCode === "SHORT_FORM_MIDSENTENCE_TERMINATION" ||
+    errorCode === "SHORT_FORM_COPY_DEFECT"
   ) {
     return {
       max_retries: 1,
@@ -147,6 +149,9 @@ export function buildRetryContext(opts: {
     retry_instruction:
       `Your previous output was rejected by the ${opts.gate} for: ${violationSummary}. ` +
       `Regenerate without these defects. Ensure every rationale ends with terminal punctuation, ` +
+      `every author-facing sentence begins with a capital letter and ends as a complete sentence ` +
+      `(never mid-clause on a dangling connective, comma, colon, or open parenthesis), ` +
+      `distinct diagnostic fields (fix direction, reader effect) are not fused into one run-on, ` +
       `every recommendation references a specific manuscript passage, and no placeholder or ` +
       `template text remains in the output.`,
   };
@@ -160,6 +165,12 @@ function describeViolationCode(code: string): string {
       return "placeholder/template text found in output";
     case "HANDOFF_INCOMPLETE_SENTENCE":
       return "rationale or action lacks complete sentence structure";
+    case "HANDOFF_MIDSENTENCE_TERMINATION":
+      return "author-facing prose ends mid-sentence (dangling connective, comma, colon, or open parenthesis) — every rendered sentence must be complete";
+    case "REC_INTEGRITY_LOWERCASE_OPENING":
+      return "recommendation/opportunity text opens with a lowercase letter — capitalize the first word";
+    case "REC_INTEGRITY_FUSED_FIELDS":
+      return "distinct diagnostic fields (fix direction, reader effect) are fused with no sentence boundary between them";
     case "HANDOFF_BROKEN_MODAL":
       return "garbled modal phrase detected (e.g. doubled verbs, broken syntax)";
     case "HANDOFF_GENERIC_LANGUAGE":
@@ -178,6 +189,10 @@ function describeViolationCode(code: string): string {
       return "output contains internal pipeline stage labels (Pass N / Phase N) — regenerate without pipeline terminology";
     case "SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM":
       return "output makes whole-manuscript scope claims not supported by the submitted excerpt — scope all claims to the submitted text only";
+    case "SHORT_FORM_MIDSENTENCE_TERMINATION":
+      return "a diagnostic segment ends mid-sentence (dangling connective, comma, colon, or open parenthesis) — every author-facing sentence must be complete";
+    case "SHORT_FORM_COPY_DEFECT":
+      return "a diagnostic segment has a copy defect (lowercase opening or accidental adjacent-duplicate word) — capitalize the first word and remove the duplicate";
     default:
       return code.toLowerCase().replace(/_/g, " ");
   }

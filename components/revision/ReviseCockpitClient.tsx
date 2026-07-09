@@ -6,7 +6,7 @@ import {
   customOperationLabels,
   getRenderableCandidateText,
   operationLabels,
-  REVISION_OPTION_LABELS,
+  strategyOptionLabel,
 } from "@/lib/revision/reviseCardContract";
 import type { RevisionOperation } from "@/lib/revision/reviseCardContract";
 
@@ -712,7 +712,7 @@ export default function ReviseCockpitClient({ payload }: { payload: WorkbenchQue
                       <article key={option.key} onClick={() => setSelectedOption(option.key)} className={`cursor-pointer rounded-xl border bg-[#12100B] p-3 transition ${selectedOption === option.key ? "border-[#C8A96E]" : "border-[#2E261A] hover:border-[#5D4C31]"}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="text-sm font-semibold text-[#F2E8D6]">{REVISION_OPTION_LABELS[option.key]}</p>
+                            <p className="text-sm font-semibold text-[#F2E8D6]">{strategyOptionLabel(option.key)}</p>
                             <p className="mt-1 text-[11px] uppercase tracking-wider text-[#A9987D]">{operationLabels[effectiveRevisionOperation(active)] ?? option.mechanism}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">

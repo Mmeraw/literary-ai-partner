@@ -33,6 +33,7 @@ import { runRevisionSurfaceOwnershipGate, runRenderedOutputOwnershipGate, buildR
 import { sanitizeResultForDownload } from '@/lib/evaluation/downloadReadTimeSanitizer';
 import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 import { isGenericOpportunityFallbackText, normalizeEvidenceSnippet } from '@/lib/evaluation/reportRenderSafety';
+import { ensureSingleSpaceAfterColon } from '@/lib/text/authorFacingProse';
 import { getForbiddenShortFormSections } from '@/lib/evaluation/shortFormSectionContract';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireUser } from '@/lib/security/apiGuards';
@@ -473,7 +474,10 @@ function pushTxtMetadata(lines: string[], label: string, value: string): void {
 function pushTxtOpportunityDetailRow(lines: string[], label: string, value: string): void {
   const valueForLabel = label === 'Evidence' ? normalizeEvidenceSnippet(value) : value;
   const renderedValue = label === 'Evidence' ? `\u201c${valueForLabel}\u201d` : valueForLabel;
-  const rendered = `${label}: ${renderedValue}`;
+  // D1: single-space-after-colon backstop at the TXT label:value join (the only
+  // renderer that concatenates label + value into one string; web/PDF/DOCX use
+  // separate cells). Idempotent \u2014 leaves the correct "Symptom: After" untouched.
+  const rendered = ensureSingleSpaceAfterColon(`${label}: ${renderedValue}`);
   const hangingLines = wrapIndentedLines(rendered, {
     firstIndent: '    ',
     nextIndent: ' '.repeat(4 + label.length + 2),

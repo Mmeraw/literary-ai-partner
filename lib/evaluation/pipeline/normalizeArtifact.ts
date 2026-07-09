@@ -39,10 +39,32 @@
 
 import { trimAtSentenceBoundary } from './evaluationCertificationGate';
 import {
+  capitalizeFirstAlpha,
+  ensureTerminalPunctuation,
+  collapseAdjacentDuplicateWords,
+} from '@/lib/text/authorFacingProse';
+import {
   SUMMARY_POLICY,
   ONE_SENTENCE_PITCH_POLICY,
   ONE_PARAGRAPH_PITCH_POLICY,
 } from '@/lib/config/lengthPolicy';
+
+/**
+ * Diagnostic fields on a recommendation/opportunity that carry author-facing
+ * prose. Each is capitalized + terminally punctuated (A3/A4/D2) and has
+ * accidental adjacent-word duplication collapsed (A4). anchor_snippet is
+ * intentionally excluded — it is a verbatim quote.
+ */
+const RECOMMENDATION_PROSE_FIELDS = [
+  'action',
+  'symptom',
+  'cause',
+  'mechanism',
+  'fix_direction',
+  'specific_fix',
+  'reader_effect',
+  'expected_impact',
+] as const;
 
 export interface NormalizationRecord {
   field: string;
@@ -118,48 +140,57 @@ export function normalizeArtifact(
   }
 
   // ── Recommendation normalization ─────────────────────────────────────────
+  // Cosmetic-only repairs via shared, idempotent helpers (never alter meaning):
+  //   whitespace collapse → adjacent-duplicate-word collapse (A4) →
+  //   capitalize first alpha (A3/A4/D2) → ensure terminal punctuation (A3/A4).
   function normalizeRecs(
-    recs: Array<{ action?: string }>,
+    recs: Array<Record<string, unknown>>,
     prefix: string,
   ) {
     for (let i = 0; i < recs.length; i++) {
       const rec = recs[i];
-      if (!rec.action?.trim()) continue;
-      let value = rec.action.trim();
+      for (const field of RECOMMENDATION_PROSE_FIELDS) {
+        const raw = rec[field];
+        if (typeof raw !== 'string' || !raw.trim()) continue;
+        let value = raw.trim();
 
-      // Collapse whitespace
-      const collapsed = value.replace(/\s+/g, ' ');
-      if (collapsed !== value) {
-        normalizations.push({ field: `${prefix}[${i}].action`, before: value, after: collapsed, operation: 'whitespace' });
-        value = collapsed;
+        const collapsedWs = value.replace(/\s+/g, ' ');
+        if (collapsedWs !== value) {
+          normalizations.push({ field: `${prefix}[${i}].${field}`, before: value, after: collapsedWs, operation: 'whitespace' });
+          value = collapsedWs;
+        }
+
+        const dedup = collapseAdjacentDuplicateWords(value);
+        if (dedup !== value) {
+          normalizations.push({ field: `${prefix}[${i}].${field}`, before: value, after: dedup, operation: 'whitespace' });
+          value = dedup;
+        }
+
+        const capitalized = capitalizeFirstAlpha(value);
+        if (capitalized !== value) {
+          normalizations.push({ field: `${prefix}[${i}].${field}`, before: value, after: capitalized, operation: 'capitalize' });
+          value = capitalized;
+        }
+
+        const punctuated = ensureTerminalPunctuation(value);
+        if (punctuated !== value) {
+          normalizations.push({ field: `${prefix}[${i}].${field}`, before: value, after: punctuated, operation: 'terminal_punct' });
+          value = punctuated;
+        }
+
+        rec[field] = value;
       }
-
-      // Capitalize first letter
-      if (value.length > 0 && value.charAt(0) !== value.charAt(0).toUpperCase()) {
-        const capitalized = value.charAt(0).toUpperCase() + value.slice(1);
-        normalizations.push({ field: `${prefix}[${i}].action`, before: value, after: capitalized, operation: 'capitalize' });
-        value = capitalized;
-      }
-
-      // Terminal punctuation
-      if (!/[.!?…]$/.test(value)) {
-        const punctuated = value + '.';
-        normalizations.push({ field: `${prefix}[${i}].action`, before: value, after: punctuated, operation: 'terminal_punct' });
-        value = punctuated;
-      }
-
-      rec.action = value;
     }
   }
 
-  normalizeRecs(quickWins, 'recommendations.quick_wins');
-  normalizeRecs(strategicRevisions, 'recommendations.strategic_revisions');
+  normalizeRecs(quickWins as Array<Record<string, unknown>>, 'recommendations.quick_wins');
+  normalizeRecs(strategicRevisions as Array<Record<string, unknown>>, 'recommendations.strategic_revisions');
 
   // Also normalize criterion-level recommendations (for completeness)
   for (let ci = 0; ci < synthesis.criteria.length; ci++) {
     const criterion = synthesis.criteria[ci];
     if (!criterion.recommendations) continue;
-    normalizeRecs(criterion.recommendations as Array<{ action?: string }>, `criteria[${ci}].recommendations`);
+    normalizeRecs(criterion.recommendations as Array<Record<string, unknown>>, `criteria[${ci}].recommendations`);
   }
 
   return { normalizations };

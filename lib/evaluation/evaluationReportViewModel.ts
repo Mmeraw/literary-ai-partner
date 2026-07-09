@@ -42,6 +42,7 @@ import { classifyEvaluationIntegrityBanner } from '@/lib/evaluation/warningClass
 import type { EvaluationIntegrityBanner } from '@/lib/evaluation/warningClassification';
 import { formatCriterionConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
 import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
+import { detectRawFallbackSentinel } from '@/lib/text/authorFacingProse';
 
 // ────────────────────────────────────────────────────────────────────────────
 // ViewModel Types
@@ -394,6 +395,19 @@ function sanitizeText(text: string, isLongForm: boolean): string {
   return correctScopeLanguage(mistakeProofText(text), isLongForm);
 }
 
+/**
+ * A2: the ViewModel is the one and only author-facing sanitization boundary.
+ * A pitch that is the raw fallback sentinel ("A distinct market hook was not
+ * generated…") must NEVER reach a renderer. The upstream regeneration/kick-back
+ * happens in the certification gate (sentinel treated as MISSING → FATAL); here
+ * at the render boundary we SUPPRESS to empty rather than expose the sentinel or
+ * substitute a cosmetic filler. detectRawFallbackSentinel is a pure inspector.
+ */
+function suppressSentinelPitch(text: string, isLongForm: boolean): string {
+  if (detectRawFallbackSentinel(text)) return '';
+  return sanitizeText(text, isLongForm);
+}
+
 function sanitizeList(items: string[], isLongForm: boolean): string[] {
   return items.map(item => sanitizeText(item, isLongForm));
 }
@@ -548,8 +562,8 @@ export function normalizeEvaluationReportViewModel({
 
     titleBlock,
 
-    oneParagraphPitch: sanitizeText(ued.oneParagraphPitch, isLongForm),
-    oneSentencePitch: sanitizeText(ued.oneSentencePitch, isLongForm),
+    oneParagraphPitch: suppressSentinelPitch(ued.oneParagraphPitch, isLongForm),
+    oneSentencePitch: suppressSentinelPitch(ued.oneSentencePitch, isLongForm),
     premise: ued.premise ? sanitizeText(ued.premise, isLongForm) : null,
     contentWarnings: sanitizeList(ued.contentWarnings, isLongForm),
 

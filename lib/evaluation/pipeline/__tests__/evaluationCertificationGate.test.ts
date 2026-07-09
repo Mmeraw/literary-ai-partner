@@ -869,6 +869,106 @@ describe("ECG — individual invariant coverage", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Copy-Polish defect fixtures (A1, A2, mid-sentence invariant)
+// Exact source strings from the Copy-Polish brief drive these.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Copy-Polish defect fixtures", () => {
+  function runWarn(input: ECGInput) {
+    process.env.ECG_MODE = "WARN_ONLY";
+    return runEvaluationCertificationGate(input);
+  }
+
+  // A1 — prose "64/100" vs canonical 68. The floor policy is LAW: "always round
+  // DOWN — never inflate." A prose score BELOW canonical is still a mismatch the
+  // author must not see, but it is NOT inflation and must never be reconciled up.
+  it("A1: flags a 64-vs-68 divergence without inflating", () => {
+    const input = makeCleanInput({
+      canonicalScore: 68,
+      overview: {
+        ...makeCleanInput().overview,
+        overall_score_0_100: 68,
+        one_paragraph_summary:
+          "This excerpt earns a 64/100 on the strength of its premise and Character Depth. " +
+          "The principal blocker is Pacing & Structural Balance, where overlong exposition " +
+          "interrupts narrative momentum before the mid-chapter reveal.",
+      },
+    });
+    const result = runWarn(input);
+    const v = result.fatal.find(v => v.code === "ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
+    expect(v).toBeDefined();
+    // Names both the prose score and the canonical score.
+    expect(v!.message).toContain("64");
+    expect(v!.message).toContain("68");
+    // Floor policy honored: a below-canonical prose score is NOT inflation.
+    // The gate must not describe it as EXCEEDING canonical and must direct a
+    // downward reconciliation only.
+    expect(v!.message).not.toMatch(/EXCEEDS/);
+    expect(v!.message.toLowerCase()).toContain("never inflate");
+  });
+
+  // A1 inverse — an ABOVE-canonical prose score is inflation and must be named.
+  it("A1: flags inflation when prose EXCEEDS canonical", () => {
+    const input = makeCleanInput({
+      canonicalScore: 68,
+      overview: {
+        ...makeCleanInput().overview,
+        overall_score_0_100: 68,
+        one_paragraph_summary:
+          "This excerpt earns a 72/100 on the strength of its premise and Character Depth. " +
+          "The principal blocker is Pacing & Structural Balance, where overlong exposition " +
+          "interrupts narrative momentum before the mid-chapter reveal.",
+      },
+    });
+    const result = runWarn(input);
+    const v = result.fatal.find(v => v.code === "ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH");
+    expect(v).toBeDefined();
+    expect(v!.message).toMatch(/EXCEEDS/);
+  });
+
+  // Global invariant: no author-facing full-sentence prose may end mid-sentence.
+  it("mid-sentence: flags a pitch ending on a dangling connective", () => {
+    const input = makeCleanInput();
+    input.overview.one_sentence_pitch =
+      "A sardonic Antwerp diamond dealer confronts a reckoning with blood money because";
+    const result = runWarn(input);
+    expect(result.fatal.map(v => v.code)).toContain("ECG_TEXT_MIDSENTENCE_TERMINATION");
+  });
+
+  it("mid-sentence: flags a premise ending on a comma", () => {
+    const input = makeCleanInput();
+    input.enrichment!.premise =
+      "A burned-out Antwerp diamond trader lures his cautious Canadian friend into a lavish evening,";
+    const result = runWarn(input);
+    expect(result.fatal.map(v => v.code)).toContain("ECG_TEXT_MIDSENTENCE_TERMINATION");
+  });
+
+  it("mid-sentence: a complete pitch does NOT trigger the invariant", () => {
+    const input = makeCleanInput(); // clean pitches end with a period
+    const result = runWarn(input);
+    expect(result.fatal.map(v => v.code)).not.toContain("ECG_TEXT_MIDSENTENCE_TERMINATION");
+  });
+
+  // A2 — a raw fallback sentinel pitch must be treated as ABSENT, never certified
+  // as satisfied, so it can be regenerated/suppressed rather than leaked.
+  it("A2: treats a raw market-hook fallback sentinel as a missing pitch", () => {
+    const input = makeCleanInput();
+    input.overview.one_sentence_pitch =
+      "A distinct market hook was not generated for Criminality.";
+    const result = runWarn(input);
+    expect(result.violations.map(v => v.code)).toContain("ECG_ART_MISSING_SENTENCE_PITCH");
+  });
+
+  it("A2: treats a raw story-synopsis fallback sentinel as a missing paragraph pitch", () => {
+    const input = makeCleanInput();
+    input.overview.one_paragraph_pitch =
+      "A distinct story synopsis was not generated.";
+    const result = runWarn(input);
+    expect(result.violations.map(v => v.code)).toContain("ECG_ART_MISSING_PARAGRAPH_PITCH");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // trimAtWordBoundary (shared utility)
 // ─────────────────────────────────────────────────────────────────────────────
 

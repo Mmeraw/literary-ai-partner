@@ -47,6 +47,12 @@
  */
 
 import { getECGMode, type ECGMode } from '@/lib/evaluation/policy';
+import {
+  trimAtSentenceBoundary as trimAtSentenceBoundaryShared,
+  detectProseScoreDivergence,
+  detectRawFallbackSentinel,
+  endsMidSentence,
+} from '@/lib/text/authorFacingProse';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -222,6 +228,15 @@ export const CERTIFICATION_REGISTRY: InvariantRegistryEntry[] = [
     authority: 'Pass 3 synthesis (runPass3Synthesis)',
     section: 'any text field',
     tags: ['placeholder', 'text-integrity'],
+  },
+  {
+    code: 'ECG_TEXT_MIDSENTENCE_TERMINATION',
+    domain: 'TEXT',
+    severity: 'FATAL',
+    description: 'A full-sentence author-facing text field (pitch/premise/strength/risk) ends mid-sentence — no terminal punctuation, or a dangling connective/comma/colon/semicolon/em-dash/open-bracket. Global invariant: no author-facing text may end mid-sentence.',
+    authority: 'Pass 3 synthesis (runPass3Synthesis)',
+    section: 'overview pitches / enrichment.premise / strengths / risks',
+    tags: ['truncation', 'text-integrity', 'mid-sentence'],
   },
 
   // ── RECOMMEND domain (recommendation structure) ──────────────────────────
@@ -591,16 +606,31 @@ function checkAuthority(input: ECGInput): ECGViolation[] {
     ));
   }
 
-  // AUTH-2: Executive summary must not reference a different score
+  // AUTH-2: Executive summary must not reference a different score.
+  //
+  // Uses the shared, pure detectProseScoreDivergence inspector. The gate (this
+  // function) keeps ALL authority — the helper only reports the facts. Two
+  // directions are distinguished so the message is actionable:
+  //   - inflation (prose > canonical): a hard FLOOR-POLICY violation ("always
+  //     round DOWN — never inflate"). The gate must NEVER reconcile upward.
+  //   - non-inflating divergence (prose < canonical, e.g. floor-vs-round 64-vs-68):
+  //     still a mismatch the author must not see; regenerate with score grounding
+  //     (or reconcile the prose DOWN to the canonical value — never up).
   const summary = input.overview.one_paragraph_summary ?? '';
   if (summary) {
-    const mentions = extractScoreMentions(summary);
-    const wrong = mentions.filter((s) => s !== input.canonicalScore);
-    if (wrong.length > 0) {
+    const divergence = detectProseScoreDivergence(summary, input.canonicalScore);
+    if (divergence.diverges) {
+      const wrong = divergence.proseScores.filter((s) => s !== input.canonicalScore);
+      const floorNote = divergence.inflates
+        ? `At least one prose score EXCEEDS the canonical score — this violates the floor rounding policy ("always round down, never inflate"). ` +
+          `Never reconcile the prose upward. `
+        : `Prose score is at or below canonical (e.g. a floor-vs-round divergence). ` +
+          `Reconcile downward toward the canonical value or regenerate — never inflate. `;
       vs.push(violation(
         'ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH',
         `Executive summary references ${wrong.map(s => `${s}/100`).join(', ')} but canonical score is ${input.canonicalScore}/100. ` +
-        `Pass 3 hallucinated a score. Regenerate Pass 3 with explicit score grounding — do not patch the text.`,
+        floorNote +
+        `Regenerate Pass 3 with explicit score grounding — do not patch the text upward.`,
       ));
     }
   }
@@ -726,6 +756,12 @@ function checkText(input: ECGInput): ECGViolation[] {
       vs.push(violation('ECG_TEXT_PLACEHOLDER',
         `"${label}" contains placeholder text. Fill all template slots before certification.`));
     }
+    // Global invariant: known full-sentence prose must not end mid-sentence.
+    // endsMidSentence is a pure inspector; this gate keeps the pass/fail authority.
+    if (endsMidSentence(value)) {
+      vs.push(violation('ECG_TEXT_MIDSENTENCE_TERMINATION',
+        `"${label}" ends mid-sentence (missing terminal punctuation or a dangling connective/comma/colon/em-dash/open-bracket). Pass 3 must emit complete sentences: "…${value.trim().slice(-40)}"`));
+    }
   }
 
   for (const c of input.criteria ?? []) {
@@ -777,10 +813,14 @@ function checkCompleteness(input: ECGInput): ECGViolation[] {
 
   if (!meaningful(input.overview.one_paragraph_summary))
     vs.push(violation('ECG_ART_MISSING_EXEC_SUMMARY', 'overview.one_paragraph_summary is absent or empty.'));
-  if (!meaningful(input.overview.one_sentence_pitch))
-    vs.push(violation('ECG_ART_MISSING_SENTENCE_PITCH', 'overview.one_sentence_pitch is absent or empty. Pass 3 must generate a distinct market hook.'));
-  if (!meaningful(input.overview.one_paragraph_pitch))
-    vs.push(violation('ECG_ART_MISSING_PARAGRAPH_PITCH', 'overview.one_paragraph_pitch is absent or empty. Pass 3 must generate a distinct story synopsis.'));
+  // A pitch that is the raw fallback SENTINEL ("A distinct market hook was not
+  // generated…") is effectively ABSENT — it must never certify as satisfied,
+  // else the sentinel would leak to the author. detectRawFallbackSentinel is a
+  // pure inspector; this gate keeps the pass/fail authority.
+  if (!meaningful(input.overview.one_sentence_pitch) || detectRawFallbackSentinel(input.overview.one_sentence_pitch))
+    vs.push(violation('ECG_ART_MISSING_SENTENCE_PITCH', 'overview.one_sentence_pitch is absent, empty, or a raw fallback sentinel. Pass 3 must generate a distinct market hook.'));
+  if (!meaningful(input.overview.one_paragraph_pitch) || detectRawFallbackSentinel(input.overview.one_paragraph_pitch))
+    vs.push(violation('ECG_ART_MISSING_PARAGRAPH_PITCH', 'overview.one_paragraph_pitch is absent, empty, or a raw fallback sentinel. Pass 3 must generate a distinct story synopsis.'));
   if (!meaningful(input.enrichment?.premise))
     vs.push(violation('ECG_ART_MISSING_PREMISE', 'enrichment.premise is absent or empty.'));
 
@@ -868,44 +908,16 @@ export function trimAtWordBoundary(text: string, maxLength: number): string {
   return candidate.replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
 }
 
-// Matches a sentence terminator: . ! ? or … possibly followed by a closing
-// quote/bracket. Used to trim ONLY at a complete-sentence boundary.
-const SENTENCE_TERMINATOR = /[.!?\u2026]["'\u201d\u2019)\]]*(?=\s|$)/gu;
-
 /**
- * Trim a text string to at most `maxLength` chars at a COMPLETE-SENTENCE
- * boundary. Governance rule NO_MIDSENTENCE_TRUNCATION: an over-budget field
- * must never be cut mid-sentence (and never mid-word).
+ * Trim a text string at a COMPLETE-SENTENCE boundary. Governance rule
+ * NO_MIDSENTENCE_TRUNCATION: an over-budget field must never be cut mid-sentence
+ * (and never mid-word).
  *
- * Behavior:
- *   - If text is within budget, returns it unchanged.
- *   - Otherwise trims back to the last sentence terminator (. ! ? …, plus any
- *     trailing closing quote/bracket) that fits within maxLength. The result
- *     ends on that terminator (no ellipsis added — the sentence is complete).
- *   - If NO sentence boundary fits within the budget (e.g. one very long
- *     sentence), falls back to trimAtWordBoundary so we still never cut
- *     mid-word. This fallback is the only case that appends an ellipsis.
- *
- * Note: per the "more is more" policy, callers should reserve this for
- * genuinely hard-capped fields (e.g. pitches). Free-form author-facing prose
- * (summaries) should be allowed to run over budget rather than truncated.
+ * The implementation lives ONCE in `lib/text/authorFacingProse.ts`; this is a
+ * thin re-export so existing importers (normalizeArtifact, qualityGate) keep
+ * working. See that module for behavior.
  */
-export function trimAtSentenceBoundary(text: string, maxLength: number): string {
-  if (!text || text.length <= maxLength) return text;
-  const window = text.substring(0, maxLength);
-  let lastEnd = -1;
-  for (const match of window.matchAll(SENTENCE_TERMINATOR)) {
-    // match.index points at the terminator char; include the terminator
-    // (and any trailing quote/bracket captured by the pattern).
-    lastEnd = match.index + match[0].length;
-  }
-  if (lastEnd > 0) {
-    return text.substring(0, lastEnd).trimEnd();
-  }
-  // No complete sentence fits — fall back to a word-boundary trim so we never
-  // cut mid-word. This is the only branch that appends an ellipsis.
-  return trimAtWordBoundary(text, maxLength);
-}
+export const trimAtSentenceBoundary = trimAtSentenceBoundaryShared;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main gate function — verdict only, no mutation
