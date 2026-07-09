@@ -211,19 +211,18 @@ jobs:
             exit 1
           fi
           npm run jobs:smoke:real
-          
 
-        - name: Real manuscript smoke – Let the River Decide (ID2)
-          timeout-minutes: 15
-          env:
-            BASE_URL: "http://127.0.0.1:3000"
-            MANUSCRIPT_ID: ${{ secrets.SMOKE_MANUSCRIPT_ID2 }}
-          run: |
-            if [ -z "${MANUSCRIPT_ID}" ]; then
-              echo "::error::Missing required secret SMOKE_MANUSCRIPT_ID2 for jobs:smoke:real (ID2)"
-              exit 1
-            fi
-            npm run jobs:smoke:real
+      - name: Real manuscript smoke – Let the River Decide (ID2)
+        timeout-minutes: 15
+        env:
+          BASE_URL: "http://127.0.0.1:3000"
+          MANUSCRIPT_ID: ${{ secrets.SMOKE_MANUSCRIPT_ID2 }}
+        run: |
+          if [ -z "${MANUSCRIPT_ID}" ]; then
+            echo "::error::Missing required secret SMOKE_MANUSCRIPT_ID2 for jobs:smoke:real (ID2)"
+            exit 1
+          fi
+          npm run jobs:smoke:real
       - name: Stop app server
         if: always()
         shell: bash
