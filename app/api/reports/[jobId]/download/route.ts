@@ -1046,7 +1046,11 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
   lines.push('');
   pushWrapped(lines, vm.disclaimer);
 
-  return enforceTxtWidth(lines).join('\n');
+  // Collapse any run of 3+ newlines (consecutive blank lines) to exactly 2.
+  // Individual sections may each push a trailing blank line; when two optional
+  // sections are adjacent or a section body is empty the blanks stack. This
+  // normalisation is presentation-only: content is never removed.
+  return enforceTxtWidth(lines).join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
 

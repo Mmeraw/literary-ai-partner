@@ -201,6 +201,8 @@ describe('report render parity manifest builder', () => {
         overall_score_0_100: 82,
         verdict: 'revise',
         one_paragraph_summary: 'Measured parity summary appears in every renderer output.',
+        one_sentence_pitch: 'A forensic editor proves every renderer preserves the same story hook.',
+        one_paragraph_pitch: 'A forensic editor validates renderer parity across web, PDF, DOCX, and TXT outputs to prove the canonical evaluation reaches every surface unchanged.',
         top_3_strengths: ['Measured voice strength', 'Clean scene intent', 'Useful premise'],
         top_3_risks: ['Measured pacing risk', 'Thin midpoint pressure', 'Soft closing turn'],
       },
