@@ -43,7 +43,7 @@ async function main() {
       },
       body: JSON.stringify({
         job_type: "evaluate_full",
-        manuscript_id: MANUSCRIPT_ID,
+        manuscript_id: MANUSCRIPT_ID,       processing_terms_accepted: true,
       }),
     }),
     "Failed to create job",
