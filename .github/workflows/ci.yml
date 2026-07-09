@@ -204,10 +204,10 @@ jobs:
         timeout-minutes: 10
         env:
           BASE_URL: "http://127.0.0.1:3000"
-          MANUSCRIPT_ID: ${{ secrets.MANUSCRIPT_ID }}
+          MANUSCRIPT_ID: ${{ secrets.SMOKE_MANUSCRIPT_ID }}
         run: |
           if [ -z "${MANUSCRIPT_ID}" ]; then
-            echo "::error::Missing required secret MANUSCRIPT_ID for jobs:smoke:real"
+            echo "::error::Missing required secret SMOKE_MANUSCRIPT_ID for jobs:smoke:real"
             exit 1
           fi
           npm run jobs:smoke:real
