@@ -44,10 +44,22 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
     criteria: CRITERIA_KEYS.map((key) => baseCriterion(key, overrides[key] ?? {})),
     overall: {
       overall_score_0_100: 72,
-      verdict: "revise",
+      verdict: "conditional" as unknown as SynthesisOutput["overall"]["verdict"],
+      one_sentence_pitch:
+        "A voice-driven literary manuscript needs targeted scene-level revision to sharpen pacing, tension, and closure.",
+      one_paragraph_pitch:
+        "A voice-driven literary manuscript uses family pressure, public-policy stakes, and scene-level consequence to build a promising revision path. The draft remains conditional because pacing, tension delivery, and closure still need clearer cause-and-effect movement before submission readiness.",
       one_paragraph_summary: "The manuscript has strong foundational material but needs targeted scene-level revision.",
-      top_3_strengths: ["voice", "premise", "character"],
-      top_3_risks: ["pacing", "tension delivery", "closure"],
+      top_3_strengths: [
+        "The voice creates a clear atmospheric identity.",
+        "The premise gives the manuscript a focused dramatic frame.",
+        "The character material provides concrete emotional stakes.",
+      ],
+      top_3_risks: [
+        "Pacing may soften the pressure before the central turn lands.",
+        "Tension delivery may feel diffuse without sharper causal escalation.",
+        "Closure may underdeliver if final consequences remain implicit.",
+      ],
       submission_readiness: "nearly_ready",
     },
     metadata: {
@@ -120,6 +132,12 @@ it("preserves Revise Queue candidate prose, operation, and coordinates in Evalua
     },
     sourceText: "There are approximately 5,500 users of INSITE, Vancouver’s safe injection site.",
     manuscriptText: "There are approximately 5,500 users of INSITE, Vancouver’s safe injection site.",
+    llmEnrichment: {
+      premise:
+        "A literary manuscript connects public-policy pressure with private family stakes, asking revision to convert topical material into clearer scene-level consequence.",
+      diagnosed_genre: "literary fiction",
+      target_audience: "adult literary fiction readers",
+    },
   });
 
   const recommendation = result.criteria.find((criterion) => criterion.key === "concept")?.recommendations[0];

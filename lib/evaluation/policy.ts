@@ -307,7 +307,7 @@ export function getCanonicalLedgerModel(overrideModel?: string): string {
  *
  * Resolution order:
  *  1) EVAL_LONG_CONTEXT_MODEL
- *  2) hardcoded fallback: gpt-4.1-mini (1M context, $0.40/$1.60 per 1M tokens)
+ *  2) hardcoded fallback: gpt-4.1-mini (1M token context window)
  */
 export function getCanonicalLongContextLedgerModel(): string {
   const envValue = process.env.EVAL_LONG_CONTEXT_MODEL;
@@ -347,27 +347,34 @@ export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
 /**
  * ECG enforcement level.
  *
- *   OFF        — Gate disabled. Use during initial deploy or backward-compat windows.
- *                The ACA does not run; all evaluations pass through unchecked.
- *
- *   WARN_ONLY  — Gate runs all 28 invariants. Violations are logged and surfaced in
- *                governance.warnings but persistence is never blocked.
- *                Default: deploy here first to measure how many evaluations would fail
- *                before flipping to ENFORCE.
- *
- *   ENFORCE    — Gate runs all invariants. FATAL violations block persistence.
- *                The job is marked FAILED and the error_code is 'ECG_CERTIFICATION_FAILED'.
- *                This forces Pass 3 regeneration — the gate never patches content.
+ *   OFF        — Emergency rollback only. Gate is skipped and artifacts pass through.
+ *   WARN_ONLY  — Rollback/measurement override. Gate runs, logs, and surfaces warnings,
+ *                but does not block persistence.
+ *   ENFORCE    — Default production posture. FATAL violations block persistence.
  */
-export type ECGMode = 'OFF' | 'WARN_ONLY' | 'ENFORCE';
+export type ECGMode = "OFF" | "WARN_ONLY" | "ENFORCE";
+
+export const ECG_DEFAULT_MODE: ECGMode = "ENFORCE";
 
 /**
  * Read ECG_MODE from environment.
- * Default: WARN_ONLY — safe to deploy without blocking existing traffic.
+ *
+ * #1222 rollout policy:
+ * - unset / empty ECG_MODE defaults to ENFORCE;
+ * - invalid ECG_MODE defaults to ENFORCE rather than silently weakening safety;
+ * - explicit WARN_ONLY and OFF remain available as rollback/incident overrides.
  */
 export function getECGMode(): ECGMode {
-  const raw = (process.env.ECG_MODE ?? 'WARN_ONLY').trim().toUpperCase();
-  if (raw === 'OFF' || raw === 'WARN_ONLY' || raw === 'ENFORCE') return raw as ECGMode;
-  console.warn(`[policy] Unknown ECG_MODE="${raw}", falling back to WARN_ONLY`);
-  return 'WARN_ONLY';
+  const raw = process.env.ECG_MODE;
+  const normalized = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+
+  if (normalized === "OFF" || normalized === "WARN_ONLY" || normalized === "ENFORCE") {
+    return normalized as ECGMode;
+  }
+
+  if (normalized.length > 0) {
+    console.warn(`[policy] Unknown ECG_MODE="${normalized}", falling back to ${ECG_DEFAULT_MODE}`);
+  }
+
+  return ECG_DEFAULT_MODE;
 }

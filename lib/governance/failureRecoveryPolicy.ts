@@ -97,6 +97,7 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'FORBIDDEN_SCOPE_REQUESTED',
   'GATE15_EXECUTION_FAILED',
   'HANDOFF_GENERIC_LANGUAGE',
+  'HANDOFF_MIDSENTENCE_TERMINATION', // Author-facing prose ended mid-sentence; kick-eligible Pass 3 re-synthesis.
   'INELIGIBLE_MANUSCRIPT', // Separate-subsystem HTTP gate (Agent Readiness AR01, HTTP 422); not an evaluation job processor failure. No markFailed() path.
   'INVALID_FORMAT',
   'LEDGER_EVIDENCE_MISSING',
@@ -125,6 +126,8 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   // Re-synthesis may produce consistent reasoning. Mirrors QG_SUMMARY_OMITS_WEAKNESS policy.
   'QG_SUMMARY_CRITERION_CONTRADICTION',
   'QUALITY_GATE_NOT_PASSED',          // governance alias: generic rollup; QG_* codes cover all runtime gate surfaces; redundant unless a non-QG_ gate surface is identified
+  'REC_INTEGRITY_FUSED_FIELDS', // Recommendation fields fused without sentence boundary; kick-eligible Pass 3 re-synthesis.
+  'REC_INTEGRITY_LOWERCASE_OPENING', // Recommendation text opened lowercase; kick-eligible Pass 3 re-synthesis.
   'REVIEW_GATE_QUALITY_HARD_FAIL', // Governance alias; kick-matrix label for degraded long-form layer scenario. No runtime emit site found.
   'REVIEW_GATE_REJECTED', // Governance alias; runtime emits REVIEW_GATE_REJECTED_BY_AUTHOR on author rejection. No classifyError() path.
   'REVISE_ABC_NOT_DISTINCT', // A/B/C candidate set is duplicate/near-duplicate, empty-shape, or not evidence-grounded. Kick-eligible: regeneration against the certified opportunity may produce a distinct, grounded, non-empty set (1 retry).
@@ -135,8 +138,10 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'SCORE_BELOW_THRESHOLD',
   'SECTIONS_NOT_ALL_APPROVED',
   'SEED_FIT_GAP_BLOCKED',
+  'SHORT_FORM_COPY_DEFECT', // Short-form author-facing prose has capitalization/duplicate-word defects; kick-eligible Pass 3 re-synthesis.
   'SHORT_FORM_INTERNAL_PROCESS_LEAK', // Pass 3 short-form output leaked internal pipeline stage labels; kick-eligible re-synthesis (S07_PASS3, 1 retry).
   'SHORT_FORM_LONGFORM_ARTIFACT_LEAK', // Pass 3 short-form output leaked long-form artifact terms (WAVE/Golden Spine/Phase 5); kick-eligible re-synthesis (S07_PASS3, 1 retry).
+  'SHORT_FORM_MIDSENTENCE_TERMINATION', // Short-form diagnostic prose ended mid-sentence; kick-eligible Pass 3 re-synthesis.
   'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM', // Pass 3 short-form output made whole-manuscript claims unsupportable from the excerpt; kick-eligible re-synthesis (S07_PASS3, 1 retry).
   'STRUCTURED_AUDIT_FIELDS_MISSING',
   'TRUSTEDPATH_INELIGIBLE_VERDICT',

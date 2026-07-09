@@ -269,13 +269,17 @@ function makeEvaluationResult() {
     generated_at: new Date().toISOString(),
     engine: { model: "o3", provider: "openai", prompt_version: "test" },
     overview: {
-      verdict: "revise",
+      verdict: "conditional",
       overall_score_0_100: 70,
       scored_criteria_count: CRITERIA_KEYS.length,
+      one_sentence_pitch:
+        "A lake-crossing narrative tests whether family pressure and place-based tension can sustain reader confidence.",
+      one_paragraph_pitch:
+        "A lake-crossing narrative follows Cliff across Carpenter Lake as place, family pressure, and physical risk begin to shape the chapter’s stakes. The draft remains conditional because its atmosphere is promising, but causal pressure and closure need clearer development before submission readiness.",
       one_paragraph_summary:
         "Maria receives a letter from her missing father deep in cartel territory.",
-      top_3_strengths: ["Atmosphere"],
-      top_3_risks: ["Cross-manuscript bleed"],
+      top_3_strengths: ["Atmosphere gives the chapter a concrete sense of place."],
+      top_3_risks: ["Cross-manuscript bleed can undermine artifact integrity."],
     },
     criteria: CRITERIA_KEYS.map((key) => ({
       key,

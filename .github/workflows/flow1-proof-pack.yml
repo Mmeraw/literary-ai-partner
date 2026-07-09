@@ -14,6 +14,11 @@ jobs:
   flow1-proof-pack:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # Flow 1 is an infra smoke/proof pack, not a certification semantics test.
+    # Keep fatal-rate measurement explicit here so #1222 ENFORCE rollout is
+    # validated by ECG-focused tests rather than blocking the boot/route proof.
+    env:
+      ECG_MODE: WARN_ONLY
     # Auto-retry the entire job up to 2 times on infra failures (Supabase cold-start flakes)
     # This is the primary mitigation for flow1-proof-pack showing as a recurring false failure.
     # GitHub cold runners can take 15-20min to pull Docker images; retry catches transient flakes.

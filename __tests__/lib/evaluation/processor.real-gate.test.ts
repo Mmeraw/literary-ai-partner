@@ -135,7 +135,7 @@ function makeRealSynthesisOutput() {
     })),
     overall: {
       overall_score_0_100: 74,
-      verdict: "revise" as const,
+      verdict: "conditional" as const,
       one_sentence_pitch:
         "A craft-focused manuscript tests whether scene-level pressure can sustain reader trust across all thirteen criteria.",
       one_paragraph_pitch:
@@ -143,14 +143,14 @@ function makeRealSynthesisOutput() {
       one_paragraph_summary:
         "The manuscript demonstrates measurable craft with targeted revision opportunities, with pacing and theme as the weakest criteria requiring focused revision.",
       top_3_strengths: [
-        "Distinctive authorial voice with tonal authority across scenes",
-        "Character motivation is grounded in concrete scene-level decisions",
-        "Dialogue carries subtext and advances conflict naturally",
+        "Distinctive authorial voice with tonal authority across scenes.",
+        "Character motivation is grounded in concrete scene-level decisions.",
+        "Dialogue carries subtext and advances conflict naturally.",
       ],
       top_3_risks: [
-        "Pacing stalls in mid-section transitions between major scenes",
-        "Thematic integration relies on repetition rather than escalation",
-        "Narrative closure leaves key causal threads unresolved for the reader",
+        "Pacing stalls in mid-section transitions between major scenes.",
+        "Thematic integration relies on repetition rather than escalation.",
+        "Narrative closure leaves key causal threads unresolved for the reader.",
       ],
     },
     metadata: {

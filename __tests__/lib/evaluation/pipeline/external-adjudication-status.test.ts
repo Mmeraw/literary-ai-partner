@@ -52,8 +52,8 @@ function makeFullCoverageLongFormSynthesis(): SynthesisOutput {
       recommendations: [
         {
           priority: "medium" as const,
-          action: `Sharpen ${key} via a concrete beat in the next revision.`,
-          expected_impact: `Improves ${key} clarity across the manuscript.`,
+          action: `Sharpen the ${key} execution by anchoring one key transition in concrete scene evidence so the reader can track the causal movement.`,
+          expected_impact: `Creates clearer ${key} development and gives the reader stronger confidence in the revised scene logic.`,
           anchor_snippet: `Anchor for ${key}.`,
           source_pass: 3 as const,
           issue_family: "scene_structure" as const,
@@ -71,11 +71,23 @@ function makeFullCoverageLongFormSynthesis(): SynthesisOutput {
     })),
     overall: {
       overall_score_0_100: 72,
-      verdict: "revise",
+      verdict: "conditional" as unknown as SynthesisOutput["overall"]["verdict"],
+      one_sentence_pitch:
+        "A long-form literary manuscript tested through full chunk-map coverage shows promising craft with targeted revision needs.",
+      one_paragraph_pitch:
+        "A long-form literary manuscript uses full chunk-map coverage, scene-level evidence, and multi-pass synthesis to establish a reliable evaluation foundation. The draft remains conditional because pacing, dialogue, and closure still need sharper consequence and reader-facing payoff before submission readiness.",
       one_paragraph_summary:
         "Full chunk-map synthesis suggests a promising manuscript with targeted revision needs.",
-      top_3_strengths: ["voice", "concept", "character"],
-      top_3_risks: ["pacing", "dialogue", "closure"],
+      top_3_strengths: [
+        "Voice gives the manuscript a clear atmospheric identity.",
+        "Concept provides a focused premise for revision work.",
+        "Character pressure creates concrete emotional stakes.",
+      ],
+      top_3_risks: [
+        "Pacing may soften the pressure before the central turn lands.",
+        "Dialogue may need sharper subtext to sustain reader confidence.",
+        "Closure may underdeliver without clearer consequence.",
+      ],
       submission_readiness: "nearly_ready",
     },
     metadata: {
@@ -83,6 +95,12 @@ function makeFullCoverageLongFormSynthesis(): SynthesisOutput {
       pass2_model: "gpt-5.1",
       pass3_model: "gpt-5.1",
       generated_at: new Date().toISOString(),
+    },
+    enrichment: {
+      premise:
+        "A full-coverage chunk-map evaluation in which each criterion is supported by specific chunk-mapped snippets and pressure-point analysis rooted in the entire manuscript text.",
+      diagnosed_genre: "literary fiction",
+      target_audience: "adult literary fiction readers",
     },
     partial_evaluation: false,
     coverage_scope: {
@@ -95,7 +113,21 @@ function makeFullCoverageLongFormSynthesis(): SynthesisOutput {
   };
 }
 
-function adapt(externalAdjudication: ExternalAdjudicationStatus | undefined) {
+function makeShortFormScopeProfile(): SubmissionScopeProfile {
+  return {
+    inputScale: "standard_chapter",
+    wordCount: 4_000,
+    chunkCount: 1,
+    scorableCount: 13,
+    confidenceCapSummary: "HIGH",
+    scopePolicyVersion: "v1",
+  };
+}
+
+function adapt(
+  externalAdjudication: ExternalAdjudicationStatus | undefined,
+  scopeProfile?: SubmissionScopeProfile,
+) {
   return synthesisToEvaluationResultV2({
     synthesis: makeFullCoverageLongFormSynthesis(),
     ids: {
@@ -104,11 +136,17 @@ function adapt(externalAdjudication: ExternalAdjudicationStatus | undefined) {
       manuscript_id: 506506,
       user_id: "00000000-0000-0000-0000-000000506506",
     },
-    scopeProfile: makeFullManuscriptScopeProfile(),
+    scopeProfile: scopeProfile ?? makeFullManuscriptScopeProfile(),
     manuscriptText: "word ".repeat(127_036),
     sourceText: "word ".repeat(127_036),
     title: "Froggin Noggin fixture",
     externalAdjudication,
+    llmEnrichment: {
+      premise:
+        "A long-form literary manuscript uses full chunk-map coverage to prove that scene-level evidence, multi-pass synthesis, and reader-facing consequence can anchor a complete evaluation.",
+      diagnosed_genre: "literary fiction",
+      target_audience: "adult literary fiction readers",
+    },
   });
 }
 
@@ -163,12 +201,14 @@ describe("PR #506 — Pass 4 external_adjudication contract (synthesisToEvaluati
   });
 
   test("skipped required-mode run BLOCKS manuscript-wide certification", () => {
+    // Use short-form scope so coverageLimited stays false; external adjudication
+    // blocking is still the sole cause of manuscriptWideCertifiable=false.
     const result = adapt({
       status: "skipped",
       mode: "required",
       cross_check_returned: false,
       reason: "no_api_key",
-    });
+    }, makeShortFormScopeProfile());
 
     expect(result.governance.transparency?.external_adjudication).toMatchObject({
       status: "skipped",
@@ -217,12 +257,14 @@ describe("PR #506 — Pass 4 external_adjudication contract (synthesisToEvaluati
   });
 
   test("failed_blocking required-mode run blocks certification and exposes reason", () => {
+    // Use short-form scope so coverageLimited stays false; external adjudication
+    // blocking is still the sole cause of manuscriptWideCertifiable=false.
     const result = adapt({
       status: "failed_blocking",
       mode: "required",
       cross_check_returned: false,
       reason: "perplexity_request_timeout",
-    });
+    }, makeShortFormScopeProfile());
 
     expect(result.governance.transparency?.external_adjudication).toMatchObject({
       status: "failed_blocking",

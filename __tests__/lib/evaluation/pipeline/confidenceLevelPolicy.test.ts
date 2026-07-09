@@ -58,7 +58,8 @@ function makeSynthesis(
         editorial_score: 7,
         final_score_0_10: 7,
         score_delta: 0,
-        final_rationale: `Strong ${key} execution with adequate craft support and reader engagement.`,
+        final_rationale:
+          `Strong ${key} execution shows adequate craft support, visible manuscript evidence, and reader-facing consequence across the evaluated scene material.`,
         pressure_points: ["Clear pressure and stakes visible throughout."],
         decision_points: ["A visible turn lands mid-manuscript."],
         consequence_status: "landed" as const,
@@ -68,8 +69,8 @@ function makeSynthesis(
         recommendations: [
           {
             priority: "medium" as const,
-            action: `In chapter 2, tighten the ${key} turn to clarify the consequence.`,
-            expected_impact: `Clearer ${key} arc across the manuscript.`,
+            action: `In chapter 2, tighten the ${key} turn by adding one concrete consequence beat so the reader can track the causal movement through the scene.`,
+            expected_impact: `Creates a clearer ${key} arc across the manuscript and gives the reader stronger confidence in the revised scene logic.`,
             anchor_snippet: `The ${key} beat lands clearly in the opening chapter.`,
             source_pass: 3 as const,
             issue_family: "scene_structure" as const,
@@ -87,11 +88,23 @@ function makeSynthesis(
       })),
     overall: {
       overall_score_0_100: 72,
-      verdict: "revise",
+      verdict: "conditional" as unknown as SynthesisOutput["overall"]["verdict"],
+      one_sentence_pitch:
+        "A craft-focused manuscript needs targeted scene revision to strengthen evidence, pacing, and reader confidence.",
+      one_paragraph_pitch:
+        "A craft-focused manuscript uses scene turns, textual anchors, and confidence signals to test whether the evaluation can preserve clear revision guidance. The draft remains conditional because several criteria need stronger evidence, pacing, and consequence before submission readiness.",
       one_paragraph_summary:
         "The manuscript delivers strong craft with targeted revision needs.",
-      top_3_strengths: ["voice", "concept", "character"],
-      top_3_risks: ["pacing", "dialogue", "narrativeClosure"],
+      top_3_strengths: [
+        "Voice gives the manuscript a clear atmospheric identity.",
+        "Concept provides a focused premise for revision work.",
+        "Character pressure creates concrete emotional stakes.",
+      ],
+      top_3_risks: [
+        "Pacing may soften the pressure before the central turn lands.",
+        "Dialogue may need sharper subtext to sustain reader confidence.",
+        "Narrative closure may underdeliver without clearer consequence.",
+      ],
       submission_readiness: "nearly_ready",
     },
     metadata: {
@@ -116,6 +129,13 @@ const SOURCE_TEXT_WITH_SNIPPETS =
     (key) => `The ${key} beat lands clearly in the opening chapter.`,
   ).join(" ") + " word ".repeat(500);
 
+const ECG_ENRICHMENT = {
+  premise:
+    "A craft-focused manuscript tests whether scene-level evidence, confidence signals, and revision guidance can preserve reader trust across a complete evaluation.",
+  diagnosed_genre: "literary fiction",
+  target_audience: "adult literary fiction readers",
+};
+
 function adapt(synthesis: SynthesisOutput) {
   return synthesisToEvaluationResultV2({
     synthesis,
@@ -123,6 +143,7 @@ function adapt(synthesis: SynthesisOutput) {
     sourceText: SOURCE_TEXT_WITH_SNIPPETS,
     manuscriptText: SOURCE_TEXT_WITH_SNIPPETS,
     title: "G5 Policy Fixture",
+    llmEnrichment: ECG_ENRICHMENT,
   });
 }
 
@@ -193,7 +214,8 @@ describe("Global invariant — synthesisToEvaluationResultV2 output consistency"
       editorial_score: 5,
       final_score_0_10: 5,
       score_delta: 0,
-      final_rationale: `The ${key} criterion needs stronger grounding.`,
+      final_rationale:
+        `The ${key} criterion needs stronger grounding because the current evidence does not yet provide enough textual specificity, causal pressure, or reader-facing consequence.`,
       pressure_points: [],
       decision_points: [],
       consequence_status: "absent" as const,
@@ -202,16 +224,16 @@ describe("Global invariant — synthesisToEvaluationResultV2 output consistency"
       recommendations: [
         {
           priority: "medium" as const,
-          action: `Strengthen the ${key} arc with a concrete beat.`,
-          expected_impact: `Clearer ${key}.`,
+          action: `Strengthen the ${key} arc by adding one concrete textual beat that shows the reader how the pressure changes on the page.`,
+          expected_impact: `Creates clearer ${key} development and gives the reader stronger evidence for the criterion judgment.`,
           anchor_snippet: undefined,
           source_pass: 3 as const,
           issue_family: "scene_structure" as const,
           strategic_lever: "scene_goal_clarity" as const,
           revision_granularity: "scene" as const,
-          mechanism: "underdeveloped",
-          specific_fix: "add one beat",
-          reader_effect: "stronger consequence",
+          mechanism: "the criterion is underdeveloped without a visible textual pressure change",
+          specific_fix: "add one concrete beat that changes the pressure on the page",
+          reader_effect: "stronger consequence and clearer reader confidence",
         },
       ],
       confidence_score_0_100: 55,
@@ -227,6 +249,7 @@ describe("Global invariant — synthesisToEvaluationResultV2 output consistency"
       sourceText: "completely unrelated source material",
       manuscriptText: "completely unrelated source material",
       title: "G5 Anchor-Absent Fixture",
+      llmEnrichment: ECG_ENRICHMENT,
     });
 
     for (const criterion of result.criteria) {
@@ -254,8 +277,8 @@ describe("Global invariant — synthesisToEvaluationResultV2 output consistency"
         final_score_0_10: isStrong ? 8 : 3,
         score_delta: 0,
         final_rationale: isStrong
-          ? `Strong ${key} execution: scene construction with clear propulsion and reader engagement.`
-          : "",
+          ? `Strong ${key} execution shows scene construction with clear propulsion, textual grounding, and reader-facing consequence.`
+          : `The ${key} criterion cannot be evaluated confidently because the fixture intentionally withholds textual anchors and leaves the signal too weak for a stable judgment.`,
         pressure_points: isStrong ? ["Visible pressure and stakes."] : [],
         decision_points: isStrong ? ["Clear decision beat."] : [],
         consequence_status: (isStrong ? "landed" : "absent") as "landed" | "absent",
@@ -266,16 +289,16 @@ describe("Global invariant — synthesisToEvaluationResultV2 output consistency"
           ? [
               {
                 priority: "medium" as const,
-                action: `Tighten the ${key} turn in chapter 2.`,
-                expected_impact: `Clearer ${key}.`,
+                action: `Tighten the ${key} turn in chapter 2 by adding one visible consequence beat that clarifies the reader-facing pressure shift.`,
+                expected_impact: `Creates clearer ${key} development and gives the reader stronger confidence in the scene logic.`,
                 anchor_snippet: `The ${key} beat lands clearly in the opening chapter.`,
                 source_pass: 3 as const,
                 issue_family: "scene_structure" as const,
                 strategic_lever: "scene_goal_clarity" as const,
                 revision_granularity: "scene" as const,
-                mechanism: "diffuse",
-                specific_fix: "tighten one beat",
-                reader_effect: "clearer momentum",
+                mechanism: "the turn is diffuse without a visible consequence beat",
+                specific_fix: "tighten one beat by adding a concrete consequence",
+                reader_effect: "clearer momentum and stronger reader confidence",
               },
             ]
           : [],
@@ -333,7 +356,8 @@ describe("enforceConfidenceLevelPolicy — structural presence in V2 adapter cha
       editorial_score: 5,
       final_score_0_10: 5,
       score_delta: 0,
-      final_rationale: `Needs grounding for ${key}.`,
+      final_rationale:
+        `The ${key} criterion needs grounding because the current fixture intentionally lacks textual anchors, specific pressure, and reader-facing consequence.`,
       pressure_points: [],
       decision_points: [],
       consequence_status: "absent" as const,
@@ -341,16 +365,16 @@ describe("enforceConfidenceLevelPolicy — structural presence in V2 adapter cha
       recommendations: [
         {
           priority: "medium" as const,
-          action: `Strengthen the ${key} arc.`,
-          expected_impact: `Clearer ${key}.`,
+          action: `Strengthen the ${key} arc by adding one concrete textual beat that makes the criterion signal visible to the reader.`,
+          expected_impact: `Creates clearer ${key} development and gives the reader stronger confidence in the criterion judgment.`,
           anchor_snippet: undefined,
           source_pass: 3 as const,
           issue_family: "scene_structure" as const,
           strategic_lever: "scene_goal_clarity" as const,
           revision_granularity: "scene" as const,
-          mechanism: "absent",
-          specific_fix: "introduce criterion",
-          reader_effect: "establishes baseline",
+          mechanism: "the criterion signal is absent without a concrete textual anchor",
+          specific_fix: "introduce one concrete beat that makes the criterion visible",
+          reader_effect: "establishes baseline reader confidence",
         },
       ],
       confidence_score_0_100: 55,
@@ -365,6 +389,7 @@ describe("enforceConfidenceLevelPolicy — structural presence in V2 adapter cha
       sourceText: "completely unrelated source material",
       manuscriptText: "completely unrelated source material",
       title: "G5 No-Double-Cap Fixture",
+      llmEnrichment: ECG_ENRICHMENT,
     });
 
     for (const criterion of result.criteria) {

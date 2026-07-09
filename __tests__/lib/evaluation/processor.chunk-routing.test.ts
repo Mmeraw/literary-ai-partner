@@ -87,12 +87,17 @@ function buildEvaluationResult() {
       prompt_version: "test",
     },
     overview: {
-      verdict: "pass",
+      verdict: "conditional",
       overall_score_0_100: 82,
       scored_criteria_count: 13,
-      one_paragraph_summary: "Summary",
-      top_3_strengths: ["Clear narrative throughline"],
-      top_3_risks: ["Secondary character arc needs deepening"],
+      one_sentence_pitch:
+        "A structurally focused manuscript tests whether long-form chunk routing preserves narrative evidence for evaluation.",
+      one_paragraph_pitch:
+        "A structurally focused manuscript uses long-form routing, canonical chunk reconstruction, and evaluation evidence to prove that processing can preserve author-facing semantics. The draft remains conditional because pacing, character pressure, and closure still require targeted revision before submission readiness.",
+      one_paragraph_summary:
+        "The manuscript demonstrates measurable craft and routing-safe evidence coverage, while pacing and character pressure remain priority revision areas before submission.",
+      top_3_strengths: ["Clear narrative throughline supports the routing proof."],
+      top_3_risks: ["Secondary character arc needs deeper causal pressure."],
     },
     criteria: new Array(13).fill(null).map((_, idx) => ({
       key: [
@@ -116,7 +121,8 @@ function buildEvaluationResult() {
       signal_strength: "SUFFICIENT",
       confidence_band: "MEDIUM",
       score_0_10: 7,
-      rationale: "Criterion rationale backed by manuscript evidence.",
+      rationale:
+        "Criterion rationale is backed by manuscript evidence and identifies concrete revision leverage in clarity, consequence, and reader payoff.",
       evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
       recommendations: [],
     })),
@@ -389,10 +395,15 @@ describe("processEvaluationJob long-form chunk routing", () => {
         criteria: [],
         overall: {
           overall_score_0_100: 82,
-          verdict: "pass",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          verdict: "conditional",
+          one_sentence_pitch:
+            "A structurally focused manuscript tests whether long-form chunk routing preserves narrative evidence for evaluation.",
+          one_paragraph_pitch:
+            "A structurally focused manuscript uses long-form routing, canonical chunk reconstruction, and evaluation evidence to prove that processing can preserve author-facing semantics. The draft remains conditional because pacing, character pressure, and closure still require targeted revision before submission readiness.",
+          one_paragraph_summary:
+            "The manuscript demonstrates measurable craft and routing-safe evidence coverage, while pacing and character pressure remain priority revision areas before submission.",
+          top_3_strengths: ["Clear narrative throughline supports the routing proof."],
+          top_3_risks: ["Secondary character arc needs deeper causal pressure."],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -513,10 +524,15 @@ describe("processEvaluationJob long-form chunk routing", () => {
         criteria: [],
         overall: {
           overall_score_0_100: 82,
-          verdict: "pass",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          verdict: "conditional",
+          one_sentence_pitch:
+            "A structurally focused manuscript tests whether short-form routing preserves narrative evidence for evaluation.",
+          one_paragraph_pitch:
+            "A structurally focused manuscript uses short-form routing and evaluation evidence to prove that processing can preserve author-facing semantics. The draft remains conditional because pacing, character pressure, and closure still require targeted revision before submission readiness.",
+          one_paragraph_summary:
+            "The manuscript demonstrates measurable craft and routing-safe evidence coverage, while pacing and character pressure remain priority revision areas before submission.",
+          top_3_strengths: ["Clear narrative throughline supports the routing proof."],
+          top_3_risks: ["Secondary character arc needs deeper causal pressure."],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -618,10 +634,15 @@ describe("processEvaluationJob long-form chunk routing", () => {
         criteria: [],
         overall: {
           overall_score_0_100: 82,
-          verdict: "pass",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          verdict: "conditional",
+          one_sentence_pitch:
+            "A structurally focused manuscript tests whether mid-length routing preserves narrative evidence for evaluation.",
+          one_paragraph_pitch:
+            "A structurally focused manuscript uses mid-length chunk routing and evaluation evidence to prove that processing can preserve author-facing semantics. The draft remains conditional because pacing, character pressure, and closure still require targeted revision before submission readiness.",
+          one_paragraph_summary:
+            "The manuscript demonstrates measurable craft and routing-safe evidence coverage, while pacing and character pressure remain priority revision areas before submission.",
+          top_3_strengths: ["Clear narrative throughline supports the routing proof."],
+          top_3_risks: ["Secondary character arc needs deeper causal pressure."],
         },
         metadata: {
           pass1_model: "gpt-4o",
@@ -826,10 +847,15 @@ describe("processEvaluationJob long-form chunk routing", () => {
         criteria: [],
         overall: {
           overall_score_0_100: 82,
-          verdict: "pass",
-          one_paragraph_summary: "Summary",
-          top_3_strengths: [],
-          top_3_risks: [],
+          verdict: "conditional",
+          one_sentence_pitch:
+            "A structurally focused manuscript tests whether adaptive chunk routing preserves narrative evidence for evaluation.",
+          one_paragraph_pitch:
+            "A structurally focused manuscript uses adaptive chunk routing and evaluation evidence to prove that processing can preserve author-facing semantics. The draft remains conditional because pacing, character pressure, and closure still require targeted revision before submission readiness.",
+          one_paragraph_summary:
+            "The manuscript demonstrates measurable craft and routing-safe evidence coverage, while pacing and character pressure remain priority revision areas before submission.",
+          top_3_strengths: ["Clear narrative throughline supports the routing proof."],
+          top_3_risks: ["Secondary character arc needs deeper causal pressure."],
         },
         metadata: {
           pass1_model: "gpt-4o",
