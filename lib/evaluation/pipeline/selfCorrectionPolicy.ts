@@ -39,6 +39,31 @@ export type RetryContext = {
   retry_instruction: string;
 };
 
+const RETRY_INSTRUCTION_MAX_CHARS = 580;
+
+function capRetryInstruction(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= RETRY_INSTRUCTION_MAX_CHARS) {
+    return normalized;
+  }
+
+  const cut = normalized.slice(0, RETRY_INSTRUCTION_MAX_CHARS);
+  const lastSentenceBoundary = Math.max(cut.lastIndexOf("."), cut.lastIndexOf(";"));
+  if (lastSentenceBoundary >= 80) {
+    return cut.slice(0, lastSentenceBoundary + 1).trim();
+  }
+
+  return `${cut.trimEnd()}…`;
+}
+
+function capViolationSummary(text: string, maxChars = 220): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxChars).trimEnd()}…`;
+}
+
 // ── Policy Registry ──────────────────────────────────────────────────────────
 
 const USER_SAFE_QUALITY_MESSAGE =
@@ -139,6 +164,13 @@ export function buildRetryContext(opts: {
     .slice(0, 5) // cap to prevent prompt bloat
     .map((code) => describeViolationCode(code))
     .join("; ");
+  const cappedViolationSummary = capViolationSummary(violationSummary);
+
+  const rawInstruction =
+    `Your previous output was rejected by the ${opts.gate} for: ${cappedViolationSummary}. ` +
+    `Regenerate without these defects. Ensure terminal punctuation and complete author-facing sentences, ` +
+    `keep fix direction and reader effect as distinct fields, include specific manuscript passage anchors, ` +
+    `and remove all placeholder/template text.`;
 
   return {
     failed_gate: opts.gate,
@@ -146,14 +178,7 @@ export function buildRetryContext(opts: {
     violation_codes: opts.violationCodes,
     affected_fields: opts.affectedFields,
     attempt_number: opts.attemptNumber,
-    retry_instruction:
-      `Your previous output was rejected by the ${opts.gate} for: ${violationSummary}. ` +
-      `Regenerate without these defects. Ensure every rationale ends with terminal punctuation, ` +
-      `every author-facing sentence begins with a capital letter and ends as a complete sentence ` +
-      `(never mid-clause on a dangling connective, comma, colon, or open parenthesis), ` +
-      `distinct diagnostic fields (fix direction, reader effect) are not fused into one run-on, ` +
-      `every recommendation references a specific manuscript passage, and no placeholder or ` +
-      `template text remains in the output.`,
+    retry_instruction: capRetryInstruction(rawInstruction),
   };
 }
 

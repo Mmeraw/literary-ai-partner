@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@jest/globals";
+import { beforeAll, afterAll, describe, expect, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SynthesisOutput } from "@/lib/evaluation/pipeline/types";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
@@ -80,6 +80,21 @@ function makeTemplateReadySynthesis(): SynthesisOutput {
 }
 
 describe("synthesisToEvaluationResultV2 template completeness fallbacks", () => {
+  const previousEcgMode = process.env.ECG_MODE;
+
+  beforeAll(() => {
+    process.env.ECG_MODE = "WARN_ONLY";
+  });
+
+  afterAll(() => {
+    if (previousEcgMode === undefined) {
+      delete process.env.ECG_MODE;
+      return;
+    }
+
+    process.env.ECG_MODE = previousEcgMode;
+  });
+
   test("backfills premise/genre/target audience when llm enrichment omits them", () => {
     const synthesis = makeTemplateReadySynthesis();
 

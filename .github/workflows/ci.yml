@@ -178,4 +178,46 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
           EVAL_OPENAI_TIMEOUT_MS: "180000"
           EVAL_PASS_TIMEOUT_MS: "180000"
+
+      - name: Start app server for real smoke
+        shell: bash
+        run: |
+          setsid npm run start -- -p 3000 > /tmp/next-start.log 2>&1 &
+          echo $! > /tmp/next-start.pid
+
+      - name: Wait for API health
+        shell: bash
+        run: |
+          set -eu
+          for i in {1..90}; do
+            if curl -fsS --connect-timeout 2 --max-time 5 http://127.0.0.1:3000/api/health >/dev/null; then
+              echo "API health ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Local API health check timed out"
+          tail -n 200 /tmp/next-start.log || true
+          exit 1
+
+      - name: Real manuscript smoke (Phase 1 + Phase 2)
+        timeout-minutes: 10
+        env:
+          BASE_URL: "http://127.0.0.1:3000"
+          MANUSCRIPT_ID: ${{ secrets.SMOKE_MANUSCRIPT_ID }}
+        run: |
+          if [ -z "${MANUSCRIPT_ID}" ]; then
+            echo "::error::Missing required secret SMOKE_MANUSCRIPT_ID for jobs:smoke:real"
+            exit 1
+          fi
+          npm run jobs:smoke:real
+
+      - name: Stop app server
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/next-start.pid ]; then
+            kill -- "-$(cat /tmp/next-start.pid)" || true
+          fi
+
       - run: npm test

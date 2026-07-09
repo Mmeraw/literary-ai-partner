@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@jest/globals";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SynthesisOutput } from "@/lib/evaluation/pipeline/types";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
@@ -74,6 +74,21 @@ function makeSampledLongFormSynthesis(): SynthesisOutput {
 }
 
 describe("synthesisToEvaluationResultV2 long-form certification hardening", () => {
+  const previousEcgMode = process.env.ECG_MODE;
+
+  beforeAll(() => {
+    process.env.ECG_MODE = "WARN_ONLY";
+  });
+
+  afterAll(() => {
+    if (previousEcgMode === undefined) {
+      delete process.env.ECG_MODE;
+      return;
+    }
+
+    process.env.ECG_MODE = previousEcgMode;
+  });
+
   test("withholds manuscript-wide scoring for sampled long-form coverage", () => {
     const result = synthesisToEvaluationResultV2({
       synthesis: makeSampledLongFormSynthesis(),
