@@ -1,3 +1,10 @@
+/**
+ * #1222 ECG rollout proof.
+ *
+ * These tests deliberately exercise policy resolution and gate behavior only.
+ * Processor/persistence behavior is covered by existing processor real-gate suites;
+ * Flow 1 remains an infra smoke proof and is isolated in WARN_ONLY by workflow env.
+ */
 import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
 import { getECGMode, ECG_DEFAULT_MODE } from "@/lib/evaluation/policy";
 import {
