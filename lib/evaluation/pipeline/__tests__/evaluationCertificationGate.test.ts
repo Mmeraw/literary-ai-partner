@@ -306,12 +306,14 @@ describe("normalizeArtifact()", () => {
     expect(quickWins[0].action).toBe("Compress the exposition.");
   });
 
-  it("trims one_paragraph_summary at a word boundary when over 750 chars", () => {
-    const longSummary = "The manuscript earns a 74/100 " + "a".repeat(800);
+  it("trims one_paragraph_summary within the 1000-char cap (word-boundary fallback for one giant token)", () => {
+    // A single 1100-char token has no sentence boundary, so the sentence-boundary
+    // trimmer falls back to a word-boundary cut with an ellipsis — still never
+    // mid-word (the fallback is the only ellipsis branch).
+    const longSummary = "The manuscript earns a 74/100 " + "a".repeat(1100);
     const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
     normalizeArtifact(synthesis, [], []);
-    expect(synthesis.overall.one_paragraph_summary.length).toBeLessThanOrEqual(750);
-    // Must end with ellipsis, not a mid-word cut
+    expect(synthesis.overall.one_paragraph_summary.length).toBeLessThanOrEqual(1000);
     expect(synthesis.overall.one_paragraph_summary).toMatch(/…$/);
   });
 
@@ -359,12 +361,15 @@ describe("normalizeArtifact()", () => {
     expect(ops).toContain("terminal_punct");
   });
 
-  it("logs trimming when summary exceeds limit", () => {
-    const longSummary = "The manuscript earns a 74/100 score on its craft. " + "word ".repeat(200);
+  it("logs sentence-boundary trimming when summary exceeds the hard cap", () => {
+    const sentence = "The manuscript earns a strong score on its craft. ";
+    const longSummary = sentence.repeat(40); // well past the 1000-char cap
     const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
     const result = normalizeArtifact(synthesis, [], []);
-    const trimLog = result.normalizations.find(n => n.operation === "trim_word_boundary");
+    const trimLog = result.normalizations.find(n => n.operation === "trim_sentence_boundary");
     expect(trimLog).toBeDefined();
+    // Never mid-sentence: the trimmed summary ends on a complete sentence.
+    expect(synthesis.overall.one_paragraph_summary!.endsWith(".")).toBe(true);
   });
 });
 
@@ -877,9 +882,13 @@ describe("trimAtWordBoundary()", () => {
     const trimmed = trimAtWordBoundary(text, 50);
     expect(trimmed.endsWith("…")).toBe(true);
     expect(trimmed.length).toBeLessThanOrEqual(50);
-    // No mid-word cut
-    const body = trimmed.slice(0, -1);
-    expect(body).not.toMatch(/[a-zA-Z]$/); // ends on punctuation or space was trimmed
+    // No mid-word cut: the final token before the ellipsis must be a COMPLETE
+    // word from the source. (A correct word-boundary trim legitimately ends on
+    // a letter, so we assert token completeness, not "no trailing letter".)
+    const body = trimmed.slice(0, -1).trimEnd();
+    const lastToken = body.split(/\s+/).pop() ?? "";
+    const sourceTokens = new Set(text.split(/\s+/));
+    expect(sourceTokens.has(lastToken)).toBe(true);
   });
 
   it("never produces a mid-word cut on a realistic 750-char boundary", () => {

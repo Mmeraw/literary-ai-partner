@@ -115,10 +115,12 @@ describe('ReviseCockpitClientWorkflowV1 smoke', () => {
   it('renders all A/B/C comparison cards and author decision controls', () => {
     render(<ReviseCockpitClientWorkflowV1 payload={makePayload()} />);
 
+    // Canonical A/B/C labels are locked: A: Recommended, B: Rhythm Variant, C: Bolder Shift.
+    // Labels render as "\u2014 Recommended" etc., so match on a substring pattern.
     expect(screen.getByText('Compare A/B/C Options')).toBeTruthy();
-    expect(screen.getByText('Recommended Repair')).toBeTruthy();
-    expect(screen.getByText('Rhythm Variant')).toBeTruthy();
-    expect(screen.getByText('Bolder Rendering Shift')).toBeTruthy();
+    expect(screen.getAllByText(/Recommended/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Rhythm Variant/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Bolder Shift/).length).toBeGreaterThan(0);
 
     expect(screen.getByText(/Mara shut the door and waited until her breathing steadied/i)).toBeTruthy();
     expect(screen.getByText(/She stood there until the first sharp breath passed/i)).toBeTruthy();

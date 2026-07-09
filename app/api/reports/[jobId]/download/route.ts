@@ -2071,7 +2071,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       });
     }
   }
-  children.push(makeSection(sectionTitle('confidence_explanation'), { pageBreak: true }));
+  children.push(makeHeading(sectionTitle('confidence_explanation'), { pageBreak: true }));
   children.push(vmPara(vm.confidenceExplanation));
 
   children.push(makeHeading(sectionTitle('disclaimer')));

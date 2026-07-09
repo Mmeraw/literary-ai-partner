@@ -57,8 +57,8 @@ const W = {
   goldDim:      "#7A6535",   // faint gold for secondary borders
   cream:        "#F5EFE4",   // primary text
   cream2:       "#E8D8BA",   // body text
-  muted:        "#A9987D",   // secondary / muted text
-  dim:          "#6B5E4A",   // fine print / metadata
+  muted:        "#BBAA8B",   // secondary / muted text (lifted for AA contrast on dark surfaces)
+  dim:          "#9C8A6E",   // fine print / metadata (lifted from #6B5E4A ~3.0 to ~5.7 contrast for readability)
   oxblood:      "#7A2B1A",   // primary action fill
   oxbloodBorder:"#9B3A26",   // oxblood hover border
   forest:       "#4A7A3A",   // success / generate
@@ -213,10 +213,22 @@ function SeverityBadge({ severity, size = "sm" }: { severity: WorkbenchOpportuni
   );
 }
 
+/**
+ * Truncate at a word boundary so text never cuts mid-word.
+ * Adds a hair space before the ellipsis per CMOS spacing conventions.
+ */
+function truncateAtWord(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  const slice = text.slice(0, maxLen);
+  const lastSpace = slice.lastIndexOf(" ");
+  const clean = (lastSpace > 0 ? slice.slice(0, lastSpace) : slice).replace(/[\s,.;:!?—-]+$/, "");
+  return `${clean}\u2009\u2026`;
+}
+
 function compactGoal(item: WorkbenchOpportunity): string {
   const source = normalize(item.fixDirection || item.diagnostic?.fixStrategy || item.issueStatement || item.title);
   if (!source) return "Revise this targeted span.";
-  return source.length > 180 ? `${source.slice(0, 177).trim()}…` : source;
+  return truncateAtWord(source, 180);
 }
 
 function operationInstruction(item: WorkbenchOpportunity): string {
@@ -768,7 +780,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               <Eyebrow>Original Passage</Eyebrow>
                               {effectiveMode !== "full_replacement" && source && (
                                 <span className="font-mono text-[9px]" style={{ color: W.dim }}>
-                                  {source.split(/\s+/).length} words
+                                  {`${source.split(/\s+/).length} words`}
                                   {effectiveMode === "excerpt_insertion" && " · excerpt"}
                                   {effectiveMode === "strategy_only" && " · anchor only"}
                                 </span>
@@ -868,7 +880,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                 </div>
                                 <div className="space-y-3">
                                   {OPTION_KEYS.map((key) => {
-                                    const label = key === "A" ? "Recommended" : key === "B" ? "Quieter" : "Bolder";
+                                    const label = key === "A" ? "Recommended" : key === "B" ? "Rhythm Variant" : "Bolder Shift";
                                     const rewrite = rewriteCache[active.id][key.toLowerCase() as "a" | "b" | "c"];
                                     const isSelected = selectedOption === key;
                                     return (
@@ -908,7 +920,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                 <p className="mt-2 mb-4 text-sm" style={{ color: W.muted }}>
                                   {source && source.split(/\s+/).length > 1200
                                     ? "Passage too large for inline replacement. Choose a strategy approach:"
-                                    : "Template residue detected. Choose a strategy approach or generate voice rewrites:"}
+                                    : "Draft options need regenerating in your author voice. Choose a strategy approach or generate voice rewrites:"}
                                 </p>
                                 <div className="space-y-3">
                                   {OPTION_KEYS.map((key) => {
@@ -916,7 +928,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                     const strategyMeta: Record<OptionKey, { label: string; approach: string }> = {
                                       A: { label: "Recommended", approach: `Implement the fix at minimum scope. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                       B: { label: "Rhythm Variant", approach: `Anchor the same repair in concrete action or sensory detail rather than exposition. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
-                                      C: { label: "Bolder Shift", approach: `Reframe the structural context entirely — consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
+                                      C: { label: "Bolder Shift", approach: `Reframe the structural context entirely\u2014consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                     };
                                     const { label, approach } = strategyMeta[key];
                                     const isSelected = selectedOption === key;
@@ -970,7 +982,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                 const text = candidateDisplayText(active, key);
                                 const ok = canSelectOption(active, key);
                                 const isSelected = selectedOption === key;
-                                const role = key === "A" ? "Recommended Repair" : key === "B" ? "Rhythm Variant" : "Bolder Shift";
+                                const role = key === "A" ? "Recommended" : key === "B" ? "Rhythm Variant" : "Bolder Shift";
                                 return (
                                   <article
                                     key={key}
@@ -991,7 +1003,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                           {key}
                                         </span>
                                         <span className="text-[10px] uppercase tracking-[0.12em]" style={{ color: W.muted }}>
-                                          {role}
+                                          {"\u2014"} {role}
                                         </span>
                                       </div>
                                       <p
@@ -1294,6 +1306,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
               {ledger.length === 0 ? (
                 <div className="flex gap-3 items-center">
                   <Eyebrow>Revision Ledger</Eyebrow>
+                  <span aria-hidden="true" style={{ color: W.border }}>{"\u00b7"}</span>
                   <span className="text-xs" style={{ color: W.dim }}>No decisions yet.</span>
                 </div>
               ) : (

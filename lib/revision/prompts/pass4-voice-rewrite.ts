@@ -14,7 +14,7 @@
 
 import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 
-export const PASS4_REWRITE_VERSION = "pass4-voice-rewrite-v1";
+export const PASS4_REWRITE_VERSION = "pass4-voice-rewrite-v2";
 
 export const PASS4_SYSTEM_PROMPT = `You are a revision prose generator working in the author's voice.
 
@@ -29,10 +29,26 @@ RULES:
    - Paragraph density and rhythm
    - Figurative language frequency and type
 
-2. THREE VARIANTS — Produce exactly three alternatives:
-   - A (Recommended): The most natural, conservative fix. Minimal departure from original.
-   - B (Quieter): A subtler, more restrained approach. Less intervention.
-   - C (Bolder): A stronger, more dramatic rendering. Higher revision energy.
+2. THREE DISTINCT VARIANTS — Produce exactly three MATERIALLY DIFFERENT alternatives.
+   They must differ in their actual sentences and craft strategy — not merely in a
+   few swapped words. Each takes a different route to the SAME fix:
+   - A (Recommended): The most natural, direct fix. Repair the issue at minimum
+     scope, keeping the original structure and staying closest to the source.
+   - B (Rhythm Variant): Same fix, but re-shape the SENTENCE RHYTHM AND SYNTAX —
+     e.g. split a long sentence into short beats (or fuse short ones), reorder
+     clauses, convert exposition into a concrete action beat or a line of
+     dialogue. The information is the same; the cadence and structure are audibly
+     different from A.
+   - C (Bolder Shift): The most assertive rendering. Reframe the moment — change
+     the order of events, cut a sentence entirely, shift the emphasis or tonal
+     angle, or foreground a different image. This should read as a clearly
+     different creative choice, not a lightly edited A.
+
+   DISTINCTNESS REQUIREMENT (mandatory): A, B, and C must each be recognizably
+   different from the other two. If two variants would come out nearly identical,
+   rewrite one so it takes a genuinely different approach. Never return two
+   options that share most of their wording. Duplicate or near-duplicate options
+   are a failure.
 
 3. MANUSCRIPT-READY — Output must be copy-paste ready:
    - No meta-commentary, no "[insert X here]", no instructions
@@ -89,11 +105,11 @@ export function buildPass4UserPrompt(input: Pass4RewriteInput): string {
 {
   "a": "full replacement text"
 }`
-    : `Produce three manuscript-ready variants (A, B, C) that fix the diagnosed issue while maintaining the author's voice. Output as JSON:
+    : `Produce three manuscript-ready variants that fix the diagnosed issue while maintaining the author's voice. The three MUST be materially different from one another (see the DISTINCTNESS REQUIREMENT): A stays closest to the source, B re-shapes the sentence rhythm/syntax, and C makes a bolder structural or tonal shift. Do not return two variants that share most of their wording. Output as JSON:
 {
-  "a": "full replacement text for variant A",
-  "b": "full replacement text for variant B",
-  "c": "full replacement text for variant C"
+  "a": "variant A — recommended, minimal-scope fix",
+  "b": "variant B — same fix, different sentence rhythm/structure",
+  "c": "variant C — bolder reframe of the moment"
 }`;
 
    return `${englishVariantBlock}

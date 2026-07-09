@@ -296,6 +296,50 @@ function hasHighAnchorOverlap(candidate: string, anchor: string): boolean {
   return overlapRatio(candidate, anchor) >= 0.82;
 }
 
+/**
+ * Inter-candidate distinctiveness threshold.
+ * A/B/C are meant to offer materially different revisions (Recommended /
+ * Rhythm Variant / Bolder Shift). When two options share this fraction or more
+ * of their content tokens — or are byte-identical after normalization — they
+ * are effectively duplicate/triplicate content and provide no real choice.
+ * 0.80 catches near-identical prose while tolerating options that legitimately
+ * reuse the anchor's shared nouns/names.
+ */
+export const DUPLICATE_OPTION_OVERLAP = 0.8;
+
+/**
+ * Detect duplicate or near-duplicate options across the A/B/C set.
+ * Returns the list of colliding pairs (e.g. ['B|C']) so callers can log which
+ * options collapsed. An empty list means all three are sufficiently distinct.
+ */
+export function findDuplicateOptionPairs(
+  candidateA: string,
+  candidateB: string,
+  candidateC: string,
+): string[] {
+  const options: Array<[CandidateKey, string]> = [
+    ['A', candidateA],
+    ['B', candidateB],
+    ['C', candidateC],
+  ];
+  const collisions: string[] = [];
+  for (let i = 0; i < options.length; i += 1) {
+    for (let j = i + 1; j < options.length; j += 1) {
+      const [keyI, textI] = options[i]!;
+      const [keyJ, textJ] = options[j]!;
+      const normI = normalizeForQuality(textI);
+      const normJ = normalizeForQuality(textJ);
+      if (!normI || !normJ) continue;
+      const identical = normI === normJ;
+      const nearIdentical = overlapRatio(textI, textJ) >= DUPLICATE_OPTION_OVERLAP;
+      if (identical || nearIdentical) {
+        collisions.push(`${keyI}|${keyJ}`);
+      }
+    }
+  }
+  return collisions;
+}
+
 function isGenericLiteraryFiller(text: string): boolean {
   return /\b(moment (?:tightened|claimed|held|shifted)|air (?:still|tightened|changed)|weight (?:settled|registered)|looked away first|hesitated,? and|small delay told|pressure of the moment|kept the air still|moment to claim its price)\b/i.test(text);
 }
@@ -427,7 +471,53 @@ export type CandidateQualityReasonCode =
   | 'candidate_quality_generic_filler'
   | 'candidate_quality_unsupported_facts'
   | 'candidate_quality_voice_mismatch'
-  | 'candidate_quality_context_mismatch';
+  | 'candidate_quality_context_mismatch'
+  | 'candidate_quality_duplicate_options'
+  | 'candidate_quality_empty_shape'
+  | 'candidate_quality_not_evidence_grounded';
+
+/**
+ * Minimum jaccard overlap between a candidate option and the manuscript
+ * evidence surface (anchor prose + rationale) for the option to count as
+ * "grounded in evidence from the manuscript/chapter/story". This is a stricter,
+ * first-class evidence-grounding gate than `lacksContextFit` (which fails only
+ * when BOTH anchor and rationale overlap fall below LEDGER_MIN_CONTEXT_JACCARD).
+ * An option that shares essentially no content tokens with the anchor passage
+ * is invented rather than derived from the manuscript and must be rejected.
+ */
+export const EVIDENCE_GROUNDING_MIN_JACCARD = 0.05;
+
+/**
+ * SHAPE gate: an option must not be empty or structurally hollow. "Shape"
+ * means the option carries real revised prose — at least a minimum count of
+ * distinct content-bearing words — not whitespace, punctuation, or a stub.
+ */
+export const MIN_OPTION_SHAPE_TOKENS = 4;
+
+/**
+ * SHAPE check — the option must not be empty and must carry real content.
+ * Returns true when the option FAILS the shape requirement (empty / hollow).
+ */
+function lacksOptionShape(text: string): boolean {
+  const normalized = normalizeForQuality(text);
+  if (!normalized) return true;
+  const contentTokens = normalized.split(' ').filter((token) => token.length >= 3);
+  return contentTokens.length < MIN_OPTION_SHAPE_TOKENS;
+}
+
+/**
+ * EVIDENCE-GROUNDING check — the option must be derived from evidence in the
+ * manuscript/chapter/story, represented here by the anchor passage plus the
+ * rationale that cites it. Returns true when the option FAILS grounding (its
+ * best overlap with either evidence surface is below the grounding threshold).
+ */
+function lacksEvidenceGrounding(candidate: string, anchor: string, rationale: string): boolean {
+  const candidateTokens = contentTokenSet(candidate);
+  if (candidateTokens.size === 0) return true;
+  const anchorOverlap = jaccardSimilarity(candidateTokens, contentTokenSet(anchor));
+  const rationaleOverlap = jaccardSimilarity(candidateTokens, contentTokenSet(rationale));
+  return Math.max(anchorOverlap, rationaleOverlap) < EVIDENCE_GROUNDING_MIN_JACCARD;
+}
 
 function evaluateLedgerCandidateQuality(
   candidate: string,
@@ -436,6 +526,7 @@ function evaluateLedgerCandidateQuality(
 ): CandidateQualityReasonCode[] {
   const reasons: CandidateQualityReasonCode[] = [];
 
+  if (lacksOptionShape(candidate)) reasons.push('candidate_quality_empty_shape');
   if (isNotCopyReady(candidate)) reasons.push('candidate_quality_not_copy_ready');
   if (isTooShort(candidate)) reasons.push('candidate_quality_too_short');
   if (isGenericAdvice(candidate)) reasons.push('candidate_quality_generic');
@@ -447,6 +538,7 @@ function evaluateLedgerCandidateQuality(
   if (introducesUnsupportedFacts(candidate, anchor)) reasons.push('candidate_quality_unsupported_facts');
   if (isVoiceMismatch(candidate)) reasons.push('candidate_quality_voice_mismatch');
   if (lacksContextFit(candidate, anchor, rationale)) reasons.push('candidate_quality_context_mismatch');
+  if (lacksEvidenceGrounding(candidate, anchor, rationale)) reasons.push('candidate_quality_not_evidence_grounded');
 
   return [...new Set(reasons)];
 }
@@ -479,6 +571,19 @@ export function evaluateCardQuality(
     return { pass: false, passingCount: 0, reasons: ['candidate_quality_not_copy_ready'] };
   }
 
+  // SHAPE hard failure: every option must carry real revised prose. A blank or
+  // hollow option is not a choice at all — the SHAPE of A/B/C must not be empty.
+  // This is stricter than the empty-string guard above (it also catches
+  // whitespace/punctuation-only or stub options) and fails the whole card so
+  // regeneration re-runs.
+  if (
+    lacksOptionShape(candidateA) ||
+    lacksOptionShape(candidateB) ||
+    lacksOptionShape(candidateC)
+  ) {
+    return { pass: false, passingCount: 0, reasons: ['candidate_quality_empty_shape'] };
+  }
+
   const resultsPerCandidate = [
     evaluateLedgerCandidateQuality(candidateA, anchor, rationale),
     evaluateLedgerCandidateQuality(candidateB, anchor, rationale),
@@ -494,6 +599,26 @@ export function evaluateCardQuality(
     return { pass: false, passingCount: 0, reasons: mergedReasons };
   }
 
+  // Hard failure: two or more options are duplicate / near-duplicate. A/B/C
+  // must offer materially different revisions; collapsed options provide no
+  // real choice and are the single biggest author-facing complaint. Fail the
+  // whole card so the regeneration path re-runs with distinct variants.
+  const duplicatePairs = findDuplicateOptionPairs(candidateA, candidateB, candidateC);
+  if (duplicatePairs.length > 0) {
+    const mergedReasons = [
+      ...new Set([...resultsPerCandidate.flat(), 'candidate_quality_duplicate_options' as const]),
+    ] as CandidateQualityReasonCode[];
+    return { pass: false, passingCount: 0, reasons: mergedReasons };
+  }
+
+  // Evidence-grounding is enforced per candidate inside
+  // evaluateLedgerCandidateQuality via `candidate_quality_not_evidence_grounded`
+  // (an option that shares no content with the manuscript anchor/rationale is
+  // invented, not derived). An ungrounded option therefore fails and lowers the
+  // passing count — it does NOT hard-fail the whole card, so the 2-of-3
+  // tolerance still applies: the card passes only if at least two options are
+  // clean AND grounded. This keeps grounding aligned with the other per-
+  // candidate signals rather than overriding the card admission rule.
   const passingCount = resultsPerCandidate.filter((reasons) => reasons.length === 0).length;
 
   if (passingCount >= 2) {

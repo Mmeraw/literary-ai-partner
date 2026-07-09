@@ -157,7 +157,26 @@ describe("prompt pack governance specs", () => {
     // P6: GENRE-CALIBRATED LANGUAGE section must be present
     expect(PASS3_SYSTEM_PROMPT).toContain("GENRE-CALIBRATED LANGUAGE");
     expect(PASS3_SYSTEM_PROMPT).toContain("RELATIVE FRAMING");
-    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(42000);  // P3 (~700) + P4 (~1100) + P5 (~1500) + P6 (~1500) + abstract-criteria grounding (~300) + anchor CANNOT rules (~300) + OUTPUT QUALITY STANDARD (~600) + leverage-first priority (~1200) + manuscript-specific recs (~700) + evidence depth (~500) + CMOS DO NOT constraints (~800) + score calibration rubric (~1700)
+    // Deterministic char-budget band (absolute ± values, mirroring the
+    // NAME_MIN/NAME_MAX convention in lib/config/envContract.ts). The PASS3
+    // system prompt is a soft *budget*, not a runtime-enforced clamp, so a hard
+    // equality ceiling churned on every legitimate governance edit. Instead we
+    // assert the prompt stays within a tolerance window around the itemized
+    // target: the FLOOR catches a silently-dropped governance section (a real
+    // quality/safety regression — the dangerous direction); the CEILING catches
+    // runaway bloat. Widen PASS3_PROMPT_TARGET (not the tolerances) when adding
+    // a deliberate new section, so the band tracks intent.
+    //
+    // Target itemization: P3 (~700) + P4 (~1100) + P5 (~1500) + P6 (~1500)
+    // + abstract-criteria grounding (~300) + anchor CANNOT rules (~300)
+    // + OUTPUT QUALITY STANDARD (~600) + leverage-first priority (~1200)
+    // + manuscript-specific recs (~700) + evidence depth (~500)
+    // + CMOS DO NOT constraints (~800) + score calibration rubric (~1700).
+    const PASS3_PROMPT_TARGET = 42000;
+    const PASS3_PROMPT_TOLERANCE_MINUS = 4000; // floor 38000 — trips if a section is dropped
+    const PASS3_PROMPT_TOLERANCE_PLUS = 2000;  // ceiling 44000 — trips on runaway bloat
+    expect(PASS3_SYSTEM_PROMPT.length).toBeGreaterThanOrEqual(PASS3_PROMPT_TARGET - PASS3_PROMPT_TOLERANCE_MINUS);
+    expect(PASS3_SYSTEM_PROMPT.length).toBeLessThanOrEqual(PASS3_PROMPT_TARGET + PASS3_PROMPT_TOLERANCE_PLUS);
 
     const userPrompt = buildPass3UserPrompt({
       comparisonPacketJson: "{\"criteria\":[],\"criteria_count_by_state\":{\"agree\":0,\"soft_divergence\":0,\"hard_divergence\":0,\"missing_or_invalid\":0}}",

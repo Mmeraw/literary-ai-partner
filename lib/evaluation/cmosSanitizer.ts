@@ -100,6 +100,91 @@ function fixRepeatedWords(text: string): string {
 }
 
 /**
+ * Normalize British spellings to US spellings.
+ * Project standard is US English (CMOS 17th ed.). LLM output occasionally
+ * emits British forms (e.g. "millimetre", "colour").
+ * Case-preserving for the first letter; only applies to whole-word matches.
+ */
+const BRITISH_TO_US: ReadonlyArray<readonly [RegExp, string]> = [
+  // -re → -er (metre family)
+  [/\bmillimetre(s?)\b/gi, "millimeter$1"],
+  [/\bcentimetre(s?)\b/gi, "centimeter$1"],
+  [/\bkilometre(s?)\b/gi, "kilometer$1"],
+  [/\bmetre(s?)\b/gi, "meter$1"],
+  [/\blitre(s?)\b/gi, "liter$1"],
+  [/\bfibre(s?)\b/gi, "fiber$1"],
+  [/\btheatre(s?)\b/gi, "theater$1"],
+  [/\bcentre(s?)\b/gi, "center$1"],
+  // -our → -or
+  [/\bcolour(s?)\b/gi, "color$1"],
+  [/\bhonour(s?)\b/gi, "honor$1"],
+  [/\bfavour(s?)\b/gi, "favor$1"],
+  [/\bbehaviour(s?)\b/gi, "behavior$1"],
+  [/\bneighbour(s?)\b/gi, "neighbor$1"],
+  // -ise → -ize (common verbs)
+  [/\brecognise(d|s|)\b/gi, "recognize$1"],
+  [/\borganise(d|s|)\b/gi, "organize$1"],
+  [/\brealise(d|s|)\b/gi, "realize$1"],
+  // misc
+  [/\bgrey\b/gi, "gray"],
+  [/\btravelled\b/gi, "traveled"],
+  [/\btravelling\b/gi, "traveling"],
+];
+
+function preserveCase(source: string, replacement: string): string {
+  if (source.length === 0) return replacement;
+  if (source === source.toUpperCase()) return replacement.toUpperCase();
+  if (source[0] === source[0].toUpperCase()) {
+    return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+  }
+  return replacement;
+}
+
+function fixBritishSpelling(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of BRITISH_TO_US) {
+    result = result.replace(pattern, (match, ...groups) => {
+      // Build the replacement with captured trailing group(s) applied.
+      const tail = typeof groups[0] === "string" ? groups[0] : "";
+      const base = replacement.replace(/\$1/g, tail);
+      return preserveCase(match, base);
+    });
+  }
+  return result;
+}
+
+/**
+ * Balance quotation marks in a single passage.
+ * CMOS 6.9: dialogue must have matching opening and closing double quotes.
+ * Handles two observed LLM defects:
+ *   1. A curly close-double replaced by a straight/curly single ( .' or .’ )
+ *      at the end of a quoted sentence → restore closing double quote.
+ *   2. An odd number of double quotes (unclosed dialogue) → append a
+ *      closing curly double quote at the end.
+ * Runs AFTER fixStraightQuotes so it operates on curly marks.
+ */
+function fixUnbalancedQuotes(text: string): string {
+  let result = text;
+  // Case 1: sentence-final punctuation followed by a single close quote that
+  // should be a double close quote, when a double open exists earlier and no
+  // double close has appeared since. Conservative: only when preceded by
+  // terminal punctuation and the string opened a double quote.
+  const opensDouble = /\u201c/.test(result);
+  if (opensDouble) {
+    result = result.replace(/([.!?\u2026])[\u2019']([\s)]|$)/g, "$1\u201d$2");
+  }
+  // Case 2: unbalanced double quotes → append closing double quote.
+  const opens = (result.match(/\u201c/g) || []).length;
+  const closes = (result.match(/\u201d/g) || []).length;
+  if (opens > closes) {
+    // Insert the closing quote before any trailing whitespace.
+    const trailing = result.match(/\s*$/)?.[0] ?? "";
+    result = result.slice(0, result.length - trailing.length) + "\u201d" + trailing;
+  }
+  return result;
+}
+
+/**
  * Normalize multiple spaces to single space.
  * CMOS 2.12: One space after periods and all punctuation.
  */
@@ -176,6 +261,8 @@ export function sanitizeCMOS(text: string): string {
   result = fixQuotePunctuation(result);
   result = expandLatinAbbreviations(result);
   result = fixStraightQuotes(result);
+  result = fixUnbalancedQuotes(result);
+  result = fixBritishSpelling(result);
   result = fixRepeatedWords(result);
   result = fixDoubleSpaces(result);
   result = fixCommonLLMErrors(result);

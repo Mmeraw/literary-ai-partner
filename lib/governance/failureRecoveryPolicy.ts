@@ -127,6 +127,7 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'QUALITY_GATE_NOT_PASSED',          // governance alias: generic rollup; QG_* codes cover all runtime gate surfaces; redundant unless a non-QG_ gate surface is identified
   'REVIEW_GATE_QUALITY_HARD_FAIL', // Governance alias; kick-matrix label for degraded long-form layer scenario. No runtime emit site found.
   'REVIEW_GATE_REJECTED', // Governance alias; runtime emits REVIEW_GATE_REJECTED_BY_AUTHOR on author rejection. No classifyError() path.
+  'REVISE_ABC_NOT_DISTINCT', // A/B/C candidate set is duplicate/near-duplicate, empty-shape, or not evidence-grounded. Kick-eligible: regeneration against the certified opportunity may produce a distinct, grounded, non-empty set (1 retry).
   'REVISE_HANDOFF_RENDERER_OUTPUT_INVALID',
   'REVISION_LEDGER_EVIDENCE_MISSING', // governance alias: maps to bare LEDGER_EVIDENCE_MISSING already wired in REVISE_KICK_MATRIX; do not add a separate failures.ts bridge
   'RIGHTS_DECLARATION_MISSING',
@@ -134,6 +135,9 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'SCORE_BELOW_THRESHOLD',
   'SECTIONS_NOT_ALL_APPROVED',
   'SEED_FIT_GAP_BLOCKED',
+  'SHORT_FORM_INTERNAL_PROCESS_LEAK', // Pass 3 short-form output leaked internal pipeline stage labels; kick-eligible re-synthesis (S07_PASS3, 1 retry).
+  'SHORT_FORM_LONGFORM_ARTIFACT_LEAK', // Pass 3 short-form output leaked long-form artifact terms (WAVE/Golden Spine/Phase 5); kick-eligible re-synthesis (S07_PASS3, 1 retry).
+  'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM', // Pass 3 short-form output made whole-manuscript claims unsupportable from the excerpt; kick-eligible re-synthesis (S07_PASS3, 1 retry).
   'STRUCTURED_AUDIT_FIELDS_MISSING',
   'TRUSTEDPATH_INELIGIBLE_VERDICT',
   'TRUSTEDPATH_LEDGER_WRITE_FAIL',

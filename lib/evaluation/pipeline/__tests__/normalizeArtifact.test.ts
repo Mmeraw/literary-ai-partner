@@ -3,7 +3,7 @@
  *
  * Proves:
  *   1. Only permitted cosmetic operations run (capitalize, terminal_punct,
- *      whitespace, trim_word_boundary).
+ *      whitespace, trim_sentence_boundary).
  *   2. Scores are never touched.
  *   3. Summary meaning is never altered.
  *   4. Wrong score in summary is left as-is (ECG's job to flag it, not ours).
@@ -146,38 +146,44 @@ describe("normalizeArtifact() — recommendation normalization", () => {
 // Overview summary trimming
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("normalizeArtifact() — overview summary trim", () => {
-  it("trims a summary exceeding 750 chars at word boundary with ellipsis", () => {
-    const longSummary = "The manuscript earns a 74/100 on its Concept & Premise. " + "word ".repeat(200);
+describe("normalizeArtifact() — overview summary trim (cap 1000, sentence boundary)", () => {
+  it("trims a summary exceeding the 1000-char cap at a complete-sentence boundary", () => {
+    // Whole sentences past the cap → trimmed to last full sentence, no ellipsis.
+    const longSummary = "The manuscript earns a solid score on its concept. ".repeat(40);
     const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
     normalizeArtifact(synthesis, [], []);
-    expect(synthesis.overall.one_paragraph_summary.length).toBeLessThanOrEqual(750);
-    expect(synthesis.overall.one_paragraph_summary).toMatch(/…$/);
+    const after = synthesis.overall.one_paragraph_summary;
+    expect(after.length).toBeLessThanOrEqual(1000);
+    expect(after.endsWith(".")).toBe(true);   // ends on a complete sentence
+    expect(after.includes("\u2026")).toBe(false); // no ellipsis when a sentence fits
   });
 
-  it("never cuts a word mid-token when trimming", () => {
-    // Build a summary that is just over 750 chars ending on a long word
-    const prefix = "The manuscript earns a 74/100. The principal blocker is Pacing. ";
-    const suffix = "antidisestablishmentarianism ".repeat(40); // long words
-    const synthesis = makeSynthesis({ one_paragraph_summary: prefix + suffix });
+  it("never cuts a word mid-token even when one sentence is longer than the cap", () => {
+    // A single sentence longer than the cap forces the word-boundary fallback,
+    // which is the only branch that appends an ellipsis. It must still end on a
+    // COMPLETE source word — never a partial like "antidisestablishme".
+    const source = "The blocker is " + "antidisestablishmentarianism ".repeat(50) + "and more.";
+    const synthesis = makeSynthesis({ one_paragraph_summary: source });
     normalizeArtifact(synthesis, [], []);
     const trimmed = synthesis.overall.one_paragraph_summary;
-    // Must not end on a partial word like "antidisestablishme"
-    const body = trimmed.slice(0, -1); // remove ellipsis
-    expect(body).not.toMatch(/[a-z]$/i); // last char must not be mid-word alpha
+    expect(trimmed).toMatch(/\u2026$/);
+    const body = trimmed.slice(0, -1).trimEnd();
+    const lastToken = body.split(/\s+/).pop() ?? "";
+    const sourceTokens = new Set(source.split(/\s+/));
+    expect(sourceTokens.has(lastToken)).toBe(true);
   });
 
-  it("does NOT trim a summary that is exactly 750 chars", () => {
-    const exactly750 = "a".repeat(749) + ".";
-    const synthesis = makeSynthesis({ one_paragraph_summary: exactly750 });
+  it("does NOT trim a summary that is exactly at the 1000-char cap", () => {
+    const exactly1000 = "a".repeat(999) + ".";
+    const synthesis = makeSynthesis({ one_paragraph_summary: exactly1000 });
     normalizeArtifact(synthesis, [], []);
-    expect(synthesis.overall.one_paragraph_summary).toBe(exactly750);
+    expect(synthesis.overall.one_paragraph_summary).toBe(exactly1000);
   });
 
-  it("does NOT trim a summary that is under 750 chars", () => {
+  it("does NOT trim a summary that is under the cap (overage above base allowed)", () => {
     const synthesis = makeSynthesis();
     const before = synthesis.overall.one_paragraph_summary;
-    expect(before.length).toBeLessThan(750);
+    expect(before.length).toBeLessThan(1000);
     normalizeArtifact(synthesis, [], []);
     expect(synthesis.overall.one_paragraph_summary).toBe(before);
   });
@@ -241,7 +247,7 @@ describe("normalizeArtifact() — normalization log", () => {
       expect(norm.field).toBeTruthy();
       expect(norm.before).toBeTruthy();
       expect(norm.after).toBeTruthy();
-      expect(["capitalize", "terminal_punct", "whitespace", "trim_word_boundary"]).toContain(norm.operation);
+      expect(["capitalize", "terminal_punct", "whitespace", "trim_sentence_boundary"]).toContain(norm.operation);
     }
   });
 
@@ -254,12 +260,34 @@ describe("normalizeArtifact() — normalization log", () => {
     }
   });
 
-  it("logs trim_word_boundary when summary is trimmed", () => {
-    const longSummary = "The manuscript earns a 74/100. " + "word ".repeat(200);
+  it("logs trim_sentence_boundary when summary exceeds the 1000-char cap", () => {
+    // Build a summary of complete sentences that runs well past the 1000-char
+    // hard cap so the sentence-boundary trimmer must engage.
+    const sentence = "The manuscript earns a strong score on its craft and voice. ";
+    const longSummary = sentence.repeat(40); // ~2360 chars, all whole sentences
     const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
     const result = normalizeArtifact(synthesis, [], []);
-    const trimLog = result.normalizations.find(n => n.operation === "trim_word_boundary");
+    const trimLog = result.normalizations.find(n => n.operation === "trim_sentence_boundary");
     expect(trimLog).toBeDefined();
     expect(trimLog!.field).toContain("one_paragraph_summary");
+    // Result must be within the hard cap and end on a complete sentence
+    // (no mid-sentence cut, no ellipsis since whole sentences fit).
+    const after = synthesis.overall.one_paragraph_summary!;
+    expect(after.length).toBeLessThanOrEqual(1000);
+    expect(after.endsWith(".")).toBe(true);
+    expect(after.includes("\u2026")).toBe(false);
+  });
+
+  it("does NOT trim a summary that is over base but under the 1000-char cap", () => {
+    // "more is more": a summary between base (750) and cap (1000) must pass
+    // through untouched — overage above base is allowed.
+    const sentence = "The prose is confident and the pacing is assured throughout. ";
+    let summary = "";
+    while (summary.length < 850) summary += sentence; // lands ~850-900 chars
+    const synthesis = makeSynthesis({ one_paragraph_summary: summary });
+    const result = normalizeArtifact(synthesis, [], []);
+    const trimLog = result.normalizations.find(n => n.field.includes("one_paragraph_summary"));
+    expect(trimLog).toBeUndefined();
+    expect(synthesis.overall.one_paragraph_summary).toBe(summary);
   });
 });
