@@ -16,6 +16,17 @@ The remaining roadmap must strengthen proof, enforcement, parity, and presentati
 
 ---
 
+## Archived Promotion Sentinel
+
+The prior U2/U3 promotion work remains complete and enforced. This sentinel is retained for existing CI governance continuity and is not a new roadmap phase.
+
+```text
+U2: ENFORCED
+U3: ENFORCED
+```
+
+---
+
 ## Roadmap Summary
 
 ```text
