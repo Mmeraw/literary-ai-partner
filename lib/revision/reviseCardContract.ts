@@ -1,6 +1,7 @@
 import {
   hasRepeatedSentenceOpenings,
   startsWithRepetitiveLeadIn,
+  collapseDuplicatedStrategyLabel,
 } from '@/lib/text/authorFacingProse'
 
 export const REVISION_OPERATIONS = [
@@ -85,6 +86,16 @@ export const REVISION_OPTION_LABELS = {
   B: 'B — Rhythm Variant',
   C: 'C — Bolder Rendering Shift',
 } as const
+
+/**
+ * Canonical accessor for the A/B/C strategy card header label. (D3)
+ * Routes the intended label through collapseDuplicatedStrategyLabel so an
+ * ACCIDENTAL immediate doubling is collapsed while the intended single label is
+ * always preserved. This is the single choke point renderers should use.
+ */
+export function strategyOptionLabel(key: keyof typeof REVISION_OPTION_LABELS): string {
+  return collapseDuplicatedStrategyLabel(REVISION_OPTION_LABELS[key])
+}
 
 const FORBIDDEN_META_SUGGESTIONS = [
   'review this opportunity',

@@ -9,6 +9,7 @@ import {
 import { buildReportPitches, type RevisionOpportunitySummary } from '@/lib/evaluation/reportTemplateContract';
 import { getCriterionRationalePresentation, getCriterionSupportLabel, type RenderableCriterion } from '@/lib/evaluation/reportCriterionDisplay';
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
+import { detectRawFallbackSentinel } from '@/lib/text/authorFacingProse';
 import {
   formatCriterionConfidenceLabel,
   deriveGenreConfidence,
@@ -595,8 +596,10 @@ export function buildShortFormEvaluationDocument(input: {
       headerContract,
       genreExpectationContract,
     },
-    oneParagraphPitch: mistakeProofText(pitches.oneParagraphPitch),
-    oneSentencePitch: mistakeProofText(pitches.oneSentencePitch),
+    // A2: never expose the raw fallback sentinel — suppress to empty at this
+    // author-facing boundary rather than print the "not generated" marker.
+    oneParagraphPitch: detectRawFallbackSentinel(pitches.oneParagraphPitch) ? '' : mistakeProofText(pitches.oneParagraphPitch),
+    oneSentencePitch: detectRawFallbackSentinel(pitches.oneSentencePitch) ? '' : mistakeProofText(pitches.oneSentencePitch),
     premise:
       typeof result.enrichment?.premise === 'string' && result.enrichment.premise.trim().length > 0
         ? mistakeProofText(result.enrichment.premise)

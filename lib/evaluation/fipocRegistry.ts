@@ -1960,6 +1960,61 @@ export const KICK_MATRIX: KickMatrixEntry[] = [
     failureCode: 'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM',
     blocksAuthorExposure: true,
   },
+  {
+    dirtyDataDetectedAt: 'SHORT_FORM_FINAL_SANITY_CHECK',
+    failure: 'A short-form diagnostic segment ends mid-sentence (dangling connective, comma, colon, or open parenthesis)',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Regenerate Pass 3 synthesis so every diagnostic segment (rationale + opportunity fields) is a complete, terminally punctuated sentence.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'SHORT_FORM_MIDSENTENCE_TERMINATION',
+    blocksAuthorExposure: true,
+  },
+  {
+    dirtyDataDetectedAt: 'SHORT_FORM_FINAL_SANITY_CHECK',
+    failure: 'A short-form diagnostic segment has a copy defect (lowercase opening or accidental adjacent-duplicate word)',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Regenerate Pass 3 synthesis: capitalize the first word of every diagnostic segment and remove accidental adjacent-duplicate words.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'SHORT_FORM_COPY_DEFECT',
+    blocksAuthorExposure: true,
+  },
+  // ── Copy-integrity: sentence/field hygiene on author-facing prose ─────────
+  // Same family as HANDOFF_INCOMPLETE_SENTENCE. Detection lives in the
+  // recommendation integrity + short-form sanity gates; the trivial cases are
+  // additionally auto-repaired by the shared idempotent helpers at the
+  // normalizeArtifact pre-stage (capitalizeFirstAlpha / ensureTerminalPunctuation).
+  {
+    dirtyDataDetectedAt: 'SHORT_FORM_FINAL_SANITY_CHECK',
+    failure: 'Author-facing prose ends mid-sentence (dangling connective, comma, colon, or open parenthesis)',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Regenerate Pass 3 synthesis so every rendered author-facing sentence is complete; never terminate on a dangling connective, comma, colon, or open parenthesis.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'HANDOFF_MIDSENTENCE_TERMINATION',
+    blocksAuthorExposure: true,
+  },
+  {
+    dirtyDataDetectedAt: 'S07_RECOMMENDATION_INTEGRITY_GATE',
+    failure: 'Recommendation/opportunity text opens with a lowercase letter',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Capitalize the first word of every recommendation/opportunity field; regenerate if the lowercase opening reflects a fused or truncated sentence.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'REC_INTEGRITY_LOWERCASE_OPENING',
+    blocksAuthorExposure: true,
+  },
+  {
+    dirtyDataDetectedAt: 'S07_RECOMMENDATION_INTEGRITY_GATE',
+    failure: 'Distinct diagnostic fields (fix direction, reader effect) fused into one run-on with no sentence boundary',
+    kickBackTo: 'S07_PASS3',
+    redoAction: 'Regenerate Pass 3 synthesis emitting fix_direction and reader_effect as separate, terminally punctuated sentences.',
+    retryLimit: 1,
+    ifRetryFails: 'Fail closed; block author exposure.',
+    failureCode: 'REC_INTEGRITY_FUSED_FIELDS',
+    blocksAuthorExposure: true,
+  },
 ];
 
 export const RENDERER_CONSUMPTION_MATRIX: RendererConsumptionEntry[] = [

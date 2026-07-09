@@ -171,6 +171,7 @@ export type IntegrityViolationCode =
   | "ORPHAN_CONJUNCTION"
   | "MALFORMED_CONNECTOR"
   | "SENTENCE_FRAGMENT"
+  | "NO_LOWERCASE_OPENING"
   | "MISSING_TERMINAL_PUNCTUATION"
   | "REPEATED_CLAUSE"
   | "MID_SENTENCE_TRUNCATION"
@@ -281,6 +282,20 @@ function checkSentenceCompleteness(name: string, value: string): IntegrityViolat
         });
         break;
       }
+    }
+  }
+
+  // Lowercase opening (A3/A4/D2). Author-facing recommendation prose must open
+  // with a capital letter. anchor_snippet is exempt — it is a verbatim quote and
+  // may legitimately begin mid-sentence with a lowercase word.
+  if (name !== "anchor_snippet") {
+    const firstAlphaIdx = trimmed.search(/[A-Za-z]/);
+    if (firstAlphaIdx !== -1 && /[a-z]/.test(trimmed[firstAlphaIdx])) {
+      violations.push({
+        field: name,
+        code: "NO_LOWERCASE_OPENING",
+        detail: `Opens with a lowercase letter: "${trimmed.substring(0, 40)}"`,
+      });
     }
   }
 
