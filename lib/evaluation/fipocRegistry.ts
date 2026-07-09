@@ -258,6 +258,18 @@ export const AUTHORITY_SOURCE_REGISTRY: AuthoritySourceRegistryEntry[] = [
     notes: 'Recommendation is the product; weak/generic recommendations must be quarantined.',
   },
   {
+    authorityId: 'LENGTH_POLICY_GOVERNANCE',
+    family: 'governance',
+    title: 'Length Policy Governance — Cap/Overage/Minimum + No Mid-Sentence Truncation',
+    path: 'docs/gold-standards/length-policy-governance.md',
+    appliesToStageIds: ['S07_PASS3', 'S08_ER2_NORMALIZATION', 'S09_QUALITYGATEV2'],
+    appliesToArtifacts: ['pass3_synthesis_v1', 'quality_gate_diagnostics_v1'],
+    runtimeBinding: 'binding',
+    surfacedInSipocUi: true,
+    executionUse: 'Deterministic three-part length policy (MIN floor / BASE / hard CAP, integers only, no percentages). Over-CAP author prose is trimmed only at a complete-sentence boundary (never mid-sentence, never mid-word). Below MIN triggers INSUFFICIENT_EXPLANATION regeneration; content is never padded or fabricated.',
+    notes: 'Source of truth: lib/config/lengthPolicy.ts. NO_MIDSENTENCE_TRUNCATION is a code-enforced invariant (trimAtSentenceBoundary), proven by unit tests, not a kick-mapped runtime failure. "More is more": overage above base is allowed up to the hard cap and never trimmed back toward base to hit a number.',
+  },
+  {
     authorityId: 'REVISE_QUEUE_RENDERING_EXEMPLARS',
     family: 'exemplar',
     title: 'Revise Queue Rendering Exemplars',
