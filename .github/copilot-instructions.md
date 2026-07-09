@@ -159,6 +159,18 @@ Final audit: semantic correctness, parity, presentation, accessibility, performa
 
 No feature additions. No architecture additions.
 
+## MARKDOWN AND DOCUMENTATION FILES
+
+Do not add markdown files for routine code fixes, low-severity notes, or agent scratch work.
+
+Markdown or documentation files are allowed when:
+- the issue is high-severity architectural, governance, audit, incident, or roadmap work;
+- durable evidence is required for future agents or CI review;
+- the user explicitly requests a ticket, note, roadmap, audit record, or PR documentation;
+- or repository policy requires documentation.
+
+Keep docs scoped, factual, and tied to the issue. Do not use markdown files as hidden scratchpads.
+
 ## HARD CONSTRAINTS
 
 - Never invent a second source of truth.
