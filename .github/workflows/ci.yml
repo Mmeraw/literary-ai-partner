@@ -155,6 +155,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       USE_SUPABASE_JOBS: "true"
       TEST_MODE: "true"
+                ALLOW_HEADER_USER_ID: "true"
+                SMOKE_USER_ID: ${{ secrets.SMOKE_USER_ID }}
     steps:
       - uses: actions/checkout@v5
         with:
