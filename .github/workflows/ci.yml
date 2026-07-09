@@ -91,11 +91,11 @@ jobs:
         run: npm test -- --runInBand --no-coverage --bail
         env:
           CI: true
-        - name: Semantic parity gate (UED to ViewModel to renderer)
-                  if: steps.scope.outputs.skip != 'true'
-                            run: npm run test:parity
-                                      env:
-                                                  CI: true
+      - name: Semantic parity gate (UED to ViewModel to renderer)
+        if: steps.scope.outputs.skip != 'true'
+        run: npm run test:parity
+        env:
+          CI: true
   governance:
     runs-on: ubuntu-latest
     env:

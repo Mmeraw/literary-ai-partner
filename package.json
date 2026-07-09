@@ -32,7 +32,7 @@
     "guard:u3-prereq": "bash scripts/guard-u3-prereq.sh",
     "u2:proof:validate": "node scripts/validate-u2-proof.mjs",
     "test": "jest",
-        "test:parity": "jest --config jest.parity.config.js --runInBand",
+    "test:parity": "jest --config jest.parity.config.js --runInBand",
     "test:benchmark:public-domain-gold": "jest --runInBand --runTestsByPath tests/evaluation/benchmarks/public-domain-awakening.golden.test.ts tests/evaluation/benchmarks/public-domain-great-expectations.golden.test.ts",
     "test:benchmark:story-ledger-gold-fixtures": "jest --runInBand --runTestsByPath tests/evaluation/benchmarks/story-ledger-gold-fixtures.test.ts",
     "probe:llr003": "tsx -r tsconfig-paths/register scripts/probe-llr003-job.ts",
