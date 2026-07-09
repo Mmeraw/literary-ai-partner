@@ -21,41 +21,41 @@ function makeCertificationInput(): ECGInput {
     {
       overview: {
         overall_score_0_100: 74,
-        verdict: "revise",
+        verdict: "not_market_ready",
         one_paragraph_summary:
-          "The manuscript earns 74/100 because the central concept and character pressure are clear, while pacing and thematic escalation remain the principal revision priorities.",
+          "The manuscript earns a 74/100 on the strength of its Concept & Premise and Character Depth, with clear revision pressure in Pacing & Structural Balance. The author should preserve the specific Antwerp setting and sharpen scene-level consequence before submission.",
         one_sentence_pitch:
-          "A retired diamond trader faces a friendship-defining cobalt proposition in Antwerp.",
+          "A sardonic Antwerp diamond dealer's retirement evening becomes a reckoning with cobalt, blood money, and a lifelong friendship.",
         one_paragraph_pitch:
-          "A retired Antwerp diamond trader is drawn into a cobalt opportunity that tests friendship, loyalty, and the cost of staying relevant in a collapsing industry.",
+          "Calvin, a burned-out diamond trader, joins his old friend Monty in Antwerp's SkyNooz penthouse for a farewell evening that turns into an ultimatum: join a high-stakes cobalt operation in the Democratic Republic of Congo, or watch a twenty-five-year friendship dissolve.",
         top_3_strengths: [
-          "The central friendship creates clear emotional stakes.",
-          "The Antwerp setting gives the manuscript a concrete market texture.",
-          "The premise creates strong revision leverage for pacing and theme.",
+          "Strong Calvin-Monty friendship dynamic with specific banter.",
+          "Vivid Antwerp worldbuilding with authoritative industry detail.",
+          "Consistent sardonic tonal authority throughout.",
         ],
         top_3_risks: [
-          "Pacing weakens when exposition delays scene-level consequence.",
-          "Thematic pressure needs sharper escalation across decision beats.",
-          "Reader investment depends on clearer causal payoff in the final turn.",
+          "Mid-chapter expository density slows pacing before the GeoCam reveal.",
+          "Occasional overextended sentences weaken the narrative voice.",
+          "Excerpt ending defers emotional payoff without a clear promise.",
         ],
       },
       enrichment: {
         premise:
-          "An Antwerp diamond trader must decide whether a cobalt venture is a lifeline, a betrayal, or the final proof that his old life is over.",
-        diagnosed_genre: "Upmarket fiction",
-        target_audience: "Adult readers of literary commercial fiction",
+          "A burned-out Antwerp diamond trader facing the collapse of his industry lures his cautious Canadian friend into a lavish SkyNooz penthouse evening where a risky cobalt job forces them to confront how much they will risk for money, status, and friendship.",
+        diagnosed_genre: "Literary / Upmarket Fiction",
+        target_audience: "Adult literary fiction readers",
       },
       recommendations: {
         quick_wins: [
           {
             action:
-              "Compress the first exposition-heavy exchange so the reader reaches the cobalt proposition before momentum softens.",
+              "Compress the most repetitive sentences in the mid-chapter diamond and vanity exposition so the narrative reaches the GeoCam offer a page sooner without sacrificing the core ideas.",
           },
         ],
         strategic_revisions: [
           {
             action:
-              "Add one visible decision beat after the cobalt offer so the protagonist's loyalty conflict becomes external and testable.",
+              "Introduce one or two small physical beats in the penthouse scene that use the windows or Macallan bottle to echo Monty's emotional state whenever the conversation about the Democratic Republic of Congo reaches a new turning point.",
           },
         ],
       },
@@ -64,17 +64,17 @@ function makeCertificationInput(): ECGInput {
           key: "concept",
           final_score_0_10: 8,
           final_rationale:
-            "The cobalt-and-diamond premise has strong market-facing specificity and clear ethical pressure.",
+            "The concept linking diamond industry collapse to cobalt mining and personal ethics is fresh.",
         },
         {
-          key: "pacing",
-          final_score_0_10: 6,
+          key: "narrativeDrive",
+          final_score_0_10: 7,
           final_rationale:
-            "The manuscript has visible propulsion, but several exposition runs delay the next consequential beat.",
+            "Momentum flows through the escalating penthouse conversation but stalls during exposition.",
         },
       ],
       governance: {
-        confidence: 0.84,
+        confidence: 0.82,
         confidence_label: "High Confidence",
       },
     },
@@ -92,15 +92,17 @@ describe("ECG ENFORCE rollout policy (#1222)", () => {
     restoreECGMode();
   });
 
-  it("defaults unset ECG_MODE to ENFORCE", () => {
+  it("defaults unset ECG_MODE to ENFORCE without emitting a warning", () => {
     delete process.env.ECG_MODE;
     expect(ECG_DEFAULT_MODE).toBe("ENFORCE");
     expect(getECGMode()).toBe("ENFORCE");
+    expect(console.warn).not.toHaveBeenCalled();
   });
 
-  it("defaults empty ECG_MODE to ENFORCE", () => {
+  it("defaults empty ECG_MODE to ENFORCE without emitting a warning", () => {
     process.env.ECG_MODE = "   ";
     expect(getECGMode()).toBe("ENFORCE");
+    expect(console.warn).not.toHaveBeenCalled();
   });
 
   it("defaults invalid ECG_MODE to ENFORCE and emits an operator warning", () => {
@@ -145,6 +147,22 @@ describe("ECG ENFORCE rollout policy (#1222)", () => {
     expect(result.fatal.map((violation) => violation.code)).toContain(
       "ECG_ART_MISSING_SENTENCE_PITCH",
     );
+  });
+
+  it("skips all invariants under explicit OFF rollback mode", () => {
+    process.env.ECG_MODE = "OFF";
+    const input = makeCertificationInput();
+    input.overview.overall_score_0_100 = 0;
+    input.overview.one_paragraph_summary = "";
+    input.overview.one_sentence_pitch = "";
+    input.recommendations = { quick_wins: [], strategic_revisions: [] };
+
+    const result = runEvaluationCertificationGate(input);
+
+    expect(result.mode).toBe("OFF");
+    expect(result.status).toBe("SKIPPED");
+    expect(result.violations).toHaveLength(0);
+    expect(result.fatal).toHaveLength(0);
   });
 
   it("certifies a clean artifact under the ENFORCE default", () => {
