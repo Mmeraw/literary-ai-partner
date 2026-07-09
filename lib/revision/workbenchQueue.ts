@@ -706,22 +706,6 @@ function isSupportedForUserQueue(opportunity: WorkbenchOpportunity): boolean {
   return true
 }
 
-function fallbackReaderEffect(criterion: string, scope: WorkbenchScope): string {
-  const key = criterion.toLowerCase()
-  if (scope === 'Structural' || scope === 'Manuscript') return 'Repairing this can restore cause-and-effect continuity across the manuscript.'
-  if (key.includes('pacing')) return 'Repairing this can reduce drag and restore forward pressure.'
-  if (key.includes('dialogue')) return 'Repairing this can clarify speaker logic, subtext, or attribution.'
-  if (key.includes('voice') || key.includes('prose')) return 'Repairing this can strengthen voice control without flattening style.'
-  if (key.includes('character')) return 'Repairing this can clarify agency, motivation, or emotional continuity.'
-  return 'Repairing this can improve reader trust, clarity, and manuscript readiness.'
-}
-
-function fallbackMistakeProofing(mode: WorkbenchMode): string {
-  return mode === 'repair-brief'
-    ? 'Preserve author intent, setup/payoff logic, voice, and downstream continuity. Do not solve structural issues with surface polish.'
-    : 'Preserve author voice and meaning. Do not introduce new information unless the repair path explicitly calls for it.'
-}
-
 /** Template-generated meta-phrases that should never appear in user-facing text. */
 const AUTHOR_FACING_CONTAMINATION_PATTERNS = [
   /there is a clear editorial opportunity in/i,
@@ -1347,20 +1331,15 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       },
     ]
 
-    const inferredCauseFallback =
-      'Craft clarity or momentum weakens at this location in the manuscript.'
-
+    // Required diagnostic fields must reach applyReviseCardContract with their
+    // real ledger values or as empty strings. No canned fallbacks are permitted
+    // here: an empty field must fail the contract/admission gates so the card is
+    // withheld rather than padded with fabricated author-facing prose.
     const symptom = cleanAuthorFacingText(opportunity.symptom ?? opportunity.rationale, opportunity.rationale)
-    const cause = cleanAuthorFacingText(opportunity.cause, inferredCauseFallback)
+    const cause = cleanAuthorFacingText(opportunity.cause, '')
     const fixDirection = cleanAuthorFacingText(opportunity.fix_direction ?? opportunity.rationale, opportunity.rationale)
-    const readerEffect = cleanAuthorFacingText(
-      opportunity.reader_effect,
-      fallbackReaderEffect(opportunity.criterion, scope),
-    )
-    const mistakeProofing = cleanAuthorFacingText(
-      opportunity.mistake_proofing,
-      fallbackMistakeProofing(mode),
-    )
+    const readerEffect = cleanAuthorFacingText(opportunity.reader_effect, '')
+    const mistakeProofing = cleanAuthorFacingText(opportunity.mistake_proofing, '')
 
     const contracted = applyReviseCardContract({
       id: opportunity.opportunity_id,
