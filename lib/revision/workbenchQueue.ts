@@ -5,6 +5,7 @@ import { ensureRevisionOpportunityLedgerArtifact } from './opportunityLedger'
 import { buildRevisionPackage, type RevisionPackage } from './revisionPackage'
 import { loadReviseQueueWarmupCorpus } from './reviseQueueWarmup'
 import { getCriterionDisplayLabel } from '@/lib/evaluation/reportRenderSafety'
+import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer'
 import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification'
 import type { DiagnosticFinding, ProposalSeverity } from './types'
 import {
@@ -438,6 +439,40 @@ function criterionLabel(criterionKey: string | null | undefined): string {
 }
 
 /** Clean location_ref: strip machine-internal patterns like "recommendation:4" */
+// Convert a raw colon-delimited coordinate slug into a human-readable label.
+// e.g. "chapter:1:paragraph:20" -> "Chapter 1, paragraph 20"
+//      "chapter:3:scene:2"     -> "Chapter 3, scene 2"
+// Per CMOS 8.180, generic in-text locators ("chapter", "paragraph", "scene")
+// are lowercased; only the leading locator is capitalized so the label reads
+// as sentence-initial text.
+// Returns null when the slug is a non-locational placeholder (no digits),
+// e.g. "chapter:submission:overview", "narrativeclosure:recommendation".
+function humanizeCoordinateSlug(ref: string): string | null {
+  const parts = ref.split(':').map((p) => p.trim()).filter(Boolean)
+  if (parts.length < 2) return null
+  const hasNumeric = parts.some((p) => /^\d+$/.test(p))
+  if (!hasNumeric) return null // placeholder slug like chapter:submission:overview
+
+  const segments: string[] = []
+  for (let i = 0; i < parts.length; i += 1) {
+    const key = parts[i]
+    const next = parts[i + 1]
+    if (/^\d+$/.test(key)) continue // handled with its preceding label
+    // CMOS 8.180: generic locators stay lowercase in running text.
+    const label = key.toLowerCase()
+    if (next && /^\d+$/.test(next)) {
+      segments.push(`${label} ${next}`)
+      i += 1
+    } else {
+      segments.push(label)
+    }
+  }
+  if (!segments.length) return null
+  // Capitalize only the leading locator so the label reads as sentence-initial.
+  const joined = segments.join(', ')
+  return joined.charAt(0).toUpperCase() + joined.slice(1)
+}
+
 function cleanLocationRef(ref: string | null | undefined): string | null {
   if (!ref) return null
   if (/^recommendation:\d+$/i.test(ref)) return null
@@ -445,6 +480,12 @@ function cleanLocationRef(ref: string | null | undefined): string | null {
   if (/^[A-Z_]+:\d+:rec:\d+$/i.test(ref)) return null
   if (/^[A-Z_]+:[a-z0-9]+$/i.test(ref) && ref.length < 30) return null
   if (/^revision_guidance:\d+$/i.test(ref)) return null
+  // Humanize / suppress raw colon-delimited coordinate slugs so machine-readable
+  // identifiers (chapter:1:paragraph:20, narrativeclosure:recommendation) never
+  // reach the user-facing Original Passage location line.
+  if (/^[a-z_]+:[a-z0-9:_]+$/i.test(ref)) {
+    return humanizeCoordinateSlug(ref)
+  }
   return ref
 }
 
@@ -453,7 +494,10 @@ function firstSentence(value: string, fallback: string): string {
   if (!clean) return fallback
   const sentence = clean.match(/^(.{24,150}?[.!?])\s/)?.[1]
   const out = sentence ?? clean
-  return out.length > 150 ? `${out.slice(0, 147).trim()}…` : out.replace(/[.!?]$/, '')
+  // Enforce sentence-initial capitalization (CMOS §6.13). Fixes generator
+  // output that begins with a lowercase verb (e.g. "insert...", "cut...").
+  const capped = out.charAt(0).toUpperCase() + out.slice(1)
+  return capped.length > 150 ? `${capped.slice(0, 147).trim()}…` : capped.replace(/[.!?]$/, '')
 }
 
 function splitEvidence(value: string | null): { quoteHighlight: string; quoteRest: string } {
@@ -716,7 +760,10 @@ function cleanAuthorFacingText(value: string | null | undefined, fallback: strin
     return fallback
   }
 
-  return raw
+  // CMOS normalization: curly quotes, closed em-dashes, balanced quotation
+  // marks, US spelling, single spacing. Applied to every author-facing field
+  // so the revision workbench matches the sanitized evaluation-report path.
+  return sanitizeCMOS(raw)
 }
 
 function sanitizeEvidenceExcerpt(value: string | null | undefined): string {
@@ -1471,4 +1518,8 @@ export const __testing = {
   synthesizeFindingsForWorkbench,
   scopeFromCoordinates,
   hasPlaceholderCoordinates,
+  humanizeCoordinateSlug,
+  cleanLocationRef,
+  cleanAuthorFacingText,
+  firstSentence,
 }
