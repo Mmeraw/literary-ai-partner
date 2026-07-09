@@ -515,6 +515,106 @@ describe('getWorkbenchQueue', () => {
     });
   });
 
+  it('withholds ledger rows with empty required diagnostics instead of padding canned fallbacks (withhold path)', async () => {
+    // A ledger row with real evidence, valid candidates, and preflight passed — but
+    // empty cause, reader_effect, and mistake_proofing. Without fabricated fallbacks,
+    // validateReviseCardContract must fire DIAGNOSTIC_MISSING_CAUSE and withhold the card.
+    const supabase = buildSupabaseMock('job-empty-diag', 'version-empty-diag');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-empty-diag',
+      opportunities: [
+        {
+          opportunity_id: 'opp-empty-diag',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:7',
+          evidence_anchor: 'He crossed the threshold without looking back at her.',
+          rationale: 'The beat transition needs a connective bridge.',
+          symptom: 'The beat transition lands abruptly without connective tissue.',
+          cause: '',           // intentionally empty — must NOT be padded
+          fix_direction: 'Insert a single bridging beat that carries the consequence forward.',
+          reader_effect: '',   // intentionally empty — must NOT be padded
+          mistake_proofing: '', // intentionally empty — must NOT be padded
+          candidate_text_a: 'He crossed the threshold, the door clicking shut behind him before she could speak.',
+          candidate_text_b: 'He stepped through without pausing, leaving her with the weight of the unsaid.',
+          candidate_text_c: 'The threshold passed, and with it the last moment she might have stopped him.',
+          revision_operation: 'replace_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'supported',
+          preflight_status: 'passed',
+          context_quality: 'clean',
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-empty-diag' });
+
+    expect(result.ok).toBe(true);
+    // Empty required diagnostics must withhold the card — never emit it to opportunities.
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting.length + result.withheldUnsupported.length).toBeGreaterThan(0);
+    expect(result.readinessTotals.ready_for_revise).toBe(0);
+    // Confirm no canned fallback phrases leaked into any queue bucket.
+    const allText = JSON.stringify([...result.needsTargeting, ...result.withheldUnsupported]);
+    expect(allText).not.toMatch(/craft clarity or momentum weakens/i);
+    expect(allText).not.toMatch(/repairing this can improve reader trust/i);
+    expect(allText).not.toMatch(/preserve author intent/i);
+  });
+
+  it('admits ledger rows with complete real diagnostics to the live queue (admit path)', async () => {
+    // All six diagnostic fields populated with evidence-backed prose, three
+    // distinct candidates, grounding supported, preflight passed. The card
+    // must reach opportunities — not be held back by the contract gate.
+    const supabase = buildSupabaseMock('job-full-diag', 'version-full-diag');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-full-diag',
+      opportunities: [
+        {
+          opportunity_id: 'opp-full-diag',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:15',
+          evidence_anchor: 'She set the letter down and said nothing for a long time.',
+          rationale: 'The quoted passage resolves the revelation as summary instead of action.',
+          symptom: 'In the quoted passage “She set the letter down and said nothing for a long time,” the revelation resolves as summary instead of action.',
+          cause: 'This occurs when the narrator summarizes Mara’s reaction rather than rendering the physical consequence beat by beat.',
+          fix_direction: 'Replace the quoted passage “She set the letter down and said nothing for a long time” so Mara chooses a visible physical response before the narration names the emotion.',
+          reader_effect: 'This lets readers track Mara’s decision through embodied action, so the revelation keeps narrative momentum instead of flattening into summary.',
+          mistake_proofing: 'Do not introduce new information; the replacement must emerge from what the scene has already established.',
+          candidate_text_a: 'She set the letter down and did not look at it again. Her hands moved to the edge of the table and stayed there.',
+          candidate_text_b: 'After placing the letter flat on the table, Mara reached for her coat before either of them could ask what had changed.',
+          candidate_text_c: 'The letter lay face down near the lamp while Mara kept both hands on the table and refused to pick it up.',
+          revision_operation: 'replace_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'supported',
+          preflight_status: 'passed',
+          context_quality: 'clean',
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-full-diag' });
+
+    expect(result.ok).toBe(true);
+    // Complete evidence-backed diagnostics must be admitted.
+    expect(result.opportunities).toHaveLength(1);
+    expect(result.opportunities[0].id).toBe('opp-full-diag');
+    expect(result.readinessTotals.ready_for_revise).toBe(1);
+    expect(result.readinessTotals.needs_targeting).toBe(0);
+    expect(result.readinessTotals.withheld_unsupported).toBe(0);
+    // The real cause must be present — no canned fallback substituted.
+    const card = result.opportunities[0];
+    expect(card.cause).toContain('summarizes Mara’s reaction');
+    expect(card.readerEffect).toContain('readers track Mara’s decision');
+    expect(card.mistakeProofing).toContain('Do not introduce new information');
+  });
+
   it('renders queue with caution when phase 0 warmup corpus cannot be loaded', async () => {
     mockLoadReviseQueueWarmupCorpus.mockRejectedValueOnce(new Error('missing benchmark corpus'));
     const supabase = buildSupabaseMock('job-1', 'version-1');
