@@ -64,7 +64,7 @@ Everything must preserve that architecture.
 
 ## EXECUTION ORDER
 
-Work ONLY in this order. Do not skip. Do not combine issues. Use one branch and one PR per issue.
+When multiple roadmap tasks are available, prefer this sequence unless the user explicitly directs otherwise or a dependency requires a different order. Do not combine issues. Use one branch and one PR per issue.
 
 ### Step 1 — Complete Issue #1220
 
@@ -176,11 +176,11 @@ No feature additions. No architecture additions.
 
 ## VERIFIER-FIRST RULE
 
-Before writing code for each issue, inspect the current `origin/main` implementation and prove the issue still exists.
+Before implementing any issue, inspect the current `origin/main` implementation, identify the acceptance criteria, and demonstrate which criteria remain unmet.
 
-If the issue has already been resolved by another merged PR, stop, document the finding, and do not duplicate the work.
+If all acceptance criteria are already satisfied, stop and document why no code changes are required. Do not duplicate work already merged.
 
-Otherwise, implement the smallest change that satisfies the issue acceptance criteria.
+Otherwise, implement the smallest change that satisfies the unmet acceptance criteria.
 
 ## DEFINITION OF DONE
 
