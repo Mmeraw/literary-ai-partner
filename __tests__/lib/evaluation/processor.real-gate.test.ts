@@ -136,6 +136,10 @@ function makeRealSynthesisOutput() {
     overall: {
       overall_score_0_100: 74,
       verdict: "revise" as const,
+      one_sentence_pitch:
+        "A craft-focused manuscript tests whether scene-level pressure can sustain reader trust across all thirteen criteria.",
+      one_paragraph_pitch:
+        "A craft-focused manuscript follows scene-by-scene pressure shifts, character decisions, and consequence tracking to test whether execution can support a complete RevisionGrade evaluation. As weaknesses in pacing and theme emerge, the revision path asks whether targeted evidence-anchored repairs can convert promising material into submission-ready narrative coherence.",
       one_paragraph_summary:
         "The manuscript demonstrates measurable craft with targeted revision opportunities, with pacing and theme as the weakest criteria requiring focused revision.",
       top_3_strengths: [
