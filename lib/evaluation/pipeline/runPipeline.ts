@@ -3166,6 +3166,16 @@ export function synthesisToEvaluationResultV2(
   // trimAtWordBoundary ensures we never cut mid-word (fixes "occasiona" truncation).
   const overviewSummary = trimAtWordBoundary(rawOverviewSummary, 750);
 
+  const overviewOneSentencePitch =
+    typeof synthesis.overall.one_sentence_pitch === "string" && synthesis.overall.one_sentence_pitch.trim().length > 0
+      ? synthesis.overall.one_sentence_pitch.trim()
+      : undefined;
+
+  const overviewOneParagraphPitch =
+    typeof synthesis.overall.one_paragraph_pitch === "string" && synthesis.overall.one_paragraph_pitch.trim().length > 0
+      ? synthesis.overall.one_paragraph_pitch.trim()
+      : undefined;
+
   const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {
     const label = getCriterionDisplayLabel(criterion.key);
     return `${label} currently provides a durable manuscript strength with visible reader-facing payoff.`;
@@ -3350,6 +3360,8 @@ export function synthesisToEvaluationResultV2(
       verdict: synthesis.overall.verdict,
       overall_score_0_100: weighted.overall_score_0_100,
       scored_criteria_count: weighted.scored_count,
+      one_sentence_pitch: overviewOneSentencePitch,
+      one_paragraph_pitch: overviewOneParagraphPitch,
       one_paragraph_summary: overviewSummary,
       top_3_strengths: coverageLimited ? [] : overviewTopStrengths,
       top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : overviewTopRisks,
