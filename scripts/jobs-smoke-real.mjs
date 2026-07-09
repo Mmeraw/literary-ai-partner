@@ -7,6 +7,7 @@
  *
  * Usage:
  *   MANUSCRIPT_ID=<real-uuid> npm run jobs:smoke:real
+  * SMOKE_MANUSCRIPT_ID: 7518 (The Price of Vanity) - confirmed has source snapshot
  *   MANUSCRIPT_ID=<real-uuid> USE_SUPABASE_JOBS=true npm run jobs:smoke:real
  *
  * Purpose: Validate that real payloads from the database flow correctly
