@@ -44,7 +44,8 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
       editorial_score: 6,
       final_score_0_10: 7,
       delta_explanation: undefined,
-      final_rationale: `Synthesized analysis for ${key} combining both axes.`,
+      final_rationale:
+        `Synthesized analysis for ${key}: the manuscript shows functional craft execution, but the evaluation still identifies concrete revision leverage in clarity, consequence, and reader payoff.`,
       evidence: [{ snippet: "The river moved slowly." }],
       recommendations: [
         {
@@ -61,9 +62,21 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
     overall: {
       overall_score_0_100: 70,
       verdict: "revise",
+      one_sentence_pitch:
+        "A voice-driven literary manuscript with strong atmosphere needs targeted revision to sharpen pacing, character pressure, and narrative closure.",
+      one_paragraph_pitch:
+        "A voice-driven literary manuscript uses river imagery, reflective narration, and an emerging structural arc to create a distinctive reading experience. The draft is promising but not yet submission-ready because pacing, character motivation, and narrative closure still need clearer pressure, consequence, and payoff.",
       one_paragraph_summary: "This manuscript shows strong potential but needs targeted revision before submission.",
-      top_3_strengths: ["Strong voice", "Clear arc", "Vivid imagery"],
-      top_3_risks: ["Pacing gaps", "Thin character motivation", "Weak world-building"],
+      top_3_strengths: [
+        "The narrative voice creates a clear atmospheric identity.",
+        "The structural arc gives the manuscript an identifiable dramatic direction.",
+        "The imagery grounds the reader in concrete sensory detail.",
+      ],
+      top_3_risks: [
+        "Pacing may soften tension before the central pressure line fully lands.",
+        "Character motivation may feel underdeveloped without sharper causal turns.",
+        "World-building may distract from the manuscript’s core narrative payoff.",
+      ],
       submission_readiness: "nearly_ready",
     },
     metadata: {
@@ -225,6 +238,10 @@ describe("parsePass3Response", () => {
       overall: {
         overall_score_0_100: 70,
         verdict: "revise",
+        one_sentence_pitch:
+          "A haunted family story turns grief, secrecy, and moral pressure into a literary horror premise with clear revision leverage.",
+        one_paragraph_pitch:
+          "Sister moves through a haunted family story where grief, secrecy, and moral pressure keep narrowing the choices available to her. The draft has strong atmosphere and emotional specificity, but pacing, thematic escalation, and closure need sharper consequence before the work can feel submission-ready.",
         one_paragraph_summary:
           "Sister has a strong atmospheric premise and emotionally legible family pressure, but pacing, thematic escalation, and closure need targeted revision before the report can call it submission-ready.",
         top_3_strengths: [
@@ -250,6 +267,7 @@ describe("parsePass3Response", () => {
     });
 
     const parsed = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    parsed.overall.verdict = "conditional" as unknown as typeof parsed.overall.verdict;
     const manuscriptText = CRITERIA_KEYS.map((key) => `The river moved slowly while Sister carried ${key} pressure through the room.`).join(" ");
     const resultV2 = synthesisToEvaluationResultV2({
       synthesis: parsed,
@@ -456,6 +474,10 @@ describe("parsePass3Response", () => {
       overall: {
         overall_score_0_100: 65,
         verdict: "revise",
+        one_sentence_pitch:
+          "A haunted family story turns grief, secrecy, and moral pressure into a literary horror premise with clear revision leverage.",
+        one_paragraph_pitch:
+          "Sister moves through a haunted family story where grief, secrecy, and moral pressure keep narrowing the choices available to her. The draft has strong atmosphere and emotional specificity, but pacing, thematic escalation, and closure need sharper consequence before the work can feel submission-ready.",
         one_paragraph_summary:
           "Sister has a strong atmospheric premise and emotionally legible family pressure, but pacing, thematic escalation, and closure need targeted revision before the report can call it submission-ready.",
         top_3_strengths: [
@@ -493,6 +515,7 @@ describe("parsePass3Response", () => {
     };
 
     const synthesis = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    synthesis.overall.verdict = "conditional" as unknown as typeof synthesis.overall.verdict;
     const v2 = synthesisToEvaluationResultV2({
       synthesis,
       ids: {
@@ -986,11 +1009,13 @@ describe("consequence tracking contract", () => {
     };
 
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    result.overall.verdict = "conditional" as unknown as typeof result.overall.verdict;
     const v2 = synthesisToEvaluationResultV2({
       synthesis: result,
       ids: { evaluation_run_id: "test", job_id: "test", manuscript_id: 1, user_id: "test" },
       sourceText: "The morning was damp and overcast, the river restless in its banks.",
       manuscriptText: "The morning was damp and overcast, the river restless in its banks.",
+      llmEnrichment: result.enrichment,
     });
 
     const gateResult = validateTemplateCompleteness(v2);

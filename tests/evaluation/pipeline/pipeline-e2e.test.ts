@@ -1283,7 +1283,8 @@ describe("synthesisToEvaluationResult adapter", () => {
         editorial_score: 6,
         final_score_0_10: 7,
         score_delta: 1,
-        final_rationale: `Rationale for ${key}.`,
+        final_rationale:
+          `Synthesized analysis for ${key}: the manuscript shows functional craft execution, but the evaluation still identifies concrete revision leverage in clarity, consequence, and reader payoff.`,
         pressure_points: ["Narrative pressure accumulates around this criterion."],
         decision_points: ["The chapter makes a concrete decision at this criterion."],
         consequence_status: "landed" as const,
@@ -1322,9 +1323,22 @@ describe("synthesisToEvaluationResult adapter", () => {
       overall: {
         overall_score_0_100: 70,
         verdict: "revise" as const,
-        one_paragraph_summary: "Strong manuscript with clear revision needs.",
-        top_3_strengths: ["Voice", "Arc", "Imagery"],
-        top_3_risks: ["Pacing", "Characters", "World-building"],
+        one_sentence_pitch:
+          "A voice-driven literary manuscript with strong atmosphere needs targeted revision to sharpen pacing, character pressure, and narrative closure.",
+        one_paragraph_pitch:
+          "A voice-driven literary manuscript uses river imagery, reflective narration, and an emerging structural arc to create a distinctive reading experience. The draft is promising but not yet submission-ready because pacing, character motivation, and narrative closure still need clearer pressure, consequence, and payoff.",
+        one_paragraph_summary:
+          "Strong premise and voice carry the manuscript, but the draft needs targeted revision before submission.",
+        top_3_strengths: [
+          "The narrative voice creates a clear atmospheric identity.",
+          "The structural arc gives the manuscript an identifiable dramatic direction.",
+          "The imagery grounds the reader in concrete sensory detail.",
+        ],
+        top_3_risks: [
+          "Pacing may soften tension before the central pressure line fully lands.",
+          "Character motivation may feel underdeveloped without sharper causal turns.",
+          "World-building may distract from the manuscript’s core narrative payoff.",
+        ],
         submission_readiness: "nearly_ready",
       },
       metadata: {
@@ -1455,12 +1469,14 @@ describe("synthesisToEvaluationResult adapter", () => {
       return {
         ...criterion,
         final_score_0_10: criterion.key === "narrativeClosure" ? 3 : 4,
-        final_rationale: `Synthesized analysis for ${criterion.key}: this is a clear weakness requiring revision.`,
+        final_rationale:
+          `Synthesized analysis for ${criterion.key}: this criterion is a clear weakness requiring revision because the current draft does not yet give the reader enough pressure, consequence, and payoff to sustain submission readiness.`,
       };
     });
 
     synthesis.overall.one_paragraph_summary =
       "Strong premise and voice carry the manuscript, but the draft needs targeted revision before submission.";
+    synthesis.overall.verdict = "conditional" as unknown as SynthesisOutput["overall"]["verdict"];
 
     const result = synthesisToEvaluationResultV2({
       synthesis,
@@ -1468,6 +1484,12 @@ describe("synthesisToEvaluationResult adapter", () => {
         evaluation_run_id: "run-v2-weakness-normalized",
         manuscript_id: 102,
         user_id: "user-abc",
+      },
+      llmEnrichment: {
+        premise:
+          "A reflective literary draft builds its dramatic shape around atmosphere, river imagery, and character pressure, with the strongest revision need centered on converting mood into clearer consequence.",
+        diagnosed_genre: "literary fiction",
+        target_audience: "adult literary fiction readers",
       },
     });
 

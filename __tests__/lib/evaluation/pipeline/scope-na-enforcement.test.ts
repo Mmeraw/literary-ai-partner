@@ -49,7 +49,7 @@ function makeNaiveSynthesis(): SynthesisOutput {
       editorial_score: 7,
       final_score_0_10: 7,
       score_delta: 0,
-      final_rationale: `Raw Pass 3B rationale for ${key}.`,
+      final_rationale: `Raw Pass 3B rationale for ${key}: the criterion shows functional execution with clear revision leverage in clarity and consequence.`,
       pressure_points: ["Pressure point."],
       decision_points: ["Decision point."],
       consequence_status: "landed" as const,
@@ -57,16 +57,16 @@ function makeNaiveSynthesis(): SynthesisOutput {
       recommendations: [
         {
           priority: "medium" as const,
-          action: `Revise ${key}.`,
-          expected_impact: `Improves ${key}.`,
+          action: `In the opening scene, tighten the ${key} turn by adding one concrete consequence beat so the reader can track the causal movement through the scene.`,
+          expected_impact: `Creates clearer ${key} arc and gives the reader stronger confidence in the revised scene logic.`,
           anchor_snippet: `Anchor for ${key}.`,
           source_pass: 3 as const,
           issue_family: "scene_structure" as const,
           strategic_lever: "scene_goal_clarity" as const,
           revision_granularity: "scene" as const,
-          mechanism: "inline reasoning",
-          specific_fix: "add a concrete beat",
-          reader_effect: "clearer consequence",
+          mechanism: "the turn is diffuse without a visible consequence beat",
+          specific_fix: "add one concrete consequence beat",
+          reader_effect: "clearer causal movement and stronger reader confidence",
         },
       ],
       confidence_score_0_100: 80,
@@ -76,11 +76,23 @@ function makeNaiveSynthesis(): SynthesisOutput {
     })),
     overall: {
       overall_score_0_100: 70,
-      verdict: "revise",
+      verdict: "conditional" as unknown as SynthesisOutput["overall"]["verdict"],
+      one_sentence_pitch:
+        "A short prose excerpt demonstrates craft in voice, concept, and character with clear scope constraints on narrative closure and marketability.",
+      one_paragraph_pitch:
+        "A short prose excerpt uses voice, concept, and character pressure to prove evaluation quality within a micro-excerpt scope. The draft remains conditional because narrative closure and marketability cannot be fully assessed at this submission scale.",
       one_paragraph_summary: "Short excerpt with strong prose.",
-      top_3_strengths: ["voice", "concept", "proseControl"],
-      top_3_risks: ["narrativeClosure", "marketability", "dialogue"],
-      submission_readiness: "needs_revision",
+      top_3_strengths: [
+        "Voice creates a consistent atmospheric identity.",
+        "Concept provides a focused premise for targeted revision.",
+        "Prose control demonstrates technical craft across the excerpt.",
+      ],
+      top_3_risks: [
+        "Narrative closure cannot be assessed within the micro-excerpt scope.",
+        "Marketability requires full manuscript context to evaluate reliably.",
+        "Dialogue density may need sharper subtext to sustain reader confidence.",
+      ],
+      submission_readiness: "needs_revision" as unknown as SynthesisOutput["overall"]["submission_readiness"],
     },
     metadata: {
       pass1_model: "gpt-4o",
@@ -99,6 +111,13 @@ function makeNaiveSynthesis(): SynthesisOutput {
   };
 }
 
+const ECG_ENRICHMENT = {
+  premise:
+    "A prose excerpt at micro-excerpt scale provides sufficient craft evidence to evaluate voice, concept, and character, while narrative closure and marketability remain scope-constrained.",
+  diagnosed_genre: "literary fiction",
+  target_audience: "adult literary fiction readers",
+};
+
 const BASE_IDS = {
   evaluation_run_id: "run-scope-na-test",
   job_id: "job-scope-na-test",
@@ -115,6 +134,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     const result = synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
       ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("micro_excerpt", 263),
       sourceText: "Short lighthouse excerpt.",
       manuscriptText: "Short lighthouse excerpt.",
@@ -132,6 +152,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     const result = synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
       ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("micro_excerpt", 263),
       sourceText: "Short lighthouse excerpt.",
       manuscriptText: "Short lighthouse excerpt.",
@@ -149,6 +170,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     const result = synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
       ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("micro_excerpt", 263),
       sourceText: "Short lighthouse excerpt.",
       manuscriptText: "Short lighthouse excerpt.",
@@ -167,6 +189,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     const result = synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
       ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("light_chapter", 1200),
       sourceText: "A full chapter worth of text.",
       manuscriptText: "A full chapter worth of text.",
@@ -184,6 +207,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     const result = synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
       ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("standard_chapter", 3500),
       sourceText: "A standard chapter worth of text.",
       manuscriptText: "A standard chapter worth of text.",
@@ -199,6 +223,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     const result = synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
       ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("light_chapter", 1200), // would normally score all 13
       criteriaPlan: { narrativeClosure: "NA", marketability: "NA" }, // explicit override forces NA
       sourceText: "A chapter.",
@@ -215,6 +240,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     const result = synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
       ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
       // no scopeProfile, no criteriaPlan
       sourceText: "Text.",
       manuscriptText: "Text.",
