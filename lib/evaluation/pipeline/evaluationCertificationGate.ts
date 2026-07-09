@@ -831,11 +831,16 @@ function checkRenderer(input: ECGInput): ECGViolation[] {
     vs.push(violation('ECG_RENDERER_AUDIENCE_MISSING', 'enrichment.target_audience is absent. Audience context is displayed on the report.'));
   }
 
-  // governance.confidence_label required when confidence is set
+  // governance.confidence_label required when confidence is set.
+  // A confidence label is a short controlled-vocabulary badge (e.g.
+  // "High Confidence", "Medium", "Low") — NOT free-form prose — so it must be
+  // checked for PRESENCE (non-empty), not against the 20-char MIN_MEANINGFUL_LENGTH
+  // prose threshold. The prose threshold falsely rejected valid labels like
+  // "High Confidence" (15 chars), suppressing the badge the author should see.
   if (
     input.governance?.confidence !== null &&
     input.governance?.confidence !== undefined &&
-    !meaningful(input.governance?.confidence_label)
+    !meaningful(input.governance?.confidence_label, 1)
   ) {
     vs.push(violation('ECG_RENDERER_SCORE_LABEL_MISMATCH',
       'governance.confidence is set but governance.confidence_label is absent. The renderer cannot display a confidence badge without a label.'));
@@ -861,6 +866,45 @@ export function trimAtWordBoundary(text: string, maxLength: number): string {
     return candidate.substring(0, lastSpace).replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
   }
   return candidate.replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
+}
+
+// Matches a sentence terminator: . ! ? or … possibly followed by a closing
+// quote/bracket. Used to trim ONLY at a complete-sentence boundary.
+const SENTENCE_TERMINATOR = /[.!?\u2026]["'\u201d\u2019)\]]*(?=\s|$)/gu;
+
+/**
+ * Trim a text string to at most `maxLength` chars at a COMPLETE-SENTENCE
+ * boundary. Governance rule NO_MIDSENTENCE_TRUNCATION: an over-budget field
+ * must never be cut mid-sentence (and never mid-word).
+ *
+ * Behavior:
+ *   - If text is within budget, returns it unchanged.
+ *   - Otherwise trims back to the last sentence terminator (. ! ? …, plus any
+ *     trailing closing quote/bracket) that fits within maxLength. The result
+ *     ends on that terminator (no ellipsis added — the sentence is complete).
+ *   - If NO sentence boundary fits within the budget (e.g. one very long
+ *     sentence), falls back to trimAtWordBoundary so we still never cut
+ *     mid-word. This fallback is the only case that appends an ellipsis.
+ *
+ * Note: per the "more is more" policy, callers should reserve this for
+ * genuinely hard-capped fields (e.g. pitches). Free-form author-facing prose
+ * (summaries) should be allowed to run over budget rather than truncated.
+ */
+export function trimAtSentenceBoundary(text: string, maxLength: number): string {
+  if (!text || text.length <= maxLength) return text;
+  const window = text.substring(0, maxLength);
+  let lastEnd = -1;
+  for (const match of window.matchAll(SENTENCE_TERMINATOR)) {
+    // match.index points at the terminator char; include the terminator
+    // (and any trailing quote/bracket captured by the pattern).
+    lastEnd = match.index + match[0].length;
+  }
+  if (lastEnd > 0) {
+    return text.substring(0, lastEnd).trimEnd();
+  }
+  // No complete sentence fits — fall back to a word-boundary trim so we never
+  // cut mid-word. This is the only branch that appends an ellipsis.
+  return trimAtWordBoundary(text, maxLength);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -15,7 +15,16 @@
  *   ✔ Capitalize first letter of recommendation action
  *   ✔ Add terminal punctuation to recommendation action
  *   ✔ Collapse multiple whitespace in text fields
- *   ✔ Trim text fields at word boundary (overview summary, pitches)
+ *   ✔ Trim over-CAP text fields at a COMPLETE-SENTENCE boundary
+ *     (NO_MIDSENTENCE_TRUNCATION) — never mid-sentence, never mid-word.
+ *
+ * Length policy (lib/config/lengthPolicy.ts) — hard integers only, no %:
+ *   summary  MIN 300 · BASE 750 · CAP 1000 chars (author prose: runs over
+ *            base freely; only sentence-trimmed if it exceeds CAP)
+ *   pitches  hard-capped single sentence / single paragraph; sentence-trim
+ *            at CAP
+ *   below MIN ⇒ handled upstream as INSUFFICIENT_EXPLANATION kickback, NOT
+ *            padded here (this stage never fabricates content).
  *
  * Forbidden operations:
  *   ✗ Score replacement or injection
@@ -28,23 +37,30 @@
  *   Pass 3 output → normalizeArtifact() → ECG → persist
  */
 
-import { trimAtWordBoundary } from './evaluationCertificationGate';
+import { trimAtSentenceBoundary } from './evaluationCertificationGate';
+import {
+  SUMMARY_POLICY,
+  ONE_SENTENCE_PITCH_POLICY,
+  ONE_PARAGRAPH_PITCH_POLICY,
+} from '@/lib/config/lengthPolicy';
 
 export interface NormalizationRecord {
   field: string;
   before: string;
   after: string;
-  operation: 'capitalize' | 'terminal_punct' | 'whitespace' | 'trim_word_boundary';
+  operation: 'capitalize' | 'terminal_punct' | 'whitespace' | 'trim_sentence_boundary';
 }
 
 export interface NormalizeArtifactResult {
   normalizations: NormalizationRecord[];
 }
 
-/** Maximum chars for the executive summary / overview. */
-const OVERVIEW_MAX_CHARS = 750;
-/** Maximum chars for pitch fields. */
-const PITCH_MAX_CHARS = 1000;
+// Hard caps come from the central length policy (no percentages anywhere).
+// Summary CAP is the generous author-prose ceiling (base 750 + 250 overage);
+// pitches keep their by-design single-sentence / single-paragraph caps.
+const OVERVIEW_MAX_CHARS = SUMMARY_POLICY.cap; // 1000
+const ONE_SENTENCE_PITCH_MAX_CHARS = ONE_SENTENCE_PITCH_POLICY.cap; // 220
+const ONE_PARAGRAPH_PITCH_MAX_CHARS = ONE_PARAGRAPH_PITCH_POLICY.cap; // 750
 
 /**
  * Apply all permitted cosmetic normalizations to `synthesis` in-place.
@@ -70,31 +86,34 @@ export function normalizeArtifact(
 ): NormalizeArtifactResult {
   const normalizations: NormalizationRecord[] = [];
 
-  // ── Overview summary: trim at word boundary ──────────────────────────────
+  // ── Overview summary: allow overage up to CAP, sentence-boundary trim ─────
+  // Author-facing prose: "more is more". We do NOT trim it back toward base —
+  // it may run over base freely and is only trimmed if it exceeds the hard
+  // CAP, and then only at a complete-sentence boundary.
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
-    const after = trimAtWordBoundary(before, OVERVIEW_MAX_CHARS);
+    const after = trimAtSentenceBoundary(before, OVERVIEW_MAX_CHARS);
     if (after !== before) {
       synthesis.overall.one_paragraph_summary = after;
-      normalizations.push({ field: 'overview.one_paragraph_summary', before, after, operation: 'trim_word_boundary' });
+      normalizations.push({ field: 'overview.one_paragraph_summary', before, after, operation: 'trim_sentence_boundary' });
     }
   }
 
-  // ── Pitch fields: trim at word boundary ─────────────────────────────────
+  // ── Pitch fields: hard-capped, sentence-boundary trim at CAP ─────────────
   if (synthesis.overall.one_sentence_pitch) {
     const before = synthesis.overall.one_sentence_pitch;
-    const after = trimAtWordBoundary(before, PITCH_MAX_CHARS);
+    const after = trimAtSentenceBoundary(before, ONE_SENTENCE_PITCH_MAX_CHARS);
     if (after !== before) {
       synthesis.overall.one_sentence_pitch = after;
-      normalizations.push({ field: 'overview.one_sentence_pitch', before, after, operation: 'trim_word_boundary' });
+      normalizations.push({ field: 'overview.one_sentence_pitch', before, after, operation: 'trim_sentence_boundary' });
     }
   }
   if (synthesis.overall.one_paragraph_pitch) {
     const before = synthesis.overall.one_paragraph_pitch;
-    const after = trimAtWordBoundary(before, PITCH_MAX_CHARS);
+    const after = trimAtSentenceBoundary(before, ONE_PARAGRAPH_PITCH_MAX_CHARS);
     if (after !== before) {
       synthesis.overall.one_paragraph_pitch = after;
-      normalizations.push({ field: 'overview.one_paragraph_pitch', before, after, operation: 'trim_word_boundary' });
+      normalizations.push({ field: 'overview.one_paragraph_pitch', before, after, operation: 'trim_sentence_boundary' });
     }
   }
 

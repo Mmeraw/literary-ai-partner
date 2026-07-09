@@ -10,6 +10,13 @@ import {
   sanitizeAuthorFacingProse,
   startsWithRepetitiveLeadIn,
 } from '@/lib/text/authorFacingProse';
+import {
+  SYNOPSIS_POLICY,
+  SECTION_POLICY,
+  countWords,
+  type LengthPolicy,
+  type PolicySection,
+} from '@/lib/config/lengthPolicy';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -67,26 +74,13 @@ const VALID_SECTIONS: SectionType[] = [
   'author_bio',
 ];
 
-const SYNOPSIS_LIMITS: Record<SynopsisVariant, { min: number; max: number; ideal: string; label: string }> = {
-  short: { min: 100, max: 150, ideal: '100-150 words', label: 'short query synopsis' },
-  medium: { min: 250, max: 500, ideal: '350-450 words', label: 'standard synopsis' },
-  long: { min: 700, max: 1000, ideal: '700-1,000 words', label: 'extended synopsis' },
-};
-
-const WORD_LIMITS: Record<SectionType, number> = {
-  query_letter: 450,
-  what_makes_unique: 150,
-  synopsis: 500,
-  query_pitch: 75,
-  comparables: 200,
-  author_bio: 200,
-};
-
-const WORD_MINIMUMS: Partial<Record<SectionType, number>> = {
-  query_letter: 200,
-  synopsis: 150,
-  author_bio: 50,
-  what_makes_unique: 60,
+// Display metadata for the three synopsis tiers. The numeric bounds themselves
+// come from the central SYNOPSIS_POLICY (lib/config/lengthPolicy.ts) so there
+// is one source of truth and NO percentages anywhere.
+const SYNOPSIS_LABELS: Record<SynopsisVariant, { ideal: string; label: string }> = {
+  short: { ideal: '100-150 words', label: 'short query synopsis' },
+  medium: { ideal: '350-450 words', label: 'standard synopsis' },
+  long: { ideal: '700-750 words', label: 'extended synopsis' },
 };
 
 function synopsisVariantFromRequest(length: unknown, variant: unknown): SynopsisVariant {
@@ -123,9 +117,14 @@ const PLACEHOLDER_PATTERNS = [
   /\[PLACEHOLDER\b/i,
 ];
 
-function wordBounds(section: SectionType, synopsisVariant: SynopsisVariant): { min?: number; max: number } {
-  if (section === 'synopsis') return SYNOPSIS_LIMITS[synopsisVariant];
-  return { min: WORD_MINIMUMS[section], max: WORD_LIMITS[section] };
+/**
+ * Resolve the deterministic length policy for a section. Synopsis routes to
+ * the tier policy; every other section maps to SECTION_POLICY. Bounds are hard
+ * integer word counts (min floor, base target, cap ceiling) — never a ratio.
+ */
+function lengthPolicyFor(section: SectionType, synopsisVariant: SynopsisVariant): LengthPolicy {
+  if (section === 'synopsis') return SYNOPSIS_POLICY[synopsisVariant];
+  return SECTION_POLICY[section as PolicySection];
 }
 
 function qualityGate(text: string, section: SectionType, synopsisVariant: SynopsisVariant): { pass: boolean; reason?: string } {
@@ -140,10 +139,17 @@ function qualityGate(text: string, section: SectionType, synopsisVariant: Synops
     if (pat.test(text)) return { pass: false, reason: `Contains unresolved placeholder: "${text.match(pat)?.[0]}"` };
   }
 
-  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-  const { min, max } = wordBounds(section, synopsisVariant);
-  if (wordCount > max * 1.1) return { pass: false, reason: `Exceeds word limit: ${wordCount}/${max} words` };
-  if (min && wordCount < min) return { pass: false, reason: `Output too thin (${wordCount} words) — minimum ${min} words required` };
+  // Deterministic three-part length policy — hard integer bounds, no percentages.
+  //   below MIN  ⇒ INSUFFICIENT_EXPLANATION (kickback for regeneration)
+  //   above CAP  ⇒ exceeds the hard ceiling (base + fixed overage)
+  const wordCount = countWords(text);
+  const p = lengthPolicyFor(section, synopsisVariant);
+  if (wordCount > p.cap) {
+    return { pass: false, reason: `Exceeds hard cap: ${wordCount}/${p.cap} words (base ${p.base} + overage ${p.overage})` };
+  }
+  if (wordCount < p.min) {
+    return { pass: false, reason: `INSUFFICIENT_EXPLANATION: ${wordCount} words is below the ${p.min}-word minimum \u2014 regenerate with more detail` };
+  }
   return { pass: true };
 }
 
@@ -159,6 +165,16 @@ ABSOLUTE RULES:
 - Output ONLY the finished, submission-ready text — no preambles, explanations, or notes.`;
 }
 
+/**
+ * Deterministic length instruction for a prompt, built from the section's
+ * policy. Emits only hard integers (target / minimum / hard cap) so the LLM
+ * never has to compute a percentage or drift band.
+ */
+function lengthInstruction(section: SectionType, synopsisVariant: SynopsisVariant): string {
+  const p = lengthPolicyFor(section, synopsisVariant);
+  return `LENGTH: aim for about ${p.base} words. NEVER fewer than ${p.min} words (a thinner answer will be rejected and regenerated). HARD CAP ${p.cap} words \u2014 never exceed it.`;
+}
+
 function getSystemPrompt(section: SectionType, synopsisVariant: SynopsisVariant, hasBioMaterial: boolean): string {
   const rules = baseRules();
   switch (section) {
@@ -166,7 +182,7 @@ function getSystemPrompt(section: SectionType, synopsisVariant: SynopsisVariant,
       return `${rules}
 
 QUERY LETTER REQUIREMENTS:
-- HARD CAP: 450 words maximum; 350-400 is ideal.
+- ${lengthInstruction('query_letter', synopsisVariant)}
 - Structure: story hook, stakes/conflict, metadata, comparables if available, optional bio sentence if author-supplied bio exists, professional close.
 - BIO RULE: ${hasBioMaterial ? 'Use only the author-supplied or approved bio facts provided below.' : 'Do NOT include biographical claims. Do NOT invent credentials. Omit the bio paragraph and close professionally.'}
 - Start with story, not setup. No rhetorical questions. No teaser language.
@@ -177,17 +193,18 @@ QUERY LETTER REQUIREMENTS:
       return `${rules}
 
 UNIQUE DIFFERENTIATOR REQUIREMENTS:
-- One focused paragraph, 100-150 words.
+- One focused paragraph. ${lengthInstruction('what_makes_unique', synopsisVariant)}
 - Answer: what does THIS manuscript offer that the market does not already have?
 - Lead with the differentiator itself, then support it with 2-3 specific manuscript details.
 - Avoid vague claims like "fresh take," "unlike anything else," or "this novel is unique because."`;
 
     case 'synopsis': {
-      const spec = SYNOPSIS_LIMITS[synopsisVariant];
+      const meta = SYNOPSIS_LABELS[synopsisVariant];
+      const p = SYNOPSIS_POLICY[synopsisVariant];
       return `${rules}
 
-SYNOPSIS REQUIREMENTS (${spec.label.toUpperCase()}):
-- Length: ${spec.ideal}; hard cap ${spec.max} words.
+SYNOPSIS REQUIREMENTS (${meta.label.toUpperCase()}):
+- Length: aim for about ${p.base} words (${meta.ideal}). Never fewer than ${p.min} words. Hard cap ${p.cap} words — never exceed it.
 - MUST reveal the ending/resolution if the ending is available in the provided story facts.
 - Present tense, third person, active voice.
 - Include setup, inciting incident, major turning points, climax, and resolution.
@@ -200,7 +217,7 @@ SYNOPSIS REQUIREMENTS (${spec.label.toUpperCase()}):
       return `${rules}
 
 QUERY PITCH REQUIREMENTS:
-- ONE sentence, 25-50 words.
+- ONE sentence. ${lengthInstruction('query_pitch', synopsisVariant)}
 - Include protagonist identity, specific conflict/action, genre/positioning, and concrete stakes.
 - No vague stakes such as "must confront the past" unless the provided facts make that specific.`;
 
@@ -208,6 +225,7 @@ QUERY PITCH REQUIREMENTS:
       return `${rules}
 
 COMPARABLES REQUIREMENTS:
+- ${lengthInstruction('comparables', synopsisVariant)}
 - Suggest 2-4 comparable titles with specific rationale.
 - Prefer recent titles in the same or adjacent genre.
 - Do not claim facts about a comp unless you are confident from general literary knowledge and the manuscript context.
@@ -217,7 +235,7 @@ COMPARABLES REQUIREMENTS:
       return `${rules}
 
 AUTHOR BIO REQUIREMENTS:
-- Third person, professional tone, 75-150 words.
+- Third person, professional tone. ${lengthInstruction('author_bio', synopsisVariant)}
 - ONLY include facts from the author-supplied materials.
 - NEVER invent credentials, awards, education, publication history, residence, personal details, or lived experience.
 - Connect the author's real background to why they are positioned to write this manuscript.`;
@@ -560,7 +578,7 @@ export async function POST(req: NextRequest) {
     section,
     synopsisVariant: section === 'synopsis' ? synopsisVariant : undefined,
     wordCount: generated.trim().split(/\s+/).filter(Boolean).length,
-    wordLimit: wordBounds(section, synopsisVariant).max,
+    wordLimit: lengthPolicyFor(section, synopsisVariant).cap,
     model: MODEL,
     mode,
     persisted: true,
@@ -572,7 +590,7 @@ function sectionLabel(section: SectionType, synopsisVariant: SynopsisVariant): s
   switch (section) {
     case 'query_letter': return 'Query Letter';
     case 'what_makes_unique': return 'What Makes This Novel Unique statement';
-    case 'synopsis': return `${SYNOPSIS_LIMITS[synopsisVariant].label}`;
+    case 'synopsis': return `${SYNOPSIS_LABELS[synopsisVariant].label}`;
     case 'query_pitch': return 'Query Pitch';
     case 'comparables': return 'Comparable Titles section';
     case 'author_bio': return 'Author Bio';

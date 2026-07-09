@@ -57,8 +57,8 @@ const W = {
   goldDim:      "#7A6535",   // faint gold for secondary borders
   cream:        "#F5EFE4",   // primary text
   cream2:       "#E8D8BA",   // body text
-  muted:        "#A9987D",   // secondary / muted text
-  dim:          "#6B5E4A",   // fine print / metadata
+  muted:        "#BBAA8B",   // secondary / muted text (lifted for AA contrast on dark surfaces)
+  dim:          "#9C8A6E",   // fine print / metadata (lifted from #6B5E4A ~3.0 to ~5.7 contrast for readability)
   oxblood:      "#7A2B1A",   // primary action fill
   oxbloodBorder:"#9B3A26",   // oxblood hover border
   forest:       "#4A7A3A",   // success / generate

@@ -2,6 +2,10 @@ import {
   evaluateCardCandidateQuality,
   evaluateCandidateQuality,
   evaluateCardQuality,
+  findDuplicateOptionPairs,
+  DUPLICATE_OPTION_OVERLAP,
+  EVIDENCE_GROUNDING_MIN_JACCARD,
+  MIN_OPTION_SHAPE_TOKENS,
   LEDGER_MIN_CONTEXT_JACCARD,
 } from '../../../lib/revision/candidateQuality';
 
@@ -246,5 +250,103 @@ describe('evaluateCardQuality ledger API', () => {
       const seen = new Set(result.reasons);
       expect(seen.size).toBe(result.reasons.length);
     }
+  });
+});
+
+// ── A/B/C distinctness (no duplicate/triplicate content) ──────────────────────
+
+describe('findDuplicateOptionPairs — A/B/C distinctness', () => {
+  it('exposes the distinctness overlap threshold as an intentional policy constant', () => {
+    expect(DUPLICATE_OPTION_OVERLAP).toBe(0.8);
+  });
+
+  it('returns no collisions for three materially distinct options', () => {
+    const pairs = findDuplicateOptionPairs(goodCandidate(0), goodCandidate(1), goodCandidate(2));
+    expect(pairs).toEqual([]);
+  });
+
+  it('detects byte-identical options (normalized)', () => {
+    const same = goodCandidate(0);
+    const pairs = findDuplicateOptionPairs(same, `  ${same.toUpperCase()}  `, goodCandidate(2));
+    expect(pairs).toContain('A|B');
+  });
+
+  it('detects near-duplicate options above the overlap threshold', () => {
+    const base = 'Mara pressed her fingertips against the doorframe and waited for the silence to make its own decision here.';
+    const nearDup = 'Mara pressed her fingertips against the doorframe and waited for the silence to make its own decision now.';
+    const pairs = findDuplicateOptionPairs(base, nearDup, goodCandidate(1));
+    expect(pairs).toContain('A|B');
+  });
+});
+
+describe('evaluateCardQuality — A/B/C distinctness hard failure', () => {
+  it('fails the whole card when two options are duplicate even if all read as clean prose', () => {
+    const dup = goodCandidate(0);
+    const result = evaluateCardQuality(dup, dup, goodCandidate(2), GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(result.pass).toBe(false);
+    if (!result.pass) {
+      expect(result.reasons).toContain('candidate_quality_duplicate_options');
+    }
+  });
+});
+
+// ── A/B/C SHAPE (options must not be empty / hollow) ──────────────────────────
+
+describe('evaluateCardQuality — A/B/C SHAPE requirement', () => {
+  it('exposes the minimum shape-token count as an intentional policy constant', () => {
+    expect(MIN_OPTION_SHAPE_TOKENS).toBe(4);
+  });
+
+  it('flags empty_shape per candidate for a whitespace/punctuation-only option', () => {
+    const reasons = evaluateCandidateQuality('   ,  .  ', GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(reasons).toContain('candidate_quality_empty_shape');
+  });
+
+  it('hard-fails the whole card with empty_shape when any option is hollow', () => {
+    const result = evaluateCardQuality(
+      goodCandidate(0),
+      goodCandidate(1),
+      'the a an of',
+      GOOD_ANCHOR,
+      GOOD_RATIONALE,
+    );
+    expect(result.pass).toBe(false);
+    if (!result.pass) {
+      expect(result.reasons).toContain('candidate_quality_empty_shape');
+    }
+  });
+});
+
+// ── A/B/C evidence-grounding (based on manuscript/chapter/story evidence) ──────
+
+describe('evaluateCandidateQuality — A/B/C evidence-grounding', () => {
+  it('exposes the evidence-grounding threshold as an intentional policy constant', () => {
+    expect(EVIDENCE_GROUNDING_MIN_JACCARD).toBe(0.05);
+  });
+
+  it('flags not_evidence_grounded for prose that shares no content with the anchor or rationale', () => {
+    const ungrounded =
+      'The spaceship descended through violet clouds while robots calibrated their plasma engines for orbit.';
+    const reasons = evaluateCandidateQuality(ungrounded, GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(reasons).toContain('candidate_quality_not_evidence_grounded');
+  });
+
+  it('does not flag not_evidence_grounded for prose grounded in the manuscript anchor', () => {
+    const reasons = evaluateCandidateQuality(goodCandidate(0), GOOD_ANCHOR, GOOD_RATIONALE);
+    expect(reasons).not.toContain('candidate_quality_not_evidence_grounded');
+  });
+
+  it('keeps the 2-of-3 tolerance: one ungrounded option does not hard-fail a card with two grounded options', () => {
+    const ungrounded =
+      'The spaceship descended through violet clouds while robots calibrated their plasma engines for orbit.';
+    const result = evaluateCardQuality(
+      goodCandidate(0),
+      goodCandidate(1),
+      ungrounded,
+      GOOD_ANCHOR,
+      GOOD_RATIONALE,
+    );
+    expect(result.pass).toBe(true);
+    expect(result.passingCount).toBeGreaterThanOrEqual(2);
   });
 });

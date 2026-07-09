@@ -302,9 +302,9 @@ describe("PROOF: New artifacts registered in revise registry", () => {
     expect(found.requiredFields).toContain("hydration_status");
   });
 
-  it("REVISE_KICK_MATRIX has 14 entries (all revise stages covered)", () => {
+  it("REVISE_KICK_MATRIX has 15 entries (all revise stages covered)", () => {
     const { REVISE_KICK_MATRIX } = require("@/lib/revision/reviseRegistry");
-    expect(REVISE_KICK_MATRIX.length).toBe(14);
+    expect(REVISE_KICK_MATRIX.length).toBe(15);
     for (const kick of REVISE_KICK_MATRIX) {
       expect(kick.kickCode).toBeDefined();
       expect(kick.targetStageId).toBeDefined();

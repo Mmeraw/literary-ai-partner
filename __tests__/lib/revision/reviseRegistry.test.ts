@@ -290,8 +290,17 @@ describe('Revise Registry — field registry', () => {
 });
 
 describe('Revise Registry — kick matrix', () => {
-  test('has 14 kick codes', () => {
-    expect(REVISE_KICK_MATRIX).toHaveLength(14);
+  test('has 15 kick codes', () => {
+    expect(REVISE_KICK_MATRIX).toHaveLength(15);
+  });
+
+  test('REVISE_ABC_NOT_DISTINCT kicks A/B/C generation back to workbench load', () => {
+    const kick = REVISE_KICK_MATRIX.find((k) => k.kickCode === 'REVISE_ABC_NOT_DISTINCT');
+    expect(kick).toBeDefined();
+    expect(kick!.triggeringStageId).toBe('RS05_CANDIDATE_GENERATION');
+    expect(kick!.targetStageId).toBe('RS04_WORKBENCH_LOAD');
+    expect(kick!.blocksAuthorExposure).toBe(true);
+    expect(kick!.severity).toBe('blocking');
   });
 
   test('REVISE_HANDOFF_RENDERER_OUTPUT_INVALID kicks back to the ViewModel boundary', () => {

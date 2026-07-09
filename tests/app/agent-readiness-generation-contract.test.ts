@@ -9,29 +9,31 @@ const hookSource = read('app/agent-readiness/hooks/useAgentReadinessGenerate.ts'
 const workbenchSource = read('app/agent-readiness/AgentReadinessWorkbenchClient.tsx');
 const synopsisPage = read('app/agent-readiness/synopsis/page.tsx');
 const bioPage = read('app/agent-readiness/bio/page.tsx');
+const lengthPolicySource = read('lib/config/lengthPolicy.ts');
 
 describe('Agent Readiness generation contract', () => {
   test('supports synopsis lengths as request metadata without inventing new section keys', () => {
     expect(generateRoute).toContain("type SynopsisLength = 'query' | 'standard' | 'extended'");
     expect(generateRoute).toContain("type SynopsisVariant = 'short' | 'medium' | 'long'");
-    expect(generateRoute).toContain('const SYNOPSIS_LIMITS');
+    // Bounds now live in the central deterministic length policy (single source
+    // of truth, hard integers, no percentages). The route consumes that policy.
+    expect(generateRoute).toContain("from '@/lib/config/lengthPolicy'");
+    expect(generateRoute).toContain('SYNOPSIS_POLICY');
     expect(generateRoute).toContain('function synopsisVariantFromRequest');
     expect(generateRoute).toContain("if (length === 'query') return 'short'");
     expect(generateRoute).toContain("if (length === 'extended') return 'long'");
     expect(generateRoute).toContain("return 'medium'");
-    expect(generateRoute).toContain("short: {");
-    expect(generateRoute).toContain('min: 100');
-    expect(generateRoute).toContain('max: 150');
-    expect(generateRoute).toContain("medium: {");
-    expect(generateRoute).toContain('min: 250');
-    expect(generateRoute).toContain('max: 500');
-    expect(generateRoute).toContain("long: {");
-    expect(generateRoute).toContain('min: 700');
-    expect(generateRoute).toContain('max: 1000');
     expect(generateRoute).toContain("| 'synopsis'");
     expect(generateRoute).not.toContain('synopsis_short');
     expect(generateRoute).not.toContain('synopsis_medium');
     expect(generateRoute).not.toContain('synopsis_long');
+    // The three synopsis tiers carry the 150 / 450 / 750 word bases and hard
+    // caps in the policy module — and NO percentage-based tolerance survives.
+    expect(lengthPolicySource).toContain("short: policy('words', 100, 150, 30)");
+    expect(lengthPolicySource).toContain("medium: policy('words', 250, 450, 50)");
+    expect(lengthPolicySource).toContain("long: policy('words', 500, 750, 250)");
+    expect(generateRoute).not.toContain('* 1.1');
+    expect(generateRoute).not.toContain('* 1.10');
   });
 
   test('passes the selected synopsis length from the page through the hook to the API', () => {
