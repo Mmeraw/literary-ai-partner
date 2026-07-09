@@ -47,19 +47,8 @@ export function isReasoningStyleModel(model: string): boolean {
 
 /**
  * Per-model hard cap on completion tokens, enforced at the API boundary.
- *
- * The OpenAI API rejects requests where max_tokens / max_completion_tokens
- * exceeds the model's per-request output limit (HTTP 400 invalid_request_error,
- * "max_tokens too large"). Our internal config (e.g. pass3MaxTokens=20000) is
- * intentionally not lowered to the smallest cap because callers may legitimately
- * be running against a larger-cap model. Instead, the cap is applied once, here,
- * at the structural boundary between our config and the SDK call.
- *
- * Caps reflect documented model maximums. Unknown models intentionally pass
- * through unclamped — better to surface a 400 than to silently truncate when
- * we don't know the model's real cap.
- *
- * Sources: OpenAI model pages and community-confirmed 400 errors.
+ * Unknown models intentionally pass through unclamped — better to surface a
+ * provider-side 400 than to silently truncate when the real cap is unknown.
  */
 export const MODEL_COMPLETION_TOKEN_CAPS: Readonly<Record<string, number>> = Object.freeze({
   "gpt-4o": 16384,
@@ -87,11 +76,6 @@ export const MODEL_COMPLETION_TOKEN_CAPS: Readonly<Record<string, number>> = Obj
   "gpt-4.1-nano": 32768,
 });
 
-/**
- * Returns the per-request completion-token cap for a known model, or `null`
- * for unknown models (passthrough — no clamping). Match is case-insensitive
- * on the trimmed model name.
- */
 export function getModelCompletionTokenCap(model: string): number | null {
   const normalized = model.trim().toLowerCase();
   if (normalized.length === 0) return null;
@@ -122,19 +106,6 @@ export function buildOpenAITemperatureParam(
   return isReasoningStyleModel(model) ? {} : { temperature };
 }
 
-/**
- * Resolves the model used by every evaluation pipeline pass.
- *
- * Resolution order:
- *   1. Caller-supplied non-empty `overrideModel` (after trim).
- *   2. `getEvaluationRuntimeConfig().model` (driven by EVAL_OPENAI_MODEL).
- *
- * Production invariant:
- *   Reasoning-style models (o1/o3/o4/...) are forbidden in production
- *   unless explicitly allowed via EVAL_ALLOW_REASONING_MODELS=true.
- *   Single point of enforcement for the policy:
- *     "No reasoning models in deterministic production pipelines."
- */
 export function getCanonicalPipelineModel(overrideModel?: string): string {
   const candidate =
     typeof overrideModel === "string" && overrideModel.trim().length > 0
@@ -148,9 +119,7 @@ export function getCanonicalPipelineModel(overrideModel?: string): string {
     /^o[0-9]/.test(normalizedCandidate) &&
     process.env.EVAL_ALLOW_REASONING_MODELS !== "true"
   ) {
-    throw new Error(
-      `[Config] reasoning model '${candidate}' not permitted in production`,
-    );
+    throw new Error(`[Config] reasoning model '${candidate}' not permitted in production`);
   }
 
   if (process.env.NODE_ENV === "production" && normalizedCandidate.startsWith("gpt-5.5")) {
@@ -176,139 +145,42 @@ function resolveEnvBackedModel(envKeys: string[], overrideModel?: string): strin
   return getCanonicalPipelineModel(overrideModel);
 }
 
-/**
- * Pass 1 model resolver.
- *
- * Resolution order:
- *  1) EVAL_PASS1_MODEL
- *  2) EVAL_CHUNK_MODEL
- *  3) EVAL_CHEAP_MODEL
- *  4) optional overrideModel
- *  5) canonical runtime default (EVAL_OPENAI_MODEL)
- */
 export function getCanonicalPass1Model(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_PASS1_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
 
-/**
- * Pass 2 model resolver.
- *
- * Resolution order:
- *  1) EVAL_PASS2_MODEL
- *  2) EVAL_CHUNK_MODEL
- *  3) EVAL_CHEAP_MODEL
- *  4) optional overrideModel
- *  5) canonical runtime default (EVAL_OPENAI_MODEL)
- */
 export function getCanonicalPass2Model(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_PASS2_MODEL", "EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
 
-/**
- * Pass 3 model resolver.
- *
- * Resolution order:
- *  1) EVAL_PASS3_MODEL
- *  2) EVAL_SYNTHESIS_MODEL
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
- */
 export function getCanonicalPass3Model(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_PASS3_MODEL", "EVAL_SYNTHESIS_MODEL"], overrideModel);
 }
 
-/**
- * Chunk evaluation model resolver (map phase).
- *
- * Resolution order:
- *  1) EVAL_PASS1_MODEL / EVAL_PASS2_MODEL only when explicitly using pass-specific resolvers
- *  2) EVAL_CHUNK_MODEL (non-empty)
- *  3) EVAL_CHEAP_MODEL
- *  4) optional overrideModel
- *  5) canonical runtime default (EVAL_OPENAI_MODEL)
- */
 export function getCanonicalChunkModel(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_CHUNK_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
 
-/**
- * Synthesis model resolver (reduce phase).
- *
- * Resolution order:
- *  1) EVAL_PASS3_MODEL only when explicitly using pass-specific resolver
- *  2) EVAL_SYNTHESIS_MODEL (non-empty)
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
- */
 export function getCanonicalSynthesisModel(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_SYNTHESIS_MODEL"], overrideModel);
 }
 
-/**
- * Pass 3 fallback model resolver.
- *
- * Used when the primary Pass 3 route fails with a retryable or schema error and
- * the pipeline needs to route to a configured stronger model.
- *
- * Resolution order:
- *  1) EVAL_PASS3_FALLBACK_MODEL (non-empty)
- *  2) falls back to the primary Pass 3 model (EVAL_PASS3_MODEL chain)
- */
 export function getCanonicalPass3FallbackModel(overrideModel?: string): string {
   const envValue = process.env.EVAL_PASS3_FALLBACK_MODEL;
   if (typeof envValue === "string" && envValue.trim().length > 0) {
     return getCanonicalPipelineModel(envValue);
   }
-  // Fall back to primary pass3 model when no explicit fallback is configured.
   return getCanonicalPass3Model(overrideModel);
 }
 
-/**
- * Seed model resolver.
- *
- * Resolution order:
- *  1) EVAL_SEED_MODEL
- *  2) EVAL_SYNTHESIS_MODEL
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
- *
- * Phase 0.5 seed artifacts are story-understanding authority inputs. They
- * must not silently downgrade to EVAL_CHEAP_MODEL, because a weak seed can
- * contaminate Phase 1A identity, ending, and DREAM calibration downstream.
- */
 export function getCanonicalSeedModel(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_SEED_MODEL", "EVAL_SYNTHESIS_MODEL"], overrideModel);
 }
 
-/**
- * Ledger model resolver.
- *
- * The full-context story ledger is the ground truth for characters,
- * relationships, and narrative structure — a weak seed cascades into
- * weak downstream evaluations. Defaults to EVAL_SYNTHESIS_MODEL (the
- * strong model) rather than EVAL_CHEAP_MODEL.
- *
- * Resolution order:
- *  1) EVAL_LEDGER_MODEL
- *  2) EVAL_SYNTHESIS_MODEL
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
- */
 export function getCanonicalLedgerModel(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_LEDGER_MODEL", "EVAL_SYNTHESIS_MODEL"], overrideModel);
 }
 
-/**
- * Long-context ledger model resolver.
- *
- * Used when the full-context story ledger prompt exceeds the standard
- * model's context window (120k token threshold). Routes to a cheaper
- * model with a 1M token context window.
- *
- * Resolution order:
- *  1) EVAL_LONG_CONTEXT_MODEL
- *  2) hardcoded fallback: gpt-4.1-mini (1M context, $0.40/$1.60 per 1M tokens)
- */
 export function getCanonicalLongContextLedgerModel(): string {
   const envValue = process.env.EVAL_LONG_CONTEXT_MODEL;
   if (typeof envValue === "string" && envValue.trim().length > 0) {
@@ -317,21 +189,8 @@ export function getCanonicalLongContextLedgerModel(): string {
   return "gpt-4.1-mini";
 }
 
-/**
- * Estimated token count threshold for switching to a long-context model.
- * Set below the 128k hard limit to provide a safety buffer.
- */
 export const LONG_CONTEXT_TOKEN_THRESHOLD = 120_000;
 
-/**
- * Polish pass model resolver.
- *
- * Resolution order:
- *  1) EVAL_POLISH_MODEL
- *  2) EVAL_CHEAP_MODEL
- *  3) optional overrideModel
- *  4) canonical runtime default (EVAL_OPENAI_MODEL)
- */
 export function getCanonicalPolishModel(overrideModel?: string): string {
   return resolveEnvBackedModel(["EVAL_POLISH_MODEL", "EVAL_CHEAP_MODEL"], overrideModel);
 }
@@ -347,27 +206,34 @@ export function getExternalAdjudicationMode(): ExternalAdjudicationMode {
 /**
  * ECG enforcement level.
  *
- *   OFF        — Gate disabled. Use during initial deploy or backward-compat windows.
- *                The ACA does not run; all evaluations pass through unchecked.
- *
- *   WARN_ONLY  — Gate runs all 28 invariants. Violations are logged and surfaced in
- *                governance.warnings but persistence is never blocked.
- *                Default: deploy here first to measure how many evaluations would fail
- *                before flipping to ENFORCE.
- *
- *   ENFORCE    — Gate runs all invariants. FATAL violations block persistence.
- *                The job is marked FAILED and the error_code is 'ECG_CERTIFICATION_FAILED'.
- *                This forces Pass 3 regeneration — the gate never patches content.
+ *   OFF        — Emergency rollback only. Gate is skipped and artifacts pass through.
+ *   WARN_ONLY  — Rollback/measurement override. Gate runs, logs, and surfaces warnings,
+ *                but does not block persistence.
+ *   ENFORCE    — Default production posture. FATAL violations block persistence.
  */
-export type ECGMode = 'OFF' | 'WARN_ONLY' | 'ENFORCE';
+export type ECGMode = "OFF" | "WARN_ONLY" | "ENFORCE";
+
+export const ECG_DEFAULT_MODE: ECGMode = "ENFORCE";
 
 /**
  * Read ECG_MODE from environment.
- * Default: WARN_ONLY — safe to deploy without blocking existing traffic.
+ *
+ * #1222 rollout policy:
+ * - unset / empty ECG_MODE defaults to ENFORCE;
+ * - invalid ECG_MODE defaults to ENFORCE rather than silently weakening safety;
+ * - explicit WARN_ONLY and OFF remain available as rollback/incident overrides.
  */
 export function getECGMode(): ECGMode {
-  const raw = (process.env.ECG_MODE ?? 'WARN_ONLY').trim().toUpperCase();
-  if (raw === 'OFF' || raw === 'WARN_ONLY' || raw === 'ENFORCE') return raw as ECGMode;
-  console.warn(`[policy] Unknown ECG_MODE="${raw}", falling back to WARN_ONLY`);
-  return 'WARN_ONLY';
+  const raw = process.env.ECG_MODE;
+  const normalized = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+
+  if (normalized === "OFF" || normalized === "WARN_ONLY" || normalized === "ENFORCE") {
+    return normalized as ECGMode;
+  }
+
+  if (normalized.length > 0) {
+    console.warn(`[policy] Unknown ECG_MODE="${normalized}", falling back to ${ECG_DEFAULT_MODE}`);
+  }
+
+  return ECG_DEFAULT_MODE;
 }
