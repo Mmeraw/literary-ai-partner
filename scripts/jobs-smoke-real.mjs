@@ -13,23 +13,11 @@
  * through Phase 1 and Phase 2 without breaking evaluation logic.
  */
 import { getBaseUrl } from "./base-url.mjs";
+import { jfetch, must, sleep } from "./_http.mjs";
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function must(res, msg) {
-  const r = await res;
-  if (!r || typeof r.ok !== "boolean") {
-    throw new Error(
-      `must() expected a fetch Response, got: ${Object.prototype.toString.call(
-        r,
-      )}`,
-    );
-  }
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`${msg} (status=${r.status}) ${text}`);
-  }
-  return r;
+function workerAuthHeaders() {
+  const bearer = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return bearer ? { Authorization: `Bearer ${bearer}` } : {};
 }
 
 async function main() {
@@ -47,9 +35,12 @@ async function main() {
 
   // 1) Create job with real manuscript
   const createRes = await must(
-    fetch(`${BASE}/api/jobs`, {
+    jfetch(`${BASE}/api/jobs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...workerAuthHeaders(),
+      },
       body: JSON.stringify({
         job_type: "evaluate_full",
         manuscript_id: MANUSCRIPT_ID,
@@ -66,7 +57,10 @@ async function main() {
 
   // 2) Start Phase 1
   const run1Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId}/run-phase1`, { method: "POST" }),
+    jfetch(`${BASE}/api/jobs/${jobId}/run-phase1`, {
+      method: "POST",
+      headers: workerAuthHeaders(),
+    }),
     "Failed to start phase1",
   );
   await run1Res.json().catch(() => ({}));
@@ -127,7 +121,10 @@ async function main() {
 
   // 3) Start Phase 2
   const run2Res = await must(
-    fetch(`${BASE}/api/jobs/${jobId}/run-phase2`, { method: "POST" }),
+    jfetch(`${BASE}/api/jobs/${jobId}/run-phase2`, {
+      method: "POST",
+      headers: workerAuthHeaders(),
+    }),
     "Failed to start phase2",
   );
   await run2Res.json().catch(() => ({}));
