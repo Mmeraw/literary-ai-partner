@@ -605,6 +605,53 @@ describe('workbench queue admission synthesis', () => {
     expect(result.opportunities.every((item) => !item.id.startsWith('cluster:'))).toBe(true);
   });
 
+  test('leaves diagnostics empty instead of padding canned boilerplate when no real data exists', () => {
+    const findings: DiagnosticFinding[] = [
+      makeFinding({
+        id: 'no-diagnostics',
+        recommendation: '',
+        diagnosis: 'A clear observable reader symptom describing the problem.',
+        evidence_excerpt: 'A real excerpt drawn straight from the manuscript passage.',
+      }),
+    ];
+
+    const result = __testing.synthesizeFindingsForWorkbench(findings, new Map());
+
+    expect(result.opportunities).toHaveLength(1);
+    const card = result.opportunities[0];
+    // With no rich enrichment and no real recommendation, the pre-gate builder
+    // must leave cause/fixDirection/readerEffect empty — never padded — so the
+    // admission gate can withhold the card instead of showing boilerplate.
+    expect(card.cause).toBe('');
+    expect(card.fixDirection).toBe('');
+    expect(card.readerEffect).toBe('');
+    expect(card.diagnostic.cause).toBe('');
+    expect(card.diagnostic.fixStrategy).toBe('');
+    expect(card.diagnostic.readerImpact).toBe('');
+    expect(card.cause).not.toMatch(/manuscript readiness concern/i);
+    expect(card.fixDirection).not.toMatch(/choose a repair path/i);
+    expect(card.readerEffect).not.toMatch(/Repairing this can/i);
+    // Empty required diagnostics must kick the card back, not admit it.
+    expect(card.readiness).toBe('needs_targeting');
+  });
+
+  test('uses the finding recommendation as real diagnostic data when present', () => {
+    const findings: DiagnosticFinding[] = [
+      makeFinding({
+        id: 'real-recommendation',
+        recommendation: 'Condense the repeated exposition beats into a single decisive turn.',
+        evidence_excerpt: 'A real excerpt drawn straight from the manuscript passage.',
+      }),
+    ];
+
+    const result = __testing.synthesizeFindingsForWorkbench(findings, new Map());
+
+    expect(result.opportunities).toHaveLength(1);
+    const card = result.opportunities[0];
+    expect(card.cause).toBe('Condense the repeated exposition beats into a single decisive turn.');
+    expect(card.fixDirection).toBe('Condense the repeated exposition beats into a single decisive turn.');
+  });
+
   test('treats manuscript-wide support as actionable evidence', () => {
     const findings: DiagnosticFinding[] = [
       makeFinding({

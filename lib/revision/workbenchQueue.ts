@@ -1003,22 +1003,26 @@ function findingToOpportunity(
     anchor,
     quoteHighlight: evidence.quoteHighlight,
     quoteRest: evidence.quoteRest,
-    symptom: rich?.symptom || finding.diagnosis,
-    cause: rich?.mechanism || finding.recommendation || 'The evaluation identified this as a manuscript readiness concern.',
-    fixDirection: rich?.specific_fix || rich?.action || finding.recommendation || 'Review the evidence and choose a repair path before revising.',
-    readerEffect: rich?.reader_effect || fallbackReaderEffect(finding.criterion_key, scope),
-    mistakeProofing: rich?.mistake_proofing || fallbackMistakeProofing(mode),
+    // Diagnostic fields carry ONLY real evaluation data (rich enrichment or the
+    // finding's own recommendation/diagnosis). Canned boilerplate is never
+    // substituted here — a genuinely-empty field must reach the admission gate
+    // empty so DIAGNOSTIC_MISSING_* fires and the card is withheld, not padded.
+    symptom: rich?.symptom || finding.diagnosis || '',
+    cause: rich?.mechanism || finding.recommendation || '',
+    fixDirection: rich?.specific_fix || rich?.action || finding.recommendation || '',
+    readerEffect: rich?.reader_effect || '',
+    mistakeProofing: rich?.mistake_proofing || '',
     diagnostic: {
-      symptom: rich?.symptom || finding.diagnosis,
-      cause: rich?.mechanism || finding.recommendation || 'The evaluation identified this as a manuscript readiness concern.',
-      fixStrategy: rich?.specific_fix || rich?.action || finding.recommendation || 'Review the evidence and choose a repair path before revising.',
-      readerImpact: rich?.reader_effect || fallbackReaderEffect(finding.criterion_key, scope),
+      symptom: rich?.symptom || finding.diagnosis || '',
+      cause: rich?.mechanism || finding.recommendation || '',
+      fixStrategy: rich?.specific_fix || rich?.action || finding.recommendation || '',
+      readerImpact: rich?.reader_effect || '',
       evidence: {
         quotedExcerpt: `${evidence.quoteHighlight}${evidence.quoteRest}`.trim(),
         locationLabel: anchor,
       },
       operationTargeting: `${scope} · ${anchor}`,
-      mistakeProofing: rich?.mistake_proofing || fallbackMistakeProofing(mode),
+      mistakeProofing: rich?.mistake_proofing || '',
     },
     options: rich ? optionsFromRich(rich, mode) : optionsFallback(mode),
   })

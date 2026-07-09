@@ -53,6 +53,19 @@ describe('reviseAdmissionGate', () => {
     expect(result.passedCandidateCount).toBe(3);
   });
 
+  it('withholds workbench cards whose diagnostics are empty instead of admitting padded boilerplate', () => {
+    const result = runWorkbenchAdmissionGate({
+      ...workbenchBase,
+      cause: '',
+      fixDirection: '',
+      readerEffect: '',
+    });
+    expect(result.admission_status).toBe('withheld');
+    expect(result.reasons).toContain('DIAGNOSTIC_MISSING_CAUSE');
+    expect(result.reasons).toContain('DIAGNOSTIC_MISSING_FIX_DIRECTION');
+    expect(result.reasons).toContain('DIAGNOSTIC_MISSING_READER_EFFECT');
+  });
+
   it('withholds workbench cards that are not ready for revise', () => {
     const result = runWorkbenchAdmissionGate({ ...workbenchBase, readiness: 'needs_targeting' });
     expect(result.admission_status).toBe('withheld');
