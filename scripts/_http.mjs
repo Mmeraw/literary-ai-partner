@@ -16,7 +16,7 @@
  */
 export function authHeaders() {
   return {
-    "x-user-id": "smoke-test-user",
+          "x-user-id": process.env.SMOKE_USER_ID || "",
   };
 }
 
