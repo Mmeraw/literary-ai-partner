@@ -451,7 +451,7 @@ export default async function ReportPage({
           </div>
 
           {/* ── Hero: title + score card side by side ── */}
-          <div className="flex flex-col items-stretch gap-5 sm:flex-row sm:items-start sm:gap-6" style={{alignItems:'flex-start'}}>
+          <div className="flex flex-col items-stretch gap-5 sm:flex-row sm:items-start sm:gap-6">
             {/* Title column */}
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-3xl font-bold leading-tight text-[#1C1814] sm:text-4xl">{displayTitle}</h1>
@@ -471,7 +471,7 @@ export default async function ReportPage({
             </div>
 
             {/* Score card — always visible without scrolling */}
-            <aside className={`w-full self-start rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
+            <aside className={`w-full sm:self-start rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
               vm.titleBlock.marketReadinessPalette === 'ready' ? 'border-[#9DC79D] bg-[#EEF7EF]' :
               vm.titleBlock.marketReadinessPalette === 'near' ? 'border-[#D9A441] bg-[#FFF6E8]' :
               vm.titleBlock.marketReadinessPalette === 'not_ready' ? 'border-[#C97A7A] bg-[#FDEEEE]' :
