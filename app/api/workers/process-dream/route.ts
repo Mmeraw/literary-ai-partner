@@ -567,6 +567,34 @@ async function processDreamJob(
   // 0. Pre-flight — validate all dependencies and ping OpenAI before doing any work.
   const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
   const preflight = await preflightDreamJob(supabase, job, openaiApiKey);
+
+  // GATE_2: Persist synthesis_started_at to DB the first time this synthesis
+  // invocation runs. Uses WHERE ... IS NULL to be idempotent across retries.
+  await supabase.from('evaluation_jobs').update(
+    { synthesis_started_at: new Date().toISOString() }
+  ).eq('id', jobId).is('synthesis_started_at', null);
+
+  // GATE_4: Compute cumulative synthesis elapsed from the persisted timestamp.
+  // Re-read from DB so we always use the wall-clock anchor regardless of worker restart.
+  const { data: synthStartRow } = await supabase
+    .from('evaluation_jobs')
+    .select('synthesis_started_at')
+    .eq('id', jobId)
+    .maybeSingle();
+  const _synthesisStartedAtMs = synthStartRow?.synthesis_started_at
+    ? new Date(synthStartRow.synthesis_started_at).getTime()
+    : _synthesisInvocationStartMs; // fallback to invocation start if column not yet populated
+  const _cumulativeSynthesisElapsedMs = Date.now() - _synthesisStartedAtMs;
+  const _synthesisRemainingMs = Math.max(
+    30_000, // hard minimum: always give the AI at least 30 seconds
+    _synthesisBudgetMs - _cumulativeSynthesisElapsedMs
+  );
+  console.log(
+    `[DreamWorker][GATE_2/4] ${jobId}: synthesis_started_at=${synthStartRow?.synthesis_started_at}, ` +
+    `cumulative elapsed=${Math.round(_cumulativeSynthesisElapsedMs / 1000)}s, ` +
+    `remaining budget=${Math.round(_synthesisRemainingMs / 1000)}s of ${runtimeConfig.stageSynthesisMinutes}min total`
+  );
+
   if (preflight.ok === false) {
     return {
       success: false,
@@ -663,7 +691,8 @@ async function processDreamJob(
   // openaiApiKey already resolved and validated by preflight (Check 4 + Check 5 ping).
   const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(artifactContent);
     // Check synthesis stage budget before starting AI work
-  if (Date.now() - _synthesisInvocationStartMs > _synthesisBudgetMs) {
+  // GATE_4: Check cumulative synthesis elapsed (across all invocations).
+  if (_cumulativeSynthesisElapsedMs >= _synthesisBudgetMs) {
     return fail(
       `Synthesis stage budget exhausted (limit: ${runtimeConfig.stageSynthesisMinutes}min). ` +
       'Terminating to prevent runaway spend. Status: skipped (terminal).',
@@ -681,7 +710,8 @@ async function processDreamJob(
     workType: manuscript?.work_type ?? 'literary_fiction',
     model,
     openaiApiKey,
-    openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS,
+    // GATE_3: Use remaining synthesis budget as the live OpenAI timeout.
+      openAiTimeoutMs: _synthesisRemainingMs,
     authorCorrectionsBlock,
     chapterIndex,
     jobId,

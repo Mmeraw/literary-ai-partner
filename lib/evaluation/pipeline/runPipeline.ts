@@ -1362,6 +1362,18 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       throw error;
     });
 
+  // GATE_1: Abort before launching Pass 1+2 parallel block if main-eval stage budget is already exhausted.
+  if ((opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs &&
+      Date.now() >= (opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs) {
+    const elapsedMain = Math.round((Date.now() - _pipelineStartedAt) / 1000);
+    return {
+      ok: false,
+      error: `Main-eval stage budget exhausted before Pass 2 (elapsed ${elapsedMain}s). Aborting to prevent runaway cost.`,
+      error_code: "STAGE_MAIN_EVAL_DEADLINE_EXCEEDED",
+      failed_at: "pre_pass2",
+      failureDetails: undefined,
+    } as const;
+  }
   const pass2Promise = _runPass2({
       manuscriptText: opts.manuscriptText,
       manuscriptChunks: opts.manuscriptChunks,
@@ -2194,6 +2206,18 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       dual_model_mode: pplxChunkOutput !== null,
     },
   });
+  // GATE_1: Abort before launching Pass 3 if main-eval stage budget is exhausted.
+  if ((opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs &&
+      Date.now() >= (opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs) {
+    const elapsedMain = Math.round((Date.now() - _pipelineStartedAt) / 1000);
+    return {
+      ok: false,
+      error: `Main-eval stage budget exhausted before Pass 3 (elapsed ${elapsedMain}s). Aborting to prevent runaway cost.`,
+      error_code: "STAGE_MAIN_EVAL_DEADLINE_EXCEEDED",
+      failed_at: "pre_pass3",
+      failureDetails: undefined,
+    } as const;
+  }
   await opts.onHeartbeat?.("pass3_started");
   try {
     pass3Output = await withTimeout(
