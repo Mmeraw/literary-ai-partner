@@ -14,7 +14,7 @@
  * through Phase 1 and Phase 2 without breaking evaluation logic.
  */
 import { getBaseUrl } from "./base-url.mjs";
-import { jfetch, must, sleep } from "./_http.mjs";
+import { jfetch, must, sleep, authHeaders } from "./_http.mjs";
 
 function workerAuthHeaders() {
   const bearer = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,6 +40,7 @@ async function main() {
       headers: {
         "Content-Type": "application/json",
         ...workerAuthHeaders(),
+                       ...authHeaders(),
       },
       body: JSON.stringify({
         job_type: "evaluate_full",
