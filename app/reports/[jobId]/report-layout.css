@@ -1,0 +1,69 @@
+.rg-report-page > div > header > div:nth-of-type(2) {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.rg-report-page > div > header > div:nth-of-type(2) > aside {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.rg-report-page > div > header > div:nth-of-type(2) > aside > div + div {
+  border-left: 0;
+  border-top: 1px solid #d9d0c3;
+  margin-left: 0;
+  margin-top: 0.75rem;
+  padding-left: 0;
+  padding-top: 0.75rem;
+}
+
+.rg-report-page > div > header > dl {
+  grid-template-columns: minmax(0, 1fr) !important;
+  margin-top: 1rem;
+}
+
+.rg-report-page > div > header > dl > div:nth-child(2) dd {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .rg-report-page > div > header > dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .rg-report-page > div > header > div:nth-of-type(2) {
+    align-items: flex-start;
+    flex-direction: row;
+  }
+
+  .rg-report-page > div > header > div:nth-of-type(2) > aside {
+    align-self: flex-start;
+    flex-direction: row;
+    flex-shrink: 0;
+    width: 360px;
+  }
+
+  .rg-report-page > div > header > div:nth-of-type(2) > aside > div + div {
+    border-left: 1px solid #d9d0c3;
+    border-top: 0;
+    margin-left: 1rem;
+    margin-top: 0;
+    padding-left: 1rem;
+    padding-top: 0;
+  }
+
+  .rg-report-page > div > header > dl {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .rg-report-page > div > header > div:nth-of-type(2) > aside {
+    width: 380px;
+  }
+}
