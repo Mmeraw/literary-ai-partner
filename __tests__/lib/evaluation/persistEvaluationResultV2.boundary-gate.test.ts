@@ -133,6 +133,36 @@ function makeSupabaseStub() {
 }
 
 describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
+  test("ids-only stub payload is rejected fail-closed before atomic persistence", async () => {
+    const supabase = makeSupabaseStub();
+
+    const idsOnlyStub = {
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-stub-only",
+        job_id: "job-stub-only",
+        manuscript_id: 501,
+        user_id: "00000000-0000-0000-0000-000000000501",
+      },
+    } as unknown as EvaluationResultV2;
+
+    await expect(
+      persistEvaluationResultV2({
+        supabase: supabase as unknown as SupabaseClient,
+        jobId: "job-step1-stub-only",
+        manuscriptId: 501,
+        evaluationResult: idsOnlyStub,
+        sourceHash: "sha256:stub-only",
+        progressSnapshot: { phase: "phase_2", phase_status: "running" },
+        totalUnits: 5,
+        completedUnits: 4,
+      }),
+    ).rejects.toThrow(/Refusing to persist incomplete evaluation_result_v2 payload/i);
+
+    expect(supabase.rpcCalls).toHaveLength(0);
+    expect(supabase.evaluationJobUpdates).toHaveLength(0);
+  });
+
   test("invalid artifact rejects before persistence and never completes job", async () => {
     const supabase = makeSupabaseStub();
 

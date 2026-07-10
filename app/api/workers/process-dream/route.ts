@@ -828,6 +828,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, skipped: true, reason: 'DREAM_WORKER_DISABLED' }, { status: 200 });
   }
 
+  // ── DREAM-specific kill switch ─────────────────────────────────────────────
+  // DREAM_WORKER_ENABLED=false disables only Narrative Synthesis without
+  // affecting the main evaluation pipeline (EVAL_PIPELINE_ENABLED).
+  // Absent or any other value keeps synthesis enabled (fail-open default).
+  const dreamEnabled = process.env.DREAM_WORKER_ENABLED !== 'false';
+  if (!dreamEnabled) {
+    console.warn(`[DreamWorker] ${traceId}: DREAM_WORKER_ENABLED=false — synthesis disabled`);
+    return NextResponse.json({ ok: true, skipped: true, reason: 'DREAM_WORKER_DISABLED', trace_id: traceId }, { status: 200 });
+  }
+
   // ── Authorization ──────────────────────────────────────────────────────────
   const { authorized, method, secretTooLong } = checkAuthorization(req);
   if (secretTooLong) {

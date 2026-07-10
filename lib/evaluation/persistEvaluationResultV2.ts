@@ -24,6 +24,32 @@ import { runShortFormFinalSanityCheck } from "@/lib/evaluation/pipeline/shortFor
 import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 import { FORBIDDEN_PATTERNS, getForbiddenCodes } from "@/lib/evaluation/reportForbiddenPatterns";
 
+function assertPersistableEvaluationResultShape(evaluationResult: EvaluationResultV2): void {
+  const missing: string[] = [];
+
+  if (evaluationResult.schema_version !== "evaluation_result_v2") {
+    missing.push("schema_version=evaluation_result_v2");
+  }
+  if (!evaluationResult.engine || typeof evaluationResult.engine.model !== "string" || evaluationResult.engine.model.trim().length === 0) {
+    missing.push("engine.model");
+  }
+  if (!evaluationResult.overview || typeof evaluationResult.overview.one_paragraph_summary !== "string") {
+    missing.push("overview.one_paragraph_summary");
+  }
+  if (!Array.isArray(evaluationResult.criteria)) {
+    missing.push("criteria[]");
+  }
+  if (!evaluationResult.governance || !Array.isArray(evaluationResult.governance.warnings)) {
+    missing.push("governance.warnings");
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[PersistEvalV2] Refusing to persist incomplete evaluation_result_v2 payload; missing=${missing.join(",")}`,
+    );
+  }
+}
+
 type PipelineFailureEnvelope = {
   failure_origin: string;
   error_code: string;
@@ -494,6 +520,10 @@ export async function persistEvaluationResultV2(params: {
     ?? (typeof params.progressSnapshot?.phase === "string" && params.progressSnapshot.phase
         ? params.progressSnapshot.phase
         : "phase_3");
+
+  // Fail-closed hard guard: never let a stub/partial payload (e.g. ids-only)
+  // proceed into transforms/persistence and risk canonical overwrite.
+  assertPersistableEvaluationResultShape(params.evaluationResult);
 
   const wordCount = readManuscriptWordCount(params.progressSnapshot);
   const shortFormReadiness = applyShortFormReadinessMetadata(params.evaluationResult, wordCount);

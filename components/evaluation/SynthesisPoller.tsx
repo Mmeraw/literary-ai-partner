@@ -50,8 +50,13 @@ type ArtifactRow = {
   content: { longform_document?: LongformDreamDocument } | null;
 };
 
+type SynthesisStatus = "pending" | "complete" | "skipped" | "failed";
+
 export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onReady }: Props) {
   const [dreamDoc, setDreamDoc] = useState<LongformDreamDocument | null>(initialDreamDoc);
+  const [synthesisStatus, setSynthesisStatus] = useState<SynthesisStatus>(
+    initialDreamDoc ? "complete" : "pending",
+  );
   const [elapsedMs, setElapsedMs] = useState(0);
   const [topStatusHost, setTopStatusHost] = useState<HTMLElement | null>(null);
   const startRef = useRef(Date.now());
@@ -70,7 +75,20 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
         console.warn(`[SynthesisPoller] non-JSON response (${ct}) for job ${jobId}`);
         return;
       }
-      const data = await res.json() as { ok: boolean; artifact?: ArtifactRow | null };
+      const data = await res.json() as {
+        ok: boolean;
+        artifact?: ArtifactRow | null;
+        synthesis_status?: SynthesisStatus;
+      };
+      const synthesisStatus = data.synthesis_status ?? "pending";
+
+      if (synthesisStatus === "skipped" || synthesisStatus === "failed") {
+        if (pollRef.current) clearInterval(pollRef.current);
+        if (elapsedRef.current) clearInterval(elapsedRef.current);
+        setSynthesisStatus(synthesisStatus);
+        return;
+      }
+
       if (!data.ok || !data.artifact) return;
       if (data.artifact.artifact_type !== "longform_document_v1") return;
 
@@ -84,6 +102,7 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
 
       if (pollRef.current) clearInterval(pollRef.current);
       if (elapsedRef.current) clearInterval(elapsedRef.current);
+      setSynthesisStatus("complete");
 
       if (onReady) {
         setDreamDoc(longformDoc);
@@ -97,7 +116,8 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
   }, [jobId, onReady]);
 
   useEffect(() => {
-    if (dreamDoc) return;
+    // Already terminal — nothing to poll
+    if (dreamDoc || synthesisStatus === "skipped" || synthesisStatus === "failed") return;
 
     elapsedRef.current = setInterval(() => {
       setElapsedMs(Date.now() - startRef.current);
@@ -110,7 +130,7 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
       if (pollRef.current) clearInterval(pollRef.current);
       if (elapsedRef.current) clearInterval(elapsedRef.current);
     };
-  }, [dreamDoc, fetchArtifact]);
+  }, [dreamDoc, fetchArtifact, synthesisStatus]);
 
   useEffect(() => {
     if (dreamDoc) return;
@@ -148,6 +168,34 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
     );
   }
 
+  if (synthesisStatus === "skipped") {
+    // skipped = operator-disabled or explicit operator skip request.
+    // Never tell a paying customer their synthesis "was not generated" —
+    // surface a neutral holding message and the retry control.
+    return (
+      <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm font-medium text-amber-900">
+          Narrative Synthesis is temporarily unavailable. Your Evidence Review is ready above.
+          This will be completed automatically — no action needed.
+        </p>
+        <SynthesisArtifactControls jobId={jobId} />
+      </div>
+    );
+  }
+
+  if (synthesisStatus === "failed") {
+    return (
+      <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm font-medium text-amber-900">
+          Narrative Synthesis encountered a problem. We are automatically retrying.
+          Your Evidence Review is ready above.
+        </p>
+        <SynthesisArtifactControls jobId={jobId} />
+      </div>
+    );
+  }
+
+  // ── Synthesis pending ─────────────────────────────────────────────────────
   const rangeLabel = estimateSynthesisMinutes(wordCount);
   const elapsedMin = Math.floor(elapsedMs / 60_000);
   const showRecovery = elapsedMs >= stalledAfterMs(wordCount);

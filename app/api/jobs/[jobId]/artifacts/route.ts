@@ -13,15 +13,18 @@ type EvaluationJobOwnerRow = {
   user_id: string | null;
   status: string;
   validity_status: string | null;
+  last_error: string | null;
+  progress: Record<string, unknown> | null;
   evaluation_result: unknown;
   manuscripts?: ManuscriptOwner | ManuscriptOwner[] | null;
 };
 
 // synthesis_status values surfaced to the client poller:
-//   'ready'   — longform_document_v1 artifact exists and contains longform_document
-//   'skipped' — DREAM_WORKER_ENABLED=false; synthesis will never arrive
-//   'pending' — worker is enabled but artifact has not landed yet
-export type SynthesisStatus = 'ready' | 'skipped' | 'pending';
+//   'complete' — longform_document_v1 artifact exists and contains longform_document
+//   'failed'   — DreamWorker recorded a fatal error; no artifact written
+//   'skipped'  — worker disabled, stub present, or skip explicitly requested
+//   'pending'  — worker is enabled and still running
+type SynthesisStatus = "pending" | "complete" | "skipped" | "failed";
 
 export async function GET(_: Request, { params }: Params) {
   try {
@@ -41,7 +44,7 @@ export async function GET(_: Request, { params }: Params) {
     // Ownership check
     const { data: job, error: jobError } = await admin
       .from("evaluation_jobs")
-      .select("id, user_id, status, validity_status, evaluation_result, manuscripts!inner(user_id)")
+      .select("id, user_id, status, validity_status, last_error, progress, evaluation_result, manuscripts!inner(user_id)")
       .eq("id", jobId)
       .maybeSingle<EvaluationJobOwnerRow>();
 
@@ -113,32 +116,35 @@ export async function GET(_: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Failed to fetch artifact" }, { status: 500 });
     }
 
-    // Determine synthesis_status so the client poller can stop cleanly
-    // rather than spinning forever when synthesis is disabled or skipped.
-    let synthesisStatus: SynthesisStatus;
-    if (artifact) {
-      // Verify the artifact actually contains the document, not just the row shell.
-      let content = artifact.content;
-      if (typeof content === 'string') {
-        try { content = JSON.parse(content); } catch { content = null; }
-      }
-      const hasDoc =
-        content != null &&
-        typeof content === 'object' &&
-        'longform_document' in (content as object) &&
-        (content as { longform_document?: unknown }).longform_document != null;
-      synthesisStatus = hasDoc ? 'ready' : 'pending';
-    } else if (process.env.DREAM_WORKER_ENABLED === 'false') {
-      // Worker is explicitly disabled — synthesis will never arrive.
-      // Tell the poller to stop and present Evidence Review as the final report.
-      synthesisStatus = 'skipped';
-    } else {
-      synthesisStatus = 'pending';
+    // Verify the artifact actually contains a real document (not just a stub row).
+    let artifactContent = artifact?.content as Record<string, unknown> | null | undefined;
+    if (typeof artifactContent === "string") {
+      try { artifactContent = JSON.parse(artifactContent); } catch { artifactContent = null; }
     }
+    const hasLongformDocument =
+      !!artifactContent &&
+      typeof artifactContent === "object" &&
+      typeof artifactContent.longform_document === "object" &&
+      artifactContent.longform_document !== null;
+    const isSkippedStub = artifactContent?._skipped === true;
+    const skipRequested = job.progress?.synthesis_skip_requested === true;
+    const workerDisabled = process.env.DREAM_WORKER_ENABLED === "false";
+    const synthesisFailed =
+      !hasLongformDocument &&
+      typeof job.last_error === "string" &&
+      /\[DreamWorker\]|preflight:/i.test(job.last_error);
+
+    const synthesisStatus: SynthesisStatus = hasLongformDocument
+      ? "complete"
+      : synthesisFailed
+      ? "failed"
+      : isSkippedStub || skipRequested || workerDisabled
+      ? "skipped"
+      : "pending";
 
     return NextResponse.json({
       ok: true,
-      artifact: artifact ?? null,
+      artifact: hasLongformDocument ? artifact : null,
       synthesis_status: synthesisStatus,
     });
   } catch (error) {
