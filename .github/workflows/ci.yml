@@ -176,8 +176,8 @@ jobs:
           (npm audit --json 2>&1 || true) | node scripts/validate-npm-audit-notes.mjs
       - run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key-for-build"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           EVAL_OPENAI_TIMEOUT_MS: "180000"
           EVAL_PASS_TIMEOUT_MS: "180000"
 
