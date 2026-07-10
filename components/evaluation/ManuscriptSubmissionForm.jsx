@@ -52,6 +52,75 @@ function inputStyle(overrideStyle = {}) {
   };
 }
 
+// Stable module-scope field components. Defining these inside the form causes
+// React to treat them as new component types on every state update, remounting the
+// active input and dropping focus after each keystroke.
+const focusRingStyle = {
+  outline: "none",
+  boxShadow: `0 0 0 3px ${C.inputFocusRing}`,
+  borderColor: C.oxblood,
+};
+const blurStyle = { outline: "none", boxShadow: "none" };
+
+function FocusableInput({ className, style, onFocus, onBlur, ...props }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      {...props}
+      className={className}
+      style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
+      onFocus={(event) => {
+        setFocused(true);
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocused(false);
+        onBlur?.(event);
+      }}
+    />
+  );
+}
+
+function FocusableSelect({ className, style, children, onFocus, onBlur, ...props }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <select
+      {...props}
+      className={className}
+      style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
+      onFocus={(event) => {
+        setFocused(true);
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocused(false);
+        onBlur?.(event);
+      }}
+    >
+      {children}
+    </select>
+  );
+}
+
+function FocusableTextarea({ className, style, onFocus, onBlur, ...props }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <textarea
+      {...props}
+      className={className}
+      style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
+      onFocus={(event) => {
+        setFocused(true);
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocused(false);
+        onBlur?.(event);
+      }}
+    />
+  );
+}
+
 function getDocumentTitle(doc) {
   return String(doc?.title || "").trim();
 }
@@ -597,59 +666,6 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
       setIsSubmitting(false);
     }
   };
-
-  // ─── Shared focus style injected via onFocus/onBlur on inputs ──────────────
-  // We use a CSS variable trick: add a <style> block once. But since we can't
-  // reliably use className for focus ring colors (Tailwind vs preflight), we
-  // manage focus ring via inline style + state. Simpler: just leave the ring
-  // class but override it with a global style tag:
-  const focusRingStyle = {
-    outline: "none",
-    boxShadow: `0 0 0 3px ${C.inputFocusRing}`,
-    borderColor: C.oxblood,
-  };
-  const blurStyle = { outline: "none", boxShadow: "none" };
-
-  function FocusableInput({ className, style, ...props }) {
-    const [focused, setFocused] = useState(false);
-    return (
-      <input
-        {...props}
-        className={className}
-        style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-    );
-  }
-
-  function FocusableSelect({ className, style, children, ...props }) {
-    const [focused, setFocused] = useState(false);
-    return (
-      <select
-        {...props}
-        className={className}
-        style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      >
-        {children}
-      </select>
-    );
-  }
-
-  function FocusableTextarea({ className, style, ...props }) {
-    const [focused, setFocused] = useState(false);
-    return (
-      <textarea
-        {...props}
-        className={className}
-        style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-    );
-  }
 
   return (
     <div className="mx-auto max-w-7xl" style={{ color: C.ink, fontSize: "17px" }}>
