@@ -459,7 +459,7 @@ export default async function ReportPage({
               {chapterTitle && manuscriptTitle && chapterTitle !== manuscriptTitle && (
                 <p className="mt-1 text-sm text-[#5C5549]">{manuscriptTitle}</p>
               )}
-              <p className="mt-3 text-xs leading-relaxed text-[#9A9087]">
+              <p className="mt-1 text-xs leading-relaxed text-[#9A9087]">
                 Generated {vm.titleBlock.dateGenerated}
                 {' · '}
                 <span className="font-mono break-all">{params.jobId.slice(0, 8)}</span>
@@ -471,20 +471,20 @@ export default async function ReportPage({
             </div>
 
             {/* Score card — always visible without scrolling */}
-            <aside className={`w-full sm:self-start rounded-sm border-2 px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
+            <aside className={`w-full sm:self-start rounded-sm border-2 flex sm:flex-row px-4 py-4 text-center text-[#1A1A1A] sm:w-44 sm:shrink-0 ${
               vm.titleBlock.marketReadinessPalette === 'ready' ? 'border-[#9DC79D] bg-[#EEF7EF]' :
               vm.titleBlock.marketReadinessPalette === 'near' ? 'border-[#D9A441] bg-[#FFF6E8]' :
               vm.titleBlock.marketReadinessPalette === 'not_ready' ? 'border-[#C97A7A] bg-[#FDEEEE]' :
               'border-[#D9D0C3] bg-[#FAF7F2]'
             }`}>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Overall Score</p>
+              <div className="flex-1"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Overall Score</p>
               <p className="mt-1 font-serif text-4xl font-bold leading-none text-[#1A1A1A]">
                 {vm.titleBlock.overallScoreLabel}
               </p>
               {vm.titleBlock.overallScoreConfidenceLabel && (
                 <p className="mt-1 text-[10px] text-[#5C5549]">{vm.titleBlock.overallScoreConfidenceLabel}</p>
-              )}
-              <div className="mt-3 border-t border-[#D9D0C3] pt-3">
+              )}</div>
+              <div className="flex-1 mt-3 border-t border-[#D9D0C3] pt-3 sm:mt-0 sm:pt-0 sm:ml-4 sm:pl-4 sm:border-t-0 sm:border-l">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5549]">Market Readiness</p>
                 <p className="mt-1 text-sm font-bold uppercase text-[#1A1A1A]">
                   {vm.titleBlock.marketReadiness}
@@ -497,15 +497,15 @@ export default async function ReportPage({
           </div>
 
           {/* ── Metadata grid (secondary — below the hero) ── */}
-          <dl className="mt-6 grid grid-cols-2 overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] text-sm sm:grid-cols-3 lg:grid-cols-4">
+          <dl className="mt-6 grid grid-cols-2 md:grid-cols-3 overflow-hidden rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] text-sm sm:grid-cols-3 lg:grid-cols-4">
             <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genre}</dd>{vm.titleBlock.genreConfidenceLabel ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">({vm.titleBlock.genreConfidenceLabel})</p> : null}</div>
-            <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3] sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}{vm.titleBlock.targetAudience}</dd>{vm.titleBlock.audienceConfidenceLabel ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">({vm.titleBlock.audienceConfidenceLabel})</p> : null}</div>
+            <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Target Audience</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.audienceTentative ? 'Tentative: ' : ''}{vm.titleBlock.targetAudience}</dd>{vm.titleBlock.audienceConfidenceLabel ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">({vm.titleBlock.audienceConfidenceLabel})</p> : null}</div>
             {vm.titleBlock.shelf ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Shelf</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.shelf}</dd>{vm.titleBlock.shelfConfidenceLabel ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">({vm.titleBlock.shelfConfidenceLabel})</p> : null}</div> : null}
             {vm.titleBlock.submittedWordCount !== 'Not available' ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Submitted Word Count</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.submittedWordCount}</dd></div> : null}
             {vm.titleBlock.estimatedPages !== 'Not available' ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Estimated Pages</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.estimatedPages}</dd></div> : null}
             {vm.titleBlock.readingGradeLevel !== 'Not available' ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Reading Grade Level</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.readingGradeLevel}</dd></div> : null}
             {vm.titleBlock.dialogueNarrativeRatio !== 'Not available' ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Dialogue/Narrative Ratio</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.dialogueNarrativeRatio}</dd></div> : null}
-            {vm.titleBlock.genreExpectationSummary ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3] sm:col-span-2"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre Expectations</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genreExpectationSummary}</dd>{vm.titleBlock.genreExpectationProfileLabels.length > 0 ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">Reader emphasis: {vm.titleBlock.genreExpectationProfileLabels.join(', ')}</p> : null}</div> : null}
+            {vm.titleBlock.genreExpectationSummary ? <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Genre Expectations</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">{vm.titleBlock.genreExpectationSummary}</dd>{vm.titleBlock.genreExpectationProfileLabels.length > 0 ? <p className="mt-0.5 text-[10px] font-normal text-[#5C5549]">Reader emphasis: {vm.titleBlock.genreExpectationProfileLabels.join(', ')}</p> : null}</div> : null}
             <div className="bg-white p-3.5 ring-1 ring-[#D9D0C3]"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#5C5549]">Confidentiality</dt><dd className="mt-1.5 font-semibold leading-relaxed text-[#1C1814]">Prepared for author/editorial use.</dd></div>
           </dl>
         </header>
