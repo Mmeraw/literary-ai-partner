@@ -170,13 +170,12 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
 
   if (synthesisStatus === "skipped") {
     // skipped = operator-disabled or explicit operator skip request.
-    // Never tell a paying customer their synthesis "was not generated" —
-    // surface a neutral holding message and the retry control.
+    // Polling has stopped; the retry control lets the user request a new attempt.
     return (
       <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
         <p className="text-sm font-medium text-amber-900">
           Narrative Synthesis is temporarily unavailable. Your Evidence Review is ready above.
-          This will be completed automatically — no action needed.
+          Use the button below to request a retry.
         </p>
         <SynthesisArtifactControls jobId={jobId} />
       </div>
@@ -187,8 +186,8 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
     return (
       <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
         <p className="text-sm font-medium text-amber-900">
-          Narrative Synthesis encountered a problem. We are automatically retrying.
-          Your Evidence Review is ready above.
+          Narrative Synthesis did not complete. Your Evidence Review is ready above.
+          Use the button below to retry.
         </p>
         <SynthesisArtifactControls jobId={jobId} />
       </div>

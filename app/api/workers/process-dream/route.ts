@@ -822,18 +822,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.warn('[DreamWorker] EVAL_PIPELINE_ENABLED=false — skipping DREAM synthesis');
     return NextResponse.json(pipelineDisabledResponse(), { status: 200 });
   }
-    // ── Dream-worker kill switch (does not affect main eval pipeline) ──────────
-  if (process.env.DREAM_WORKER_ENABLED === 'false') {
-    console.warn('[DreamWorker] DREAM_WORKER_ENABLED=false — narrative synthesis disabled');
-    return NextResponse.json({ ok: false, skipped: true, reason: 'DREAM_WORKER_DISABLED' }, { status: 200 });
-  }
 
   // ── DREAM-specific kill switch ─────────────────────────────────────────────
   // DREAM_WORKER_ENABLED=false disables only Narrative Synthesis without
   // affecting the main evaluation pipeline (EVAL_PIPELINE_ENABLED).
   // Absent or any other value keeps synthesis enabled (fail-open default).
-  const dreamEnabled = process.env.DREAM_WORKER_ENABLED !== 'false';
-  if (!dreamEnabled) {
+  if (process.env.DREAM_WORKER_ENABLED === 'false') {
     console.warn(`[DreamWorker] ${traceId}: DREAM_WORKER_ENABLED=false — synthesis disabled`);
     return NextResponse.json({ ok: true, skipped: true, reason: 'DREAM_WORKER_DISABLED', trace_id: traceId }, { status: 200 });
   }

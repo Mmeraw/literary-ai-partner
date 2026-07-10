@@ -17,21 +17,27 @@ describe("artifacts synthesis_status + poller stop contract", () => {
     expect(source).toContain("/\\[DreamWorker\\]|preflight:/i.test(job.last_error)");
   });
 
-  test("process-dream worker has its own DREAM_WORKER_ENABLED guard that exits before synthesis", () => {
+  test("process-dream worker has exactly one DREAM_WORKER_ENABLED guard with ok:true response", () => {
     const source = read("app/api/workers/process-dream/route.ts");
-    expect(source).toContain("DREAM_WORKER_ENABLED");
-    expect(source).toContain("DREAM_WORKER_DISABLED");
+    // Single guard — not duplicated
+    const guardMatches = source.match(/process\.env\.DREAM_WORKER_ENABLED\s*===\s*['"]false['"]/g) ?? [];
+    expect(guardMatches).toHaveLength(1);
+    // Canonical response is ok:true with a trace_id
+    expect(source).toContain("ok: true, skipped: true, reason: 'DREAM_WORKER_DISABLED', trace_id:");
+    // Must NOT have the old ok:false variant
+    expect(source).not.toContain("ok: false, skipped: true, reason: 'DREAM_WORKER_DISABLED'");
   });
 
-  test("SynthesisPoller stops on skipped status and renders neutral holding message, not 'not generated'", () => {
+  test("SynthesisPoller terminal copy does not promise automatic behavior polling has stopped", () => {
     const source = read("components/evaluation/SynthesisPoller.tsx");
     expect(source).toContain("data.synthesis_status ?? \"pending\"");
     expect(source).toContain("synthesisStatus === \"skipped\" || synthesisStatus === \"failed\"");
-    // Must NOT tell a paying customer synthesis was "not generated"
+    // Must NOT make false promises once polling has stopped
     expect(source).not.toContain("Narrative Synthesis was not generated");
-    // Must show a neutral holding message for skipped state
+    expect(source).not.toContain("This will be completed automatically");
+    expect(source).not.toContain("We are automatically retrying");
+    // Must show neutral message with explicit retry action
     expect(source).toContain("temporarily unavailable");
-    // Failed state must offer retry and explain the problem
-    expect(source).toContain("Narrative Synthesis encountered a problem");
+    expect(source).toContain("Use the button below");
   });
 });
