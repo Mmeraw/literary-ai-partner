@@ -15,10 +15,12 @@ export function SynthesisArtifactControls({
 }: SynthesisControlsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queuedMessage, setQueuedMessage] = useState<string | null>(null);
 
   const handleRetry = async () => {
     setIsLoading(true);
     setError(null);
+    setQueuedMessage(null);
 
     try {
       const response = await fetch(`/api/jobs/${jobId}/synthesis/retry`, {
@@ -26,39 +28,16 @@ export function SynthesisArtifactControls({
         headers: { 'Content-Type': 'application/json' },
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || `Failed to retry synthesis (${response.status})`);
       }
 
+      setQueuedMessage(
+        data.message ||
+          'Narrative Synthesis recovery queued from the completed Evidence Review anchor.',
+      );
       onSuccess?.();
-      setTimeout(() => window.location.reload(), 500);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred';
-      setError(message);
-      onError?.(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSkip = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/jobs/${jobId}/synthesis/skip`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || `Failed to skip synthesis (${response.status})`);
-      }
-
-      onSuccess?.();
-      setTimeout(() => window.location.reload(), 500);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred';
       setError(message);
@@ -71,28 +50,27 @@ export function SynthesisArtifactControls({
   return (
     <div className="space-y-2">
       {error && (
-        <div className="rounded-md bg-red-50 border border-red-200 p-3">
+        <div className="rounded-md border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
-      <div className="flex gap-2">
-        <button
-          onClick={handleRetry}
-          disabled={isLoading}
-          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50" style={{backgroundColor:"#7A2B1A",color:"#FFFFFF"}}
-          title="Re-run the Narrative Synthesis worker"
-        >
-          {isLoading ? 'Processing...' : 'Retry Synthesis'}
-        </button>
-        <button
-          onClick={handleSkip}
-          disabled={isLoading}
-          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors disabled:opacity-50"
-          title="Skip Narrative Synthesis and complete evaluation"
-        >
-          {isLoading ? 'Processing...' : 'Skip Synthesis'}
-        </button>
-      </div>
+      {queuedMessage && (
+        <div className="rounded-md border border-green-200 bg-green-50 p-3" role="status">
+          <p className="text-sm text-green-800">{queuedMessage}</p>
+        </div>
+      )}
+      <button
+        onClick={handleRetry}
+        disabled={isLoading || queuedMessage !== null}
+        className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+        style={{ backgroundColor: '#7A2B1A', color: '#FFFFFF' }}
+        title="Resume Narrative Synthesis from the completed Evidence Review anchor"
+      >
+        {isLoading ? 'Queuing recovery…' : queuedMessage ? 'Recovery queued' : 'Retry Narrative Synthesis'}
+      </button>
+      <p className="text-xs text-gray-600">
+        Recovery resumes from the completed Evidence Review and preserved evaluation artifacts; it does not restart the evaluation.
+      </p>
     </div>
   );
 }
