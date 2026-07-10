@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
 import { projectLongFormMultiLayerEvaluation } from "@/lib/evaluation/evaluationReportViewModel";
 import {
@@ -57,7 +58,7 @@ type Props = {
   // and this component renders it immediately without polling.
   initialDreamDoc?: LongformDreamDocument | null;
   // Called when the artifact lands — lets a client wrapper collapse
-  // the "Part 2 generating…" state without a full page reload.
+  // the "Narrative Synthesis generating…" state without a full page reload.
   onReady?: (doc: LongformDreamDocument) => void;
 };
 
@@ -69,6 +70,7 @@ type ArtifactRow = {
 export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onReady }: Props) {
   const [dreamDoc, setDreamDoc] = useState<LongformDreamDocument | null>(initialDreamDoc);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [topStatusHost, setTopStatusHost] = useState<HTMLElement | null>(null);
   const startRef = useRef(Date.now());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -120,7 +122,7 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
       // Silent — will retry on next interval
       console.warn(`[SynthesisPoller] fetch error for job ${jobId}:`, err);
     }
-  }, [jobId]);
+  }, [jobId, onReady]);
 
   useEffect(() => {
     // Already have it — nothing to poll
@@ -140,6 +142,23 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
       if (elapsedRef.current) clearInterval(elapsedRef.current);
     };
   }, [dreamDoc, fetchArtifact]);
+
+  useEffect(() => {
+    if (dreamDoc) return;
+
+    const reportHeader = document.querySelector<HTMLElement>(".rg-report-page header");
+    if (!reportHeader?.parentElement) return;
+
+    const host = document.createElement("div");
+    host.setAttribute("data-narrative-synthesis-status", "");
+    reportHeader.insertAdjacentElement("afterend", host);
+    setTopStatusHost(host);
+
+    return () => {
+      setTopStatusHost(null);
+      host.remove();
+    };
+  }, [dreamDoc]);
 
   // ── Synthesis ready ───────────────────────────────────────────────────────
   // The poller loads the raw artifact, but renderer-facing code only sees the
@@ -202,33 +221,56 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
   const elapsedMin = Math.floor(elapsedMs / 60_000);
   const showControls = elapsedMs >= SHOW_CONTROLS_AFTER_MS;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 py-4">
+  const topStatus = topStatusHost ? createPortal(
+    <section className="mb-4 rounded-sm border border-[#D9D0C3] border-l-4 border-l-[#8B2E2E] bg-[#FFF6E8] px-4 py-3 shadow-sm print-hidden" aria-live="polite">
+      <div className="flex items-start gap-3">
         <div
-          className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent shrink-0"
+          className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#8B2E2E] border-t-transparent"
           aria-hidden
         />
         <div>
-          <p className="text-sm text-gray-700 font-medium">
-            Finalizing your report (Part 2 of 2) is generating automatically.
+          <p className="text-sm font-semibold text-[#1C1814]">
+            Evidence Review ready · Narrative Synthesis generating…
           </p>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Your scores, criteria analyses, and revision plan are ready above. Finalizing your report will appear here in approximately {rangeLabel} minutes
-            {elapsedMin > 0 ? ` — ${elapsedMin} min elapsed` : ""}.
-            This page will update automatically — no refresh needed.
+          <p className="mt-0.5 text-xs leading-relaxed text-[#5C5549]">
+            Your scores, criterion analyses, and revision plan are ready. Narrative Synthesis is being prepared below and will appear automatically in approximately {rangeLabel} minutes. No refresh needed.
           </p>
         </div>
       </div>
+    </section>,
+    topStatusHost,
+  ) : null;
 
-      {showControls && (
-        <div className="rounded-md bg-amber-50 border border-amber-200 p-4">
-          <p className="text-sm font-medium text-amber-900 mb-3">
-            Taking longer than expected?
-          </p>
-          <SynthesisArtifactControls jobId={jobId} />
+  return (
+    <>
+      {topStatus}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 py-4">
+          <div
+            className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent shrink-0"
+            aria-hidden
+          />
+          <div>
+            <p className="text-sm text-gray-700 font-medium">
+              Narrative Synthesis is generating automatically.
+            </p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Your Evidence Review, including scores, criterion analyses, and revision plan, is ready above. Narrative Synthesis will appear here in approximately {rangeLabel} minutes
+              {elapsedMin > 0 ? ` — ${elapsedMin} min elapsed` : ""}.
+              This page will update automatically — no refresh needed.
+            </p>
+          </div>
         </div>
-      )}
-    </div>
+
+        {showControls && (
+          <div className="rounded-md bg-amber-50 border border-amber-200 p-4">
+            <p className="text-sm font-medium text-amber-900 mb-3">
+              Taking longer than expected?
+            </p>
+            <SynthesisArtifactControls jobId={jobId} />
+          </div>
+        )}
+      </div>
+    </>
   );
 }
