@@ -17,7 +17,12 @@ import { jfetch, must, sleep } from "./_http.mjs";
 
 function workerAuthHeaders() {
   const bearer = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  return bearer ? { Authorization: `Bearer ${bearer}` } : {};
+  const userId = process.env.SMOKE_USER_ID?.trim();
+
+  return {
+    ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+    ...(userId ? { "x-user-id": userId } : {}),
+  };
 }
 
 async function createJobWithSnapshotRepair(BASE, MANUSCRIPT_ID) {
