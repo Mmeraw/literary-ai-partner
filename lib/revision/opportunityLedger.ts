@@ -1667,7 +1667,7 @@ export function extractCanonicalRevisionOpportunities(unifiedDocument: unknown):
     : null;
 
   const canonicalPresent = Array.isArray(ledger?.opportunities);
-  const canonical = canonicalPresent
+  const canonical = Array.isArray(ledger?.opportunities)
     ? ledger.opportunities.filter((item): item is Record<string, unknown> => isRecord(item))
     : [];
   const rendered = Array.isArray(ledger?.rendered_opportunities)
