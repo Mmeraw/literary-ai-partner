@@ -7,21 +7,14 @@ type Params = Promise<{ jobId: string }>;
 /**
  * POST /api/jobs/[jobId]/synthesis/retry
  *
- * USER-FACING: Retry Narrative Synthesis (Pass 3b) for a job.
- *
- * If synthesis artifact is pending or stuck, this endpoint signals
- * the DREAM worker to re-run synthesis on the next cron tick.
- *
- * Implementation: Sets a flag in job.progress.synthesis_retry_requested = true
- * The DREAM worker checks this flag before processing.
- *
- * Response:
- *   { success: true, message: "Synthesis retry queued" } (202)
- *   { error: string } with status 400|401|403|404
+ * USER-FACING: Recover Narrative Synthesis (Pass 3b) without restarting the
+ * completed evaluation. The retry resumes from the durable Evidence Review
+ * boundary: the certified evaluation result, manuscript chunks, and persisted
+ * artifacts already stored for the job.
  */
 export async function POST(
-  request: NextRequest,
-  { params }: { params: Params }
+  _request: NextRequest,
+  { params }: { params: Params },
 ) {
   const { jobId } = await params;
 
@@ -29,18 +22,16 @@ export async function POST(
     return NextResponse.json({ error: 'Missing job ID' }, { status: 400 });
   }
 
-  // --- AUTH: Verify user is authenticated ---
   const user = await getAuthenticatedUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    // --- OWNERSHIP CHECK: job belongs to this user ---
     const admin = createAdminClient();
     const { data: job, error: jobError } = await admin
       .from('evaluation_jobs')
-      .select('id, manuscript_id, manuscripts!inner(user_id)')
+      .select('id, status, progress, manuscript_id, manuscripts!inner(user_id)')
       .eq('id', jobId)
       .eq('manuscripts.user_id', user.id)
       .single();
@@ -48,38 +39,89 @@ export async function POST(
     if (jobError || !job) {
       return NextResponse.json(
         { error: 'Job not found or not owned by user' },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // --- FLAG SYNTHESIS RETRY ---
-    // In production, this would set a flag in job.progress that the DREAM worker checks.
-    // For now, return 202 Accepted to indicate the request was queued.
+    if (job.status !== 'complete') {
+      return NextResponse.json(
+        { error: 'Evidence Review is not complete yet; Narrative Synthesis cannot be recovered.' },
+        { status: 409 },
+      );
+    }
+
+    const { data: existingArtifact, error: artifactError } = await admin
+      .from('evaluation_artifacts')
+      .select('id, content')
+      .eq('job_id', jobId)
+      .eq('artifact_type', 'longform_document_v1')
+      .maybeSingle();
+
+    if (artifactError) {
+      return NextResponse.json(
+        { error: `Could not verify synthesis state: ${artifactError.message}` },
+        { status: 500 },
+      );
+    }
+
+    const artifactContent = existingArtifact?.content as
+      | { longform_document?: unknown }
+      | null
+      | undefined;
+    if (artifactContent?.longform_document) {
+      return NextResponse.json(
+        {
+          success: true,
+          already_complete: true,
+          message: 'Narrative Synthesis is already complete. Reloading is not required.',
+          job_id: jobId,
+        },
+        { status: 200 },
+      );
+    }
+
+    const existingProgress =
+      job.progress && typeof job.progress === 'object' && !Array.isArray(job.progress)
+        ? (job.progress as Record<string, unknown>)
+        : {};
+    const queuedAt = new Date().toISOString();
+    const resumeAnchor = existingProgress.pass3_completed_at
+      ? 'pass3_completed_at'
+      : existingProgress.final_external_audit_completed_at
+        ? 'final_external_audit_completed_at'
+        : 'completed_evidence_review';
+
     const { error: updateError } = await admin
       .from('evaluation_jobs')
       .update({
+        last_error: null,
         progress: {
+          ...existingProgress,
           synthesis_retry_requested: true,
-          synthesis_retry_requested_at: new Date().toISOString(),
+          synthesis_retry_requested_at: queuedAt,
+          synthesis_retry_resume_anchor: resumeAnchor,
+          synthesis_retry_mode: 'resume_from_persisted_evidence_review',
         },
       })
       .eq('id', jobId);
 
     if (updateError) {
       return NextResponse.json(
-        { error: `Failed to queue retry: ${updateError.message}` },
-        { status: 500 }
+        { error: `Failed to queue recovery: ${updateError.message}` },
+        { status: 500 },
       );
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Synthesis retry queued',
+        message: 'Narrative Synthesis recovery queued from the completed Evidence Review anchor.',
         job_id: jobId,
-        queued_at: new Date().toISOString(),
+        queued_at: queuedAt,
+        resume_from: resumeAnchor,
+        restarts_evaluation: false,
       },
-      { status: 202 }
+      { status: 202 },
     );
   } catch (err) {
     console.error('SynthesisRetryError', {
@@ -90,7 +132,7 @@ export async function POST(
 
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
