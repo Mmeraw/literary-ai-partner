@@ -17,6 +17,12 @@ type EvaluationJobOwnerRow = {
   manuscripts?: ManuscriptOwner | ManuscriptOwner[] | null;
 };
 
+// synthesis_status values surfaced to the client poller:
+//   'ready'   — longform_document_v1 artifact exists and contains longform_document
+//   'skipped' — DREAM_WORKER_ENABLED=false; synthesis will never arrive
+//   'pending' — worker is enabled but artifact has not landed yet
+export type SynthesisStatus = 'ready' | 'skipped' | 'pending';
+
 export async function GET(_: Request, { params }: Params) {
   try {
     const { jobId } = await params;
@@ -81,7 +87,6 @@ export async function GET(_: Request, { params }: Params) {
           { status: 500 },
         );
       }
-
       return NextResponse.json({ ok: false, error: "Job not releasable" }, { status: 404 });
     }
 
@@ -108,9 +113,33 @@ export async function GET(_: Request, { params }: Params) {
       return NextResponse.json({ ok: false, error: "Failed to fetch artifact" }, { status: 500 });
     }
 
+    // Determine synthesis_status so the client poller can stop cleanly
+    // rather than spinning forever when synthesis is disabled or skipped.
+    let synthesisStatus: SynthesisStatus;
+    if (artifact) {
+      // Verify the artifact actually contains the document, not just the row shell.
+      let content = artifact.content;
+      if (typeof content === 'string') {
+        try { content = JSON.parse(content); } catch { content = null; }
+      }
+      const hasDoc =
+        content != null &&
+        typeof content === 'object' &&
+        'longform_document' in (content as object) &&
+        (content as { longform_document?: unknown }).longform_document != null;
+      synthesisStatus = hasDoc ? 'ready' : 'pending';
+    } else if (process.env.DREAM_WORKER_ENABLED === 'false') {
+      // Worker is explicitly disabled — synthesis will never arrive.
+      // Tell the poller to stop and present Evidence Review as the final report.
+      synthesisStatus = 'skipped';
+    } else {
+      synthesisStatus = 'pending';
+    }
+
     return NextResponse.json({
       ok: true,
       artifact: artifact ?? null,
+      synthesis_status: synthesisStatus,
     });
   } catch (error) {
     console.error("[artifacts.GET] Unexpected failure", error);
