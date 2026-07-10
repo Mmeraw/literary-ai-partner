@@ -23,8 +23,7 @@ function workerAuthHeaders() {
 
 async function main() {
   const BASE = await getBaseUrl();
-  const MANUSCRIPT_ID = process.env.MANUSCRIPT_ID;
-
+const MANUSCRIPT_ID = Number(process.env.MANUSCRIPT_ID);
   if (!MANUSCRIPT_ID) {
     console.error("ERROR: MANUSCRIPT_ID environment variable required");
     console.error("Usage: MANUSCRIPT_ID=<uuid> npm run jobs:smoke:real");
