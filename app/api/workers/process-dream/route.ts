@@ -822,6 +822,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.warn('[DreamWorker] EVAL_PIPELINE_ENABLED=false — skipping DREAM synthesis');
     return NextResponse.json(pipelineDisabledResponse(), { status: 200 });
   }
+    // ── Dream-worker kill switch (does not affect main eval pipeline) ──────────
+  if (process.env.DREAM_WORKER_ENABLED === 'false') {
+    console.warn('[DreamWorker] DREAM_WORKER_ENABLED=false — narrative synthesis disabled');
+    return NextResponse.json({ ok: false, skipped: true, reason: 'DREAM_WORKER_DISABLED' }, { status: 200 });
+  }
 
   // ── Authorization ──────────────────────────────────────────────────────────
   const { authorized, method, secretTooLong } = checkAuthorization(req);
