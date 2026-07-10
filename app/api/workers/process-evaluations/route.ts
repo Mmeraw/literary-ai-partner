@@ -500,7 +500,19 @@ export async function GET(request: NextRequest) {
 
     const workerId = buildWorkerId(traceId);
     const targetJobId = request.headers.get('x-job-id')?.trim() || undefined;
-    const results = await processQueuedJobs({
+    // GUARD: Auto-kill stale/over-retried jobs before claiming new work
+  // 75min wall-clock limit, 8 retry cap -- configurable via env vars
+  const supabaseForKill = createClient();
+  const { data: killedJobs, error: killError } = await supabaseForKill.rpc('kill_stale_evaluation_jobs', {
+    max_runtime_minutes: parseInt(process.env.EVAL_JOB_MAX_RUNTIME_MINUTES || '75', 10),
+    max_retries_allowed: parseInt(process.env.EVAL_JOB_MAX_RETRIES || '8', 10),
+  });
+  if (killedJobs && killedJobs.length > 0) {
+    console.warn('[StaleJobKill] Auto-terminated stale jobs', { traceId, killed_count: killedJobs.length, killed_ids: killedJobs.map((j) => j.killed_id) });
+  }
+  if (killError) console.error('[StaleJobKill] Sweep error', { traceId, error: killError.message });
+
+  const results = await processQueuedJobs({
       workerId,
       batchSize: workerConfig.batchSize,
       leaseMs: workerConfig.leaseMs,
