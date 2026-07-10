@@ -1587,7 +1587,11 @@ function confidenceFromCanonicalOpportunity(raw: unknown): LedgerConfidence {
   return 'medium';
 }
 
-function canonicalUedOpportunityToRevisionOpportunity(item: Record<string, unknown>, sourceUedHash: string): RevisionOpportunity | null {
+function canonicalUedOpportunityToRevisionOpportunity(
+  item: Record<string, unknown>,
+  sourceUedHash: string,
+  provenance: string,
+): RevisionOpportunity | null {
   const opportunityId = firstNonEmptyString(item.id, item.opportunity_id);
   const sourceCriterion = firstNonEmptyString(item.primary_criterion, item.criterion);
   const criterion = normalizeCriterion(sourceCriterion);
@@ -1607,7 +1611,7 @@ function canonicalUedOpportunityToRevisionOpportunity(item: Record<string, unkno
     rationale,
     evidence_anchor: evidenceAnchor,
     manuscript_coordinates: manuscriptCoordinates,
-    provenance: 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities',
+    provenance,
     confidence: confidenceFromCanonicalOpportunity(item.severity),
     decision_state: 'open',
     candidate_text_a: normalizeOptionalText(item.candidate_text_a),
@@ -1662,7 +1666,8 @@ export function extractCanonicalRevisionOpportunities(unifiedDocument: unknown):
     ? unifiedDocument.canonicalOpportunityLedger
     : null;
 
-  const canonical = Array.isArray(ledger?.opportunities)
+  const canonicalPresent = Array.isArray(ledger?.opportunities);
+  const canonical = canonicalPresent
     ? ledger.opportunities.filter((item): item is Record<string, unknown> => isRecord(item))
     : [];
   const rendered = Array.isArray(ledger?.rendered_opportunities)
@@ -1670,7 +1675,7 @@ export function extractCanonicalRevisionOpportunities(unifiedDocument: unknown):
     : [];
 
   // Normal path: the full canonical opportunities array is present and authoritative.
-  if (canonical.length > 0) {
+  if (canonicalPresent) {
     return {
       items: canonical,
       sourceMode: 'canonical_full',
@@ -1742,8 +1747,11 @@ async function loadCertifiedUedOpportunityProjection(
   }
 
   const extraction = extractCanonicalRevisionOpportunities(unifiedDocument);
+  const provenance = extraction.sourceMode === 'canonical_full'
+    ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
+    : 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities';
   const opportunities = extraction.items
-    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash))
+    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash, provenance))
     .filter((item): item is RevisionOpportunity => item !== null);
 
   if (extraction.items.length > 0 && opportunities.length === 0) {
@@ -1781,8 +1789,11 @@ export function projectCanonicalRevisionOpportunities(
   wordCount: number | null | undefined,
 ): CanonicalRevisionProjectionResult {
   const extraction = extractCanonicalRevisionOpportunities(unifiedDocument);
+  const provenance = extraction.sourceMode === 'canonical_full'
+    ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
+    : 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities';
   const mapped = extraction.items
-    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash))
+    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash, provenance))
     .filter((item): item is RevisionOpportunity => item !== null);
   const capped = capRevisionOpportunities(mapped, wordCount);
   return {
