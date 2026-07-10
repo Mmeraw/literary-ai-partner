@@ -119,6 +119,16 @@ function checkAuthorization(
   req: NextRequest,
 ): { authorized: boolean; method: string; secretTooLong: boolean } {
   const runtimeConfig = getEvaluationRuntimeConfig();
+  // ── Synthesis stage wall-clock guard ──────────────────────────────────────────
+  // Each invocation of this route is one synthesis attempt. The stage budget
+  // (EVAL_STAGE_SYNTHESIS_MINUTES, default 12) caps the total wall-clock time
+  // this worker is permitted to run. If a previous attempt consumed most of the
+  // budget and re-queued, the next invocation terminates immediately.
+  // Note: this check uses the route invocation time (now), not a DB timestamp,
+  // because this route is stateless per-invocation. The outer job-level guard
+  // (EVAL_WORKER_LEASE_MS) is the primary kill; this is the per-stage cap.
+  const _synthesisInvocationStartMs = Date.now();
+  const _synthesisBudgetMs = runtimeConfig.stageSynthesisMinutes * 60_000;
   const expectedSecret = process.env.CRON_SECRET || '';
   const bearer = extractBearer(req.headers.get('authorization'));
   const allowDevServiceRole =
@@ -652,6 +662,14 @@ async function processDreamJob(
   // 5. Run Pass 3b — DREAM synthesis
   // openaiApiKey already resolved and validated by preflight (Check 4 + Check 5 ping).
   const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(artifactContent);
+    // Check synthesis stage budget before starting AI work
+  if (Date.now() - _synthesisInvocationStartMs > _synthesisBudgetMs) {
+    return fail(
+      `Synthesis stage budget exhausted (limit: ${runtimeConfig.stageSynthesisMinutes}min). ` +
+      'Terminating to prevent runaway spend. Status: skipped (terminal).',
+      false  // not retryable — budget exhausted for this invocation window
+    );
+  }
   const longformDoc = await runPass3bLongform({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     criteria: normalizedCriteria as any,

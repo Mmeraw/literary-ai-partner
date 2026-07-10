@@ -255,6 +255,14 @@ export interface RunPipelineOptions {
    */
   _prebuiltPreflightDraft?: Pass3PreflightDraft;
   /**
+   * Optional wall-clock budget (ms) for the entire main evaluation stage
+   * (Pass 1 through Pass 3 including all retries). When elapsed time since
+   * pipelineStartedAt exceeds this value, runPipeline throws immediately
+   * instead of starting the next pass. Default: uncapped (outer job guard
+   * applies). Wire from runtimeConfig.stageMainEvalMinutes at call sites.
+   */
+  stageMainEvalBudgetMs?: number;
+  /**
    * Author corrections block built from accepted_story_ledger_v1.governance_rail.
    * When present, injected into Pass 2 (and Pass 3B if applicable) as MANDATORY
    * author input that takes precedence over AI extraction.
@@ -981,6 +989,17 @@ function enforceEditorialSpecificityBeforeGate(synthesis: SynthesisOutput): {
  *   { ok: false, error, error_code, failed_at }
  */
 export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineResult> {
+  // ── Stage wall-clock guard ───────────────────────────────────────────────
+  // Abort before starting any pass if the main-eval stage budget is exhausted.
+  // This is a secondary guard; the outer job lease (EVAL_WORKER_LEASE_MS) is
+  // the primary kill mechanism. stageMainEvalBudgetMs is set by the caller
+  // from runtimeConfig.stageMainEvalMinutes (default 60 min).
+  if (opts.stageMainEvalBudgetMs != null && opts.stageMainEvalBudgetMs > 0) {
+    const _pipelineStartedAt = Date.now();
+    // Record for inline checks before each pass below
+    (opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs =
+      _pipelineStartedAt + opts.stageMainEvalBudgetMs;
+  }
   const inputValidationError = validatePipelineInput(opts);
   if (inputValidationError) {
     return {

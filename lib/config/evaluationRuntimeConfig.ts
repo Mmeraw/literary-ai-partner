@@ -52,6 +52,10 @@ export interface EvaluationRuntimeConfig {
   evalDebugEnabled: boolean;
   minManuscriptWords: number;
   staleRunningMinutes: number;
+  /** Wall-clock budget (minutes) for the main evaluation stage (criteria scoring). Default: 60. Env: EVAL_STAGE_MAIN_EVAL_MINUTES */
+  stageMainEvalMinutes: number;
+  /** Wall-clock budget (minutes) for the Narrative Synthesis stage. Default: 12. Env: EVAL_STAGE_SYNTHESIS_MINUTES */
+  stageSynthesisMinutes: number;
   frozenHeartbeatSecs: number;
   contextContaminationGuardEnabled: boolean;
   pass: {
@@ -389,6 +393,16 @@ export function resolveEvaluationRuntimeConfig(
       defaultValue: 60,
       min: 35,
       max: 300,
+    }),
+    stageMainEvalMinutes: parseBoundedInteger(env, "EVAL_STAGE_MAIN_EVAL_MINUTES", {
+      default: 60,
+      min: 15,
+      max: 120,
+    }),
+    stageSynthesisMinutes: parseBoundedInteger(env, "EVAL_STAGE_SYNTHESIS_MINUTES", {
+      default: 12,
+      min: 3,
+      max: 30,
     }),
     contextContaminationGuardEnabled: (() => {
       const raw = (env.EVAL_CONTEXT_CONTAMINATION_GUARD ?? "auto").trim().toLowerCase();

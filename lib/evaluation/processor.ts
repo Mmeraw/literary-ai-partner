@@ -6666,6 +6666,8 @@ export async function processEvaluationJob(
             _llrRecoveryMode: llrRecoveryMode,
             _storyLedgerContextBlock: phase23LedgerContextBlock,
             _canonicalEntityNames: phase23CanonicalEntityNames,
+            // Stage wall-clock budget for main eval (Pass 1-3). Env: EVAL_STAGE_MAIN_EVAL_MINUTES
+            stageMainEvalBudgetMs: runtimeConfig.stageMainEvalMinutes * 60_000,
             // SHORT_FORM FIPOC kick-back: propagate retry instruction from progress state into Pass 3 system prompt
             ...(typeof (progressState as Record<string, unknown>).short_form_retry_instruction === 'string'
               ? { _shortFormRetryInstruction: (progressState as Record<string, unknown>).short_form_retry_instruction as string }
