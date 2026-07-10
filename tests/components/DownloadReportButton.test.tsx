@@ -39,11 +39,26 @@ describe('DownloadReportButton', () => {
     });
   }
 
+  it('always opens the format menu upward so footer content cannot hide options', async () => {
+    mockJobStatusComplete();
+    render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download Report/i }).getAttribute('aria-disabled')).not.toBe('true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
+
+    const menu = screen.getByTestId('download-report-menu');
+    expect(menu.className).toContain('bottom-full');
+    expect(menu.className).not.toContain('top-full');
+    expect(screen.getByRole('button', { name: /Download Report/i })).toHaveTextContent('▴');
+  });
+
   it('routes PDF option to canonical download endpoint', async () => {
     mockJobStatusComplete();
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
 
-    // Wait for status fetch to complete and button to become enabled
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Download Report/i }).getAttribute('aria-disabled')).not.toBe('true');
     });
