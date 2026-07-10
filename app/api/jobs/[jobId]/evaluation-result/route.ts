@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
 import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
 import { EvaluationResultV1, isEvaluationResultV1, validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { EvaluationResultV2, isEvaluationResultV2, validateEvaluationResultV2 } from '@/schemas/evaluation-result-v2';
+import { requireUser } from '@/lib/security/apiGuards';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireUser(request);
+    if (auth.ok === false) return auth.response;
+    const user = auth.user;
 
     const { jobId } = await params;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -96,6 +95,7 @@ export async function GET(
       .maybeSingle();
 
     const result = artifactRow?.content ?? (job.evaluation_result as unknown);
+    const source = artifactRow?.content ? 'evaluation_artifacts' : 'evaluation_jobs';
     const isV1 = isEvaluationResultV1(result);
     const isV2 = isEvaluationResultV2(result);
 
@@ -119,11 +119,14 @@ export async function GET(
     }
 
     return NextResponse.json({
+      ok: true,
       job_id: job.id,
       manuscript_id: job.manuscript_id,
       status: job.status,
       validity_status: job.validity_status,
+      evaluation_result: result,
       result,
+      source,
       result_version: job.evaluation_result_version,
       created_at: job.created_at,
       updated_at: job.updated_at,

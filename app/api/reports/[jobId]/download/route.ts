@@ -2260,7 +2260,7 @@ export async function GET(
   }
   const format = formatParam as ExportFormat;
 
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (auth.ok === false) return auth.response;
   const user = auth.user;
 

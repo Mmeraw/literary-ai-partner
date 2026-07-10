@@ -5,27 +5,35 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { requireAdmin as requireAdminSession } from '@/lib/admin/requireAdmin';
+import { getDevHeaderActor } from '@/lib/auth/devHeaderActor';
 
-export async function requireUser(): Promise<
-  | { ok: true; user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>> }
+type RequiredUser = NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>> | { id: string };
+
+export async function requireUser(req?: Request): Promise<
+  | { ok: true; user: RequiredUser }
   | { ok: false; response: NextResponse }
 > {
-  const user = await getAuthenticatedUser();
-  if (!user?.id) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: 'Unauthorized',
-          code: 'AUTH_REQUIRED',
-        },
-        { status: 401 },
-      ),
-    };
+  const devActor = req ? getDevHeaderActor(req) : null;
+  if (devActor?.userId) {
+    return { ok: true, user: { id: devActor.userId } };
   }
 
-  return { ok: true, user };
+  const user = await getAuthenticatedUser();
+  if (user?.id) {
+    return { ok: true, user };
+  }
+
+  return {
+    ok: false,
+    response: NextResponse.json(
+      {
+        ok: false,
+        error: 'Unauthorized',
+        code: 'AUTH_REQUIRED',
+      },
+      { status: 401 },
+    ),
+  };
 }
 
 export async function requireAdmin(req: NextRequest): Promise<NextResponse | null> {

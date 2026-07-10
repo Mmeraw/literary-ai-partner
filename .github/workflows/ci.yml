@@ -205,8 +205,8 @@ jobs:
           tail -n 200 /tmp/next-start.log || true
           exit 1
 
-      - name: Real manuscript smoke (Phase 1 + Phase 2)
-        timeout-minutes: 10
+      - name: Real manuscript end-to-end evaluation smoke
+        timeout-minutes: 30
         env:
           BASE_URL: "http://127.0.0.1:3000"
           MANUSCRIPT_ID: ${{ secrets.SMOKE_MANUSCRIPT_ID }}
@@ -217,8 +217,8 @@ jobs:
           fi
           npm run jobs:smoke:real
 
-      - name: Real manuscript smoke – Let the River Decide (ID2)
-        timeout-minutes: 15
+      - name: Real manuscript end-to-end evaluation smoke – Let the River Decide (ID2)
+        timeout-minutes: 30
         env:
           BASE_URL: "http://127.0.0.1:3000"
           MANUSCRIPT_ID: ${{ secrets.SMOKE_MANUSCRIPT_ID2 }}
