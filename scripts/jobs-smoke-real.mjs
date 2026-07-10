@@ -7,18 +7,61 @@
  *
  * Usage:
  *   MANUSCRIPT_ID=<real-uuid> npm run jobs:smoke:real
-  * SMOKE_MANUSCRIPT_ID: 7518 (The Price of Vanity) - confirmed has source snapshot
  *   MANUSCRIPT_ID=<real-uuid> USE_SUPABASE_JOBS=true npm run jobs:smoke:real
  *
  * Purpose: Validate that real payloads from the database flow correctly
  * through Phase 1 and Phase 2 without breaking evaluation logic.
  */
 import { getBaseUrl } from "./base-url.mjs";
-import { jfetch, must, sleep, authHeaders } from "./_http.mjs";
+import { jfetch, must, sleep } from "./_http.mjs";
 
 function workerAuthHeaders() {
   const bearer = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   return bearer ? { Authorization: `Bearer ${bearer}` } : {};
+}
+
+async function createJobWithSnapshotRepair(BASE, MANUSCRIPT_ID) {
+  const createRequest = () =>
+    jfetch(`${BASE}/api/jobs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...workerAuthHeaders(),
+      },
+      body: JSON.stringify({
+        job_type: "evaluate_full",
+        manuscript_id: MANUSCRIPT_ID,
+        processing_terms_accepted: true,
+      }),
+    });
+
+  let createRes = await createRequest();
+  if (createRes.ok) {
+    return createRes;
+  }
+
+  const createError = await createRes.clone().json().catch(() => null);
+  const snapshotMissing =
+    createRes.status === 422 &&
+    (createError?.code === "MANUSCRIPT_SOURCE_SNAPSHOT_MISSING" ||
+      /Source snapshot missing/i.test(createError?.error || ""));
+
+  if (!snapshotMissing) {
+    return createRes;
+  }
+
+  console.log("Source snapshot missing; attempting one-time repair-source");
+  await must(
+    jfetch(`${BASE}/api/manuscripts/${MANUSCRIPT_ID}/repair-source`, {
+      method: "POST",
+      headers: workerAuthHeaders(),
+    }),
+    "Failed to repair source snapshot",
+  );
+
+  console.log("repair-source succeeded; retrying job creation once");
+  createRes = await createRequest();
+  return createRes;
 }
 
 async function main() {
@@ -35,19 +78,7 @@ async function main() {
 
   // 1) Create job with real manuscript
   const createRes = await must(
-    jfetch(`${BASE}/api/jobs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...workerAuthHeaders(),
-                       ...authHeaders(),
-      },
-      body: JSON.stringify({
-        job_type: "evaluate_full",
-        manuscript_id: MANUSCRIPT_ID,
-        processing_terms_accepted: true,
-      }),
-    }),
+    createJobWithSnapshotRepair(BASE, MANUSCRIPT_ID),
     "Failed to create job",
   );
   const created = await createRes.json();
