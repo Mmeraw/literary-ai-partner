@@ -395,12 +395,12 @@ export function resolveEvaluationRuntimeConfig(
       max: 300,
     }),
     stageMainEvalMinutes: parseBoundedInteger(env, "EVAL_STAGE_MAIN_EVAL_MINUTES", {
-      default: 60,
+      defaultValue: 60,
       min: 15,
       max: 120,
     }),
     stageSynthesisMinutes: parseBoundedInteger(env, "EVAL_STAGE_SYNTHESIS_MINUTES", {
-      default: 12,
+      defaultValue: 12,
       min: 3,
       max: 30,
     }),

@@ -502,7 +502,10 @@ export async function GET(request: NextRequest) {
     const targetJobId = request.headers.get('x-job-id')?.trim() || undefined;
     // GUARD: Auto-kill stale/over-retried jobs before claiming new work
   // 75min wall-clock limit, 8 retry cap -- configurable via env vars
-  const supabaseForKill = createClient();
+  const supabaseForKill = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
   const { data: killedJobs, error: killError } = await supabaseForKill.rpc('kill_stale_evaluation_jobs', {
     max_runtime_minutes: parseInt(process.env.EVAL_JOB_MAX_RUNTIME_MINUTES || '75', 10),
     max_retries_allowed: parseInt(process.env.EVAL_JOB_MAX_RETRIES || '8', 10),

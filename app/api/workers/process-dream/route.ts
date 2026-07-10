@@ -119,16 +119,6 @@ function checkAuthorization(
   req: NextRequest,
 ): { authorized: boolean; method: string; secretTooLong: boolean } {
   const runtimeConfig = getEvaluationRuntimeConfig();
-  // ── Synthesis stage wall-clock guard ──────────────────────────────────────────
-  // Each invocation of this route is one synthesis attempt. The stage budget
-  // (EVAL_STAGE_SYNTHESIS_MINUTES, default 12) caps the total wall-clock time
-  // this worker is permitted to run. If a previous attempt consumed most of the
-  // budget and re-queued, the next invocation terminates immediately.
-  // Note: this check uses the route invocation time (now), not a DB timestamp,
-  // because this route is stateless per-invocation. The outer job-level guard
-  // (EVAL_WORKER_LEASE_MS) is the primary kill; this is the per-stage cap.
-  const _synthesisInvocationStartMs = Date.now();
-  const _synthesisBudgetMs = runtimeConfig.stageSynthesisMinutes * 60_000;
   const expectedSecret = process.env.CRON_SECRET || '';
   const bearer = extractBearer(req.headers.get('authorization'));
   const allowDevServiceRole =
@@ -564,6 +554,11 @@ async function processDreamJob(
 
   console.log(`[DreamWorker] ${jobId}: starting DREAM synthesis — words=${wordCount}`);
 
+  // Synthesis stage wall-clock guard — cumulative budget across all invocations.
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  const _synthesisInvocationStartMs = Date.now();
+  const _synthesisBudgetMs = runtimeConfig.stageSynthesisMinutes * 60_000;
+
   // 0. Pre-flight — validate all dependencies and ping OpenAI before doing any work.
   const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
   const preflight = await preflightDreamJob(supabase, job, openaiApiKey);
@@ -693,11 +688,13 @@ async function processDreamJob(
     // Check synthesis stage budget before starting AI work
   // GATE_4: Check cumulative synthesis elapsed (across all invocations).
   if (_cumulativeSynthesisElapsedMs >= _synthesisBudgetMs) {
-    return fail(
+    const reason =
       `Synthesis stage budget exhausted (limit: ${runtimeConfig.stageSynthesisMinutes}min). ` +
-      'Terminating to prevent runaway spend. Status: skipped (terminal).',
-      false  // not retryable — budget exhausted for this invocation window
-    );
+      'Terminating to prevent runaway spend. Status: skipped (terminal).';
+    await supabase.from('evaluation_jobs')
+      .update({ last_error: `[DreamWorker:gate4] ${reason.slice(0, 500)}` })
+      .eq('id', jobId);
+    return { success: false, error: reason };
   }
   const longformDoc = await runPass3bLongform({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
