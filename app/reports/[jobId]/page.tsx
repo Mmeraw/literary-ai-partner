@@ -750,15 +750,7 @@ export default async function ReportPage({
         {/* Loading state — shown while DREAM is generating */}
         {isLongForm && !lf && (
           <section className="mb-6 rounded-sm border border-[#D9D0C3] bg-[#FFFDF9] p-6 shadow-sm">
-            <h2 className="mb-1 flex items-center gap-2 font-serif text-2xl font-bold text-[#8B2E2E]">
-              Finalizing Your Report
-              <span className="ml-2 inline-flex items-center border border-[#D9D0C3] bg-[#FFF6E8] px-2.5 py-0.5 text-xs font-semibold text-[#1C1814]">
-                Part 2 generating…
-              </span>
-            </h2>
-            <p className="mb-4 text-sm text-[#5C5549]">
-              Part 1 of 2 ready—scroll up to review scores and revision plan while Part 2 generates below
-            </p>
+  
             <SynthesisPoller
               jobId={params.jobId}
               wordCount={wordCount}
