@@ -35,9 +35,6 @@ const MIME_TYPES: Record<Format, string> = {
   txt: 'text/plain',
 };
 
-// Estimated pixel height of the dropdown menu (3 options × ~56px each)
-const DROPDOWN_HEIGHT_EST = 180;
-
 export default function DownloadReportButton({
   jobId,
   disabled,
@@ -47,8 +44,6 @@ export default function DownloadReportButton({
   const [status, setStatus] = useState<JobStatus>('unknown');
   const [downloading, setDownloading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  // true = open upward (dropup), false = open downward (default)
-  const [dropUp, setDropUp] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -82,14 +77,6 @@ export default function DownloadReportButton({
 
   const resolvedDisabled = disabled ?? status !== 'complete';
 
-  // Determine dropup vs dropdown based on remaining viewport space below button
-  function measureDropDirection() {
-    if (!wrapperRef.current) return;
-    const rect = wrapperRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    setDropUp(spaceBelow < DROPDOWN_HEIGHT_EST + 16);
-  }
-
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
@@ -115,7 +102,6 @@ export default function DownloadReportButton({
       const res = await fetch(`/api/reports/${jobId}/download?format=${format}`);
 
       if (!res.ok) {
-        // Try to extract the user-friendly error message from JSON response
         let userMessage = 'Download failed. Please try again.';
         try {
           const body = await res.json();
@@ -123,13 +109,12 @@ export default function DownloadReportButton({
             userMessage = body.error;
           }
         } catch {
-          // Response wasn't JSON — use default message
+          // Response was not JSON — use default message.
         }
         setErrorMessage(userMessage);
         return;
       }
 
-      // Trigger browser download from the successful response
       const blob = await res.blob();
       const contentDisposition = res.headers.get('Content-Disposition');
       const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/);
@@ -150,11 +135,6 @@ export default function DownloadReportButton({
     }
   }
 
-  // Dropdown position classes: upward when near bottom of viewport
-  const menuPositionClass = dropUp
-    ? 'absolute right-0 bottom-full mb-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-[200]'
-    : 'absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-[200]';
-
   return (
     <div ref={wrapperRef} className="relative inline-block">
       <button
@@ -162,7 +142,6 @@ export default function DownloadReportButton({
         onClick={() => {
           if (!resolvedDisabled && !downloading) {
             setErrorMessage(null);
-            measureDropDirection();
             setOpen((v) => !v);
           }
         }}
@@ -180,13 +159,14 @@ export default function DownloadReportButton({
         {resolvedDisabled ? (
           <span className="text-xs font-normal text-gray-500">{unavailableLabel}</span>
         ) : !downloading ? (
-          <span aria-hidden="true">{dropUp && open ? '▴' : '▾'}</span>
+          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
         ) : null}
       </button>
       {!resolvedDisabled && open && !downloading && (
         <div
           role="menu"
-          className={menuPositionClass}
+          data-testid="download-report-menu"
+          className="absolute right-0 bottom-full mb-1 w-64 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg z-[200]"
         >
           {OPTIONS.map((opt) => (
             <button
