@@ -994,12 +994,11 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   // This is a secondary guard; the outer job lease (EVAL_WORKER_LEASE_MS) is
   // the primary kill mechanism. stageMainEvalBudgetMs is set by the caller
   // from runtimeConfig.stageMainEvalMinutes (default 60 min).
-  if (opts.stageMainEvalBudgetMs != null && opts.stageMainEvalBudgetMs > 0) {
-    const _pipelineStartedAt = Date.now();
-    // Record for inline checks before each pass below
-    (opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs =
-      _pipelineStartedAt + opts.stageMainEvalBudgetMs;
-  }
+  const _pipelineStartedAt = Date.now();
+  const _stageDeadlineMs =
+    opts.stageMainEvalBudgetMs != null && opts.stageMainEvalBudgetMs > 0
+      ? _pipelineStartedAt + opts.stageMainEvalBudgetMs
+      : null;
   const inputValidationError = validatePipelineInput(opts);
   if (inputValidationError) {
     return {
@@ -1363,15 +1362,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     });
 
   // GATE_1: Abort before launching Pass 1+2 parallel block if main-eval stage budget is already exhausted.
-  if ((opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs &&
-      Date.now() >= (opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs) {
+  if (_stageDeadlineMs !== null && Date.now() >= _stageDeadlineMs) {
     const elapsedMain = Math.round((Date.now() - _pipelineStartedAt) / 1000);
     return {
       ok: false,
       error: `Main-eval stage budget exhausted before Pass 2 (elapsed ${elapsedMain}s). Aborting to prevent runaway cost.`,
       error_code: "STAGE_MAIN_EVAL_DEADLINE_EXCEEDED",
-      failed_at: "pre_pass2",
-      failureDetails: undefined,
+      failed_at: "pass2",
+      failure_details: undefined,
     } as const;
   }
   const pass2Promise = _runPass2({
@@ -2207,15 +2205,14 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     },
   });
   // GATE_1: Abort before launching Pass 3 if main-eval stage budget is exhausted.
-  if ((opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs &&
-      Date.now() >= (opts as RunPipelineOptions & { _stageDeadlineMs: number })._stageDeadlineMs) {
+  if (_stageDeadlineMs !== null && Date.now() >= _stageDeadlineMs) {
     const elapsedMain = Math.round((Date.now() - _pipelineStartedAt) / 1000);
     return {
       ok: false,
       error: `Main-eval stage budget exhausted before Pass 3 (elapsed ${elapsedMain}s). Aborting to prevent runaway cost.`,
       error_code: "STAGE_MAIN_EVAL_DEADLINE_EXCEEDED",
-      failed_at: "pre_pass3",
-      failureDetails: undefined,
+      failed_at: "pass3",
+      failure_details: undefined,
     } as const;
   }
   await opts.onHeartbeat?.("pass3_started");
