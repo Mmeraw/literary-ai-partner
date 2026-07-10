@@ -70,12 +70,15 @@ type MockTable = {
  * Each fluent method returns `this`; awaiting it (or `.maybeSingle()`/`.then()`)
  * yields { data, error }.
  */
-function buildQuery(result: { data: unknown; error: unknown }) {
+function buildQuery(result: { data: unknown; error: unknown; count?: number | null }) {
   const q: Record<string, unknown> = {};
   const chain = () => q;
   q.select = jest.fn(chain);
   q.eq = jest.fn(chain);
   q.gte = jest.fn(chain);
+  q.lt = jest.fn(chain);
+  q.like = jest.fn(chain);
+  q.is = jest.fn(chain);
   q.in = jest.fn(chain);
   q.not = jest.fn(chain);  // used by .not('id','in',...) in findPendingDreamJobs
   q.neq = jest.fn(chain);
@@ -95,6 +98,7 @@ type SupabaseScenario = {
   existingArtifacts: unknown[]; // returned for evaluation_artifacts !longform_document_v1
   evaluationArtifactContent: unknown | null; // returned for evaluation_result_v2/v1 maybeSingle
   manuscriptChunks: unknown[]; // returned for manuscript_chunks select
+  synthesisStartedAt?: string | null; // returned for synthesis_started_at budget reads
 };
 
 function buildSupabaseClient(scenario: SupabaseScenario, table: MockTable) {
@@ -123,8 +127,14 @@ function buildSupabaseClient(scenario: SupabaseScenario, table: MockTable) {
           // Step 2: candidate jobs query
           return buildQuery({ data: scenario.candidateJobs, error: null });
         }
-        // Subsequent evaluation_jobs call is the update last_error / clear last_error path.
-        const q = buildQuery({ data: null, error: null });
+        // Subsequent evaluation_jobs calls are synthesis_started_at first-write/read,
+        // progress updates, last_error writes, or clear-last_error paths.
+        const q = buildQuery({
+          data: scenario.synthesisStartedAt === undefined
+            ? null
+            : { synthesis_started_at: scenario.synthesisStartedAt },
+          error: null,
+        });
         const eqFn = q.eq as jest.Mock;
         const updateFn = q.update as jest.Mock;
         updateFn.mockImplementation((payload: Record<string, unknown>) => {
@@ -274,6 +284,12 @@ describe('GET /api/workers/process-dream', () => {
     process.env.CRON_SECRET = 'test-cron-secret';
     process.env.OPENAI_API_KEY = 'test-openai-key';
     delete process.env.EVAL_PIPELINE_ENABLED;
+    delete process.env.DREAM_WORKER_ENABLED;
+    delete process.env.DREAM_WORKER_AUTO_KILL;
+    delete process.env.DREAM_WORKER_CB_CONSECUTIVE_FAILURES;
+    delete process.env.DREAM_WORKER_CB_STALE_SYNTHESIS_THRESHOLD;
+    delete process.env.DREAM_WORKER_CB_NO_SUCCESS_MINUTES;
+    delete process.env.EVAL_STAGE_SYNTHESIS_MINUTES;
     // Mock global.fetch for the preflight OpenAI ping (GET /v1/models?limit=1).
     // All tests get a successful 200 ping by default; individual tests can override.
     global.fetch = jest.fn().mockResolvedValue({
@@ -415,6 +431,70 @@ describe('GET /api/workers/process-dream', () => {
     expect(mockRunPass3bLongform).not.toHaveBeenCalled();
     expect(mockUpsertEvaluationArtifact).not.toHaveBeenCalled();
   });
+
+  test('DREAM auto-kill: circuit breaker halts before pending-job discovery and synthesis', async () => {
+    process.env.DREAM_WORKER_AUTO_KILL = 'true';
+    process.env.DREAM_WORKER_CB_CONSECUTIVE_FAILURES = '2';
+
+    const table: MockTable = {};
+    supabaseHolder.client = buildSupabaseClient(
+      {
+        candidateJobs: [
+          { last_error: '[DreamWorker] prior timeout', synthesis_started_at: '2026-07-10T00:00:00.000Z' },
+          { last_error: '[DreamWorker:gate4] prior budget exhaustion', synthesis_started_at: '2026-07-10T00:01:00.000Z' },
+        ],
+        existingArtifacts: [],
+        evaluationArtifactContent: null,
+        manuscriptChunks: [],
+      },
+      table,
+    );
+
+    const res = await GET(buildRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      ok: true,
+      skipped: true,
+      disabled: true,
+      reason: 'DREAM_WORKER_AUTO_KILL_TRIPPED',
+    });
+    expect(body.breakerReasons).toContain('dream_consecutive_failures');
+
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+    expect(mockUpsertEvaluationArtifact).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('durable synthesis budget: exhausted persisted timer stops before OpenAI preflight ping', async () => {
+    const table: MockTable = {};
+    const exhaustedStart = new Date(Date.now() - 20 * 60_000).toISOString();
+    supabaseHolder.client = buildSupabaseClient(
+      {
+        candidateJobs: [buildPendingJob('job-budget', 100)],
+        existingArtifacts: [],
+        evaluationArtifactContent: buildEvaluationArtifactContent(),
+        manuscriptChunks: [{ chunk_index: 0, content: 'chunk content' }],
+        synthesisStartedAt: exhaustedStart,
+      },
+      table,
+    );
+
+    const res = await GET(buildRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.processed).toBe(1);
+    expect(body.success).toBe(0);
+    expect(body.results[0].error).toContain('Synthesis stage budget exhausted');
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(mockRunPass3bLongform).not.toHaveBeenCalled();
+    expect(mockUpsertEvaluationArtifact).not.toHaveBeenCalled();
+    expect(table.lastUpdate).toEqual({
+      last_error: expect.stringContaining('[DreamWorker:gate4]'),
+    });
+  });
 });
 
 // ── Regression block ──────────────────────────────────────────────────────────
@@ -428,6 +508,7 @@ describe("regression", () => {
     process.env.CRON_SECRET = "test-cron-secret";
     process.env.OPENAI_API_KEY = "test-openai-key";
     delete process.env.EVAL_PIPELINE_ENABLED;
+    delete process.env.DREAM_WORKER_AUTO_KILL;
   });
 
   it("regression: Vercel timeout kill — DREAM_OPENAI_TIMEOUT_MS must be < maxDuration and wired into call", () => {
@@ -447,7 +528,9 @@ describe("regression", () => {
     expect(ms).toBeLessThanOrEqual(780_000); // must stay inside Vercel 800s maxDuration budget
     expect(ms).toBeGreaterThanOrEqual(60_000); // must not be trivially short
     expect(src).toContain("maxDuration = 800"); // route must declare full budget
-    expect(src).toContain("openAiTimeoutMs: DREAM_OPENAI_TIMEOUT_MS"); // must be wired in
+    expect(src).toContain("Math.min("); // dynamic timeout must be clamped to route max
+    expect(src).toContain("DREAM_OPENAI_TIMEOUT_MS"); // route-level ceiling remains wired in
+    expect(src).toContain("liveBudgetState.remainingMs"); // cumulative budget must drive the call timeout
   });
 
   it("regression: silent crash — last_error write-back must exist in route for both throw paths", () => {

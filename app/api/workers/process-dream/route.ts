@@ -82,6 +82,32 @@ type DreamJobRow = {
   } | null;
 };
 
+type DreamCircuitBreakerConfig = {
+  enabled: boolean;
+  consecutiveFailuresThreshold: number;
+  staleSynthesisThreshold: number;
+  noSuccessMinutes: number;
+};
+
+type DreamCircuitBreakerEvaluation = {
+  tripped: boolean;
+  reasons: string[];
+  metrics: {
+    consecutiveFailures: number;
+    staleSynthesisCount: number;
+    recentFailuresCount: number;
+    hasRecentSuccess: boolean;
+  };
+};
+
+type SynthesisBudgetState = {
+  startedAtMs: number;
+  startedAtIso: string | null;
+  budgetMs: number;
+  elapsedMs: number;
+  remainingMs: number;
+};
+
 // ── Auth utilities (mirrors process-evaluations/route.ts) ─────────────────────
 
 const MAX_SECRET_LENGTH = 512;
@@ -159,6 +185,148 @@ function checkAuthorization(
   return { authorized: false, method: 'none', secretTooLong: false };
 }
 
+function parseIntEnv(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (!raw || raw.trim().length === 0) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function getDreamCircuitBreakerConfig(): DreamCircuitBreakerConfig {
+  return {
+    enabled:
+      process.env.DREAM_WORKER_AUTO_KILL === '1' ||
+      process.env.DREAM_WORKER_AUTO_KILL === 'true',
+    consecutiveFailuresThreshold: parseIntEnv(
+      process.env.DREAM_WORKER_CB_CONSECUTIVE_FAILURES,
+      3,
+      2,
+      50,
+    ),
+    staleSynthesisThreshold: parseIntEnv(
+      process.env.DREAM_WORKER_CB_STALE_SYNTHESIS_THRESHOLD,
+      2,
+      1,
+      100,
+    ),
+    noSuccessMinutes: parseIntEnv(
+      process.env.DREAM_WORKER_CB_NO_SUCCESS_MINUTES,
+      30,
+      5,
+      240,
+    ),
+  };
+}
+
+async function evaluateDreamCircuitBreaker(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  config: DreamCircuitBreakerConfig,
+): Promise<DreamCircuitBreakerEvaluation> {
+  const baseline: DreamCircuitBreakerEvaluation = {
+    tripped: false,
+    reasons: [],
+    metrics: {
+      consecutiveFailures: 0,
+      staleSynthesisCount: 0,
+      recentFailuresCount: 0,
+      hasRecentSuccess: false,
+    },
+  };
+
+  if (!config.enabled) {
+    return baseline;
+  }
+
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  const staleCutoff = new Date(
+    Date.now() - runtimeConfig.stageSynthesisMinutes * 60_000,
+  ).toISOString();
+  const successWindowCutoff = new Date(
+    Date.now() - config.noSuccessMinutes * 60_000,
+  ).toISOString();
+
+  const [
+    { data: latestAttempts, error: latestAttemptsError },
+    { count: staleSynthesisCount, error: staleSynthesisError },
+    { count: recentFailuresCount, error: recentFailuresError },
+    { data: recentSuccessRows, error: recentSuccessError },
+  ] = await Promise.all([
+    supabase
+      .from('evaluation_jobs')
+      .select('last_error, synthesis_started_at')
+      .not('synthesis_started_at', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(config.consecutiveFailuresThreshold),
+    supabase
+      .from('evaluation_jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'complete')
+      .not('synthesis_started_at', 'is', null)
+      .lt('synthesis_started_at', staleCutoff),
+    supabase
+      .from('evaluation_jobs')
+      .select('id', { count: 'exact', head: true })
+      .not('synthesis_started_at', 'is', null)
+      .not('last_error', 'is', null)
+      .like('last_error', '[DreamWorker%')
+      .gte('updated_at', successWindowCutoff),
+    supabase
+      .from('evaluation_artifacts')
+      .select('job_id')
+      .eq('artifact_type', 'longform_document_v1')
+      .gte('created_at', successWindowCutoff)
+      .limit(1),
+  ]);
+
+  if (latestAttemptsError || staleSynthesisError || recentFailuresError || recentSuccessError) {
+    console.warn('[DreamWorker] Circuit breaker query failed; continuing without auto-kill', {
+      latestAttemptsError: latestAttemptsError?.message,
+      staleSynthesisError: staleSynthesisError?.message,
+      recentFailuresError: recentFailuresError?.message,
+      recentSuccessError: recentSuccessError?.message,
+    });
+    return baseline;
+  }
+
+  const latest = (latestAttempts ?? []) as Array<{ last_error?: string | null }>;
+  const hasFullFailureWindow = latest.length === config.consecutiveFailuresThreshold;
+  const allLatestFailed = hasFullFailureWindow &&
+    latest.every((job) => typeof job.last_error === 'string' && job.last_error.startsWith('[DreamWorker'));
+  const consecutiveFailures = allLatestFailed ? config.consecutiveFailuresThreshold : 0;
+
+  const staleCount = staleSynthesisCount ?? 0;
+  const failureCount = recentFailuresCount ?? 0;
+  const hasRecentSuccess = (recentSuccessRows?.length ?? 0) > 0;
+
+  const reasons: string[] = [];
+  if (consecutiveFailures >= config.consecutiveFailuresThreshold) {
+    reasons.push('dream_consecutive_failures');
+  }
+  if (staleCount >= config.staleSynthesisThreshold) {
+    reasons.push('dream_stale_synthesis_threshold');
+  }
+  if (!hasRecentSuccess && failureCount >= config.consecutiveFailuresThreshold) {
+    reasons.push('dream_no_recent_success_with_failures');
+  }
+
+  return {
+    tripped: reasons.length > 0,
+    reasons,
+    metrics: {
+      consecutiveFailures,
+      staleSynthesisCount: staleCount,
+      recentFailuresCount: failureCount,
+      hasRecentSuccess,
+    },
+  };
+}
+
 // ── Supabase client factory ───────────────────────────────────────────────────
 
 function createSupabaseAdmin() {
@@ -176,6 +344,73 @@ function createSupabaseAdmin() {
         fetch(input, { ...init, signal: AbortSignal.timeout(30_000) }),
     },
   });
+}
+
+async function readSynthesisBudgetState(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  jobId: string,
+  invocationStartMs: number,
+): Promise<SynthesisBudgetState> {
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  const budgetMs = runtimeConfig.stageSynthesisMinutes * 60_000;
+
+  // Persist first-write wall-clock anchor before any AI work, including preflight ping.
+  const { error: updateError } = await supabase
+    .from('evaluation_jobs')
+    .update({ synthesis_started_at: new Date(invocationStartMs).toISOString() })
+    .eq('id', jobId)
+    .is('synthesis_started_at', null);
+
+  if (updateError) {
+    throw new Error(`[DreamWorker] Failed to persist synthesis_started_at: ${updateError.message}`);
+  }
+
+  const { data: synthStartRow, error: readError } = await supabase
+    .from('evaluation_jobs')
+    .select('synthesis_started_at')
+    .eq('id', jobId)
+    .maybeSingle();
+
+  if (readError) {
+    throw new Error(`[DreamWorker] Failed to read synthesis_started_at: ${readError.message}`);
+  }
+
+  const startedAtIso = typeof synthStartRow?.synthesis_started_at === 'string'
+    ? synthStartRow.synthesis_started_at
+    : null;
+  const startedAtMs = startedAtIso
+    ? new Date(startedAtIso).getTime()
+    : invocationStartMs;
+  const elapsedMs = Date.now() - startedAtMs;
+  const remainingMs = budgetMs - elapsedMs;
+
+  return {
+    startedAtMs,
+    startedAtIso,
+    budgetMs,
+    elapsedMs,
+    remainingMs,
+  };
+}
+
+async function stopIfSynthesisBudgetExhausted(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  jobId: string,
+  budgetState: SynthesisBudgetState,
+): Promise<{ stopped: true; result: { success: false; error: string } } | { stopped: false }> {
+  if (budgetState.remainingMs > 0) {
+    return { stopped: false };
+  }
+
+  const runtimeConfig = getEvaluationRuntimeConfig();
+  const reason =
+    `Synthesis stage budget exhausted (limit: ${runtimeConfig.stageSynthesisMinutes}min). ` +
+    'Terminating to prevent runaway spend. Status: skipped (terminal).';
+  await supabase
+    .from('evaluation_jobs')
+    .update({ last_error: `[DreamWorker:gate4] ${reason.slice(0, 500)}` })
+    .eq('id', jobId);
+  return { stopped: true, result: { success: false, error: reason } };
 }
 
 // ── Core: find jobs that need DREAM synthesis ─────────────────────────────────
@@ -556,39 +791,25 @@ async function processDreamJob(
 
   // Synthesis stage wall-clock guard — cumulative budget across all invocations.
   const runtimeConfig = getEvaluationRuntimeConfig();
-  const _synthesisInvocationStartMs = Date.now();
-  const _synthesisBudgetMs = runtimeConfig.stageSynthesisMinutes * 60_000;
+  const synthesisInvocationStartMs = Date.now();
+  const initialBudgetState = await readSynthesisBudgetState(
+    supabase,
+    jobId,
+    synthesisInvocationStartMs,
+  );
+  console.log(
+    `[DreamWorker][GATE_2/4] ${jobId}: synthesis_started_at=${initialBudgetState.startedAtIso}, ` +
+    `cumulative elapsed=${Math.round(initialBudgetState.elapsedMs / 1000)}s, ` +
+    `remaining budget=${Math.max(0, Math.round(initialBudgetState.remainingMs / 1000))}s of ${runtimeConfig.stageSynthesisMinutes}min total`,
+  );
+  const initialBudgetStop = await stopIfSynthesisBudgetExhausted(supabase, jobId, initialBudgetState);
+  if (initialBudgetStop.stopped) {
+    return initialBudgetStop.result;
+  }
 
   // 0. Pre-flight — validate all dependencies and ping OpenAI before doing any work.
   const openaiApiKey = process.env.OPENAI_API_KEY ?? '';
   const preflight = await preflightDreamJob(supabase, job, openaiApiKey);
-
-  // GATE_2: Persist synthesis_started_at to DB the first time this synthesis
-  // invocation runs. Uses WHERE ... IS NULL to be idempotent across retries.
-  await supabase.from('evaluation_jobs').update(
-    { synthesis_started_at: new Date().toISOString() }
-  ).eq('id', jobId).is('synthesis_started_at', null);
-
-  // GATE_4: Compute cumulative synthesis elapsed from the persisted timestamp.
-  // Re-read from DB so we always use the wall-clock anchor regardless of worker restart.
-  const { data: synthStartRow } = await supabase
-    .from('evaluation_jobs')
-    .select('synthesis_started_at')
-    .eq('id', jobId)
-    .maybeSingle();
-  const _synthesisStartedAtMs = synthStartRow?.synthesis_started_at
-    ? new Date(synthStartRow.synthesis_started_at).getTime()
-    : _synthesisInvocationStartMs; // fallback to invocation start if column not yet populated
-  const _cumulativeSynthesisElapsedMs = Date.now() - _synthesisStartedAtMs;
-  const _synthesisRemainingMs = Math.max(
-    30_000, // hard minimum: always give the AI at least 30 seconds
-    _synthesisBudgetMs - _cumulativeSynthesisElapsedMs
-  );
-  console.log(
-    `[DreamWorker][GATE_2/4] ${jobId}: synthesis_started_at=${synthStartRow?.synthesis_started_at}, ` +
-    `cumulative elapsed=${Math.round(_cumulativeSynthesisElapsedMs / 1000)}s, ` +
-    `remaining budget=${Math.round(_synthesisRemainingMs / 1000)}s of ${runtimeConfig.stageSynthesisMinutes}min total`
-  );
 
   if (preflight.ok === false) {
     return {
@@ -685,17 +906,19 @@ async function processDreamJob(
   // 5. Run Pass 3b — DREAM synthesis
   // openaiApiKey already resolved and validated by preflight (Check 4 + Check 5 ping).
   const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(artifactContent);
-    // Check synthesis stage budget before starting AI work
-  // GATE_4: Check cumulative synthesis elapsed (across all invocations).
-  if (_cumulativeSynthesisElapsedMs >= _synthesisBudgetMs) {
-    const reason =
-      `Synthesis stage budget exhausted (limit: ${runtimeConfig.stageSynthesisMinutes}min). ` +
-      'Terminating to prevent runaway spend. Status: skipped (terminal).';
-    await supabase.from('evaluation_jobs')
-      .update({ last_error: `[DreamWorker:gate4] ${reason.slice(0, 500)}` })
-      .eq('id', jobId);
-    return { success: false, error: reason };
+  const liveBudgetState = await readSynthesisBudgetState(
+    supabase,
+    jobId,
+    synthesisInvocationStartMs,
+  );
+  const liveBudgetStop = await stopIfSynthesisBudgetExhausted(supabase, jobId, liveBudgetState);
+  if (liveBudgetStop.stopped) {
+    return liveBudgetStop.result;
   }
+  const openAiTimeoutMs = Math.min(
+    DREAM_OPENAI_TIMEOUT_MS,
+    Math.max(1_000, liveBudgetState.remainingMs),
+  );
   const longformDoc = await runPass3bLongform({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     criteria: normalizedCriteria as any,
@@ -707,8 +930,8 @@ async function processDreamJob(
     workType: manuscript?.work_type ?? 'literary_fiction',
     model,
     openaiApiKey,
-    // GATE_3: Use remaining synthesis budget as the live OpenAI timeout.
-      openAiTimeoutMs: _synthesisRemainingMs,
+    // GATE_3: Use remaining cumulative synthesis budget as the live OpenAI timeout.
+    openAiTimeoutMs,
     authorCorrectionsBlock,
     chapterIndex,
     jobId,
@@ -892,6 +1115,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   try {
     const supabase = createSupabaseAdmin();
+
+    const circuitBreakerConfig = getDreamCircuitBreakerConfig();
+    const circuitBreakerState = await evaluateDreamCircuitBreaker(supabase, circuitBreakerConfig);
+    if (circuitBreakerState.tripped) {
+      console.error('[DreamWorker] Automatic circuit breaker tripped — halting synthesis', {
+        traceId,
+        reasons: circuitBreakerState.reasons,
+        metrics: circuitBreakerState.metrics,
+      });
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        disabled: true,
+        reason: 'DREAM_WORKER_AUTO_KILL_TRIPPED',
+        breakerReasons: circuitBreakerState.reasons,
+        breakerMetrics: circuitBreakerState.metrics,
+        trace_id: traceId,
+        elapsed_ms: Date.now() - startMs,
+      });
+    }
 
     // ── Dry run: just count pending jobs ──────────────────────────────────
     if (isDryRun) {
