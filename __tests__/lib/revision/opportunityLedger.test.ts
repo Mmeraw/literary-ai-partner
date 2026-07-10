@@ -274,28 +274,30 @@ describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
 describe('ensureRevisionOpportunityLedgerArtifact', () => {
   it('projects Revise opportunities from certified UED canonical opportunity IDs when available', async () => {
     const upsertSpy = jest.fn();
+    const canonicalOpportunity = {
+      id: 'OPP-001',
+      primary_criterion: 'themeAndSubtext',
+      related_criteria: ['themeAndSubtext', 'narrativeClosure'],
+      severity: 'high',
+      evidence: 'Total value: Priceless.',
+      location: 'ending:final-beat',
+      symptom: 'The final paragraph explains the theme after the priceless payoff lands.',
+      cause: 'Explicit summary reduces the force of the subtext.',
+      fix_direction: 'Let the “Total value: Priceless” beat carry the theme with less explanation.',
+      reader_effect: 'The ending lands with more restraint and confidence.',
+      action: 'Lighten the final thematic explanation.',
+      expected_impact: 'The reader supplies the conclusion instead of being told the moral.',
+      is_action_item_candidate: true,
+      issue_type: 'thematic_closure',
+      deduped_from: ['themeAndSubtext:1', 'narrativeClosure:1'],
+    };
     const unifiedDocument = {
       title: 'The Price of Vanity',
       canonicalOpportunityLedger: {
-        rendered_opportunities: [
-          {
-            id: 'OPP-001',
-            primary_criterion: 'themeAndSubtext',
-            related_criteria: ['themeAndSubtext', 'narrativeClosure'],
-            severity: 'high',
-            evidence: 'Total value: Priceless.',
-            location: 'ending:final-beat',
-            symptom: 'The final paragraph explains the theme after the priceless payoff lands.',
-            cause: 'Explicit summary reduces the force of the subtext.',
-            fix_direction: 'Let the “Total value: Priceless” beat carry the theme with less explanation.',
-            reader_effect: 'The ending lands with more restraint and confidence.',
-            action: 'Lighten the final thematic explanation.',
-            expected_impact: 'The reader supplies the conclusion instead of being told the moral.',
-            is_action_item_candidate: true,
-            issue_type: 'thematic_closure',
-            deduped_from: ['themeAndSubtext:1', 'narrativeClosure:1'],
-          },
-        ],
+        // Authoritative full canonical supply that Revise must consume.
+        opportunities: [canonicalOpportunity],
+        // Curated report/PDF display subset (capped 7/10) — NOT the Revise source.
+        rendered_opportunities: [canonicalOpportunity],
       },
     };
     const uedHash = canonicalJsonSha256(unifiedDocument);
@@ -397,14 +399,16 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
       source_opportunity_id: 'OPP-001',
       source_criterion: 'themeAndSubtext',
       source_ued_hash: uedHash,
-      provenance: 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities',
+      provenance: 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities',
     });
 
     const persisted = upsertSpy.mock.calls[0][0] as { content: Record<string, unknown> };
     expect(persisted.content).toMatchObject({
-      opportunity_source_authority: 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities',
+      opportunity_source_authority: 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities',
       source_ued_hash: uedHash,
       ued_rendered_opportunity_count: 1,
+      ued_canonical_opportunity_count: 1,
+      revise_source_mode: 'canonical_full',
     });
     expect(persisted.content.opportunities).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -636,7 +640,7 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
     };
 
     await expect(ensureRevisionOpportunityLedgerArtifact(supabase, 'job-raw-only')).rejects.toThrow(
-      'Certified UED canonicalOpportunityLedger.rendered_opportunities is required',
+      'Certified UED canonicalOpportunityLedger.opportunities is required',
     );
   });
 
