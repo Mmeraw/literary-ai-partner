@@ -12006,11 +12006,22 @@ export async function claimQueuedJobs(
     lease_expires_at: leaseExpiresAt,
   });
 
+  const maxRuntimeMinutesRaw = Number(process.env.EVAL_JOB_MAX_RUNTIME_MINUTES ?? 75);
+  const maxRetriesAllowedRaw = Number(process.env.EVAL_JOB_MAX_RETRIES ?? 8);
+  const maxRuntimeMinutes = Number.isFinite(maxRuntimeMinutesRaw)
+    ? Math.min(1440, Math.max(1, Math.floor(maxRuntimeMinutesRaw)))
+    : 75;
+  const maxRetriesAllowed = Number.isFinite(maxRetriesAllowedRaw)
+    ? Math.min(100, Math.max(0, Math.floor(maxRetriesAllowedRaw)))
+    : 8;
+
   const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
     p_batch_size: batchSize,
     p_worker_id: workerId,
     p_lease_token: leaseToken,
     p_lease_expires_at: leaseExpiresAt,
+    p_max_runtime_minutes: maxRuntimeMinutes,
+    p_max_retries_allowed: maxRetriesAllowed,
   });
 
   if (error) {
@@ -12070,11 +12081,22 @@ export async function claimQueuedJobById(
     lease_expires_at: leaseExpiresAt,
   });
 
+  const maxRuntimeMinutesRaw = Number(process.env.EVAL_JOB_MAX_RUNTIME_MINUTES ?? 75);
+  const maxRetriesAllowedRaw = Number(process.env.EVAL_JOB_MAX_RETRIES ?? 8);
+  const maxRuntimeMinutes = Number.isFinite(maxRuntimeMinutesRaw)
+    ? Math.min(1440, Math.max(1, Math.floor(maxRuntimeMinutesRaw)))
+    : 75;
+  const maxRetriesAllowed = Number.isFinite(maxRetriesAllowedRaw)
+    ? Math.min(100, Math.max(0, Math.floor(maxRetriesAllowedRaw)))
+    : 8;
+
   const { data, error } = await supabase.rpc('claim_evaluation_job_by_id', {
     p_job_id: options.jobId,
     p_worker_id: options.workerId,
     p_lease_token: leaseToken,
     p_lease_expires_at: leaseExpiresAt,
+    p_max_runtime_minutes: maxRuntimeMinutes,
+    p_max_retries_allowed: maxRetriesAllowed,
   });
 
   if (error) {

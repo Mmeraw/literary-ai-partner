@@ -141,6 +141,8 @@ describe('claimQueuedJobs', () => {
       p_worker_id: 'worker-abc',
       p_lease_token: expect.any(String),
       p_lease_expires_at: expect.any(String),
+      p_max_runtime_minutes: 75,
+      p_max_retries_allowed: 8,
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('11111111-1111-4111-8111-111111111111');
