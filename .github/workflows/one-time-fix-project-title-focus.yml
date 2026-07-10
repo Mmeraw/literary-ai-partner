@@ -1,0 +1,150 @@
+name: One-time project title focus fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-time-fix-project-title-focus.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Move focusable fields to module scope
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("components/evaluation/ManuscriptSubmissionForm.jsx")
+          source = path.read_text()
+
+          insert_before = "function getDocumentTitle(doc) {"
+          inner_start = "  // ─── Shared focus style injected via onFocus/onBlur on inputs ──────────────"
+          inner_end = "\n  return (\n"
+
+          stable_fields = '''// Stable module-scope field components. Defining these inside the form causes
+          // React to treat them as new component types on every state update, remounting the
+          // active input and dropping focus after each keystroke.
+          const focusRingStyle = {
+            outline: "none",
+            boxShadow: `0 0 0 3px ${C.inputFocusRing}`,
+            borderColor: C.oxblood,
+          };
+          const blurStyle = { outline: "none", boxShadow: "none" };
+
+          function FocusableInput({ className, style, onFocus, onBlur, ...props }) {
+            const [focused, setFocused] = useState(false);
+            return (
+              <input
+                {...props}
+                className={className}
+                style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
+                onFocus={(event) => {
+                  setFocused(true);
+                  onFocus?.(event);
+                }}
+                onBlur={(event) => {
+                  setFocused(false);
+                  onBlur?.(event);
+                }}
+              />
+            );
+          }
+
+          function FocusableSelect({ className, style, children, onFocus, onBlur, ...props }) {
+            const [focused, setFocused] = useState(false);
+            return (
+              <select
+                {...props}
+                className={className}
+                style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
+                onFocus={(event) => {
+                  setFocused(true);
+                  onFocus?.(event);
+                }}
+                onBlur={(event) => {
+                  setFocused(false);
+                  onBlur?.(event);
+                }}
+              >
+                {children}
+              </select>
+            );
+          }
+
+          function FocusableTextarea({ className, style, onFocus, onBlur, ...props }) {
+            const [focused, setFocused] = useState(false);
+            return (
+              <textarea
+                {...props}
+                className={className}
+                style={{ ...style, ...(focused ? focusRingStyle : blurStyle) }}
+                onFocus={(event) => {
+                  setFocused(true);
+                  onFocus?.(event);
+                }}
+                onBlur={(event) => {
+                  setFocused(false);
+                  onBlur?.(event);
+                }}
+              />
+            );
+          }
+
+          '''
+
+          if source.count("function FocusableInput") != 1:
+            raise SystemExit("Expected exactly one FocusableInput declaration")
+          if insert_before not in source or inner_start not in source:
+            raise SystemExit("Expected source markers were not found")
+
+          start = source.index(inner_start)
+          end = source.index(inner_end, start)
+          source = source[:start] + source[end + 1:]
+          source = source.replace(insert_before, stable_fields + insert_before, 1)
+
+          export_index = source.index("export default function ManuscriptSubmissionForm")
+          input_index = source.index("function FocusableInput")
+          project_index = source.index('id="project-title"')
+          if input_index > export_index:
+            raise SystemExit("FocusableInput must be declared before the form component")
+          if project_index < export_index:
+            raise SystemExit("Project title field was not found in the form")
+          if source.count("function FocusableInput") != 1:
+            raise SystemExit("FocusableInput declaration count changed unexpectedly")
+
+          path.write_text(source)
+
+          test_path = Path("tests/components/manuscript-submission-form-focus-source.test.ts")
+          test_path.write_text('''import fs from "node:fs";\nimport path from "node:path";\n\ndescribe("ManuscriptSubmissionForm focus stability", () => {\n  it("declares focusable field component types outside the stateful form", () => {\n    const source = fs.readFileSync(\n      path.join(process.cwd(), "components/evaluation/ManuscriptSubmissionForm.jsx"),\n      "utf8",\n    );\n\n    const formIndex = source.indexOf("export default function ManuscriptSubmissionForm");\n    expect(formIndex).toBeGreaterThan(0);\n    expect(source.indexOf("function FocusableInput")).toBeGreaterThan(0);\n    expect(source.indexOf("function FocusableInput")).toBeLessThan(formIndex);\n    expect(source.indexOf("function FocusableSelect")).toBeLessThan(formIndex);\n    expect(source.indexOf("function FocusableTextarea")).toBeLessThan(formIndex);\n    expect(source.indexOf('id=\\"project-title\\"')).toBeGreaterThan(formIndex);\n  });\n});\n''')
+
+      - name: Verify focused source contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('components/evaluation/ManuscriptSubmissionForm.jsx').read_text()
+          form = source.index('export default function ManuscriptSubmissionForm')
+          assert source.index('function FocusableInput') < form
+          assert source.index('function FocusableSelect') < form
+          assert source.index('function FocusableTextarea') < form
+          assert source.index('id="project-title"') > form
+          assert source.count('function FocusableInput') == 1
+          print('focus stability source contract OK')
+          PY
+
+      - name: Commit fix and remove one-time workflow
+        run: |
+          rm .github/workflows/one-time-fix-project-title-focus.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/evaluation/ManuscriptSubmissionForm.jsx tests/components/manuscript-submission-form-focus-source.test.ts .github/workflows/one-time-fix-project-title-focus.yml
+          git commit -m "fix: preserve evaluate form field focus while typing"
+          git push origin HEAD:main
