@@ -26,6 +26,7 @@ import { enrichDiagnosticFields, needsDiagnosticEnrichment, type EnrichmentOppor
 import { logRevisionEvent } from './logRevisionEvent';
 import type { CandidateRejectionTelemetry } from './telemetry';
 import { getArtifact } from '@/lib/evaluation/fipocRegistry';
+import { CANONICAL_CRITERIA } from '@/lib/governance/canonicalCriteria';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -76,6 +77,26 @@ type RevisionOpportunity = {
   reader_effect?: string;
   mistake_proofing?: string;
 };
+
+export type PreflightDiagnostic = {
+  gate: 'anchor_coherence';
+  decision: 'passed' | 'blocked';
+  reason_code:
+    | 'sufficient_grounding'
+    | 'missing_anchor'
+    | 'missing_action'
+    | 'unrecognized_criterion'
+    | 'insufficient_anchor_grounding';
+  valid_anchor: boolean;
+  recognized_criterion: boolean;
+  concrete_action: boolean;
+  coherent_fix_direction: boolean;
+  coherent_reader_effect: boolean;
+  structural_target: boolean;
+  lexical_overlap?: number;
+};
+
+type AnchorCoherenceDiagnostic = PreflightDiagnostic;
 
 type WorkbenchLikeOpportunity = {
   id?: unknown;
@@ -650,11 +671,137 @@ function hasConcreteAction(opportunity: RevisionOpportunity): boolean {
   );
 }
 
-function anchorRationaleIsCoherent(opportunity: RevisionOpportunity): boolean {
+const RECOGNIZED_REVISION_CRITERIA = new Set<string>([
+  ...CANONICAL_CRITERIA,
+  'NARRATIVE_DRIVE',
+  'NARRATIVE_DRIVE_MOMENTUM',
+  'MOMENTUM',
+  'POV_VOICE',
+  'POVVOICE',
+  'VOICE',
+  'SCENE_CRAFT',
+  'SCENE_CONSTRUCTION',
+  'SCENE',
+  'WORLD_BUILDING',
+  'WORLDBUILDING',
+  'WORLD',
+  'NARRATIVE_CLOSURE',
+  'CLOSURE',
+  'MARKETABILITY',
+  'MARKET',
+  'STRUCTURE',
+  'PROSE',
+  'TONE',
+  'THEME',
+  'DIALOGUE',
+  'CONCEPT',
+  'CHARACTER',
+  'PACING',
+]);
+
+function criterionIsRecognized(raw: unknown): boolean {
+  const normalized = normalizeCriterion(raw);
+  return RECOGNIZED_REVISION_CRITERIA.has(normalized);
+}
+
+/** Minimum chars for an evidence anchor to count as a real, targetable manuscript quote. */
+const MIN_VALID_ANCHOR_CHARS = 12;
+
+/**
+ * Is the evidence anchor a real, substantive manuscript quote (not empty/placeholder)?
+ * A valid anchor is the primary evidence that a recommendation is genuinely grounded.
+ */
+function hasValidManuscriptAnchor(opportunity: RevisionOpportunity): boolean {
+  const clean = stripEvidenceWrapper(opportunity.evidence_anchor ?? '');
+  if (clean.length < MIN_VALID_ANCHOR_CHARS) return false;
+  if (/^(?:n\/?a|none|null|no excerpt available|no anchor available|missing anchor|placeholder|tbd)$/i.test(clean)) return false;
+  // Must contain real word content, not just punctuation/whitespace/coordinates.
+  return /[A-Za-z]{3,}/.test(clean);
+}
+
+/**
+ * Does the rationale carry a coherent fix direction OR reader effect?
+ * Substantive editorial reasoning about the fix/impact is evidence of a real anchor
+ * relationship even when the commentary shares no vocabulary with the quoted prose.
+ */
+function hasCoherentFixDirection(opportunity: RevisionOpportunity): boolean {
+  const MIN_LEN = 20;
+  const fix = (opportunity.fix_direction ?? '').trim();
+  return fix.length >= MIN_LEN;
+}
+
+function hasCoherentReaderEffect(opportunity: RevisionOpportunity): boolean {
+  const MIN_LEN = 20;
+  const effect = (opportunity.reader_effect ?? '').trim();
+  return effect.length >= MIN_LEN;
+}
+
+/**
+ * Build the structured anchor-coherence diagnostic for one opportunity. This records
+ * every input the decision considered (lexical overlap, criterion, concrete action,
+ * valid anchor, structural target, coherent fix/effect) plus the final decision, so a
+ * blocked opportunity carries a self-describing "why" instead of a bare reason code.
+ */
+export function buildAnchorCoherenceDiagnostic(opportunity: RevisionOpportunity): AnchorCoherenceDiagnostic {
   const anchorTokens = normalizedTokenSet(opportunity.evidence_anchor);
-  const rationaleTokens = normalizedTokenSet(`${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`);
-  if (anchorTokens.size === 0 || rationaleTokens.size === 0) return true;
-  return jaccardSimilarity(anchorTokens, rationaleTokens) >= 0.05;
+  const rationaleTokens = normalizedTokenSet(
+    `${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`,
+  );
+  const lexicalOverlap =
+    anchorTokens.size === 0 || rationaleTokens.size === 0
+      ? 0
+      : Number(jaccardSimilarity(anchorTokens, rationaleTokens).toFixed(4));
+  const validAnchor = hasValidManuscriptAnchor(opportunity);
+  const concreteAction = hasConcreteAction(opportunity);
+  const structuralTarget = recommendationCanTargetStructuralIssue(opportunity);
+  const coherentFixDirection = hasCoherentFixDirection(opportunity);
+  const coherentReaderEffect = hasCoherentReaderEffect(opportunity);
+  const recognizedCriterion = criterionIsRecognized(opportunity.criterion);
+
+  // Evidence-based coherence: a recommendation is genuinely anchored when there is
+  // enough independent evidence tying it to the passage — a real anchor plus a
+  // concrete editorial action, a recognized criterion, and coherent fix/reader-effect
+  // (or a structural target). Lexical overlap between verbatim prose and abstract
+  // editorial commentary is NOT required and is not evidence of incoherence: valid
+  // Marketability/Concept/Theme/Voice/Dialogue notes naturally share no tokens with
+  // the quoted text. The gate still fires when the anchoring evidence is genuinely absent.
+  const sufficientlyAnchored =
+    validAnchor &&
+    recognizedCriterion &&
+    concreteAction &&
+    (coherentFixDirection || coherentReaderEffect || structuralTarget);
+  const reasonCode: AnchorCoherenceDiagnostic['reason_code'] = sufficientlyAnchored
+    ? 'sufficient_grounding'
+    : !validAnchor
+      ? 'missing_anchor'
+      : !recognizedCriterion
+        ? 'unrecognized_criterion'
+        : !concreteAction
+          ? 'missing_action'
+          : 'insufficient_anchor_grounding';
+
+  return {
+    gate: 'anchor_coherence',
+    decision: sufficientlyAnchored ? 'passed' : 'blocked',
+    reason_code: reasonCode,
+    concrete_action: concreteAction,
+    valid_anchor: validAnchor,
+    recognized_criterion: recognizedCriterion,
+    structural_target: structuralTarget,
+    coherent_fix_direction: coherentFixDirection,
+    coherent_reader_effect: coherentReaderEffect,
+    lexical_overlap: lexicalOverlap,
+  };
+}
+
+/**
+ * Evidence-based anchor coherence. Replaces the prior lexical-overlap heuristic, which
+ * equated "rationale reuses anchor words" with "editorial coherence" and wrongly blocked
+ * valid abstract recommendations. The safety gate is preserved for genuinely incoherent
+ * anchor/rationale pairs — see buildAnchorCoherenceDiagnostic for the full decision inputs.
+ */
+export function anchorRationaleIsCoherent(opportunity: RevisionOpportunity): boolean {
+  return buildAnchorCoherenceDiagnostic(opportunity).decision === 'passed';
 }
 
 function recommendationCanTargetStructuralIssue(opportunity: RevisionOpportunity): boolean {
@@ -885,7 +1032,10 @@ function preflightReasonsForOpportunity(
   if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
   if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
   if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
-  if (!anchorRationaleIsCoherent(opportunity) && !recommendationCanTargetStructuralIssue(opportunity)) reasons.push('anchor_mismatch');
+  // Evidence-based anchor coherence. Diagnostics are collected in preflight metadata
+  // rather than persisted onto the source opportunity shape.
+  const coherenceDiagnostic = buildAnchorCoherenceDiagnostic(opportunity);
+  if (coherenceDiagnostic.decision === 'blocked') reasons.push('insufficient_anchor_grounding');
   if (opportunity.hydration_eligible === false) {
     reasons.push(...(opportunity.hydration_ineligibility_reasons ?? []));
   }
@@ -959,6 +1109,15 @@ function summarizePreflight(opportunities: RevisionOpportunity[]): Record<string
   return summary;
 }
 
+function buildPreflightDiagnostics(opportunities: RevisionOpportunity[]): Record<string, PreflightDiagnostic> {
+  return Object.fromEntries(
+    opportunities.map((opportunity) => [
+      opportunity.opportunity_id,
+      buildAnchorCoherenceDiagnostic(opportunity),
+    ]),
+  );
+}
+
 function wordCount(raw: string | undefined): number {
   if (!raw || !raw.trim()) return 0;
   return raw.trim().split(/\s+/).filter(Boolean).length;
@@ -1000,7 +1159,7 @@ function selectPrimaryRejectionReason(reasons: string[]): string {
   const priority = [
     'canon_authority_blocked',
     'candidate_quality_failed',
-    'anchor_mismatch',
+    'insufficient_anchor_grounding',
     'truncated_anchor',
     'testimony_fabrication_risk',
     'hydration_input_incomplete',
@@ -2323,6 +2482,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   });
   opportunities.splice(0, opportunities.length, ...preflightedOpportunities);
   let preflightSummary = summarizePreflight(opportunities);
+  let preflightDiagnostics = buildPreflightDiagnostics(opportunities);
 
   // ── AI Candidate Hydration Pass ────────────────────────────────────────────
   // For each opportunity that SLAE blocked (no explicit candidate prose from
@@ -2584,6 +2744,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
             });
             opportunities.splice(0, opportunities.length, ...postHydrationPreflighted);
             preflightSummary = summarizePreflight(opportunities);
+            preflightDiagnostics = buildPreflightDiagnostics(opportunities);
 
             // ── Quality Regeneration Pass ─────────────────────────────────────
             // Cards that were hydration-attempted but whose AI prose failed the
@@ -2635,6 +2796,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
                 });
                 opportunities.splice(0, opportunities.length, ...postRegenPreflighted);
                 preflightSummary = summarizePreflight(opportunities);
+                preflightDiagnostics = buildPreflightDiagnostics(opportunities);
                 console.log(
                   `[CandidateRegen] ${jobId}: regen attempted=${qualityBlockedForRegen.length}` +
                   ` healed=${regenResult.healed.size} stillFailed=${regenResult.stillFailed.size}`,
@@ -2739,6 +2901,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       degraded_layers: contextQualityDecision.degraded_layers,
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
+      diagnostics: preflightDiagnostics,
     },
     quality_manifest: qualityManifest,
     opportunity_source_authority: opportunitySourceAuthority,
@@ -2777,6 +2940,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       degraded_layers: contextQualityDecision.degraded_layers,
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
+      diagnostics: preflightDiagnostics,
     },
     opportunities,
   };

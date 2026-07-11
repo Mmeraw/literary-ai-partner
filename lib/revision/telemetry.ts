@@ -71,7 +71,7 @@ export type LogRevisionEventInput = {
 export type CandidateRejectionTelemetry = {
   /** Opaque opportunity identifier — no prose content. */
   opportunity_id: string;
-  /** Canonical rejection reason codes (e.g. anchor_mismatch, canon_authority_blocked). */
+  /** Canonical rejection reason codes (e.g. insufficient_anchor_grounding, canon_authority_blocked). */
   rejection_reasons: string[];
   /** Primary rejection reason for quick filtering. */
   rejection_reason_primary: string;

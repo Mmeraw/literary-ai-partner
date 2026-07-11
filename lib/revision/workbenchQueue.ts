@@ -134,14 +134,14 @@ function classifyWorkbenchExecutability(opportunity: WorkbenchOpportunity) {
     contextPresent: opportunity.contextQuality === 'clean' && opportunity.preflightStatus === 'passed',
     canonClear:
       opportunity.contextQuality !== 'blocked' &&
-      !hasReasonMatching(preflightReasons, /canon|ledger_conflict|anchor_mismatch|testimony_fabrication/i),
+      !hasReasonMatching(preflightReasons, /canon|ledger_conflict|insufficient_anchor_grounding|testimony_fabrication/i),
     diagnosisSupported:
       (opportunity.groundingStatus === 'supported' || opportunity.groundingStatus === 'supported_after_relook') &&
       opportunity.preflightStatus === 'passed',
     anchorPrecise: !hasPlaceholderCoordinates(opportunity.anchor),
     passageLength: passageLengthForExecutability(opportunity.scope, sourceText),
     beforeAfterContextSufficient: hasEvidence && opportunity.contextQuality === 'clean',
-    ledgerConflictPossible: hasReasonMatching(preflightReasons, /ledger|anchor_mismatch|context_mismatch|canon/i),
+    ledgerConflictPossible: hasReasonMatching(preflightReasons, /ledger|insufficient_anchor_grounding|context_mismatch|canon/i),
     canonConflict: hasReasonMatching(preflightReasons, /canon_authority_blocked|canon_conflict|canon_drift/i),
     affectsSceneArchitecture: scopeRequiresStrategy,
     affectsPOVVoiceCanonMetaphor: hasReasonMatching(preflightReasons, /voice|pov|metaphor|canon|testimony/i),
