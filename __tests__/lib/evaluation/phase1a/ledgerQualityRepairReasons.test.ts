@@ -266,4 +266,73 @@ describe('ledger_quality_report_v1 repair-reason observability', () => {
     expect(report.root_cause_warning_count).toBeLessThanOrEqual(3);
     expect(report.root_cause_warning_count).toBe(report.repair_reasons.length);
   });
+
+  // ── Invariant: count === length across EVERY gate_ready_status ──────────────
+  // Cheap drift-catcher requested in review. Proves the two new fields stay
+  // reconciled regardless of which return path the producer takes.
+  describe('root_cause_warning_count === repair_reasons.length across all statuses', () => {
+    const cleanReport = () =>
+      buildLedgerQualityReport(
+        makeLedger({}),
+        makeV2(['Test Protagonist']),
+        makeCleanLayers(['Test Protagonist']),
+      );
+
+    const reviewableReport = () =>
+      buildLedgerQualityReport(
+        makeLedger({
+          endingAccountabilityWarnings: ['Major character "Fritz" has no ending accountability'],
+        }),
+        makeV2(['Test Protagonist']),
+        makeCleanLayers(['Test Protagonist']),
+      );
+
+    const repairRequiredReport = () =>
+      buildLedgerQualityReport(
+        makeLedger({ endingAccountabilityWarnings: FOUR_WARNINGS }),
+        makeV2(['Test Protagonist']),
+        makeCleanLayers(['Test Protagonist']),
+      );
+
+    // Hard-fail trigger → blocked_content_hard_fail.
+    const hardFailReport = () =>
+      buildLedgerQualityReport(
+        {
+          ...makeLedger({}),
+          coverage_summary: {
+            ...makeLedger({}).coverage_summary,
+            hard_fail_triggers: ['Fabricated primary protagonist with no textual evidence'],
+          },
+        },
+        makeV2(['Test Protagonist']),
+        makeCleanLayers(['Test Protagonist']),
+      );
+
+    // Technical signal (reducer failed) → blocked_retryable_technical early return.
+    const technicalBlockReport = () =>
+      buildLedgerQualityReport(
+        makeLedger({}),
+        makeV2(['Test Protagonist']),
+        makeCleanLayers(['Test Protagonist']),
+        { preflightReducer: { reducer_status: 'failed' } },
+      );
+
+    const cases: Array<[string, () => ReturnType<typeof buildLedgerQualityReport>]> = [
+      ['clean/reviewable (no warnings)', cleanReport],
+      ['reviewable (<=3 warnings)', reviewableReport],
+      ['repair_required (>3 warnings)', repairRequiredReport],
+      ['blocked_content_hard_fail', hardFailReport],
+      ['blocked_retryable_technical', technicalBlockReport],
+    ];
+
+    it.each(cases)('holds for %s', (_label, build) => {
+      const report = build();
+      expect(report.root_cause_warning_count).toBe(report.repair_reasons.length);
+      // Hard-fail evidence belongs to blocking_reasons, never repair_reasons.
+      if (report.hard_fail_present) {
+        expect(report.repair_reasons.every((r) => r.key !== 'pass1a_hard_fail_trigger')).toBe(true);
+        expect(report.blocking_reasons.length).toBeGreaterThan(0);
+      }
+    });
+  });
 });
