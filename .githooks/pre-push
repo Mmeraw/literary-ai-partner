@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${SKIP_PR_BODY_VALIDATION:-0}" == "1" ]]; then
+  echo "[pre-push] Skipping PR body validation (SKIP_PR_BODY_VALIDATION=1)."
+  exit 0
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+  echo "[pre-push] ERROR: GitHub CLI (gh) is required." >&2
+  echo "Authenticate with: gh auth login" >&2
+  exit 1
+fi
+
+if ! gh auth status >/dev/null 2>&1; then
+  echo "[pre-push] ERROR: gh is not authenticated for this repository." >&2
+  echo "Authenticate with: gh auth login" >&2
+  exit 1
+fi
+
+branch="$(git branch --show-current)"
+if [[ -z "$branch" ]]; then
+  echo "[pre-push] ERROR: detached HEAD; cannot resolve a pull request." >&2
+  exit 1
+fi
+
+pr_json="$(gh pr view "$branch" --json number,labels,files 2>/dev/null || true)"
+if [[ -z "$pr_json" ]]; then
+  echo "[pre-push] ERROR: no pull request exists for branch '$branch'." >&2
+  echo "Create the PR first, then push again." >&2
+  echo "Emergency bypass: SKIP_PR_BODY_VALIDATION=1 git push" >&2
+  exit 1
+fi
+
+pr_number="$(printf '%s' "$pr_json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).number))')"
+pr_type="$(printf '%s' "$pr_json" | node <<'NODE'
+let s = "";
+process.stdin.on("data", d => s += d).on("end", () => {
+  const pr = JSON.parse(s);
+  const valid = new Set(["evaluation", "ui", "infra", "docs", "migration", "code", "minor"]);
+  const override = (pr.labels || []).map(l => l.name).find(n => n.startsWith("pr-type:"));
+  if (override) {
+    const type = override.slice("pr-type:".length).trim();
+    if (valid.has(type)) return console.log(type);
+  }
+
+  const files = (pr.files || []).map(f => f.path || f.filename || "");
+  const starts = (name, prefixes) => prefixes.some(p => name.startsWith(p));
+  const evalPrefixes = ["lib/evaluation/","lib/pipeline/","lib/canon/","lib/governance/","lib/invariants/","lib/observability/","lib/monitoring/","lib/reliability/","lib/manuscripts/","lib/llm/","lib/jobs/","lib/release/","lib/artifacts/","lib/config/","lib/wave-modules/","app/api/workers/","app/api/evaluations/","app/api/evaluate/","app/api/jobs/","app/api/manuscripts/","app/api/internal/","tests/canon/","tests/evaluation/","tests/sipoc/","tests/replays/","tests/anchors/","tests/failures/","tests/fixtures/","tests/protected/","tests/jobs/","tests/lib/evaluation/","tests/lib/jobs/","tests/lib/hooks/","tests/api/","tests/benchmarks/","tests/components/","tests/contract/","tests/operations/","__tests__/","workers/","schemas/","types/","fixtures/","testdata/","calibration/","evidence/","artifacts/","protected/","prompts/","logs/","stress-results/","manuscripts/","runs/","supabase/functions/"];
+  if (files.some(f => starts(f, evalPrefixes))) return console.log("evaluation");
+
+  const uiPrefixes = ["app/admin/","app/dashboard/","app/evaluate/","app/login/","app/signup/","app/output/","app/reports/","app/revise/","app/share/","app/pricing/","app/marketing-preview/","app/private-beta/","app/resources/","app/storygate/","app/convert/","app/your-writing/","components/","public/","lib/ui/","lib/hooks/"];
+  const codePrefixes = ["lib/auth/","lib/db/","lib/admin/","lib/security/","lib/operations/","lib/activity/","lib/errors/","lib/supabase/","lib/revision/","lib/reportShares/","src/","entities/","base44/","app/api/auth/","app/api/admin/","app/api/activity/","app/api/report-shares/","app/api/user/"];
+  const infraPrefixes = [".github/",".vscode/",".githooks/","scripts/","ops/","tests/stress/","tests/playwright/","tests/ui/","tests/scripts/","tests/test-helpers/","tests/config/","app/api/dev/","app/api/env-check/","app/api/health/","supabase/sql/"];
+  const docsPrefixes = ["docs/","archive/"];
+  const migrationPrefixes = ["supabase/migrations/","migrations/"];
+  const infraExact = new Set(["vercel.json","package.json","package-lock.json","pnpm-lock.yaml","yarn.lock","tsconfig.json","tsconfig.base.json","tsconfig.test.json","tsconfig.workers.json","next-env.d.ts","jsconfig.json","next.config.js","next.config.mjs","next.config.ts","instrumentation.ts","middleware.ts","eslint.config.js","eslint.config.mjs","tailwind.config.js","tailwind.config.ts","postcss.config.js","postcss.config.mjs","jest.config.js","jest.setup.ts","vitest.config.ts","vite.config.js","lighthouserc.yml","Dockerfile","Makefile",".npmrc",".nvmrc","supabase/.gitignore","supabase/config.toml","supabase/seed.sql"]);
+  const uiExact = new Set(["app/page.tsx","app/page.jsx","app/layout.tsx","app/layout.jsx","app/globals.css","app/robots.txt","index.html","components.json"]);
+  const codeExact = new Set(["lib/audit.js","lib/governance.js","lib/supabase.js","lib/rateLimit.ts"]);
+
+  const buckets = new Set();
+  for (const f of files) {
+    if (starts(f, uiPrefixes) || uiExact.has(f)) buckets.add("ui");
+    else if (starts(f, infraPrefixes) || infraExact.has(f) || (!f.includes("/") && f.startsWith("."))) buckets.add("infra");
+    else if (starts(f, docsPrefixes) || (!f.includes("/") && f.toLowerCase().endsWith(".md"))) buckets.add("docs");
+    else if (starts(f, migrationPrefixes) || (!f.includes("/") && f.endsWith(".sql"))) buckets.add("migration");
+    else if (starts(f, codePrefixes) || codeExact.has(f)) buckets.add("code");
+    else buckets.add("evaluation");
+  }
+  console.log(buckets.size === 1 ? [...buckets][0] : "evaluation");
+});
+NODE
+)"
+
+echo "[pre-push] Validating live PR #${pr_number} body as type '${pr_type}'..."
+node scripts/validate-pr-body.mjs --pr "$pr_number" --type "$pr_type"
