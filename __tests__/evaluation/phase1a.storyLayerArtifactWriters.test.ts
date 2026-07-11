@@ -47,6 +47,15 @@ const qualityReport: LedgerQualityReportPayload = {
     },
   ],
   blocking_reasons: [],
+  root_cause_warning_count: 1,
+  repair_reasons: [
+    {
+      key: 'alias_merge_confidence',
+      layer: 'canonical_identity_layer',
+      message: 'Verify alias merge confidence before approval.',
+      evidence_reference: 'chapter-2:paragraph-14',
+    },
+  ],
   recommended_review_action: 'send_to_review_gate',
 };
 
@@ -86,11 +95,7 @@ describe('Phase 1A Story Layer artifact writers', () => {
   });
 
   it('builds ledger_quality_report_v1 linked to the story layer source hash', () => {
-    const storyLayerArtifact = buildPass1aStoryLayerArtifact({
-      metadata,
-      storyLayer: validStoryLayer(),
-    });
-
+    const storyLayerArtifact = buildPass1aStoryLayerArtifact({ metadata, storyLayer: validStoryLayer() });
     const reportArtifact = buildLedgerQualityReportArtifact({
       metadata,
       storyLayerSourceHash: storyLayerArtifact.source_hash,
@@ -102,20 +107,20 @@ describe('Phase 1A Story Layer artifact writers', () => {
     expect(reportArtifact.content.artifact_type).toBe('ledger_quality_report_v1');
     expect(reportArtifact.content.pass1a_story_layer_source_hash).toBe(storyLayerArtifact.source_hash);
     expect(reportArtifact.content.quality_report.gate_ready_status).toBe('reviewable');
+    expect(reportArtifact.content.quality_report.root_cause_warning_count).toBe(1);
+    expect(reportArtifact.content.quality_report.repair_reasons).toEqual(qualityReport.repair_reasons);
     expect(reportArtifact.source_hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('returns stable artifact metadata for identical Phase 1A inputs', () => {
     const first = buildPass1aStoryLayerArtifact({ metadata, storyLayer: validStoryLayer() });
     const second = buildPass1aStoryLayerArtifact({ metadata, storyLayer: validStoryLayer() });
-
     expect(first.source_hash).toBe(second.source_hash);
     expect(first.content.artifact_id).toBe(second.content.artifact_id);
   });
 
   it('writes only the raw Story Layer and quality report artifacts for Review Gate handoff', async () => {
     const writes: Phase1aWriterArtifact[] = [];
-
     const result = await writePhase1aReviewGateArtifacts({
       metadata,
       storyLayer: validStoryLayer(),
@@ -127,11 +132,7 @@ describe('Phase 1A Story Layer artifact writers', () => {
     });
 
     const artifactTypesWritten = writes.map((artifact) => artifact.artifact_type) as string[];
-
-    expect(artifactTypesWritten).toEqual([
-      'pass1a_story_layer_v1',
-      'ledger_quality_report_v1',
-    ]);
+    expect(artifactTypesWritten).toEqual(['pass1a_story_layer_v1', 'ledger_quality_report_v1']);
     expect(writes).toHaveLength(2);
     expect(result.pass1a_story_layer_v1.artifact_id).toBe('persisted:pass1a_story_layer_v1');
     expect(result.ledger_quality_report_v1.artifact_id).toBe('persisted:ledger_quality_report_v1');
@@ -142,13 +143,9 @@ describe('Phase 1A Story Layer artifact writers', () => {
 
   it('supports null evaluation_project_id in Phase 1A artifact envelopes', () => {
     const artifact = buildPass1aStoryLayerArtifact({
-      metadata: {
-        ...metadata,
-        evaluation_project_id: null,
-      },
+      metadata: { ...metadata, evaluation_project_id: null },
       storyLayer: validStoryLayer(),
     });
-
     expect(artifact.content.evaluation_project_id).toBeNull();
   });
 });
