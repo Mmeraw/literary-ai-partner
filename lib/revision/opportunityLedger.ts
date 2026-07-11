@@ -118,6 +118,23 @@ type EnsureLedgerResult = {
   opportunities: RevisionOpportunity[];
 };
 
+export type HydrationAnchorLookupDiagnostic = {
+  strategy: 'exact_match' | 'prefix_match' | 'fuzzy_match' | 'no_match';
+  wrapper_stripped: boolean;
+  dash_normalized: boolean;
+  normalized_anchor_length: number;
+  lexical_overlap?: number;
+  matched_tokens?: number;
+  anchor_token_count?: number;
+};
+
+type HydrationChunkLike = { content: string };
+
+export type HydrationAnchorLookupResult = {
+  content?: string;
+  diagnostic: HydrationAnchorLookupDiagnostic;
+};
+
 export const REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD = 25_000 as const;
 export const REVISE_QUEUE_MAX_SHORT_FORM = 50 as const;
 export const REVISE_QUEUE_MAX_LONG_FORM = 100 as const;
@@ -438,6 +455,94 @@ function buildFallbackCandidateTexts(input: CandidateBuildInput): { a: string; b
 
 function normalizedForComparison(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeHydrationText(raw: string): string {
+  return raw
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2014\u2013]/g, ' ')
+    .replace(/[\u2026…]/g, ' ')
+    .replace(/\.\.\./g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+export function findHydrationChunkForAnchor(
+  anchor: string,
+  manuscriptChunksByContent: HydrationChunkLike[],
+): HydrationAnchorLookupResult {
+  const strippedAnchor = stripEvidenceWrapper(anchor ?? '');
+  const wrapperStripped = strippedAnchor !== (anchor ?? '').trim();
+  const dashNormalized = /[\u2014\u2013]/u.test(strippedAnchor);
+  const normAnchor = normalizeHydrationText(strippedAnchor).slice(0, 200);
+  const baseDiagnostic: Omit<HydrationAnchorLookupDiagnostic, 'strategy'> = {
+    wrapper_stripped: wrapperStripped,
+    dash_normalized: dashNormalized,
+    normalized_anchor_length: normAnchor.length,
+  };
+
+  if (!normAnchor || manuscriptChunksByContent.length === 0) {
+    return { diagnostic: { ...baseDiagnostic, strategy: 'no_match' } };
+  }
+
+  const exact = manuscriptChunksByContent.find((c) =>
+    normalizeHydrationText(c.content).includes(normAnchor),
+  );
+  if (exact) {
+    return { content: exact.content, diagnostic: { ...baseDiagnostic, strategy: 'exact_match' } };
+  }
+
+  const anchorPrefix = normAnchor.split(/[.!?]/)[0]?.trim() ?? '';
+  if (anchorPrefix.length >= 24) {
+    const prefixMatch = manuscriptChunksByContent.find((c) =>
+      normalizeHydrationText(c.content).includes(anchorPrefix),
+    );
+    if (prefixMatch) {
+      return { content: prefixMatch.content, diagnostic: { ...baseDiagnostic, strategy: 'prefix_match' } };
+    }
+  }
+
+  if (!anchorLooksTruncated(strippedAnchor) && normAnchor.length >= 80) {
+    const anchorTokens = new Set(normAnchor.split(' ').filter((token) => token.length >= 4));
+    let best: { chunk: string; overlap: number; matchedTokens: number; anchorTokenCount: number } | null = null;
+
+    for (const c of manuscriptChunksByContent) {
+      const chunkNorm = normalizeHydrationText(c.content);
+      const chunkTokens = new Set(chunkNorm.split(' ').filter((token) => token.length >= 4));
+      if (chunkTokens.size === 0 || anchorTokens.size === 0) continue;
+
+      let matched = 0;
+      for (const token of anchorTokens) {
+        if (chunkTokens.has(token)) matched++;
+      }
+      const overlap = matched / Math.max(anchorTokens.size, 1);
+      if (!best || overlap > best.overlap) {
+        best = {
+          chunk: c.content,
+          overlap,
+          matchedTokens: matched,
+          anchorTokenCount: anchorTokens.size,
+        };
+      }
+    }
+
+    const fuzzyDiagnostic = {
+      ...baseDiagnostic,
+      lexical_overlap: best ? Number(best.overlap.toFixed(4)) : 0,
+      matched_tokens: best?.matchedTokens ?? 0,
+      anchor_token_count: best?.anchorTokenCount ?? anchorTokens.size,
+    };
+
+    if (best && best.overlap >= 0.55 && best.matchedTokens >= 6) {
+      return { content: best.chunk, diagnostic: { ...fuzzyDiagnostic, strategy: 'fuzzy_match' } };
+    }
+
+    return { diagnostic: { ...fuzzyDiagnostic, strategy: 'no_match' } };
+  }
+
+  return { diagnostic: { ...baseDiagnostic, strategy: 'no_match' } };
 }
 
 function candidateEchoesAnchor(candidate: string, anchor: string): boolean {
@@ -2506,66 +2611,6 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     // Non-blocking — hydration degrades gracefully without chunk context
   }
 
-  /**
-   * Find the chunk whose content contains the most characters of the anchor,
-   * falling back to substring inclusion, then to the longest content overlap.
-   */
-  function findChunkForAnchor(anchor: string): string | undefined {
-    if (!anchor || manuscriptChunksByContent.length === 0) return undefined;
-    const normalizeHydrationText = (raw: string): string =>
-      raw
-        .replace(/[\u2018\u2019]/g, "'")
-        .replace(/[\u201C\u201D]/g, '"')
-        .replace(/[\u2026…]/g, ' ')
-        .replace(/\.\.\./g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .toLowerCase();
-
-    const normAnchor = normalizeHydrationText(anchor).slice(0, 200);
-    if (!normAnchor) return undefined;
-
-    // Exact substring match (most reliable)
-    const exact = manuscriptChunksByContent.find((c) =>
-      normalizeHydrationText(c.content).includes(normAnchor),
-    );
-    if (exact) return exact.content;
-
-    // Prefix match for truncated anchors (e.g., trailing ellipsis)
-    const anchorPrefix = normAnchor.split(/[.!?]/)[0]?.trim() ?? '';
-    if (anchorPrefix.length >= 24) {
-      const prefixMatch = manuscriptChunksByContent.find((c) =>
-        normalizeHydrationText(c.content).includes(anchorPrefix),
-      );
-      if (prefixMatch) return prefixMatch.content;
-    }
-
-    // Guarded fuzzy fallback for long, non-truncated anchors only.
-    if (!anchorLooksTruncated(anchor) && normAnchor.length >= 80) {
-      const anchorTokens = new Set(normAnchor.split(' ').filter((token) => token.length >= 4));
-      let best: { chunk: string; overlap: number; matchedTokens: number } | null = null;
-
-      for (const c of manuscriptChunksByContent) {
-        const chunkNorm = normalizeHydrationText(c.content);
-        const chunkTokens = new Set(chunkNorm.split(' ').filter((token) => token.length >= 4));
-        if (chunkTokens.size === 0 || anchorTokens.size === 0) continue;
-
-        let matched = 0;
-        for (const token of anchorTokens) {
-          if (chunkTokens.has(token)) matched++;
-        }
-        const overlap = matched / Math.max(anchorTokens.size, 1);
-        if (!best || overlap > best.overlap) best = { chunk: c.content, overlap, matchedTokens: matched };
-      }
-
-      if (best && best.overlap >= 0.55 && best.matchedTokens >= 6) {
-        return best.chunk;
-      }
-    }
-
-    return undefined;
-  }
-
   // ── SIPOC Kick-Backward: Diagnostic Enrichment ────────────────────────────
   // Before hydrating candidates, ensure every opportunity has complete diagnostic
   // fields (symptom, cause, fix_direction, reader_effect). If any are missing,
@@ -2621,6 +2666,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   let hydrationStatusSuffix = '';
   const hydrationAttemptedByOpportunityId = new Set<string>();
   const hydrationContextFoundByOpportunityId = new Map<string, boolean>();
+  const hydrationAnchorLookupDiagnosticsByOpportunityId = new Map<string, HydrationAnchorLookupDiagnostic>();
   if (opportunities.length > 0) {
     const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
     if (openaiApiKey) {
@@ -2636,7 +2682,9 @@ export async function ensureRevisionOpportunityLedgerArtifact(
         const needsHydration = preflightAllowsHydration && needsCandidates;
         if (!needsHydration) continue;
 
-        const manuscriptContext = findChunkForAnchor(o.evidence_anchor);
+        const anchorLookup = findHydrationChunkForAnchor(o.evidence_anchor, manuscriptChunksByContent);
+        hydrationAnchorLookupDiagnosticsByOpportunityId.set(o.opportunity_id, anchorLookup.diagnostic);
+        const manuscriptContext = anchorLookup.content;
         const eligibilityReasons: string[] = [];
 
         const contextNotFound = !o.evidence_anchor.trim() || !manuscriptContext?.trim();
@@ -2764,7 +2812,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
                 rationale: o.rationale,
                 revision_operation: o.revision_operation,
                 evaluation_mode: modeContract.evaluation_mode,
-                manuscript_context: findChunkForAnchor(o.evidence_anchor),
+                manuscript_context: findHydrationChunkForAnchor(o.evidence_anchor, manuscriptChunksByContent).content,
                 english_variant: selectedEnglishVariant,
               }));
               try {
@@ -2902,6 +2950,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
       diagnostics: preflightDiagnostics,
+      hydration_anchor_lookup_diagnostics: Object.fromEntries(hydrationAnchorLookupDiagnosticsByOpportunityId),
     },
     quality_manifest: qualityManifest,
     opportunity_source_authority: opportunitySourceAuthority,
@@ -2941,6 +2990,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
       diagnostics: preflightDiagnostics,
+      hydration_anchor_lookup_diagnostics: Object.fromEntries(hydrationAnchorLookupDiagnosticsByOpportunityId),
     },
     opportunities,
   };
