@@ -2,6 +2,7 @@ import {
   buildRevisionOpportunitiesFromEvaluationPayload,
   ensureRevisionOpportunityLedgerArtifact,
   findHydrationChunkForAnchor,
+  reconstructRevisionLedgerWithCurrentCode,
 } from '@/lib/revision/opportunityLedger';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import { candidateTextIsCopyPasteReady } from '@/lib/revision/reviseCardContract';
@@ -54,6 +55,72 @@ describe('findHydrationChunkForAnchor', () => {
 
     expect(result.content).toBeUndefined();
     expect(result.diagnostic.strategy).toBe('no_match');
+  });
+});
+
+describe('reconstructRevisionLedgerWithCurrentCode', () => {
+  it('replays canonical projection, preflight, and hydration lookup without using rendered-only supply', () => {
+    const unifiedDocument = {
+      canonicalOpportunityLedger: {
+        opportunities: [
+          {
+            id: 'OPP-001',
+            primary_criterion: 'pacing',
+            severity: 'high',
+            evidence: 'Mara stopped at the riverbank before answering the question.',
+            location: 'chapter:1',
+            symptom: 'The scene rushes past the decision beat before the reader can feel it.',
+            cause: 'The prose jumps from question to answer without letting consequence register.',
+            fix_direction: 'Replace the rushed transition with one concrete hesitation beat before the answer.',
+            reader_effect: 'The reader tracks the consequence and trusts the scene momentum.',
+            action: 'Replace the rushed transition with one hesitation beat.',
+          },
+          {
+            id: 'OPP-002',
+            primary_criterion: 'dialogue',
+            severity: 'medium',
+            evidence: '“I heard the water change,” Mara said, and Eli looked toward the trees.',
+            location: 'chapter:2',
+            symptom: 'The dialogue lands without enough response texture.',
+            cause: 'The reply names information but underplays the visible reaction.',
+            fix_direction: 'Insert one reaction beat after the line so the exchange carries pressure.',
+            reader_effect: 'The reader feels the social pressure instead of receiving only information.',
+            action: 'Insert one reaction beat after the line.',
+          },
+        ],
+        rendered_opportunities: [
+          {
+            id: 'OPP-001',
+            primary_criterion: 'pacing',
+            severity: 'high',
+            evidence: 'Mara stopped at the riverbank before answering the question.',
+            location: 'chapter:1',
+            fix_direction: 'Replace the rushed transition with one concrete hesitation beat before the answer.',
+          },
+        ],
+      },
+    };
+
+    const result = reconstructRevisionLedgerWithCurrentCode({
+      unifiedDocument,
+      sourceUedHash: canonicalJsonSha256(unifiedDocument),
+      wordCount: 12_000,
+      contextQuality: 'clean',
+      manuscriptChunksByContent: [
+        { content: 'Mara stopped at the riverbank before answering the question.' },
+        { content: '“I heard the water change,” Mara said, and Eli looked toward the trees.' },
+      ],
+    });
+
+    expect(result.sourceMode).toBe('canonical_full');
+    expect(result.canonicalCount).toBe(2);
+    expect(result.renderedCount).toBe(1);
+    expect(result.opportunities).toHaveLength(2);
+    expect(result.hydrationAnchorLookupSummary).toMatchObject({
+      total: 2,
+      matched: 2,
+      no_match: 0,
+    });
   });
 });
 

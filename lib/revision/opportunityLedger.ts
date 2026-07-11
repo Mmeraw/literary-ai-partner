@@ -2038,6 +2038,56 @@ export type CanonicalRevisionProjectionResult = {
   canonicalCount: number;
 };
 
+type HydrationLookupSummary = {
+  total: number;
+  matched: number;
+  no_match: number;
+  wrapper_stripped: number;
+  dash_normalized: number;
+  by_strategy: Record<HydrationAnchorLookupDiagnostic['strategy'], number>;
+};
+
+export type CurrentCodeRevisionReconstructionResult = CanonicalRevisionProjectionResult & {
+  preflightSummary: Record<string, unknown>;
+  preflightDiagnostics: Record<string, PreflightDiagnostic>;
+  readyForRevise: number;
+  hydrationAnchorLookupDiagnostics: Record<string, HydrationAnchorLookupDiagnostic>;
+  hydrationAnchorLookupSummary: HydrationLookupSummary;
+  runtimeHydrationSubsetDiagnostics: Record<string, HydrationAnchorLookupDiagnostic>;
+  runtimeHydrationSubsetSummary: HydrationLookupSummary;
+};
+
+function emptyHydrationLookupSummary(): HydrationLookupSummary {
+  return {
+    total: 0,
+    matched: 0,
+    no_match: 0,
+    wrapper_stripped: 0,
+    dash_normalized: 0,
+    by_strategy: {
+      exact_match: 0,
+      prefix_match: 0,
+      fuzzy_match: 0,
+      no_match: 0,
+    },
+  };
+}
+
+function summarizeHydrationDiagnostics(
+  diagnostics: Record<string, HydrationAnchorLookupDiagnostic>,
+): HydrationLookupSummary {
+  const summary = emptyHydrationLookupSummary();
+  for (const diagnostic of Object.values(diagnostics)) {
+    summary.total++;
+    summary.by_strategy[diagnostic.strategy] = (summary.by_strategy[diagnostic.strategy] ?? 0) + 1;
+    if (diagnostic.strategy === 'no_match') summary.no_match++;
+    else summary.matched++;
+    if (diagnostic.wrapper_stripped) summary.wrapper_stripped++;
+    if (diagnostic.dash_normalized) summary.dash_normalized++;
+  }
+  return summary;
+}
+
 /**
  * Pure, Supabase-free composition of the exact Revise projection sequence:
  *   extractCanonicalRevisionOpportunities -> canonicalUedOpportunityToRevisionOpportunity
@@ -2065,6 +2115,60 @@ export function projectCanonicalRevisionOpportunities(
     sourceMode: extraction.sourceMode,
     renderedCount: extraction.renderedCount,
     canonicalCount: extraction.canonicalCount,
+  };
+}
+
+/**
+ * Read-only proof composition for PR C harnesses.
+ *
+ * This intentionally calls the same current-code projection, preflight, and hydration
+ * lookup helpers used by ensureRevisionOpportunityLedgerArtifact, but does not hydrate
+ * candidate prose, call OpenAI, or persist/upsert the ledger artifact. It exists to let
+ * proof tooling compare old persisted ledgers with the behavior current main would apply
+ * to the same certified UED and manuscript chunks.
+ */
+export function reconstructRevisionLedgerWithCurrentCode(input: {
+  unifiedDocument: unknown;
+  sourceUedHash: string;
+  wordCount: number | null | undefined;
+  contextQuality?: ReviseContextQuality;
+  evaluationMode?: string;
+  manuscriptChunksByContent?: HydrationChunkLike[];
+}): CurrentCodeRevisionReconstructionResult {
+  const projected = projectCanonicalRevisionOpportunities(
+    input.unifiedDocument,
+    input.sourceUedHash,
+    input.wordCount,
+  );
+  const opportunities = applyReviseQueuePreflight(projected.opportunities, {
+    contextQuality: input.contextQuality ?? 'clean',
+    evaluationMode: input.evaluationMode,
+  });
+  const chunks = input.manuscriptChunksByContent ?? [];
+  const hydrationAnchorLookupDiagnostics: Record<string, HydrationAnchorLookupDiagnostic> = {};
+  const runtimeHydrationSubsetDiagnostics: Record<string, HydrationAnchorLookupDiagnostic> = {};
+
+  for (const opportunity of opportunities) {
+    const lookup = findHydrationChunkForAnchor(opportunity.evidence_anchor, chunks).diagnostic;
+    hydrationAnchorLookupDiagnostics[opportunity.opportunity_id] = lookup;
+
+    const needsCandidates = !opportunity.candidate_text_a || !opportunity.candidate_text_b || !opportunity.candidate_text_c;
+    const preflightAllowsHydration = opportunity.preflight_status === 'passed' || opportunity.preflight_status === 'limited_context';
+    if (needsCandidates && preflightAllowsHydration) {
+      runtimeHydrationSubsetDiagnostics[opportunity.opportunity_id] = lookup;
+    }
+  }
+
+  return {
+    ...projected,
+    opportunities,
+    preflightSummary: summarizePreflight(opportunities),
+    preflightDiagnostics: buildPreflightDiagnostics(opportunities),
+    readyForRevise: opportunities.filter((o) => o.preflight_status === 'passed' && o.grounding_status === 'supported').length,
+    hydrationAnchorLookupDiagnostics,
+    hydrationAnchorLookupSummary: summarizeHydrationDiagnostics(hydrationAnchorLookupDiagnostics),
+    runtimeHydrationSubsetDiagnostics,
+    runtimeHydrationSubsetSummary: summarizeHydrationDiagnostics(runtimeHydrationSubsetDiagnostics),
   };
 }
 

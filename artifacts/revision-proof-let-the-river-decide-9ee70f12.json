@@ -1,0 +1,269 @@
+{
+  "provenance": {
+    "proof_schema": "revision_proof_report_v1",
+    "proof_mode": "current_code_reconstruction_with_historical_baseline",
+    "proof_modes_included": [
+      "historical_persisted_artifact",
+      "current_code_reconstruction"
+    ],
+    "generated_at": "2026-07-11T21:09:25.108Z",
+    "evaluation_job_id": "9ee70f12-1e8d-4729-9163-5eb9845b70b1",
+    "evaluation_created_at": "2026-07-10T04:15:32.489903+00:00",
+    "evaluation_code_commit_if_available": null,
+    "proof_harness_commit": "0f524c71d79bd79e85aa0b48ddf98db2998fec3b",
+    "proof_harness_dirty": true,
+    "main_commit_tested": "0f524c71d79bd79e85aa0b48ddf98db2998fec3b",
+    "git_branch": "fix/revise-proof-harness-pr-c",
+    "dirty_paths": [
+      "M __tests__/lib/revision/opportunityLedger.test.ts",
+      " M lib/revision/opportunityLedger.ts",
+      "?? artifacts/revision-proof-let-the-river-decide-9ee70f12.json",
+      "?? scripts/revision-proof-harness.ts"
+    ],
+    "historical_artifact_created_at": "2026-07-10T22:26:17.513+00:00",
+    "historical_artifact_source_authority": "unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities",
+    "reconstruction_input_hash": "bbd41bf0fede192d3f0dbe88bdcfcef9602bb99ddcd5e41f8def5c9b45c99e4f",
+    "historical_persisted_artifact": {
+      "proof_mode": "historical_persisted_artifact",
+      "current_code_reexecution": false,
+      "expected_to_reflect_current_main": false,
+      "note": "This section reports persisted rows/artifact metadata and may reflect old code paths. It is a before/baseline fixture, not proof that current main still behaves this way."
+    },
+    "current_code_reconstruction": {
+      "proof_mode": "current_code_reconstruction",
+      "current_code_reexecution": true,
+      "mutates_production": false,
+      "calls_openai": false,
+      "production_writes_performed": false,
+      "workbench_runtime_executed": false,
+      "revised_manuscript_execution_proven": false,
+      "expected_to_reflect_current_main": true,
+      "uses_real_projection_preflight_hydration_helpers": true,
+      "workbench_runtime_status": "out_of_scope_for_read_only_reconstruction",
+      "workbench_queue_count": "not_executed",
+      "workbench_scope_reason": "Real workbench path may authenticate, bind, or persist rows; C1 stops at queue eligibility.",
+      "note": "This section replays current projection, preflight, and hydration lookup helpers against the certified UED and manuscript chunks without persisting a ledger, hydrating candidate prose, or executing the workbench runtime."
+    },
+    "certification": {
+      "artifact_created_at": "2026-07-10T04:34:21.178629+00:00",
+      "decision": "certified",
+      "unified_document_hash": "749a0b2c0926b4c10700647e2a50cc7484b4ab7cd60c79d0312bebb87c53cdc7",
+      "current_ued_hash": "749a0b2c0926b4c10700647e2a50cc7484b4ab7cd60c79d0312bebb87c53cdc7",
+      "hash_matches": true
+    }
+  },
+  "job": {
+    "id": "9ee70f12-1e8d-4729-9163-5eb9845b70b1",
+    "status": "complete",
+    "manuscript_id": 7519,
+    "manuscript_title": "Let the River Decide",
+    "manuscript_version_id": "4f8f8d25-79d5-4da0-a950-5c9d4b68f266"
+  },
+  "historical_persisted_stage_proof": {
+    "evaluation_completed": true,
+    "canonical_opportunities": 21,
+    "revision_ledger": 10,
+    "preflight": {
+      "passed": 0,
+      "blocked": 8,
+      "limited_context": 2,
+      "summary_from_artifact": {
+        "total": 10,
+        "passed": 0,
+        "blocked": 8,
+        "reasons": {
+          "anchor_mismatch": 5,
+          "hydration_context_not_found": 3,
+          "limited_context_due_to_degraded_canon": 5
+        },
+        "limited_context": 2
+      },
+      "hydration_lookup_summary_from_artifact": {
+        "total": 0,
+        "matched": 0,
+        "no_match": 0,
+        "wrapper_stripped": 0,
+        "dash_normalized": 0,
+        "by_strategy": {
+          "exact_match": 0,
+          "prefix_match": 0,
+          "fuzzy_match": 0,
+          "no_match": 0
+        }
+      }
+    },
+    "revise_queue": 0,
+    "workbench_runtime": {
+      "workbench_runtime_status": "out_of_scope_for_read_only_reconstruction",
+      "workbench_queue_count": "not_executed",
+      "reason": "Historical persisted proof does not execute the workbench runtime; C1 reports only persisted baseline and current queue eligibility."
+    },
+    "revision_execution": {
+      "latest_decisions_total": 0,
+      "executable_decisions": 0
+    },
+    "revised_manuscript": {
+      "persisted": false,
+      "revised_version_id": null
+    },
+    "revision_history": {
+      "persisted": false,
+      "total_decisions": 0,
+      "latest_by_opportunity": 0
+    },
+    "trusted_path": {
+      "trusted_path_status": "undetermined",
+      "status_reason": "C1 reconstruction does not verify a complete TrustedPath execution-mode/certification/provenance chain and does not infer failure from absence of a standalone artifact.",
+      "standalone_artifact_present": false,
+      "standalone_artifact_is_required_contract": false,
+      "auto_applied_decisions": 0,
+      "mode_contract": {
+        "evaluation_mode": "STANDARD",
+        "voice_preservation": "BALANCED",
+        "source": "evaluation_jobs",
+        "policy_family": "standard",
+        "voice_preservation_level": "balanced"
+      },
+      "eligibility_label": "Eligible for Trustpath",
+      "genre_expectation_context_present": true
+    }
+  },
+  "historical_persisted_attrition_report": {
+    "generated_canonical": 21,
+    "projected_to_ledger": 10,
+    "dropped_before_ledger": 11,
+    "preflight_passed": 0,
+    "preflight_blocked": 8,
+    "preflight_limited_context": 2,
+    "queue_ready_for_revise": 0,
+    "executed_latest_decisions": 0,
+    "executed_actionable_decisions": 0,
+    "persisted_apply_runs": 0,
+    "persisted_revised_manuscript": false,
+    "blockers_by_reason": {
+      "limited_context_due_to_degraded_canon": 3,
+      "hydration_context_not_found": 3,
+      "anchor_mismatch": 5
+    },
+    "all_preflight_reasons": {
+      "limited_context_due_to_degraded_canon": 5,
+      "hydration_context_not_found": 3,
+      "anchor_mismatch": 5
+    }
+  },
+  "current_code_reconstruction": {
+    "source_mode": "canonical_full",
+    "canonical_opportunities": 21,
+    "rendered_opportunities_observability_only": 10,
+    "revision_ledger": 21,
+    "preflight": {
+      "total": 21,
+      "passed": 0,
+      "limited_context": 15,
+      "blocked": 6,
+      "reasons": {
+        "insufficient_anchor_grounding": 6,
+        "limited_context_due_to_degraded_canon": 15
+      }
+    },
+    "revise_queue": 0,
+    "queue_eligibility_result": {
+      "ready_for_revise": 0,
+      "definition": "preflight_status === passed && grounding_status === supported"
+    },
+    "workbench_runtime": {
+      "workbench_runtime_status": "out_of_scope_for_read_only_reconstruction",
+      "workbench_queue_count": "not_executed",
+      "reason": "Real workbench path may authenticate, bind, or persist rows; C1 intentionally stops at queue eligibility."
+    },
+    "hydration_lookup_all_projected": {
+      "total": 21,
+      "matched": 21,
+      "no_match": 0,
+      "wrapper_stripped": 11,
+      "dash_normalized": 7,
+      "by_strategy": {
+        "exact_match": 17,
+        "prefix_match": 0,
+        "fuzzy_match": 4,
+        "no_match": 0
+      }
+    },
+    "hydration_lookup_runtime_candidate_subset": {
+      "total": 15,
+      "matched": 15,
+      "no_match": 0,
+      "wrapper_stripped": 7,
+      "dash_normalized": 4,
+      "by_strategy": {
+        "exact_match": 11,
+        "prefix_match": 0,
+        "fuzzy_match": 4,
+        "no_match": 0
+      }
+    },
+    "attrition_report": {
+      "generated_canonical": 21,
+      "projected_to_ledger": 21,
+      "dropped_before_ledger": 0,
+      "preflight_passed": 0,
+      "preflight_blocked": 6,
+      "preflight_limited_context": 15,
+      "queue_ready_for_revise": 0,
+      "workbench_runtime_status": "out_of_scope_for_read_only_reconstruction",
+      "workbench_queue_count": "not_executed",
+      "hydration_lookup_no_match_all_projected": 0,
+      "hydration_lookup_no_match_runtime_candidate_subset": 0,
+      "revision_execution": "not_proven_by_reconstruction_mode",
+      "revised_manuscript_persistence": "not_proven_by_reconstruction_mode"
+    },
+    "limitations": [
+      "Does not regenerate a fresh evaluation.",
+      "Does not call OpenAI candidate hydration.",
+      "Does not create revision decisions.",
+      "Does not apply decisions or persist a revised manuscript."
+    ]
+  },
+  "comparison": {
+    "historical_persisted_ledger": 10,
+    "current_code_reconstructed_ledger": 21,
+    "historical_dropped_before_ledger": 11,
+    "current_code_dropped_before_ledger": 0,
+    "historical_anchor_mismatch": 5,
+    "current_code_insufficient_anchor_grounding": 6,
+    "historical_hydration_context_not_found": 3,
+    "current_code_hydration_lookup_no_match_all_projected": 0,
+    "current_code_hydration_lookup_no_match_runtime_candidate_subset": 0,
+    "historical_queue_ready": 0,
+    "current_code_queue_ready": 0,
+    "current_code_workbench_runtime_status": "out_of_scope_for_read_only_reconstruction",
+    "current_code_workbench_queue_count": "not_executed",
+    "delta_by_stage": {
+      "canonical_opportunities": {
+        "historical": 21,
+        "current_code": 21,
+        "delta": 0
+      },
+      "revision_ledger": {
+        "historical": 10,
+        "current_code": 21,
+        "delta": 11
+      },
+      "anchor_grounding_failure_reason": {
+        "historical_anchor_mismatch": 5,
+        "current_code_insufficient_anchor_grounding": 6
+      },
+      "hydration_lookup_failures": {
+        "historical_hydration_context_not_found": 3,
+        "current_code_no_match_all_projected": 0,
+        "current_code_no_match_runtime_candidate_subset": 0
+      },
+      "workbench": {
+        "historical_runtime_status": "out_of_scope_for_read_only_reconstruction",
+        "current_code_runtime_status": "out_of_scope_for_read_only_reconstruction",
+        "workbench_queue_count": "not_executed",
+        "reason": "C1 intentionally does not execute workbench runtime paths because they may authenticate, bind, or persist rows."
+      }
+    }
+  }
+}
