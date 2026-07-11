@@ -84,7 +84,9 @@
     "pipeline:stress:tier2": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/pipeline-stress-tier2.ts",
     "ci-guard": "npx tsx scripts/ci-guard/index.ts",
     "copilot:continue-ci": "bash scripts/copilot-continue-ci.sh",
-    "corpus:verify": "node scripts/verify-public-domain-corpus.mjs"
+    "corpus:verify": "node scripts/verify-public-domain-corpus.mjs",
+    "c2:proof:test": "node scripts/revision/c2LiveProofContract.test.mjs",
+    "c2:proof:dry-run": "node scripts/revision/c2LiveProofHarness.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
