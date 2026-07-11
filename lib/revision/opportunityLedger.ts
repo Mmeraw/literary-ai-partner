@@ -1551,10 +1551,28 @@ const LONG_FORM_WORD_THRESHOLD = REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD;
 
 const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
 
+type CanonicalRevisionSourceMode = 'canonical_full' | 'legacy_rendered_degraded';
+
 type CertifiedUedOpportunityProjection = {
   opportunities: RevisionOpportunity[];
   sourceUedHash: string;
+  /**
+   * Count of items in the report-display `rendered_opportunities` array (curated,
+   * capped at 7/10 by capRenderedOpportunities). Retained for observability/telemetry
+   * ONLY. This is NOT the Revise supply — Revise consumes the full canonical
+   * `opportunities` array (see extractCanonicalRevisionOpportunities).
+   */
   renderedOpportunityCount: number;
+  /** Count of items in the authoritative canonical `opportunities` array. */
+  canonicalOpportunityCount: number;
+  /**
+   * Which array actually supplied the Revise opportunities:
+   *  - 'canonical_full': normal path, sourced from canonicalOpportunityLedger.opportunities
+   *  - 'legacy_rendered_degraded': fallback for legacy artifacts that lack a full
+   *    `opportunities` array; sourced from rendered_opportunities and explicitly
+   *    flagged as degraded so downstream never assumes the full ledger was available.
+   */
+  sourceMode: CanonicalRevisionSourceMode;
 };
 
 function severityFromCanonicalOpportunity(raw: unknown): LedgerSeverity {
@@ -1569,7 +1587,11 @@ function confidenceFromCanonicalOpportunity(raw: unknown): LedgerConfidence {
   return 'medium';
 }
 
-function canonicalUedOpportunityToRevisionOpportunity(item: Record<string, unknown>, sourceUedHash: string): RevisionOpportunity | null {
+function canonicalUedOpportunityToRevisionOpportunity(
+  item: Record<string, unknown>,
+  sourceUedHash: string,
+  provenance: string,
+): RevisionOpportunity | null {
   const opportunityId = firstNonEmptyString(item.id, item.opportunity_id);
   const sourceCriterion = firstNonEmptyString(item.primary_criterion, item.criterion);
   const criterion = normalizeCriterion(sourceCriterion);
@@ -1589,7 +1611,7 @@ function canonicalUedOpportunityToRevisionOpportunity(item: Record<string, unkno
     rationale,
     evidence_anchor: evidenceAnchor,
     manuscript_coordinates: manuscriptCoordinates,
-    provenance: 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities',
+    provenance,
     confidence: confidenceFromCanonicalOpportunity(item.severity),
     decision_state: 'open',
     candidate_text_a: normalizeOptionalText(item.candidate_text_a),
@@ -1601,16 +1623,79 @@ function canonicalUedOpportunityToRevisionOpportunity(item: Record<string, unkno
   });
 }
 
-function extractRenderedCanonicalOpportunities(unifiedDocument: unknown): Record<string, unknown>[] {
-  if (!isRecord(unifiedDocument)) return [];
+type CanonicalRevisionExtraction = {
+  /** Authoritative opportunities to feed into the Revise projection. */
+  items: Record<string, unknown>[];
+  /** Which array supplied `items` — normal canonical vs. degraded legacy fallback. */
+  sourceMode: CanonicalRevisionSourceMode;
+  /** Size of the report-display rendered_opportunities array (telemetry only). */
+  renderedCount: number;
+  /** Size of the full canonical opportunities array (telemetry only). */
+  canonicalCount: number;
+};
+
+/**
+ * Extract the opportunities that Revise should consume from a certified UED.
+ *
+ * AUTHORITY CONTRACT:
+ *   Revise is an execution surface and must receive the FULL canonical opportunity
+ *   supply (`canonicalOpportunityLedger.opportunities`), independently capped later
+ *   by the 50/100 Revise-queue policy (capRevisionOpportunities).
+ *
+ *   It must NOT read `rendered_opportunities` on the normal path — that array is the
+ *   report/PDF's curated 7/10 display selection produced by capRenderedOpportunities,
+ *   a different consumer with a different purpose. Reading it here previously truncated
+ *   the Revise supply to 10 before the 50/100 policy could ever apply.
+ *
+ * LEGACY FALLBACK:
+ *   Some older certified artifacts predate the full `opportunities` array and only
+ *   carry `rendered_opportunities`. For those we fall back to the rendered array but
+ *   flag the extraction as 'legacy_rendered_degraded' so downstream telemetry/provenance
+ *   never pretends the full ledger was available. The normal path is never silently
+ *   downgraded to the report array.
+ */
+export function extractCanonicalRevisionOpportunities(unifiedDocument: unknown): CanonicalRevisionExtraction {
+  const empty: CanonicalRevisionExtraction = {
+    items: [],
+    sourceMode: 'canonical_full',
+    renderedCount: 0,
+    canonicalCount: 0,
+  };
+  if (!isRecord(unifiedDocument)) return empty;
   const ledger = isRecord(unifiedDocument.canonicalOpportunityLedger)
     ? unifiedDocument.canonicalOpportunityLedger
     : null;
+
+  const canonicalPresent = Array.isArray(ledger?.opportunities);
+  const canonical = Array.isArray(ledger?.opportunities)
+    ? ledger.opportunities.filter((item): item is Record<string, unknown> => isRecord(item))
+    : [];
   const rendered = Array.isArray(ledger?.rendered_opportunities)
-    ? ledger.rendered_opportunities
+    ? ledger.rendered_opportunities.filter((item): item is Record<string, unknown> => isRecord(item))
     : [];
 
-  return rendered.filter((item): item is Record<string, unknown> => isRecord(item));
+  // Normal path: the full canonical opportunities array is present and authoritative.
+  if (canonicalPresent) {
+    return {
+      items: canonical,
+      sourceMode: 'canonical_full',
+      renderedCount: rendered.length,
+      canonicalCount: canonical.length,
+    };
+  }
+
+  // Degraded legacy fallback: no full canonical array on this artifact. Use the
+  // rendered array but mark it explicitly so nothing downstream assumes full supply.
+  if (rendered.length > 0) {
+    return {
+      items: rendered,
+      sourceMode: 'legacy_rendered_degraded',
+      renderedCount: rendered.length,
+      canonicalCount: 0,
+    };
+  }
+
+  return empty;
 }
 
 async function loadCertifiedUedOpportunityProjection(
@@ -1661,19 +1746,61 @@ async function loadCertifiedUedOpportunityProjection(
     throw new Error(`Certified UED hash mismatch for revision opportunity ledger: expected=${certification.unified_document_hash} actual=${sourceUedHash}`);
   }
 
-  const rendered = extractRenderedCanonicalOpportunities(unifiedDocument);
-  const opportunities = rendered
-    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash))
+  const extraction = extractCanonicalRevisionOpportunities(unifiedDocument);
+  const provenance = extraction.sourceMode === 'canonical_full'
+    ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
+    : 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities';
+  const opportunities = extraction.items
+    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash, provenance))
     .filter((item): item is RevisionOpportunity => item !== null);
 
-  if (rendered.length > 0 && opportunities.length === 0) {
+  if (extraction.items.length > 0 && opportunities.length === 0) {
     throw new Error('Certified UED canonical opportunity ledger contains no revision-usable opportunities.');
   }
 
   return {
     opportunities,
     sourceUedHash,
-    renderedOpportunityCount: rendered.length,
+    renderedOpportunityCount: extraction.renderedCount,
+    canonicalOpportunityCount: extraction.canonicalCount,
+    sourceMode: extraction.sourceMode,
+  };
+}
+
+export type CanonicalRevisionProjectionResult = {
+  opportunities: RevisionOpportunity[];
+  sourceMode: CanonicalRevisionSourceMode;
+  renderedCount: number;
+  canonicalCount: number;
+};
+
+/**
+ * Pure, Supabase-free composition of the exact Revise projection sequence:
+ *   extractCanonicalRevisionOpportunities -> canonicalUedOpportunityToRevisionOpportunity
+ *   -> filter unusable -> capRevisionOpportunities(50/100 policy).
+ *
+ * This mirrors loadCertifiedUedOpportunityProjection + the capRevisionOpportunities
+ * call in ensureRevisionOpportunityLedgerArtifact, exposed for deterministic unit
+ * tests of the authority contract (report display vs. full Revise supply).
+ */
+export function projectCanonicalRevisionOpportunities(
+  unifiedDocument: unknown,
+  sourceUedHash: string,
+  wordCount: number | null | undefined,
+): CanonicalRevisionProjectionResult {
+  const extraction = extractCanonicalRevisionOpportunities(unifiedDocument);
+  const provenance = extraction.sourceMode === 'canonical_full'
+    ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
+    : 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities';
+  const mapped = extraction.items
+    .map((item) => canonicalUedOpportunityToRevisionOpportunity(item, sourceUedHash, provenance))
+    .filter((item): item is RevisionOpportunity => item !== null);
+  const capped = capRevisionOpportunities(mapped, wordCount);
+  return {
+    opportunities: capped,
+    sourceMode: extraction.sourceMode,
+    renderedCount: extraction.renderedCount,
+    canonicalCount: extraction.canonicalCount,
   };
 }
 
@@ -2175,7 +2302,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   const uedProjection = await loadCertifiedUedOpportunityProjection(supabase, jobId);
   if (!uedProjection?.opportunities.length && !options?.allowLegacyEvaluationProjection) {
     throw new Error(
-      'Certified UED canonicalOpportunityLedger.rendered_opportunities is required for revision_opportunity_ledger_v1. Legacy evaluation_result recommendation projection is disabled for author-facing Revise packages.',
+      'Certified UED canonicalOpportunityLedger.opportunities is required for revision_opportunity_ledger_v1. Legacy evaluation_result recommendation projection is disabled for author-facing Revise packages.',
     );
   }
 
@@ -2185,7 +2312,9 @@ export async function ensureRevisionOpportunityLedgerArtifact(
         evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
       );
   const opportunitySourceAuthority = uedProjection?.opportunities.length
-    ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities'
+    ? uedProjection.sourceMode === 'legacy_rendered_degraded'
+      ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities_legacy_degraded'
+      : 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
     : 'legacy_evaluation_result_projection_explicit_backfill_only';
 
   const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
@@ -2615,6 +2744,8 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     opportunity_source_authority: opportunitySourceAuthority,
     source_ued_hash: uedProjection?.sourceUedHash ?? null,
     ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
+    ued_canonical_opportunity_count: uedProjection?.canonicalOpportunityCount ?? null,
+    revise_source_mode: uedProjection?.sourceMode ?? null,
     opportunities,
   });
 
@@ -2633,6 +2764,8 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     opportunity_source_authority: opportunitySourceAuthority,
     source_ued_hash: uedProjection?.sourceUedHash ?? null,
     ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
+    ued_canonical_opportunity_count: uedProjection?.canonicalOpportunityCount ?? null,
+    revise_source_mode: uedProjection?.sourceMode ?? null,
     mode_contract: modeContractForMetadata(modeContract),
     genre_expectation_context: genreExpectationContext,
     resolved_english_variant: resolvedEnglishVariantLabel(selectedEnglishVariant),

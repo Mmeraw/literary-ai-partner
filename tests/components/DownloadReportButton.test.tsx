@@ -52,7 +52,7 @@ describe('DownloadReportButton', () => {
     const menu = screen.getByTestId('download-report-menu');
     expect(menu.className).toContain('bottom-full');
     expect(menu.className).not.toContain('top-full');
-    expect(screen.getByRole('button', { name: /Download Report/i })).toHaveTextContent('▴');
+    expect(screen.getByRole('button', { name: /Download Report/i }).textContent).toContain('▴');
   });
 
   it('routes PDF option to canonical download endpoint', async () => {

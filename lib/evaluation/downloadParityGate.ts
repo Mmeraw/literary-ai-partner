@@ -127,5 +127,5 @@ export function validateDownloadParity(result: ReportLike): DownloadParityResult
     }
   }
 
-  return { pass: true, violations };
+  return { pass: violations.length === 0, violations };
 }
