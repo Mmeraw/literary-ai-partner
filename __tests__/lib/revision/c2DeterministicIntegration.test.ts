@@ -5,7 +5,7 @@ import {
 import { runWorkbenchAdmissionGate } from '../../../lib/revision/reviseAdmissionGate';
 
 const manuscriptChunk =
-  'The hallway was empty. He waited by the door, one hand resting on the frame, while the silence lengthened. She did not answer.';
+  'The hallway was empty. He waited by the door — one hand resting on the frame, while the silence lengthened. She did not answer.';
 
 const diagnosticFields = {
   symptom:
@@ -28,22 +28,22 @@ const admittedOptions = [
   },
 ];
 
+const repairReasons = ['Fritz', 'Schultz', 'Martin', 'Robin'].map((name) => ({
+  key: 'ending_accountability',
+  layer: 'threat_antagonist_ending_layer',
+  message: `Ending accountability for ${name} requires author confirmation.`,
+  evidence_reference:
+    'pass1a_character_ledger_v1.coverage_summary.ending_accountability_warnings',
+}));
+
 describe('C2 deterministic integration layer', () => {
   it('keeps repair_required advisory and carries it into a limited-context hydration path', () => {
     const context = resolveReviseContextQuality({
       quality_report: {
         gate_ready_status: 'repair_required',
         blocking_reasons: [],
-        root_cause_warning_count: 4,
-        repair_reasons: [
-          {
-            key: 'ending_accountability',
-            layer: 'threat_antagonist_ending_layer',
-            message: 'Ending accountability requires author confirmation.',
-            evidence_reference:
-              'pass1a_character_ledger_v1.coverage_summary.ending_accountability_warnings',
-          },
-        ],
+        root_cause_warning_count: repairReasons.length,
+        repair_reasons: repairReasons,
       },
     });
 
