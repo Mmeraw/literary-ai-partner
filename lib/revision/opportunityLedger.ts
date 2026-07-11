@@ -75,6 +75,28 @@ type RevisionOpportunity = {
   fix_direction?: string;
   reader_effect?: string;
   mistake_proofing?: string;
+  /**
+   * Structured, human-readable diagnostics explaining every preflight decision
+   * (why an opportunity was blocked or admitted). Populated by the anchor-coherence
+   * evaluation so future debugging does not require reverse-engineering the gate.
+   */
+  preflight_diagnostic?: AnchorCoherenceDiagnostic;
+};
+
+/**
+ * Diagnostic record explaining the anchor-coherence decision for one opportunity.
+ * Stored so a blocked opportunity carries its own "why" rather than a bare reason code.
+ */
+type AnchorCoherenceDiagnostic = {
+  check: 'anchor_coherence';
+  lexical_overlap: number;
+  criterion: string;
+  concrete_action: boolean;
+  valid_anchor: boolean;
+  structural_target: boolean;
+  coherent_fix_or_effect: boolean;
+  decision: 'admitted' | 'rejected_incoherent';
+  reason: string;
 };
 
 type WorkbenchLikeOpportunity = {
@@ -650,11 +672,93 @@ function hasConcreteAction(opportunity: RevisionOpportunity): boolean {
   );
 }
 
-function anchorRationaleIsCoherent(opportunity: RevisionOpportunity): boolean {
+/** Minimum chars for an evidence anchor to count as a real, targetable manuscript quote. */
+const MIN_VALID_ANCHOR_CHARS = 12;
+
+/**
+ * Is the evidence anchor a real, substantive manuscript quote (not empty/placeholder)?
+ * A valid anchor is the primary evidence that a recommendation is genuinely grounded.
+ */
+function hasValidManuscriptAnchor(opportunity: RevisionOpportunity): boolean {
+  const clean = stripEvidenceWrapper(opportunity.evidence_anchor ?? '');
+  if (clean.length < MIN_VALID_ANCHOR_CHARS) return false;
+  // Must contain real word content, not just punctuation/whitespace/coordinates.
+  return /[A-Za-z]{3,}/.test(clean);
+}
+
+/**
+ * Does the rationale carry a coherent fix direction OR reader effect?
+ * Substantive editorial reasoning about the fix/impact is evidence of a real anchor
+ * relationship even when the commentary shares no vocabulary with the quoted prose.
+ */
+function hasCoherentFixOrReaderEffect(opportunity: RevisionOpportunity): boolean {
+  const MIN_LEN = 20;
+  const fix = (opportunity.fix_direction ?? '').trim();
+  const effect = (opportunity.reader_effect ?? '').trim();
+  return fix.length >= MIN_LEN || effect.length >= MIN_LEN;
+}
+
+/**
+ * Build the structured anchor-coherence diagnostic for one opportunity. This records
+ * every input the decision considered (lexical overlap, criterion, concrete action,
+ * valid anchor, structural target, coherent fix/effect) plus the final decision, so a
+ * blocked opportunity carries a self-describing "why" instead of a bare reason code.
+ */
+export function buildAnchorCoherenceDiagnostic(opportunity: RevisionOpportunity): AnchorCoherenceDiagnostic {
   const anchorTokens = normalizedTokenSet(opportunity.evidence_anchor);
-  const rationaleTokens = normalizedTokenSet(`${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`);
-  if (anchorTokens.size === 0 || rationaleTokens.size === 0) return true;
-  return jaccardSimilarity(anchorTokens, rationaleTokens) >= 0.05;
+  const rationaleTokens = normalizedTokenSet(
+    `${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`,
+  );
+  const lexicalOverlap =
+    anchorTokens.size === 0 || rationaleTokens.size === 0
+      ? 0
+      : Number(jaccardSimilarity(anchorTokens, rationaleTokens).toFixed(4));
+  const validAnchor = hasValidManuscriptAnchor(opportunity);
+  const concreteAction = hasConcreteAction(opportunity);
+  const structuralTarget = recommendationCanTargetStructuralIssue(opportunity);
+  const coherentFixOrEffect = hasCoherentFixOrReaderEffect(opportunity);
+  const hasCriterion = typeof opportunity.criterion === 'string' && opportunity.criterion.trim().length > 0;
+
+  // Evidence-based coherence: a recommendation is genuinely anchored when there is
+  // enough independent evidence tying it to the passage — a real anchor plus a
+  // concrete editorial action, a recognized criterion, and coherent fix/reader-effect
+  // (or a structural target). Lexical overlap between verbatim prose and abstract
+  // editorial commentary is NOT required and is not evidence of incoherence: valid
+  // Marketability/Concept/Theme/Voice/Dialogue notes naturally share no tokens with
+  // the quoted text. The gate still fires when the anchoring evidence is genuinely absent.
+  const anchoredByEvidence =
+    validAnchor && concreteAction && hasCriterion && (coherentFixOrEffect || structuralTarget);
+  // A meaningful lexical overlap independently confirms coherence.
+  const anchoredByOverlap = lexicalOverlap >= 0.05;
+  const coherent = anchoredByEvidence || anchoredByOverlap;
+
+  const reason = coherent
+    ? anchoredByOverlap && !anchoredByEvidence
+      ? 'Admitted by lexical overlap between anchor and rationale.'
+      : 'Admitted: valid anchor + concrete action + recognized criterion + coherent fix/reader-effect (token overlap not required).'
+    : `Rejected: insufficient anchoring evidence (valid_anchor=${validAnchor}, concrete_action=${concreteAction}, criterion=${hasCriterion}, coherent_fix_or_effect=${coherentFixOrEffect}, structural_target=${structuralTarget}, lexical_overlap=${lexicalOverlap}).`;
+
+  return {
+    check: 'anchor_coherence',
+    lexical_overlap: lexicalOverlap,
+    criterion: hasCriterion ? opportunity.criterion : '',
+    concrete_action: concreteAction,
+    valid_anchor: validAnchor,
+    structural_target: structuralTarget,
+    coherent_fix_or_effect: coherentFixOrEffect,
+    decision: coherent ? 'admitted' : 'rejected_incoherent',
+    reason,
+  };
+}
+
+/**
+ * Evidence-based anchor coherence. Replaces the prior lexical-overlap heuristic, which
+ * equated "rationale reuses anchor words" with "editorial coherence" and wrongly blocked
+ * valid abstract recommendations. The safety gate is preserved for genuinely incoherent
+ * anchor/rationale pairs — see buildAnchorCoherenceDiagnostic for the full decision inputs.
+ */
+export function anchorRationaleIsCoherent(opportunity: RevisionOpportunity): boolean {
+  return buildAnchorCoherenceDiagnostic(opportunity).decision === 'admitted';
 }
 
 function recommendationCanTargetStructuralIssue(opportunity: RevisionOpportunity): boolean {
@@ -885,7 +989,11 @@ function preflightReasonsForOpportunity(
   if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
   if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
   if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
-  if (!anchorRationaleIsCoherent(opportunity) && !recommendationCanTargetStructuralIssue(opportunity)) reasons.push('anchor_mismatch');
+  // Evidence-based anchor coherence. The diagnostic captures every decision input and
+  // is attached to the opportunity so the block/admit reason is self-describing.
+  const coherenceDiagnostic = buildAnchorCoherenceDiagnostic(opportunity);
+  opportunity.preflight_diagnostic = coherenceDiagnostic;
+  if (coherenceDiagnostic.decision === 'rejected_incoherent') reasons.push('anchor_mismatch');
   if (opportunity.hydration_eligible === false) {
     reasons.push(...(opportunity.hydration_ineligibility_reasons ?? []));
   }
