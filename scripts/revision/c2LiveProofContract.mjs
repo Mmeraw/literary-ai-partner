@@ -131,6 +131,10 @@ export function createEvidenceSkeleton(meta = {}) {
     costs: { model_calls: null, prompt_tokens: null, completion_tokens: null, usd_estimate: null },
     timing_ms: { total: null, evaluation: null, hydration: null, candidate_generation: null },
     artifact_hashes: {},
+    // Dry-run readiness probe results (read-only). Always DISTINCT from the live
+    // C2 boundaries below: a readiness PASS is never live proof. Null until a
+    // dry-run populates it.
+    readiness: null,
     boundaries,
     overall: { status: STATUS.NOT_EXECUTED, reason: 'No live boundaries executed.' },
   };
