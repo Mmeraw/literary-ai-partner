@@ -18,19 +18,31 @@
  *    genuinely exercises them.
  *
  * SAFETY / OPT-IN:
- *  - Default mode is DRY-RUN (readiness validation only): it checks credentials,
- *    endpoints, and the target manuscript WITHOUT creating a paid job.
+ *  - Default mode is DRY-RUN (readiness validation only). Dry-run performs REAL,
+ *    strictly READ-ONLY probes (see c2ReadinessProbes.mjs): it resolves the base
+ *    URL and does a bounded /api/health check, confirms the target manuscript is
+ *    READABLE via a SELECT-only existence read, imports/resolves the server
+ *    authority getWorkbenchQueue, and verifies required secrets +
+ *    USE_SUPABASE_JOBS=true. It performs NO OpenAI call, NO job creation, NO
+ *    queue mutation, and NO Supabase write. Dry-run exits 0 ONLY when every
+ *    readiness probe passes; otherwise it exits non-zero.
  *  - A live paid run requires ALL of:
  *       --live  --env=<name>  --manuscript-id=<numeric id>
  *    and the environment must actually carry the required secrets. Missing any
  *    of these aborts before spending money.
  *
+ * RUNTIME: The readiness manuscript-read and authority-import probes, and the
+ *   live workbench-queue read, touch TypeScript modules. Run the harness under a
+ *   TS-capable runtime (e.g. `npx tsx`) so those authorities resolve. Under plain
+ *   `node` the TS-dependent probes/boundaries honestly report FAIL with the
+ *   exact resolution error rather than a false PASS.
+ *
  * USAGE (from a credentialed Codespace / production-safe operator env):
- *   # dry-run readiness (safe, free, no job created):
- *   node scripts/revision/c2LiveProofHarness.mjs --manuscript-id=7519 --env=codespace
+ *   # dry-run readiness (safe, free, no job created; real read-only probes):
+ *   npx tsx scripts/revision/c2LiveProofHarness.mjs --manuscript-id=7519 --env=codespace
  *
  *   # LIVE paid run (creates a real evaluation job — costs money):
- *   node scripts/revision/c2LiveProofHarness.mjs --live --env=codespace --manuscript-id=7519
+ *   npx tsx scripts/revision/c2LiveProofHarness.mjs --live --env=codespace --manuscript-id=7519
  *
  * Optional operator-action stages (only when explicitly exercised):
  *   --exercise-candidate-gen   attempt candidate generation for one admitted opp
@@ -38,9 +50,12 @@
  * These require --live and a target opportunity; otherwise they stay NOT_EXECUTED.
  *
  * OUTPUT: writes the evidence artifact JSON to the path in --out (default
- * ./c2-live-proof-artifact.json) and prints a human summary. Exit code is 0 only
- * when the computed overall status is PASS (live) — dry-run always exits non-zero
- * to make clear that no live proof was produced.
+ * ./c2-live-proof-artifact.json) and prints a human summary. The artifact
+ * includes a `readiness` section (dry-run probe results) that is always distinct
+ * from the live C2 `boundaries` — readiness PASS is NEVER live proof. Exit code:
+ *   - live mode: 0 only when overall C2 status is PASS.
+ *   - dry-run:   0 only when every readiness probe PASSes; otherwise non-zero.
+ * Dry-run can never emit a live C2 PASS (boundaries stay NOT_EXECUTED).
  */
 
 import { writeFileSync } from 'node:fs';
@@ -55,6 +70,7 @@ import {
   renderSummary,
   STATUS,
 } from './c2LiveProofContract.mjs';
+import { runReadiness, renderReadiness, probeSecrets } from './c2ReadinessProbes.mjs';
 
 // ---- arg parsing ---------------------------------------------------------
 function parseArgs(argv) {
@@ -80,19 +96,12 @@ function sha256(obj) {
   return createHash('sha256').update(typeof obj === 'string' ? obj : JSON.stringify(obj)).digest('hex');
 }
 
-// ---- readiness (dry-run) -------------------------------------------------
-const REQUIRED_LIVE_SECRETS = [
-  'CRON_SECRET',
-  'SUPABASE_SERVICE_ROLE_KEY',
-  'OPENAI_API_KEY',
-];
-
+// ---- readiness (live opt-in gate) ----------------------------------------
+// Reuses the shared secrets probe so the live gate and the dry-run readiness
+// section can never drift on which secrets are required.
 function checkReadiness(env) {
-  const missing = REQUIRED_LIVE_SECRETS.filter((k) => !env[k] || String(env[k]).trim() === '');
-  const hasSupabaseUrl = Boolean(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL);
-  if (!hasSupabaseUrl) missing.push('SUPABASE_URL|NEXT_PUBLIC_SUPABASE_URL');
-  const useSupabaseJobs = env.USE_SUPABASE_JOBS === 'true';
-  return { missing, useSupabaseJobs, ready: missing.length === 0 && useSupabaseJobs };
+  const r = probeSecrets(env);
+  return { missing: r.data.missing, useSupabaseJobs: r.data.useSupabaseJobs, ready: r.status === STATUS.PASS };
 }
 
 // ---- live boundary capture ----------------------------------------------
@@ -290,24 +299,40 @@ export async function main(argv = process.argv, env = process.env, log = console
     }
     log(`[live] LIVE paid run authorized. env=${args.env} manuscript=${args.manuscriptId}. This WILL create a real evaluation job and incur cost.`);
     await runLive(args, env, evidence, log);
-  } else {
-    // Dry-run readiness only. No job, no cost. Never emits live PASS.
-    log('[dry-run] readiness validation only — no evaluation job will be created.');
-    log(`[dry-run] required secrets present: ${readiness.missing.length === 0 ? 'yes' : 'NO (missing: ' + readiness.missing.join(', ') + ')'}`);
-    log(`[dry-run] USE_SUPABASE_JOBS=${readiness.useSupabaseJobs}`);
-    log('[dry-run] all live boundaries remain NOT_EXECUTED by design.');
+    computeOverall(evidence);
+    evidence.timing_ms.total = evidence.timing_ms.total ?? null;
+    evidence.artifact_hashes.evidence = sha256(evidence.boundaries);
+    writeFileSync(args.out, JSON.stringify(evidence, null, 2));
+    log('\n' + renderSummary(evidence));
+    log(`\nArtifact written: ${args.out}`);
+    // Exit 0 ONLY on a genuine live PASS.
+    return { evidence, exitCode: evidence.overall.status === STATUS.PASS ? 0 : 2 };
   }
 
-  computeOverall(evidence);
+  // ---- DRY-RUN: real, read-only readiness probes -------------------------
+  // No job, no cost, no OpenAI, no write. Live C2 boundaries stay NOT_EXECUTED
+  // by design — readiness PASS is NEVER live proof.
+  log('[dry-run] readiness validation only — no evaluation job will be created.');
+  const { getBaseUrl } = await import('../base-url.mjs');
+  const readinessResult = await runReadiness({
+    manuscriptId: args.manuscriptId,
+    getBaseUrl,
+    env,
+  });
+  evidence.readiness = readinessResult;
+
+  computeOverall(evidence); // boundaries all NOT_EXECUTED -> overall NOT_EXECUTED
   evidence.timing_ms.total = evidence.timing_ms.total ?? null;
   evidence.artifact_hashes.evidence = sha256(evidence.boundaries);
+  evidence.artifact_hashes.readiness = sha256(readinessResult.probes);
   writeFileSync(args.out, JSON.stringify(evidence, null, 2));
+  log('\n' + renderReadiness(readinessResult));
   log('\n' + renderSummary(evidence));
   log(`\nArtifact written: ${args.out}`);
 
-  // Exit 0 ONLY on a genuine live PASS. Dry-run and any non-PASS exit non-zero.
-  const exitCode = evidence.overall.status === STATUS.PASS ? 0 : 2;
-  return { evidence, exitCode };
+  // Dry-run exits 0 ONLY when every readiness probe passed. Any FAIL or
+  // NOT_EXECUTED probe -> non-zero, so a green dry-run genuinely means ready.
+  return { evidence, exitCode: readinessResult.ready ? 0 : 2 };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

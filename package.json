@@ -86,7 +86,8 @@
     "copilot:continue-ci": "bash scripts/copilot-continue-ci.sh",
     "corpus:verify": "node scripts/verify-public-domain-corpus.mjs",
     "c2:proof:test": "node scripts/revision/c2LiveProofContract.test.mjs",
-    "c2:proof:dry-run": "node scripts/revision/c2LiveProofHarness.mjs"
+    "c2:proof:readiness:test": "node scripts/revision/c2ReadinessProbes.test.mjs",
+    "c2:proof:dry-run": "npx tsx scripts/revision/c2LiveProofHarness.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
