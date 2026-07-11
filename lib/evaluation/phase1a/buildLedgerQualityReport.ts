@@ -487,6 +487,10 @@ export function buildLedgerQualityReport(
       layer_dependency_warnings: dependencyAssessment.dependencyWarnings,
       evidence_location_references: [],
       blocking_reasons: technicalBlockingReasons,
+      // Technical-retry path runs before content-quality warning triage, so no
+      // root-cause warnings have been evaluated yet.
+      root_cause_warning_count: 0,
+      repair_reasons: [],
       recommended_review_action: 'retry_phase1a_technical_recovery',
     };
   }
@@ -558,10 +562,23 @@ export function buildLedgerQualityReport(
       : []),
   ];
 
+  // Additive observability: disclose the exact root-cause warnings that drove
+  // gate_ready_status (e.g. repair_required when count > 3). Derived from the
+  // same rootCauseWarnings set used for the threshold, so identity_dependency:*
+  // cascade copies are already excluded. blocking_reasons is untouched.
+  const repair_reasons = rootCauseWarnings.map((check) => ({
+    key: check.key,
+    layer: check.layer,
+    message: check.message,
+    evidence_reference: check.evidenceReference ?? null,
+  }));
+
   return {
     gate_ready_status,
     hard_fail_present: hardFailPresent,
     grouped_warning_summary,
+    root_cause_warning_count: repair_reasons.length,
+    repair_reasons,
     layer_truth_status: {
       canonical_identity_layer: dependencyAssessment.canonicalIdentityHealth.truth_status,
       ...Object.fromEntries(
