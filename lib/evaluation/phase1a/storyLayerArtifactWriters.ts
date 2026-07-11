@@ -37,6 +37,17 @@ export type LedgerQualityReportPayload = {
     reference: string;
   }>;
   blocking_reasons: string[];
+  // Additive observability (see buildLedgerQualityReport): discloses the
+  // root-cause warnings that drove gate_ready_status. blocking_reasons stays
+  // reserved for true blocks; repair_reasons explains advisory repair_required.
+  // Invariant: root_cause_warning_count === repair_reasons.length.
+  root_cause_warning_count: number;
+  repair_reasons: Array<{
+    key: string;
+    layer: StoryLayerCoreLayerKey | 'general';
+    message: string;
+    evidence_reference: string | null;
+  }>;
   recommended_review_action:
     | 'send_to_review_gate'
     | 'repair_story_layer'
