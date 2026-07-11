@@ -1,6 +1,7 @@
 import {
   buildRevisionOpportunitiesFromEvaluationPayload,
   ensureRevisionOpportunityLedgerArtifact,
+  findHydrationChunkForAnchor,
 } from '@/lib/revision/opportunityLedger';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import { candidateTextIsCopyPasteReady } from '@/lib/revision/reviseCardContract';
@@ -11,6 +12,50 @@ jest.mock('@/lib/revision/logRevisionEvent', () => ({
 }));
 
 const mockLogRevisionEvent = logRevisionEvent as jest.MockedFunction<typeof logRevisionEvent>;
+
+describe('findHydrationChunkForAnchor', () => {
+  it('resolves wrapper-quoted anchors by stripping evidence wrappers before normalization', () => {
+    const result = findHydrationChunkForAnchor(
+      '“And still, I couldn’t shake the suspicion: What if Calder weren’t missing?”',
+      [{ content: 'And still, I couldn’t shake the suspicion: What if Calder weren’t missing?' }],
+    );
+
+    expect(result.content).toContain('Calder');
+    expect(result.diagnostic).toEqual(expect.objectContaining({
+      wrapper_stripped: true,
+      strategy: 'exact_match',
+    }));
+  });
+
+  it('normalizes em/en-dashes consistently and can resolve a traced short fragment through guarded fuzzy matching', () => {
+    const result = findHydrationChunkForAnchor(
+      '“s trying to do both—sacred stewardship and national necessity.” Cliff let out a low whistle.',
+      [
+        {
+          content:
+            'The council is trying to do both – sacred stewardship and national necessity. Cliff let out a low whistle before answering.',
+        },
+      ],
+    );
+
+    expect(result.content).toContain('sacred stewardship');
+    expect(result.diagnostic).toEqual(expect.objectContaining({
+      dash_normalized: true,
+      strategy: 'fuzzy_match',
+      matched_tokens: expect.any(Number),
+    }));
+  });
+
+  it('does not resolve fabricated anchors after normalization', () => {
+    const result = findHydrationChunkForAnchor(
+      '“This fabricated bridge anchor never appears in the manuscript context.”',
+      [{ content: 'The river moved under a gray sky while the camp packed in silence.' }],
+    );
+
+    expect(result.content).toBeUndefined();
+    expect(result.diagnostic.strategy).toBe('no_match');
+  });
+});
 
 describe('buildRevisionOpportunitiesFromEvaluationPayload', () => {
   function makeRecommendation(index: number, priority: 'high' | 'medium' | 'low' = 'medium') {
@@ -938,6 +983,11 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
     const opps = persisted.content.opportunities as Array<Record<string, unknown>>;
     expect(opps.every((o) => o.grounding_status === 'supported')).toBe(true);
     expect(opps.every((o) => typeof o.candidate_text_a === 'string' && (o.candidate_text_a as string).length > 0)).toBe(true);
+
+    const preflight = persisted.content.revise_queue_preflight as Record<string, unknown>;
+    const lookupDiagnostics = preflight.hydration_anchor_lookup_diagnostics as Record<string, Record<string, unknown>>;
+    expect(Object.keys(lookupDiagnostics)).toHaveLength(3);
+    expect(Object.values(lookupDiagnostics).every((d) => d.strategy === 'exact_match')).toBe(true);
   });
 
   it('writes _ai_hydrated_partial when some opportunities remain blocked', async () => {
