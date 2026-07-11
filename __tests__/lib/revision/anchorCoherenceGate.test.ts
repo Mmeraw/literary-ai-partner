@@ -10,10 +10,10 @@ import {
  * with "the recommendation is coherently anchored to the passage". That assumption is a
  * category error: valid abstract editorial recommendations (Marketability, Concept,
  * Theme, Voice, Dialogue) naturally share few or no tokens with the verbatim manuscript
- * quote, so the gate wrongly emitted `anchor_mismatch` and blocked them.
+ * quote, so the gate wrongly emitted an anchor-grounding rejection and blocked them.
  *
  * These fixtures are the FIVE real opportunities that "Let the River Decide"
- * (job 9ee70f12-1e8d-4729-9163-5eb9845b70b1) blocked with anchor_mismatch. All five have
+ * (job 9ee70f12-1e8d-4729-9163-5eb9845b70b1) blocked for anchor grounding. All five have
  * ~0 lexical overlap between anchor and rationale yet are genuinely anchored. They must now
  * be ADMITTED. Intentionally unrelated / evidence-less pairs must still be REJECTED so the
  * safety gate is preserved.
@@ -37,7 +37,7 @@ function makeOpportunity(overrides: Partial<LedgerOpportunityLike>): LedgerOppor
   } as LedgerOpportunityLike;
 }
 
-// The five real anchor_mismatch false-positives from Let the River Decide.
+// The five real anchor-grounding false-positives from Let the River Decide.
 const REAL_FALSE_POSITIVES: Array<Partial<LedgerOpportunityLike>> = [
   {
     opportunity_id: 'OPP-004',
@@ -105,9 +105,11 @@ describe('anchor coherence gate — PR A category-error fix', () => {
         // These are the exact pairs the old lexical-overlap heuristic wrongly blocked.
         expect(diagnostic.lexical_overlap).toBeLessThan(0.05);
         expect(diagnostic.valid_anchor).toBe(true);
+        expect(diagnostic.recognized_criterion).toBe(true);
         expect(diagnostic.concrete_action).toBe(true);
-        expect(diagnostic.coherent_fix_or_effect).toBe(true);
-        expect(diagnostic.decision).toBe('admitted');
+        expect(diagnostic.coherent_fix_direction || diagnostic.coherent_reader_effect).toBe(true);
+        expect(diagnostic.decision).toBe('passed');
+        expect(diagnostic.reason_code).toBe('sufficient_grounding');
         expect(anchorRationaleIsCoherent(opp)).toBe(true);
       });
     }
@@ -123,7 +125,22 @@ describe('anchor coherence gate — PR A category-error fix', () => {
       });
       const diagnostic = buildAnchorCoherenceDiagnostic(opp);
       expect(diagnostic.valid_anchor).toBe(false);
-      expect(diagnostic.decision).toBe('rejected_incoherent');
+      expect(diagnostic.decision).toBe('blocked');
+      expect(diagnostic.reason_code).toBe('missing_anchor');
+      expect(anchorRationaleIsCoherent(opp)).toBe(false);
+    });
+
+    it('rejects an opportunity with a placeholder anchor', () => {
+      const opp = makeOpportunity({
+        criterion: 'PACING',
+        evidence_anchor: 'No excerpt available',
+        rationale: 'tighten the scene to raise stakes',
+        fix_direction: 'tighten the scene to raise stakes and compress exposition',
+      });
+      const diagnostic = buildAnchorCoherenceDiagnostic(opp);
+      expect(diagnostic.valid_anchor).toBe(false);
+      expect(diagnostic.decision).toBe('blocked');
+      expect(diagnostic.reason_code).toBe('missing_anchor');
       expect(anchorRationaleIsCoherent(opp)).toBe(false);
     });
 
@@ -139,8 +156,10 @@ describe('anchor coherence gate — PR A category-error fix', () => {
       const diagnostic = buildAnchorCoherenceDiagnostic(opp);
       expect(diagnostic.valid_anchor).toBe(true);
       expect(diagnostic.concrete_action).toBe(false);
-      expect(diagnostic.coherent_fix_or_effect).toBe(false);
-      expect(diagnostic.decision).toBe('rejected_incoherent');
+      expect(diagnostic.coherent_fix_direction).toBe(false);
+      expect(diagnostic.coherent_reader_effect).toBe(false);
+      expect(diagnostic.decision).toBe('blocked');
+      expect(diagnostic.reason_code).toBe('missing_action');
       expect(anchorRationaleIsCoherent(opp)).toBe(false);
     });
 
@@ -152,23 +171,78 @@ describe('anchor coherence gate — PR A category-error fix', () => {
         fix_direction: 'tighten the scene to raise stakes and sharpen momentum',
       });
       const diagnostic = buildAnchorCoherenceDiagnostic(opp);
-      expect(diagnostic.criterion).toBe('');
-      expect(diagnostic.decision).toBe('rejected_incoherent');
+      expect(diagnostic.recognized_criterion).toBe(false);
+      expect(diagnostic.decision).toBe('blocked');
+      expect(diagnostic.reason_code).toBe('unrecognized_criterion');
+      expect(anchorRationaleIsCoherent(opp)).toBe(false);
+    });
+
+    it('rejects an unrelated anchor paired with generic editorial prose', () => {
+      const opp = makeOpportunity({
+        criterion: 'PACING',
+        evidence_anchor: 'The river ran cold that morning near Billy Landing.',
+        rationale: 'consider improving the manuscript for stronger reader engagement',
+        fix_direction: 'make this better for readers',
+        reader_effect: '',
+        revision_operation: 'needs_targeting',
+      });
+      const diagnostic = buildAnchorCoherenceDiagnostic(opp);
+      expect(diagnostic.valid_anchor).toBe(true);
+      expect(diagnostic.recognized_criterion).toBe(true);
+      expect(diagnostic.concrete_action).toBe(false);
+      expect(diagnostic.decision).toBe('blocked');
+      expect(diagnostic.reason_code).toBe('missing_action');
+      expect(anchorRationaleIsCoherent(opp)).toBe(false);
+    });
+
+    it('does not pass on recognized criterion alone', () => {
+      const opp = makeOpportunity({
+        criterion: 'PACING',
+        evidence_anchor: '',
+        rationale: 'note',
+        fix_direction: '',
+        reader_effect: '',
+        revision_operation: 'needs_targeting',
+      });
+      const diagnostic = buildAnchorCoherenceDiagnostic(opp);
+      expect(diagnostic.recognized_criterion).toBe(true);
+      expect(diagnostic.decision).toBe('blocked');
+      expect(diagnostic.reason_code).toBe('missing_anchor');
+      expect(anchorRationaleIsCoherent(opp)).toBe(false);
+    });
+
+    it('does not pass on concrete action alone', () => {
+      const opp = makeOpportunity({
+        criterion: '',
+        evidence_anchor: '',
+        rationale: 'replace the scene opening with a clearer stakes beat',
+        fix_direction: '',
+        reader_effect: '',
+      });
+      const diagnostic = buildAnchorCoherenceDiagnostic(opp);
+      expect(diagnostic.concrete_action).toBe(true);
+      expect(diagnostic.decision).toBe('blocked');
+      expect(diagnostic.reason_code).toBe('missing_anchor');
       expect(anchorRationaleIsCoherent(opp)).toBe(false);
     });
   });
 
-  describe('lexical overlap remains an independent path to admission', () => {
-    it('admits when anchor and rationale genuinely share vocabulary', () => {
+  describe('structural-target exception remains deterministic', () => {
+    it('admits structural targets when fix/effect prose is short but all other grounding evidence is present', () => {
       const opp = makeOpportunity({
         criterion: 'PACING',
         evidence_anchor: 'The smokehouse camp fire burned through the cold northern night.',
-        rationale: 'Tighten the smokehouse camp fire description to sharpen the northern night pacing.',
-        fix_direction: 'Tighten the smokehouse camp fire description to sharpen the northern night pacing.',
+        rationale: 'Insert bridge.',
+        fix_direction: 'Bridge beat.',
+        reader_effect: '',
+        revision_operation: 'insert_after_selected_passage',
       });
       const diagnostic = buildAnchorCoherenceDiagnostic(opp);
-      expect(diagnostic.lexical_overlap).toBeGreaterThanOrEqual(0.05);
-      expect(diagnostic.decision).toBe('admitted');
+      expect(diagnostic.structural_target).toBe(true);
+      expect(diagnostic.coherent_fix_direction).toBe(false);
+      expect(diagnostic.coherent_reader_effect).toBe(false);
+      expect(diagnostic.decision).toBe('passed');
+      expect(diagnostic.reason_code).toBe('sufficient_grounding');
     });
   });
 
@@ -176,19 +250,34 @@ describe('anchor coherence gate — PR A category-error fix', () => {
     it('records every decision input and a human-readable reason', () => {
       const opp = makeOpportunity(REAL_FALSE_POSITIVES[0]);
       const diagnostic = buildAnchorCoherenceDiagnostic(opp);
-      expect(diagnostic.check).toBe('anchor_coherence');
+      expect(diagnostic.gate).toBe('anchor_coherence');
       expect(diagnostic).toEqual(
         expect.objectContaining({
           lexical_overlap: expect.any(Number),
-          criterion: 'MARKETABILITY',
           concrete_action: true,
           valid_anchor: true,
+          recognized_criterion: true,
           structural_target: expect.any(Boolean),
-          coherent_fix_or_effect: true,
-          decision: 'admitted',
-          reason: expect.stringContaining('Admitted'),
+          coherent_fix_direction: true,
+          coherent_reader_effect: true,
+          decision: 'passed',
+          reason_code: 'sufficient_grounding',
         }),
       );
+    });
+
+    it('uses insufficient_anchor_grounding when grounding, not lookup, fails', () => {
+      const opp = makeOpportunity({
+        criterion: 'PACING',
+        evidence_anchor: 'The river ran cold that morning near Billy Landing.',
+        rationale: 'replace',
+        fix_direction: 'short',
+        reader_effect: '',
+      });
+      const diagnostic = buildAnchorCoherenceDiagnostic(opp);
+      expect(diagnostic.valid_anchor).toBe(true);
+      expect(diagnostic.reason_code).toBe('insufficient_anchor_grounding');
+      expect(diagnostic.decision).toBe('blocked');
     });
   });
 });

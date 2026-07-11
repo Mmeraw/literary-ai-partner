@@ -346,7 +346,7 @@ describe('getWorkbenchQueue', () => {
           revision_operation: 'insert_after_selected_passage',
           provenance: 'evaluation_result.criteria.recommendations',
           preflight_status: 'blocked',
-          preflight_reasons: ['hydration_context_not_found', 'hydration_placeholder_coordinates', 'anchor_mismatch'],
+          preflight_reasons: ['hydration_context_not_found', 'hydration_placeholder_coordinates', 'insufficient_anchor_grounding'],
           preflight_note: 'Needs hydration repair: anchor/context not recoverable.',
           admin_actions: ['Regenerate from source manuscript context'],
           grounding_status: 'unsupported_blocked',
@@ -362,7 +362,7 @@ describe('getWorkbenchQueue', () => {
     const blocked = result.needsTargeting[0];
     expect(blocked.readinessReason).toBe('Needs hydration repair');
     expect(blocked.hydrationFailureReasons).toEqual(['hydration_context_not_found', 'hydration_placeholder_coordinates']);
-    expect(blocked.resBlockerReasons).toEqual(['anchor_mismatch']);
+    expect(blocked.resBlockerReasons).toEqual(['insufficient_anchor_grounding']);
     expect(blocked.adminRepairLabel).toBe('Needs hydration repair');
     expect(blocked.adminRepairReason).toBe('anchor/context not recoverable');
     expect(blocked.adminActions).toContain('Regenerate from source manuscript context');

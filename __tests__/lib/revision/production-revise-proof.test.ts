@@ -269,7 +269,7 @@ describe("PROOF: Every failure produces a structured artifact", () => {
       failureCode: "HYDRATION_SLAE_REJECTION",
       attemptCount: 3,
       maxAttempts: 3,
-      rejectionReason: "anchor_mismatch",
+      rejectionReason: "insufficient_anchor_grounding",
       model: "gpt-5.1",
       promptVersion: "v3",
     });

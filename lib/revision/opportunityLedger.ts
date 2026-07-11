@@ -26,6 +26,7 @@ import { enrichDiagnosticFields, needsDiagnosticEnrichment, type EnrichmentOppor
 import { logRevisionEvent } from './logRevisionEvent';
 import type { CandidateRejectionTelemetry } from './telemetry';
 import { getArtifact } from '@/lib/evaluation/fipocRegistry';
+import { CANONICAL_CRITERIA } from '@/lib/governance/canonicalCriteria';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -75,29 +76,27 @@ type RevisionOpportunity = {
   fix_direction?: string;
   reader_effect?: string;
   mistake_proofing?: string;
-  /**
-   * Structured, human-readable diagnostics explaining every preflight decision
-   * (why an opportunity was blocked or admitted). Populated by the anchor-coherence
-   * evaluation so future debugging does not require reverse-engineering the gate.
-   */
-  preflight_diagnostic?: AnchorCoherenceDiagnostic;
 };
 
-/**
- * Diagnostic record explaining the anchor-coherence decision for one opportunity.
- * Stored so a blocked opportunity carries its own "why" rather than a bare reason code.
- */
-type AnchorCoherenceDiagnostic = {
-  check: 'anchor_coherence';
-  lexical_overlap: number;
-  criterion: string;
-  concrete_action: boolean;
+export type PreflightDiagnostic = {
+  gate: 'anchor_coherence';
+  decision: 'passed' | 'blocked';
+  reason_code:
+    | 'sufficient_grounding'
+    | 'missing_anchor'
+    | 'missing_action'
+    | 'unrecognized_criterion'
+    | 'insufficient_anchor_grounding';
   valid_anchor: boolean;
+  recognized_criterion: boolean;
+  concrete_action: boolean;
+  coherent_fix_direction: boolean;
+  coherent_reader_effect: boolean;
   structural_target: boolean;
-  coherent_fix_or_effect: boolean;
-  decision: 'admitted' | 'rejected_incoherent';
-  reason: string;
+  lexical_overlap?: number;
 };
+
+type AnchorCoherenceDiagnostic = PreflightDiagnostic;
 
 type WorkbenchLikeOpportunity = {
   id?: unknown;
@@ -672,6 +671,39 @@ function hasConcreteAction(opportunity: RevisionOpportunity): boolean {
   );
 }
 
+const RECOGNIZED_REVISION_CRITERIA = new Set<string>([
+  ...CANONICAL_CRITERIA,
+  'NARRATIVE_DRIVE',
+  'NARRATIVE_DRIVE_MOMENTUM',
+  'MOMENTUM',
+  'POV_VOICE',
+  'POVVOICE',
+  'VOICE',
+  'SCENE_CRAFT',
+  'SCENE_CONSTRUCTION',
+  'SCENE',
+  'WORLD_BUILDING',
+  'WORLDBUILDING',
+  'WORLD',
+  'NARRATIVE_CLOSURE',
+  'CLOSURE',
+  'MARKETABILITY',
+  'MARKET',
+  'STRUCTURE',
+  'PROSE',
+  'TONE',
+  'THEME',
+  'DIALOGUE',
+  'CONCEPT',
+  'CHARACTER',
+  'PACING',
+]);
+
+function criterionIsRecognized(raw: unknown): boolean {
+  const normalized = normalizeCriterion(raw);
+  return RECOGNIZED_REVISION_CRITERIA.has(normalized);
+}
+
 /** Minimum chars for an evidence anchor to count as a real, targetable manuscript quote. */
 const MIN_VALID_ANCHOR_CHARS = 12;
 
@@ -682,6 +714,7 @@ const MIN_VALID_ANCHOR_CHARS = 12;
 function hasValidManuscriptAnchor(opportunity: RevisionOpportunity): boolean {
   const clean = stripEvidenceWrapper(opportunity.evidence_anchor ?? '');
   if (clean.length < MIN_VALID_ANCHOR_CHARS) return false;
+  if (/^(?:n\/?a|none|null|no excerpt available|no anchor available|missing anchor|placeholder|tbd)$/i.test(clean)) return false;
   // Must contain real word content, not just punctuation/whitespace/coordinates.
   return /[A-Za-z]{3,}/.test(clean);
 }
@@ -691,11 +724,16 @@ function hasValidManuscriptAnchor(opportunity: RevisionOpportunity): boolean {
  * Substantive editorial reasoning about the fix/impact is evidence of a real anchor
  * relationship even when the commentary shares no vocabulary with the quoted prose.
  */
-function hasCoherentFixOrReaderEffect(opportunity: RevisionOpportunity): boolean {
+function hasCoherentFixDirection(opportunity: RevisionOpportunity): boolean {
   const MIN_LEN = 20;
   const fix = (opportunity.fix_direction ?? '').trim();
+  return fix.length >= MIN_LEN;
+}
+
+function hasCoherentReaderEffect(opportunity: RevisionOpportunity): boolean {
+  const MIN_LEN = 20;
   const effect = (opportunity.reader_effect ?? '').trim();
-  return fix.length >= MIN_LEN || effect.length >= MIN_LEN;
+  return effect.length >= MIN_LEN;
 }
 
 /**
@@ -716,8 +754,9 @@ export function buildAnchorCoherenceDiagnostic(opportunity: RevisionOpportunity)
   const validAnchor = hasValidManuscriptAnchor(opportunity);
   const concreteAction = hasConcreteAction(opportunity);
   const structuralTarget = recommendationCanTargetStructuralIssue(opportunity);
-  const coherentFixOrEffect = hasCoherentFixOrReaderEffect(opportunity);
-  const hasCriterion = typeof opportunity.criterion === 'string' && opportunity.criterion.trim().length > 0;
+  const coherentFixDirection = hasCoherentFixDirection(opportunity);
+  const coherentReaderEffect = hasCoherentReaderEffect(opportunity);
+  const recognizedCriterion = criterionIsRecognized(opportunity.criterion);
 
   // Evidence-based coherence: a recommendation is genuinely anchored when there is
   // enough independent evidence tying it to the passage — a real anchor plus a
@@ -726,28 +765,32 @@ export function buildAnchorCoherenceDiagnostic(opportunity: RevisionOpportunity)
   // editorial commentary is NOT required and is not evidence of incoherence: valid
   // Marketability/Concept/Theme/Voice/Dialogue notes naturally share no tokens with
   // the quoted text. The gate still fires when the anchoring evidence is genuinely absent.
-  const anchoredByEvidence =
-    validAnchor && concreteAction && hasCriterion && (coherentFixOrEffect || structuralTarget);
-  // A meaningful lexical overlap independently confirms coherence.
-  const anchoredByOverlap = lexicalOverlap >= 0.05;
-  const coherent = anchoredByEvidence || anchoredByOverlap;
-
-  const reason = coherent
-    ? anchoredByOverlap && !anchoredByEvidence
-      ? 'Admitted by lexical overlap between anchor and rationale.'
-      : 'Admitted: valid anchor + concrete action + recognized criterion + coherent fix/reader-effect (token overlap not required).'
-    : `Rejected: insufficient anchoring evidence (valid_anchor=${validAnchor}, concrete_action=${concreteAction}, criterion=${hasCriterion}, coherent_fix_or_effect=${coherentFixOrEffect}, structural_target=${structuralTarget}, lexical_overlap=${lexicalOverlap}).`;
+  const sufficientlyAnchored =
+    validAnchor &&
+    recognizedCriterion &&
+    concreteAction &&
+    (coherentFixDirection || coherentReaderEffect || structuralTarget);
+  const reasonCode: AnchorCoherenceDiagnostic['reason_code'] = sufficientlyAnchored
+    ? 'sufficient_grounding'
+    : !validAnchor
+      ? 'missing_anchor'
+      : !recognizedCriterion
+        ? 'unrecognized_criterion'
+        : !concreteAction
+          ? 'missing_action'
+          : 'insufficient_anchor_grounding';
 
   return {
-    check: 'anchor_coherence',
-    lexical_overlap: lexicalOverlap,
-    criterion: hasCriterion ? opportunity.criterion : '',
+    gate: 'anchor_coherence',
+    decision: sufficientlyAnchored ? 'passed' : 'blocked',
+    reason_code: reasonCode,
     concrete_action: concreteAction,
     valid_anchor: validAnchor,
+    recognized_criterion: recognizedCriterion,
     structural_target: structuralTarget,
-    coherent_fix_or_effect: coherentFixOrEffect,
-    decision: coherent ? 'admitted' : 'rejected_incoherent',
-    reason,
+    coherent_fix_direction: coherentFixDirection,
+    coherent_reader_effect: coherentReaderEffect,
+    lexical_overlap: lexicalOverlap,
   };
 }
 
@@ -758,7 +801,7 @@ export function buildAnchorCoherenceDiagnostic(opportunity: RevisionOpportunity)
  * anchor/rationale pairs — see buildAnchorCoherenceDiagnostic for the full decision inputs.
  */
 export function anchorRationaleIsCoherent(opportunity: RevisionOpportunity): boolean {
-  return buildAnchorCoherenceDiagnostic(opportunity).decision === 'admitted';
+  return buildAnchorCoherenceDiagnostic(opportunity).decision === 'passed';
 }
 
 function recommendationCanTargetStructuralIssue(opportunity: RevisionOpportunity): boolean {
@@ -989,11 +1032,10 @@ function preflightReasonsForOpportunity(
   if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
   if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
   if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
-  // Evidence-based anchor coherence. The diagnostic captures every decision input and
-  // is attached to the opportunity so the block/admit reason is self-describing.
+  // Evidence-based anchor coherence. Diagnostics are collected in preflight metadata
+  // rather than persisted onto the source opportunity shape.
   const coherenceDiagnostic = buildAnchorCoherenceDiagnostic(opportunity);
-  opportunity.preflight_diagnostic = coherenceDiagnostic;
-  if (coherenceDiagnostic.decision === 'rejected_incoherent') reasons.push('anchor_mismatch');
+  if (coherenceDiagnostic.decision === 'blocked') reasons.push('insufficient_anchor_grounding');
   if (opportunity.hydration_eligible === false) {
     reasons.push(...(opportunity.hydration_ineligibility_reasons ?? []));
   }
@@ -1067,6 +1109,15 @@ function summarizePreflight(opportunities: RevisionOpportunity[]): Record<string
   return summary;
 }
 
+function buildPreflightDiagnostics(opportunities: RevisionOpportunity[]): Record<string, PreflightDiagnostic> {
+  return Object.fromEntries(
+    opportunities.map((opportunity) => [
+      opportunity.opportunity_id,
+      buildAnchorCoherenceDiagnostic(opportunity),
+    ]),
+  );
+}
+
 function wordCount(raw: string | undefined): number {
   if (!raw || !raw.trim()) return 0;
   return raw.trim().split(/\s+/).filter(Boolean).length;
@@ -1108,7 +1159,7 @@ function selectPrimaryRejectionReason(reasons: string[]): string {
   const priority = [
     'canon_authority_blocked',
     'candidate_quality_failed',
-    'anchor_mismatch',
+    'insufficient_anchor_grounding',
     'truncated_anchor',
     'testimony_fabrication_risk',
     'hydration_input_incomplete',
@@ -2431,6 +2482,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   });
   opportunities.splice(0, opportunities.length, ...preflightedOpportunities);
   let preflightSummary = summarizePreflight(opportunities);
+  let preflightDiagnostics = buildPreflightDiagnostics(opportunities);
 
   // ── AI Candidate Hydration Pass ────────────────────────────────────────────
   // For each opportunity that SLAE blocked (no explicit candidate prose from
@@ -2692,6 +2744,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
             });
             opportunities.splice(0, opportunities.length, ...postHydrationPreflighted);
             preflightSummary = summarizePreflight(opportunities);
+            preflightDiagnostics = buildPreflightDiagnostics(opportunities);
 
             // ── Quality Regeneration Pass ─────────────────────────────────────
             // Cards that were hydration-attempted but whose AI prose failed the
@@ -2743,6 +2796,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
                 });
                 opportunities.splice(0, opportunities.length, ...postRegenPreflighted);
                 preflightSummary = summarizePreflight(opportunities);
+                preflightDiagnostics = buildPreflightDiagnostics(opportunities);
                 console.log(
                   `[CandidateRegen] ${jobId}: regen attempted=${qualityBlockedForRegen.length}` +
                   ` healed=${regenResult.healed.size} stillFailed=${regenResult.stillFailed.size}`,
@@ -2847,6 +2901,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       degraded_layers: contextQualityDecision.degraded_layers,
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
+      diagnostics: preflightDiagnostics,
     },
     quality_manifest: qualityManifest,
     opportunity_source_authority: opportunitySourceAuthority,
@@ -2885,6 +2940,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       degraded_layers: contextQualityDecision.degraded_layers,
       blocking_reasons: contextQualityDecision.blocking_reasons,
       summary: preflightSummary,
+      diagnostics: preflightDiagnostics,
     },
     opportunities,
   };
