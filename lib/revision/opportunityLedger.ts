@@ -771,7 +771,7 @@ function hasDialogueIntent(opportunity: RevisionOpportunity): boolean {
 
 function hasConcreteAction(opportunity: RevisionOpportunity): boolean {
   if (opportunity.revision_operation && opportunity.revision_operation !== 'needs_targeting') return true;
-  return /\b(replace|compress|insert|dramatize|bridge|clarify|cut|trim|tighten|expand|convert|surface|foreground|frame|reorder|move|add|delete|remove|rewrite|strengthen|sharpen|condense)\b/i.test(
+  return /\b(replace|compress|insert|dramatize|bridge|clarify|cut|trim|tighten|expand|convert|surface|foreground|frame|reorder|move|add|delete|remove|rewrite|strengthen|sharpen|condense|target|draft)\b/i.test(
     `${opportunity.rationale} ${opportunity.fix_direction ?? ''} ${opportunity.symptom ?? ''}`,
   );
 }

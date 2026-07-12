@@ -112,7 +112,7 @@ describe('revision ledger quality drift metrics', () => {
           sourceExcerpt: 'I held the chapel door because Mara had not answered.',
           selectedText: 'Elias holds the chapel door because she does not answer.',
           clientCreatedAt: '2026-06-06T00:00:00.000Z',
-          metadata: { source: 'unit-test' },
+          metadata: { source: 'unit-test', cardType: 'copy_paste_rewrite', trustedPathStatus: 'eligible' },
         },
       ],
     });

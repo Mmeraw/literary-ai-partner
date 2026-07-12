@@ -294,6 +294,8 @@ async function assertOwnedEvaluation(
   };
 }
 
+const ACCEPT_DECISIONS = new Set<RevisionLedgerDecision>(["accepted_a", "accepted_b", "accepted_c"]);
+
 function validateEntry(entry: SyncRevisionLedgerEntryInput): SyncRevisionLedgerEntryInput {
   if (!entry || typeof entry !== "object") throw new Error("Invalid ledger entry");
   if (typeof entry.localId !== "string" || entry.localId.trim().length === 0) {
@@ -307,6 +309,16 @@ function validateEntry(entry: SyncRevisionLedgerEntryInput): SyncRevisionLedgerE
   }
   const decision = normalizeDecision(entry.decision);
   if (!decision) throw new Error(`Invalid ledger decision: ${String(entry.decision)}`);
+
+  // Server-side acceptance guard: only copy-paste rewrites with TrustedPath
+  // status eligible may be accepted. Strategy/needs-targeting/withheld cards
+  // can be reviewed, rejected, deferred, or kept, but not accepted.
+  if (ACCEPT_DECISIONS.has(decision)) {
+    const metadata = entry.metadata ?? {};
+    if (metadata.cardType !== "copy_paste_rewrite" || metadata.trustedPathStatus !== "eligible") {
+      throw new Error("Ledger acceptance blocked: only TrustedPath-eligible copy-paste rewrite cards may be accepted");
+    }
+  }
 
   return {
     ...entry,

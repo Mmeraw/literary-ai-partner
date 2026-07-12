@@ -615,6 +615,186 @@ describe('getWorkbenchQueue', () => {
     expect(card.mistakeProofing).toContain('Do not introduce new information');
   });
 
+  it('routes limited_context with supported grounding to needsTargeting as revision_strategy', async () => {
+    const supabase = buildSupabaseMock('job-limited', 'version-limited');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-limited',
+      opportunities: [
+        {
+          opportunity_id: 'opp-limited',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:15',
+          evidence_anchor: 'She set the letter down and said nothing for a long time.',
+          rationale: 'The quoted passage resolves the revelation as summary instead of action.',
+          symptom: 'In the quoted passage “She set the letter down and said nothing for a long time,” the revelation resolves as summary instead of action.',
+          cause: 'This occurs when the narrator summarizes Mara’s reaction rather than rendering the physical consequence beat by beat.',
+          fix_direction: 'Replace the quoted passage “She set the letter down and said nothing for a long time” so Mara chooses a visible physical response before the narration names the emotion.',
+          reader_effect: 'This lets readers track Mara’s decision through embodied action, so the revelation keeps narrative momentum instead of flattening into summary.',
+          mistake_proofing: 'Do not introduce new information; the replacement must emerge from what the scene has already established.',
+          candidate_text_a: 'She set the letter down and did not look at it again. Her hands moved to the edge of the table and stayed there.',
+          candidate_text_b: 'After placing the letter flat on the table, Mara reached for her coat before either of them could ask what had changed.',
+          candidate_text_c: 'The letter lay face down near the lamp while Mara kept both hands on the table and refused to pick it up.',
+          revision_operation: 'replace_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'supported',
+          preflight_status: 'limited_context',
+          context_quality: 'limited',
+          preflight_reasons: ['limited_context_due_to_degraded_canon'],
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-limited' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.withheldUnsupported).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(1);
+    const card = result.needsTargeting[0];
+    expect(card.id).toBe('opp-limited');
+    expect(card.cardType).toBe('revision_strategy');
+    expect(card.trustedPathStatus).toBe('unavailable_author_review_required');
+    expect(card.contextQuality).toBe('limited');
+    expect(card.preflightStatus).toBe('limited_context');
+    expect(card.readiness).toBe('ready_for_revise');
+    expect(card.executabilityReasons).toEqual(
+      expect.arrayContaining(['insufficient_before_after_context']),
+    );
+  });
+
+  it('withholds limited_context cards that have a real canon conflict', async () => {
+    const supabase = buildSupabaseMock('job-limited-canon', 'version-limited-canon');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-limited-canon',
+      opportunities: [
+        {
+          opportunity_id: 'opp-limited-canon',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:15',
+          evidence_anchor: 'She set the letter down and said nothing for a long time.',
+          rationale: 'The quoted passage resolves the revelation as summary instead of action.',
+          symptom: 'In the quoted passage “She set the letter down and said nothing for a long time,” the revelation resolves as summary instead of action.',
+          cause: 'This occurs when the narrator summarizes Mara’s reaction rather than rendering the physical consequence beat by beat.',
+          fix_direction: 'Replace the quoted passage “She set the letter down and said nothing for a long time” so Mara chooses a visible physical response before the narration names the emotion.',
+          reader_effect: 'This lets readers track Mara’s decision through embodied action, so the revelation keeps narrative momentum instead of flattening into summary.',
+          mistake_proofing: 'Do not introduce new information; the replacement must emerge from what the scene has already established.',
+          candidate_text_a: 'She set the letter down and did not look at it again. Her hands moved to the edge of the table and stayed there.',
+          candidate_text_b: 'After placing the letter flat on the table, Mara reached for her coat before either of them could ask what had changed.',
+          candidate_text_c: 'The letter lay face down near the lamp while Mara kept both hands on the table and refused to pick it up.',
+          revision_operation: 'replace_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'supported',
+          preflight_status: 'limited_context',
+          context_quality: 'limited',
+          preflight_reasons: ['canon_conflict'],
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-limited-canon' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(0);
+    expect(result.withheldUnsupported).toHaveLength(1);
+    const card = result.withheldUnsupported[0];
+    expect(card.cardType).toBe('withheld');
+    expect(card.trustedPathStatus).toBe('impossible');
+    expect(card.executabilityReasons).toEqual(expect.arrayContaining(['canon_unclear']));
+  });
+
+  it('withholds blocked context regardless of preflight reason', async () => {
+    const supabase = buildSupabaseMock('job-blocked', 'version-blocked');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-blocked',
+      opportunities: [
+        {
+          opportunity_id: 'opp-blocked',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:15',
+          evidence_anchor: 'She set the letter down and said nothing for a long time.',
+          rationale: 'The quoted passage resolves the revelation as summary instead of action.',
+          symptom: 'In the quoted passage “She set the letter down and said nothing for a long time,” the revelation resolves as summary instead of action.',
+          cause: 'This occurs when the narrator summarizes Mara’s reaction rather than rendering the physical consequence beat by beat.',
+          fix_direction: 'Replace the quoted passage “She set the letter down and said nothing for a long time” so Mara chooses a visible physical response before the narration names the emotion.',
+          reader_effect: 'This lets readers track Mara’s decision through embodied action, so the revelation keeps narrative momentum instead of flattening into summary.',
+          mistake_proofing: 'Do not introduce new information; the replacement must emerge from what the scene has already established.',
+          candidate_text_a: 'She set the letter down and did not look at it again. Her hands moved to the edge of the table and stayed there.',
+          candidate_text_b: 'After placing the letter flat on the table, Mara reached for her coat before either of them could ask what had changed.',
+          candidate_text_c: 'The letter lay face down near the lamp while Mara kept both hands on the table and refused to pick it up.',
+          revision_operation: 'replace_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'supported',
+          preflight_status: 'blocked',
+          context_quality: 'blocked',
+          preflight_reasons: ['insufficient_context'],
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-blocked' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(0);
+    expect(result.withheldUnsupported).toHaveLength(1);
+    expect(result.withheldUnsupported[0].cardType).toBe('withheld');
+  });
+
+  it('withholds limited context when grounding is unsupported', async () => {
+    const supabase = buildSupabaseMock('job-limited-unsupported', 'version-limited-unsupported');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-limited-unsupported',
+      opportunities: [
+        {
+          opportunity_id: 'opp-limited-unsupported',
+          criterion: 'NARRATIVE_DRIVE',
+          severity: 'must',
+          confidence: 'high',
+          manuscript_coordinates: 'passage:15',
+          evidence_anchor: 'She set the letter down and said nothing for a long time.',
+          rationale: 'The quoted passage resolves the revelation as summary instead of action.',
+          symptom: 'In the quoted passage “She set the letter down and said nothing for a long time,” the revelation resolves as summary instead of action.',
+          cause: 'This occurs when the narrator summarizes Mara’s reaction rather than rendering the physical consequence beat by beat.',
+          fix_direction: 'Replace the quoted passage “She set the letter down and said nothing for a long time” so Mara chooses a visible physical response before the narration names the emotion.',
+          reader_effect: 'This lets readers track Mara’s decision through embodied action, so the revelation keeps narrative momentum instead of flattening into summary.',
+          mistake_proofing: 'Do not introduce new information; the replacement must emerge from what the scene has already established.',
+          candidate_text_a: 'She set the letter down and did not look at it again. Her hands moved to the edge of the table and stayed there.',
+          candidate_text_b: 'After placing the letter flat on the table, Mara reached for her coat before either of them could ask what had changed.',
+          candidate_text_c: 'The letter lay face down near the lamp while Mara kept both hands on the table and refused to pick it up.',
+          revision_operation: 'replace_selected_passage',
+          provenance: 'evaluation_result_v2',
+          grounding_status: 'unsupported_blocked',
+          preflight_status: 'limited_context',
+          context_quality: 'limited',
+          preflight_reasons: ['limited_context_due_to_degraded_canon'],
+        },
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-limited-unsupported' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(0);
+    expect(result.withheldUnsupported).toHaveLength(1);
+    expect(result.withheldUnsupported[0].cardType).toBe('withheld');
+  });
+
   it('renders queue with caution when phase 0 warmup corpus cannot be loaded', async () => {
     mockLoadReviseQueueWarmupCorpus.mockRejectedValueOnce(new Error('missing benchmark corpus'));
     const supabase = buildSupabaseMock('job-1', 'version-1');
