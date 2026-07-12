@@ -12189,7 +12189,7 @@ export async function processQueuedJobs(options?: {
       .from('evaluation_jobs')
       .select('id,status,phase_status,created_at,updated_at,progress')
       .in('status', ['queued', 'running'])
-      .lt('created_at', killCutoff)
+      .lt('updated_at', killCutoff)
       .limit(20);
 
     if (staleJobs && staleJobs.length > 0) {
@@ -12263,7 +12263,7 @@ export async function processQueuedJobs(options?: {
             last_heartbeat_at: null,
             last_heartbeat: null,
             worker_pulse_at: null,
-            last_error: `KILL_SWITCH: Job exceeded maximum age of 2 hours (created before ${killCutoff})`,
+            last_error: `KILL_SWITCH: Job exceeded maximum age of 2 hours (last activity before ${killCutoff})`,
             failure_code: 'MAX_AGE_KILL_SWITCH',
             updated_at: killNow,
           })
