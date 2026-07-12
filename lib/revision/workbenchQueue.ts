@@ -24,12 +24,20 @@ import {
   resolveRevisionModeContract,
   type RevisionModeContract,
 } from './modeContract'
-import { runWorkbenchAdmissionGate } from './reviseAdmissionGate'
 import {
-  evaluateRecommendationExecutability,
   type RecommendationCardType,
   type TrustedPathStatus,
+  type StrategyCardViewModel,
 } from './recommendationExecutability'
+import {
+  classifyWorkbenchExecutability,
+  resolveEvidenceLocationScope,
+  resolveRepairScope,
+  modeForScope,
+  hasPlaceholderCoordinates,
+  isSupportedForUserQueue,
+  partitionWorkbenchQueue,
+} from './workbenchQueueProjection'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -87,6 +95,9 @@ export type WorkbenchOpportunity = {
   cardType?: RecommendationCardType
   trustedPathStatus?: TrustedPathStatus
   executabilityReasons?: string[]
+  evidenceLocationScope?: WorkbenchScope
+  repairScope?: WorkbenchScope
+  strategyCardViewModel?: StrategyCardViewModel | null
   groundingStatus?: SlaeGroundingStatus
   groundingNote?: string | null
   contextQuality?: 'clean' | 'limited' | 'blocked'
@@ -108,49 +119,6 @@ function splitPreflightReasonsByClass(reasons: string[] | undefined): { hydratio
   const hydration = all.filter((reason) => reason.startsWith(HYDRATION_REASON_PREFIX))
   const res = all.filter((reason) => !reason.startsWith(HYDRATION_REASON_PREFIX))
   return { hydration, res }
-}
-
-function passageLengthForExecutability(scope: WorkbenchScope, sourceText: string): 'short' | 'moderate' | 'long' {
-  if (scope === 'Chapter' || scope === 'Structural' || scope === 'Manuscript') return 'long'
-  const words = sourceText.split(/\s+/).filter(Boolean).length
-  if (words <= 35) return 'short'
-  if (words <= 120) return 'moderate'
-  return 'long'
-}
-
-function hasReasonMatching(reasons: string[] | undefined, pattern: RegExp): boolean {
-  return (reasons ?? []).some((reason) => pattern.test(reason))
-}
-
-function classifyWorkbenchExecutability(opportunity: WorkbenchOpportunity) {
-  const sourceText = `${opportunity.quoteHighlight ?? ''}${opportunity.quoteRest ?? ''}`.trim()
-  const admission = runWorkbenchAdmissionGate(opportunity)
-  const preflightReasons = opportunity.preflightReasons ?? []
-  const scopeRequiresStrategy = opportunity.mode === 'repair-brief'
-  const hasEvidence = sourceText.length > 0 && !/no excerpt available/i.test(sourceText)
-
-  return evaluateRecommendationExecutability({
-    evidencePresent: hasEvidence,
-    contextPresent: opportunity.contextQuality === 'clean' && opportunity.preflightStatus === 'passed',
-    canonClear:
-      opportunity.contextQuality !== 'blocked' &&
-      !hasReasonMatching(preflightReasons, /canon|ledger_conflict|insufficient_anchor_grounding|testimony_fabrication/i),
-    diagnosisSupported:
-      (opportunity.groundingStatus === 'supported' || opportunity.groundingStatus === 'supported_after_relook') &&
-      opportunity.preflightStatus === 'passed',
-    anchorPrecise: !hasPlaceholderCoordinates(opportunity.anchor),
-    passageLength: passageLengthForExecutability(opportunity.scope, sourceText),
-    beforeAfterContextSufficient: hasEvidence && opportunity.contextQuality === 'clean',
-    ledgerConflictPossible: hasReasonMatching(preflightReasons, /ledger|insufficient_anchor_grounding|context_mismatch|canon/i),
-    canonConflict: hasReasonMatching(preflightReasons, /canon_authority_blocked|canon_conflict|canon_drift/i),
-    affectsSceneArchitecture: scopeRequiresStrategy,
-    affectsPOVVoiceCanonMetaphor: hasReasonMatching(preflightReasons, /voice|pov|metaphor|canon|testimony/i),
-    downstreamContinuityRisk: scopeRequiresStrategy || opportunity.scope === 'Scene',
-    voiceFingerprintStable: !hasReasonMatching(preflightReasons, /voice|pov|testimony_fabrication/i),
-    localOperation: opportunity.mode === 'direct-rewrite' && opportunity.revisionOperation !== 'needs_targeting',
-    passingCandidateCount: admission.passedCandidateCount,
-    candidateProseNarrativeSafe: admission.admission_status === 'admission_passed',
-  })
 }
 
 export type WorkbenchQueuePayload = {
@@ -625,85 +593,6 @@ function inferScope(finding: DiagnosticFinding): WorkbenchScope {
   if (haystack.includes('scene') || haystack.includes('dialogue') || haystack.includes('pacing') || haystack.includes('character')) return 'Scene'
   if ((finding.original_text ?? finding.evidence_excerpt ?? '').length > 220) return 'Passage'
   return 'Line'
-}
-
-function modeForScope(scope: WorkbenchScope): WorkbenchMode {
-  return scope === 'Chapter' || scope === 'Structural' || scope === 'Manuscript' ? 'repair-brief' : 'direct-rewrite'
-}
-
-function scopeFromCoordinates(coordinates: string): WorkbenchScope {
-  const normalized = coordinates.trim().toLowerCase()
-  const prefixMatch = normalized.match(/^([a-z_]+):/)
-  const prefix = prefixMatch?.[1] ?? ''
-
-  switch (prefix) {
-    case 'line':
-      return 'Line'
-    case 'passage':
-      return 'Passage'
-    case 'scene':
-      return 'Scene'
-    case 'chapter':
-      return 'Chapter'
-    case 'structural':
-      return 'Structural'
-    case 'manuscript':
-      return 'Manuscript'
-    default:
-      if (prefix) {
-        // Safe fallback for unknown typed coordinates. Do not infer from
-        // arbitrary metadata like "note:this mentions manuscript".
-        return 'Passage'
-      }
-      if (/\b(?:whole\s+book|whole\s+manuscript|full\s+manuscript|manuscript-wide|across\s+the\s+manuscript)\b/.test(normalized)) {
-        return 'Manuscript'
-      }
-      if (/\b(?:chapters?|ch\.)\s*\d+/i.test(coordinates)) {
-        return 'Chapter'
-      }
-      if (/\b(?:structural|spine|arc|midpoint|climax|global\s+plot)\b/.test(normalized)) {
-        return 'Structural'
-      }
-      if (/\bscene\s*\d+/i.test(coordinates)) {
-        return 'Scene'
-      }
-      if (/\bline\s*\d+/i.test(coordinates)) {
-        return 'Line'
-      }
-      if (/\b(?:paragraph|para\.|passage)\s*\d+/i.test(coordinates)) {
-        return 'Passage'
-      }
-      // Safe fallback for unknown or malformed coordinates.
-      return 'Passage'
-  }
-}
-
-function hasPlaceholderCoordinates(coordinates: string): boolean {
-  const normalized = coordinates.trim()
-  if (!normalized) return true
-  if (/^[A-Z_]+:recommendation$/i.test(normalized)) return true
-  if (
-    /\b(?:recommendation|criteria\.recommendations|evaluation_result)\b/i.test(normalized)
-    && !/\b(?:chunk|chapter|scene|paragraph|line|passage|act|page)\b/i.test(normalized)
-  ) {
-    return true
-  }
-  return false
-}
-
-function isSupportedForUserQueue(opportunity: WorkbenchOpportunity): boolean {
-  if (opportunity.readiness !== 'ready_for_revise') return false
-  if (opportunity.groundingStatus !== 'supported') return false
-  // Fail-closed: explicitly preflight-passed or limited-context cards are
-  // user-admissible. limited_context cards passed all quality checks but the
-  // story canon had advisory-level degradation (not hard-fail). Legacy/stale
-  // rows missing preflight metadata must still be withheld.
-  if (opportunity.preflightStatus !== 'passed' && opportunity.preflightStatus !== 'limited_context') return false
-  if (hasPlaceholderCoordinates(opportunity.anchor)) return false
-  if ((opportunity.hydrationFailureReasons?.length ?? 0) > 0) return false
-  if ((opportunity.resBlockerReasons?.length ?? 0) > 0) return false
-  if (opportunity.revisionOperation === 'needs_targeting') return false
-  return true
 }
 
 /** Template-generated meta-phrases that should never appear in user-facing text. */
@@ -1267,8 +1156,17 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 
   const opportunities = revisionLedgerOpportunities.map((opportunity) => {
     const criterion = criterionLabel(opportunity.criterion)
-    const scope = scopeFromCoordinates(opportunity.manuscript_coordinates)
-    const mode = modeForScope(scope)
+    const evidenceLocationScope = resolveEvidenceLocationScope(opportunity.manuscript_coordinates)
+    const repairScope = resolveRepairScope({
+      fixDirection: opportunity.fix_direction,
+      rationale: opportunity.rationale,
+      symptom: opportunity.symptom,
+      readerEffect: opportunity.reader_effect,
+      revisionOperation: normalizeRevisionOperation(opportunity.revision_operation) ?? undefined,
+      scope: evidenceLocationScope,
+    })
+    const mode = modeForScope(repairScope)
+    const scope = evidenceLocationScope
     const severity: WorkbenchSeverity =
       opportunity.severity === 'must'
         ? 'must'
@@ -1346,6 +1244,8 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       severity,
       scope,
       mode,
+      evidenceLocationScope,
+      repairScope,
       source: 'evaluation' as const,
       criterion,
       leverage: cleanLabel(opportunity.provenance ?? 'evaluation_result'),
@@ -1405,6 +1305,8 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
         ? ((opportunity as any).admin_actions as string[])
         : undefined,
       modeContract: modeContractForMetadata(modeContract),
+      evidenceLocationScope,
+      repairScope,
     }
     const executability = classifyWorkbenchExecutability(baseOpportunity)
 
@@ -1413,46 +1315,17 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       cardType: executability.cardType,
       trustedPathStatus: executability.trustedPathStatus,
       executabilityReasons: executability.reasons,
+      strategyCardViewModel: executability.strategyCardViewModel,
     }
   })
 
-  const readyForRevise = opportunities.filter((opportunity) => opportunity.readiness === 'ready_for_revise')
-  const strategyReadyForReview = readyForRevise.filter((opportunity) =>
-    isSupportedForUserQueue(opportunity) &&
-    opportunity.cardType === 'revision_strategy' &&
-    runWorkbenchAdmissionGate(opportunity).admission_status === 'admission_passed',
-  )
-  const needsTargeting = [
-    ...opportunities.filter((opportunity) => opportunity.readiness === 'needs_targeting'),
-    ...strategyReadyForReview,
-  ]
-  const supportedReadyForRevise = readyForRevise.filter((opportunity) => {
-    if (!isSupportedForUserQueue(opportunity)) return false
-    if (opportunity.cardType !== 'copy_paste_rewrite' || opportunity.trustedPathStatus !== 'eligible') return false
-    return runWorkbenchAdmissionGate(opportunity).admission_status === 'admission_passed'
-  })
-  const withheldUnsupported = readyForRevise.filter((opportunity) => {
-    if (!isSupportedForUserQueue(opportunity)) return true
-    if (opportunity.cardType === 'revision_strategy' && runWorkbenchAdmissionGate(opportunity).admission_status === 'admission_passed') return false
-    if (opportunity.cardType === 'withheld') return true
-    return runWorkbenchAdmissionGate(opportunity).admission_status !== 'admission_passed'
-  })
+  const partition = partitionWorkbenchQueue(opportunities)
 
   const synthesisResult = {
-    admitted: supportedReadyForRevise.length,
+    admitted: partition.opportunities.length,
     clustered: 0,
-    held: needsTargeting.length + withheldUnsupported.length,
+    held: partition.needsTargeting.length + partition.withheldUnsupported.length,
     suppressed: 0,
-  }
-
-  const totals: WorkbenchQueuePayload['totals'] = { must: 0, should: 0, could: 0 }
-  const scopes: WorkbenchQueuePayload['scopes'] = { Line: 0, Passage: 0, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 }
-  const criteria: Record<string, number> = {}
-
-  for (const opportunity of supportedReadyForRevise) {
-    totals[opportunity.severity] += 1
-    scopes[opportunity.scope] += 1
-    criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
   }
 
   return {
@@ -1463,17 +1336,13 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     revisionPackage,
     modeContract,
     manuscriptTitle: manuscript.title ?? (await backfillManuscriptTitleIfMissing(manuscriptNumericId)) ?? 'Untitled Manuscript',
-    opportunities: supportedReadyForRevise,
-    needsTargeting,
-    withheldUnsupported,
-    readinessTotals: {
-      ready_for_revise: supportedReadyForRevise.length,
-      needs_targeting: needsTargeting.length,
-      withheld_unsupported: withheldUnsupported.length,
-    },
-    totals,
-    scopes,
-    criteria,
+    opportunities: partition.opportunities,
+    needsTargeting: partition.needsTargeting,
+    withheldUnsupported: partition.withheldUnsupported,
+    readinessTotals: partition.readinessTotals,
+    totals: partition.totals,
+    scopes: partition.scopes,
+    criteria: partition.criteria,
     synthesis: synthesisResult,
     goLiveProof: {
       phase0Warmup: {
@@ -1488,9 +1357,9 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       contractEnforcement: {
         candidateTextOnly: true,
         sixPartDiagnosticRequired: true,
-        readyForRevise: supportedReadyForRevise.length,
-        needsTargeting: needsTargeting.length + withheldUnsupported.length,
-        readyRate: opportunities.length === 0 ? 0 : Number((supportedReadyForRevise.length / opportunities.length).toFixed(4)),
+        readyForRevise: partition.opportunities.length,
+        needsTargeting: partition.needsTargeting.length + partition.withheldUnsupported.length,
+        readyRate: opportunities.length === 0 ? 0 : Number((partition.opportunities.length / opportunities.length).toFixed(4)),
       },
     },
   }
@@ -1499,7 +1368,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
 export const __testing = {
   hasActionableEvidence,
   synthesizeFindingsForWorkbench,
-  scopeFromCoordinates,
+  scopeFromCoordinates: resolveEvidenceLocationScope,
   hasPlaceholderCoordinates,
   humanizeCoordinateSlug,
   cleanLocationRef,

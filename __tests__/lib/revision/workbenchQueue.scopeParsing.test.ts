@@ -22,10 +22,12 @@ describe('scopeFromCoordinates', () => {
 
   it.each([
     ['Chapter 2 — Search for Mr. Hyde', 'Chapter'],
-    ['Ch. 7 paragraph 4', 'Chapter'],
+    ['Ch. 7 paragraph 4', 'Passage'],
     ['Chapters 8-10 climax repair', 'Chapter'],
     ['Scene 4 marketplace reversal', 'Scene'],
+    ['scene 4, paragraph 3', 'Passage'],
     ['line 12', 'Line'],
+    ['paragraph 7', 'Passage'],
     ['whole manuscript pattern', 'Manuscript'],
     ['across the manuscript', 'Manuscript'],
     ['structural midpoint reversal', 'Structural'],

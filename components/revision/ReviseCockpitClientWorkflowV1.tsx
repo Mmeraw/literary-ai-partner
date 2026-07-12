@@ -9,6 +9,7 @@ import {
   operationLabels,
 } from "@/lib/revision/reviseCardContract";
 import type { RevisionOperation } from "@/lib/revision/reviseCardContract";
+import StrategyCard from "@/components/revision/StrategyCard";
 
 type OptionKey = "A" | "B" | "C";
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
@@ -138,6 +139,7 @@ function hasTemplateResidue(text: string): boolean {
 type RevisionDisplayMode = "full_replacement" | "excerpt_insertion" | "strategy_only";
 
 function displayMode(item: WorkbenchOpportunity): RevisionDisplayMode {
+  if (item.strategyCardViewModel) return "strategy_only";
   const source = sourceTextOf(item);
   const wordCount = source ? source.split(/\s+/).length : 0;
   if (wordCount > 1200) return "strategy_only";
@@ -157,7 +159,15 @@ function candidateDisplayText(item: WorkbenchOpportunity, key: OptionKey): strin
   return text;
 }
 
+function isExecutableOpportunity(item: WorkbenchOpportunity): boolean {
+  // Accepting a candidate is only safe for copy-paste rewrites that are
+  // TrustedPath-eligible. Strategy cards and withheld cards may be viewed and
+  // compared, but they must not be accepted directly into the ledger.
+  return item.cardType === "copy_paste_rewrite" && item.trustedPathStatus === "eligible";
+}
+
 function canSelectOption(item: WorkbenchOpportunity, key: OptionKey): boolean {
+  if (!isExecutableOpportunity(item)) return false;
   const text = candidateText(item, key);
   if (hasTemplateResidue(text)) return false;
   return candidateTextIsCopyPasteReady(text) && !candidateRepeatsSourceForInsertion(item, text);
@@ -300,7 +310,18 @@ function DiagField({ label, value }: { label: string; value: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: WorkbenchQueuePayload }) {
-  const allInputItems = useMemo(() => payload.opportunities, [payload.opportunities]);
+  const allInputItems = useMemo(() => {
+    // Render both actionable opportunities (copy-paste rewrites) and review-only
+    // strategy/needs-targeting cards. Strategy cards are visible and comparable,
+    // but their acceptance is blocked by isExecutableOpportunity().
+    const combined = [...payload.opportunities, ...payload.needsTargeting];
+    // Put ready-for-revise items first so the default active card is actionable.
+    return combined.sort((a, b) => {
+      const aReady = a.readiness === "ready_for_revise" ? 0 : 1;
+      const bReady = b.readiness === "ready_for_revise" ? 0 : 1;
+      return aReady - bReady;
+    });
+  }, [payload.opportunities, payload.needsTargeting]);
   const [activeId, setActiveId] = useState(allInputItems[0]?.id ?? "");
   const [selectedOption, setSelectedOption] = useState<OptionKey>("A");
   const [filters, setFilters] = useState<Filters>({ search: "", priority: "all", criterion: "all", status: "all", sourceFilter: "all" });
@@ -430,7 +451,17 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
             clientCreatedAt: new Date().toISOString(),
             isUndo: false,
             undoneLocalId: null,
-            metadata: { source: "workflow-revise-cockpit-v1", revisionOperation: effectiveOperation(item), criterion: criterionOf(item), severity: item.severity, scope: item.scope },
+            metadata: {
+              source: "workflow-revise-cockpit-v1",
+              revisionOperation: effectiveOperation(item),
+              criterion: criterionOf(item),
+              severity: item.severity,
+              scope: item.evidenceLocationScope ?? item.scope,
+              evidenceLocationScope: item.evidenceLocationScope ?? item.scope,
+              repairScope: item.repairScope ?? item.scope,
+              cardType: item.cardType,
+              trustedPathStatus: item.trustedPathStatus,
+            },
           }],
         }),
       });
@@ -453,6 +484,10 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
 
   function decide(decision: DecisionState, option?: OptionKey, text?: string) {
     if (!active) return;
+    // Fail-closed: acceptance decisions are only allowed for true copy-paste
+    // TrustedPath-eligible cards. Other decisions (reject, defer, keep_original,
+    // custom) remain allowed for review-only strategy/needs-targeting cards.
+    if ((decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c") && !isExecutableOpportunity(active)) return;
     if (option && !canSelectOption(active, option)) return;
     const entry: LedgerEntry = {
       id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -848,7 +883,9 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                         ════════════════════════════════════════════════════ */}
                         {effectiveMode === "strategy_only" ? (
                           <div>
-                            {rewriteCache[active.id]?.error ? (
+                            {active.strategyCardViewModel ? (
+                              <StrategyCard viewModel={active.strategyCardViewModel} W={W} />
+                            ) : rewriteCache[active.id]?.error ? (
                               <>
                                 <Eyebrow>Generation Failed</Eyebrow>
                                 <p
@@ -1040,7 +1077,12 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                               })}
                             </div>
                             {/* Generate button — primary focal action */}
-                            {OPTION_KEYS.some((k) => !canSelectOption(active, k)) && (
+                            {OPTION_KEYS.some((k) => !canSelectOption(active, k)) &&
+                              // Strategy cards with already-hydrated candidates should be
+                              // reviewed, not regenerated. Only offer generation for
+                              // needs-targeting or copy-paste cards that are actually missing
+                              // or invalid candidates.
+                              !(active.cardType === "revision_strategy" && active.readiness === "ready_for_revise") && (
                               <>
                                 {rewriteCache[active.id]?.error && (
                                   <p
@@ -1118,7 +1160,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
 
                       if (effectiveMode === "strategy_only") {
                         const hasVoiceRewrite = !!(rewriteCache[active.id]?.a);
-                        if (hasVoiceRewrite) {
+                        if (hasVoiceRewrite && !active.strategyCardViewModel) {
                           const rw = rewriteCache[active.id];
                           return (
                             <>

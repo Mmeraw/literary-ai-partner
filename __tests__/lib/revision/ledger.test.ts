@@ -2,6 +2,7 @@ import {
   __testing,
   syncRevisionLedgerDecisions,
 } from '@/lib/revision/ledger';
+import { getWorkbenchQueue } from '@/lib/revision/workbenchQueue';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
 
@@ -13,8 +14,13 @@ jest.mock('@/lib/supabase/server', () => ({
   getAuthenticatedUser: jest.fn(),
 }));
 
+jest.mock('@/lib/revision/workbenchQueue', () => ({
+  getWorkbenchQueue: jest.fn(),
+}));
+
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
+const mockGetWorkbenchQueue = getWorkbenchQueue as jest.MockedFunction<typeof getWorkbenchQueue>;
 
 function buildSupabaseMock() {
   const singleQuery = (data: unknown) => {
@@ -71,6 +77,54 @@ function buildSupabaseMock() {
   };
 }
 
+function makeCanonicalQueuePayload(opportunities: any[]) {
+  return {
+    ok: true,
+    error: null,
+    manuscriptId: '6074',
+    evaluationJobId: 'job-1',
+    manuscriptTitle: 'Sister',
+    modeContract: null,
+    opportunities,
+    needsTargeting: [],
+    withheldUnsupported: [],
+    readinessTotals: { ready_for_revise: opportunities.length, needs_targeting: 0, withheld_unsupported: 0 },
+    totals: {},
+    scopes: {},
+    criteria: {},
+    synthesis: { admitted: opportunities.length, clustered: 0, held: 0, suppressed: 0 },
+    goLiveProof: {
+      phase0Warmup: {
+        status: 'unavailable' as const,
+        warning: null,
+        loadedAt: null,
+        corpusSha256: null,
+        fileCount: 0,
+        benchmarkCount: 0,
+        benchmarkFiles: [],
+      },
+      contractEnforcement: {
+        candidateTextOnly: true as const,
+        sixPartDiagnosticRequired: true as const,
+        readyForRevise: opportunities.length,
+        needsTargeting: 0,
+        readyRate: opportunities.length === 0 ? 0 : 1,
+      },
+    },
+  };
+}
+
+function makeCopyPasteOpportunity(candidateText: string) {
+  return {
+    id: 'opp-1',
+    cardType: 'copy_paste_rewrite',
+    trustedPathStatus: 'eligible',
+    options: [
+      { key: 'A', candidateText, text: candidateText, rationale: 'Primary repair path' },
+    ],
+  };
+}
+
 describe('revision ledger quality drift metrics', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -95,9 +149,11 @@ describe('revision ledger quality drift metrics', () => {
     expect(typeof metrics.vocabulary_retention).toBe('number');
   });
 
-  it('persists passive drift metrics for accepted decisions without changing sync control flow', async () => {
+  it('persists passive drift metrics for accepted decisions when canonical queue confirms eligibility', async () => {
     const { client, upsertSpy } = buildSupabaseMock();
     mockCreateAdminClient.mockReturnValue(client as never);
+    const candidateText = 'Elias holds the chapel door because she does not answer.';
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeCopyPasteOpportunity(candidateText)]) as never);
 
     const rows = await syncRevisionLedgerDecisions({
       manuscriptId: '6074',
@@ -110,13 +166,15 @@ describe('revision ledger quality drift metrics', () => {
           decision: 'accepted_a',
           selectedOption: 'A',
           sourceExcerpt: 'I held the chapel door because Mara had not answered.',
-          selectedText: 'Elias holds the chapel door because she does not answer.',
+          selectedText: candidateText,
           clientCreatedAt: '2026-06-06T00:00:00.000Z',
           metadata: { source: 'unit-test' },
         },
       ],
     });
 
+    expect(mockGetWorkbenchQueue).toHaveBeenCalledTimes(1);
+    expect(mockGetWorkbenchQueue).toHaveBeenCalledWith({ manuscriptId: '6074', evaluationJobId: 'job-1' });
     expect(upsertSpy).toHaveBeenCalledTimes(1);
     const [persistedRows] = upsertSpy.mock.calls[0];
     const [persisted] = persistedRows as Array<{ metadata: Record<string, unknown> }>;
@@ -129,5 +187,90 @@ describe('revision ledger quality drift metrics', () => {
       tense_shift: true,
     });
     expect(rows).toHaveLength(1);
+  });
+
+  it('rejects acceptance when the canonical queue classifies the card as a strategy card', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    const candidateText = 'Elias holds the chapel door because she does not answer.';
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([
+      {
+        ...makeCopyPasteOpportunity(candidateText),
+        cardType: 'revision_strategy',
+        trustedPathStatus: 'unavailable_author_review_required',
+      },
+    ]) as never);
+
+    await expect(
+      syncRevisionLedgerDecisions({
+        manuscriptId: '6074',
+        evaluationJobId: 'job-1',
+        entries: [
+          {
+            localId: 'local-accepted-a',
+            opportunityId: 'opp-1',
+            opportunityTitle: 'Preserve close POV',
+            decision: 'accepted_a',
+            selectedOption: 'A',
+            sourceExcerpt: 'I held the chapel door because Mara had not answered.',
+            selectedText: candidateText,
+            clientCreatedAt: '2026-06-06T00:00:00.000Z',
+            metadata: { source: 'unit-test', cardType: 'copy_paste_rewrite', trustedPathStatus: 'eligible' },
+          },
+        ],
+      }),
+    ).rejects.toThrow('Ledger acceptance blocked: only TrustedPath-eligible copy-paste rewrite cards may be accepted');
+  });
+
+  it('rejects acceptance when the selected text does not match the canonical candidate text', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeCopyPasteOpportunity('Canonical candidate text')]) as never);
+
+    await expect(
+      syncRevisionLedgerDecisions({
+        manuscriptId: '6074',
+        evaluationJobId: 'job-1',
+        entries: [
+          {
+            localId: 'local-accepted-a',
+            opportunityId: 'opp-1',
+            opportunityTitle: 'Preserve close POV',
+            decision: 'accepted_a',
+            selectedOption: 'A',
+            sourceExcerpt: 'I held the chapel door because Mara had not answered.',
+            selectedText: 'Forged candidate text that does not match the ledger.',
+            clientCreatedAt: '2026-06-06T00:00:00.000Z',
+            metadata: { source: 'unit-test', cardType: 'copy_paste_rewrite', trustedPathStatus: 'eligible' },
+          },
+        ],
+      }),
+    ).rejects.toThrow('Ledger acceptance blocked: selected text does not match canonical candidate text');
+  });
+
+  it('rejects acceptance when the canonical queue does not contain the opportunity', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([]) as never);
+
+    await expect(
+      syncRevisionLedgerDecisions({
+        manuscriptId: '6074',
+        evaluationJobId: 'job-1',
+        entries: [
+          {
+            localId: 'local-accepted-a',
+            opportunityId: 'opp-1',
+            opportunityTitle: 'Preserve close POV',
+            decision: 'accepted_a',
+            selectedOption: 'A',
+            sourceExcerpt: 'I held the chapel door because Mara had not answered.',
+            selectedText: 'Elias holds the chapel door because she does not answer.',
+            clientCreatedAt: '2026-06-06T00:00:00.000Z',
+            metadata: { source: 'unit-test', cardType: 'copy_paste_rewrite', trustedPathStatus: 'eligible' },
+          },
+        ],
+      }),
+    ).rejects.toThrow('Ledger acceptance blocked: opportunity not found in canonical queue projection');
   });
 });
