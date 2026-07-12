@@ -269,8 +269,11 @@ export function resolveEffectiveRuntimeStartMs(job: Pick<QueueHardStopCandidate,
   // SLA budget before a worker has had a fair chance to complete the work.
   const slaResetAt = typeof progress.sla_timer_reset_at === 'string' ? progress.sla_timer_reset_at : null;
 
+  // The row's updated_at is bumped by trg_evaluation_jobs_updated_at on every
+  // state change (requeue, rescue, heartbeat). Use updated_at as the primary
+  // freshness signal and fall back to created_at only when updated_at is absent.
   const candidates = [
-    toIsoMs(job.created_at ?? job.updated_at),
+    toIsoMs(job.updated_at ?? job.created_at),
     toIsoMs(resumeAt),
     toIsoMs(retryAt),
     toIsoMs(slaResetAt),
@@ -393,7 +396,7 @@ export function isGlobalSlaExceeded(job: QueueHardStopCandidate, args: {
   const wordCount = Number.isFinite(job.manuscript_word_count as number)
     ? Number(job.manuscript_word_count)
     : 0;
-  const slaMs = wordCount >= 12_000 ? args.longFormSlaMs : args.shortFormSlaMs;
+  const slaMs = wordCount >= 25_000 ? args.longFormSlaMs : args.shortFormSlaMs;
   return args.nowMs - slaStartMs >= slaMs;
 }
 

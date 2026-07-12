@@ -1124,6 +1124,16 @@ export async function renewEvaluationJobLease(args: {
   }
 }
 
+function isRpcFunctionNotFoundError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string; message?: string };
+  if (e.code === 'PGRST202') return true;
+  const msg = e.message ?? '';
+  return /function\s+claim_evaluation_jobs?_?\s+with.*does not exist/i.test(msg)
+    || /could not find the function/i.test(msg)
+    || /function\s+claim_evaluation_jobs?_?\s+does not exist/i.test(msg);
+}
+
 function resolveSafeStartedAt(args: {
   candidate: unknown;
   createdAt: unknown;
@@ -12015,7 +12025,7 @@ export async function claimQueuedJobs(
     ? Math.min(100, Math.max(0, Math.floor(maxRetriesAllowedRaw)))
     : 8;
 
-  const { data, error } = await supabase.rpc('claim_evaluation_jobs', {
+  let { data, error } = await supabase.rpc('claim_evaluation_jobs', {
     p_batch_size: batchSize,
     p_worker_id: workerId,
     p_lease_token: leaseToken,
@@ -12023,6 +12033,19 @@ export async function claimQueuedJobs(
     p_max_runtime_minutes: maxRuntimeMinutes,
     p_max_retries_allowed: maxRetriesAllowed,
   });
+
+  // Fallback for environments where the 6-parameter hardened RPC has not been
+  // deployed yet (e.g. during a partial migration). The 4-parameter version
+  // has no runtime/deadline guard, so this is a backwards-compatibility shim.
+  if (error && isRpcFunctionNotFoundError(error)) {
+    console.warn('[Processor] claim_evaluation_jobs (6-param) not found; falling back to 4-param version');
+    ({ data, error } = await supabase.rpc('claim_evaluation_jobs', {
+      p_batch_size: batchSize,
+      p_worker_id: workerId,
+      p_lease_token: leaseToken,
+      p_lease_expires_at: leaseExpiresAt,
+    }));
+  }
 
   if (error) {
     console.error('[Processor] claim_evaluation_jobs RPC error:', error);
@@ -12090,7 +12113,7 @@ export async function claimQueuedJobById(
     ? Math.min(100, Math.max(0, Math.floor(maxRetriesAllowedRaw)))
     : 8;
 
-  const { data, error } = await supabase.rpc('claim_evaluation_job_by_id', {
+  let { data, error } = await supabase.rpc('claim_evaluation_job_by_id', {
     p_job_id: options.jobId,
     p_worker_id: options.workerId,
     p_lease_token: leaseToken,
@@ -12098,6 +12121,17 @@ export async function claimQueuedJobById(
     p_max_runtime_minutes: maxRuntimeMinutes,
     p_max_retries_allowed: maxRetriesAllowed,
   });
+
+  // Fallback for the pre-hardened 4-parameter version of the RPC.
+  if (error && isRpcFunctionNotFoundError(error)) {
+    console.warn('[Processor] claim_evaluation_job_by_id (6-param) not found; falling back to 4-param version');
+    ({ data, error } = await supabase.rpc('claim_evaluation_job_by_id', {
+      p_job_id: options.jobId,
+      p_worker_id: options.workerId,
+      p_lease_token: leaseToken,
+      p_lease_expires_at: leaseExpiresAt,
+    }));
+  }
 
   if (error) {
     console.error('[Processor] claim_evaluation_job_by_id RPC error:', error);
@@ -12261,11 +12295,10 @@ export async function processQueuedJobs(options?: {
 
   const queuedHardStops = await terminalizeQueuedHardStops();
   if (queuedHardStops.shouldHaltProcessing) {
-    console.warn('[Worker] queued hard-stop circuit breaker engaged', {
+    console.warn('[Worker] queued hard-stop circuit breaker tripped, but continuing to claim fresh jobs', {
       hard_stopped: queuedHardStops.hardStopped,
       job_ids: queuedHardStops.ids,
     });
-    return { processed: 0, succeeded: 0, failed: queuedHardStops.hardStopped, claimed: 0, errors: [] };
   }
 
   const { evalWorkerBatchSize } = getProcessorRuntimeDeps();
