@@ -6,6 +6,10 @@ import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import { withRetry } from '@/lib/evaluation/pipeline/openaiRetry';
 import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+} from '@/lib/evaluation/policy';
+import {
   hasRepeatedSentenceOpenings,
   sanitizeAuthorFacingProse,
   startsWithRepetitiveLeadIn,
@@ -521,8 +525,8 @@ export async function POST(req: NextRequest) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.7,
-        max_tokens: MAX_TOKENS,
+        ...buildOpenAITemperatureParam(MODEL, 0.7),
+        ...buildOpenAIOutputTokenParam(MODEL, MAX_TOKENS),
       }),
       { maxAttempts: 2, label: `agent_readiness_${section}_${synopsisVariant}` },
     );
@@ -541,8 +545,8 @@ export async function POST(req: NextRequest) {
           { role: 'system', content: `${systemPrompt}\n\nCRITICAL: Your previous output was rejected: ${gate.reason}. Fix this issue.` },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.3,
-        max_tokens: MAX_TOKENS,
+        ...buildOpenAITemperatureParam(MODEL, 0.3),
+        ...buildOpenAIOutputTokenParam(MODEL, MAX_TOKENS),
       });
       const retryText = sanitizeAuthorFacingProse(retryCompletion.choices[0]?.message?.content?.trim() ?? '');
       const retryGate = qualityGate(retryText, section, synopsisVariant);
