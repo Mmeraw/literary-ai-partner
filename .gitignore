@@ -104,6 +104,11 @@ worktrees/
 *.log
 .env*.local
 
+# C2 live-proof / readiness run artifacts (evidence-only; never committed from a run)
+c2-live-proof-artifact*.json
+c2-readiness-check*.json
+c2-live-proof-terminal-output*.txt
+
 # Pipeline stress harness output (artifact-only; .gitkeep + smoke evidence tracked)
 stress-results/*
 !stress-results/.gitkeep

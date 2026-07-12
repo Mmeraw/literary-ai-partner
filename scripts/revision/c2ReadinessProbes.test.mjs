@@ -22,8 +22,11 @@ import {
   probeBaseUrlHealth,
   probeManuscriptReadable,
   probeAuthorityResolves,
+  probeProofIdentityOwnsManuscript,
   runReadiness,
 } from './c2ReadinessProbes.mjs';
+
+const PROOF_OWNER = '11111111-1111-1111-1111-111111111111';
 
 const GOOD_ENV = {
   CRON_SECRET: 'x',
@@ -31,6 +34,7 @@ const GOOD_ENV = {
   OPENAI_API_KEY: 'z',
   SUPABASE_URL: 'https://example.supabase.co',
   USE_SUPABASE_JOBS: 'true',
+  C2_PROOF_USER_ID: PROOF_OWNER,
 };
 
 // --- injected fakes -------------------------------------------------------
@@ -43,7 +47,13 @@ const goodBaseUrl = async () => 'http://localhost:3000';
 // admin client that finds / does not find the manuscript
 const adminFound = () => ({
   createAdminClient: () => ({
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 7519 }, error: null }) }) }) }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 7519, user_id: PROOF_OWNER }, error: null }) }) }) }),
+  }),
+});
+// admin whose manuscript is owned by a DIFFERENT user (ownership mismatch)
+const adminOwnedByOther = () => ({
+  createAdminClient: () => ({
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 7519, user_id: 'someone-else' }, error: null }) }) }) }),
   }),
 });
 const adminNotFound = () => ({
@@ -138,6 +148,44 @@ async function run() {
   const aFail = await probeAuthorityResolves({ importAuthority: authorityImportFails });
   check('CASE 3: failed TS authority import -> authority_resolves FAIL', aFail.status === STATUS.FAIL);
   check('CASE 3: FAIL detail suggests TS runtime (npx tsx)', /tsx|TS runtime/i.test(aFail.detail));
+
+  // --- probeProofIdentityOwnsManuscript (operator-nominated, verify-not-derive) ---
+  const pOk = await probeProofIdentityOwnsManuscript({ manuscriptId: '7519', env: { C2_PROOF_USER_ID: PROOF_OWNER }, importAdmin: adminFound });
+  check('proof_identity PASS when nominee owns manuscript', pOk.status === STATUS.PASS && pOk.data.owner_matches === true);
+
+  const pNoNominee = await probeProofIdentityOwnsManuscript({ manuscriptId: '7519', env: {}, importAdmin: adminFound });
+  check('proof_identity FAIL when C2_PROOF_USER_ID absent (must nominate, not derive)', pNoNominee.status === STATUS.FAIL);
+  check('proof_identity FAIL detail demands explicit nomination', /C2_PROOF_USER_ID|nominat/i.test(pNoNominee.detail));
+
+  const pMismatch = await probeProofIdentityOwnsManuscript({ manuscriptId: '7519', env: { C2_PROOF_USER_ID: PROOF_OWNER }, importAdmin: adminOwnedByOther });
+  check('proof_identity FAIL on ownership mismatch', pMismatch.status === STATUS.FAIL && /mismatch/i.test(pMismatch.detail));
+
+  const pMissing = await probeProofIdentityOwnsManuscript({ manuscriptId: '7519', env: { C2_PROOF_USER_ID: PROOF_OWNER }, importAdmin: adminNotFound });
+  check('proof_identity FAIL when manuscript not found', pMissing.status === STATUS.FAIL);
+
+  const pNoSecrets = await probeProofIdentityOwnsManuscript({ manuscriptId: '7519', env: { C2_PROOF_USER_ID: PROOF_OWNER }, importAdmin: adminNull });
+  check('proof_identity NOT_EXECUTED when admin client null (no secrets)', pNoSecrets.status === STATUS.NOT_EXECUTED);
+
+  const pAllowMiss = await probeProofIdentityOwnsManuscript({
+    manuscriptId: '7519',
+    env: { C2_PROOF_USER_ID: PROOF_OWNER, PROOF_JOB_ALLOWED_USER_IDS: 'other-uuid' },
+    importAdmin: adminFound,
+  });
+  check('proof_identity FAIL when nominee not in PROOF_JOB_ALLOWED_USER_IDS', pAllowMiss.status === STATUS.FAIL);
+
+  const pAllowHit = await probeProofIdentityOwnsManuscript({
+    manuscriptId: '7519',
+    env: { C2_PROOF_USER_ID: PROOF_OWNER, PROOF_JOB_ALLOWED_USER_IDS: `other-uuid,${PROOF_OWNER}`, PROOF_JOB_ALLOWED_MANUSCRIPT_IDS: '7519' },
+    importAdmin: adminFound,
+  });
+  check('proof_identity PASS when allowlists include nominee + manuscript', pAllowHit.status === STATUS.PASS);
+
+  const pManuscriptAllowMiss = await probeProofIdentityOwnsManuscript({
+    manuscriptId: '7519',
+    env: { C2_PROOF_USER_ID: PROOF_OWNER, PROOF_JOB_ALLOWED_MANUSCRIPT_IDS: '9999' },
+    importAdmin: adminFound,
+  });
+  check('proof_identity FAIL when manuscript not in PROOF_JOB_ALLOWED_MANUSCRIPT_IDS', pManuscriptAllowMiss.status === STATUS.FAIL);
 
   // --- runReadiness (integration of injected deps) ---
   // CASE 4: successful readiness — all probes PASS

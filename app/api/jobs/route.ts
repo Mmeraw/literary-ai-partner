@@ -12,6 +12,7 @@ import { generateTraceId, logger, jobLogger } from "@/lib/observability/logger";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveProofJobIdentity } from "@/lib/auth/proofJobIdentity";
 import { backpressureGuard } from "@/lib/jobs/backpressure";
 import { isTriggerWorkerFailure, triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { resolveManuscriptTitle } from "@/lib/manuscripts/title";
@@ -431,8 +432,34 @@ export async function POST(req: Request) {
     }
 
     const authenticatedUser = await getAuthenticatedUser();
+    // Third, explicitly gated fallback: operator-nominated proof identity for the
+    // C2 live-proof harness (bearer CRON_SECRET + x-proof-user-id that must own
+    // the target manuscript, gated by ALLOW_PROOF_JOB_IDENTITY). Only consulted
+    // when there is no authenticated user. Never bypasses manuscript ownership;
+    // returns null unless every safety condition holds. See lib/auth/proofJobIdentity.
+    const proofIdentity = authenticatedUser?.id
+      ? null
+      : await resolveProofJobIdentity(req, manuscript_id);
+    if (proofIdentity) {
+      // Audit trail for the privileged proof path. Wrapped so a logging failure
+      // can never break job creation. Ownership is already verified upstream
+      // (verified_owner is always true here by construction of the helper).
+      try {
+        logger.warn("Operator-nominated proof identity used for job creation", {
+          trace_id,
+          proof_identity_used: true,
+          proof_user_id: proofIdentity.userId,
+          manuscript_id,
+          verified_owner: true,
+          source: proofIdentity.source,
+        });
+      } catch {
+        /* never let audit logging break the request */
+      }
+    }
     const userId =
       authenticatedUser?.id ??
+      proofIdentity?.userId ??
       (process.env.ALLOW_HEADER_USER_ID === "true"
         ? req.headers.get("x-user-id")
         : null);
