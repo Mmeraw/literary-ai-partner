@@ -22,10 +22,16 @@ const DOWNLOAD_FORMATS = ["pdf", "docx", "txt"];
 export function smokeAuthHeaders(env = process.env) {
   const bearer = env.CRON_SECRET || env.SUPABASE_SERVICE_ROLE_KEY;
   const userId = env.SMOKE_USER_ID?.trim();
+  // Operator-nominated proof identity: the real author (owner of the target
+  // manuscript) the operator explicitly authorizes this proof job to run as.
+  // The route only honors this with ALLOW_PROOF_JOB_IDENTITY=true + a valid
+  // bearer CRON_SECRET AND verified ownership; it never bypasses ownership.
+  const proofUserId = (env.C2_PROOF_USER_ID || env.PROOF_USER_ID)?.trim();
 
   return {
     ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
     ...(userId ? { "x-user-id": userId } : {}),
+    ...(proofUserId ? { "x-proof-user-id": proofUserId } : {}),
   };
 }
 

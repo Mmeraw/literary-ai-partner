@@ -37,6 +37,7 @@ export const READINESS_PROBES = Object.freeze([
   { key: 'base_url_health', description: 'Base URL resolves and /api/health returns ok within a bounded timeout.' },
   { key: 'manuscript_readable', description: 'Target manuscript exists and is readable (SELECT-only, no job created).' },
   { key: 'authority_resolves', description: 'Server authority getWorkbenchQueue imports/resolves under the runtime.' },
+  { key: 'proof_identity_owns_manuscript', description: 'Operator-nominated C2_PROOF_USER_ID is present and verifiably owns the target manuscript (read-only).' },
 ]);
 
 export const REQUIRED_LIVE_SECRETS = Object.freeze([
@@ -229,6 +230,114 @@ export async function probeAuthorityResolves({
 }
 
 /**
+ * Probe 5: proof identity owns manuscript. Verifies the OPERATOR-NOMINATED
+ * proof identity (C2_PROOF_USER_ID) is present AND verifiably owns the target
+ * manuscript, via a bounded READ-ONLY SELECT. This is intentionally NOT
+ * discovery-based: the operator must assert the owner; we verify the assertion,
+ * we never auto-derive an owner to impersonate.
+ *
+ * Fail-closed semantics:
+ *   - no C2_PROOF_USER_ID              -> FAIL (operator must nominate)
+ *   - admin client null (no secrets)   -> NOT_EXECUTED (precondition missing)
+ *   - manuscript missing               -> FAIL
+ *   - manuscripts.user_id !== nominee  -> FAIL (ownership mismatch)
+ *   - PROOF_JOB_ALLOWED_* set and miss -> FAIL
+ * Performs NO write, NO job creation, NO OpenAI call.
+ *
+ * `importAdmin` is injected for testability.
+ */
+export async function probeProofIdentityOwnsManuscript({
+  manuscriptId,
+  env = process.env,
+  importAdmin = () => import('../../lib/supabase/admin.ts'),
+  timeoutMs = 8000,
+} = {}) {
+  if (!manuscriptId || !/^\d+$/.test(String(manuscriptId))) {
+    return { status: STATUS.FAIL, detail: `invalid manuscript id: ${manuscriptId}`, data: {} };
+  }
+  const proofUserId = (env.C2_PROOF_USER_ID || env.PROOF_USER_ID || '').trim();
+  if (!proofUserId) {
+    return {
+      status: STATUS.FAIL,
+      detail:
+        'no operator-nominated proof identity: set C2_PROOF_USER_ID to the real ' +
+        'author uuid that owns this manuscript. The proof run must be an explicit, ' +
+        'auditable nomination, not owner discovery.',
+      data: { proof_user_id_present: false },
+    };
+  }
+
+  // Allowlist checks (only enforced when configured), mirroring the route contract.
+  const parseList = (raw) =>
+    raw && String(raw).trim() !== ''
+      ? String(raw).split(',').map((s) => s.trim()).filter(Boolean)
+      : null;
+  const allowedUsers = parseList(env.PROOF_JOB_ALLOWED_USER_IDS);
+  if (allowedUsers && !allowedUsers.includes(proofUserId)) {
+    return { status: STATUS.FAIL, detail: `proof user ${proofUserId} not in PROOF_JOB_ALLOWED_USER_IDS`, data: {} };
+  }
+  const allowedManuscripts = parseList(env.PROOF_JOB_ALLOWED_MANUSCRIPT_IDS);
+  if (allowedManuscripts && !allowedManuscripts.includes(String(Number(manuscriptId)))) {
+    return { status: STATUS.FAIL, detail: `manuscript ${manuscriptId} not in PROOF_JOB_ALLOWED_MANUSCRIPT_IDS`, data: {} };
+  }
+
+  let createAdminClient;
+  try {
+    ({ createAdminClient } = await importAdmin());
+  } catch (err) {
+    return {
+      status: STATUS.FAIL,
+      detail:
+        `could not import admin client (${err?.message ?? err}). ` +
+        'Run under a TS runtime (npx tsx) so lib/supabase/admin.ts resolves.',
+      data: {},
+    };
+  }
+  let admin;
+  try {
+    admin = createAdminClient({ nullable: true });
+  } catch (err) {
+    return { status: STATUS.FAIL, detail: `createAdminClient threw: ${err?.message ?? err}`, data: {} };
+  }
+  if (!admin) {
+    return {
+      status: STATUS.NOT_EXECUTED,
+      detail: 'admin client unavailable (Supabase secrets absent); cannot verify ownership without credentials',
+      data: {},
+    };
+  }
+  try {
+    // READ-ONLY, single-row, bounded. Verifies the asserted owner; never derives one.
+    const query = admin.from('manuscripts').select('id, user_id').eq('id', Number(manuscriptId)).maybeSingle();
+    const withTimeout = Promise.race([
+      query,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`ownership read timed out after ${timeoutMs}ms`)), timeoutMs)),
+    ]);
+    const { data, error } = await withTimeout;
+    if (error) {
+      return { status: STATUS.FAIL, detail: `ownership read error: ${error.message ?? error}`, data: {} };
+    }
+    if (!data) {
+      return { status: STATUS.FAIL, detail: `manuscript ${manuscriptId} not found; cannot verify ownership`, data: { found: false } };
+    }
+    if (String(data.user_id) !== proofUserId) {
+      return {
+        status: STATUS.FAIL,
+        detail: `ownership mismatch: manuscript ${manuscriptId} is not owned by nominated C2_PROOF_USER_ID`,
+        data: { found: true, owner_matches: false },
+      };
+    }
+    return {
+      status: STATUS.PASS,
+      detail: `nominated proof identity verifiably owns manuscript ${manuscriptId} (read-only)`,
+      data: { found: true, owner_matches: true },
+    };
+  } catch (err) {
+    return { status: STATUS.FAIL, detail: `ownership verification failed: ${err?.message ?? err}`, data: {} };
+  }
+}
+
+/**
  * Run all readiness probes and fold into a readiness section.
  * `ready` (overall) is true ONLY when every probe is PASS. A single FAIL or
  * NOT_EXECUTED makes readiness not-ready — fail-closed.
@@ -242,6 +351,11 @@ export async function runReadiness({ manuscriptId, envName = null, getBaseUrl, e
     importAdmin: deps.importAdmin,
   });
   results.authority_resolves = await probeAuthorityResolves({ importAuthority: deps.importAuthority });
+  results.proof_identity_owns_manuscript = await probeProofIdentityOwnsManuscript({
+    manuscriptId,
+    env,
+    importAdmin: deps.importAdmin,
+  });
 
   const allPass = READINESS_PROBES.every((p) => results[p.key]?.status === STATUS.PASS);
   const anyFail = READINESS_PROBES.some((p) => results[p.key]?.status === STATUS.FAIL);
