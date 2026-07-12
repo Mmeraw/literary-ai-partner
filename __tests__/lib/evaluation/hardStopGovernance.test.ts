@@ -296,7 +296,7 @@ describe('hardStopGovernance', () => {
         phase: 'phase_3',
         phase_status: 'queued',
         created_at: '2026-06-07T00:56:18.322Z',
-        updated_at: '2026-06-07T01:12:00.000Z',
+        updated_at: '2026-06-07T00:56:18.322Z',
         manuscript_word_count: 4899,
         progress: {},
       },

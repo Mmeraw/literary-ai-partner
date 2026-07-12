@@ -291,12 +291,12 @@ export function resolveEvaluationRuntimeConfig(
   const synthesisRefCharBudget = envContract.synthesisRefCharBudget;
 
   const batchSize = parseBoundedInteger(env, "EVAL_WORKER_BATCH_SIZE", {
-    defaultValue: 5,
+    defaultValue: 1,
     min: 1,
     max: 5,
   });
   // 3_600_000 ms = 60 minutes.
-  // Each phase gets its own fresh Vercel invocation (720s wall) anchored to
+  // Each phase gets its own fresh Vercel invocation (800s wall) anchored to
   // invocation start time, not job start time. For 165k-word manuscripts,
   // phase_1 (Pass 1+2) may span multiple watchdog-rescued invocations before
   // the handoff artifact is written. A 60-min per-invocation lease ensures
@@ -306,10 +306,14 @@ export function resolveEvaluationRuntimeConfig(
     min: 30_000,
     max: 3_600_000,
   });
+  // 750_000 ms = 12.5 minutes. The process-evaluations route maxDuration is 800s,
+  // so the worker must abort before Vercel hard-kills the function. The actual
+  // per-phase wall clock is governed by getVercelBudgetRemainingMs() (680s
+  // self-chain margin); this value is the hard backstop for the SLA guard.
   const maxExecutionMs = parseBoundedInteger(env, "EVAL_WORKER_MAX_EXECUTION_MS", {
-    defaultValue: 3_600_000,
+    defaultValue: 750_000,
     min: 10_000,
-    max: 3_600_000,
+    max: 800_000,
   });
 
   if (leaseMs < maxExecutionMs) {
