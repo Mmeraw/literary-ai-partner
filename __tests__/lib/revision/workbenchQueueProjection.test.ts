@@ -290,4 +290,28 @@ describe('workbenchQueueProjection buildStrategyCardViewModel', () => {
     );
     expect(buildStrategyCardViewModel(opportunity, executability)).toBeNull();
   });
+
+  it('derives conservative, moderate, bold, and author-decision approaches without relabeling diagnostics', () => {
+    const opportunity = makeOpportunity({
+      evidenceLocationScope: 'Passage',
+      repairScope: 'Structural',
+      options: [candidate('A'), candidate('B'), candidate('C')],
+    });
+    const executability: ReturnType<typeof classifyWorkbenchExecutability> = {
+      cardType: 'revision_strategy',
+      trustedPathStatus: 'unavailable_author_review_required',
+      reasons: ['insufficient_before_after_context'],
+    };
+
+    const result = buildStrategyCardViewModel(opportunity, executability);
+    expect(result).not.toBeNull();
+    expect(result!.scaffold.conservativeApproach).toContain('smallest safe scope');
+    expect(result!.scaffold.moderateApproach).toContain('Apply the recommended repair');
+    expect(result!.scaffold.boldApproach).toContain('broader scope');
+    expect(result!.scaffold.authorDecisionRequired).toContain('Decide whether');
+    expect(result!.scaffold.moderateApproach).not.toContain('readerEffect');
+    expect(result!.scaffold.moderateApproach).not.toContain('mistakeProofing');
+    expect(result!.scaffold.authorDecisionRequired).not.toContain('This happens because');
+    expect(result!.illustrativeExamples).toHaveLength(3);
+  });
 });

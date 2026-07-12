@@ -89,9 +89,9 @@ export default function StrategyCard({
       </div>
 
       <div className="grid gap-3">
-        <Field label="Recommended repair" value={scaffold.recommendedRepair} W={W} />
-        <Field label="Rhythm / cadence alternative" value={scaffold.rhythmCadenceAlternative} W={W} />
-        <Field label="Bold structural choice" value={scaffold.boldStructuralChoice} W={W} />
+        <Field label="Conservative approach" value={scaffold.conservativeApproach} W={W} />
+        <Field label="Moderate approach" value={scaffold.moderateApproach} W={W} />
+        <Field label="Bold approach" value={scaffold.boldApproach} W={W} />
         <Field label="Author decision required" value={scaffold.authorDecisionRequired} W={W} />
       </div>
 

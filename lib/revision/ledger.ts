@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
+import type { WorkbenchOpportunity } from "@/lib/revision/workbenchQueue";
 
 export type RevisionLedgerDecision =
   | "accepted_a"
@@ -296,7 +298,25 @@ async function assertOwnedEvaluation(
 
 const ACCEPT_DECISIONS = new Set<RevisionLedgerDecision>(["accepted_a", "accepted_b", "accepted_c"]);
 
-function validateEntry(entry: SyncRevisionLedgerEntryInput): SyncRevisionLedgerEntryInput {
+function decisionToOption(decision: RevisionLedgerDecision): "A" | "B" | "C" | null {
+  if (decision === "accepted_a") return "A";
+  if (decision === "accepted_b") return "B";
+  if (decision === "accepted_c") return "C";
+  return null;
+}
+
+function normalizeWhitespace(value: string | null | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function canonicalTextMatches(selected: string, canonical: string): boolean {
+  return normalizeWhitespace(selected).toLowerCase() === normalizeWhitespace(canonical).toLowerCase();
+}
+
+function validateEntry(
+  entry: SyncRevisionLedgerEntryInput,
+  canonicalOpportunityById: Map<string, WorkbenchOpportunity>,
+): SyncRevisionLedgerEntryInput {
   if (!entry || typeof entry !== "object") throw new Error("Invalid ledger entry");
   if (typeof entry.localId !== "string" || entry.localId.trim().length === 0) {
     throw new Error("Ledger entry missing localId");
@@ -310,20 +330,46 @@ function validateEntry(entry: SyncRevisionLedgerEntryInput): SyncRevisionLedgerE
   const decision = normalizeDecision(entry.decision);
   if (!decision) throw new Error(`Invalid ledger decision: ${String(entry.decision)}`);
 
-  // Server-side acceptance guard: only copy-paste rewrites with TrustedPath
-  // status eligible may be accepted. Strategy/needs-targeting/withheld cards
-  // can be reviewed, rejected, deferred, or kept, but not accepted.
+  // Server-side acceptance guard: reload the canonical opportunity from the
+  // workbench queue projection and validate the server-derived classification
+  // and candidate text. Do not trust client-provided metadata.
   if (ACCEPT_DECISIONS.has(decision)) {
-    const metadata = entry.metadata ?? {};
-    if (metadata.cardType !== "copy_paste_rewrite" || metadata.trustedPathStatus !== "eligible") {
+    const expectedOption = decisionToOption(decision);
+    const clientOption = normalizeOption(entry.selectedOption);
+    if (expectedOption && clientOption && clientOption !== expectedOption) {
+      throw new Error("Ledger acceptance blocked: decision and selected option are inconsistent");
+    }
+    const selectedOption = expectedOption ?? clientOption;
+    if (!selectedOption) {
+      throw new Error("Ledger acceptance blocked: missing selected option");
+    }
+
+    const canonical = canonicalOpportunityById.get(entry.opportunityId);
+    if (!canonical) {
+      throw new Error("Ledger acceptance blocked: opportunity not found in canonical queue projection");
+    }
+    if (canonical.cardType !== "copy_paste_rewrite" || canonical.trustedPathStatus !== "eligible") {
       throw new Error("Ledger acceptance blocked: only TrustedPath-eligible copy-paste rewrite cards may be accepted");
+    }
+
+    const selectedText = normalizeText(entry.selectedText);
+    if (!selectedText) {
+      throw new Error("Ledger acceptance blocked: accepted decision must include selected text");
+    }
+    const canonicalOption = canonical.options.find((option) => option.key === selectedOption);
+    if (!canonicalOption) {
+      throw new Error("Ledger acceptance blocked: selected option not found in canonical opportunity");
+    }
+    const canonicalCandidateText = canonicalOption.candidateText || canonicalOption.text;
+    if (!canonicalTextMatches(selectedText, canonicalCandidateText)) {
+      throw new Error("Ledger acceptance blocked: selected text does not match canonical candidate text");
     }
   }
 
   return {
     ...entry,
     decision,
-    selectedOption: normalizeOption(entry.selectedOption),
+    selectedOption: decisionToOption(decision) ?? normalizeOption(entry.selectedOption),
     customText: normalizeText(entry.customText),
     selectedText: normalizeText(entry.selectedText),
     sourceExcerpt: normalizeText(entry.sourceExcerpt),
@@ -335,7 +381,27 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
   const { supabase, userId, manuscriptId } = await assertOwnedEvaluation(input, {
     allowPrivilegedRead: false,
   });
-  const entries = Array.isArray(input.entries) ? input.entries.map(validateEntry) : [];
+
+  // Authoritative canonical projection: rebuild the workbench queue from the
+  // saved ledger / evaluation artifacts so acceptance is never based on client
+  // metadata.
+  const queuePayload = await getWorkbenchQueue({
+    manuscriptId: String(manuscriptId),
+    evaluationJobId: input.evaluationJobId,
+  });
+  if (!queuePayload.ok) {
+    throw new Error(queuePayload.error ?? "Canonical workbench queue projection unavailable");
+  }
+  const canonicalOpportunities = [
+    ...queuePayload.opportunities,
+    ...queuePayload.needsTargeting,
+    ...queuePayload.withheldUnsupported,
+  ];
+  const canonicalOpportunityById = new Map(canonicalOpportunities.map((opportunity) => [opportunity.id, opportunity]));
+
+  const entries = Array.isArray(input.entries)
+    ? input.entries.map((entry) => validateEntry(entry, canonicalOpportunityById))
+    : [];
   if (entries.length === 0) return [];
 
   const rows = entries.map((entry) => ({

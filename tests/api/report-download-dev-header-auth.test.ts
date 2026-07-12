@@ -76,7 +76,7 @@ describe("GET /api/reports/[jobId]/download dev header auth", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetAuthenticatedUser.mockResolvedValue(null);
-    mockGetAuthorExposureDecision.mockResolvedValue({ exposable: true });
+    mockGetAuthorExposureDecision.mockResolvedValue({ exposable: true, certifiedAt: '2026-07-12T00:00:00Z' });
     delete process.env.TEST_MODE;
     delete process.env.ALLOW_HEADER_USER_ID;
   });

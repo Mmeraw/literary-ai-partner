@@ -27,6 +27,7 @@ import {
   runCopyPasteAdmissionGate,
   runStrategyAdmissionGate,
 } from './reviseAdmissionGate'
+import { operationLabels, type RevisionOperation } from './reviseCardContract'
 
 export type { StrategyCardViewModel } from './recommendationExecutability'
 
@@ -324,6 +325,54 @@ export function classifyWorkbenchExecutability(
   }
 }
 
+function ensureTerminalPunctuation(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/[.!?]$/.test(trimmed)) return trimmed
+  return `${trimmed}.`
+}
+
+function deriveStrategyApproaches(
+  opportunity: WorkbenchOpportunity,
+): {
+  conservativeApproach: string
+  moderateApproach: string
+  boldApproach: string
+  authorDecisionRequired: string
+} {
+  const evidenceLocationScope = opportunity.evidenceLocationScope ?? opportunity.scope ?? 'Passage'
+  const repairScope = opportunity.repairScope ?? evidenceLocationScope
+  const operation = (opportunity.revisionOperation as RevisionOperation | undefined) ?? 'replace_selected_passage'
+  const operationLabel = operationLabels[operation] ?? 'recommended repair'
+
+  const fix = (opportunity.fixDirection || '').trim()
+  const fixSentence = ensureTerminalPunctuation(fix)
+
+  const evidenceScope = evidenceLocationScope.toLowerCase()
+  const repairScopeText = repairScope.toLowerCase()
+  const broaderScopeText = repairScope !== evidenceLocationScope ? `${repairScopeText} level` : 'broader scope'
+
+  const moderateApproach = fixSentence
+    ? `Apply the recommended repair: ${fixSentence} Adjust the immediate context so the change lands cleanly.`
+    : `Apply the ${operationLabel} at the ${evidenceScope} level and adjust the immediate context so the change lands cleanly.`
+
+  const conservativeApproach = fixSentence
+    ? `Apply the recommended repair at the smallest safe scope: ${fixSentence} Keep the change confined to the ${evidenceScope} and preserve the surrounding prose and voice.`
+    : `Apply the ${operationLabel} at the ${evidenceScope} only, preserving the surrounding prose and voice.`
+
+  const boldApproach = fixSentence
+    ? repairScope !== evidenceLocationScope
+      ? `Apply the recommended repair with broader scope: ${fixSentence} Apply it at the ${repairScopeText} level if the symptom appears elsewhere.`
+      : `Apply the recommended repair more broadly than the ${evidenceScope}: ${fixSentence} Extend the change to adjacent units if the symptom repeats.`
+    : repairScope !== evidenceLocationScope
+      ? `Apply the ${operationLabel} at the ${repairScopeText} level.`
+      : `Apply the ${operationLabel} more broadly than the ${evidenceScope}, extending it to adjacent units.`
+
+  const authorDecisionRequired = `Decide whether the recommended repair should be applied at the ${evidenceScope} level or at the ${broaderScopeText}, and whether the ${operationLabel} is the right trade-off.`
+
+  return { conservativeApproach, moderateApproach, boldApproach, authorDecisionRequired }
+}
+
 export function buildStrategyCardViewModel(
   opportunity: WorkbenchOpportunity,
   executability: RecommendationExecutabilityDecision,
@@ -334,15 +383,18 @@ export function buildStrategyCardViewModel(
     .filter((r) => r !== 'safe_local_copy_paste_rewrite')
     .join('; ')
 
+  const { conservativeApproach, moderateApproach, boldApproach, authorDecisionRequired } =
+    deriveStrategyApproaches(opportunity)
+
   const scaffold = buildStrategyCardScaffold({
     cardNumber: `${opportunity.evidenceLocationScope ?? opportunity.scope} · ${opportunity.criterion}`,
     reasonCopyPasteIsUnsafe,
     ledgerReference: opportunity.issueStatement || opportunity.title,
     evidenceAnchor,
-    recommendedRepair: opportunity.fixDirection,
-    rhythmCadenceAlternative: opportunity.mistakeProofing,
-    boldStructuralChoice: opportunity.readerEffect,
-    authorDecisionRequired: opportunity.cause,
+    conservativeApproach,
+    moderateApproach,
+    boldApproach,
+    authorDecisionRequired,
   })
 
   const illustrativeExamples = opportunity.options

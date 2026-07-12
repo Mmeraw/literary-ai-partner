@@ -14,9 +14,9 @@ function makeStrategyCardViewModel(): WorkbenchOpportunity['strategyCardViewMode
       reasonCopyPasteIsUnsafe: 'insufficient_before_after_context',
       ledgerReference: 'Revelation resolves as summary',
       evidenceAnchor: 'She set the letter down and said nothing for a long time.',
-      recommendedRepair: 'Replace the quoted passage with a visible physical response.',
-      rhythmCadenceAlternative: 'Anchor the same repair in concrete action.',
-      boldStructuralChoice: 'Reframe the structural context entirely.',
+      conservativeApproach: 'Apply the recommended repair at the smallest safe scope: keep the change confined to the passage.',
+      moderateApproach: 'Apply the recommended repair: Replace the quoted passage with a visible physical response.',
+      boldApproach: 'Apply the recommended repair with broader scope: reframe the structural context entirely.',
       authorDecisionRequired: 'Choose whether the revelation stays internal or becomes embodied.',
     },
     illustrativeExamples: [

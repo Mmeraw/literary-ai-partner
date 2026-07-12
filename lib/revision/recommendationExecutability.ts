@@ -56,9 +56,9 @@ export type StrategyCardScaffold = {
   reasonCopyPasteIsUnsafe: string
   ledgerReference: string
   evidenceAnchor: string
-  recommendedRepair: string
-  rhythmCadenceAlternative: string
-  boldStructuralChoice: string
+  conservativeApproach: string
+  moderateApproach: string
+  boldApproach: string
   authorDecisionRequired: string
 }
 
@@ -148,9 +148,9 @@ export function buildStrategyCardScaffold(input: {
   reasonCopyPasteIsUnsafe: string
   ledgerReference: string
   evidenceAnchor: string
-  recommendedRepair: string
-  rhythmCadenceAlternative: string
-  boldStructuralChoice: string
+  conservativeApproach: string
+  moderateApproach: string
+  boldApproach: string
   authorDecisionRequired: string
 }): StrategyCardScaffold {
   return {
@@ -160,9 +160,9 @@ export function buildStrategyCardScaffold(input: {
     reasonCopyPasteIsUnsafe: input.reasonCopyPasteIsUnsafe,
     ledgerReference: input.ledgerReference,
     evidenceAnchor: input.evidenceAnchor,
-    recommendedRepair: input.recommendedRepair,
-    rhythmCadenceAlternative: input.rhythmCadenceAlternative,
-    boldStructuralChoice: input.boldStructuralChoice,
+    conservativeApproach: input.conservativeApproach,
+    moderateApproach: input.moderateApproach,
+    boldApproach: input.boldApproach,
     authorDecisionRequired: input.authorDecisionRequired,
   }
 }

@@ -69,15 +69,15 @@ describe('recommendation executability standard', () => {
     expect(decision.reasons).toContain('fewer_than_two_candidates_passed_quality')
   })
 
-  it('builds the required Strategy Card scaffold with ledger and author-decision fields', () => {
+  it('builds the required Strategy Card scaffold with conservative, moderate, bold, and author-decision fields', () => {
     expect(buildStrategyCardScaffold({
       cardNumber: '12 of 47',
       reasonCopyPasteIsUnsafe: 'The repair affects downstream continuity.',
       ledgerReference: 'Accepted Story Ledger: INSITE is metaphor, not literal narrator.',
       evidenceAnchor: 'Chapter 2, scene threshold beat',
-      recommendedRepair: 'Clarify the symbolic function before changing prose.',
-      rhythmCadenceAlternative: 'Preserve the existing cadence but reduce explanatory drag.',
-      boldStructuralChoice: 'Move the revelation later, with a setup/payoff tradeoff.',
+      conservativeApproach: 'Keep the existing symbolic function and trim the exposition.',
+      moderateApproach: 'Clarify the symbolic function before changing prose.',
+      boldApproach: 'Move the revelation later, with a setup/payoff tradeoff.',
       authorDecisionRequired: 'Choose whether this beat should clarify now or remain withheld.',
     })).toEqual({
       cardNumber: '12 of 47',
@@ -86,9 +86,9 @@ describe('recommendation executability standard', () => {
       reasonCopyPasteIsUnsafe: 'The repair affects downstream continuity.',
       ledgerReference: 'Accepted Story Ledger: INSITE is metaphor, not literal narrator.',
       evidenceAnchor: 'Chapter 2, scene threshold beat',
-      recommendedRepair: 'Clarify the symbolic function before changing prose.',
-      rhythmCadenceAlternative: 'Preserve the existing cadence but reduce explanatory drag.',
-      boldStructuralChoice: 'Move the revelation later, with a setup/payoff tradeoff.',
+      conservativeApproach: 'Keep the existing symbolic function and trim the exposition.',
+      moderateApproach: 'Clarify the symbolic function before changing prose.',
+      boldApproach: 'Move the revelation later, with a setup/payoff tradeoff.',
       authorDecisionRequired: 'Choose whether this beat should clarify now or remain withheld.',
     })
   })
