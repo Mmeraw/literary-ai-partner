@@ -95,6 +95,37 @@ describe('hydrateLedgerCandidates', () => {
     expect(cands.candidate_text_c).toMatch(/hesitated/);
   });
 
+  it('uses max_completion_tokens and omits temperature for gpt-5.1 hydration', async () => {
+    getMockCreate().mockResolvedValueOnce(
+      makeCompletion([
+        {
+          id: 'rol:aaa111',
+          candidate_a: 'The radiator ticked twice before she gathered herself to continue.',
+          candidate_b: 'Outside the door the corridor stretched on; she paused before following it.',
+          candidate_c: 'She paused until her breath settled before stepping into what came next.',
+        },
+      ]),
+    );
+
+    await hydrateLedgerCandidates([oppA], 'sk-test');
+
+    expect(getMockCreate()).toHaveBeenCalledTimes(1);
+    const call = getMockCreate().mock.calls[0][0] as {
+      model: string;
+      max_completion_tokens?: number;
+      max_tokens?: number;
+      temperature?: number;
+      response_format: { type: string };
+      messages: unknown[];
+    };
+    expect(call.model).toBe('gpt-5.1');
+    expect(call.max_completion_tokens).toBe(8000);
+    expect(call.max_tokens).toBeUndefined();
+    expect(call.temperature).toBeUndefined();
+    expect(call.response_format).toEqual({ type: 'json_object' });
+    expect(call.messages).toHaveLength(2);
+  });
+
   it('rejects candidates shorter than 5 words and does not include that opportunity', async () => {
     getMockCreate().mockResolvedValueOnce(
       makeCompletion([

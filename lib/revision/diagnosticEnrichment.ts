@@ -14,6 +14,10 @@
 
 import OpenAI from 'openai';
 import { buildEnglishVariantPromptBlock } from '@/lib/evaluation/englishVariant';
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+} from '@/lib/evaluation/policy';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -225,8 +229,8 @@ export async function enrichDiagnosticFields(
       const response = await client.chat.completions.create({
         model: DIAGNOSTIC_ENRICHMENT_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: ENRICHMENT_MAX_TOKENS,
-        temperature: 0.3,
+        ...buildOpenAITemperatureParam(DIAGNOSTIC_ENRICHMENT_MODEL, 0.3),
+        ...buildOpenAIOutputTokenParam(DIAGNOSTIC_ENRICHMENT_MODEL, ENRICHMENT_MAX_TOKENS),
         response_format: { type: 'json_object' },
       });
 

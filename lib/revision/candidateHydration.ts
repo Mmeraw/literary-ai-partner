@@ -25,6 +25,10 @@ import {
 } from '@/lib/evaluation/dreamTemplateLoader';
 import { buildEnglishVariantPromptBlock } from '@/lib/evaluation/englishVariant';
 import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+} from '@/lib/evaluation/policy';
+import {
   buildHydrationFailureRecord,
   type HydrationFailureRecordV1,
   type ReviseStageFailureCode,
@@ -337,8 +341,8 @@ export async function hydrateLedgerCandidates(
           { role: 'user', content: buildUserMessage(chunk) },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.25,
-        max_tokens: HYDRATION_MAX_TOKENS,
+        ...buildOpenAITemperatureParam(HYDRATION_MODEL, 0.25),
+        ...buildOpenAIOutputTokenParam(HYDRATION_MODEL, HYDRATION_MAX_TOKENS),
       });
 
       const rawContent = completion.choices[0]?.message?.content ?? '';

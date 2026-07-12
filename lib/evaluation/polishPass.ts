@@ -23,7 +23,11 @@ import {
   POLISH_PASS_VERSION,
   buildPolishPassUserPrompt,
 } from "./pipeline/prompts/polish-pass";
-import { getCanonicalPolishModel } from "./policy";
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+  getCanonicalPolishModel,
+} from "./policy";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -129,15 +133,16 @@ async function callPolishLLM(
     wordCount,
   });
 
+  const model = getCanonicalPolishModel();
   const response = await openai.chat.completions.create(
     {
-      model: getCanonicalPolishModel(),
+      model,
       messages: [
         { role: "system", content: POLISH_PASS_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.3,
-      max_tokens: 8000,
+      ...buildOpenAITemperatureParam(model, 0.3),
+      ...buildOpenAIOutputTokenParam(model, 8000),
       response_format: { type: "json_object" },
     },
     { timeout: POLISH_TIMEOUT_MS },
@@ -147,7 +152,7 @@ async function callPolishLLM(
     trackCompletionCost({
       jobId: tracking.jobId,
       phase: tracking.phase,
-      model: getCanonicalPolishModel(),
+      model,
       usage: response.usage,
     });
   }

@@ -15,6 +15,10 @@ import {
 } from "./prompts/pass4-voice-rewrite";
 import { withRetry } from "@/lib/evaluation/pipeline/openaiRetry";
 import { trackCompletionCost } from "@/lib/jobs/cost";
+import {
+  buildOpenAIOutputTokenParam,
+  buildOpenAITemperatureParam,
+} from "@/lib/evaluation/policy";
 
 export interface Pass4RewriteResult {
   a: string;
@@ -98,8 +102,8 @@ export async function runPass4VoiceRewrite(
     () =>
       openai.chat.completions.create({
         model,
-        temperature,
-        max_tokens: maxTokens,
+        ...buildOpenAITemperatureParam(model, temperature),
+        ...buildOpenAIOutputTokenParam(model, maxTokens),
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: PASS4_SYSTEM_PROMPT },
