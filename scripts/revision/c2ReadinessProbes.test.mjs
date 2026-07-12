@@ -89,6 +89,28 @@ async function run() {
   const notOk = await probeBaseUrlHealth({ getBaseUrl: goodBaseUrl, fetchImpl: notOkHealthFetch });
   check('base_url_health FAIL on non-ok HTTP', notOk.status === STATUS.FAIL);
 
+  // --- footgun guard: remote env must not fall back to local dev server ---
+  let localScanCalled = false;
+  const trapGetBaseUrl = async () => { localScanCalled = true; return 'http://localhost:3002'; };
+  const remoteNoBase = await probeBaseUrlHealth({
+    getBaseUrl: trapGetBaseUrl, env: {}, envName: 'codespace', fetchImpl: okHealthFetch,
+  });
+  check('remote env without BASE_URL -> base_url_health FAIL (fail closed)', remoteNoBase.status === STATUS.FAIL);
+  check('remote env without BASE_URL -> never probes local getBaseUrl()', localScanCalled === false);
+  check('remote env FAIL detail names BASE_URL requirement', /BASE_URL/.test(remoteNoBase.detail));
+  check('remote env FAIL detail refuses local dev server', /local dev server|PRODUCTION/i.test(remoteNoBase.detail));
+
+  const remoteWithBase = await probeBaseUrlHealth({
+    getBaseUrl: trapGetBaseUrl, env: { BASE_URL: 'https://deployed.example.com' }, envName: 'codespace', fetchImpl: okHealthFetch,
+  });
+  check('remote env WITH BASE_URL -> base_url_health PASS', remoteWithBase.status === STATUS.PASS);
+  check('remote env WITH BASE_URL -> targets the explicit deployed url', remoteWithBase.data.base === 'https://deployed.example.com');
+
+  const localEnvStillScans = await probeBaseUrlHealth({
+    getBaseUrl: goodBaseUrl, env: {}, envName: 'local', fetchImpl: okHealthFetch,
+  });
+  check('local env still uses getBaseUrl() (no regression)', localEnvStillScans.status === STATUS.PASS);
+
   // --- probeManuscriptReadable ---
   const mFound = await probeManuscriptReadable({ manuscriptId: '7519', importAdmin: adminFound });
   check('manuscript_readable PASS when row found', mFound.status === STATUS.PASS && mFound.data.found === true);

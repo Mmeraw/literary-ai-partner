@@ -78,10 +78,28 @@ export function probeSecrets(env = process.env) {
  * against the public /api/health tier (no auth, no state leak). Network failure
  * or non-ok status -> FAIL (not fabricated).
  */
-export async function probeBaseUrlHealth({ getBaseUrl, env = process.env, fetchImpl = fetch, timeoutMs = 8000 } = {}) {
+export async function probeBaseUrlHealth({ getBaseUrl, env = process.env, envName = null, fetchImpl = fetch, timeoutMs = 8000 } = {}) {
+  // Mistake-proofing: for a live/remote proof (env=codespace or any non-local
+  // envName) we MUST target an explicit deployed BASE_URL. We refuse to fall
+  // back to getBaseUrl()'s local port scan (3002/3001/3000), because a local
+  // dev server here points at PRODUCTION Supabase and its dev->prod guard will
+  // (correctly) refuse to boot. Probing localhost would either fail confusingly
+  // or, worse, tempt an unsafe ALLOW_DEV_PROD bypass. Fail closed instead.
+  const isRemoteEnv = envName != null && envName !== 'local' && envName !== 'localhost';
+  const explicitBase = env.BASE_URL && String(env.BASE_URL).trim() !== '' ? String(env.BASE_URL).trim() : null;
+  if (isRemoteEnv && !explicitBase) {
+    return {
+      status: STATUS.FAIL,
+      detail:
+        `env=${envName} requires an explicit deployed BASE_URL (e.g. your Vercel prod/preview URL). ` +
+        'Refusing to health-check a local dev server, which would run against PRODUCTION Supabase. ' +
+        'Set BASE_URL=https://<deployed-url> and re-run.',
+      data: { envName, explicit_base_url: false },
+    };
+  }
   let base;
   try {
-    base = await getBaseUrl();
+    base = isRemoteEnv ? explicitBase : await getBaseUrl();
   } catch (err) {
     return { status: STATUS.FAIL, detail: `getBaseUrl() threw: ${err?.message ?? err}`, data: {} };
   }
@@ -215,10 +233,10 @@ export async function probeAuthorityResolves({
  * `ready` (overall) is true ONLY when every probe is PASS. A single FAIL or
  * NOT_EXECUTED makes readiness not-ready — fail-closed.
  */
-export async function runReadiness({ manuscriptId, getBaseUrl, env = process.env, deps = {} } = {}) {
+export async function runReadiness({ manuscriptId, envName = null, getBaseUrl, env = process.env, deps = {} } = {}) {
   const results = {};
   results.secrets_present = probeSecrets(env);
-  results.base_url_health = await probeBaseUrlHealth({ getBaseUrl, env, fetchImpl: deps.fetchImpl });
+  results.base_url_health = await probeBaseUrlHealth({ getBaseUrl, env, envName, fetchImpl: deps.fetchImpl });
   results.manuscript_readable = await probeManuscriptReadable({
     manuscriptId,
     importAdmin: deps.importAdmin,
