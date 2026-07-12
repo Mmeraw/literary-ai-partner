@@ -9,7 +9,19 @@
  */
 
 import assert from 'node:assert/strict';
-import { resolveProofJobIdentity } from '@/lib/auth/proofJobIdentity';
+import * as proofJobIdentityModule from '@/lib/auth/proofJobIdentity';
+
+const proofJobIdentityExports =
+  proofJobIdentityModule.resolveProofJobIdentity
+    ? proofJobIdentityModule
+    : proofJobIdentityModule.default ?? proofJobIdentityModule['module.exports'] ?? {};
+const { resolveProofJobIdentity } = proofJobIdentityExports;
+
+assert.equal(
+  typeof resolveProofJobIdentity,
+  'function',
+  'resolveProofJobIdentity export must be available under the local TS runtime',
+);
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const SECRET = 'cron-secret-value';
