@@ -316,6 +316,7 @@ export async function main(argv = process.argv, env = process.env, log = console
   const { getBaseUrl } = await import('../base-url.mjs');
   const readinessResult = await runReadiness({
     manuscriptId: args.manuscriptId,
+    envName: args.env ?? null,
     getBaseUrl,
     env,
   });
