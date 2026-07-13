@@ -2,24 +2,18 @@
  * @jest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 import ReviseCockpitClientWorkflowV2 from '@/components/revision/ReviseCockpitClientWorkflowV2';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
 
-// Text deliberately contains the words the old client wrapper used to rewrite
-// ("the room" -> "the clearing", "everyone" -> "the others"). The wrapper must
-// now leave author/editorial content completely untouched.
-const UNMUTATED_CANDIDATE_A =
-  'Mara stepped back into the room, and everyone waited for her to speak.';
-const UNMUTATED_CANDIDATE_B =
-  'The room stilled as everyone turned toward the doorway where Mara stood.';
-const UNMUTATED_CANDIDATE_C =
-  'She crossed the room slowly, aware that everyone was watching her every move.';
+const CANDIDATE_A = 'Mara stepped back into the room, and everyone waited for her to speak.';
+const CANDIDATE_B = 'The room stilled as everyone turned toward the doorway where Mara stood.';
+const CANDIDATE_C = 'She crossed the room slowly, aware that everyone was watching her every move.';
 
-function makeReadyOpportunity(): WorkbenchOpportunity {
+function makeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): WorkbenchOpportunity {
   return {
-    id: 'ready-mutation-guard-1',
+    id: 'ready-1',
     severity: 'should',
     scope: 'Passage',
     mode: 'direct-rewrite',
@@ -44,32 +38,37 @@ function makeReadyOpportunity(): WorkbenchOpportunity {
       cause: 'Missing transitional beat.',
       fixStrategy: 'Add one grounded bridge before the time jump.',
       readerImpact: 'Keeps the reader oriented through the transition.',
-      evidence: {
-        quotedExcerpt: 'Mara shut the door. Everyone in the room went quiet.',
-        locationLabel: 'chapter:3',
-      },
+      evidence: { quotedExcerpt: 'Mara shut the door. Everyone in the room went quiet.', locationLabel: 'chapter:3' },
       operationTargeting: 'replace_selected_passage · chapter:3',
       mistakeProofing: 'Preserve the original event order.',
     },
     revisionOperation: 'replace_selected_passage',
     readiness: 'ready_for_revise',
     readinessReason: 'Candidate prose is source anchored.',
+    evidenceLocationScope: 'Passage',
+    repairScope: 'Passage',
+    groundingStatus: 'supported',
+    contextQuality: 'clean',
+    preflightStatus: 'passed',
+    cardType: 'copy_paste_rewrite',
+    trustedPathStatus: 'eligible',
     options: [
-      { key: 'A', mechanism: 'Recommended repair', candidateText: UNMUTATED_CANDIDATE_A, text: UNMUTATED_CANDIDATE_A, rationale: 'Adds a minimal emotional bridge.' },
-      { key: 'B', mechanism: 'Rhythm variant', candidateText: UNMUTATED_CANDIDATE_B, text: UNMUTATED_CANDIDATE_B, rationale: 'Keeps the original rhythm.' },
-      { key: 'C', mechanism: 'Bolder rendering shift', candidateText: UNMUTATED_CANDIDATE_C, text: UNMUTATED_CANDIDATE_C, rationale: 'Adds a stronger emotional image.' },
+      { key: 'A', mechanism: 'Recommended repair', candidateText: CANDIDATE_A, text: CANDIDATE_A, rationale: 'Adds a minimal emotional bridge.' },
+      { key: 'B', mechanism: 'Rhythm variant', candidateText: CANDIDATE_B, text: CANDIDATE_B, rationale: 'Keeps the original rhythm.' },
+      { key: 'C', mechanism: 'Bolder rendering shift', candidateText: CANDIDATE_C, text: CANDIDATE_C, rationale: 'Adds a stronger emotional image.' },
     ],
-  };
+    ...overrides,
+  } as WorkbenchOpportunity;
 }
 
-function makePayload(): WorkbenchQueuePayload {
+function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQueuePayload {
   return {
     ok: true,
     error: null,
     manuscriptId: '6074',
     evaluationJobId: 'e5ced7ac-117f-4d13-8cd0-3957c15dc189',
     manuscriptTitle: 'Cartel Babies',
-    opportunities: [makeReadyOpportunity()],
+    opportunities: [makeOpportunity()],
     needsTargeting: [],
     withheldUnsupported: [],
     readinessTotals: { ready_for_revise: 1, needs_targeting: 0, withheld_unsupported: 0 },
@@ -78,63 +77,78 @@ function makePayload(): WorkbenchQueuePayload {
     criteria: { Pacing: 1 },
     synthesis: { admitted: 1, clustered: 0, held: 0, suppressed: 0 },
     modeContract: null,
+    ...overrides,
   };
 }
 
-describe('ReviseCockpitClientWorkflowV2 content-integrity smoke', () => {
+describe('ReviseCockpitClientWorkflowV2', () => {
   let fetchMock: jest.Mock;
-  let clipboardWriteMock: jest.Mock;
 
   beforeEach(() => {
     fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
     global.fetch = fetchMock as unknown as typeof fetch;
-
-    clipboardWriteMock = jest.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText: clipboardWriteMock } });
+    window.prompt = jest.fn().mockReturnValue('Author-authored revision plan.');
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  afterEach(() => jest.clearAllMocks());
 
-  it('renders candidate prose verbatim without substituting words', () => {
+  it('renders mandatory A/B/C copy-paste candidates verbatim with Accept actions', () => {
     render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
 
-    // Author content passes through untouched — no "the room" -> "the clearing"
-    // and no "everyone" -> "the others" rewriting.
-    expect(screen.getByText(UNMUTATED_CANDIDATE_A)).toBeTruthy();
-    expect(screen.getByText(UNMUTATED_CANDIDATE_B)).toBeTruthy();
-    expect(screen.getByText(UNMUTATED_CANDIDATE_C)).toBeTruthy();
-
-    const html = document.body.innerHTML;
-    expect(html).not.toMatch(/the clearing/i);
-    expect(html).not.toMatch(/the others/i);
+    expect(screen.getByText(CANDIDATE_A)).toBeTruthy();
+    expect(screen.getByText(CANDIDATE_B)).toBeTruthy();
+    expect(screen.getByText(CANDIDATE_C)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Accept A' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Accept B' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Accept C' })).toBeTruthy();
   });
 
-  it('does not monkeypatch window.fetch to rewrite the revision ledger body', async () => {
+  it('persists an accepted candidate through the revision ledger endpoint', async () => {
     render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
-    fetchMock.mockClear();
 
-    const body = JSON.stringify({
-      entries: [{ selectedText: 'Everyone left the room.', customText: 'the room' }],
-    });
-    await global.fetch('/api/revision-ledger', { method: 'POST', body });
+    fireEvent.click(screen.getByRole('button', { name: 'Accept A' }));
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('/api/revision-ledger', expect.objectContaining({ method: 'POST' }));
     const [, init] = fetchMock.mock.calls[0];
-    expect(init.body).toBe(body);
-    expect(init.body).toContain('Everyone left the room.');
-    expect(init.body).not.toMatch(/the clearing|the others/i);
+    expect(init.body).toContain('accepted_a');
+    expect(init.body).toContain(CANDIDATE_A);
+    expect(init.body).toContain('workflow-revise-cockpit-v2');
   });
 
-  it('does not monkeypatch navigator.clipboard.writeText to rewrite copied text', async () => {
-    render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
-    clipboardWriteMock.mockClear();
+  it('renders strategy cards without A/B/C or Accept controls', () => {
+    const strategy = makeOpportunity({
+      id: 'strategy-1',
+      cardType: 'revision_strategy',
+      trustedPathStatus: 'unavailable_author_review_required',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      options: [],
+    });
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload({ opportunities: [], needsTargeting: [strategy] })} />);
 
-    const copied = 'Everyone gathered in the room.';
-    await navigator.clipboard.writeText(copied);
+    expect(screen.getByTestId('revision-strategy-surface')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Custom Plan / Notes' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Accept [ABC]/ })).toBeNull();
+    expect(screen.queryByText(/A —|B —|C —/)).toBeNull();
+  });
 
-    expect(clipboardWriteMock).toHaveBeenCalledTimes(1);
-    expect(clipboardWriteMock).toHaveBeenCalledWith(copied);
+  it('keeps withheld cards out of the active queue and shows them in Held Items Summary', () => {
+    const withheld = makeOpportunity({
+      id: 'withheld-1',
+      cardType: 'withheld',
+      trustedPathStatus: 'impossible',
+      readiness: 'needs_targeting',
+      groundingStatus: 'unsupported_blocked',
+      contextQuality: 'blocked',
+      preflightStatus: 'blocked',
+      executabilityReasons: ['canon_unclear'],
+      options: [],
+    });
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload({ opportunities: [], needsTargeting: [withheld], withheldUnsupported: [] })} />);
+
+    expect(screen.getByText(/Held Items Summary/i)).toBeTruthy();
+    expect(screen.getByTestId('withheld-summary')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Accept [ABC]/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Generate/i })).toBeNull();
   });
 });
