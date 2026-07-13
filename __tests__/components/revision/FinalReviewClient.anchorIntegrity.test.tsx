@@ -57,7 +57,10 @@ describe("FinalReviewClient anchor integrity", () => {
     render(<FinalReviewClient payload={payload()} />);
 
     expect(screen.getByText("Ready to apply")).toBeTruthy();
-    expect(screen.getByText("Cliff locked both hands around the wheel.")).toBeTruthy();
+    // The staged replacement is shown in both the anchor-verified preview and
+    // the authoritative changelog. Requiring exactly one match would make the
+    // test contradict the intended two-surface Final Review contract.
+    expect(screen.getAllByText("Cliff locked both hands around the wheel.")).toHaveLength(2);
     expect(screen.getByText("The river moved below them.")).toBeTruthy();
     expect(screen.queryByText(/could not be positioned safely/i)).toBeNull();
 
