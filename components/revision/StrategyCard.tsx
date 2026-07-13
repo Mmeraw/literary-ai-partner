@@ -76,7 +76,7 @@ function toPresentation(viewModel: LegacyStrategyCardViewModel | StrategyCardUiV
     recommendedStrategy: approaches[0] || 'Review the evidence and complete the repair at the smallest safe narrative scope.',
     whyDirectCopyPasteUnsafe: normalize(scaffold.reasonCopyPasteIsUnsafe),
     evidenceAnchor: normalize(scaffold.evidenceAnchor),
-    implementationSequence: approaches,
+    implementationSequence: [],
     implementationApproaches: approaches.slice(1),
     authorDecisionRequired: normalize(scaffold.authorDecisionRequired) || undefined,
     safeguards: [],
@@ -112,9 +112,7 @@ export default function StrategyCard({
   W?: StrategyCardColors;
 }) {
   const presentation = toPresentation(viewModel);
-  const sequence = presentation.implementationSequence.length
-    ? presentation.implementationSequence
-    : [presentation.recommendedStrategy];
+  const sequence = presentation.implementationSequence;
 
   return (
     <div className="space-y-5" data-testid="revision-strategy-card">
@@ -140,18 +138,20 @@ export default function StrategyCard({
         <p>{presentation.recommendedStrategy}</p>
       </Panel>
 
-      <Panel label="Implementation sequence" W={W}>
-        <ol className="space-y-3">
-          {sequence.map((step, index) => (
-            <li key={`${index}-${step.slice(0, 24)}`} className="flex gap-3">
-              <span aria-hidden="true" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={{ border: `1px solid ${W.border}`, color: W.gold }}>
-                {index + 1}
-              </span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
-      </Panel>
+      {sequence.length > 0 && (
+        <Panel label="Implementation sequence" W={W}>
+          <ol className="space-y-3">
+            {sequence.map((step, index) => (
+              <li key={`${index}-${step.slice(0, 24)}`} className="flex gap-3">
+                <span aria-hidden="true" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={{ border: `1px solid ${W.border}`, color: W.gold }}>
+                  {index + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </Panel>
+      )}
 
       {presentation.implementationApproaches.length > 0 && (
         <Panel label="Optional subordinate approaches" W={W}>
