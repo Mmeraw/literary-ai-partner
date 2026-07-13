@@ -72,13 +72,13 @@ describe("Final Review apply production readiness", () => {
 
   it("calls the runtime only after every applicable decision has a unique exact source match", async () => {
     mockedPayload.mockResolvedValue(payload());
-    mockedApply.mockResolvedValue({ ok: true, revisedVersionId: "version-2", appliedCount: 1 });
+    mockedApply.mockResolvedValue({ ok: true, revisedVersionId: "version-2", appliedCount: 1, reusedExistingVersion: false });
 
     const response = await POST(jsonRequest());
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toEqual({ ok: true, revisedVersionId: "version-2", appliedCount: 1 });
+    expect(body).toEqual({ ok: true, revisedVersionId: "version-2", appliedCount: 1, reusedExistingVersion: false });
     expect(mockedApply).toHaveBeenCalledWith({ manuscriptId: "7519", evaluationJobId: "b099a623" });
   });
 
@@ -110,7 +110,7 @@ describe("Final Review apply production readiness", () => {
 
   it("redirects HTML submissions with manuscript identity, version id, and applied count", async () => {
     mockedPayload.mockResolvedValue(payload());
-    mockedApply.mockResolvedValue({ ok: true, revisedVersionId: "version-2", appliedCount: 1 });
+    mockedApply.mockResolvedValue({ ok: true, revisedVersionId: "version-2", appliedCount: 1, reusedExistingVersion: false });
 
     const response = await POST(formRequest());
     const location = response.headers.get("location") ?? "";
@@ -120,5 +120,18 @@ describe("Final Review apply production readiness", () => {
     expect(location).toContain("evaluationJobId=b099a623");
     expect(location).toContain("applied=version-2");
     expect(location).toContain("appliedCount=1");
+    expect(location).not.toContain("reusedApply=1");
+  });
+
+  it("marks an idempotent HTML retry as reused without changing the version id", async () => {
+    mockedPayload.mockResolvedValue(payload());
+    mockedApply.mockResolvedValue({ ok: true, revisedVersionId: "version-2", appliedCount: 1, reusedExistingVersion: true });
+
+    const response = await POST(formRequest());
+    const location = response.headers.get("location") ?? "";
+
+    expect(response.status).toBe(303);
+    expect(location).toContain("applied=version-2");
+    expect(location).toContain("reusedApply=1");
   });
 });
