@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import type { WorkbenchOpportunity } from "@/lib/revision/workbenchQueue";
+import { logRevisionLedgerAudit } from "@/lib/revision/workbenchQueueAudit";
 
 export type RevisionLedgerDecision =
   | "accepted_a"
@@ -32,6 +33,7 @@ export type SyncRevisionLedgerInput = {
   manuscriptId: string | number;
   evaluationJobId: string;
   entries: SyncRevisionLedgerEntryInput[];
+  user?: { id: string; email?: string | null } | null;
 };
 
 export type SyncedRevisionLedgerRow = {
@@ -248,10 +250,17 @@ function metadataWithRevisionQuality(entry: SyncRevisionLedgerEntryInput): Recor
 }
 
 async function assertOwnedEvaluation(
-  input: { manuscriptId: string | number; evaluationJobId: string },
+  input: {
+    manuscriptId: string | number;
+    evaluationJobId: string;
+    user?: { id: string; email?: string | null } | null;
+  },
   options?: { allowPrivilegedRead?: boolean },
 ) {
-  const user = await getAuthenticatedUser();
+  const user =
+    input.user && process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === "1"
+      ? input.user
+      : await getAuthenticatedUser();
   if (!user) throw new Error("Not authenticated");
 
   const manuscriptId = Number(input.manuscriptId);
@@ -378,7 +387,11 @@ function validateEntry(
 }
 
 export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput): Promise<SyncedRevisionLedgerRow[]> {
-  const { supabase, userId, manuscriptId } = await assertOwnedEvaluation(input, {
+  const { supabase, userId, manuscriptId } = await assertOwnedEvaluation({
+    manuscriptId: input.manuscriptId,
+    evaluationJobId: input.evaluationJobId,
+    user: input.user,
+  }, {
     allowPrivilegedRead: false,
   });
 
@@ -433,7 +446,17 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as SyncedRevisionLedgerRow[];
+  const synced = (data ?? []) as SyncedRevisionLedgerRow[];
+  logRevisionLedgerAudit({
+    type: 'revision-ledger-audit',
+    action: 'sync',
+    evaluationJobId: input.evaluationJobId,
+    manuscriptId: input.manuscriptId,
+    decisionCount: synced.length,
+    decisionIds: synced.map((row) => row.opportunity_id),
+    timestamp: new Date().toISOString(),
+  });
+  return synced;
 }
 
 export const __testing = {
@@ -443,8 +466,13 @@ export const __testing = {
 export async function listRevisionLedgerDecisions(input: {
   manuscriptId: string | number;
   evaluationJobId: string;
+  user?: { id: string; email?: string | null } | null;
 }): Promise<SyncedRevisionLedgerRow[]> {
-  const { supabase, userId, manuscriptId, ledgerUserId } = await assertOwnedEvaluation(input, {
+  const { supabase, userId, manuscriptId, ledgerUserId } = await assertOwnedEvaluation({
+    manuscriptId: input.manuscriptId,
+    evaluationJobId: input.evaluationJobId,
+    user: input.user,
+  }, {
     allowPrivilegedRead: true,
   });
   const targetUserId = ledgerUserId ?? userId;
@@ -458,5 +486,15 @@ export async function listRevisionLedgerDecisions(input: {
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as SyncedRevisionLedgerRow[];
+  const decisions = (data ?? []) as SyncedRevisionLedgerRow[];
+  logRevisionLedgerAudit({
+    type: 'revision-ledger-audit',
+    action: 'read',
+    evaluationJobId: input.evaluationJobId,
+    manuscriptId: input.manuscriptId,
+    decisionCount: decisions.length,
+    decisionIds: decisions.map((row) => row.opportunity_id),
+    timestamp: new Date().toISOString(),
+  });
+  return decisions;
 }

@@ -38,6 +38,7 @@ import {
   isSupportedForUserQueue,
   partitionWorkbenchQueue,
 } from './workbenchQueueProjection'
+import { buildWorkbenchQueueAudit, isAuditLogEnabled, logWorkbenchQueueAudit, type WorkbenchAdmissionDetails } from './workbenchQueueAudit'
 
 export type WorkbenchSeverity = 'must' | 'should' | 'could'
 export type WorkbenchScope = 'Line' | 'Passage' | 'Scene' | 'Chapter' | 'Structural' | 'Manuscript'
@@ -1052,7 +1053,11 @@ async function loadEvaluationResultPayload(
   return data?.content ?? null
 }
 
-export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluationJobId?: string }): Promise<WorkbenchQueuePayload> {
+export async function getWorkbenchQueue(input: {
+  manuscriptId?: string
+  evaluationJobId?: string
+  user?: { id: string; email?: string | null } | null
+}): Promise<WorkbenchQueuePayload> {
   let warmupCorpus: Awaited<ReturnType<typeof loadReviseQueueWarmupCorpus>> | null = null
   let warmupWarning: string | null = null
   try {
@@ -1062,7 +1067,10 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     warmupWarning = `Benchmark warmup proof is temporarily unavailable (${reason}). Revise Queue is rendered from saved evaluation artifacts with contract guards active.`
   }
 
-  const user = await getAuthenticatedUser()
+  const user =
+    input.user && process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1'
+      ? input.user
+      : await getAuthenticatedUser()
   if (!user) return emptyPayload('Please sign in to open your Revise Workbench.')
 
   const supabase = createAdminClient()
@@ -1153,6 +1161,8 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
           status: 'complete',
         })
       : null
+
+  const admissionsById = new Map<string, WorkbenchAdmissionDetails>()
 
   const opportunities = revisionLedgerOpportunities.map((opportunity) => {
     const criterion = criterionLabel(opportunity.criterion)
@@ -1310,6 +1320,13 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     }
     const executability = classifyWorkbenchExecutability(baseOpportunity)
 
+    admissionsById.set(baseOpportunity.id, {
+      copyPasteAdmissionPassed: executability.copyPasteAdmissionPassed,
+      copyPasteAdmissionReasons: executability.copyPasteAdmissionReasons,
+      strategyAdmissionPassed: executability.strategyAdmissionPassed,
+      strategyAdmissionReasons: executability.strategyAdmissionReasons,
+    })
+
     return {
       ...baseOpportunity,
       cardType: executability.cardType,
@@ -1328,7 +1345,7 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
     suppressed: 0,
   }
 
-  return {
+  const payload: WorkbenchQueuePayload = {
     ok: true,
     error: null,
     manuscriptId,
@@ -1363,6 +1380,12 @@ export async function getWorkbenchQueue(input: { manuscriptId?: string; evaluati
       },
     },
   }
+
+  if (isAuditLogEnabled()) {
+    logWorkbenchQueueAudit(buildWorkbenchQueueAudit(payload, { ledgerArtifactId: revisionLedgerArtifactId, admissionsById }))
+  }
+
+  return payload
 }
 
 export const __testing = {

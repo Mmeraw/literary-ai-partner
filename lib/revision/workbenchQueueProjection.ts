@@ -251,6 +251,10 @@ export function classifyWorkbenchExecutability(
   trustedPathStatus: 'eligible' | 'unavailable_author_review_required' | 'impossible'
   reasons: string[]
   strategyCardViewModel?: StrategyCardViewModel | null
+  copyPasteAdmissionPassed: boolean
+  copyPasteAdmissionReasons: string[]
+  strategyAdmissionPassed: boolean
+  strategyAdmissionReasons: string[]
 } {
   const sourceText = sourceTextOf(opportunity)
   const preflightReasons = opportunity.preflightReasons ?? []
@@ -322,6 +326,10 @@ export function classifyWorkbenchExecutability(
     trustedPathStatus: executability.trustedPathStatus,
     reasons: executability.reasons,
     strategyCardViewModel,
+    copyPasteAdmissionPassed: copyPasteAdmission.passed,
+    copyPasteAdmissionReasons: copyPasteAdmission.reasons,
+    strategyAdmissionPassed: strategyAdmission.passed,
+    strategyAdmissionReasons: strategyAdmission.reasons,
   }
 }
 

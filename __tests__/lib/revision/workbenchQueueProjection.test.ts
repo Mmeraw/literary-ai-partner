@@ -301,6 +301,10 @@ describe('workbenchQueueProjection buildStrategyCardViewModel', () => {
       cardType: 'revision_strategy',
       trustedPathStatus: 'unavailable_author_review_required',
       reasons: ['insufficient_before_after_context'],
+      copyPasteAdmissionPassed: false,
+      copyPasteAdmissionReasons: ['insufficient_before_after_context'],
+      strategyAdmissionPassed: true,
+      strategyAdmissionReasons: [],
     };
 
     const result = buildStrategyCardViewModel(opportunity, executability);
