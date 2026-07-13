@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import ReviseCockpitClientWorkflowV2 from '@/components/revision/ReviseCockpitClientWorkflowV2';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
@@ -113,6 +113,41 @@ describe('ReviseCockpitClientWorkflowV2', () => {
     expect(init.body).toContain('accepted_a');
     expect(init.body).toContain(CANDIDATE_A);
     expect(init.body).toContain('workflow-revise-cockpit-v2');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved:'));
+  });
+
+  it('offers a retry action when ledger sync fails and clears it after success', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
+
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Accept A' }));
+
+    const retry = await screen.findByRole('button', { name: /Retry: Bridge abrupt transition/i });
+    expect(screen.getByRole('status').textContent).toContain('Save failed:');
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Retry:/i })).toBeNull());
+    expect(screen.getByRole('status').textContent).toContain('Saved:');
+  });
+
+  it('distinguishes a filtered queue from a genuinely empty queue', () => {
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
+
+    fireEvent.change(screen.getByLabelText('Search opportunities'), { target: { value: 'not-present' } });
+
+    expect(screen.getByText(/No open opportunities match the current search and priority filters/i)).toBeTruthy();
+    expect(screen.queryByText(/No revision opportunities were found/i)).toBeNull();
+  });
+
+  it('exposes accessible queue navigation and status regions', () => {
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
+
+    expect(screen.getByLabelText('Revision opportunity navigation')).toBeTruthy();
+    expect(screen.getByLabelText('Active revision workspace')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Active \(1\)/i }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('renders strategy cards without A/B/C or Accept controls', () => {
