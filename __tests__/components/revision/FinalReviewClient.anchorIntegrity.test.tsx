@@ -85,7 +85,8 @@ describe("FinalReviewClient anchor integrity", () => {
 
     expect(screen.getByText("Source matching required")).toBeTruthy();
     expect(screen.getByText(/lacks a unique exact source match/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Apply to new version/i })).toBeDisabled();
+    const applyButton = screen.getByRole("button", { name: /Apply to new version/i }) as HTMLButtonElement;
+    expect(applyButton.disabled).toBe(true);
   });
 
   it("distinguishes deferred Must items from lower-priority deferrals", () => {
@@ -120,7 +121,8 @@ describe("FinalReviewClient anchor integrity", () => {
 
     expect(screen.getByText("Changelog only")).toBeTruthy();
     expect(screen.getByText(/Revision Changelog remains available/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Apply to new version/i })).toBeDisabled();
+    const applyButton = screen.getByRole("button", { name: /Apply to new version/i }) as HTMLButtonElement;
+    expect(applyButton.disabled).toBe(true);
     // The decision is intentionally visible in both the staged preview and the
     // authoritative changelog when source text is unavailable.
     expect(screen.getAllByText(/Tighten the physical beat/i)).toHaveLength(2);
