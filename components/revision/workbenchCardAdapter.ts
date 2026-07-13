@@ -47,14 +47,26 @@ function toCopyPasteCard(item: WorkbenchOpportunity): CopyPasteCardViewModel {
   };
 }
 
+function unique(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map(normalize).filter(Boolean)));
+}
+
 function toStrategyCard(item: WorkbenchOpportunity): StrategyCardUiViewModel {
   const scaffold = item.strategyCardViewModel?.scaffold;
-  const approaches = [
-    normalize(scaffold?.conservativeApproach),
-    normalize(scaffold?.moderateApproach),
-    normalize(scaffold?.boldApproach),
-  ].filter(Boolean);
-  const safeguards = [normalize(item.mistakeProofing || item.diagnostic?.mistakeProofing)].filter(Boolean);
+  const recommendedStrategy = normalize(
+    item.fixDirection || item.diagnostic?.fixStrategy || scaffold?.moderateApproach || item.issueStatement,
+  );
+  const evidenceScope = normalize(item.evidenceLocationScope || item.scope).toLowerCase() || 'passage';
+  const repairScope = normalize(item.repairScope || item.scope).toLowerCase() || evidenceScope;
+  const implementationSequence = unique([
+    recommendedStrategy ? `Apply the recommended strategy at the ${repairScope} level.` : undefined,
+    repairScope !== evidenceScope ? `Check adjacent ${repairScope} material for the same structural symptom.` : undefined,
+    'Re-read the affected material for continuity, voice, and unintended downstream changes.',
+  ]);
+  const safeguards = unique([
+    item.mistakeProofing || item.diagnostic?.mistakeProofing,
+    'Preserve established facts, point of view, and voice unless the recommendation explicitly requires a controlled change.',
+  ]);
   const illustrativeText = normalize(item.strategyCardViewModel?.illustrativeExamples?.[0]?.text);
 
   return {
@@ -63,16 +75,16 @@ function toStrategyCard(item: WorkbenchOpportunity): StrategyCardUiViewModel {
     trustedPathStatus: 'unavailable_author_review_required',
     severity: item.severity,
     criterion: item.criterion,
-    recommendedStrategy: normalize(scaffold?.moderateApproach || item.fixDirection || item.diagnostic?.fixStrategy || item.issueStatement),
-    whyDirectCopyPasteUnsafe: normalize(scaffold?.reasonCopyPasteIsUnsafe || item.executabilityReasons?.join('; ')) || 'This repair requires author review across more context than a bounded replacement can safely change.',
+    recommendedStrategy:
+      recommendedStrategy || 'Review the evidence and complete the repair at the smallest defensible narrative scope.',
+    whyDirectCopyPasteUnsafe:
+      normalize(scaffold?.reasonCopyPasteIsUnsafe || item.executabilityReasons?.join('; ')) ||
+      'This repair requires author review across more context than a bounded replacement can safely change.',
     evidenceAnchor: normalize(scaffold?.evidenceAnchor || sourceTextOf(item)) || 'No exact passage is available.',
-    implementationSequence: [
-      normalize(scaffold?.conservativeApproach),
-      normalize(scaffold?.moderateApproach),
-      normalize(scaffold?.boldApproach),
-    ].filter(Boolean),
-    implementationApproaches: approaches.length > 1 ? approaches : undefined,
-    authorDecisionRequired: normalize(scaffold?.authorDecisionRequired) || undefined,
+    implementationSequence,
+    authorDecisionRequired:
+      normalize(scaffold?.authorDecisionRequired) ||
+      `Decide whether the repair should remain at the ${evidenceScope} level or extend to the ${repairScope} level.`,
     safeguards: safeguards.length ? safeguards : undefined,
     illustrativeExample: illustrativeText
       ? { text: illustrativeText, disclaimer: ILLUSTRATIVE_DISCLAIMER }
