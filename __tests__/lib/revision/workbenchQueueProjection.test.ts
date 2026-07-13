@@ -221,7 +221,7 @@ describe('workbenchQueueProjection classifyWorkbenchExecutability', () => {
 });
 
 describe('workbenchQueueProjection partitionWorkbenchQueue', () => {
-  it('partitions copy-paste eligible into opportunities and strategy into needsTargeting', () => {
+  it('uses cardType as terminal queue authority', () => {
     const copyPaste = makeOpportunity({
       id: 'copy',
       cardType: 'copy_paste_rewrite',
@@ -241,8 +241,8 @@ describe('workbenchQueueProjection partitionWorkbenchQueue', () => {
       groundingStatus: 'supported',
       options: [candidate('A'), candidate('B'), candidate('C')],
     });
-    const needsTargeting = makeOpportunity({
-      id: 'needs',
+    const withheldNeedsTargeting = makeOpportunity({
+      id: 'withheld-needs',
       cardType: 'withheld',
       trustedPathStatus: 'impossible',
       readiness: 'needs_targeting',
@@ -252,10 +252,28 @@ describe('workbenchQueueProjection partitionWorkbenchQueue', () => {
       options: [candidate('A'), candidate('B'), candidate('C')],
     });
 
-    const result = partitionWorkbenchQueue([copyPaste, strategy, needsTargeting]);
+    const result = partitionWorkbenchQueue([copyPaste, strategy, withheldNeedsTargeting]);
     expect(result.opportunities.map((o) => o.id)).toEqual(['copy']);
-    expect(result.needsTargeting.map((o) => o.id)).toEqual(['needs', 'strategy']);
-    expect(result.withheldUnsupported).toHaveLength(0);
+    expect(result.needsTargeting.map((o) => o.id)).toEqual(['strategy']);
+    expect(result.withheldUnsupported.map((o) => o.id)).toEqual(['withheld-needs']);
+  });
+
+  it('never places one opportunity in more than one terminal bucket', () => {
+    const entries = [
+      makeOpportunity({ id: 'copy', cardType: 'copy_paste_rewrite', trustedPathStatus: 'eligible', contextQuality: 'clean', preflightStatus: 'passed', groundingStatus: 'supported' }),
+      makeOpportunity({ id: 'strategy', cardType: 'revision_strategy', trustedPathStatus: 'unavailable_author_review_required', contextQuality: 'limited', preflightStatus: 'limited_context', groundingStatus: 'supported' }),
+      makeOpportunity({ id: 'withheld', cardType: 'withheld', trustedPathStatus: 'impossible', readiness: 'needs_targeting', groundingStatus: 'unsupported_blocked' }),
+    ];
+
+    const result = partitionWorkbenchQueue(entries);
+    const bucketedIds = [
+      ...result.opportunities.map((o) => o.id),
+      ...result.needsTargeting.map((o) => o.id),
+      ...result.withheldUnsupported.map((o) => o.id),
+    ];
+
+    expect(new Set(bucketedIds).size).toBe(bucketedIds.length);
+    expect(bucketedIds.sort()).toEqual(entries.map((o) => o.id).sort());
   });
 
   it('puts withheld cards into withheldUnsupported and reflects them in readiness totals', () => {
