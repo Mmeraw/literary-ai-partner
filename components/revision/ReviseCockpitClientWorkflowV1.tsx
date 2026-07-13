@@ -216,14 +216,21 @@ function rowToLedgerEntry(row: SyncedRevisionLedgerRow): LedgerEntry {
 }
 
 function mergeLedger(local: LedgerEntry[], remote: LedgerEntry[]): LedgerEntry[] {
-  const byId = new Map<string, LedgerEntry>();
-  for (const entry of remote) byId.set(entry.id, entry);
+  const byItemId = new Map<string, LedgerEntry>();
+  for (const entry of remote) byItemId.set(entry.itemId, entry);
   for (const entry of local) {
-    // Pending local entries are not durable yet; they must remain authoritative
-    // until sync completes and the server confirms them on a later read-back.
-    if (!byId.has(entry.id) || entry.syncStatus === "pending") byId.set(entry.id, entry);
+    const current = byItemId.get(entry.itemId);
+    // A local pending/failed choice reflects a newer user action than the mount
+    // snapshot. Keep it authoritative until sync succeeds or the user retries.
+    if (!current || entry.syncStatus !== "synced") byItemId.set(entry.itemId, entry);
   }
-  return Array.from(byId.values());
+  return Array.from(byItemId.values());
+}
+
+function ledgerRowTimestamp(row: SyncedRevisionLedgerRow): number {
+  const value = row.updated_at || row.created_at || row.client_created_at || "";
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function selectedRemoteRows(rows: SyncedRevisionLedgerRow[]): SyncedRevisionLedgerRow[] {
@@ -231,7 +238,17 @@ function selectedRemoteRows(rows: SyncedRevisionLedgerRow[]): SyncedRevisionLedg
   for (const row of rows) {
     if (row.is_undo && row.undone_local_id) undoneLocalIds.add(row.undone_local_id);
   }
-  return rows.filter((row) => !row.is_undo && !undoneLocalIds.has(row.local_id));
+
+  const latestByOpportunity = new Map<string, SyncedRevisionLedgerRow>();
+  for (const row of rows) {
+    if (row.is_undo || undoneLocalIds.has(row.local_id)) continue;
+    const current = latestByOpportunity.get(row.opportunity_id);
+    if (!current || ledgerRowTimestamp(row) >= ledgerRowTimestamp(current)) {
+      latestByOpportunity.set(row.opportunity_id, row);
+    }
+  }
+
+  return Array.from(latestByOpportunity.values()).sort((a, b) => ledgerRowTimestamp(b) - ledgerRowTimestamp(a));
 }
 
 function selectedDecisionFor(key: OptionKey): DecisionState {
@@ -1033,7 +1050,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                     const strategyMeta: Record<OptionKey, { label: string; approach: string }> = {
                                       A: { label: "Recommended", approach: `Implement the fix at minimum scope. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                       B: { label: "Rhythm Variant", approach: `Anchor the same repair in concrete action or sensory detail rather than exposition. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
-                                      C: { label: "Bolder Shift", approach: `Reframe the structural context entirely\u2014consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
+                                      C: { label: "Bolder Shift", approach: `Reframe the structural context entirely—consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                     };
                                     const { label, approach } = strategyMeta[key];
                                     const isSelected = selectedOption === key;
@@ -1108,14 +1125,14 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                           {key}
                                         </span>
                                         <span className="text-[10px] uppercase tracking-[0.12em]" style={{ color: W.muted }}>
-                                          {"\u2014"} {role}
+                                          {"—"} {role}
                                         </span>
                                       </div>
                                       <p
                                         className="line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-sm leading-[1.65]"
                                         style={{ color: ok ? W.cream2 : W.dim, fontStyle: ok ? "normal" : "italic" }}
                                       >
-                                        {text || "Prose not yet generated — click \u201cGenerate\u201d below to create three distinct options."}
+                                        {text || "Prose not yet generated — click “Generate” below to create three distinct options."}
                                       </p>
                                     </button>
                                     {text && text.length > 190 && (
@@ -1416,7 +1433,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
               {ledger.length === 0 ? (
                 <div className="flex gap-3 items-center">
                   <Eyebrow>Revision Ledger</Eyebrow>
-                  <span aria-hidden="true" style={{ color: W.border }}>{"\u00b7"}</span>
+                  <span aria-hidden="true" style={{ color: W.border }}>{"·"}</span>
                   <span className="text-xs" style={{ color: W.dim }}>No decisions yet.</span>
                 </div>
               ) : (
