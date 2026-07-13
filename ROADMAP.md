@@ -1,7 +1,7 @@
 # RevisionGrade Final Architecture Roadmap
 
-- **Status date:** 2026-07-09
-- **Current baseline:** `3d3acaa0`
+- **Status date:** 2026-07-12
+- **Current baseline:** `cd473ac9`
 - **Authority:** This file is the single canonical roadmap for the repository.
 
 All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summaries, archived planning artifacts, and stale branch audits are non-authoritative. They must not be used to determine current execution order.
@@ -33,23 +33,19 @@ U3: ENFORCED
 1219 ✓
 1223 ✓
 1224 ✓
-
-↓
-
-1220
-↓
-1222
+1220 ✓
+1222 ✓
 
 ────────────────────────────
 
-1225
+1225 ✓
 Semantic Parity Proof
 +
 Semantic Golden Masters
 
 ────────────────────────────
 
-Presentation Governance
+Presentation Governance   ← active phase
 
 ↓
 
@@ -79,11 +75,10 @@ Launch
 - ✅ #1219 — Workbench integrity
 - ✅ #1223 — Withheld-card visibility
 - ✅ #1224 — Normalization hardening
+- ✅ #1220 — Remaining RevisionPackage padding
+- ✅ #1222 — Certification ENFORCE rollout
 
-### Remaining
-
-- ⏳ #1220 — Remaining RevisionPackage padding
-- ⏳ #1222 — Certification ENFORCE rollout
+Phase 0 is complete. All Phase 0 issues are closed.
 
 ### Exit Criteria
 
@@ -96,8 +91,9 @@ Launch
 
 ## Phase 1 — Proof of Canonical Semantics
 
-- **Issue:** #1225
+- **Issue:** #1225 — ✅ closed / complete
 - **Goal:** Prove there is one canonical evaluation rendered four different ways.
+- **Status:** Complete. The claim below is unlocked; Presentation Governance (Phase 2) is the active phase.
 
 ```text
 UED
