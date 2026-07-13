@@ -127,7 +127,7 @@ describe('ReviseCockpitClientWorkflowV1', () => {
     expect(screen.getByText(/She set the letter down and did not look at it again/)).toBeTruthy();
   });
 
-  it('disables Accept A/B/C for strategy cards while allowing review actions', () => {
+  it('disables Accept A/B/C for legacy strategy fallbacks while allowing review actions', () => {
     const opportunity = makeStrategyOpportunity();
     const payload = makePayload({
       needsTargeting: [opportunity],
@@ -148,7 +148,7 @@ describe('ReviseCockpitClientWorkflowV1', () => {
     expect(screen.getByRole('button', { name: /Reject All/i }).disabled).toBe(false);
   });
 
-  it('renders a StrategyCard with illustrative examples and no Accept buttons', () => {
+  it('renders a StrategyCard as one hierarchical plan with no A/B/C presentation', () => {
     const opportunity = makeStrategyOpportunity({ strategyCardViewModel: makeStrategyCardViewModel() });
     const payload = makePayload({
       needsTargeting: [opportunity],
@@ -157,11 +157,13 @@ describe('ReviseCockpitClientWorkflowV1', () => {
 
     render(<ReviseCockpitClientWorkflowV1 payload={payload} />);
 
-    expect(screen.getByText(/Repair Strategy/i)).toBeTruthy();
-    expect(screen.getByText(/Replace the quoted passage with a visible physical response/i)).toBeTruthy();
-    expect(screen.getByText(/A — Recommended repair/i)).toBeTruthy();
-    expect(screen.getByText(/B — Rhythm variant/i)).toBeTruthy();
-    expect(screen.getByText(/C — Bolder rendering shift/i)).toBeTruthy();
+    expect(screen.getByText(/Revision Strategy/i)).toBeTruthy();
+    expect(screen.getByText(/One guided repair plan/i)).toBeTruthy();
+    expect(screen.getByText(/Apply the recommended repair at the smallest safe scope/i)).toBeTruthy();
+    expect(screen.getByText(/Author decision required/i)).toBeTruthy();
+    expect(screen.queryByText(/A — Recommended repair/i)).toBeNull();
+    expect(screen.queryByText(/B — Rhythm variant/i)).toBeNull();
+    expect(screen.queryByText(/C — Bolder rendering shift/i)).toBeNull();
     expect(screen.queryByRole('button', { name: /Accept A/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Accept B/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Accept C/i })).toBeNull();
