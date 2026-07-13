@@ -88,7 +88,8 @@
     "c2:proof:test": "node scripts/revision/c2LiveProofContract.test.mjs",
     "c2:proof:readiness:test": "node scripts/revision/c2ReadinessProbes.test.mjs",
     "c2:proof:identity:test": "npx tsx scripts/auth/proofJobIdentity.test.mjs",
-    "c2:proof:dry-run": "npx tsx scripts/revision/c2LiveProofHarness.mjs"
+    "c2:proof:dry-run": "npx tsx scripts/revision/c2LiveProofHarness.mjs",
+    "revision:audit:b099a623": "REVISION_WORKBENCH_AUDIT_LOG=1 WORKER_ALLOW_SERVICE_ROLE_DEV=1 npx tsx -r ./scripts/pipeline/stub-server-only.cjs -r tsconfig-paths/register scripts/audit-b099a623.ts"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
