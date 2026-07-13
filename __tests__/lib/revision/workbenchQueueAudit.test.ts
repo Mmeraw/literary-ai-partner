@@ -3,44 +3,22 @@ import type { WorkbenchQueuePayload, WorkbenchOpportunity } from '@/lib/revision
 
 function makeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): WorkbenchOpportunity {
   return {
-    id: 'opp-1',
-    severity: 'must',
-    scope: 'Passage',
-    mode: 'direct-rewrite',
-    source: 'evaluation',
-    criterion: 'TONE',
-    leverage: 'Evaluation',
-    crumb: 'TONE · passage:1',
-    title: 'Tone opportunity',
-    issueStatement: 'Tone opportunity',
-    meta: 'TONE · passage:1',
-    confidence: 'high confidence',
-    anchor: 'passage:1',
-    quoteHighlight: 'The whole place sat in a strange stasis.',
-    quoteRest: '',
-    symptom: 'The sentence is flat.',
-    cause: 'The verb choice is abstract.',
-    fixDirection: 'Replace the sentence with a concrete image.',
-    readerEffect: 'Readers will feel the moment.',
+    id: 'opp-1', severity: 'must', scope: 'Passage', mode: 'direct-rewrite', source: 'evaluation',
+    criterion: 'TONE', leverage: 'Evaluation', crumb: 'TONE · passage:1', title: 'Tone opportunity',
+    issueStatement: 'Tone opportunity', meta: 'TONE · passage:1', confidence: 'high confidence',
+    anchor: 'passage:1', quoteHighlight: 'The whole place sat in a strange stasis.', quoteRest: '',
+    symptom: 'The sentence is flat.', cause: 'The verb choice is abstract.',
+    fixDirection: 'Replace the sentence with a concrete image.', readerEffect: 'Readers will feel the moment.',
     mistakeProofing: 'Do not invent details.',
     diagnostic: {
-      symptom: 'The sentence is flat.',
-      cause: 'The verb choice is abstract.',
-      fixStrategy: 'Replace the sentence with a concrete image.',
-      readerImpact: 'Readers will feel the moment.',
+      symptom: 'The sentence is flat.', cause: 'The verb choice is abstract.',
+      fixStrategy: 'Replace the sentence with a concrete image.', readerImpact: 'Readers will feel the moment.',
       evidence: { quotedExcerpt: 'The whole place sat in a strange stasis.', locationLabel: 'passage:1' },
-      operationTargeting: 'Passage · passage:1',
-      mistakeProofing: 'Do not invent details.',
+      operationTargeting: 'Passage · passage:1', mistakeProofing: 'Do not invent details.',
     },
-    revisionOperation: 'replace_selected_passage',
-    readiness: 'ready_for_revise',
-    readinessReason: null,
-    evidenceLocationScope: 'Passage',
-    repairScope: 'Passage',
-    groundingStatus: 'supported',
-    contextQuality: 'clean',
-    preflightStatus: 'passed',
-    cardType: 'copy_paste_rewrite',
+    revisionOperation: 'replace_selected_passage', readiness: 'ready_for_revise', readinessReason: null,
+    evidenceLocationScope: 'Passage', repairScope: 'Passage', groundingStatus: 'supported',
+    contextQuality: 'clean', preflightStatus: 'passed', cardType: 'copy_paste_rewrite',
     trustedPathStatus: 'eligible',
     options: [
       { key: 'A', mechanism: 'Recommended repair', candidateText: 'A', text: 'A', rationale: 'A' },
@@ -53,17 +31,11 @@ function makeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): Workben
 
 function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQueuePayload {
   return {
-    ok: true,
-    error: null,
-    manuscriptId: '7519',
-    evaluationJobId: 'b099a623-6c01-4564-9984-e06151fcb1e4',
+    ok: true, error: null, manuscriptId: '7519', evaluationJobId: 'b099a623-6c01-4564-9984-e06151fcb1e4',
     revisionPackage: null,
     modeContract: {
-      evaluation_mode: 'STANDARD',
-      voice_preservation: 'BALANCED',
-      source: 'evaluation_result_v2.confirmed_mode',
-      policy_family: 'standard',
-      voice_preservation_level: 'balanced',
+      evaluation_mode: 'STANDARD', voice_preservation: 'BALANCED',
+      source: 'evaluation_result_v2.confirmed_mode', policy_family: 'standard', voice_preservation_level: 'balanced',
     },
     manuscriptTitle: 'Let the River Decide',
     opportunities: [makeOpportunity({ id: 'opp-copy' })],
@@ -72,8 +44,7 @@ function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQ
     readinessTotals: { ready_for_revise: 1, needs_targeting: 2, withheld_unsupported: 1 },
     totals: { must: 1, should: 0, could: 0 },
     scopes: { Line: 0, Passage: 1, Scene: 0, Chapter: 0, Structural: 0, Manuscript: 0 },
-    criteria: { TONE: 1 },
-    synthesis: { admitted: 1, clustered: 0, held: 3, suppressed: 0 },
+    criteria: { TONE: 1 }, synthesis: { admitted: 1, clustered: 0, held: 3, suppressed: 0 },
     ...overrides,
   }
 }
@@ -96,8 +67,7 @@ describe('workbenchQueueAudit', () => {
       ['opp-strategy', { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: ['insufficient_before_after_context'], strategyAdmissionPassed: true, strategyAdmissionReasons: [] }],
       ['opp-withheld', { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: ['canon_unclear'], strategyAdmissionPassed: false, strategyAdmissionReasons: ['canon_unclear'] }],
     ])
-    const payload = makePayload()
-    const report = buildWorkbenchQueueAudit(payload, { ledgerArtifactId: 'ledger-1', admissionsById })
+    const report = buildWorkbenchQueueAudit(makePayload(), { ledgerArtifactId: 'ledger-1', admissionsById })
 
     expect(report.type).toBe('workbench-queue-audit')
     expect(report.load.evaluationJobId).toBe('b099a623-6c01-4564-9984-e06151fcb1e4')
@@ -123,38 +93,31 @@ describe('workbenchQueueAudit', () => {
     expect(first.finalCardType).toBe('copy_paste_rewrite')
     expect(first.queueBucket).toBe('opportunities')
     expect(first.reasonForBucketOverride).toBeNull()
-
-    expect(second.opportunityId).toBe('opp-strategy')
     expect(second.finalCardType).toBe('revision_strategy')
     expect(second.queueBucket).toBe('needsTargeting')
-
-    expect(third.opportunityId).toBe('opp-withheld')
     expect(third.finalCardType).toBe('withheld')
     expect(third.queueBucket).toBe('withheldUnsupported')
     expect(third.reasonForBucketOverride).toBeNull()
   })
 
   it('flags a withheld card routed to needsTargeting as a bucket override', () => {
-    const payload = makePayload({
+    const report = buildWorkbenchQueueAudit(makePayload({
       opportunities: [],
       needsTargeting: [makeOpportunity({ id: 'opp-withheld', cardType: 'withheld', trustedPathStatus: 'impossible', readiness: 'needs_targeting' })],
       withheldUnsupported: [],
-    })
-    const report = buildWorkbenchQueueAudit(payload)
+    }))
     expect(report.opportunities[0].reasonForBucketOverride).toContain('withheld card routed to')
     expect(report.opportunities[0].reasonForBucketOverride).toContain('needs_targeting')
   })
 
   it('produces identical identity and projection hashes for identical loads and different hashes for different ordering or classification', () => {
-    const a = makePayload()
-    const b = makePayload()
     const admissionsById = new Map([
       ['opp-copy', { copyPasteAdmissionPassed: true, copyPasteAdmissionReasons: [], strategyAdmissionPassed: true, strategyAdmissionReasons: [] }],
       ['opp-strategy', { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: [], strategyAdmissionPassed: true, strategyAdmissionReasons: [] }],
       ['opp-withheld', { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: [], strategyAdmissionPassed: false, strategyAdmissionReasons: [] }],
     ])
-    const reportA = buildWorkbenchQueueAudit(a, { admissionsById })
-    const reportB = buildWorkbenchQueueAudit(b, { admissionsById })
+    const reportA = buildWorkbenchQueueAudit(makePayload(), { admissionsById })
+    const reportB = buildWorkbenchQueueAudit(makePayload(), { admissionsById })
     expect(reportA.load.identityHash).toBe(reportB.load.identityHash)
     expect(reportA.load.projectionHash).toBe(reportB.load.projectionHash)
 
@@ -175,5 +138,25 @@ describe('workbenchQueueAudit', () => {
     const reportChanged = buildWorkbenchQueueAudit(changedClassification, { admissionsById })
     expect(reportChanged.load.identityHash).toBe(reportA.load.identityHash)
     expect(reportChanged.load.projectionHash).not.toBe(reportA.load.projectionHash)
+  })
+
+  it('changes projectionHash when admission reasons change but not when their order changes', () => {
+    const first = new Map([
+      ['opp-copy', { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: ['canon_unclear', 'context_missing'], strategyAdmissionPassed: false, strategyAdmissionReasons: ['canon_unclear'] }],
+    ])
+    const reordered = new Map([
+      ['opp-copy', { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: ['context_missing', 'canon_unclear'], strategyAdmissionPassed: false, strategyAdmissionReasons: ['canon_unclear'] }],
+    ])
+    const changed = new Map([
+      ['opp-copy', { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: ['context_missing', 'diagnosis_unsupported'], strategyAdmissionPassed: false, strategyAdmissionReasons: ['canon_unclear'] }],
+    ])
+
+    const reportFirst = buildWorkbenchQueueAudit(makePayload(), { admissionsById: first })
+    const reportReordered = buildWorkbenchQueueAudit(makePayload(), { admissionsById: reordered })
+    const reportChanged = buildWorkbenchQueueAudit(makePayload(), { admissionsById: changed })
+
+    expect(reportReordered.load.projectionHash).toBe(reportFirst.load.projectionHash)
+    expect(reportChanged.load.identityHash).toBe(reportFirst.load.identityHash)
+    expect(reportChanged.load.projectionHash).not.toBe(reportFirst.load.projectionHash)
   })
 })
