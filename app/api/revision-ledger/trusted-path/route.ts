@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     const result = await applyTrustedPath({ manuscriptId, evaluationJobId });
 
     if (!result.ok) {
-      return NextResponse.json(result, { status: 409 });
+      return NextResponse.json(result, { status: result.statusCode ?? 409 });
     }
 
     return NextResponse.json(result);

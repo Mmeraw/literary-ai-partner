@@ -43,6 +43,7 @@ export type TrustedPathSummary = {
   appliedFindingIds: string[];
   skippedReasons: Record<string, number>;
   finalReviewUrl: string | null;
+  statusCode?: number;
 };
 
 export type TrustedPathPreview = {
@@ -59,7 +60,7 @@ type ApprovedCrossCheck = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function emptyResult(error: string | null): TrustedPathSummary {
+function emptyResult(error: string | null, statusCode = 400): TrustedPathSummary {
   return {
     ok: !error,
     error,
@@ -69,7 +70,17 @@ function emptyResult(error: string | null): TrustedPathSummary {
     appliedFindingIds: [],
     skippedReasons: {},
     finalReviewUrl: null,
+    statusCode,
   };
+}
+
+function statusFromErrorMessage(message: string): number {
+  if (message === "Not authenticated") return 401;
+  if (message.includes("Manuscript not found")) return 404;
+  if (message.includes("Evaluation job not found")) return 404;
+  if (message.includes("TrustedPath is blocked")) return 403;
+  if (message.includes("Evaluation is not complete yet")) return 409;
+  return 500;
 }
 
 function normalize(value: string | null | undefined): string {
@@ -294,10 +305,10 @@ export async function applyTrustedPath(input: {
   evaluationJobId: string;
 }): Promise<TrustedPathSummary> {
   const user = await getAuthenticatedUser();
-  if (!user) return emptyResult("Not authenticated");
+  if (!user) return emptyResult("Not authenticated", 401);
 
   const manuscriptId = Number(input.manuscriptId);
-  if (!Number.isInteger(manuscriptId)) return emptyResult("Invalid manuscript id");
+  if (!Number.isInteger(manuscriptId)) return emptyResult("Invalid manuscript id", 400);
 
   const supabase = createAdminClient();
 
@@ -310,7 +321,7 @@ export async function applyTrustedPath(input: {
       manuscriptId: String(manuscriptId),
       evaluationJobId: input.evaluationJobId,
     });
-    if (!queuePayload.ok) return emptyResult(queuePayload.error ?? "Revise Queue unavailable.");
+    if (!queuePayload.ok) return emptyResult(queuePayload.error ?? "Revise Queue unavailable.", 400);
 
     const alreadyDecided = await loadAlreadyDecidedOpportunityIds(
       supabase,
@@ -361,13 +372,42 @@ export async function applyTrustedPath(input: {
     }
 
     if (entries.length === 0) {
-      return {
-        ...emptyResult(null),
-        skippedCount: Object.values(skippedReasons).reduce((a, b) => a + b, 0),
-        alreadyDecidedCount,
-        skippedReasons,
-        finalReviewUrl: buildFinalReviewUrl(manuscriptId, input.evaluationJobId),
-      };
+      const skippedCount = Object.values(skippedReasons).reduce((a, b) => a + b, 0);
+      if (skippedCount === 0 && alreadyDecidedCount > 0) {
+        return {
+          ok: true,
+          error: null,
+          appliedCount: 0,
+          skippedCount: 0,
+          alreadyDecidedCount,
+          appliedFindingIds: [],
+          skippedReasons: {},
+          finalReviewUrl: buildFinalReviewUrl(manuscriptId, input.evaluationJobId),
+          statusCode: 200,
+        };
+      }
+
+      if (skippedCount > 0) {
+        const reasonList = Object.entries(skippedReasons)
+          .map(([reason, count]) => `${count} ${reason.replace(/_/g, " ")}`)
+          .join("; ");
+        return {
+          ok: false,
+          error: `No TrustedPath repairs applied. ${reasonList}`,
+          appliedCount: 0,
+          skippedCount,
+          alreadyDecidedCount,
+          appliedFindingIds: [],
+          skippedReasons,
+          finalReviewUrl: null,
+          statusCode: 400,
+        };
+      }
+
+      return emptyResult(
+        "No eligible TrustedPath repairs were found in this workbench.",
+        400,
+      );
     }
 
     await syncRevisionLedgerDecisions({
@@ -386,9 +426,11 @@ export async function applyTrustedPath(input: {
       appliedFindingIds,
       skippedReasons,
       finalReviewUrl: buildFinalReviewUrl(manuscriptId, input.evaluationJobId),
+      statusCode: 200,
     };
   } catch (err) {
-    return emptyResult(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    return emptyResult(message, statusFromErrorMessage(message));
   }
 }
 

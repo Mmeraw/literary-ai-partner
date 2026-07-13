@@ -39,22 +39,26 @@ function makeQuery(input: MockQueryInput = {}) {
 function buildSupabaseMock(options: {
   existingDecisions?: { opportunity_id: string }[];
   crossChecks?: { finding_id: string; option_key: string; verdict: string }[];
+  manuscript?: { id: number; user_id: string } | null;
+  jobMode?: "standard" | "testimony";
+  voiceLevel?: "balanced" | "maximum";
+  artifactContent?: object | null;
 } = {}) {
   const tables: Record<string, ReturnType<typeof makeQuery>> = {
-    manuscripts: makeQuery({ single: { id: 1234, user_id: "user-1" } }),
+    manuscripts: makeQuery({ single: options.manuscript === undefined ? { id: 1234, user_id: "user-1" } : options.manuscript }),
     evaluation_jobs: makeQuery({
       single: {
         id: "job-1",
         status: "complete",
         manuscript_id: 1234,
         manuscript_version_id: "version-1",
-        policy_family: "standard",
-        voice_preservation_level: "balanced",
+        policy_family: options.jobMode ?? "standard",
+        voice_preservation_level: options.voiceLevel ?? "balanced",
       },
     }),
     evaluation_artifacts: makeQuery({
       single: {
-        content: {
+        content: options.artifactContent ?? {
           confirmed_mode: {
             evaluationMode: "STANDARD",
             voicePreservationMode: "BALANCED",
@@ -170,12 +174,43 @@ describe("applyTrustedPath", () => {
     const result = await applyTrustedPath({ manuscriptId: 1234, evaluationJobId: "job-1" });
     expect(result.ok).toBe(false);
     expect(result.error).toBe("Not authenticated");
+    expect(result.statusCode).toBe(401);
   });
 
   it("rejects invalid manuscript id", async () => {
     const result = await applyTrustedPath({ manuscriptId: "not-a-number", evaluationJobId: "job-1" });
     expect(result.ok).toBe(false);
     expect(result.error).toBe("Invalid manuscript id");
+    expect(result.statusCode).toBe(400);
+  });
+
+  it("returns 404 when the manuscript is not owned by the user", async () => {
+    mockCreateAdminClient.mockReturnValue(buildSupabaseMock({ manuscript: null }) as any);
+    const result = await applyTrustedPath({ manuscriptId: 1234, evaluationJobId: "job-1" });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("Manuscript not found");
+    expect(result.statusCode).toBe(404);
+  });
+
+  it("returns 403 when the evaluation mode blocks TrustedPath", async () => {
+    mockCreateAdminClient.mockReturnValue(
+      buildSupabaseMock({
+        artifactContent: { governance: { transparency: { genre_expectation_context: {
+          diagnosed_genre: "literary",
+          shelf_target_audience: "adult literary readers",
+          dominant_craft_engine: "voice",
+          expectation_profiles: ["voice_forward"],
+          genre_expectation_ids: ["literary_fiction"],
+          genre_expectation_labels: ["Literary fiction"],
+          resolution_notes: ["genre_expectation:literary_fiction"],
+        } } } },
+        jobMode: "testimony",
+      }) as any,
+    );
+    const result = await applyTrustedPath({ manuscriptId: 1234, evaluationJobId: "job-1" });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("TrustedPath is blocked");
+    expect(result.statusCode).toBe(403);
   });
 
   it("applies a single eligible copy-paste repair with the actual selected text", async () => {
@@ -222,7 +257,7 @@ describe("applyTrustedPath", () => {
     expect(mockSyncRevisionLedgerDecisions).not.toHaveBeenCalled();
   });
 
-  it("skips strategy cards and non-eligible copy-paste cards", async () => {
+  it("skips strategy cards and non-eligible copy-paste cards and fails closed", async () => {
     mockCreateAdminClient.mockReturnValue(buildSupabaseMock() as any);
     const strategy = makeOpportunity({ id: "strategy-1", cardType: "revision_strategy", trustedPathStatus: "ineligible" });
     const withheld = makeOpportunity({ id: "withheld-1", cardType: "withheld_unsupported", trustedPathStatus: "ineligible" });
@@ -231,7 +266,9 @@ describe("applyTrustedPath", () => {
 
     const result = await applyTrustedPath({ manuscriptId: 1234, evaluationJobId: "job-1" });
 
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(result.finalReviewUrl).toBeNull();
+    expect(result.statusCode).toBe(400);
     expect(result.appliedCount).toBe(0);
     expect(result.skippedCount).toBe(2);
     expect(mockSyncRevisionLedgerDecisions).not.toHaveBeenCalled();
@@ -260,16 +297,33 @@ describe("applyTrustedPath", () => {
     expect(result.skippedCount).toBe(1);
   });
 
-  it("returns a finalReviewUrl even when nothing is applied", async () => {
+  it("fails closed when no eligible opportunities exist", async () => {
     mockCreateAdminClient.mockReturnValue(buildSupabaseMock() as any);
     mockGetWorkbenchQueue.mockResolvedValue(makeQueuePayload([]) as any);
     mockSyncRevisionLedgerDecisions.mockResolvedValue([] as any);
 
     const result = await applyTrustedPath({ manuscriptId: 1234, evaluationJobId: "job-1" });
 
+    expect(result.ok).toBe(false);
+    expect(result.appliedCount).toBe(0);
+    expect(result.finalReviewUrl).toBeNull();
+    expect(result.statusCode).toBe(400);
+  });
+
+  it("returns a finalReviewUrl when all eligible opportunities were already decided", async () => {
+    mockCreateAdminClient.mockReturnValue(
+      buildSupabaseMock({ existingDecisions: [{ opportunity_id: "finding-1" }] }) as any,
+    );
+    mockGetWorkbenchQueue.mockResolvedValue(makeQueuePayload([makeOpportunity()]) as any);
+    mockSyncRevisionLedgerDecisions.mockResolvedValue([] as any);
+
+    const result = await applyTrustedPath({ manuscriptId: 1234, evaluationJobId: "job-1" });
+
     expect(result.ok).toBe(true);
     expect(result.appliedCount).toBe(0);
+    expect(result.alreadyDecidedCount).toBe(1);
     expect(result.finalReviewUrl).toBe("/workbench/final-review?manuscriptId=1234&evaluationJobId=job-1");
+    expect(mockSyncRevisionLedgerDecisions).not.toHaveBeenCalled();
   });
 });
 
