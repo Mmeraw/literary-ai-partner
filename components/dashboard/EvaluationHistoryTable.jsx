@@ -106,14 +106,14 @@ function statusTooltip(status, purpose) {
   // author_manuscript
   switch (status) {
     case 'market_ready':
-      return 'This manuscript has reached the 8 agent-readiness threshold.'
+      return 'This manuscript has reached the 90/100 agent-readiness threshold.'
     case 'near_ready':
-      return 'Score is approaching the 8 agent-readiness threshold.'
+      return 'Score is approaching the 90/100 agent-readiness threshold.'
     case 'improving':
       return 'This evaluation completed. The manuscript is making progress but has not yet reached the readiness threshold.'
     case 'below_standard':
     case 'complete':
-      return 'This evaluation completed, but the manuscript has not reached the 8 agent-readiness threshold.'
+      return 'This evaluation completed, but the manuscript has not reached the 90/100 agent-readiness threshold.'
     case 'running':
     case 'queued':
       return 'Evaluation is still in progress.'
@@ -172,7 +172,7 @@ function formatDate(value) {
 }
 
 function formatScore(value) {
-  return formatScoreForDisplay(value)
+  return formatScoreForDisplay(typeof value === 'number' ? value * 10 : value)
 }
 
 function agentReadinessHref(row) {
