@@ -121,6 +121,8 @@ describe("FinalReviewClient anchor integrity", () => {
     expect(screen.getByText("Changelog only")).toBeTruthy();
     expect(screen.getByText(/Revision Changelog remains available/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /Apply to new version/i })).toBeDisabled();
-    expect(screen.getByText(/Tighten the physical beat/i)).toBeTruthy();
+    // The decision is intentionally visible in both the staged preview and the
+    // authoritative changelog when source text is unavailable.
+    expect(screen.getAllByText(/Tighten the physical beat/i)).toHaveLength(2);
   });
 });
