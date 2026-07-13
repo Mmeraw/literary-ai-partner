@@ -60,11 +60,6 @@ export type WorkbenchQueueAuditReport = {
 
 export const REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION = 'workbench-queue-projection:2026-07-13'
 
-/**
- * Stable, non-cryptographic hash of a string. The queue hashes must be
- * deterministic across loads with identical inputs so we can detect unstable
- * ordering or changing projection state without requiring a crypto module.
- */
 function cyrb53Hash(value: string, seed = 0): string {
   let h1 = 0xdeadbeef ^ seed
   let h2 = 0x41c6ce57 ^ seed
@@ -84,6 +79,15 @@ function hashOrderedOpportunityIds(ids: string[]): string {
 
 function hashProjection(entries: unknown[]): string {
   return cyrb53Hash(JSON.stringify(entries))
+}
+
+/**
+ * Admission reasons are set-like diagnostic values. Normalize them before
+ * hashing so source-order noise does not create false projection changes,
+ * while any real addition/removal still changes the projection hash.
+ */
+function normalizedAdmissionReasons(reasons: string[] | undefined): string[] {
+  return Array.from(new Set((reasons ?? []).map((reason) => reason.trim()).filter(Boolean))).sort()
 }
 
 export function isAuditLogEnabled(): boolean {
@@ -151,15 +155,15 @@ export function buildWorkbenchQueueAudit(
       opportunity?.cardType ?? null,
       opportunity?.trustedPathStatus ?? null,
       admission?.copyPasteAdmissionPassed ?? false,
+      normalizedAdmissionReasons(admission?.copyPasteAdmissionReasons),
       admission?.strategyAdmissionPassed ?? false,
+      normalizedAdmissionReasons(admission?.strategyAdmissionReasons),
     ]
   })
 
   const projectionHash = hashProjection(projectionEntries)
-
   const ledgerArtifactId =
     context?.ledgerArtifactId ?? payload.revisionPackage?.revision_opportunity_ledger_artifact_id ?? null
-
   const modeContractSource = payload.modeContract?.source ?? null
   const modeContractEvaluationMode = payload.modeContract?.evaluation_mode ?? null
 
