@@ -4,51 +4,56 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import CopyPasteRewriteCard from '@/components/revision/CopyPasteRewriteCard';
 import WithheldSummary from '@/components/revision/WithheldSummary';
-import type { CopyPasteCardViewModel, WithheldCardViewModel } from '@/components/revision/workbenchCardModels';
+import WorkbenchCardSurface from '@/components/revision/WorkbenchCardSurface';
+import {
+  copyPastePresentationFixture,
+  strategyPresentationFixture,
+  withheldPresentationFixture,
+  workbenchPresentationGoldenMaster,
+} from '@/components/revision/workbenchPresentationFixtures';
 
-const copyPasteCard: CopyPasteCardViewModel = {
-  opportunityId: 'opp-copy-1',
-  cardType: 'copy_paste_rewrite',
-  trustedPathStatus: 'eligible',
-  severity: 'must',
-  criterion: 'NARRATIVE_DRIVE',
-  originalPassage: 'The river moved below them in a long sheet of grey.',
-  evidenceLocation: 'Chapter 5, paragraph 1',
-  candidates: [
-    { key: 'A', label: 'Recommended repair', text: 'Below them, the river carried a long sheet of grey toward the bend.' },
-    { key: 'B', label: 'Rhythm variant', text: 'The river slid below them—grey, long, and unbroken to the bend.' },
-    { key: 'C', label: 'Bolder rendering shift', text: 'Far below, the river dragged its grey skin around the bend.' },
-  ],
-};
+describe('Workbench presentation golden masters', () => {
+  it('contains exactly one copy-paste, one strategy, and one withheld archetype', () => {
+    expect(workbenchPresentationGoldenMaster.map((card) => card.cardType)).toEqual([
+      'copy_paste_rewrite',
+      'revision_strategy',
+      'withheld',
+    ]);
+  });
 
-const withheldCard: WithheldCardViewModel = {
-  opportunityId: 'opp-withheld-1',
-  cardType: 'withheld',
-  trustedPathStatus: 'impossible',
-  severity: 'must',
-  criterion: 'CANON',
-  title: 'The relationship reference cannot be verified',
-  holdReason: 'The available evidence conflicts with the manuscript ledger.',
-  missingContext: ['A confirmed relationship timeline', 'The surrounding scene transition'],
-  recoveryAction: 'Confirm the relationship timeline, then request re-analysis.',
-  evidenceAnchor: 'He called her by the name only his sister used.',
-};
-
-describe('Workbench card components', () => {
-  it('renders exactly three executable A/B/C candidates for copy-paste cards', () => {
+  it('renders exactly three executable A/B/C candidates with a distinct recommended A state', () => {
     const onAccept = jest.fn();
-    render(<CopyPasteRewriteCard viewModel={copyPasteCard} onAccept={onAccept} />);
+    render(
+      <CopyPasteRewriteCard
+        viewModel={copyPastePresentationFixture}
+        selectedKey="B"
+        onAccept={onAccept}
+      />,
+    );
 
     expect(screen.getByText(/Copy-paste rewrite/i)).toBeTruthy();
     expect(screen.getByText(/Trusted Path eligible/i)).toBeTruthy();
+    expect(screen.getByText('Recommended')).toBeTruthy();
+    expect(screen.getByText('Selected')).toBeTruthy();
+    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    expect(screen.getByRole('radio', { name: /Select option B/i }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getAllByRole('button', { name: /Accept [ABC]/i })).toHaveLength(3);
 
     fireEvent.click(screen.getByRole('button', { name: /Accept B/i }));
     expect(onAccept).toHaveBeenCalledWith('B');
   });
 
+  it('keeps strategy presentation hierarchical and free of A/B/C acceptance controls', () => {
+    render(<WorkbenchCardSurface viewModel={strategyPresentationFixture} />);
+
+    expect(screen.getByTestId('revision-strategy-surface')).toBeTruthy();
+    expect(screen.getByText(/Redistribute the historical explanation/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Accept [ABC]/i })).toBeNull();
+    expect(screen.queryByText(/A —|B —|C —/)).toBeNull();
+  });
+
   it('renders withheld items without candidate, generate, accept, or Trusted Path controls', () => {
-    render(<WithheldSummary viewModel={withheldCard} />);
+    render(<WithheldSummary viewModel={withheldPresentationFixture} />);
 
     expect(screen.getByText(/Held item/i)).toBeTruthy();
     expect(screen.getByText(/Why this was held/i)).toBeTruthy();
