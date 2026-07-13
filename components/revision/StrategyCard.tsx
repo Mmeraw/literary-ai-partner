@@ -24,17 +24,36 @@ function Eyebrow({ children, W }: { children: React.ReactNode; W: StrategyCardCo
   );
 }
 
-function Field({ label, value, W }: { label: string; value: string; W: StrategyCardColors }) {
+function Panel({
+  label,
+  children,
+  W,
+  tone = 'default',
+}: {
+  label: string;
+  children: React.ReactNode;
+  W: StrategyCardColors;
+  tone?: 'default' | 'warning';
+}) {
   return (
-    <div className="rounded px-4 py-3" style={{ border: `1px solid ${W.borderFaint}`, backgroundColor: W.surface2 }}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: W.muted }}>
-        {label}
-      </p>
-      <p className="mt-1.5 text-sm leading-[1.65]" style={{ color: W.cream2 }}>
-        {value || '—'}
-      </p>
-    </div>
+    <section
+      className="rounded px-4 py-4"
+      style={
+        tone === 'warning'
+          ? { border: '1px solid rgba(122,43,26,0.35)', backgroundColor: 'rgba(122,43,26,0.06)' }
+          : { border: `1px solid ${W.borderFaint}`, backgroundColor: W.surface2 }
+      }
+    >
+      <Eyebrow W={W}>{label}</Eyebrow>
+      <div className="mt-2 text-sm leading-[1.65]" style={{ color: W.cream2 }}>
+        {children}
+      </div>
+    </section>
   );
+}
+
+function nonEmpty(values: Array<string | null | undefined>): string[] {
+  return values.map((value) => value?.trim() ?? '').filter(Boolean);
 }
 
 export default function StrategyCard({
@@ -44,92 +63,75 @@ export default function StrategyCard({
   viewModel: StrategyCardViewModel;
   W: StrategyCardColors;
 }) {
-  const { scaffold, illustrativeExamples } = viewModel;
-
-  const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // ignore
-    }
-  };
+  const { scaffold } = viewModel;
+  const approaches = nonEmpty([
+    scaffold.conservativeApproach,
+    scaffold.moderateApproach,
+    scaffold.boldApproach,
+  ]);
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-baseline justify-between">
-        <Eyebrow W={W}>Repair Strategy</Eyebrow>
-        <span className="text-[10px]" style={{ color: W.dim }}>
-          {scaffold.cardNumber}
+    <div className="space-y-5" data-testid="revision-strategy-card">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Eyebrow W={W}>Revision Strategy</Eyebrow>
+          <h3 className="mt-1 text-base font-semibold" style={{ color: W.cream }}>
+            One guided repair plan
+          </h3>
+        </div>
+        <span
+          className="rounded-sm px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
+          style={{ border: `1px solid ${W.border}`, color: W.dim }}
+        >
+          Author review required
         </span>
       </div>
 
-      <div
-        className="rounded px-4 py-3"
-        style={{ border: `1px solid ${W.borderFaint}`, backgroundColor: W.surface }}
-      >
-        <Eyebrow W={W}>Evidence Anchor</Eyebrow>
-        <p
-          className="mt-2 text-sm leading-[1.65]"
-          style={{ color: W.cream2, fontFamily: 'Georgia, serif' }}
-        >
+      <Panel label="Why direct copy-paste is unsafe" W={W} tone="warning">
+        <p>{scaffold.reasonCopyPasteIsUnsafe}</p>
+      </Panel>
+
+      <Panel label="Evidence anchor" W={W}>
+        <p style={{ fontFamily: 'Georgia, serif' }}>
           {scaffold.evidenceAnchor || 'No excerpt available'}
         </p>
-      </div>
+      </Panel>
+
+      <Panel label="Recommended strategy" W={W}>
+        <p>{approaches[0] || 'Review the evidence and complete the repair at the smallest safe narrative scope.'}</p>
+      </Panel>
+
+      {approaches.length > 1 && (
+        <Panel label="Implementation approaches" W={W}>
+          <ol className="space-y-3">
+            {approaches.slice(1).map((approach, index) => (
+              <li key={`${index}-${approach.slice(0, 24)}`} className="flex gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+                  style={{ border: `1px solid ${W.border}`, color: W.gold }}
+                >
+                  {index + 1}
+                </span>
+                <span>{approach}</span>
+              </li>
+            ))}
+          </ol>
+        </Panel>
+      )}
+
+      {scaffold.authorDecisionRequired?.trim() && (
+        <Panel label="Author decision required" W={W}>
+          <p>{scaffold.authorDecisionRequired}</p>
+        </Panel>
+      )}
 
       <div
-        className="rounded px-4 py-3"
-        style={{ border: `1px solid rgba(122,43,26,0.35)`, backgroundColor: 'rgba(122,43,26,0.06)' }}
+        className="rounded px-4 py-3 text-xs leading-relaxed"
+        style={{ border: `1px solid ${W.borderFaint}`, backgroundColor: W.surface, color: W.dim }}
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: W.dangerText }}>
-          Trusted Path: {scaffold.trustedPathStatus}
-        </p>
-        <p className="mt-1 text-sm" style={{ color: W.muted }}>
-          Why copy-paste is unsafe: {scaffold.reasonCopyPasteIsUnsafe}
-        </p>
+        This card provides a revision plan, not replacement prose. There are no A/B/C options and nothing here can be accepted into the manuscript automatically.
       </div>
-
-      <div className="grid gap-3">
-        <Field label="Conservative approach" value={scaffold.conservativeApproach} W={W} />
-        <Field label="Moderate approach" value={scaffold.moderateApproach} W={W} />
-        <Field label="Bold approach" value={scaffold.boldApproach} W={W} />
-        <Field label="Author decision required" value={scaffold.authorDecisionRequired} W={W} />
-      </div>
-
-      {illustrativeExamples.length > 0 && (
-        <div className="space-y-3">
-          <Eyebrow W={W}>Illustrative examples</Eyebrow>
-          <p className="text-xs" style={{ color: W.dim }}>
-            These are example approaches, not executable copy-paste drafts.
-          </p>
-          {illustrativeExamples.map((example) => (
-            <div
-              key={example.key}
-              className="rounded px-4 py-3"
-              style={{ border: `1px solid ${W.borderFaint}`, backgroundColor: W.surface }}
-            >
-              <div className="flex items-baseline justify-between mb-2">
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: W.gold }}>
-                  {example.key} — {example.label}
-                </p>
-              </div>
-              <p
-                className="text-sm leading-[1.65] whitespace-pre-wrap"
-                style={{ color: W.cream2 }}
-              >
-                {example.text}
-              </p>
-              <button
-                type="button"
-                onClick={() => handleCopy(example.text)}
-                className="mt-2 rounded px-2 py-0.5 text-[10px]"
-                style={{ border: `1px solid ${W.border}`, color: W.muted }}
-              >
-                Copy
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
