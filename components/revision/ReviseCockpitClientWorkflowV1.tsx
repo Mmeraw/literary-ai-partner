@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import {
   candidateTextIsCopyPasteReady,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/revision/reviseCardContract";
 import type { RevisionOperation } from "@/lib/revision/reviseCardContract";
 import StrategyCard from "@/components/revision/StrategyCard";
+import type { SyncedRevisionLedgerRow } from "@/lib/revision/ledger";
 
 type OptionKey = "A" | "B" | "C";
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
@@ -196,6 +197,60 @@ function decisionLabel(decision: DecisionState): string {
   return "Deferred";
 }
 
+function rowToLedgerEntry(row: SyncedRevisionLedgerRow): LedgerEntry {
+  const selectedText = row.selected_text ?? row.custom_text ?? undefined;
+  const criterion =
+    typeof row.metadata === "object" && row.metadata && "criterion" in row.metadata
+      ? String((row.metadata as Record<string, unknown>).criterion)
+      : "General";
+  return {
+    id: row.local_id,
+    itemId: row.opportunity_id,
+    itemTitle: row.opportunity_title,
+    decision: row.decision,
+    option: row.selected_option ?? undefined,
+    selectedText: selectedText && selectedText.length > 0 ? selectedText : undefined,
+    criterion,
+    syncStatus: "synced",
+  };
+}
+
+function mergeLedger(local: LedgerEntry[], remote: LedgerEntry[]): LedgerEntry[] {
+  const byItemId = new Map<string, LedgerEntry>();
+  for (const entry of remote) byItemId.set(entry.itemId, entry);
+  for (const entry of local) {
+    const current = byItemId.get(entry.itemId);
+    // A local pending/failed choice reflects a newer user action than the mount
+    // snapshot. Keep it authoritative until sync succeeds or the user retries.
+    if (!current || entry.syncStatus !== "synced") byItemId.set(entry.itemId, entry);
+  }
+  return Array.from(byItemId.values());
+}
+
+function ledgerRowTimestamp(row: SyncedRevisionLedgerRow): number {
+  const value = row.updated_at || row.created_at || row.client_created_at || "";
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function selectedRemoteRows(rows: SyncedRevisionLedgerRow[]): SyncedRevisionLedgerRow[] {
+  const undoneLocalIds = new Set<string>();
+  for (const row of rows) {
+    if (row.is_undo && row.undone_local_id) undoneLocalIds.add(row.undone_local_id);
+  }
+
+  const latestByOpportunity = new Map<string, SyncedRevisionLedgerRow>();
+  for (const row of rows) {
+    if (row.is_undo || undoneLocalIds.has(row.local_id)) continue;
+    const current = latestByOpportunity.get(row.opportunity_id);
+    if (!current || ledgerRowTimestamp(row) >= ledgerRowTimestamp(current)) {
+      latestByOpportunity.set(row.opportunity_id, row);
+    }
+  }
+
+  return Array.from(latestByOpportunity.values()).sort((a, b) => ledgerRowTimestamp(b) - ledgerRowTimestamp(a));
+}
+
 function selectedDecisionFor(key: OptionKey): DecisionState {
   if (key === "A") return "accepted_a";
   if (key === "B") return "accepted_b";
@@ -329,6 +384,36 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+
+  // Rehydrate the saved-decision ledger from the server so reopening the
+  // workbench shows previously synced choices (kept, deferred, rejected, etc.).
+  useEffect(() => {
+    if (!payload.manuscriptId || !payload.evaluationJobId) return;
+    let cancelled = false;
+
+    async function loadServerLedger() {
+      try {
+        const params = new URLSearchParams({
+          manuscriptId: payload.manuscriptId ?? "",
+          evaluationJobId: payload.evaluationJobId ?? "",
+        });
+        const response = await fetch(`/api/revision-ledger?${params.toString()}`);
+        if (!response.ok) return;
+        const json = await response.json();
+        if (!json?.ok || !Array.isArray(json.entries) || cancelled) return;
+        const remote = selectedRemoteRows(json.entries as SyncedRevisionLedgerRow[]).map(rowToLedgerEntry);
+        setLedger((current) => mergeLedger(current, remote));
+      } catch {
+        // Offline or transient failures are non-fatal; the user can still interact
+        // and the next sync will reconcile the ledger.
+      }
+    }
+
+    void loadServerLedger();
+    return () => {
+      cancelled = true;
+    };
+  }, [payload.manuscriptId, payload.evaluationJobId]);
   const [rewriteCache, setRewriteCache] = useState<Record<string, { a: string; b: string; c: string; error?: string }>>({});
   const [rewriteLoading, setRewriteLoading] = useState<string | null>(null);
 
@@ -965,7 +1050,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                     const strategyMeta: Record<OptionKey, { label: string; approach: string }> = {
                                       A: { label: "Recommended", approach: `Implement the fix at minimum scope. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                       B: { label: "Rhythm Variant", approach: `Anchor the same repair in concrete action or sensory detail rather than exposition. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
-                                      C: { label: "Bolder Shift", approach: `Reframe the structural context entirely\u2014consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
+                                      C: { label: "Bolder Shift", approach: `Reframe the structural context entirely—consider a different order, a cut, or a tonal pivot. ${goal.replace(/^(\w)/, (c) => c.toUpperCase())}` },
                                     };
                                     const { label, approach } = strategyMeta[key];
                                     const isSelected = selectedOption === key;
@@ -1040,14 +1125,14 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
                                           {key}
                                         </span>
                                         <span className="text-[10px] uppercase tracking-[0.12em]" style={{ color: W.muted }}>
-                                          {"\u2014"} {role}
+                                          {"—"} {role}
                                         </span>
                                       </div>
                                       <p
                                         className="line-clamp-4 min-h-[3rem] whitespace-pre-wrap text-sm leading-[1.65]"
                                         style={{ color: ok ? W.cream2 : W.dim, fontStyle: ok ? "normal" : "italic" }}
                                       >
-                                        {text || "Prose not yet generated — click \u201cGenerate\u201d below to create three distinct options."}
+                                        {text || "Prose not yet generated — click “Generate” below to create three distinct options."}
                                       </p>
                                     </button>
                                     {text && text.length > 190 && (
@@ -1348,7 +1433,7 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
               {ledger.length === 0 ? (
                 <div className="flex gap-3 items-center">
                   <Eyebrow>Revision Ledger</Eyebrow>
-                  <span aria-hidden="true" style={{ color: W.border }}>{"\u00b7"}</span>
+                  <span aria-hidden="true" style={{ color: W.border }}>{"·"}</span>
                   <span className="text-xs" style={{ color: W.dim }}>No decisions yet.</span>
                 </div>
               ) : (
