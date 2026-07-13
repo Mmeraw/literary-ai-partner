@@ -1,19 +1,24 @@
-# Workbench UI Branch Status
+# Revise Workbench UI branch status
 
 Branch: `agent/revise-workbench-ui-card-split`
 
-Scope is presentation and component contracts only.
+## Complete
 
-Completed in the first slice:
+- Dedicated `CopyPasteRewriteCard` with mandatory A/B/C presentation.
+- Dedicated `StrategyCard` with one hierarchical plan and no A/B/C semantics.
+- Dedicated `WithheldSummary` with no candidate, Generate, Accept, or Trusted Path controls.
+- Discriminated `WorkbenchCardViewModel` contracts.
+- Pure `adaptWorkbenchOpportunityToCard()` adapter from the current queue payload.
+- `WorkbenchCardSurface` switch that renders by `cardType` and exposes only legal actions.
+- Component and adapter tests proving cross-type controls do not leak.
 
-- Strategy UI no longer presents A/B/C examples.
-- Dedicated copy-paste card component with mandatory A/B/C.
-- Dedicated held-item summary with no candidate or acceptance controls.
-- Explicit discriminated view-model types.
-- Component and integration-shell tests updated.
+## Remaining before merge
 
-Remaining before ready-to-merge:
+- Wire `ReviseCockpitClientWorkflowV1` to `WorkbenchCardSurface` after the parallel ledger/queue contract settles.
+- Rebase on Devin's backend branch once its payload contract is final.
+- Run repository CI and authenticated preview proof.
+- Capture screenshots for copy-paste, strategy, and held-item states.
 
-- Wire the existing workbench shell to the dedicated copy-paste and held-item components.
-- Add the final adapter from the backend queue payload to the UI union.
-- Capture preview screenshots and run the relevant test suite.
+## Isolation
+
+This branch does not change persistence, queue classification, admission policy, or queue partitioning.
