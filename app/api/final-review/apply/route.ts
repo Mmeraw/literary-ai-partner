@@ -20,13 +20,25 @@ async function readBody(req: Request) {
   };
 }
 
-function redirectResult(req: Request, manuscriptId: string, evaluationJobId: string, result: { ok: boolean; revisedVersionId?: string | null; appliedCount?: number; error?: string | null }) {
+function redirectResult(
+  req: Request,
+  manuscriptId: string,
+  evaluationJobId: string,
+  result: {
+    ok: boolean;
+    revisedVersionId?: string | null;
+    appliedCount?: number;
+    reusedExistingVersion?: boolean;
+    error?: string | null;
+  },
+) {
   const url = new URL("/workbench/final-review", req.url);
   url.searchParams.set("manuscriptId", manuscriptId);
   url.searchParams.set("evaluationJobId", evaluationJobId);
   if (result.ok) {
     url.searchParams.set("applied", String(result.revisedVersionId ?? "true"));
     url.searchParams.set("appliedCount", String(result.appliedCount ?? 0));
+    if (result.reusedExistingVersion) url.searchParams.set("reusedApply", "1");
   } else {
     url.searchParams.set("applyError", String(result.error ?? "Apply failed"));
   }
@@ -62,7 +74,6 @@ export async function POST(req: Request) {
     }
 
     const result = await applyFinalReviewDecisions({ manuscriptId, evaluationJobId });
-
     if (wantsHtmlRedirect) return redirectResult(req, manuscriptId, evaluationJobId, result);
     return NextResponse.json(result, { status: result.ok ? 200 : 409 });
   } catch (error) {
