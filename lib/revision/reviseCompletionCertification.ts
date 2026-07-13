@@ -117,7 +117,13 @@ function stableStringify(value: unknown): string {
 }
 
 function hashCertificationPayload(payload: Omit<ReviseCompletionCertificationV1, 'certification_hash'>): string {
-  return crypto.createHash('sha256').update(stableStringify(payload), 'utf8').digest('hex');
+  // The timestamp is recorded in the cert but excluded from the hash so the
+  // certification hash is deterministic for the same decisions and state.
+  // This makes the Final Review Apply fingerprint idempotent across retries.
+  const payloadToHash = { ...payload };
+  delete (payloadToHash as any).certified_at;
+  delete (payloadToHash as any).completed_at;
+  return crypto.createHash('sha256').update(stableStringify(payloadToHash), 'utf8').digest('hex');
 }
 
 function emptyDecisionCounts(): Record<ReviseCompletionDecision, number> {

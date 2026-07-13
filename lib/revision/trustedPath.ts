@@ -1,27 +1,28 @@
 /**
- * TrustedPath™ — Apply All Approved
+ * TrustedPath — canonical auto-apply for copy-paste-ready repairs.
  *
- * Queries all cross-check-approved Option A repairs for an evaluation job
- * and auto-accepts them into the revision ledger. Only findings with an
- * `approve` verdict from the Perplexity cross-check verifier are eligible.
- *
- * Designed for the time-pressed author who does not want to review hundreds
- * of individually verified repairs one by one.
+ * One source of truth for:
+ *   - /api/revise/trusted-path (legacy workbench)
+ *   - /api/revision-ledger/trusted-path (workbench-v2)
+ *   - previewTrustedPath()
  *
  * Contract:
- * - Only `approve` verdicts are auto-applied (isTrustedPathEligible gate).
- * - Original manuscript is never mutated — ledger entries are created.
- * - Flagged, rejected, unavailable, and pending findings remain in the
- *   workbench for manual review.
- * - Returns a summary of what was applied vs what remains.
+ * - Only workbench-classified `copy_paste_rewrite` cards with
+ *   `trustedPathStatus === 'eligible'` are accepted.
+ * - If repair cross-check is enabled, the finding must also have an `approve`
+ *   verdict for Option A.
+ * - Already-decided opportunities are skipped, not overwritten.
+ * - Each ledger entry carries the actual selected replacement text so Final
+ *   Review can apply it without guessing.
+ * - Returns a `finalReviewUrl` so every UI surface links to the same next step.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
-import { isTrustedPathEligible, type CrossCheckVerdict } from "./repairCrossCheck";
-import type { SyncRevisionLedgerEntryInput } from "./ledger";
-import { syncRevisionLedgerDecisions } from "./ledger";
-import { ensureOperationalRevisionFindings } from './operationalQueueBuilder';
+import { isTrustedPathEligible, isRepairCrossCheckEnabled } from "./repairCrossCheck";
+import { syncRevisionLedgerDecisions, type SyncRevisionLedgerEntryInput } from "./ledger";
+import { getWorkbenchQueue, type WorkbenchOpportunity } from "./workbenchQueue";
+import { getRenderableCandidateText } from "./reviseCardContract";
 import { deriveReviseEligibilityLabel } from "@/lib/evaluation/modeGate";
 import {
   hasExplicitRevisionModeContract,
@@ -30,7 +31,6 @@ import {
   resolveRevisionModeContract,
 } from "./modeContract";
 import { extractGenreExpectationMetadataFromEvaluationPayload } from "@/lib/evaluation/genreExpectationProfiles";
-import { getWorkbenchQueue } from "./workbenchQueue";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -42,16 +42,22 @@ export type TrustedPathSummary = {
   alreadyDecidedCount: number;
   appliedFindingIds: string[];
   skippedReasons: Record<string, number>;
+  finalReviewUrl: string | null;
+};
+
+export type TrustedPathPreview = {
+  eligible: number;
+  alreadyDecided: number;
+  total: number;
 };
 
 type ApprovedCrossCheck = {
   finding_id: string;
   option_key: string;
   verdict: string;
-  evaluation_job_id: string;
 };
 
-// ─── Core ───────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function emptyResult(error: string | null): TrustedPathSummary {
   return {
@@ -62,13 +68,227 @@ function emptyResult(error: string | null): TrustedPathSummary {
     alreadyDecidedCount: 0,
     appliedFindingIds: [],
     skippedReasons: {},
+    finalReviewUrl: null,
   };
 }
 
-/**
- * Run TrustedPath: auto-accept all cross-check-approved Option A repairs
- * into the revision ledger for a given manuscript + evaluation.
- */
+function normalize(value: string | null | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function compareText(value: string | null | undefined): string {
+  return normalize(value).toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function sourceTextOf(item: WorkbenchOpportunity): string {
+  const text = `${item.quoteHighlight ?? ""}${item.quoteRest ?? ""}`.trim();
+  if (!text || /no excerpt available/i.test(text)) return "";
+  return text;
+}
+
+function candidateRepeatsSourceForInsertion(item: WorkbenchOpportunity, text: string): boolean {
+  if (
+    item.revisionOperation !== "insert_before_selected_passage" &&
+    item.revisionOperation !== "insert_after_selected_passage"
+  ) {
+    return false;
+  }
+
+  const source = compareText(sourceTextOf(item));
+  const candidate = compareText(text);
+  if (!source || !candidate) return false;
+
+  const lead = source.split(/\s+/).slice(0, 6).join(" ");
+  return lead.length >= 8 && candidate.startsWith(lead);
+}
+
+function getTrustedPathCandidateText(item: WorkbenchOpportunity): string {
+  if (item.readiness !== "ready_for_revise") return "";
+  if (item.cardType !== "copy_paste_rewrite" || item.trustedPathStatus !== "eligible") return "";
+
+  const option = item.options.find((entry) => entry.key === "A");
+  if (!option) return "";
+
+  const candidate = getRenderableCandidateText({
+    candidateText: option.candidateText || option.text,
+    issueStatement: item.issueStatement,
+  });
+
+  if (!candidate || candidateRepeatsSourceForInsertion(item, candidate)) return "";
+  return candidate;
+}
+
+function criterionOf(item: WorkbenchOpportunity): string {
+  return item.criterion || item.crumb.split(" · ")[0]?.trim() || "General";
+}
+
+function buildFinalReviewUrl(manuscriptId: string | number, evaluationJobId: string): string {
+  return `/workbench/final-review?${new URLSearchParams({
+    manuscriptId: String(manuscriptId),
+    evaluationJobId: String(evaluationJobId),
+  }).toString()}`;
+}
+
+function buildEntry(
+  item: WorkbenchOpportunity,
+  selectedText: string,
+  crossCheckEnabled: boolean,
+): SyncRevisionLedgerEntryInput {
+  return {
+    localId: `trusted-path:${item.id}:accepted_a`,
+    opportunityId: item.id,
+    opportunityTitle: item.title,
+    decision: "accepted_a",
+    selectedOption: "A",
+    selectedText,
+    customText: null,
+    sourceExcerpt: sourceTextOf(item) || null,
+    sourceLocation: item.anchor || item.meta || null,
+    clientCreatedAt: new Date().toISOString(),
+    isUndo: false,
+    undoneLocalId: null,
+    metadata: {
+      source: "trusted_path",
+      trustedPath: true,
+      crossCheckVerdict: crossCheckEnabled ? "approve" : null,
+      revisionOperation: item.revisionOperation,
+      criterion: criterionOf(item),
+      severity: item.severity,
+      scope: item.scope,
+      cardType: item.cardType,
+      trustedPathStatus: item.trustedPathStatus,
+      executabilityReasons: item.executabilityReasons ?? [],
+    },
+  };
+}
+
+function incrementReason(reasons: Record<string, number>, reason: string): Record<string, number> {
+  return { ...reasons, [reason]: (reasons[reason] ?? 0) + 1 };
+}
+
+async function loadApprovedCrossCheckIds(
+  supabase: ReturnType<typeof createAdminClient>,
+  evaluationJobId: string,
+): Promise<Set<string>> {
+  const { data: approvedChecks, error: checksError } = await supabase
+    .from("revision_repair_cross_checks")
+    .select("finding_id, option_key, verdict")
+    .eq("evaluation_job_id", evaluationJobId)
+    .eq("option_key", "A")
+    .eq("verdict", "approve");
+
+  if (checksError) throw new Error(`Failed to load repair cross-checks: ${checksError.message}`);
+
+  return new Set(
+    (approvedChecks ?? [])
+      .filter((check: ApprovedCrossCheck) => isTrustedPathEligible(check.verdict as any))
+      .map((check: ApprovedCrossCheck) => check.finding_id),
+  );
+}
+
+async function loadAlreadyDecidedOpportunityIds(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+  manuscriptId: number,
+  evaluationJobId: string,
+): Promise<Set<string>> {
+  const { data: existingDecisions, error: ledgerError } = await supabase
+    .from("revision_ledger_decisions")
+    .select("opportunity_id")
+    .eq("user_id", userId)
+    .eq("manuscript_id", manuscriptId)
+    .eq("evaluation_job_id", evaluationJobId)
+    .eq("is_undo", false);
+
+  if (ledgerError) throw new Error(`Failed to load existing ledger decisions: ${ledgerError.message}`);
+
+  const alreadyDecided = new Set<string>();
+  for (const row of existingDecisions ?? []) {
+    if (typeof row.opportunity_id === "string") {
+      alreadyDecided.add(row.opportunity_id);
+    }
+  }
+  return alreadyDecided;
+}
+
+async function loadModeAndEligibility(
+  supabase: ReturnType<typeof createAdminClient>,
+  manuscriptId: number,
+  evaluationJobId: string,
+): Promise<{
+  job: any;
+  modeContract: any;
+  genreExpectationContext: any;
+  eligibility: string;
+}> {
+  const { data: job, error: jobError } = await supabase
+    .from("evaluation_jobs")
+    .select("id, status, manuscript_id, manuscript_version_id, policy_family, voice_preservation_level")
+    .eq("id", evaluationJobId)
+    .eq("manuscript_id", manuscriptId)
+    .maybeSingle();
+
+  if (jobError) throw new Error(jobError.message);
+  if (!job) throw new Error("Evaluation job not found for this manuscript");
+  if (job.status !== "complete") throw new Error("Evaluation is not complete yet");
+
+  const { data: evaluationArtifact } = await supabase
+    .from("evaluation_artifacts")
+    .select("content")
+    .eq("job_id", evaluationJobId)
+    .eq("artifact_type", "evaluation_result_v2")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const modeContract = resolveRevisionModeContract({
+    evaluationPayload: evaluationArtifact?.content,
+    job,
+  });
+
+  if (!hasExplicitRevisionModeContract(modeContract)) {
+    throw new Error("TrustedPath is blocked: evaluation mode contract is unavailable.");
+  }
+
+  const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(
+    evaluationArtifact?.content,
+  );
+
+  if (!genreExpectationContext) {
+    throw new Error("TrustedPath is blocked: genre expectation contract is unavailable.");
+  }
+
+  const eligibility = deriveReviseEligibilityLabel({
+    confirmedMode: modeContractToConfirmedMode(modeContract),
+  });
+
+  if (eligibility !== "Eligible for Trustpath") {
+    throw new Error(
+      `TrustedPath is blocked for ${modeContract.evaluation_mode} / ${modeContract.voice_preservation}. Use manual Revise review.`,
+    );
+  }
+
+  return { job, modeContract, genreExpectationContext, eligibility };
+}
+
+async function loadOwnership(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+  manuscriptId: number,
+): Promise<void> {
+  const { data: manuscript, error: manuscriptError } = await supabase
+    .from("manuscripts")
+    .select("id, user_id")
+    .eq("id", manuscriptId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (manuscriptError) throw new Error(manuscriptError.message);
+  if (!manuscript) throw new Error("Manuscript not found in your workspace");
+}
+
+// ─── Public API ─────────────────────────────────────────────────────────────
+
 export async function applyTrustedPath(input: {
   manuscriptId: string | number;
   evaluationJobId: string;
@@ -81,218 +301,101 @@ export async function applyTrustedPath(input: {
 
   const supabase = createAdminClient();
 
-  // Verify manuscript ownership
-  const { data: manuscript, error: manuscriptError } = await supabase
-    .from("manuscripts")
-    .select("id, title, user_id")
-    .eq("id", manuscriptId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  try {
+    await loadOwnership(supabase, user.id, manuscriptId);
+    const { modeContract } = await loadModeAndEligibility(supabase, manuscriptId, input.evaluationJobId);
 
-  if (manuscriptError) return emptyResult(manuscriptError.message);
-  if (!manuscript) return emptyResult("Manuscript not found in your workspace");
+    const queuePayload = await getWorkbenchQueue({
+      user,
+      manuscriptId: String(manuscriptId),
+      evaluationJobId: input.evaluationJobId,
+    });
+    if (!queuePayload.ok) return emptyResult(queuePayload.error ?? "Revise Queue unavailable.");
 
-  // Verify evaluation job
-  const { data: job, error: jobError } = await supabase
-    .from("evaluation_jobs")
-    .select("id, status, manuscript_id, manuscript_version_id, policy_family, voice_preservation_level")
-    .eq("id", input.evaluationJobId)
-    .eq("manuscript_id", manuscriptId)
-    .maybeSingle();
+    const alreadyDecided = await loadAlreadyDecidedOpportunityIds(
+      supabase,
+      user.id,
+      manuscriptId,
+      input.evaluationJobId,
+    );
 
-  if (jobError) return emptyResult(jobError.message);
-  if (!job) return emptyResult("Evaluation job not found for this manuscript");
-  if (job.status !== "complete") return emptyResult("Evaluation is not complete yet");
+    const crossCheckEnabled = isRepairCrossCheckEnabled();
+    const approvedFindingIds = crossCheckEnabled
+      ? await loadApprovedCrossCheckIds(supabase, input.evaluationJobId)
+      : new Set<string>();
 
-  const { data: evaluationArtifact } = await supabase
-    .from("evaluation_artifacts")
-    .select("content")
-    .eq("job_id", input.evaluationJobId)
-    .eq("artifact_type", "evaluation_result_v2")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    const entries: SyncRevisionLedgerEntryInput[] = [];
+    const appliedFindingIds: string[] = [];
+    const skippedReasons: Record<string, number> = {};
+    let alreadyDecidedCount = 0;
 
-  const modeContract = resolveRevisionModeContract({
-    evaluationPayload: evaluationArtifact?.content,
-    job,
-  });
-  if (!hasExplicitRevisionModeContract(modeContract)) {
-    return emptyResult("TrustedPath™ is blocked: evaluation mode contract is unavailable.");
-  }
-  const genreExpectationContext = extractGenreExpectationMetadataFromEvaluationPayload(evaluationArtifact?.content);
-  if (!genreExpectationContext) {
-    return emptyResult("TrustedPath™ is blocked: genre expectation contract is unavailable.");
-  }
-  const eligibility = deriveReviseEligibilityLabel({
-    confirmedMode: modeContractToConfirmedMode(modeContract),
-  });
-  if (eligibility !== "Eligible for Trustpath") {
-    return emptyResult(`TrustedPath™ is blocked for ${modeContract.evaluation_mode} / ${modeContract.voice_preservation}. Use manual Revise review.`);
-  }
+    for (const item of queuePayload.opportunities) {
+      if (item.cardType !== "copy_paste_rewrite" || item.trustedPathStatus !== "eligible") {
+        skippedReasons["not_trusted_path_eligible"] = (skippedReasons["not_trusted_path_eligible"] ?? 0) + 1;
+        continue;
+      }
 
-  const queuePayload = await getWorkbenchQueue({
-    manuscriptId: String(manuscriptId),
-    evaluationJobId: input.evaluationJobId,
-  });
-  if (!queuePayload.ok) return emptyResult(queuePayload.error ?? "Revise Queue unavailable.");
-  const supportedOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
+      if (crossCheckEnabled && !approvedFindingIds.has(item.id)) {
+        skippedReasons["cross_check_not_approved"] = (skippedReasons["cross_check_not_approved"] ?? 0) + 1;
+        continue;
+      }
 
-  await ensureOperationalRevisionFindings(
-    input.evaluationJobId,
-    (job.manuscript_version_id as string | null) ?? '',
-  );
+      if (alreadyDecided.has(item.id)) {
+        alreadyDecidedCount += 1;
+        continue;
+      }
 
-  // Fetch all cross-check results with approve verdict for this evaluation
-  const { data: approvedChecks, error: checksError } = await supabase
-    .from("revision_repair_cross_checks")
-    .select("finding_id, option_key, verdict, evaluation_job_id")
-    .eq("evaluation_job_id", input.evaluationJobId)
-    .eq("option_key", "A")
-    .eq("verdict", "approve");
+      const selectedText = getTrustedPathCandidateText(item);
+      if (!selectedText) {
+        skippedReasons["candidate_not_renderable"] = (skippedReasons["candidate_not_renderable"] ?? 0) + 1;
+        continue;
+      }
 
-  if (checksError) return emptyResult(checksError.message);
-
-  const eligible = (approvedChecks ?? []).filter(
-    (check: ApprovedCrossCheck) => isTrustedPathEligible(check.verdict as CrossCheckVerdict),
-  );
-
-  if (eligible.length === 0) {
-    return {
-      ...emptyResult(null),
-      skippedReasons: { no_approved_verdicts: 1 },
-    };
-  }
-
-  // Fetch existing ledger decisions to avoid re-applying
-  const { data: existingDecisions, error: ledgerError } = await supabase
-    .from("revision_ledger_decisions")
-    .select("opportunity_id, decision, is_undo")
-    .eq("user_id", user.id)
-    .eq("manuscript_id", manuscriptId)
-    .eq("evaluation_job_id", input.evaluationJobId)
-    .eq("is_undo", false);
-
-  if (ledgerError) return emptyResult(ledgerError.message);
-
-  // Build a set of opportunity IDs that already have a non-pending decision
-  const alreadyDecided = new Set<string>();
-  for (const row of existingDecisions ?? []) {
-    alreadyDecided.add(row.opportunity_id);
-  }
-
-  // Fetch finding details so we can populate the ledger entry titles
-  const eligibleFindingIds = eligible.map((c: ApprovedCrossCheck) => c.finding_id);
-
-  const { data: findings, error: findingsError } = await supabase
-    .from("diagnostic_findings")
-    .select("id, criterion_key, diagnosis, location_ref")
-    .in("id", eligibleFindingIds);
-
-  if (findingsError) return emptyResult(findingsError.message);
-
-  const findingMap = new Map<string, { criterion_key: string; diagnosis: string; location_ref: string | null }>();
-  for (const f of findings ?? []) {
-    findingMap.set(f.id, f);
-  }
-
-  // Build ledger entries for eligible findings not yet decided
-  const entries: SyncRevisionLedgerEntryInput[] = [];
-  const appliedFindingIds: string[] = [];
-  const skippedReasons: Record<string, number> = {};
-  let alreadyDecidedCount = 0;
-
-  for (const check of eligible) {
-    const findingId = check.finding_id;
-
-    if (!supportedOpportunityIds.has(findingId)) {
-      skippedReasons["unsupported_or_withheld"] = (skippedReasons["unsupported_or_withheld"] ?? 0) + 1;
-      continue;
-    }
-
-    if (alreadyDecided.has(findingId)) {
-      alreadyDecidedCount++;
-      continue;
-    }
-
-    const finding = findingMap.get(findingId);
-    if (!finding) {
-      skippedReasons["finding_not_found"] = (skippedReasons["finding_not_found"] ?? 0) + 1;
-      continue;
-    }
-
-    const title = finding.diagnosis.length > 150
-      ? `${finding.diagnosis.slice(0, 147).trim()}…`
-      : finding.diagnosis;
-
-    entries.push({
-      localId: `trustedpath-${Date.now()}-${findingId.slice(0, 8)}`,
-      opportunityId: findingId,
-      opportunityTitle: title,
-      decision: "accepted_a",
-      selectedOption: "A",
-      customText: null,
-      selectedText: null,
-      clientCreatedAt: new Date().toISOString(),
-      isUndo: false,
-      undoneLocalId: null,
-      metadata: {
-        source: "trustedpath-auto-apply",
-        crossCheckVerdict: "approve",
+      const entry = buildEntry(item, selectedText, crossCheckEnabled);
+      entry.metadata = {
+        ...entry.metadata,
         modeContract: modeContractForMetadata(modeContract),
-        genreExpectationContext,
-      },
+      };
+      entries.push(entry);
+      appliedFindingIds.push(item.id);
+    }
+
+    if (entries.length === 0) {
+      return {
+        ...emptyResult(null),
+        skippedCount: Object.values(skippedReasons).reduce((a, b) => a + b, 0),
+        alreadyDecidedCount,
+        skippedReasons,
+        finalReviewUrl: buildFinalReviewUrl(manuscriptId, input.evaluationJobId),
+      };
+    }
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId,
+      evaluationJobId: input.evaluationJobId,
+      entries,
+      user,
     });
 
-    appliedFindingIds.push(findingId);
-  }
-
-  const skippedCount = Object.values(skippedReasons).reduce((a, b) => a + b, 0);
-
-  if (entries.length === 0) {
     return {
       ok: true,
       error: null,
-      appliedCount: 0,
-      skippedCount,
+      appliedCount: entries.length,
+      skippedCount: Object.values(skippedReasons).reduce((a, b) => a + b, 0),
       alreadyDecidedCount,
-      appliedFindingIds: [],
+      appliedFindingIds,
       skippedReasons,
+      finalReviewUrl: buildFinalReviewUrl(manuscriptId, input.evaluationJobId),
     };
-  }
-
-  // Sync to the revision ledger
-  try {
-    await syncRevisionLedgerDecisions({
-      manuscriptId: String(manuscriptId),
-      evaluationJobId: input.evaluationJobId,
-      entries,
-    });
   } catch (err) {
-    return emptyResult(
-      `Failed to sync TrustedPath decisions: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    return emptyResult(err instanceof Error ? err.message : String(err));
   }
-
-  return {
-    ok: true,
-    error: null,
-    appliedCount: entries.length,
-    skippedCount,
-    alreadyDecidedCount,
-    appliedFindingIds,
-    skippedReasons,
-  };
 }
 
-/**
- * Preview how many findings are eligible for TrustedPath without applying.
- * Used by the UI to show the count on the button.
- */
 export async function previewTrustedPath(input: {
   manuscriptId: string | number;
   evaluationJobId: string;
-}): Promise<{ eligible: number; alreadyDecided: number; total: number }> {
+}): Promise<TrustedPathPreview> {
   const user = await getAuthenticatedUser();
   if (!user) return { eligible: 0, alreadyDecided: 0, total: 0 };
 
@@ -301,69 +404,41 @@ export async function previewTrustedPath(input: {
 
   const supabase = createAdminClient();
 
-  const { data: job } = await supabase
-    .from("evaluation_jobs")
-    .select("id, status, manuscript_id, policy_family, voice_preservation_level")
-    .eq("id", input.evaluationJobId)
-    .eq("manuscript_id", manuscriptId)
-    .maybeSingle();
+  try {
+    await loadOwnership(supabase, user.id, manuscriptId);
+    await loadModeAndEligibility(supabase, manuscriptId, input.evaluationJobId);
 
-  const { data: evaluationArtifact } = await supabase
-    .from("evaluation_artifacts")
-    .select("content")
-    .eq("job_id", input.evaluationJobId)
-    .eq("artifact_type", "evaluation_result_v2")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    const queuePayload = await getWorkbenchQueue({
+      user,
+      manuscriptId: String(manuscriptId),
+      evaluationJobId: input.evaluationJobId,
+    });
+    if (!queuePayload.ok) return { eligible: 0, alreadyDecided: 0, total: 0 };
 
-  const modeContract = resolveRevisionModeContract({
-    evaluationPayload: evaluationArtifact?.content,
-    job,
-  });
-  if (!hasExplicitRevisionModeContract(modeContract)) return { eligible: 0, alreadyDecided: 0, total: 0 };
-  if (!extractGenreExpectationMetadataFromEvaluationPayload(evaluationArtifact?.content)) {
+    const alreadyDecided = await loadAlreadyDecidedOpportunityIds(
+      supabase,
+      user.id,
+      manuscriptId,
+      input.evaluationJobId,
+    );
+
+    const crossCheckEnabled = isRepairCrossCheckEnabled();
+    const approvedFindingIds = crossCheckEnabled
+      ? await loadApprovedCrossCheckIds(supabase, input.evaluationJobId)
+      : new Set<string>();
+
+    const eligibleOpportunities = queuePayload.opportunities.filter((item) => {
+      if (item.cardType !== "copy_paste_rewrite" || item.trustedPathStatus !== "eligible") return false;
+      if (crossCheckEnabled && !approvedFindingIds.has(item.id)) return false;
+      return true;
+    });
+
+    const total = eligibleOpportunities.length;
+    const alreadyDecidedCount = eligibleOpportunities.filter((item) => alreadyDecided.has(item.id)).length;
+    const eligible = total - alreadyDecidedCount;
+
+    return { eligible, alreadyDecided: alreadyDecidedCount, total };
+  } catch {
     return { eligible: 0, alreadyDecided: 0, total: 0 };
   }
-  const eligibility = deriveReviseEligibilityLabel({
-    confirmedMode: modeContractToConfirmedMode(modeContract),
-  });
-  if (eligibility !== "Eligible for Trustpath") return { eligible: 0, alreadyDecided: 0, total: 0 };
-
-  const queuePayload = await getWorkbenchQueue({
-    manuscriptId: String(manuscriptId),
-    evaluationJobId: input.evaluationJobId,
-  });
-  if (!queuePayload.ok) return { eligible: 0, alreadyDecided: 0, total: 0 };
-  const supportedOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
-
-  const { data: approvedChecks } = await supabase
-    .from("revision_repair_cross_checks")
-    .select("finding_id")
-    .eq("evaluation_job_id", input.evaluationJobId)
-    .eq("option_key", "A")
-    .eq("verdict", "approve");
-
-  const supportedApprovedChecks = (approvedChecks ?? []).filter((check: { finding_id: string }) => supportedOpportunityIds.has(check.finding_id));
-  const total = supportedApprovedChecks.length;
-  if (total === 0) return { eligible: 0, alreadyDecided: 0, total: 0 };
-
-  const findingIds = supportedApprovedChecks.map((c: { finding_id: string }) => c.finding_id);
-
-  const { data: existingDecisions } = await supabase
-    .from("revision_ledger_decisions")
-    .select("opportunity_id")
-    .eq("user_id", user.id)
-    .eq("manuscript_id", manuscriptId)
-    .eq("evaluation_job_id", input.evaluationJobId)
-    .eq("is_undo", false)
-    .in("opportunity_id", findingIds);
-
-  const alreadyDecided = existingDecisions?.length ?? 0;
-
-  return {
-    eligible: total - alreadyDecided,
-    alreadyDecided,
-    total,
-  };
 }
