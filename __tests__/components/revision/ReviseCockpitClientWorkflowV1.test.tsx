@@ -1,9 +1,10 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ReviseCockpitClientWorkflowV1 from '@/components/revision/ReviseCockpitClientWorkflowV1';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
+import type { SyncedRevisionLedgerRow } from '@/lib/revision/ledger';
 
 function makeStrategyCardViewModel(): WorkbenchOpportunity['strategyCardViewModel'] {
   return {
@@ -108,6 +109,39 @@ function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQ
     scopes: {},
     criteria: {},
     ...overrides,
+  };
+}
+
+function makeSavedRow(overrides: Partial<SyncedRevisionLedgerRow> = {}): SyncedRevisionLedgerRow {
+  return {
+    id: 'server-1',
+    user_id: 'user-1',
+    manuscript_id: 6074,
+    evaluation_job_id: 'job-strategy',
+    local_id: 'local-deferred-1',
+    opportunity_id: 'opp-1',
+    opportunity_title: 'The revelation resolves as summary instead of action',
+    decision: 'deferred',
+    selected_option: null,
+    custom_text: null,
+    selected_text: 'Deferred for later decision',
+    source_excerpt: 'She set the letter down and said nothing for a long time.',
+    source_location: 'passage:15',
+    client_created_at: '2026-06-08T00:00:00.000Z',
+    client_synced_at: '2026-06-08T00:00:01.000Z',
+    metadata: { criterion: 'NARRATIVE_DRIVE' },
+    created_at: '2026-06-08T00:00:00.000Z',
+    updated_at: '2026-06-08T00:00:00.000Z',
+    is_undo: false,
+    undone_local_id: null,
+    ...overrides,
+  };
+}
+
+function ledgerResponse(entries: SyncedRevisionLedgerRow[]) {
+  return {
+    ok: true,
+    json: jest.fn().mockResolvedValue({ ok: true, entries }),
   };
 }
 
@@ -216,5 +250,101 @@ describe('ReviseCockpitClientWorkflowV1', () => {
     expect(acceptA.disabled).toBe(false);
     expect(acceptB.disabled).toBe(false);
     expect(acceptC.disabled).toBe(false);
+  });
+
+  it('rehydrates saved decisions from the server ledger on mount', async () => {
+    const opportunity = makeStrategyOpportunity({ id: 'opp-1' });
+    const payload = makePayload({
+      needsTargeting: [opportunity],
+      readinessTotals: { ready_for_revise: 0, needs_targeting: 1, withheld_unsupported: 0 },
+    });
+
+    global.fetch = jest.fn().mockResolvedValue(ledgerResponse([makeSavedRow()])) as unknown as typeof fetch;
+
+    render(<ReviseCockpitClientWorkflowV1 payload={payload} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('cell', { name: 'Deferred' })).toBeTruthy();
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/revision-ledger?manuscriptId=6074&evaluationJobId=job-strategy'),
+    );
+  });
+
+  it('rehydrates only the latest surviving decision for each opportunity', async () => {
+    const opportunity = makeStrategyOpportunity({ id: 'opp-1' });
+    const payload = makePayload({ needsTargeting: [opportunity] });
+    const older = makeSavedRow({
+      local_id: 'local-old',
+      decision: 'deferred',
+      selected_text: 'Deferred for later decision',
+      created_at: '2026-06-08T00:00:00.000Z',
+      updated_at: '2026-06-08T00:00:00.000Z',
+    });
+    const newer = makeSavedRow({
+      id: 'server-2',
+      local_id: 'local-new',
+      decision: 'keep_original',
+      selected_text: 'Kept original',
+      created_at: '2026-06-08T00:01:00.000Z',
+      updated_at: '2026-06-08T00:01:00.000Z',
+    });
+    global.fetch = jest.fn().mockResolvedValue(ledgerResponse([older, newer])) as unknown as typeof fetch;
+
+    render(<ReviseCockpitClientWorkflowV1 payload={payload} />);
+
+    await waitFor(() => expect(screen.getByRole('cell', { name: 'Kept' })).toBeTruthy());
+    expect(screen.queryByRole('cell', { name: 'Deferred' })).toBeNull();
+  });
+
+  it('ignores an undone decision and keeps the later replacement', async () => {
+    const opportunity = makeStrategyOpportunity({ id: 'opp-1' });
+    const payload = makePayload({ needsTargeting: [opportunity] });
+    const oldDecision = makeSavedRow({ local_id: 'local-old' });
+    const undo = makeSavedRow({
+      id: 'server-undo',
+      local_id: 'local-undo',
+      is_undo: true,
+      undone_local_id: 'local-old',
+      created_at: '2026-06-08T00:00:30.000Z',
+      updated_at: '2026-06-08T00:00:30.000Z',
+    });
+    const replacement = makeSavedRow({
+      id: 'server-new',
+      local_id: 'local-reject',
+      decision: 'reject',
+      selected_text: 'Rejected suggestions',
+      created_at: '2026-06-08T00:01:00.000Z',
+      updated_at: '2026-06-08T00:01:00.000Z',
+    });
+    global.fetch = jest.fn().mockResolvedValue(ledgerResponse([oldDecision, undo, replacement])) as unknown as typeof fetch;
+
+    render(<ReviseCockpitClientWorkflowV1 payload={payload} />);
+
+    await waitFor(() => expect(screen.getByRole('cell', { name: 'Rejected' })).toBeTruthy());
+    expect(screen.queryByRole('cell', { name: 'Deferred' })).toBeNull();
+  });
+
+  it('keeps a pending local choice authoritative when mount rehydration finishes later', async () => {
+    const opportunity = makeStrategyOpportunity({ id: 'opp-1' });
+    const payload = makePayload({ needsTargeting: [opportunity] });
+    let resolveGet!: (value: ReturnType<typeof ledgerResponse>) => void;
+    const getPromise = new Promise<ReturnType<typeof ledgerResponse>>((resolve) => {
+      resolveGet = resolve;
+    });
+    global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (!init?.method) return getPromise as unknown as Promise<Response>;
+      return Promise.resolve({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ ok: true, entries: [] }),
+      }) as unknown as Promise<Response>;
+    }) as unknown as typeof fetch;
+
+    render(<ReviseCockpitClientWorkflowV1 payload={payload} />);
+    fireEvent.click(screen.getByRole('button', { name: /Keep Original/i }));
+    resolveGet(ledgerResponse([makeSavedRow()]));
+
+    await waitFor(() => expect(screen.getByRole('cell', { name: 'Kept' })).toBeTruthy());
+    expect(screen.queryByRole('cell', { name: 'Deferred' })).toBeNull();
   });
 });
