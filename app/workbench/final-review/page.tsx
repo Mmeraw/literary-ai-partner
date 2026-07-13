@@ -23,6 +23,7 @@ export default async function FinalReviewPage({
   const evaluationJobId = scalar(params.evaluationJobId);
   const appliedVersionId = scalar(params.applied);
   const appliedCount = scalar(params.appliedCount);
+  const reusedApply = scalar(params.reusedApply) === "1";
   const applyError = scalar(params.applyError);
   const printRaw = scalar(params.print);
   const payload = await getFinalReviewPayload({ manuscriptId, evaluationJobId });
@@ -32,9 +33,13 @@ export default async function FinalReviewPage({
       {!printRaw && appliedVersionId && (
         <section className="mx-auto mt-4 max-w-[1500px] px-4 md:px-6" aria-live="polite">
           <div className="rounded-xl border border-emerald-400/45 bg-emerald-500/10 p-4 text-emerald-100">
-            <p className="text-sm font-semibold">Revised manuscript version created successfully.</p>
+            <p className="text-sm font-semibold">
+              {reusedApply ? "This revision was already applied." : "Revised manuscript version created successfully."}
+            </p>
             <p className="mt-1 text-xs leading-5 text-emerald-100/80">
-              Applied {appliedCount ?? "0"} verified decision{appliedCount === "1" ? "" : "s"}. New version ID: <code>{appliedVersionId}</code>.
+              {reusedApply
+                ? <>No duplicate version was created. Existing version ID: <code>{appliedVersionId}</code>.</>
+                : <>Applied {appliedCount ?? "0"} verified decision{appliedCount === "1" ? "" : "s"}. New version ID: <code>{appliedVersionId}</code>.</>}
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
               <Link href="/dashboard" className="rounded border border-emerald-300/50 px-3 py-1.5 hover:bg-emerald-400/10">Open dashboard</Link>
