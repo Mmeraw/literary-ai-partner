@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import ReviseCockpitClientWorkflowV1 from '@/components/revision/ReviseCockpitClientWorkflowV1';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
 
@@ -214,5 +214,48 @@ describe('ReviseCockpitClientWorkflowV1', () => {
     expect(acceptA.disabled).toBe(false);
     expect(acceptB.disabled).toBe(false);
     expect(acceptC.disabled).toBe(false);
+  });
+
+  it('rehydrates saved decisions from the server ledger on mount', async () => {
+    const opportunity = makeStrategyOpportunity({ id: 'opp-1' });
+    const payload = makePayload({
+      needsTargeting: [opportunity],
+      readinessTotals: { ready_for_revise: 0, needs_targeting: 1, withheld_unsupported: 0 },
+    });
+
+    const savedRow = {
+      id: 'server-1',
+      user_id: 'user-1',
+      manuscript_id: 6074,
+      evaluation_job_id: 'job-strategy',
+      local_id: 'local-deferred-1',
+      opportunity_id: 'opp-1',
+      opportunity_title: 'The revelation resolves as summary instead of action',
+      decision: 'deferred',
+      selected_option: null,
+      custom_text: null,
+      selected_text: 'Deferred for later decision',
+      source_excerpt: 'She set the letter down and said nothing for a long time.',
+      source_location: 'passage:15',
+      metadata: { criterion: 'NARRATIVE_DRIVE' },
+      created_at: '2026-06-08T00:00:00.000Z',
+      updated_at: '2026-06-08T00:00:00.000Z',
+      is_undo: false,
+      undone_local_id: null,
+    };
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ ok: true, entries: [savedRow] }),
+    }) as unknown as typeof fetch;
+
+    render(<ReviseCockpitClientWorkflowV1 payload={payload} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Deferred')).toBeTruthy();
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/revision-ledger?manuscriptId=6074&evaluationJobId=job-strategy'),
+    );
   });
 });

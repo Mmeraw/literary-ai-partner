@@ -38,6 +38,9 @@ export type SyncRevisionLedgerInput = {
 
 export type SyncedRevisionLedgerRow = {
   id: string;
+  user_id: string;
+  manuscript_id: number;
+  evaluation_job_id: string;
   local_id: string;
   opportunity_id: string;
   opportunity_title: string;
@@ -83,7 +86,7 @@ const DECISIONS = new Set<RevisionLedgerDecision>([
 ]);
 
 const LEDGER_SELECT =
-  "id, local_id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, client_created_at, client_synced_at, is_undo, undone_local_id, metadata, created_at, updated_at";
+  "id, user_id, manuscript_id, evaluation_job_id, local_id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, client_created_at, client_synced_at, is_undo, undone_local_id, metadata, created_at, updated_at";
 
 function normalizedEmailList(value: string | undefined): string[] {
   return (value ?? "")
@@ -299,6 +302,7 @@ async function assertOwnedEvaluation(
 
   return {
     supabase,
+    user,
     userId: user.id,
     manuscriptId,
     ledgerUserId: isOwner ? user.id : manuscriptOwnerId,
@@ -339,6 +343,17 @@ function validateEntry(
   const decision = normalizeDecision(entry.decision);
   if (!decision) throw new Error(`Invalid ledger decision: ${String(entry.decision)}`);
 
+  const canonical = canonicalOpportunityById.get(entry.opportunityId);
+
+  // Every non-undo, non-accepted decision must reference an opportunity in the
+  // canonical queue projection. Accepted decisions are validated below so the
+  // acceptance guard can emit its specific error. Undo rows are operations on
+  // existing decisions, not new opportunities, and are identified by
+  // undoneLocalId instead.
+  if (!entry.isUndo && !canonical && !ACCEPT_DECISIONS.has(decision)) {
+    throw new Error("Ledger decision blocked: opportunity not found in canonical queue projection");
+  }
+
   // Server-side acceptance guard: reload the canonical opportunity from the
   // workbench queue projection and validate the server-derived classification
   // and candidate text. Do not trust client-provided metadata.
@@ -353,7 +368,6 @@ function validateEntry(
       throw new Error("Ledger acceptance blocked: missing selected option");
     }
 
-    const canonical = canonicalOpportunityById.get(entry.opportunityId);
     if (!canonical) {
       throw new Error("Ledger acceptance blocked: opportunity not found in canonical queue projection");
     }
@@ -387,7 +401,7 @@ function validateEntry(
 }
 
 export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput): Promise<SyncedRevisionLedgerRow[]> {
-  const { supabase, userId, manuscriptId } = await assertOwnedEvaluation({
+  const { supabase, user, userId, manuscriptId, ledgerUserId } = await assertOwnedEvaluation({
     manuscriptId: input.manuscriptId,
     evaluationJobId: input.evaluationJobId,
     user: input.user,
@@ -397,8 +411,10 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
 
   // Authoritative canonical projection: rebuild the workbench queue from the
   // saved ledger / evaluation artifacts so acceptance is never based on client
-  // metadata.
+  // metadata. Pass the resolved user so the queue can be loaded in operator
+  // contexts where no active HTTP request is available.
   const queuePayload = await getWorkbenchQueue({
+    user,
     manuscriptId: String(manuscriptId),
     evaluationJobId: input.evaluationJobId,
   });
@@ -417,8 +433,9 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
     : [];
   if (entries.length === 0) return [];
 
+  const targetUserId = ledgerUserId ?? userId;
   const rows = entries.map((entry) => ({
-    user_id: userId,
+    user_id: targetUserId,
     manuscript_id: manuscriptId,
     evaluation_job_id: input.evaluationJobId,
     finding_id: isUuid(entry.opportunityId) ? entry.opportunityId : null,
@@ -439,24 +456,55 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
     updated_at: new Date().toISOString(),
   }));
 
-  const { data, error } = await supabase
+  const localIds = rows.map((row) => row.local_id);
+
+  const { error: upsertError } = await supabase
     .from("revision_ledger_decisions")
-    .upsert(rows, { onConflict: "user_id,evaluation_job_id,local_id" })
+    .upsert(rows, { onConflict: "user_id,evaluation_job_id,local_id" });
+
+  if (upsertError) throw new Error(upsertError.message);
+
+  // Canonical read-back: do not return synced until the durable rows have been
+  // re-read and identity-checked. This is the source of truth the client will
+  // display and Final Review will read.
+  const { data: readBack, error: readBackError } = await supabase
+    .from("revision_ledger_decisions")
     .select(LEDGER_SELECT)
+    .eq("user_id", targetUserId)
+    .eq("manuscript_id", manuscriptId)
+    .eq("evaluation_job_id", input.evaluationJobId)
+    .in("local_id", localIds)
     .order("created_at", { ascending: true });
 
-  if (error) throw new Error(error.message);
-  const synced = (data ?? []) as SyncedRevisionLedgerRow[];
+  if (readBackError) throw new Error(readBackError.message);
+
+  const verified: SyncedRevisionLedgerRow[] = [];
+  for (const entry of entries) {
+    const row = (readBack ?? []).find(
+      (r) =>
+        r.local_id === entry.localId &&
+        r.opportunity_id === entry.opportunityId &&
+        r.decision === entry.decision &&
+        r.user_id === targetUserId &&
+        r.manuscript_id === manuscriptId &&
+        r.evaluation_job_id === input.evaluationJobId,
+    );
+    if (!row) {
+      throw new Error(`Ledger sync failed: canonical row not found after write for ${entry.opportunityId} (${entry.localId})`);
+    }
+    verified.push(row);
+  }
+
   logRevisionLedgerAudit({
     type: 'revision-ledger-audit',
     action: 'sync',
     evaluationJobId: input.evaluationJobId,
     manuscriptId: input.manuscriptId,
-    decisionCount: synced.length,
-    decisionIds: synced.map((row) => row.opportunity_id),
+    decisionCount: verified.length,
+    decisionIds: verified.map((row) => row.opportunity_id),
     timestamp: new Date().toISOString(),
   });
-  return synced;
+  return verified;
 }
 
 export const __testing = {

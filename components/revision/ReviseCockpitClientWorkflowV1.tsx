@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import {
   candidateTextIsCopyPasteReady,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/revision/reviseCardContract";
 import type { RevisionOperation } from "@/lib/revision/reviseCardContract";
 import StrategyCard from "@/components/revision/StrategyCard";
+import type { SyncedRevisionLedgerRow } from "@/lib/revision/ledger";
 
 type OptionKey = "A" | "B" | "C";
 type DecisionState = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
@@ -196,6 +197,43 @@ function decisionLabel(decision: DecisionState): string {
   return "Deferred";
 }
 
+function rowToLedgerEntry(row: SyncedRevisionLedgerRow): LedgerEntry {
+  const selectedText = row.selected_text ?? row.custom_text ?? undefined;
+  const criterion =
+    typeof row.metadata === "object" && row.metadata && "criterion" in row.metadata
+      ? String((row.metadata as Record<string, unknown>).criterion)
+      : "General";
+  return {
+    id: row.local_id,
+    itemId: row.opportunity_id,
+    itemTitle: row.opportunity_title,
+    decision: row.decision,
+    option: row.selected_option ?? undefined,
+    selectedText: selectedText && selectedText.length > 0 ? selectedText : undefined,
+    criterion,
+    syncStatus: "synced",
+  };
+}
+
+function mergeLedger(local: LedgerEntry[], remote: LedgerEntry[]): LedgerEntry[] {
+  const byId = new Map<string, LedgerEntry>();
+  for (const entry of remote) byId.set(entry.id, entry);
+  for (const entry of local) {
+    // Pending local entries are not durable yet; they must remain authoritative
+    // until sync completes and the server confirms them on a later read-back.
+    if (!byId.has(entry.id) || entry.syncStatus === "pending") byId.set(entry.id, entry);
+  }
+  return Array.from(byId.values());
+}
+
+function selectedRemoteRows(rows: SyncedRevisionLedgerRow[]): SyncedRevisionLedgerRow[] {
+  const undoneLocalIds = new Set<string>();
+  for (const row of rows) {
+    if (row.is_undo && row.undone_local_id) undoneLocalIds.add(row.undone_local_id);
+  }
+  return rows.filter((row) => !row.is_undo && !undoneLocalIds.has(row.local_id));
+}
+
 function selectedDecisionFor(key: OptionKey): DecisionState {
   if (key === "A") return "accepted_a";
   if (key === "B") return "accepted_b";
@@ -329,6 +367,36 @@ export default function ReviseCockpitClientWorkflowV1({ payload }: { payload: Wo
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+
+  // Rehydrate the saved-decision ledger from the server so reopening the
+  // workbench shows previously synced choices (kept, deferred, rejected, etc.).
+  useEffect(() => {
+    if (!payload.manuscriptId || !payload.evaluationJobId) return;
+    let cancelled = false;
+
+    async function loadServerLedger() {
+      try {
+        const params = new URLSearchParams({
+          manuscriptId: payload.manuscriptId ?? "",
+          evaluationJobId: payload.evaluationJobId ?? "",
+        });
+        const response = await fetch(`/api/revision-ledger?${params.toString()}`);
+        if (!response.ok) return;
+        const json = await response.json();
+        if (!json?.ok || !Array.isArray(json.entries) || cancelled) return;
+        const remote = selectedRemoteRows(json.entries as SyncedRevisionLedgerRow[]).map(rowToLedgerEntry);
+        setLedger((current) => mergeLedger(current, remote));
+      } catch {
+        // Offline or transient failures are non-fatal; the user can still interact
+        // and the next sync will reconcile the ledger.
+      }
+    }
+
+    void loadServerLedger();
+    return () => {
+      cancelled = true;
+    };
+  }, [payload.manuscriptId, payload.evaluationJobId]);
   const [rewriteCache, setRewriteCache] = useState<Record<string, { a: string; b: string; c: string; error?: string }>>({});
   const [rewriteLoading, setRewriteLoading] = useState<string | null>(null);
 
