@@ -450,25 +450,27 @@ export function partitionWorkbenchQueue(opportunities: WorkbenchOpportunity[]): 
   scopes: Record<WorkbenchScope, number>
   criteria: Record<string, number>
 } {
-  const readyForRevise = opportunities.filter((o) => o.readiness === 'ready_for_revise')
-  const needsTargetingRaw = opportunities.filter((o) => o.readiness === 'needs_targeting')
-
-  const strategyReadyForReview = readyForRevise.filter(
-    (o) => isSupportedForUserQueue(o) && o.cardType === 'revision_strategy',
-  )
-
-  const supportedReadyForRevise = readyForRevise.filter(
+  // cardType is the terminal queue authority. Readiness may participate in
+  // classification, but it must never override the final card contract.
+  const supportedCopyPaste = opportunities.filter(
     (o) =>
-      isSupportedForUserQueue(o) &&
       o.cardType === 'copy_paste_rewrite' &&
+      isSupportedForUserQueue(o) &&
       o.trustedPathStatus === 'eligible',
   )
 
-  const withheldUnsupported = readyForRevise.filter(
-    (o) => !isSupportedForUserQueue(o) || o.cardType === 'withheld',
+  const supportedStrategies = opportunities.filter(
+    (o) => o.cardType === 'revision_strategy' && isSupportedForUserQueue(o),
   )
 
-  const needsTargeting = [...needsTargetingRaw, ...strategyReadyForReview]
+  const activeIds = new Set([
+    ...supportedCopyPaste.map((o) => o.id),
+    ...supportedStrategies.map((o) => o.id),
+  ])
+
+  const withheldUnsupported = opportunities.filter(
+    (o) => o.cardType === 'withheld' || !activeIds.has(o.id),
+  )
 
   const totals: Record<WorkbenchSeverity, number> = { must: 0, should: 0, could: 0 }
   const scopes: Record<WorkbenchScope, number> = {
@@ -481,19 +483,19 @@ export function partitionWorkbenchQueue(opportunities: WorkbenchOpportunity[]): 
   }
   const criteria: Record<string, number> = {}
 
-  for (const opportunity of supportedReadyForRevise) {
+  for (const opportunity of supportedCopyPaste) {
     totals[opportunity.severity] += 1
     scopes[opportunity.scope] += 1
     criteria[opportunity.criterion] = (criteria[opportunity.criterion] ?? 0) + 1
   }
 
   return {
-    opportunities: supportedReadyForRevise,
-    needsTargeting,
+    opportunities: supportedCopyPaste,
+    needsTargeting: supportedStrategies,
     withheldUnsupported,
     readinessTotals: {
-      ready_for_revise: supportedReadyForRevise.length,
-      needs_targeting: needsTargeting.length,
+      ready_for_revise: supportedCopyPaste.length,
+      needs_targeting: supportedStrategies.length,
       withheld_unsupported: withheldUnsupported.length,
     },
     totals,
