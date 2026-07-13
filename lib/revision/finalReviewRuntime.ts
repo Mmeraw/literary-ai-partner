@@ -1,6 +1,6 @@
+import { createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
-import { createDerivedVersion } from "@/lib/manuscripts/versions";
 import { upsertEvaluationArtifact } from "@/lib/evaluation/artifactPersistence";
 import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
@@ -104,12 +104,8 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
   const privilegedRead = isPrivilegedRevisionViewer(user);
   const manuscriptOwnerId = typeof manuscript.user_id === "string" ? manuscript.user_id : null;
   const isOwner = manuscriptOwnerId === user.id;
-  if (!isOwner && !manuscriptOwnerId) {
-    throw new Error("Manuscript ownership metadata is missing.");
-  }
-  if (!isOwner && !privilegedRead) {
-    throw new Error("Manuscript not found in your workspace");
-  }
+  if (!isOwner && !manuscriptOwnerId) throw new Error("Manuscript ownership metadata is missing.");
+  if (!isOwner && !privilegedRead) throw new Error("Manuscript not found in your workspace");
   const ledgerOwnerId = isOwner ? user.id : manuscriptOwnerId;
 
   const { data: job, error: jobError } = await supabase
@@ -157,23 +153,15 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     fallbackRawText: version.raw_text ?? "",
   });
 
-  let queueSummary = EMPTY_QUEUE_SUMMARY;
   const queuePayload = await getWorkbenchQueue({
     manuscriptId: String(manuscriptId),
     evaluationJobId: String(input.evaluationJobId),
   });
-  if (!queuePayload.ok) {
-    throw new Error(queuePayload.error ?? "Revise Queue unavailable for completion certification.");
-  }
+  if (!queuePayload.ok) throw new Error(queuePayload.error ?? "Revise Queue unavailable for completion certification.");
+
   const copyPasteOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
   const strategyCount = queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType === "revision_strategy").length;
   const withheldBlockedCount = queuePayload.withheldUnsupported.length + queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType !== "revision_strategy").length;
-  queueSummary = {
-    copyPasteOpportunityIds,
-    copyPasteCount: copyPasteOpportunityIds.size,
-    strategyCount,
-    withheldBlockedCount,
-  };
 
   return {
     supabase,
@@ -184,7 +172,12 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     sourceVersionId: job.manuscript_version_id,
     sourceText,
     decisions: [...latestByOpportunity.values()],
-    queueSummary,
+    queueSummary: {
+      copyPasteOpportunityIds,
+      copyPasteCount: copyPasteOpportunityIds.size,
+      strategyCount,
+      withheldBlockedCount,
+    },
   };
 }
 
@@ -246,7 +239,6 @@ function cleanLocation(value: string | null): string | null {
 
 function buildChangelog(ctx: RuntimeContext): string {
   const lines = ["RevisionGrade Final Review Changelog", `Manuscript: ${ctx.manuscriptTitle}`, ""];
-
   const executable = applicableDecisions(ctx);
   lines.push("TrustedPath summary");
   lines.push(`${executable.length} safe copy-paste repair${executable.length === 1 ? "" : "s"} applied or ready to apply.`);
@@ -303,9 +295,7 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
   const applied: RuntimeDecision[] = [];
   const blocked: string[] = [];
 
-  if (!text.trim()) {
-    return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
-  }
+  if (!text.trim()) return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
 
   for (const decision of applicableDecisions(ctx)) {
     const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
@@ -315,7 +305,6 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
       blocked.push(`${decision.opportunity_title}: missing source excerpt or selected replacement text.`);
       continue;
     }
-
     if (!text.includes(source)) {
       blocked.push(`${decision.opportunity_title}: source excerpt no longer matches source manuscript version.`);
       continue;
@@ -357,6 +346,38 @@ async function recordRun(
   });
 }
 
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
+function buildApplyFingerprint(
+  ctx: RuntimeContext,
+  completion: Extract<ReviseCompletionCertificationResult, { ok: true }>,
+  applied: RuntimeDecision[],
+): string {
+  const decisions = applied
+    .map((decision) => ({
+      id: decision.id,
+      opportunityId: decision.opportunity_id,
+      decision: decision.decision,
+      selectedOption: decision.selected_option,
+      replacement: decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "",
+      sourceExcerpt: decision.source_excerpt ?? "",
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  return createHash("sha256")
+    .update(JSON.stringify({
+      manuscriptId: ctx.manuscriptId,
+      evaluationJobId: ctx.evaluationJobId,
+      sourceVersionId: ctx.sourceVersionId,
+      completionCertificationHash: completion.record.certification_hash,
+      decisions,
+    }))
+    .digest("hex");
+}
+
 export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) {
   const ctx = await loadRuntimeContext(input);
   const completion = certifyCompletion(ctx);
@@ -370,8 +391,8 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
     });
     return { ok: false, error: completion.failure.user_safe_summary };
   }
-  const completionArtifactId = await persistCompletionArtifact(ctx, completion);
 
+  const completionArtifactId = await persistCompletionArtifact(ctx, completion);
   const result = applyTextSnapshots(ctx);
 
   if (result.applied.length === 0 || result.blocked.length > 0) {
@@ -385,30 +406,40 @@ export async function applyFinalReviewDecisions(input: FinalReviewRuntimeInput) 
     return { ok: false, error: result.blocked.join("\n") || "No applicable accepted/custom decisions with persisted text snapshots." };
   }
 
-  const version = await createDerivedVersion({
-    manuscript_id: ctx.manuscriptId,
-    source_version_id: ctx.sourceVersionId,
-    raw_text: result.text,
-    created_by: ctx.userId,
+  const skippedDecisionIds = ctx.decisions.filter((decision) => !isCopyPasteExecutableDecision(ctx, decision)).map((d) => d.id);
+  const metadata = {
+    applied_count: result.applied.length,
+    copy_paste_repair_count: ctx.queueSummary.copyPasteCount,
+    strategy_card_count: ctx.queueSummary.strategyCount,
+    withheld_blocked_count: ctx.queueSummary.withheldBlockedCount,
+    revision_completion_artifact_id: completionArtifactId,
+    ...completionMetadata(completion),
+  };
+  const applyFingerprint = buildApplyFingerprint(ctx, completion, result.applied);
+
+  const { data, error } = await ctx.supabase.rpc("apply_final_review_once", {
+    p_user_id: ctx.userId,
+    p_manuscript_id: ctx.manuscriptId,
+    p_evaluation_job_id: ctx.evaluationJobId,
+    p_source_version_id: ctx.sourceVersionId,
+    p_apply_fingerprint: applyFingerprint,
+    p_raw_text: result.text,
+    p_word_count: countWords(result.text),
+    p_applied_decision_ids: result.applied.map((decision) => decision.id),
+    p_skipped_decision_ids: skippedDecisionIds,
+    p_metadata: metadata,
   });
 
-  await recordRun(ctx, {
-    status: "applied",
-    mode: "apply",
-    revisedVersionId: version.id,
-    appliedDecisionIds: result.applied.map((d) => d.id),
-    skippedDecisionIds: ctx.decisions.filter((decision) => !isCopyPasteExecutableDecision(ctx, decision)).map((d) => d.id),
-    metadata: {
-      applied_count: result.applied.length,
-      copy_paste_repair_count: ctx.queueSummary.copyPasteCount,
-      strategy_card_count: ctx.queueSummary.strategyCount,
-      withheld_blocked_count: ctx.queueSummary.withheldBlockedCount,
-      revision_completion_artifact_id: completionArtifactId,
-      ...completionMetadata(completion),
-    },
-  });
+  if (error) throw new Error(`Final Review Apply failed: ${error.message}`);
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.revised_version_id) throw new Error("Final Review Apply did not return a revised version.");
 
-  return { ok: true, revisedVersionId: version.id, appliedCount: result.applied.length };
+  return {
+    ok: true,
+    revisedVersionId: row.revised_version_id as string,
+    appliedCount: result.applied.length,
+    reusedExistingVersion: row.reused_existing_version === true,
+  };
 }
 
 export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { format: FinalReviewExportFormat; file?: FinalReviewExportFile }) {
@@ -432,8 +463,8 @@ export async function buildFinalReviewExport(input: FinalReviewRuntimeInput & { 
       contentType: "text/plain; charset=utf-8",
     };
   }
-  const completionArtifactId = await persistCompletionArtifact(ctx, completion);
 
+  const completionArtifactId = await persistCompletionArtifact(ctx, completion);
   const applied = applyTextSnapshots(ctx);
   const format = input.format;
   const file = input.file ?? "txt";
