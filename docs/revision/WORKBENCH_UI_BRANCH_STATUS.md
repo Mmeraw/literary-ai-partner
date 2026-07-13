@@ -10,15 +10,23 @@ Branch: `agent/revise-workbench-ui-card-split`
 - Discriminated `WorkbenchCardViewModel` contracts.
 - Pure `adaptWorkbenchOpportunityToCard()` adapter from the current queue payload.
 - `WorkbenchCardSurface` switch that renders by `cardType` and exposes only legal actions.
-- Component and adapter tests proving cross-type controls do not leak.
+- Live `ReviseCockpitClientWorkflowV2` shell wired to the strict card surfaces.
+- Component, adapter, and smoke tests proving cross-type controls do not leak.
+
+## Backend integration status
+
+- PR #1263 is merged to `main` with canonical ledger read-back, Final Review all-bucket parity, latest-per-opportunity rehydration, undo handling, and pending-local precedence.
+- PR #1262 is conflict-free against the new `main`; pull-request CI now validates the UI code against the merged #1263 ledger implementation.
+- The UI branch does not duplicate or replace the canonical ledger logic from #1263.
 
 ## Remaining before merge
 
-- Wire `ReviseCockpitClientWorkflowV1` to `WorkbenchCardSurface` after the parallel ledger/queue contract settles.
-- Rebase on Devin's backend branch once its payload contract is final.
-- Run repository CI and authenticated preview proof.
-- Capture screenshots for copy-paste, strategy, and held-item states.
+- Run repository CI against the current `main` merge result.
+- Complete authenticated preview proof for copy-paste, strategy, and held-item states.
+- Verify saved decisions rehydrate in V2 after refresh and appear in Final Review.
+- Capture screenshots for all three card states and sync/error states.
+- Complete keyboard-order, focus, contrast, and responsive-width QA.
 
 ## Isolation
 
-This branch does not change persistence, queue classification, admission policy, or queue partitioning.
+This branch does not change persistence, queue classification, admission policy, or queue partitioning. It consumes the canonical ledger endpoint and server authority established on `main`.
