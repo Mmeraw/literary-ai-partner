@@ -28,6 +28,10 @@ export default async function FinalReviewPage({
   const printRaw = scalar(params.print);
   const payload = await getFinalReviewPayload({ manuscriptId, evaluationJobId });
 
+  const revisedManuscriptHref = manuscriptId && appliedVersionId
+    ? `/manuscripts/${encodeURIComponent(manuscriptId)}?versionId=${encodeURIComponent(appliedVersionId)}`
+    : null;
+
   return (
     <>
       {!printRaw && appliedVersionId && (
@@ -42,6 +46,11 @@ export default async function FinalReviewPage({
                 : <>Applied {appliedCount ?? "0"} verified decision{appliedCount === "1" ? "" : "s"}. New version ID: <code>{appliedVersionId}</code>.</>}
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              {revisedManuscriptHref && (
+                <Link href={revisedManuscriptHref} className="rounded border border-emerald-200 bg-emerald-200 px-3 py-1.5 font-semibold text-emerald-950 hover:bg-emerald-100">
+                  Open revised manuscript
+                </Link>
+              )}
               <Link href="/dashboard" className="rounded border border-emerald-300/50 px-3 py-1.5 hover:bg-emerald-400/10">Open dashboard</Link>
               <Link href={manuscriptId && evaluationJobId ? `/workbench-v2?${new URLSearchParams({ manuscriptId, evaluationJobId }).toString()}` : "/workbench-v2"} className="rounded border border-emerald-300/50 px-3 py-1.5 hover:bg-emerald-400/10">Return to Revise Queue</Link>
             </div>
