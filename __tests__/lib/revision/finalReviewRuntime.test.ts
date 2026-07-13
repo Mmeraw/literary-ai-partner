@@ -19,12 +19,7 @@ const mockResolveFinalReviewSourceText = resolveFinalReviewSourceText as jest.Mo
 
 const SOURCE_TEXT = 'Alpha original safe. Beta original strategy. Gamma original withheld. Delta unchanged.';
 
-type MockQueryInput = {
-  single?: unknown;
-  list?: unknown[];
-  insertSpy?: jest.Mock;
-  upsertSpy?: jest.Mock;
-};
+type MockQueryInput = { single?: unknown; list?: unknown[]; insertSpy?: jest.Mock; upsertSpy?: jest.Mock };
 
 function makeQuery(input: MockQueryInput = {}) {
   const query = {
@@ -58,17 +53,12 @@ function decision(overrides: Partial<Record<string, unknown>> = {}) {
 
 function buildSupabaseMock(
   decisions: Array<Record<string, unknown>>,
-  options?: {
-    manuscriptOwnerId?: string;
-    rpcResults?: Array<{ revised_version_id: string; reused_existing_version: boolean }>;
-  },
+  options?: { manuscriptOwnerId?: string; rpcResults?: Array<{ revised_version_id: string; reused_existing_version: boolean }> },
 ) {
   const insertSpy = jest.fn(async () => ({ data: null, error: null }));
   const artifactUpsertSpy = jest.fn(() => makeQuery({ single: { id: 'completion-artifact-1' } }));
   const manuscriptOwnerId = options?.manuscriptOwnerId ?? 'user-1';
-  const rpcResults = options?.rpcResults ?? [
-    { revised_version_id: 'version-2', reused_existing_version: false },
-  ];
+  const rpcResults = options?.rpcResults ?? [{ revised_version_id: 'version-2', reused_existing_version: false }];
   let rpcCall = 0;
   const rpc = jest.fn(async () => ({
     data: [rpcResults[Math.min(rpcCall++, rpcResults.length - 1)]],
@@ -127,20 +117,8 @@ describe('final review runtime governance', () => {
   it('exports a semi-revised manuscript by applying only queue-visible copy-paste repairs', async () => {
     const { client, insertSpy, artifactUpsertSpy } = buildSupabaseMock([
       decision(),
-      decision({
-        id: '00000000-0000-0000-0000-000000000002',
-        opportunity_id: 'strategy-1',
-        opportunity_title: 'Strategy card',
-        selected_text: 'Beta strategy replacement should not apply.',
-        source_excerpt: 'Beta original strategy.',
-      }),
-      decision({
-        id: '00000000-0000-0000-0000-000000000003',
-        opportunity_id: 'withheld-1',
-        opportunity_title: 'Withheld card',
-        selected_text: 'Gamma withheld replacement should not apply.',
-        source_excerpt: 'Gamma original withheld.',
-      }),
+      decision({ id: '00000000-0000-0000-0000-000000000002', opportunity_id: 'strategy-1', opportunity_title: 'Strategy card', selected_text: 'Beta strategy replacement should not apply.', source_excerpt: 'Beta original strategy.' }),
+      decision({ id: '00000000-0000-0000-0000-000000000003', opportunity_id: 'withheld-1', opportunity_title: 'Withheld card', selected_text: 'Gamma withheld replacement should not apply.', source_excerpt: 'Gamma original withheld.' }),
     ]);
     mockCreateAdminClient.mockReturnValue(client as never);
 
@@ -154,30 +132,19 @@ describe('final review runtime governance', () => {
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({
       status: 'exported',
       applied_decision_ids: ['00000000-0000-0000-0000-000000000001'],
-      skipped_decision_ids: [
-        '00000000-0000-0000-0000-000000000002',
-        '00000000-0000-0000-0000-000000000003',
-      ],
+      skipped_decision_ids: ['00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003'],
     }));
     expect(artifactUpsertSpy).toHaveBeenCalled();
   });
 
   it('blocks Final Review until every ready copy-paste opportunity has a saved decision', async () => {
-    mockGetWorkbenchQueue.mockResolvedValue({
-      ok: true,
-      opportunities: [{ id: 'copy-1' }, { id: 'copy-2' }],
-      needsTargeting: [],
-      withheldUnsupported: [],
-    } as never);
+    mockGetWorkbenchQueue.mockResolvedValue({ ok: true, opportunities: [{ id: 'copy-1' }, { id: 'copy-2' }], needsTargeting: [], withheldUnsupported: [] } as never);
     const { client, insertSpy, rpc } = buildSupabaseMock([decision()]);
     mockCreateAdminClient.mockReturnValue(client as never);
 
     const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
 
-    expect(result).toEqual({
-      ok: false,
-      error: 'Final Review unlocks after every ready revision card has a saved decision.',
-    });
+    expect(result).toEqual({ ok: false, error: 'Final Review unlocks after every ready revision card has a saved decision.' });
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ status: 'blocked', mode: 'apply' }));
     expect(rpc).not.toHaveBeenCalled();
   });
@@ -185,22 +152,13 @@ describe('final review runtime governance', () => {
   it('claims and creates a derived version through the atomic Apply RPC', async () => {
     const { client, rpc, insertSpy } = buildSupabaseMock([
       decision(),
-      decision({
-        id: '00000000-0000-0000-0000-000000000002',
-        opportunity_id: 'strategy-1',
-        opportunity_title: 'Strategy card',
-      }),
+      decision({ id: '00000000-0000-0000-0000-000000000002', opportunity_id: 'strategy-1', opportunity_title: 'Strategy card' }),
     ]);
     mockCreateAdminClient.mockReturnValue(client as never);
 
     const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
 
-    expect(result).toEqual({
-      ok: true,
-      revisedVersionId: 'version-2',
-      appliedCount: 1,
-      reusedExistingVersion: false,
-    });
+    expect(result).toEqual({ ok: true, revisedVersionId: 'version-2', appliedCount: 1, reusedExistingVersion: false });
     expect(rpc).toHaveBeenCalledWith('apply_final_review_once', expect.objectContaining({
       p_user_id: 'user-1',
       p_manuscript_id: 6074,
@@ -208,7 +166,7 @@ describe('final review runtime governance', () => {
       p_source_version_id: 'version-1',
       p_apply_fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
       p_raw_text: 'Alpha repaired safe. Beta original strategy. Gamma original withheld. Delta unchanged.',
-      p_word_count: 10,
+      p_word_count: 11,
       p_applied_decision_ids: ['00000000-0000-0000-0000-000000000001'],
       p_skipped_decision_ids: ['00000000-0000-0000-0000-000000000002'],
     }));
@@ -230,9 +188,7 @@ describe('final review runtime governance', () => {
     expect(first).toEqual(expect.objectContaining({ revisedVersionId: 'version-2', reusedExistingVersion: false }));
     expect(second).toEqual(expect.objectContaining({ revisedVersionId: 'version-2', reusedExistingVersion: true }));
     expect(rpc).toHaveBeenCalledTimes(2);
-    const firstFingerprint = rpc.mock.calls[0][1].p_apply_fingerprint;
-    const secondFingerprint = rpc.mock.calls[1][1].p_apply_fingerprint;
-    expect(secondFingerprint).toBe(firstFingerprint);
+    expect(rpc.mock.calls[1][1].p_apply_fingerprint).toBe(rpc.mock.calls[0][1].p_apply_fingerprint);
   });
 
   it('uses the same deterministic fingerprint for concurrent duplicate requests', async () => {
