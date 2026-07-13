@@ -278,30 +278,35 @@ export function runStrategyAdmissionGate(
   const hasEvidence =
     (opportunity.anchor ?? '').trim().length > 0 ||
     (opportunity.quoteHighlight ?? '').trim().length > 0;
+  const needsTargeting = opportunity.readiness === 'needs_targeting';
+  const adminRepairLabel = (opportunity as any).adminRepairLabel;
   const noHardContextBlock =
-    opportunity.contextQuality !== 'blocked' && opportunity.preflightStatus !== 'blocked';
+    opportunity.contextQuality !== 'blocked' &&
+    (opportunity.preflightStatus !== 'blocked' || (needsTargeting && adminRepairLabel));
   const preflightReasons = (opportunity as any).preflightReasons ?? [];
   const noHardCanonConflict = !preflightReasons.some((reason: string) =>
     /canon_authority_blocked|canon_conflict|canon_drift|testimony_fabrication/i.test(reason),
   );
 
-  const groundingPassed =
-    opportunity.groundingStatus === 'supported' ||
-    opportunity.groundingStatus === 'supported_after_relook';
+  const groundingPassed = needsTargeting
+    ? true
+    : opportunity.groundingStatus === 'supported' ||
+      opportunity.groundingStatus === 'supported_after_relook';
 
   const candidateInputs = candidateInputsFromOpportunity(opportunity);
   const quality = evaluateCardCandidateQuality(candidateInputs);
   const { noHardReasons, hardReasons } = candidateQualityResult(quality);
   const voiceCanon = voiceAndCanonReasons(opportunity);
 
-  if (!hasEvidence) reasons.push('EVIDENCE_MISSING');
+  if (!needsTargeting && !hasEvidence) reasons.push('EVIDENCE_MISSING');
   if (!noHardContextBlock) reasons.push('HARD_CONTEXT_BLOCK');
   if (!noHardCanonConflict) reasons.push('HARD_CANON_CONFLICT');
   if (!groundingPassed) reasons.push('UNSUPPORTED_REVISION');
   if (diagnostic.length > 0) reasons.push(...diagnostic);
-  if (integrity.length > 0) reasons.push(...integrity);
+  if (!needsTargeting && integrity.length > 0) reasons.push(...integrity);
   if (!hasConcreteAction(opportunity)) reasons.push('MISSING_CONCRETE_ACTION');
   if (!noHardReasons) reasons.push(...hardReasons);
+  if (!needsTargeting && !quality.passed) reasons.push(...quality.reasons);
   if (voiceCanon.length > 0) reasons.push(...voiceCanon);
 
   const uniqueReasons = Array.from(new Set(reasons));

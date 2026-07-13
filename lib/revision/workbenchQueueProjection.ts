@@ -313,11 +313,26 @@ export function classifyWorkbenchExecutability(
     strategyAdmissionReasons: strategyAdmission.reasons,
   })
 
-  let strategyCardViewModel: StrategyCardViewModel | null = null
+  // Needs-targeting strategy cards have passed the strategy admission gate but may
+  // have failed the copy-paste or executability gates because evidence/context is
+  // still provisional. Surface them as revision_strategy so the author can triage.
   if (
-    executability.cardType === 'revision_strategy' &&
-    opportunity.readiness === 'ready_for_revise'
+    opportunity.readiness === 'needs_targeting' &&
+    strategyAdmission.passed &&
+    executability.cardType !== 'copy_paste_rewrite'
   ) {
+    executability.cardType = 'revision_strategy'
+    executability.trustedPathStatus = 'unavailable_author_review_required'
+    executability.reasons = Array.from(
+      new Set([
+        ...strategyAdmission.reasons,
+        ...copyPasteAdmission.reasons,
+      ]),
+    )
+  }
+
+  let strategyCardViewModel: StrategyCardViewModel | null = null
+  if (executability.cardType === 'revision_strategy') {
     strategyCardViewModel = buildStrategyCardViewModel(opportunity, executability)
   }
 
@@ -421,23 +436,31 @@ export function buildStrategyCardViewModel(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function isSupportedForUserQueue(opportunity: WorkbenchOpportunity): boolean {
-  if (opportunity.readiness !== 'ready_for_revise') return false
-  if (
-    opportunity.groundingStatus !== 'supported' &&
-    opportunity.groundingStatus !== 'supported_after_relook'
-  ) {
-    return false
-  }
-  if (opportunity.preflightStatus !== 'passed' && opportunity.preflightStatus !== 'limited_context') {
-    return false
-  }
-  if (hasPlaceholderCoordinates(opportunity.anchor)) return false
-  if ((opportunity.hydrationFailureReasons?.length ?? 0) > 0) return false
+  const needsTargeting = opportunity.readiness === 'needs_targeting'
+  if (!needsTargeting && opportunity.readiness !== 'ready_for_revise') return false
+
+  const isGroundingSupported =
+    opportunity.groundingStatus === 'supported' ||
+    opportunity.groundingStatus === 'supported_after_relook'
+  const isGroundingTriageable =
+    isGroundingSupported ||
+    opportunity.groundingStatus === 'uncertain_after_relook_reportable' ||
+    (opportunity.adminRepairLabel && opportunity.groundingStatus === 'unsupported_blocked')
+  if (!isGroundingTriageable) return false
+
+  const isPreflightTriageable =
+    opportunity.preflightStatus === 'passed' ||
+    opportunity.preflightStatus === 'limited_context' ||
+    needsTargeting ||
+    (opportunity.adminRepairLabel && opportunity.preflightStatus === 'blocked')
+  if (!isPreflightTriageable) return false
+
+  if (hasPlaceholderCoordinates(opportunity.anchor) && !(needsTargeting && opportunity.adminRepairLabel)) return false
+  if ((opportunity.hydrationFailureReasons?.length ?? 0) > 0 && !opportunity.adminRepairLabel) return false
   const hardResBlockers = (opportunity.resBlockerReasons ?? []).filter(
     (reason) => reason !== 'limited_context_due_to_degraded_canon',
   )
-  if (hardResBlockers.length > 0) return false
-  if (opportunity.revisionOperation === 'needs_targeting') return false
+  if (hardResBlockers.length > 0 && !opportunity.adminRepairLabel) return false
   return true
 }
 
