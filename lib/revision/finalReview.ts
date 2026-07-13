@@ -156,12 +156,16 @@ function toRuntimeDecision(decision: FinalReviewDecision) {
 export async function getFinalReviewPayload(input: {
   manuscriptId?: string;
   evaluationJobId?: string;
+  user?: { id: string; email?: string | null } | null;
 }): Promise<FinalReviewPayload> {
   if (!input.manuscriptId || !input.evaluationJobId) {
     return emptyPayload("Open Final Review from a completed Revise Workbench so RevisionGrade knows which manuscript and evaluation to review.");
   }
 
-  const user = await getAuthenticatedUser();
+  const user =
+    input.user && process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === "1"
+      ? input.user
+      : await getAuthenticatedUser();
   if (!user) return emptyPayload("Please sign in to open Final Review.");
 
   const manuscriptId = Number(input.manuscriptId);
@@ -209,29 +213,48 @@ export async function getFinalReviewPayload(input: {
 
   const { data: ledgerRows, error: ledgerError } = await supabase
     .from("revision_ledger_decisions")
-    .select("id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, metadata, created_at, is_undo")
+    .select("id, local_id, opportunity_id, opportunity_title, decision, selected_option, custom_text, selected_text, source_excerpt, source_location, metadata, created_at, is_undo, undone_local_id")
     .eq("user_id", ledgerOwnerId)
     .eq("manuscript_id", manuscriptId)
     .eq("evaluation_job_id", input.evaluationJobId)
-    .eq("is_undo", false)
     .order("created_at", { ascending: false });
 
   if (ledgerError) return emptyPayload(ledgerError.message);
 
+  // Process undo rows so a later undo cancels the original decision. The first
+  // pass collects all undone localIds; the second pass builds the latest
+  // decision per opportunity without relying on the database sort order.
+  const undoneLocalIds = new Set<string>();
+  for (const row of ledgerRows ?? []) {
+    if (row.is_undo && row.undone_local_id) undoneLocalIds.add(row.undone_local_id);
+  }
   const latestByOpportunity = new Map<string, any>();
   for (const row of ledgerRows ?? []) {
+    if (row.is_undo) continue;
+    if (row.local_id && undoneLocalIds.has(row.local_id)) continue;
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
   }
 
   let decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map(rowToDecision);
 
   const queuePayload = await getWorkbenchQueue({
+    user,
     manuscriptId: String(manuscriptId),
     evaluationJobId: input.evaluationJobId,
   });
   if (queuePayload.ok) {
-    const supportedOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
-    decisions = decisions.filter((decision) => supportedOpportunityIds.has(decision.opportunityId));
+    // Final Review must read the same persisted rows as the workbench and the
+    // ledger API. Filtering to only the copy-paste bucket dropped deferred/
+    // kept/rejected decisions for strategy and withheld cards. Use the full
+    // canonical queue projection as the allowed-opportunity set.
+    const allOpportunityIds = new Set(
+      [
+        ...queuePayload.opportunities,
+        ...queuePayload.needsTargeting,
+        ...queuePayload.withheldUnsupported,
+      ].map((opportunity) => opportunity.id),
+    );
+    decisions = decisions.filter((decision) => allOpportunityIds.has(decision.opportunityId));
   }
 
   const sourceText = await resolveFinalReviewSourceText({

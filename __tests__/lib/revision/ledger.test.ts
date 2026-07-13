@@ -1,6 +1,7 @@
 import {
   __testing,
   syncRevisionLedgerDecisions,
+  listRevisionLedgerDecisions,
 } from '@/lib/revision/ledger';
 import { getWorkbenchQueue } from '@/lib/revision/workbenchQueue';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -22,7 +23,10 @@ const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof cr
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 const mockGetWorkbenchQueue = getWorkbenchQueue as jest.MockedFunction<typeof getWorkbenchQueue>;
 
-function buildSupabaseMock() {
+function buildSupabaseMock(options?: { otherOwnerId?: string; readBackOverride?: unknown[] }) {
+  const persistedRows: Record<string, unknown>[] = [];
+  const manuscriptsOwnerId = options?.otherOwnerId ?? 'user-1';
+
   const singleQuery = (data: unknown) => {
     const query = {
       select: jest.fn(() => query),
@@ -32,24 +36,31 @@ function buildSupabaseMock() {
     return query;
   };
 
-  const upsertSpy = jest.fn((rows: unknown[]) => ({
-    select: () => ({
-      order: async () => ({
-        data: rows.map((row, index) => ({
-          id: `row-${index + 1}`,
-          ...(row as Record<string, unknown>),
-        })),
-        error: null,
-      }),
-    }),
-  }));
+  const ledgerQuery = {
+    select: jest.fn(() => ledgerQuery),
+    eq: jest.fn(() => ledgerQuery),
+    in: jest.fn(() => ledgerQuery),
+    order: jest.fn(async () => ({ data: [...persistedRows], error: null })),
+  };
+
+  const upsertSpy = jest.fn(async (rows: unknown[]) => {
+    persistedRows.length = 0;
+    for (const row of rows as Record<string, unknown>[]) {
+      persistedRows.push({
+        id: `row-${persistedRows.length + 1}`,
+        created_at: new Date().toISOString(),
+        ...row,
+      });
+    }
+    return { error: null };
+  });
 
   return {
     upsertSpy,
     client: {
       from: jest.fn((table: string) => {
         if (table === 'manuscripts') {
-          return singleQuery({ id: 6074, title: 'Sister', user_id: 'user-1' });
+          return singleQuery({ id: 6074, title: 'Sister', user_id: manuscriptsOwnerId });
         }
 
         if (table === 'evaluation_jobs') {
@@ -59,15 +70,7 @@ function buildSupabaseMock() {
         if (table === 'revision_ledger_decisions') {
           return {
             upsert: upsertSpy,
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  eq: () => ({
-                    order: async () => ({ data: [], error: null }),
-                  }),
-                }),
-              }),
-            }),
+            select: () => ledgerQuery,
           };
         }
 
@@ -125,6 +128,20 @@ function makeCopyPasteOpportunity(candidateText: string) {
   };
 }
 
+function makeNeedsTargetingOpportunity(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'opp-1',
+    cardType: 'withheld',
+    trustedPathStatus: 'impossible',
+    options: [
+      { key: 'A', candidateText: 'A', text: 'A', rationale: 'A' },
+      { key: 'B', candidateText: 'B', text: 'B', rationale: 'B' },
+      { key: 'C', candidateText: 'C', text: 'C', rationale: 'C' },
+    ],
+    ...overrides,
+  };
+}
+
 describe('revision ledger quality drift metrics', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -174,7 +191,7 @@ describe('revision ledger quality drift metrics', () => {
     });
 
     expect(mockGetWorkbenchQueue).toHaveBeenCalledTimes(1);
-    expect(mockGetWorkbenchQueue).toHaveBeenCalledWith({ manuscriptId: '6074', evaluationJobId: 'job-1' });
+    expect(mockGetWorkbenchQueue).toHaveBeenCalledWith({ user: { id: 'user-1' }, manuscriptId: '6074', evaluationJobId: 'job-1' });
     expect(upsertSpy).toHaveBeenCalledTimes(1);
     const [persistedRows] = upsertSpy.mock.calls[0];
     const [persisted] = persistedRows as Array<{ metadata: Record<string, unknown> }>;
@@ -187,6 +204,8 @@ describe('revision ledger quality drift metrics', () => {
       tense_shift: true,
     });
     expect(rows).toHaveLength(1);
+    expect(rows[0].opportunity_id).toBe('opp-1');
+    expect(rows[0].local_id).toBe('local-accepted-a');
   });
 
   it('rejects acceptance when the canonical queue classifies the card as a strategy card', async () => {
@@ -272,5 +291,195 @@ describe('revision ledger quality drift metrics', () => {
         ],
       }),
     ).rejects.toThrow('Ledger acceptance blocked: opportunity not found in canonical queue projection');
+  });
+
+  it('rejects non-acceptance decisions when the opportunity is not in the canonical queue', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([]) as never);
+
+    await expect(
+      syncRevisionLedgerDecisions({
+        manuscriptId: '6074',
+        evaluationJobId: 'job-1',
+        entries: [
+          {
+            localId: 'local-deferred-x',
+            opportunityId: 'opp-ghost',
+            opportunityTitle: 'Ghost opportunity',
+            decision: 'deferred',
+            clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          },
+        ],
+      }),
+    ).rejects.toThrow('Ledger decision blocked: opportunity not found in canonical queue projection');
+  });
+
+  it('persists deferred decisions for needs-targeting / withheld cards and reads them back', async () => {
+    const { client, upsertSpy } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    const rows = await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-deferred-1',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'deferred',
+          selectedText: 'Deferred for later decision',
+          sourceExcerpt: 'The whole place sat in a strange stasis.',
+          sourceLocation: 'passage:1',
+          clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          metadata: { criterion: 'TONE' },
+        },
+      ],
+    });
+
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].decision).toBe('deferred');
+    expect(rows[0].opportunity_id).toBe('opp-1');
+    expect(rows[0].selected_text).toBe('Deferred for later decision');
+  });
+
+  it('throws when the canonical read-back does not find the expected row', async () => {
+    const { client, upsertSpy } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    // Force the read-back to return an empty result, simulating a write that
+    // did not durably persist.
+    upsertSpy.mockImplementation(async () => ({ error: null }));
+
+    await expect(
+      syncRevisionLedgerDecisions({
+        manuscriptId: '6074',
+        evaluationJobId: 'job-1',
+        entries: [
+          {
+            localId: 'local-deferred-1',
+            opportunityId: 'opp-1',
+            opportunityTitle: 'Withheld opportunity',
+            decision: 'deferred',
+            clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          },
+        ],
+      }),
+    ).rejects.toThrow('Ledger sync failed: canonical row not found after write');
+  });
+
+  it('rejects sync when the caller does not own the manuscript and is not privileged', async () => {
+    const OWNER_ID = 'owner-1';
+    const { client } = buildSupabaseMock({ otherOwnerId: OWNER_ID });
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetAuthenticatedUser.mockResolvedValue({ id: 'other-user-1' } as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    await expect(
+      syncRevisionLedgerDecisions({
+        manuscriptId: '6074',
+        evaluationJobId: 'job-1',
+        entries: [
+          {
+            localId: 'local-deferred-1',
+            opportunityId: 'opp-1',
+            opportunityTitle: 'Withheld opportunity',
+            decision: 'deferred',
+            clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          },
+        ],
+      }),
+    ).rejects.toThrow('Manuscript not found in your workspace');
+  });
+
+  it('writes the ledger row under the manuscript owner when the caller is the owner', async () => {
+    const OWNER_ID = 'owner-1';
+    const { client, upsertSpy } = buildSupabaseMock({ otherOwnerId: OWNER_ID });
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetAuthenticatedUser.mockResolvedValue({ id: OWNER_ID } as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-deferred-1',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'deferred',
+          clientCreatedAt: '2026-06-06T00:00:00.000Z',
+        },
+      ],
+    });
+
+    const [persistedRows] = upsertSpy.mock.calls[0];
+    expect((persistedRows as any[])[0].user_id).toBe(OWNER_ID);
+  });
+
+  it('returns deferred/kept/rejected decisions from listRevisionLedgerDecisions', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-deferred-1',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'deferred',
+          clientCreatedAt: '2026-06-06T00:00:00.000Z',
+        },
+        {
+          localId: 'local-kept-1',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'keep_original',
+          clientCreatedAt: '2026-06-06T00:00:01.000Z',
+        },
+        {
+          localId: 'local-reject-1',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'reject',
+          clientCreatedAt: '2026-06-06T00:00:02.000Z',
+        },
+      ],
+    });
+
+    const decisions = await listRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1' });
+    expect(decisions.map((d) => d.decision)).toEqual(['deferred', 'keep_original', 'reject']);
+  });
+
+  it('is idempotent: repeat sync with the same localId updates rather than duplicates', async () => {
+    const { client, upsertSpy } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    const base = {
+      localId: 'local-deferred-1',
+      opportunityId: 'opp-1',
+      opportunityTitle: 'Withheld opportunity',
+      decision: 'deferred' as const,
+      clientCreatedAt: '2026-06-06T00:00:00.000Z',
+    };
+
+    const first = await syncRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1', entries: [base] });
+    expect(first).toHaveLength(1);
+
+    // Simulate the second call by reusing the same mock client and payload.
+    const second = await syncRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1', entries: [{ ...base, decision: 'keep_original' }] });
+    expect(second).toHaveLength(1);
+    expect(second[0].decision).toBe('keep_original');
+
+    const list = await listRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1' });
+    expect(list).toHaveLength(1);
+    expect(list[0].decision).toBe('keep_original');
   });
 });
