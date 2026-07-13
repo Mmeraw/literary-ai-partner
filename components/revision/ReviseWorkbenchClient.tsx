@@ -480,7 +480,15 @@ export default function ReviseWorkbenchClient({ payload }: { payload: WorkbenchQ
         alreadyDecidedCount: json.alreadyDecidedCount ?? 0,
       });
       setTrustedPathEligible(0);
-      setSyncMessage(`TrustedPath™ applied ${json.appliedCount} repair${json.appliedCount === 1 ? "" : "s"}`);
+      setSyncMessage(`TrustedPath™ applied ${json.appliedCount} repair${json.appliedCount === 1 ? "" : "s"}. Opening Final Review…`);
+
+      const finalReviewUrl =
+        json.finalReviewUrl ??
+        `/workbench/final-review?${new URLSearchParams({
+          manuscriptId: effectivePayload.manuscriptId,
+          evaluationJobId: effectivePayload.evaluationJobId,
+        }).toString()}`;
+      window.location.assign(finalReviewUrl);
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "TrustedPath apply failed");
     } finally {

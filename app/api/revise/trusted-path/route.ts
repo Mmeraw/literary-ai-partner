@@ -29,16 +29,15 @@ export async function GET(req: Request) {
     const preview = await previewTrustedPath({ manuscriptId, evaluationJobId });
     return NextResponse.json({ ok: true, ...preview });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = message === "Not authenticated" ? 401 : message.includes("not found") ? 404 : 500;
-    return NextResponse.json({ ok: false, error: message }, { status });
+    return serverError(error);
   }
 }
 
 /**
  * POST /api/revise/trusted-path
  *
- * Apply TrustedPath: auto-accept all cross-check-approved Option A repairs.
+ * Apply TrustedPath: auto-accept all eligible copy-paste repairs and return
+ * a `finalReviewUrl` the legacy workbench can redirect to.
  */
 export async function POST(req: Request) {
   try {
@@ -52,7 +51,7 @@ export async function POST(req: Request) {
     const result = await applyTrustedPath({ manuscriptId, evaluationJobId });
 
     if (!result.ok) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, { status: result.statusCode ?? 400 });
     }
 
     return NextResponse.json(result);

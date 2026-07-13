@@ -9,7 +9,7 @@ import tsParser from "@typescript-eslint/parser";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 
 // ✅ Add Next.js rules (recommended)
-import next from "eslint-config-next";
+import nextPlugin from "@next/eslint-plugin-next";
 
 export default [
   // 1) Global ignores
@@ -34,8 +34,7 @@ export default [
   js.configs.recommended,
 
   // 3) Next.js recommended (App Router friendly)
-  // If this import gives you trouble in Flat Config, tell me and I’ll swap it to a safe variant.
-  next,
+  nextPlugin.flatConfig.recommended,
 
   // 4) Project-wide linting (TS + React)
   {
