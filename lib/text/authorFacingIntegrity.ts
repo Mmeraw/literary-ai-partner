@@ -52,7 +52,12 @@ const PLACEHOLDER_PATTERNS = [
 // arbitrary character-count threshold. Singular and plural forms are both
 // explicit so arrays such as top_3_strengths and top_3_risks are inspected.
 const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risks?|rationales?|recommendations?|actions?|why|mechanisms?|specific_fix(?:es)?|reader_effects?|expected_impacts?|symptoms?|causes?|fix_directions?|candidate_texts?|premises?|audiences?|warnings?|limitations?|reasons?|descriptions?|diagnoses?|guidance|bios?|queries|synopses|letters?|stories|revisions?|markets?|positions?|copy|notes?|titles?|headings?|headers?|labels?)$/i;
-const PHRASE_ALLOWED_KEY_PATTERN = /(?:strengths?|risks?|titles?|headings?|headers?|labels?)$/i;
+
+// These fields are intentionally rendered as labeled phrases or fragments, not
+// standalone sentences. They still receive every structural integrity check
+// (ellipsis, placeholder, delimiter, spacing, punctuation, duplicate words),
+// but are not forced through sentence capitalization or terminal punctuation.
+const PHRASE_ALLOWED_KEY_PATTERN = /(?:strengths?|risks?|titles?|headings?|headers?|labels?|mechanisms?|specific_fix(?:es)?|reader_effects?)$/i;
 const TERMINAL_PUNCTUATION = /[.!?]["'”’\)\]]*$/u;
 const TRUNCATION_ELLIPSIS = /(?:\.\.\.|…)/u;
 
@@ -87,9 +92,12 @@ function isAuthorTextPath(path: string): boolean {
   return AUTHOR_TEXT_KEY_PATTERN.test(leafKey(path));
 }
 
+function isPhraseAllowedPath(path: string): boolean {
+  return PHRASE_ALLOWED_KEY_PATTERN.test(leafKey(path));
+}
+
 function requiresCompleteSentence(path: string): boolean {
-  const key = leafKey(path);
-  if (PHRASE_ALLOWED_KEY_PATTERN.test(key)) return false;
+  if (isPhraseAllowedPath(path)) return false;
   return isAuthorTextPath(path);
 }
 
@@ -160,7 +168,7 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
     push('AUTHOR_TEXT_UNBALANCED_DELIMITER', `${path} contains an unmatched quotation mark, bracket, brace, or parenthesis.`);
   }
 
-  if (isAuthorTextPath(path) && startsWithLowercase(value)) {
+  if (isAuthorTextPath(path) && !isPhraseAllowedPath(path) && startsWithLowercase(value)) {
     push('AUTHOR_TEXT_LOWERCASE_START', `${path} begins with a lowercase letter. CMOS author-facing sentences and headings must begin with a capital letter.`);
   }
   if (isAuthorTextPath(path) && LOWERCASE_AFTER_SENTENCE.test(value)) {
