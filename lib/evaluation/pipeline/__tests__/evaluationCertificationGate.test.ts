@@ -361,15 +361,12 @@ describe("normalizeArtifact()", () => {
     expect(ops).toContain("terminal_punct");
   });
 
-  it("logs sentence-boundary trimming when summary exceeds the hard cap", () => {
+  it("does not sentence-trim a summary that is within the technical ceiling", () => {
     const sentence = "The manuscript earns a strong score on its craft. ";
-    const longSummary = sentence.repeat(40); // well past the 1000-char cap
+    const longSummary = sentence.repeat(40).trimEnd(); // well under the 10,000-char technical ceiling
     const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
-    const result = normalizeArtifact(synthesis, [], []);
-    const trimLog = result.normalizations.find(n => n.operation === "trim_sentence_boundary");
-    expect(trimLog).toBeDefined();
-    // Never mid-sentence: the trimmed summary ends on a complete sentence.
-    expect(synthesis.overall.one_paragraph_summary!.endsWith(".")).toBe(true);
+    normalizeArtifact(synthesis, [], []);
+    expect(synthesis.overall.one_paragraph_summary).toBe(longSummary);
   });
 });
 

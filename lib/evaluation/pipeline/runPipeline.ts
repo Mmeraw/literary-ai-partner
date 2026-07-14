@@ -21,6 +21,7 @@ import {
   buildCriterionAwareMechanismDefault,
   buildCriterionAwareSpecificFixDefault,
   buildCriterionAwareReaderEffectDefault,
+  reconcileSummaryScore,
 } from "./runPass3Synthesis";
 import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate";
@@ -151,7 +152,11 @@ import {
   buildECGInputFromEvaluationResult,
   EvaluationCertificationFailedError,
 } from "./evaluationCertificationGate";
-import { normalizeArtifact, trimToLastCompleteSentence } from "./normalizeArtifact";
+import {
+  normalizeArtifact,
+  normalizeAuthorFacingFormatting,
+  validateEvaluationProse,
+} from "./normalizeArtifact";
 import { SUMMARY_POLICY } from "@/lib/config/lengthPolicy";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
@@ -3318,7 +3323,9 @@ export function synthesisToEvaluationResultV2(
   }
 
   // ── Derive final overview fields from the normalized synthesis artifact ───
-  // All prose has already been capped and trimmed at complete-sentence boundaries.
+  // Canonical prose is preserved; only harmless formatting is cleaned and the
+  // structural/technical-safeguard contracts are validated. Invalid prose fails
+  // with ArtifactTextContractError for upstream regeneration.
   const reportVerdict = toReportVerdict(synthesis.overall.verdict, {
     coverageLimited,
     scoredCount: weighted.scored_count,
@@ -3333,7 +3340,13 @@ export function synthesisToEvaluationResultV2(
   );
 
   const rawOverviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
-  const overviewSummary = trimToLastCompleteSentence(rawOverviewSummary, SUMMARY_POLICY.cap, 'overview.one_paragraph_summary');
+  const formattedOverviewSummary = normalizeAuthorFacingFormatting(rawOverviewSummary);
+  const reconciledSummaryResult = reconcileSummaryScore(formattedOverviewSummary, weighted.overall_score_0_100);
+  const overviewSummary = validateEvaluationProse(
+    reconciledSummaryResult.summary,
+    SUMMARY_POLICY.cap,
+    'overview.one_paragraph_summary',
+  );
 
   const overviewOneSentencePitch =
     typeof synthesis.overall.one_sentence_pitch === "string" && synthesis.overall.one_sentence_pitch.trim().length > 0
