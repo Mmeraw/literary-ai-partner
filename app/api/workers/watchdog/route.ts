@@ -92,9 +92,10 @@ async function kickWorker(): Promise<void> {
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 // ─── Idle-pulse check: find running jobs whose worker_pulse_at is stale ────
-// worker_pulse_at is written at every real chunk completion. If it hasn't
-// moved in IDLE_PULSE_THRESHOLD_SECS but the lease heartbeat is still
-// alive, the worker is frozen mid-LLM-call and must be rescued immediately.
+// A stale pulse alone is not proof that a worker is dead: one provider call can
+// exceed the pulse threshold while the worker still owns an unexpired lease.
+// Rescue therefore requires BOTH a stale pulse and an expired lease, and the
+// mutation repeats those predicates so a concurrent lease/pulse renewal wins.
 //
 // PERSISTENCE LOCK CONVENTION: When a worker enters the artifact persistence
 // critical section, it sets worker_pulse_at to a FUTURE timestamp (NOW + 5min).
@@ -115,29 +116,27 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
   const pulseCutoff = new Date(Date.now() - IDLE_PULSE_THRESHOLD_SECS * 1_000).toISOString();
   const now = new Date().toISOString();
 
-  // Jobs that are running AND have a stale worker_pulse_at (real work has stopped)
-  // but whose last_heartbeat_at is still fresh (lease is held — not already dead).
-  // NULL worker_pulse_at means the column was never written (pre-migration job) — skip those.
+  // Jobs that are running AND have both a stale worker pulse and an expired
+  // lease. NULL pulse/lease rows belong to the dedicated null-pulse sweep.
   // CRITICAL: never rescue awaiting_approval — that is the Review Gate hard stop,
   // not a frozen worker. The gate is waiting for author input, not a pulse.
   // CRITICAL: never rescue phase_0 — the gold-standard warm-up enforces a hard
   // 12s minimum dwell (PHASE_0_MIN_DWELL_MS) and typically runs 12-30s for the LLM
-  // to internalize scoring criteria. The 20s idle-pulse threshold would wrongly
-  // rescue it mid-calibration. Phase 0 gets the full 60s stale-heartbeat window
-  // from failStaleRunningJobs and the 90s null-pulse grace in rescueNullPulseOrphans.
+  // to internalize scoring criteria. Phase 0 gets the longer stale-heartbeat and
+  // null-pulse grace paths.
   // CRITICAL: never rescue jobs with completed_units >= 98 — the worker is in the
-  // artifact persistence critical section. The worker declares this by setting
-  // completed_units=98 via markRunning('Persisting evaluation artifacts', 98, ...).
-  // Killing a job mid-persistence causes the split-brain race where watchdog sets
-  // phase_status=failed while persistence tries to set phase_status=complete.
+  // artifact persistence critical section.
   const { data: idleCandidates, error } = await supabase
     .from('evaluation_jobs')
-    .select('id, phase, phase_status, attempt_count, max_attempts, completed_units')
+    .select('id, phase, phase_status, attempt_count, max_attempts, completed_units, worker_pulse_at, lease_until, lease_token')
     .eq('status', 'running')
     .neq('phase_status', 'awaiting_approval')
     .neq('phase', 'phase_0')
     .not('worker_pulse_at', 'is', null)
+    .not('lease_until', 'is', null)
+    .not('lease_token', 'is', null)
     .lt('worker_pulse_at', pulseCutoff)
+    .lt('lease_until', now)
     .limit(10);
 
   if (error || !idleCandidates?.length) return { idleFound: 0, idleRescued: 0 };
@@ -149,25 +148,31 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
         && job.attempt_count >= job.max_attempts) continue;
 
     // PERSISTENCE LOCK: skip jobs in artifact persistence critical section.
-    // The worker sets completed_units=98 before entering persistence.
-    // Killing mid-persistence causes split-brain (failed vs complete race).
     if (typeof job.completed_units === 'number' && job.completed_units >= 98) {
       console.log(`[Watchdog/idle] Skipping job ${job.id} — persistence lock active (completed_units=${job.completed_units})`);
       continue;
     }
+
+    const leaseToken = typeof job.lease_token === 'string' ? job.lease_token : null;
+    if (!leaseToken) continue;
 
     // Exponential backoff: increment attempt_count and set next_attempt_at so
     // the claim RPC won't re-pick this job until the backoff window expires.
     const nextAttempt = (typeof job.attempt_count === 'number' ? job.attempt_count : 0) + 1;
     const nextAttemptAt = calculateNextAttemptAt(nextAttempt);
 
-    // Re-queue: release lease so next process-evaluations pick-up resumes.
-    const { error: rescueErr } = await supabase
+    // Atomic compare-and-rescue: repeat the stale pulse, expired lease, and
+    // lease-token predicates at mutation time. If the live worker renewed after
+    // candidate selection, this update affects zero rows and the worker survives.
+    const { data: rescuedRow, error: rescueErr } = await supabase
       .from('evaluation_jobs')
       .update({
         status: 'queued',
         phase_status: 'queued',
         claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+        lease_until: null,
         last_heartbeat_at: null,
         last_heartbeat: null,
         worker_pulse_at: null,
@@ -176,14 +181,25 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
         updated_at: now,
       })
       .eq('id', job.id)
-      .eq('status', 'running');
+      .eq('status', 'running')
+      .eq('lease_token', leaseToken)
+      .lt('worker_pulse_at', pulseCutoff)
+      .lt('lease_until', now)
+      .select('id')
+      .maybeSingle();
 
-    if (!rescueErr) {
-      idleRescued++;
-      console.log(`[Watchdog/idle] Rescued idle job ${job.id} (pulse stale >${IDLE_PULSE_THRESHOLD_SECS}s) attempt=${nextAttempt} next_attempt_at=${nextAttemptAt}`);
-    } else {
+    if (rescueErr) {
       console.warn(`[Watchdog/idle] Failed to rescue ${job.id}:`, rescueErr.message);
+      continue;
     }
+
+    if (!rescuedRow) {
+      console.log(`[Watchdog/idle] Skipped ${job.id} — lease or pulse was renewed before rescue`);
+      continue;
+    }
+
+    idleRescued++;
+    console.log(`[Watchdog/idle] Rescued idle job ${job.id} (pulse stale >${IDLE_PULSE_THRESHOLD_SECS}s and lease expired) attempt=${nextAttempt} next_attempt_at=${nextAttemptAt}`);
   }
 
   return { idleFound: idleCandidates.length, idleRescued };
@@ -262,7 +278,7 @@ export async function GET(req: NextRequest) {
   try {
     // Run all three sweeps in parallel:
     //   1. frozen-heartbeat (60s stale last_heartbeat_at) → fail
-    //   2. idle-pulse (20s stale worker_pulse_at, non-null) → requeue
+    //   2. idle-pulse (20s stale pulse + expired lease) → requeue
     //   3. null-pulse orphan (30s, worker_pulse_at IS NULL) → rescue via canonical RPC
     const [result, idleResult, nullPulseResult] = await Promise.all([
       failStaleRunningJobs(),
