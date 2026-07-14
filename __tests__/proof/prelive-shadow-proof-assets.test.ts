@@ -31,4 +31,11 @@ describe('pre-live shadow proof assets', () => {
     expect(source).toContain('accept/customize + persistence stage would run here');
     expect(source).toContain('NOT_EXECUTED');
   });
+
+  it('does not mislabel readiness or fixture coverage as live proof', () => {
+    const source = readFileSync(join(root, 'scripts/revision/c2LiveProofHarness.mjs'), 'utf8');
+
+    expect(source).toContain('Dry-run can never emit a live C2 PASS');
+    expect(source).toContain('Not a synthetic test');
+  });
 });
