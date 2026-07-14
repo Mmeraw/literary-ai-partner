@@ -1858,10 +1858,13 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     const degradedChunkRatio = pass1aResult.total_chunks > 0
       ? degradedChunkCount / pass1aResult.total_chunks
       : 0;
-    if (
-      degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
-      (pass1aResult.total_chunks > 1 && degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD)
-    ) {
+    const degradedRatioBlocks =
+      pass1aResult.total_chunks > 1 &&
+      degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD;
+    const degradedCountBlocks =
+      degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD;
+
+    if (degradedRatioBlocks || degradedCountBlocks) {
       console.error('[Pipeline][Pass1A] Degraded chunk ratio exceeded fail-closed threshold', {
         manuscript_id: opts.manuscriptId ?? null,
         degraded_chunks: degradedChunkCount,
@@ -1884,6 +1887,16 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
         error_code: PASS1A_DEGRADED_CHUNK_ERROR_CODE,
         failed_at: 'pass1',
       };
+    }
+
+    if (degradedChunkCount > 0) {
+      console.warn('[Pipeline][Pass1A] Some chunks degraded but not blocked; continuing with available evidence', {
+        manuscript_id: opts.manuscriptId ?? null,
+        degraded_chunks: degradedChunkCount,
+        total_chunks: pass1aResult.total_chunks,
+        degraded_ratio: degradedChunkRatio.toFixed(3),
+        degraded_indices: degradedChunkIndices,
+      });
     }
 
     if (pass1aResult.chunkOutputs.length === 0) {

@@ -746,6 +746,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function isPass1aCharacterLedger(value: unknown): value is Pass1aCharacterLedger {
+  if (!isRecord(value)) return false;
+  if (value.schema_version !== 'pass1a_character_ledger_v1') return false;
+  if (typeof value.job_id !== 'string') return false;
+  if (!Array.isArray(value.entries)) return false;
+  return true;
+}
+
 function normalizeReasonCodes(candidates: unknown, fallbackCode: string): string[] {
   if (!Array.isArray(candidates)) {
     return [fallbackCode];
@@ -6464,17 +6472,23 @@ export async function processEvaluationJob(
             .eq('job_id', job.id)
             .eq('artifact_type', 'pass1a_character_ledger_v1')
             .maybeSingle();
-          const ledgerContent = ledgerArtifactP3?.content as
-            | (Pass1aCharacterLedger & { ledger_v1?: Pass1aCharacterLedger; ledger_v2?: CharacterLedgerV2 })
-            | undefined;
-          const ledgerV2 = ledgerContent?.ledger_v2;
+          const content = ledgerArtifactP3?.content;
           // The artifact may be persisted in one of two shapes:
           //   legacy dual: { ledger_v1, ledger_v2 }
           //   current spread: { ...Pass1aCharacterLedger, ledger_v2, job_id, manuscript_id, ... }
-          if (ledgerContent && Array.isArray(ledgerContent.entries) && ledgerV2) {
-            const ledgerV1 = ledgerContent.ledger_v1 ?? ledgerContent;
+          const ledgerV1 =
+            isRecord(content) && isPass1aCharacterLedger(content.ledger_v1)
+              ? content.ledger_v1
+              : isPass1aCharacterLedger(content)
+                ? content
+                : undefined;
+          const ledgerV2 =
+            isRecord(content) && isRecord(content.ledger_v2) && 'activeBlockers' in content.ledger_v2
+              ? (content.ledger_v2 as unknown as CharacterLedgerV2)
+              : undefined;
+          if (ledgerV1 && ledgerV2) {
             prebuiltCharacterLedgerP3 = {
-              ledger: ledgerV1 as Pass1aCharacterLedger,
+              ledger: ledgerV1,
               ledgerV2,
             };
             console.log(`[phase_3] ${jobId}: pass1a_character_ledger_v1 loaded`, {
@@ -8645,6 +8659,13 @@ export async function processEvaluationJob(
 
         const degradedChunkCount = sortedChunkOutputs.filter((chunkOutput) => isDegradedPass1aChunkOutput(chunkOutput)).length;
         const degradedChunkRatio = totalChunks > 0 ? degradedChunkCount / totalChunks : 0;
+        if (degradedChunkCount > 0 && totalChunks <= 1) {
+          console.warn(`[Processor] ${jobId}: phase_1a has ${degradedChunkCount} degraded chunk in a single-chunk manuscript; not blocking because the ratio gate is suppressed for single-segment runs`, {
+            total_chunks: totalChunks,
+            degraded_chunks: degradedChunkCount,
+            degraded_ratio: degradedChunkRatio.toFixed(3),
+          });
+        }
 
         const ledgerAssemblyStartedAt = new Date().toISOString();
         await supabase
