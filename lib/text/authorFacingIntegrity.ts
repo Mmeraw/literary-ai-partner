@@ -68,17 +68,21 @@ function isProsePath(path: string, value: string): boolean {
 }
 
 function hasUnbalancedDelimiters(value: string): boolean {
+  // A leading numbered-list marker such as "1) Text" contains an intentional
+  // unmatched closing parenthesis. Remove only that marker before checking the
+  // prose body; all other unmatched delimiters remain fatal.
+  const delimiterInput = value.replace(/^\s*\d+\)\s+/u, '');
   const pairs: Array<[string, string]> = [['(', ')'], ['[', ']'], ['{', '}']];
   for (const [open, close] of pairs) {
     let depth = 0;
-    for (const char of value) {
+    for (const char of delimiterInput) {
       if (char === open) depth += 1;
       if (char === close) depth -= 1;
       if (depth < 0) return true;
     }
     if (depth !== 0) return true;
   }
-  return (value.match(/"/g) ?? []).length % 2 !== 0;
+  return (delimiterInput.match(/"/g) ?? []).length % 2 !== 0;
 }
 
 function startsWithLowercase(value: string): boolean {
