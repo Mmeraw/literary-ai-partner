@@ -1,7 +1,6 @@
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { minAnchorsFor } from "@/lib/evaluation/signal/criterionObservability";
-import { trimToLastCompleteSentence } from "./normalizeArtifact";
 
 export type UpstreamIntegrity = "strong" | "mixed" | "weak";
 export type AuthorityLevel = "normal" | "constrained" | "blocked";
@@ -43,7 +42,7 @@ function deriveConfidenceLevel(
   if (typeof score !== "number" || Number.isNaN(score)) {
     return "moderate";
   }
-  if (score >= 80) return "high"; // Canon: GREEN threshold = 80 (StoryGate floor). Was 85 — aligned to canon.
+  if (score >= 80) return "high";
   if (score >= 60) return "moderate";
   return "low";
 }
@@ -169,7 +168,7 @@ export function normalizeSummaryWithBottomWeaknesses(
   )}.`;
 
   if (baseSummary.length === 0) {
-    return trimToLastCompleteSentence(weaknessClause, maxChars, 'overview.one_paragraph_summary.weakness_clause');
+    return weaknessClause.slice(0, maxChars);
   }
 
   const separator = /[.!?]$/.test(baseSummary) ? " " : ". ";
@@ -181,10 +180,13 @@ export function normalizeSummaryWithBottomWeaknesses(
 
   const availableBaseChars = maxChars - separator.length - weaknessClause.length;
   if (availableBaseChars <= 0) {
-    return trimToLastCompleteSentence(weaknessClause, maxChars, 'overview.one_paragraph_summary.weakness_clause');
+    return weaknessClause.slice(0, maxChars);
   }
 
-  const trimmedBase = trimToLastCompleteSentence(baseSummary, availableBaseChars, 'overview.one_paragraph_summary');
+  const trimmedBase = baseSummary
+    .slice(0, availableBaseChars)
+    .trim()
+    .replace(/[\s,;:.-]+$/u, "");
 
   return `${trimmedBase}${separator}${weaknessClause}`;
 }
