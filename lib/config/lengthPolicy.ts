@@ -71,9 +71,9 @@ export const SUMMARY_POLICY: LengthPolicy = policy('chars', 300, 750, 250);
 
 /**
  * One-sentence pitch — a single sentence, hard-capped by design.
- *   MIN 40 · BASE 180 · +40 · CAP 220 chars
+ *   MIN 40 · BASE 220 · +80 · CAP 300 chars
  */
-export const ONE_SENTENCE_PITCH_POLICY: LengthPolicy = policy('chars', 40, 180, 40);
+export const ONE_SENTENCE_PITCH_POLICY: LengthPolicy = policy('chars', 40, 220, 80);
 
 /**
  * One-paragraph pitch — a single paragraph, hard-capped by design.
