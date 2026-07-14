@@ -1,7 +1,7 @@
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { minAnchorsFor } from "@/lib/evaluation/signal/criterionObservability";
-import { trimAtSentenceBoundary } from "@/lib/text/authorFacingProse";
+import { trimToLastCompleteSentence } from "./normalizeArtifact";
 
 export type UpstreamIntegrity = "strong" | "mixed" | "weak";
 export type AuthorityLevel = "normal" | "constrained" | "blocked";
@@ -169,7 +169,7 @@ export function normalizeSummaryWithBottomWeaknesses(
   )}.`;
 
   if (baseSummary.length === 0) {
-    return trimAtSentenceBoundary(weaknessClause, maxChars);
+    return trimToLastCompleteSentence(weaknessClause, maxChars, 'overview.one_paragraph_summary.weakness_clause');
   }
 
   const separator = /[.!?]$/.test(baseSummary) ? " " : ". ";
@@ -181,10 +181,10 @@ export function normalizeSummaryWithBottomWeaknesses(
 
   const availableBaseChars = maxChars - separator.length - weaknessClause.length;
   if (availableBaseChars <= 0) {
-    return trimAtSentenceBoundary(weaknessClause, maxChars);
+    return trimToLastCompleteSentence(weaknessClause, maxChars, 'overview.one_paragraph_summary.weakness_clause');
   }
 
-  const trimmedBase = trimAtSentenceBoundary(baseSummary, availableBaseChars);
+  const trimmedBase = trimToLastCompleteSentence(baseSummary, availableBaseChars, 'overview.one_paragraph_summary');
 
   return `${trimmedBase}${separator}${weaknessClause}`;
 }

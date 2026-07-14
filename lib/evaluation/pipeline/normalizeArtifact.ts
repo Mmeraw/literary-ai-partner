@@ -37,12 +37,7 @@
  *   Pass 3 output → normalizeArtifact() → ECG → persist
  */
 
-import {
-  trimAtSentenceBoundary,
-  EvaluationCertificationFailedError,
-  type ECGResult,
-  type ECGViolation,
-} from './evaluationCertificationGate';
+import { trimAtSentenceBoundary } from './evaluationCertificationGate';
 import {
   capitalizeFirstAlpha,
   ensureTerminalPunctuation,
@@ -54,6 +49,43 @@ import {
   ONE_SENTENCE_PITCH_POLICY,
   ONE_PARAGRAPH_PITCH_POLICY,
 } from '@/lib/config/lengthPolicy';
+
+export type ArtifactTextContractReason =
+  | 'NO_COMPLETE_SENTENCE_WITHIN_CAP'
+  | 'ONE_SENTENCE_PITCH_OVER_CAP'
+  | 'ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE'
+  | 'ONE_SENTENCE_PITCH_ENDS_WITH_ELLIPSIS';
+
+/**
+ * Thrown when an author-facing text field cannot satisfy its length/sentence
+ * contract without being mechanically truncated or mutated. This is a
+ * Phase-3-output contract failure, not an ECG certification failure.
+ */
+export class ArtifactTextContractError extends Error {
+  readonly code = 'ARTIFACT_TEXT_CONTRACT_FAILED';
+
+  constructor(
+    readonly field: string,
+    readonly reason: ArtifactTextContractReason,
+    readonly actualLength: number,
+    readonly cap: number,
+  ) {
+    super(
+      `${field} cannot satisfy its text contract (${reason}) within ${cap} characters ` +
+        `(actual ${actualLength}). Regenerate the field upstream.`,
+    );
+    this.name = 'ArtifactTextContractError';
+  }
+}
+
+export function isArtifactTextContractError(err: unknown): err is ArtifactTextContractError {
+  return (
+    err instanceof ArtifactTextContractError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      (err as { code?: unknown }).code === 'ARTIFACT_TEXT_CONTRACT_FAILED')
+  );
+}
 
 /**
  * Diagnostic fields on a recommendation/opportunity that carry author-facing
@@ -76,7 +108,7 @@ export interface NormalizationRecord {
   field: string;
   before: string;
   after: string;
-  operation: 'capitalize' | 'terminal_punct' | 'whitespace' | 'trim_sentence_boundary';
+  operation: 'capitalize' | 'terminal_punct' | 'whitespace' | 'trim_sentence_boundary' | 'trim_whitespace';
 }
 
 export interface NormalizeArtifactResult {
@@ -90,52 +122,40 @@ const OVERVIEW_MAX_CHARS = SUMMARY_POLICY.cap; // 1000
 const ONE_SENTENCE_PITCH_MAX_CHARS = ONE_SENTENCE_PITCH_POLICY.cap; // 220
 const ONE_PARAGRAPH_PITCH_MAX_CHARS = ONE_PARAGRAPH_PITCH_POLICY.cap; // 750
 
-function failAsCertificationError(field: string, message: string): never {
-  const certified_at = new Date().toISOString();
-  const violation: ECGViolation = {
-    code: 'ECG_TEXT_MIDSENTENCE_TERMINATION',
-    domain: 'TEXT',
-    severity: 'FATAL',
-    message,
-    section: field,
-    authority: 'normalizeArtifact() pre-stage',
-  };
-  const ecgResult: ECGResult = {
-    status: 'CERTIFICATION_FAILED',
-    mode: 'ENFORCE',
-    violations: [violation],
-    fatal: [violation],
-    advisory: [],
-    certified_at,
-    summary: `ECG CERTIFICATION_FAILED (mode=ENFORCE) — 1 fatal, 0 advisory. Score=0. Fatals: ECG_TEXT_MIDSENTENCE_TERMINATION.`,
-  };
-  throw new EvaluationCertificationFailedError(ecgResult);
+const SENTENCE_TERMINATOR = /[.!?…](?=\s|$)/g;
+
+function contractError(
+  field: string,
+  reason: ArtifactTextContractReason,
+  actualLength: number,
+  cap: number,
+): never {
+  throw new ArtifactTextContractError(field, reason, actualLength, cap);
 }
 
 /**
- * Trim author-facing prose to a hard character ceiling, then ensure it ends on a
- * complete sentence. Multi-sentence fields may drop the trailing incomplete sentence
- * or fragment. A one-sentence pitch or any field that cannot be made to end on a
- * complete sentence within the cap is a certification failure — it must be
- * regenerated upstream, not ellipsis-truncated.
- *
- * Two-step discipline:
- *   1. trimAtSentenceBoundary(text, maxLength) handles over-CAP text.
- *   2. If the result still ends mid-sentence (incomplete trailing fragment within
- *      CAP), trimAtSentenceBoundary(no max) drops the dangling fragment by finding
- *      the last sentence terminator.
- *   3. If no complete sentence fits within the cap, fail with a typed
- *      ECG_TEXT_MIDSENTENCE_TERMINATION error. We never emit an ellipsis-truncated
- *      incomplete sentence.
+ * Trim a multi-sentence field to the last complete sentence that fits within the
+ * hard cap. The trailing incomplete sentence or fragment is dropped. We never
+ * emit an ellipsis-truncated sentence: if trimAtSentenceBoundary can only
+ * produce an ellipsis (no complete sentence fits within the cap), we fail with a
+ * typed contract error instead.
  */
-function trimToCompleteSentenceOrFail(text: string, maxLength: number, field: string): string {
+export function trimToLastCompleteSentence(text: string, maxLength: number, field: string): string {
+  if (text.length <= maxLength) {
+    if (!endsMidSentence(text)) {
+      return text;
+    }
+    const complete = trimAtSentenceBoundary(text);
+    if (!endsMidSentence(complete) && complete.trim().length > 0) {
+      return complete;
+    }
+    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
+  }
+
   const bounded = trimAtSentenceBoundary(text, maxLength);
-  if (bounded.endsWith('…') || bounded.endsWith('...')) {
-    failAsCertificationError(
-      field,
-      `${field} cannot be trimmed to a complete sentence within the ${maxLength}-character cap; ` +
-        `trimAtSentenceBoundary produced an ellipsis-truncated fragment. Regenerate the field upstream.`,
-    );
+  const wasTruncated = bounded.length < text.length;
+  if (wasTruncated && (bounded.endsWith('…') || bounded.endsWith('...'))) {
+    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
   }
   if (!endsMidSentence(bounded)) {
     return bounded;
@@ -144,11 +164,40 @@ function trimToCompleteSentenceOrFail(text: string, maxLength: number, field: st
   if (!endsMidSentence(complete) && complete.trim().length > 0) {
     return complete;
   }
-  failAsCertificationError(
-    field,
-    `${field} ends mid-sentence and cannot be normalized to a complete sentence within the ${maxLength}-character cap. ` +
-      `Regenerate the field upstream.`,
-  );
+  contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
+}
+
+/**
+ * The one-sentence pitch is a distinct contract: exactly one complete sentence,
+ * within the unchanged cap, no truncation, no selection of an earlier sentence
+ * from a multi-sentence response, and no ellipsis ending. Anything else is a
+ * contract failure that must be regenerated.
+ */
+function assertOneSentencePitch(text: string, maxLength: number, field: string): string {
+  const trimmed = text.trim();
+  const len = trimmed.length;
+
+  if (len > maxLength) {
+    contractError(field, 'ONE_SENTENCE_PITCH_OVER_CAP', len, maxLength);
+  }
+  if (trimmed.endsWith('…') || trimmed.endsWith('...')) {
+    contractError(field, 'ONE_SENTENCE_PITCH_ENDS_WITH_ELLIPSIS', len, maxLength);
+  }
+
+  const matches = Array.from(trimmed.matchAll(SENTENCE_TERMINATOR));
+  if (matches.length === 0) {
+    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', len, maxLength);
+  }
+  if (matches.length > 1) {
+    contractError(field, 'ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE', len, maxLength);
+  }
+
+  const end = matches[0].index + matches[0][0].length;
+  if (end !== trimmed.length && trimmed.slice(end).trim().length > 0) {
+    contractError(field, 'ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE', len, maxLength);
+  }
+
+  return trimmed;
 }
 
 /**
@@ -165,6 +214,8 @@ export function normalizeArtifact(
       one_paragraph_summary?: string;
       one_sentence_pitch?: string;
       one_paragraph_pitch?: string;
+      top_3_strengths?: string[];
+      top_3_risks?: string[];
     };
     criteria: Array<{
       recommendations?: Array<{ action?: string }> | null;
@@ -176,35 +227,53 @@ export function normalizeArtifact(
   const normalizations: NormalizationRecord[] = [];
 
   // ── Overview summary: allow overage up to CAP, sentence-boundary trim ─────
-  // Author-facing prose: "more is more". We do NOT trim it back toward base —
-  // it may run over base freely and is only trimmed if it exceeds the hard
-  // CAP, and then only at a complete-sentence boundary.  We also drop any
-  // incomplete trailing fragment that happens to fit within the CAP so the
-  // certified artifact never ends mid-sentence.
+  // Multi-sentence author-facing prose may run over base freely; it is only
+  // trimmed when it exceeds the hard CAP, and then only at a complete-sentence
+  // boundary.  We also drop any incomplete trailing fragment that happens to
+  // fit within the CAP so the certified artifact never ends mid-sentence.
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
-    const after = trimToCompleteSentenceOrFail(before, OVERVIEW_MAX_CHARS, 'overview.one_paragraph_summary');
+    const after = trimToLastCompleteSentence(before, OVERVIEW_MAX_CHARS, 'overview.one_paragraph_summary');
     if (after !== before) {
       synthesis.overall.one_paragraph_summary = after;
       normalizations.push({ field: 'overview.one_paragraph_summary', before, after, operation: 'trim_sentence_boundary' });
     }
   }
 
-  // ── Pitch fields: hard-capped, sentence-boundary trim at CAP ─────────────
+  // ── One-sentence pitch: exact one-sentence contract, no truncation ────────
   if (synthesis.overall.one_sentence_pitch) {
     const before = synthesis.overall.one_sentence_pitch;
-    const after = trimToCompleteSentenceOrFail(before, ONE_SENTENCE_PITCH_MAX_CHARS, 'overview.one_sentence_pitch');
+    const after = assertOneSentencePitch(before, ONE_SENTENCE_PITCH_MAX_CHARS, 'overview.one_sentence_pitch');
     if (after !== before) {
       synthesis.overall.one_sentence_pitch = after;
-      normalizations.push({ field: 'overview.one_sentence_pitch', before, after, operation: 'trim_sentence_boundary' });
+      normalizations.push({ field: 'overview.one_sentence_pitch', before, after, operation: 'trim_whitespace' });
     }
   }
+
+  // ── One-paragraph pitch: multi-sentence, last complete sentence within CAP ─
   if (synthesis.overall.one_paragraph_pitch) {
     const before = synthesis.overall.one_paragraph_pitch;
-    const after = trimToCompleteSentenceOrFail(before, ONE_PARAGRAPH_PITCH_MAX_CHARS, 'overview.one_paragraph_pitch');
+    const after = trimToLastCompleteSentence(before, ONE_PARAGRAPH_PITCH_MAX_CHARS, 'overview.one_paragraph_pitch');
     if (after !== before) {
       synthesis.overall.one_paragraph_pitch = after;
       normalizations.push({ field: 'overview.one_paragraph_pitch', before, after, operation: 'trim_sentence_boundary' });
+    }
+  }
+
+  // ── Strengths and risks: each bullet must be a complete sentence ──────────
+  for (const listKey of ['top_3_strengths', 'top_3_risks'] as const) {
+    const list = synthesis.overall[listKey];
+    if (Array.isArray(list)) {
+      for (let i = 0; i < list.length; i++) {
+        const item = list[i];
+        if (typeof item !== 'string') continue;
+        const before = item;
+        const after = trimToLastCompleteSentence(before, before.length, `overview.${listKey}[${i}]`);
+        if (after !== before) {
+          list[i] = after;
+          normalizations.push({ field: `overview.${listKey}[${i}]`, before, after, operation: 'trim_sentence_boundary' });
+        }
+      }
     }
   }
 

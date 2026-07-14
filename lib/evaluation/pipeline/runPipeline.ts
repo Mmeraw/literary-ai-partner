@@ -151,8 +151,7 @@ import {
   buildECGInputFromEvaluationResult,
   EvaluationCertificationFailedError,
 } from "./evaluationCertificationGate";
-import { normalizeArtifact } from "./normalizeArtifact";
-import { trimAtSentenceBoundary } from "@/lib/text/authorFacingProse";
+import { normalizeArtifact, trimToLastCompleteSentence } from "./normalizeArtifact";
 import { SUMMARY_POLICY } from "@/lib/config/lengthPolicy";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
@@ -3334,7 +3333,7 @@ export function synthesisToEvaluationResultV2(
   );
 
   const rawOverviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
-  const overviewSummary = trimAtSentenceBoundary(rawOverviewSummary, SUMMARY_POLICY.cap);
+  const overviewSummary = trimToLastCompleteSentence(rawOverviewSummary, SUMMARY_POLICY.cap, 'overview.one_paragraph_summary');
 
   const overviewOneSentencePitch =
     typeof synthesis.overall.one_sentence_pitch === "string" && synthesis.overall.one_sentence_pitch.trim().length > 0

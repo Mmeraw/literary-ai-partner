@@ -13,8 +13,17 @@
  *   6. The object passed to ECG is identical to the object returned/persisted.
  */
 
+jest.mock('@/lib/evaluation/pipeline/evaluationCertificationGate', () => {
+  const actual = jest.requireActual('@/lib/evaluation/pipeline/evaluationCertificationGate');
+  return {
+    ...actual,
+    runEvaluationCertificationGate: jest.fn((...args: any[]) => actual.runEvaluationCertificationGate(...args)),
+  };
+});
+
 import {
   normalizeArtifact,
+  ArtifactTextContractError,
 } from '@/lib/evaluation/pipeline/normalizeArtifact';
 import { reconcileSummaryScore } from '@/lib/evaluation/pipeline/runPass3Synthesis';
 import {
@@ -128,16 +137,30 @@ describe('Criminality V2 regression', () => {
 
     it('fails a one-sentence pitch that exceeds the cap and has no earlier complete sentence', () => {
       const synthesis = buildSynthesisFromFixture();
-      let thrown: any;
+      expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
       try {
         normalizeArtifact(synthesis, [], []);
       } catch (e: any) {
-        thrown = e;
+        expect(e.field).toBe('overview.one_sentence_pitch');
+        expect(e.reason).toBe('ONE_SENTENCE_PITCH_OVER_CAP');
+        expect(e.actualLength).toBeGreaterThan(220);
+        expect(e.cap).toBe(220);
       }
-      expect(thrown).toBeDefined();
-      expect(thrown.name).toBe('EvaluationCertificationFailedError');
-      expect(thrown.fatalCodes).toContain('ECG_TEXT_MIDSENTENCE_TERMINATION');
-      expect(thrown.violations?.[0]?.section).toContain('one_sentence_pitch');
+    });
+
+    it('fails a one-sentence pitch that contains two sentences, even when the first fits under the cap', () => {
+      // 140 characters, well under the 220 cap, but two sentences. The contract
+      // requires exactly one complete sentence; it must not retain the first.
+      const synthesis = buildSynthesisFromFixture({
+        one_sentence_pitch: 'The father tells a story. His son learns a hard lesson about love.',
+      });
+      expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
+      try {
+        normalizeArtifact(synthesis, [], []);
+      } catch (e: any) {
+        expect(e.field).toBe('overview.one_sentence_pitch');
+        expect(e.reason).toBe('ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE');
+      }
     });
 
     it('does not emit an ellipsis-truncated sentence for any prose field', () => {
@@ -149,7 +172,7 @@ describe('Criminality V2 regression', () => {
       ] as const) {
         const value = synthesis.overall[field];
         if (typeof value === 'string') {
-          expect(value).not.toMatch(/\.\.\.$/);
+          expect(value).not.toMatch(/\.\.$/);
           expect(value).not.toMatch(/…$/);
           expect(endsMidSentence(value)).toBe(false);
         }
@@ -266,16 +289,25 @@ describe('Criminality V2 regression', () => {
       expect(isRendererVerdict(result.overview.verdict)).toBe(true);
       expect(result.overview.overall_score_0_100).toBe(70);
 
-      // The returned object must be exactly what ECG would certify.
-      const ecgInput = buildECGInputFromEvaluationResult(
+      // The object that ECG actually certified must be the exact object returned.
+      const mockedECG = jest.mocked(runEvaluationCertificationGate);
+      expect(mockedECG.mock.calls.length).toBeGreaterThan(0);
+      const capturedEcgInput = mockedECG.mock.calls[mockedECG.mock.calls.length - 1][0];
+      const expectedEcgInput = buildECGInputFromEvaluationResult(
         result,
         result.overview.overall_score_0_100 ?? 70,
       );
-      const ecgResult = runEvaluationCertificationGate(ecgInput);
+
+      // The mock delegates to the real ECG, so the real call must also certify.
+      const ecgResult = runEvaluationCertificationGate(expectedEcgInput);
       expect(ecgResult.status).toBe('CERTIFIED');
 
-      expect(ecgInput.overview).toEqual(result.overview);
-      expect(ecgInput.criteria).toEqual(
+      // Substantive certified fields match exactly. (Governance warnings are
+      // appended immutably after certification and do not appear in the ECG input.)
+      expect(capturedEcgInput.overview).toEqual(expectedEcgInput.overview);
+      expect(capturedEcgInput.overview).toEqual(result.overview);
+      expect(capturedEcgInput.criteria).toEqual(expectedEcgInput.criteria);
+      expect(capturedEcgInput.criteria).toEqual(
         result.criteria.map((c) => ({
           key: c.key,
           final_score_0_10: (c as unknown as { score_0_10?: number | null }).score_0_10 ?? null,
