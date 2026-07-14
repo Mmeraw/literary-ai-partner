@@ -1860,7 +1860,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
       : 0;
     if (
       degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
-      degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+      (pass1aResult.total_chunks > 1 && degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD)
     ) {
       console.error('[Pipeline][Pass1A] Degraded chunk ratio exceeded fail-closed threshold', {
         manuscript_id: opts.manuscriptId ?? null,

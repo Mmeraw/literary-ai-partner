@@ -6464,13 +6464,25 @@ export async function processEvaluationJob(
             .eq('job_id', job.id)
             .eq('artifact_type', 'pass1a_character_ledger_v1')
             .maybeSingle();
-          if (ledgerArtifactP3?.content?.ledger_v1 && ledgerArtifactP3?.content?.ledger_v2) {
+          const ledgerContent = ledgerArtifactP3?.content as
+            | (Pass1aCharacterLedger & { ledger_v1?: Pass1aCharacterLedger; ledger_v2?: CharacterLedgerV2 })
+            | undefined;
+          const ledgerV2 = ledgerContent?.ledger_v2;
+          // The artifact may be persisted in one of two shapes:
+          //   legacy dual: { ledger_v1, ledger_v2 }
+          //   current spread: { ...Pass1aCharacterLedger, ledger_v2, job_id, manuscript_id, ... }
+          if (ledgerContent && Array.isArray(ledgerContent.entries) && ledgerV2) {
+            const ledgerV1 = ledgerContent.ledger_v1 ?? ledgerContent;
             prebuiltCharacterLedgerP3 = {
-              ledger: ledgerArtifactP3.content.ledger_v1 as Pass1aCharacterLedger,
-              ledgerV2: ledgerArtifactP3.content.ledger_v2 as CharacterLedgerV2,
+              ledger: ledgerV1 as Pass1aCharacterLedger,
+              ledgerV2,
             };
+            console.log(`[phase_3] ${jobId}: pass1a_character_ledger_v1 loaded`, {
+              entries: ledgerV1.entries.length,
+              v2_active_blockers: ledgerV2.activeBlockers?.length ?? 0,
+            });
           } else {
-            console.warn(`[phase_3] ${jobId}: pass1a_character_ledger_v1 missing — Pass 1A will re-run inline`);
+            console.warn(`[phase_3] ${jobId}: pass1a_character_ledger_v1 missing or malformed — Pass 1A will re-run inline`);
           }
         } catch (ledgerReadErr) {
           console.warn(`[phase_3] ${jobId}: ledger artifact read failed (non-fatal)`,
@@ -8878,7 +8890,7 @@ export async function processEvaluationJob(
         const technicalInputStandardsFailed = requireUserFacingReviewGate && (
           storyLayerCoverage.populatedLayerCount < MIN_SUBSTANTIVE_STORY_LAYERS_FOR_PHASE2 ||
           degradedChunkCount >= PHASE1A_DEGRADED_CHUNK_COUNT_TECHNICAL_BLOCK_THRESHOLD ||
-          degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD
+          (totalChunks > 1 && degradedChunkRatio >= PHASE1A_DEGRADED_CHUNK_RATIO_TECHNICAL_BLOCK_THRESHOLD)
         );
 
         if (technicalInputStandardsFailed) {
