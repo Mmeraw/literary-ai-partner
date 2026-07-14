@@ -51,7 +51,7 @@ const PLACEHOLDER_PATTERNS = [
 // Author-facing scope is determined by semantic field names, never by an
 // arbitrary character-count threshold. Singular and plural forms are both
 // explicit so arrays such as top_3_strengths and top_3_risks are inspected.
-const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risks?|rationales?|recommendations?|actions?|why|mechanisms?|specific_fixes|reader_effects?|expected_impacts?|symptoms?|causes?|fix_directions?|candidate_texts?|premises?|audiences?|warnings?|limitations?|reasons?|descriptions?|diagnoses?|guidance|bios?|queries|synopses|letters?|stories|revisions?|markets?|positions?|copy|notes?|titles?|headings?|headers?|labels?)$/i;
+const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risks?|rationales?|recommendations?|actions?|why|mechanisms?|specific_fix(?:es)?|reader_effects?|expected_impacts?|symptoms?|causes?|fix_directions?|candidate_texts?|premises?|audiences?|warnings?|limitations?|reasons?|descriptions?|diagnoses?|guidance|bios?|queries|synopses|letters?|stories|revisions?|markets?|positions?|copy|notes?|titles?|headings?|headers?|labels?)$/i;
 const PHRASE_ALLOWED_KEY_PATTERN = /(?:strengths?|risks?|titles?|headings?|headers?|labels?)$/i;
 const TERMINAL_PUNCTUATION = /[.!?]["'”’\)\]]*$/u;
 const TRUNCATION_ELLIPSIS = /(?:\.\.\.|…)/u;
@@ -94,9 +94,6 @@ function requiresCompleteSentence(path: string): boolean {
 }
 
 function hasUnbalancedDelimiters(value: string): boolean {
-  // A leading numbered-list marker such as "1) Text" contains an intentional
-  // unmatched closing parenthesis. Remove only that marker before checking the
-  // prose body; all other unmatched delimiters remain fatal.
   const delimiterInput = value.replace(/^\s*\d+\)\s+/u, '');
   const pairs: Array<[string, string]> = [['(', ')'], ['[', ']'], ['{', '}']];
   for (const [open, close] of pairs) {
