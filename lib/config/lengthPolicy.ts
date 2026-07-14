@@ -42,8 +42,8 @@ function policy(unit: 'chars' | 'words', min: number, base: number, overage: num
 // rejected for regeneration.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Executive/editorial summary: proportionate depth, 10k technical safeguard. */
-export const SUMMARY_POLICY: LengthPolicy = policy('chars', 300, 1500, 8500);
+/** Executive/editorial summary: proportionate depth, 20k technical safeguard. */
+export const SUMMARY_POLICY: LengthPolicy = policy('chars', 300, 1500, 18_500);
 
 /** One complete sentence, with a 5k pathological-output safeguard. */
 export const ONE_SENTENCE_PITCH_POLICY: LengthPolicy = policy('chars', 40, 400, 4600);
@@ -55,10 +55,7 @@ export const ONE_PARAGRAPH_PITCH_POLICY: LengthPolicy = policy('chars', 200, 800
 // Submission artifacts — industry conventions remain authoritative.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Three synopsis tiers (Mike's 150 / 450 / 750). Bounds are in WORDS.
- * Overage is a hard word count, never a percentage.
- */
+/** Three synopsis tiers (Mike's 150 / 450 / 750). Bounds are in WORDS. */
 export const SYNOPSIS_POLICY = {
   short: policy('words', 100, 150, 30),
   medium: policy('words', 250, 450, 50),
