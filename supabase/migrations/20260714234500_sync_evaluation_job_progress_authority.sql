@@ -19,9 +19,12 @@ LANGUAGE plpgsql
 SET search_path = public
 AS $$
 DECLARE
-  v_progress jsonb := COALESCE(NEW.progress, '{}'::jsonb);
+  v_progress jsonb := CASE
+    WHEN jsonb_typeof(NEW.progress) = 'object' THEN NEW.progress
+    ELSE '{}'::jsonb
+  END;
   v_old_progress jsonb := CASE
-    WHEN TG_OP = 'UPDATE' THEN COALESCE(OLD.progress, '{}'::jsonb)
+    WHEN TG_OP = 'UPDATE' AND jsonb_typeof(OLD.progress) = 'object' THEN OLD.progress
     ELSE '{}'::jsonb
   END;
   v_requested_completed integer := COALESCE(NEW.completed_units, 0);
