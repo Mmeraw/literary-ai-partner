@@ -48,8 +48,11 @@ const PLACEHOLDER_PATTERNS = [
   /\bundefined\b/i, /\bnull\b/i,
 ];
 
-const AUTHOR_TEXT_KEY_PATTERN = /(?:summary|pitch|strength|risk|rationale|recommendation|action|why|mechanism|specific_fix|reader_effect|expected_impact|symptom|cause|fix_direction|candidate_text|premise|audience|warning|limitation|reason|description|diagnosis|guidance|bio|query|synopsis|letter|story|revision|market|position|copy|note|title|heading|header|label)$/i;
-const PHRASE_ALLOWED_KEY_PATTERN = /(?:strength|risk|title|heading|header|label)$/i;
+// Author-facing scope is determined by semantic field names, never by an
+// arbitrary character-count threshold. Singular and plural forms are both
+// explicit so arrays such as top_3_strengths and top_3_risks are inspected.
+const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risks?|rationales?|recommendations?|actions?|why|mechanisms?|specific_fixes|reader_effects?|expected_impacts?|symptoms?|causes?|fix_directions?|candidate_texts?|premises?|audiences?|warnings?|limitations?|reasons?|descriptions?|diagnoses?|guidance|bios?|queries|synopses|letters?|stories|revisions?|markets?|positions?|copy|notes?|titles?|headings?|headers?|labels?)$/i;
+const PHRASE_ALLOWED_KEY_PATTERN = /(?:strengths?|risks?|titles?|headings?|headers?|labels?)$/i;
 const TERMINAL_PUNCTUATION = /[.!?]["'”’\)\]]*$/u;
 const TRUNCATION_ELLIPSIS = /(?:\.\.\.|…)/u;
 
@@ -80,15 +83,14 @@ function leafKey(path: string): string {
   return path.replace(/\[\d+\]$/u, '').split('.').pop() ?? path;
 }
 
-function isAuthorTextPath(path: string, value: string): boolean {
-  if (AUTHOR_TEXT_KEY_PATTERN.test(leafKey(path))) return true;
-  return value.trim().length >= 80 && /\s/u.test(value);
+function isAuthorTextPath(path: string): boolean {
+  return AUTHOR_TEXT_KEY_PATTERN.test(leafKey(path));
 }
 
-function requiresCompleteSentence(path: string, value: string): boolean {
+function requiresCompleteSentence(path: string): boolean {
   const key = leafKey(path);
-  if (PHRASE_ALLOWED_KEY_PATTERN.test(key) && value.trim().length < 80) return false;
-  return isAuthorTextPath(path, value);
+  if (PHRASE_ALLOWED_KEY_PATTERN.test(key)) return false;
+  return isAuthorTextPath(path);
 }
 
 function hasUnbalancedDelimiters(value: string): boolean {
@@ -161,14 +163,14 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
     push('AUTHOR_TEXT_UNBALANCED_DELIMITER', `${path} contains an unmatched quotation mark, bracket, brace, or parenthesis.`);
   }
 
-  if (isAuthorTextPath(path, value) && startsWithLowercase(value)) {
+  if (isAuthorTextPath(path) && startsWithLowercase(value)) {
     push('AUTHOR_TEXT_LOWERCASE_START', `${path} begins with a lowercase letter. CMOS author-facing sentences and headings must begin with a capital letter.`);
   }
-  if (isAuthorTextPath(path, value) && LOWERCASE_AFTER_SENTENCE.test(value)) {
+  if (isAuthorTextPath(path) && LOWERCASE_AFTER_SENTENCE.test(value)) {
     push('AUTHOR_TEXT_LOWERCASE_SENTENCE_START', `${path} contains a sentence that begins with a lowercase letter.`);
   }
 
-  if (requiresCompleteSentence(path, value)) {
+  if (requiresCompleteSentence(path)) {
     if (endsMidSentence(value)) {
       push('AUTHOR_TEXT_MIDSENTENCE_TERMINATION', `${path} ends mid-sentence or with a dangling connective/punctuation mark.`);
     }
