@@ -4,8 +4,8 @@ import {
   inspectAuthorFacingIntegrity,
 } from '../authorFacingIntegrity';
 
-describe('RG-TEXT-1 and RG-CMOS-1 author-facing integrity authority', () => {
-  it('accepts complete long-form author-facing prose without mutating it', () => {
+describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
+  it('accepts complete CMOS-aligned author-facing prose without mutating it', () => {
     const artifact = {
       overview: {
         one_paragraph_summary:
@@ -40,8 +40,16 @@ describe('RG-TEXT-1 and RG-CMOS-1 author-facing integrity authority', () => {
     ['mid-sentence ending', 'The pacing weakens because the surveillance material', 'AUTHOR_TEXT_MIDSENTENCE_TERMINATION'],
     ['dangling connective', 'The pacing weakens in the airport sequence because', 'AUTHOR_TEXT_MIDSENTENCE_TERMINATION'],
     ['unmatched parenthesis', 'Clarify the emotional turn (especially after the airport scene.', 'AUTHOR_TEXT_UNBALANCED_DELIMITER'],
+    ['unmatched curly quotation mark', 'Clarify the “emotional turn before the airport scene.', 'AUTHOR_TEXT_UNBALANCED_DELIMITER'],
     ['placeholder', 'Revise [insert stronger ending here].', 'AUTHOR_TEXT_PLACEHOLDER'],
     ['lowercase sentence start', 'clarify the emotional turn before the airport scene.', 'AUTHOR_TEXT_LOWERCASE_START'],
+    ['lowercase second sentence', 'Clarify the emotional turn. then restore the airport objective.', 'AUTHOR_TEXT_LOWERCASE_SENTENCE_START'],
+    ['space before punctuation', 'Clarify the emotional turn , then restore pressure.', 'AUTHOR_TEXT_SPACE_BEFORE_PUNCTUATION'],
+    ['missing space after comma', 'Clarify the emotional turn,then restore pressure.', 'AUTHOR_TEXT_MISSING_SPACE_AFTER_PUNCTUATION'],
+    ['repeated punctuation', 'Clarify the emotional turn!! Then restore pressure.', 'AUTHOR_TEXT_REPEATED_PUNCTUATION'],
+    ['double hyphen', 'Clarify the emotional turn--then restore pressure.', 'AUTHOR_TEXT_DOUBLE_HYPHEN'],
+    ['repeated whitespace', 'Clarify the emotional turn.  Then restore pressure.', 'AUTHOR_TEXT_REPEATED_WHITESPACE'],
+    ['duplicate word', 'Clarify the the emotional turn before the airport scene.', 'AUTHOR_TEXT_DUPLICATE_WORD'],
     ['bare number plus hyphen', '1- Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
     ['number-period plus hyphen', '1.- Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
     ['number-period plus en dash', '1.– Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
@@ -63,10 +71,26 @@ describe('RG-TEXT-1 and RG-CMOS-1 author-facing integrity authority', () => {
     '1. Clarify the emotional turn.',
     '1) Clarify the emotional turn.',
     '10. Consolidate the surveillance exposition.',
-  ])('accepts valid numbered prose: %s', (value) => {
+    'The reporting period covers 2026–2027.',
+    'The evaluation was generated on 2026-07-14.',
+  ])('accepts valid numbered prose, dates, and ranges: %s', (value) => {
     expect(
       inspectAuthorFacingIntegrity(
         { recommendations: { quick_wins: [{ action: value }] } },
+        { rootPath: 'evaluation_result_v2' },
+      ),
+    ).toEqual([]);
+  });
+
+  it('allows concise capitalized strength and risk phrases while enforcing long prose sentences', () => {
+    expect(
+      inspectAuthorFacingIntegrity(
+        {
+          overview: {
+            top_3_strengths: ['Distinctive narrative voice'],
+            top_3_risks: ['Uneven midpoint pressure'],
+          },
+        },
         { rootPath: 'evaluation_result_v2' },
       ),
     ).toEqual([]);
