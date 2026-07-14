@@ -37,11 +37,17 @@
  *   Pass 3 output → normalizeArtifact() → ECG → persist
  */
 
-import { trimAtSentenceBoundary } from './evaluationCertificationGate';
+import {
+  trimAtSentenceBoundary,
+  EvaluationCertificationFailedError,
+  type ECGResult,
+  type ECGViolation,
+} from './evaluationCertificationGate';
 import {
   capitalizeFirstAlpha,
   ensureTerminalPunctuation,
   collapseAdjacentDuplicateWords,
+  endsMidSentence,
 } from '@/lib/text/authorFacingProse';
 import {
   SUMMARY_POLICY,
@@ -84,6 +90,67 @@ const OVERVIEW_MAX_CHARS = SUMMARY_POLICY.cap; // 1000
 const ONE_SENTENCE_PITCH_MAX_CHARS = ONE_SENTENCE_PITCH_POLICY.cap; // 220
 const ONE_PARAGRAPH_PITCH_MAX_CHARS = ONE_PARAGRAPH_PITCH_POLICY.cap; // 750
 
+function failAsCertificationError(field: string, message: string): never {
+  const certified_at = new Date().toISOString();
+  const violation: ECGViolation = {
+    code: 'ECG_TEXT_MIDSENTENCE_TERMINATION',
+    domain: 'TEXT',
+    severity: 'FATAL',
+    message,
+    section: field,
+    authority: 'normalizeArtifact() pre-stage',
+  };
+  const ecgResult: ECGResult = {
+    status: 'CERTIFICATION_FAILED',
+    mode: 'ENFORCE',
+    violations: [violation],
+    fatal: [violation],
+    advisory: [],
+    certified_at,
+    summary: `ECG CERTIFICATION_FAILED (mode=ENFORCE) — 1 fatal, 0 advisory. Score=0. Fatals: ECG_TEXT_MIDSENTENCE_TERMINATION.`,
+  };
+  throw new EvaluationCertificationFailedError(ecgResult);
+}
+
+/**
+ * Trim author-facing prose to a hard character ceiling, then ensure it ends on a
+ * complete sentence. Multi-sentence fields may drop the trailing incomplete sentence
+ * or fragment. A one-sentence pitch or any field that cannot be made to end on a
+ * complete sentence within the cap is a certification failure — it must be
+ * regenerated upstream, not ellipsis-truncated.
+ *
+ * Two-step discipline:
+ *   1. trimAtSentenceBoundary(text, maxLength) handles over-CAP text.
+ *   2. If the result still ends mid-sentence (incomplete trailing fragment within
+ *      CAP), trimAtSentenceBoundary(no max) drops the dangling fragment by finding
+ *      the last sentence terminator.
+ *   3. If no complete sentence fits within the cap, fail with a typed
+ *      ECG_TEXT_MIDSENTENCE_TERMINATION error. We never emit an ellipsis-truncated
+ *      incomplete sentence.
+ */
+function trimToCompleteSentenceOrFail(text: string, maxLength: number, field: string): string {
+  const bounded = trimAtSentenceBoundary(text, maxLength);
+  if (bounded.endsWith('…') || bounded.endsWith('...')) {
+    failAsCertificationError(
+      field,
+      `${field} cannot be trimmed to a complete sentence within the ${maxLength}-character cap; ` +
+        `trimAtSentenceBoundary produced an ellipsis-truncated fragment. Regenerate the field upstream.`,
+    );
+  }
+  if (!endsMidSentence(bounded)) {
+    return bounded;
+  }
+  const complete = trimAtSentenceBoundary(bounded);
+  if (!endsMidSentence(complete) && complete.trim().length > 0) {
+    return complete;
+  }
+  failAsCertificationError(
+    field,
+    `${field} ends mid-sentence and cannot be normalized to a complete sentence within the ${maxLength}-character cap. ` +
+      `Regenerate the field upstream.`,
+  );
+}
+
 /**
  * Apply all permitted cosmetic normalizations to `synthesis` in-place.
  * Returns a log of what was changed for observability.
@@ -111,10 +178,12 @@ export function normalizeArtifact(
   // ── Overview summary: allow overage up to CAP, sentence-boundary trim ─────
   // Author-facing prose: "more is more". We do NOT trim it back toward base —
   // it may run over base freely and is only trimmed if it exceeds the hard
-  // CAP, and then only at a complete-sentence boundary.
+  // CAP, and then only at a complete-sentence boundary.  We also drop any
+  // incomplete trailing fragment that happens to fit within the CAP so the
+  // certified artifact never ends mid-sentence.
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
-    const after = trimAtSentenceBoundary(before, OVERVIEW_MAX_CHARS);
+    const after = trimToCompleteSentenceOrFail(before, OVERVIEW_MAX_CHARS, 'overview.one_paragraph_summary');
     if (after !== before) {
       synthesis.overall.one_paragraph_summary = after;
       normalizations.push({ field: 'overview.one_paragraph_summary', before, after, operation: 'trim_sentence_boundary' });
@@ -124,7 +193,7 @@ export function normalizeArtifact(
   // ── Pitch fields: hard-capped, sentence-boundary trim at CAP ─────────────
   if (synthesis.overall.one_sentence_pitch) {
     const before = synthesis.overall.one_sentence_pitch;
-    const after = trimAtSentenceBoundary(before, ONE_SENTENCE_PITCH_MAX_CHARS);
+    const after = trimToCompleteSentenceOrFail(before, ONE_SENTENCE_PITCH_MAX_CHARS, 'overview.one_sentence_pitch');
     if (after !== before) {
       synthesis.overall.one_sentence_pitch = after;
       normalizations.push({ field: 'overview.one_sentence_pitch', before, after, operation: 'trim_sentence_boundary' });
@@ -132,7 +201,7 @@ export function normalizeArtifact(
   }
   if (synthesis.overall.one_paragraph_pitch) {
     const before = synthesis.overall.one_paragraph_pitch;
-    const after = trimAtSentenceBoundary(before, ONE_PARAGRAPH_PITCH_MAX_CHARS);
+    const after = trimToCompleteSentenceOrFail(before, ONE_PARAGRAPH_PITCH_MAX_CHARS, 'overview.one_paragraph_pitch');
     if (after !== before) {
       synthesis.overall.one_paragraph_pitch = after;
       normalizations.push({ field: 'overview.one_paragraph_pitch', before, after, operation: 'trim_sentence_boundary' });

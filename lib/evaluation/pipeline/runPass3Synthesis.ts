@@ -102,6 +102,8 @@ import { pipelineLog } from "./pipelineLogger";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 import { sanitizeSynthesisCharacterNames } from "./characterNameSanitizer";
 import { classifyAnchor } from "./evidenceGroundingGate";
+import { detectProseScoreDivergence } from "@/lib/text/authorFacingProse";
+import { SUMMARY_POLICY } from "@/lib/config/lengthPolicy";
 
 function countWords(text: string): number {
   const trimmed = text.trim();
@@ -1776,16 +1778,19 @@ export function parsePass3Response(
   const verdict: "pass" | "revise" | "fail" =
     rawVerdict === "pass" || rawVerdict === "fail" ? rawVerdict : "revise";
 
-  const rawSummary = String(rawOverall["one_paragraph_summary"] ?? "").substring(0, 750);
-  const summary = enforceSummaryWeaknessPresence(rawSummary, criteria);
+  const rawSummary = String(rawOverall["one_paragraph_summary"] ?? "");
+  const weaknessEnforcedSummary = enforceSummaryWeaknessPresence(rawSummary, criteria);
+  const reconciledSummaryResult = reconcileSummaryScore(weaknessEnforcedSummary, overallScore0_100);
+  const summary = reconciledSummaryResult.summary;
 
   // P1: Extract dedicated pitch fields (distinct from summary/premise).
-  // Generous limits — LLMs write better pitches with room to breathe.
+  // Do NOT pre-clip to base length; length policy caps are enforced later by
+  // normalizeArtifact() at complete-sentence boundaries.
   const rawOneSentencePitch = typeof rawOverall["one_sentence_pitch"] === "string"
-    ? rawOverall["one_sentence_pitch"].substring(0, 250).trim()
+    ? rawOverall["one_sentence_pitch"].trim()
     : undefined;
   const rawOneParagraphPitch = typeof rawOverall["one_paragraph_pitch"] === "string"
-    ? rawOverall["one_paragraph_pitch"].substring(0, 600).trim()
+    ? rawOverall["one_paragraph_pitch"].trim()
     : undefined;
 
   const strengths = Array.isArray(rawOverall["top_3_strengths"])
@@ -1819,11 +1824,9 @@ export function parsePass3Response(
   const sanitizedOverall = sanitizeCMOSOverall(rawOverallObj as Record<string, unknown>) as typeof rawOverallObj;
 
   // CMOS sanitization can expand abbreviations (e.g. "e.g." → "for example,").
-  // Hard cap at 750 to stay within QG_MAX_OVERVIEW_LENGTH.
-  if (typeof sanitizedOverall.one_paragraph_summary === "string" && sanitizedOverall.one_paragraph_summary.length > 750) {
-    (sanitizedOverall as Record<string, unknown>).one_paragraph_summary =
-      sanitizedOverall.one_paragraph_summary.substring(0, 747).replace(/[\s,;:.\u2014-]+$/u, "") + "\u2026";
-  }
+  // The shared normalizeArtifact() stage enforces the central length policy and
+  // trims only at complete-sentence boundaries; do not apply a local hard substring
+  // clip here that could leave mid-word or mid-sentence fragments.
 
   // Extract enrichment surfaces from LLM output.
   // These fields feed the final EvaluationResultV2 template-completeness gate;
@@ -1895,6 +1898,14 @@ export function parsePass3Response(
       generated_at: new Date().toISOString(),
       ...(metadataExpectationContext
         ? { genre_expectation_context: genreExpectationContextForMetadata(metadataExpectationContext) }
+        : {}),
+      ...(reconciledSummaryResult.reconciled
+        ? {
+            score_reconciliation: {
+              original_scores: reconciledSummaryResult.originalScores,
+              canonical_score: overallScore0_100,
+            },
+          }
         : {}),
     },
     partial_evaluation: false, // will be overridden by runPass3Synthesis with real value
@@ -3412,6 +3423,31 @@ function toV2CriteriaForPropagation(
 }
 
 /**
+ * Canonical score grounding for executive-summary prose.
+ *
+ * Pass 3 occasionally hallucinates an overall score in the summary text (e.g.
+ * 65/100 when the criteria-derived canonical score is 70/100). The canonical
+ * numeric score is the sole authority; this helper deterministically replaces
+ * any `NN/100` score language with the canonical value and records the
+ * original mismatch for observability. It never changes the canonical score.
+ */
+export function reconcileSummaryScore(
+  summary: string,
+  canonicalScore: number,
+): { summary: string; reconciled: boolean; originalScores: number[] } {
+  const divergence = detectProseScoreDivergence(summary, canonicalScore);
+  if (!divergence.diverges) {
+    return { summary, reconciled: false, originalScores: [] };
+  }
+
+  const replaced = summary.replace(/\b\d{1,3}\s*\/\s*100\b/gu, `${canonicalScore}/100`);
+  console.info(
+    `[Pass3] executive summary score grounded: ${divergence.proseScores.join(", ")}/100 → ${canonicalScore}/100`,
+  );
+  return { summary: replaced, reconciled: true, originalScores: divergence.proseScores };
+}
+
+/**
  * PR-K (2026-05-16): Single source of truth with QualityGateV2.
  * Delegates to normalizeSummaryWithBottomWeaknesses so that any criteria the
  * gate considers "missing" are guaranteed to appear in the summary before the
@@ -3441,6 +3477,6 @@ function enforceSummaryWeaknessPresence(
   return normalizeSummaryWithBottomWeaknesses(
     trimmedSummary,
     bottomScoreCriteria,
-    750,
+    SUMMARY_POLICY.cap,
   );
 }

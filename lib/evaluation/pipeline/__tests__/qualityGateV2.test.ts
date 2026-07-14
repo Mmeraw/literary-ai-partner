@@ -27,7 +27,7 @@ function makeBaseV2Fixture(): EvaluationResultV2 {
       prompt_version: "pass1+pass2+pass3",
     },
     overview: {
-      verdict: "revise",
+      verdict: "conditional",
       overall_score_0_100: 70,
       scored_criteria_count: CRITERIA_KEYS.length,
       one_paragraph_summary: "The chapter demonstrates solid craft with targeted revision opportunities.",

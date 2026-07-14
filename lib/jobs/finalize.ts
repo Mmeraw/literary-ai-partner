@@ -485,7 +485,7 @@ export async function finalizeJob(
 
     if (validityStatus === "invalid") {
       canonical.overview.overall_score_0_100 = 0;
-      canonical.overview.verdict = "Invalid";
+      canonical.overview.verdict = "withheld";
       canonical.eligibility = {
         structural_pass: false,
         refinement_unlocked: false,

@@ -343,6 +343,11 @@ export type SynthesisOutput = {
     pass3_model: string;
     generated_at: string;
     genre_expectation_context?: GenreExpectationMetadata;
+    /** Canonical-score grounding applied to executive-summary prose. */
+    score_reconciliation?: {
+      original_scores: number[];
+      canonical_score: number;
+    };
   };
   /** TRUTH ENFORCEMENT: Was manuscript truncated/sampled for evaluation? */
   partial_evaluation: boolean;

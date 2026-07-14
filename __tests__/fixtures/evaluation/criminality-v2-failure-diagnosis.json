@@ -1,0 +1,59 @@
+{
+  "phase": "phase_3",
+  "job_id": "e7d88308-7deb-4bdc-85af-b7d82c271b4c",
+  "version": 1,
+  "created_at": "2026-07-14T02:40:47.534Z",
+  "failure_code": "ECG_CERTIFICATION_FAILED",
+  "phase_status": "failed",
+  "admin_summary": "ECG CERTIFICATION_FAILED [ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH, ECG_TEXT_TRUNCATED_WORD, ECG_TEXT_TRUNCATED_WORD, ECG_TEXT_MIDSENTENCE_TERMINATION, ECG_RENDERER_VERDICT_UNKNOWN]: evaluation artifact does not meet consistency standards. Regenerate the affected Pass 3 section — do not patch content manually.",
+  "artifact_type": "failure_diagnosis_v1",
+  "evidence_refs": [
+    {
+      "excerpt": "ECG CERTIFICATION_FAILED [ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH, ECG_TEXT_TRUNCATED_WORD, ECG_TEXT_TRUNCATED_WORD, ECG_TEXT_MIDSENTENCE_TERMINATION, ECG_RENDERER_VERDICT_UNKNOWN]: evaluation artifact does not meet consistency standards. Regenerate the affected Pass 3 section — do not patch content manually.",
+      "log_stage": "phase_3",
+      "field_path": "last_error"
+    }
+  ],
+  "failed_checks": [
+    "ECG_CERTIFICATION_FAILED"
+  ],
+  "failure_class": "unknown",
+  "failure_point": {
+    "stage": "Phase 3",
+    "artifact_type": "author_exposure_certification_v1"
+  },
+  "repair_status": {
+    "outcome": "not_attempted",
+    "attempted": false
+  },
+  "failed_criteria": [],
+  "blocking_reasons": [
+    "ECG_CERTIFICATION_FAILED"
+  ],
+  "developer_summary": "ECG CERTIFICATION_FAILED [ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH, ECG_TEXT_TRUNCATED_WORD, ECG_TEXT_TRUNCATED_WORD, ECG_TEXT_MIDSENTENCE_TERMINATION, ECG_RENDERER_VERDICT_UNKNOWN]: evaluation artifact does not meet consistency standards. Regenerate the affected Pass 3 section — do not patch content manually.",
+  "user_safe_summary": "The evaluation stopped because a blocking technical issue was detected before release.",
+  "artifact_inventory": {
+    "present_artifacts": [
+      "accepted_story_ledger_v1",
+      "pass12_handoff_v1",
+      "pass3_preflight_draft_v1",
+      "post_qg_effective_snapshot_v1",
+      "artifact_consistency_gate_v1"
+    ],
+    "last_successful_artifact": "artifact_consistency_gate_v1",
+    "missing_expected_artifacts": [
+      "pass_outputs_diagnostic_v1",
+      "quality_gate_diagnostics_v1",
+      "evaluation_result_v2",
+      "unified_evaluation_document_v1",
+      "report_render_manifest_v1",
+      "author_exposure_certification_v1"
+    ],
+    "first_missing_or_failed_artifact": "author_exposure_certification_v1"
+  },
+  "backward_kick_status": {
+    "reason": "No backward-kick metadata was recorded before failure finalization.",
+    "triggered": false
+  },
+  "recommended_next_action": "Inspect the persisted diagnostics and repair the blocking failure before retrying the job."
+}

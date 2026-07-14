@@ -1,6 +1,7 @@
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { minAnchorsFor } from "@/lib/evaluation/signal/criterionObservability";
+import { trimAtSentenceBoundary } from "@/lib/text/authorFacingProse";
 
 export type UpstreamIntegrity = "strong" | "mixed" | "weak";
 export type AuthorityLevel = "normal" | "constrained" | "blocked";
@@ -168,7 +169,7 @@ export function normalizeSummaryWithBottomWeaknesses(
   )}.`;
 
   if (baseSummary.length === 0) {
-    return weaknessClause.slice(0, maxChars);
+    return trimAtSentenceBoundary(weaknessClause, maxChars);
   }
 
   const separator = /[.!?]$/.test(baseSummary) ? " " : ". ";
@@ -180,13 +181,10 @@ export function normalizeSummaryWithBottomWeaknesses(
 
   const availableBaseChars = maxChars - separator.length - weaknessClause.length;
   if (availableBaseChars <= 0) {
-    return weaknessClause.slice(0, maxChars);
+    return trimAtSentenceBoundary(weaknessClause, maxChars);
   }
 
-  const trimmedBase = baseSummary
-    .slice(0, availableBaseChars)
-    .trim()
-    .replace(/[\s,;:.-]+$/u, "");
+  const trimmedBase = trimAtSentenceBoundary(baseSummary, availableBaseChars);
 
   return `${trimmedBase}${separator}${weaknessClause}`;
 }
