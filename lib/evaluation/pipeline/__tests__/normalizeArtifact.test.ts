@@ -61,8 +61,8 @@ describe('normalizeArtifact — canonical evaluation prose', () => {
     expect(synthesis.overall.one_paragraph_summary).toBe(before);
   });
 
-  it('rejects an executive summary beyond the 10,000-character safeguard without trimming it', () => {
-    const summary = `${'Complete sentence. '.repeat(700)}`;
+  it('rejects an executive summary beyond the 20,000-character safeguard without trimming it', () => {
+    const summary = `${'Complete sentence. '.repeat(1100)}`;
     const synthesis = makeSynthesis({ one_paragraph_summary: summary });
     expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
     expect(synthesis.overall.one_paragraph_summary).toBe(summary);

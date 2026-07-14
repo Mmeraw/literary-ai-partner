@@ -47,6 +47,12 @@ function endsWithTerminalPunctuation(text: string): boolean {
   return /[.!?…]["'”’\)\]]*$/u.test(text.trim());
 }
 
+// The quarantine fixture's one_paragraph_pitch is intentionally truncated.
+// Tests that exercise canonical preservation/ECG certification use a
+// complete, single-paragraph pitch so they prove the validation policy.
+const COMPLETE_PARAGRAPH_PITCH =
+  'A grieving Toronto father uses a bedtime story about MJ, a would-be drug smuggler bound for a desert festival of Desire, to teach his son Aralık that criminality is tangled with love, loss, and the oppressive systems watching them all.';
+
 function fixtureCriterionToSynthesized(c: any) {
   return {
     key: c.key,
@@ -107,7 +113,10 @@ function buildSynthesisFromFixture(overrides?: Partial<SynthesisOutput['overall'
 describe('Criminality V2 regression', () => {
   describe('normalizeArtifact', () => {
     it('preserves the complete one_paragraph_pitch without canonical trimming', () => {
-      const synthesis = buildSynthesisFromFixture({ one_sentence_pitch: undefined });
+      const synthesis = buildSynthesisFromFixture({
+        one_sentence_pitch: undefined,
+        one_paragraph_pitch: COMPLETE_PARAGRAPH_PITCH,
+      });
       const before = synthesis.overall.one_paragraph_pitch;
       normalizeArtifact(synthesis, [], []);
 
@@ -119,7 +128,10 @@ describe('Criminality V2 regression', () => {
     });
 
     it('does not alter a complete within-cap summary', () => {
-      const synthesis = buildSynthesisFromFixture({ one_sentence_pitch: undefined });
+      const synthesis = buildSynthesisFromFixture({
+        one_sentence_pitch: undefined,
+        one_paragraph_pitch: COMPLETE_PARAGRAPH_PITCH,
+      });
       const before = synthesis.overall.one_paragraph_summary;
       normalizeArtifact(synthesis, [], []);
       expect(synthesis.overall.one_paragraph_summary).toBe(before);
@@ -156,6 +168,7 @@ describe('Criminality V2 regression', () => {
     it('does not normalize strengths or risks under the pitch/summary contract', () => {
       const synthesis = buildSynthesisFromFixture({
         one_sentence_pitch: undefined,
+        one_paragraph_pitch: COMPLETE_PARAGRAPH_PITCH,
         top_3_strengths: ['A deliberately phrase-style strength'],
         top_3_risks: ['A deliberately phrase-style risk'],
       });
@@ -211,6 +224,7 @@ describe('Criminality V2 regression', () => {
     it('does not invoke ECG when the pitch text contract fails', () => {
       const synthesis = buildSynthesisFromFixture({
         one_sentence_pitch: 'A father tells a story. His son learns a lesson about love.',
+        one_paragraph_pitch: COMPLETE_PARAGRAPH_PITCH,
       });
 
       expect(() =>
@@ -250,7 +264,10 @@ describe('Criminality V2 regression', () => {
     });
 
     it('certifies the same substantive overview and criteria that it returns', () => {
-      const pitchOnlySynthesis = buildSynthesisFromFixture({ one_sentence_pitch: undefined });
+      const pitchOnlySynthesis = buildSynthesisFromFixture({
+        one_sentence_pitch: undefined,
+        one_paragraph_pitch: COMPLETE_PARAGRAPH_PITCH,
+      });
       normalizeArtifact(pitchOnlySynthesis, [], []);
 
       const synthesis = buildSynthesisFromFixture({

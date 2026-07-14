@@ -1,6 +1,7 @@
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import { minAnchorsFor } from "@/lib/evaluation/signal/criterionObservability";
+import { SUMMARY_POLICY } from "@/lib/config/lengthPolicy";
 
 export type UpstreamIntegrity = "strong" | "mixed" | "weak";
 export type AuthorityLevel = "normal" | "constrained" | "blocked";
@@ -154,7 +155,7 @@ function joinCriterionLabels(labels: string[]): string {
 export function normalizeSummaryWithBottomWeaknesses(
   summary: string,
   bottomScoreCriteria: CriterionKey[],
-  maxChars = 750,
+  _maxChars = SUMMARY_POLICY.cap,
 ): string {
   const baseSummary = summary.trim();
   const missingCriteria = missingBottomWeaknessCriteria(summary, bottomScoreCriteria);
@@ -168,25 +169,15 @@ export function normalizeSummaryWithBottomWeaknesses(
   )}.`;
 
   if (baseSummary.length === 0) {
-    return weaknessClause.slice(0, maxChars);
+    return weaknessClause;
   }
 
-  const separator = /[.!?]$/.test(baseSummary) ? " " : ". ";
+  const separator = /[.!?…]$/.test(baseSummary) ? " " : ". ";
   const combined = `${baseSummary}${separator}${weaknessClause}`;
 
-  if (combined.length <= maxChars) {
-    return combined;
-  }
-
-  const availableBaseChars = maxChars - separator.length - weaknessClause.length;
-  if (availableBaseChars <= 0) {
-    return weaknessClause.slice(0, maxChars);
-  }
-
-  const trimmedBase = baseSummary
-    .slice(0, availableBaseChars)
-    .trim()
-    .replace(/[\s,;:.-]+$/u, "");
-
-  return `${trimmedBase}${separator}${weaknessClause}`;
+  // Do not truncate the base summary to make the clause fit. The combined
+  // result is validated downstream against the technical safeguard ceiling;
+  // if it exceeds it, the field is rejected for regeneration rather than
+  // silently shortened.
+  return combined;
 }

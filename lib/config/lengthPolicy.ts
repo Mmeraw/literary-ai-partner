@@ -43,7 +43,7 @@ function policy(unit: 'chars' | 'words', min: number, base: number, overage: num
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Executive/editorial summary: proportionate depth, 20k technical safeguard. */
-export const SUMMARY_POLICY: LengthPolicy = policy('chars', 300, 1500, 18_500);
+export const SUMMARY_POLICY: LengthPolicy = policy('chars', 300, 1500, 18500);
 
 /** One complete sentence, with a 5k pathological-output safeguard. */
 export const ONE_SENTENCE_PITCH_POLICY: LengthPolicy = policy('chars', 40, 400, 4600);
