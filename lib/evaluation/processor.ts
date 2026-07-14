@@ -159,7 +159,8 @@ import {
   buildNonEvaluativeWarning,
   stripNonEvaluativeSections,
 } from '@/lib/manuscripts/nonEvaluativeSections';
-import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2, Pass3PreflightDraft, Pass1aChunkOutput } from '@/lib/evaluation/pipeline/types';
+import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2, Pass3PreflightDraft, Pass1aChunkOutput, ExternalAdjudicationStatus } from '@/lib/evaluation/pipeline/types';
+import { isEvaluationCertificationFailedError } from '@/lib/evaluation/pipeline/evaluationCertificationGate';
 import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
@@ -692,7 +693,7 @@ export type FailureBucket =
 export function classifyFailureBucket(code: string | null | undefined): FailureBucket {
   if (!code) return 'app_logic';
   // Perplexity / Pass 4 adjudication
-  if (code.startsWith('PASS4_') || code.startsWith('PERPLEXITY_') || code === 'EXTERNAL_ADJUDICATION_MISSING_KEY') return 'perplexity_adjudication';
+  if (code.startsWith('PASS4_') || code.startsWith('PERPLEXITY_') || code.startsWith('EXTERNAL_ADJUDICATION_')) return 'perplexity_adjudication';
   // Supabase / persistence contract
   if (code.startsWith('PERSISTENCE_') || code.startsWith('SCHEMA_') || code.startsWith('ARTIFACT_') ||
       code === 'SUPABASE_CONTRACT_VIOLATED' || code === 'ARTIFACT_PERSISTENCE_FAILED' ||
@@ -10461,12 +10462,66 @@ export async function processEvaluationJob(
       },
     });
 
-    if ((externalMode === 'required' || externalMode === 'veto') && !pipelineResult.cross_check) {
-      const missingCrossCheckResultError =
-        `External adjudication mode '${externalMode}' requires cross-check output`;
-      await markFailed(missingCrossCheckResultError);
+    // ── Phase 3 external adjudication gate ──────────────────────────────────
+    // In required/veto mode, external adjudication MUST have both (1) actually
+    // run and (2) passed its own success contract. Pass 4 was retired in favor
+    // of dual-model parallel scoring, so `pipelineResult.cross_check` is now
+    // always undefined — the canonical outcome lives on
+    // `pipelineResult.external_adjudication` (see ExternalAdjudicationStatus).
+    // Gating on the retired cross_check field made every required-mode run fail
+    // with "requires cross-check output" even when adjudication succeeded.
+    //
+    // Two SEPARATE assertions, surfaced as distinct typed failure codes:
+    //   1. Presence — adjudication ran at all. status "skipped" (or a missing
+    //      object) means it never produced a verdict → EXTERNAL_ADJUDICATION_REQUIRED_MISSING.
+    //   2. Validity — the returned adjudication PASSED. Only "cross_check_completed"
+    //      (with cross_check_returned) certifies success; failed_soft / failed_blocking
+    //      are returned-but-rejected → EXTERNAL_ADJUDICATION_REQUIRED_FAILED.
+    if (externalMode === 'required' || externalMode === 'veto') {
+      const adjudication: ExternalAdjudicationStatus | undefined =
+        pipelineResult.external_adjudication;
 
-      return { success: false, error: missingCrossCheckResultError };
+      // Assertion 1: presence. "skipped" is the explicit "did not run" state.
+      const adjudicationRan = Boolean(adjudication) && adjudication!.status !== 'skipped';
+      if (!adjudicationRan) {
+        const skippedReason =
+          adjudication && 'reason' in adjudication ? adjudication.reason : 'no_external_adjudication_returned';
+        const missingAdjudicationError =
+          `External adjudication mode '${externalMode}' requires a cross-check verdict, ` +
+          `but none was produced (status=${adjudication?.status ?? 'absent'}, reason=${skippedReason})`;
+        await markFailed(missingAdjudicationError, 'EXTERNAL_ADJUDICATION_REQUIRED_MISSING', {
+          pipelineStage: 'phase_3',
+          reasonCodes: [
+            'EXTERNAL_ADJUDICATION_REQUIRED_MISSING',
+            `adjudication_status_${adjudication?.status ?? 'absent'}`,
+          ],
+          diagnostics: { external_adjudication: adjudication ?? null, mode: externalMode },
+        });
+
+        return { success: false, error: missingAdjudicationError };
+      }
+
+      // Assertion 2: validity. cross_check_returned is supporting evidence only;
+      // the canonical success verdict is status === "cross_check_completed".
+      const adjudicationPassed =
+        adjudication!.status === 'cross_check_completed' && adjudication!.cross_check_returned === true;
+      if (!adjudicationPassed) {
+        const failureReason =
+          'reason' in adjudication! ? adjudication!.reason : 'unknown';
+        const failedAdjudicationError =
+          `External adjudication mode '${externalMode}' returned status '${adjudication!.status}', ` +
+          `which does not satisfy the required success contract (reason=${failureReason})`;
+        await markFailed(failedAdjudicationError, 'EXTERNAL_ADJUDICATION_REQUIRED_FAILED', {
+          pipelineStage: 'phase_3',
+          reasonCodes: [
+            'EXTERNAL_ADJUDICATION_REQUIRED_FAILED',
+            `adjudication_status_${adjudication!.status}`,
+          ],
+          diagnostics: { external_adjudication: adjudication, mode: externalMode },
+        });
+
+        return { success: false, error: failedAdjudicationError };
+      }
     }
 
     const providerCallPersistence = await persistPipelineProviderCalls({
@@ -10482,29 +10537,57 @@ export async function processEvaluationJob(
         ? classifySubmissionScope(manuscriptWithContent.content || '', chunkRouting.chunk_count)
         : undefined;
 
-    // v2 adapter: produces EvaluationResultV2 with observability-aware status per criterion
-    const evaluationResult = synthesisToEvaluationResultV2({
-      synthesis: pipelineResult.synthesis,
-      ids: {
-        evaluation_run_id: crypto.randomUUID(),
-        job_id: job.id,
-        manuscript_id: manuscript.id,
-        user_id: manuscript.user_id,
-      },
-      crossCheckResult: pipelineResult.cross_check,
-      pass4Governance: pipelineResult.pass4_governance,
-      // PR #506 — thread the explicit Pass 4 status so the report's
-      // governance.transparency.external_adjudication block can render
-      // "External Adjudication: Completed · Required Mode · packet=29568 chars"
-      // (or skipped / failed_soft with reason) without any inference.
-      externalAdjudication: pipelineResult.external_adjudication,
-      sourceText: manuscriptWithContent.content || "",
-      manuscriptText: manuscriptWithContent.content || "",
-      title: manuscript.title ?? undefined,
-      englishVariant: selectedEnglishVariant,
-      scopeProfile: scopeProfileForV2Gate,
-      llmEnrichment: pipelineResult.synthesis.enrichment,
-    });
+    // v2 adapter: produces EvaluationResultV2 with observability-aware status per criterion.
+    //
+    // synthesisToEvaluationResultV2 runs the Evaluation Certification Gate (ECG).
+    // In ENFORCE mode a FATAL certification violation throws a typed
+    // EvaluationCertificationFailedError. Catch it narrowly here so it surfaces
+    // as failure_code ECG_CERTIFICATION_FAILED with its sub-codes preserved,
+    // instead of collapsing into the generic PROCESSOR_UNCAUGHT_ERROR bucket in
+    // the outer catch. Any other error re-throws unchanged.
+    let evaluationResult: ReturnType<typeof synthesisToEvaluationResultV2>;
+    try {
+      evaluationResult = synthesisToEvaluationResultV2({
+        synthesis: pipelineResult.synthesis,
+        ids: {
+          evaluation_run_id: crypto.randomUUID(),
+          job_id: job.id,
+          manuscript_id: manuscript.id,
+          user_id: manuscript.user_id,
+        },
+        crossCheckResult: pipelineResult.cross_check,
+        pass4Governance: pipelineResult.pass4_governance,
+        // PR #506 — thread the explicit Pass 4 status so the report's
+        // governance.transparency.external_adjudication block can render
+        // "External Adjudication: Completed · Required Mode · packet=29568 chars"
+        // (or skipped / failed_soft with reason) without any inference.
+        externalAdjudication: pipelineResult.external_adjudication,
+        sourceText: manuscriptWithContent.content || "",
+        manuscriptText: manuscriptWithContent.content || "",
+        title: manuscript.title ?? undefined,
+        englishVariant: selectedEnglishVariant,
+        scopeProfile: scopeProfileForV2Gate,
+        llmEnrichment: pipelineResult.synthesis.enrichment,
+      });
+    } catch (certificationError) {
+      if (isEvaluationCertificationFailedError(certificationError)) {
+        const subCodes = certificationError.fatalCodes;
+        await markFailed(certificationError.message, 'ECG_CERTIFICATION_FAILED', {
+          pipelineStage: 'phase_3',
+          reasonCodes: ['ECG_CERTIFICATION_FAILED', ...subCodes],
+          diagnostics: {
+            ecg_fatal_codes: subCodes,
+            ecg_fatal_violations: certificationError.violations,
+          },
+        });
+
+        return { success: false, error: certificationError.message };
+      }
+
+      // Not a certification failure — preserve existing handling for genuinely
+      // unexpected exceptions (routed to PROCESSOR_UNCAUGHT_ERROR).
+      throw certificationError;
+    }
 
     // PR #506 — persist Pass 4 status onto the canonical JobProgress so the jobs
     // surface (and Supabase) reflect Pass 4 truth instead of leaving cross_check_status
