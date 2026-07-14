@@ -1,12 +1,10 @@
 /**
  * Artifact Normalization Pre-Stage
  *
- * Applies deterministic, cosmetic-only normalizations to the synthesis output
- * BEFORE the Artifact Certification Authority (ECG) runs.
- *
- * This stage never changes scores or meaning. Strict author-facing text
- * contracts are enforced locally here without changing the backward-compatible
- * behavior of the shared prose helpers.
+ * Applies cosmetic-only formatting cleanup before certification, then validates
+ * strict structural contracts for canonical evaluation prose. Canonical prose
+ * is never shortened to satisfy a length policy: invalid output is rejected for
+ * upstream regeneration.
  */
 
 import {
@@ -14,7 +12,6 @@ import {
   ensureTerminalPunctuation,
   collapseAdjacentDuplicateWords,
   endsMidSentence,
-  trimAtSentenceBoundary,
 } from '@/lib/text/authorFacingProse';
 import {
   SUMMARY_POLICY,
@@ -23,15 +20,13 @@ import {
 } from '@/lib/config/lengthPolicy';
 
 export type ArtifactTextContractReason =
+  | 'EVALUATION_PROSE_OVER_TECHNICAL_CEILING'
   | 'NO_COMPLETE_SENTENCE_WITHIN_CAP'
   | 'ONE_SENTENCE_PITCH_OVER_CAP'
   | 'ONE_SENTENCE_PITCH_MULTIPLE_SENTENCES'
-  | 'ONE_SENTENCE_PITCH_ENDS_WITH_ELLIPSIS';
+  | 'ONE_SENTENCE_PITCH_ENDS_WITH_ELLIPSIS'
+  | 'ONE_PARAGRAPH_PITCH_MULTIPLE_PARAGRAPHS';
 
-/**
- * A Phase 3 generation/normalization contract failure. This is deliberately
- * separate from ECG certification: ECG has not run when this error is thrown.
- */
 export class ArtifactTextContractError extends Error {
   readonly code = 'ARTIFACT_TEXT_CONTRACT_FAILED';
 
@@ -73,17 +68,16 @@ export interface NormalizationRecord {
   field: string;
   before: string;
   after: string;
-  operation: 'capitalize' | 'terminal_punct' | 'whitespace' | 'trim_sentence_boundary' | 'trim_whitespace';
+  operation: 'capitalize' | 'terminal_punct' | 'whitespace' | 'trim_whitespace';
 }
 
 export interface NormalizeArtifactResult {
   normalizations: NormalizationRecord[];
 }
 
-// Existing central policy values, including explicit integer overages.
-const OVERVIEW_MAX_CHARS = SUMMARY_POLICY.cap;
-const ONE_SENTENCE_PITCH_MAX_CHARS = ONE_SENTENCE_PITCH_POLICY.cap;
-const ONE_PARAGRAPH_PITCH_MAX_CHARS = ONE_PARAGRAPH_PITCH_POLICY.cap;
+const OVERVIEW_TECHNICAL_CEILING = SUMMARY_POLICY.cap;
+const ONE_SENTENCE_PITCH_TECHNICAL_CEILING = ONE_SENTENCE_PITCH_POLICY.cap;
+const ONE_PARAGRAPH_PITCH_TECHNICAL_CEILING = ONE_PARAGRAPH_PITCH_POLICY.cap;
 
 function contractError(
   field: string,
@@ -99,67 +93,53 @@ function endsWithEllipsis(text: string): boolean {
   return trimmed.endsWith('…') || trimmed.endsWith('...');
 }
 
-/**
- * Strict Pass 3 wrapper around the existing backward-compatible helper.
- *
- * The shared helper may return an ellipsis-trimmed word-boundary fallback when
- * no complete sentence fits. That behavior remains unchanged for existing
- * callers. This wrapper rejects that fallback for certified author-facing
- * summary/pitch fields and raises a typed regeneration-required error instead.
- */
-export function trimToLastCompleteSentence(text: string, maxLength: number, field: string): string {
-  if (!text.trim()) {
-    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
-  }
-
-  let result = trimAtSentenceBoundary(text, maxLength);
-
-  // Within-cap text is intentionally returned unchanged by the shared helper.
-  // Drop only a trailing incomplete fragment by invoking its complete-sentence
-  // mode, then validate the result strictly.
-  if (endsMidSentence(result)) {
-    result = trimAtSentenceBoundary(result);
-  }
-
-  if (!result || endsWithEllipsis(result) || endsMidSentence(result)) {
-    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
-  }
-
-  return result;
+/** Harmless cleanup only: normalize line endings, trailing horizontal whitespace, and outer whitespace. */
+export function normalizeAuthorFacingFormatting(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
 }
 
-/**
- * Validate rather than trim a one-sentence pitch. It must remain complete and
- * within the unchanged policy cap; no earlier sentence is selected and no
- * ellipsis fallback is permitted.
- */
-function assertOneSentencePitch(text: string, maxLength: number, field: string): string {
-  const trimmed = text.trim().replace(/\s+/g, ' ');
-  const len = trimmed.length;
+/** Validate complete canonical evaluation prose without deleting or rewriting any content. */
+export function validateEvaluationProse(text: string, maxLength: number, field: string): string {
+  const len = text.length;
+  if (len > maxLength) {
+    contractError(field, 'EVALUATION_PROSE_OVER_TECHNICAL_CEILING', len, maxLength);
+  }
+  if (!text || endsMidSentence(text)) {
+    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', len, maxLength);
+  }
+  return text;
+}
 
+function assertOneSentencePitch(text: string, maxLength: number, field: string): string {
+  const len = text.length;
   if (len > maxLength) {
     contractError(field, 'ONE_SENTENCE_PITCH_OVER_CAP', len, maxLength);
   }
-  if (endsWithEllipsis(trimmed)) {
+  if (endsWithEllipsis(text)) {
     contractError(field, 'ONE_SENTENCE_PITCH_ENDS_WITH_ELLIPSIS', len, maxLength);
   }
-  if (!trimmed || endsMidSentence(trimmed)) {
-    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', len, maxLength);
-  }
+  validateEvaluationProse(text, maxLength, field);
 
-  // Use the same sentence shape already used by authorFacingProse's canonical
-  // splitter; this is validation only and does not introduce a second trimming
-  // authority. More than one completed sentence violates the field contract.
   const sentences =
-    trimmed
+    text
       .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
       ?.map((sentence) => sentence.trim())
       .filter(Boolean) ?? [];
   if (sentences.length !== 1) {
     contractError(field, 'ONE_SENTENCE_PITCH_MULTIPLE_SENTENCES', len, maxLength);
   }
+  return text;
+}
 
-  return trimmed;
+function assertOneParagraphPitch(text: string, maxLength: number, field: string): string {
+  validateEvaluationProse(text, maxLength, field);
+  if (/\n\s*\n/u.test(text)) {
+    contractError(field, 'ONE_PARAGRAPH_PITCH_MULTIPLE_PARAGRAPHS', text.length, maxLength);
+  }
+  return text;
 }
 
 export function normalizeArtifact(
@@ -182,27 +162,29 @@ export function normalizeArtifact(
 
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
-    const after = trimToLastCompleteSentence(before, OVERVIEW_MAX_CHARS, 'overview.one_paragraph_summary');
-    if (after !== before) {
-      synthesis.overall.one_paragraph_summary = after;
+    const formatted = normalizeAuthorFacingFormatting(before);
+    validateEvaluationProse(formatted, OVERVIEW_TECHNICAL_CEILING, 'overview.one_paragraph_summary');
+    if (formatted !== before) {
+      synthesis.overall.one_paragraph_summary = formatted;
       normalizations.push({
         field: 'overview.one_paragraph_summary',
         before,
-        after,
-        operation: 'trim_sentence_boundary',
+        after: formatted,
+        operation: 'trim_whitespace',
       });
     }
   }
 
   if (synthesis.overall.one_sentence_pitch) {
     const before = synthesis.overall.one_sentence_pitch;
-    const after = assertOneSentencePitch(before, ONE_SENTENCE_PITCH_MAX_CHARS, 'overview.one_sentence_pitch');
-    if (after !== before) {
-      synthesis.overall.one_sentence_pitch = after;
+    const formatted = normalizeAuthorFacingFormatting(before).replace(/\s+/g, ' ');
+    assertOneSentencePitch(formatted, ONE_SENTENCE_PITCH_TECHNICAL_CEILING, 'overview.one_sentence_pitch');
+    if (formatted !== before) {
+      synthesis.overall.one_sentence_pitch = formatted;
       normalizations.push({
         field: 'overview.one_sentence_pitch',
         before,
-        after,
+        after: formatted,
         operation: 'trim_whitespace',
       });
     }
@@ -210,14 +192,19 @@ export function normalizeArtifact(
 
   if (synthesis.overall.one_paragraph_pitch) {
     const before = synthesis.overall.one_paragraph_pitch;
-    const after = trimToLastCompleteSentence(before, ONE_PARAGRAPH_PITCH_MAX_CHARS, 'overview.one_paragraph_pitch');
-    if (after !== before) {
-      synthesis.overall.one_paragraph_pitch = after;
+    const formatted = normalizeAuthorFacingFormatting(before);
+    assertOneParagraphPitch(
+      formatted,
+      ONE_PARAGRAPH_PITCH_TECHNICAL_CEILING,
+      'overview.one_paragraph_pitch',
+    );
+    if (formatted !== before) {
+      synthesis.overall.one_paragraph_pitch = formatted;
       normalizations.push({
         field: 'overview.one_paragraph_pitch',
         before,
-        after,
-        operation: 'trim_sentence_boundary',
+        after: formatted,
+        operation: 'trim_whitespace',
       });
     }
   }
