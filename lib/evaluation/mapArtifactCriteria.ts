@@ -10,8 +10,9 @@ import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
  *
  * `interpretation` is populated from `rationale` (matching the canonical
  * persistence boundary in persistEvaluationResultV2.ts). Emitting an empty
- * interpretation caused the validator to raise INTERP-MISSING-1 → HOLD and
- * withhold submission artifacts on every job that ran through these mappings.
+ * interpretation caused the validator to raise INTERP-MISSING-1, resulting in
+ * HOLD and withheld submission artifacts for evaluations processed through
+ * these mappings.
  *
  * NOTE: This helper intentionally preserves the existing processor behavior of
  * passing `score_0_10` through unchanged. The schema permits `score_0_10: null`

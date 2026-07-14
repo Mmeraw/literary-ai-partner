@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { mapArtifactCriteria } from '@/lib/evaluation/mapArtifactCriteria';
 import { validateEvaluationArtifact } from '@/lib/evaluation/pipeline/validateEvaluationArtifact';
 import { buildScoreLedger } from '@/lib/evaluation/pipeline/buildScoreLedger';
@@ -124,6 +126,33 @@ describe('mapArtifactCriteria', () => {
     expect(mapped[0].final_score_0_10).toBeNull();
     expect(mapped[0].interpretation).toBe(source[0].rationale);
     expect(mapped[0].reasoning).toBe(source[0].rationale);
+  });
+
+  describe('processor call-site guard', () => {
+    // Lightweight source-level guard: proves both ArtifactGate construction
+    // sites in processor.ts route through mapArtifactCriteria and that neither
+    // reintroduces an inline `interpretation: ''` mapping in one branch.
+    const processorSource = readFileSync(
+      join(__dirname, '..', 'processor.ts'),
+      'utf8',
+    );
+
+    it('routes the normal path through mapArtifactCriteria', () => {
+      expect(processorSource).toContain(
+        'mapArtifactCriteria(evaluationResult.criteria)',
+      );
+    });
+
+    it('routes the effective/downgraded path through mapArtifactCriteria', () => {
+      expect(processorSource).toContain(
+        'mapArtifactCriteria(effectiveEvaluationResult.criteria)',
+      );
+    });
+
+    it('does not reintroduce an empty inline interpretation mapping', () => {
+      expect(processorSource).not.toContain("interpretation: ''");
+      expect(processorSource).not.toContain('interpretation: ""');
+    });
   });
 
   describe('ArtifactGate integration', () => {
