@@ -4,7 +4,7 @@ import {
   inspectAuthorFacingIntegrity,
 } from '../authorFacingIntegrity';
 
-describe('RG-TEXT-1 author-facing integrity authority', () => {
+describe('RG-TEXT-1 and RG-CMOS-1 author-facing integrity authority', () => {
   it('accepts complete long-form author-facing prose without mutating it', () => {
     const artifact = {
       overview: {
@@ -41,6 +41,13 @@ describe('RG-TEXT-1 author-facing integrity authority', () => {
     ['dangling connective', 'The pacing weakens in the airport sequence because', 'AUTHOR_TEXT_MIDSENTENCE_TERMINATION'],
     ['unmatched parenthesis', 'Clarify the emotional turn (especially after the airport scene.', 'AUTHOR_TEXT_UNBALANCED_DELIMITER'],
     ['placeholder', 'Revise [insert stronger ending here].', 'AUTHOR_TEXT_PLACEHOLDER'],
+    ['lowercase sentence start', 'clarify the emotional turn before the airport scene.', 'AUTHOR_TEXT_LOWERCASE_START'],
+    ['bare number plus hyphen', '1- Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
+    ['number-period plus hyphen', '1.- Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
+    ['number-period plus en dash', '1.– Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
+    ['number-period plus em dash', '1.— Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
+    ['number-period plus double hyphen', '1.-- Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
+    ['number-parenthesis plus em dash', '1)— Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
   ])('rejects %s', (_label, value, code) => {
     const violations = inspectAuthorFacingIntegrity(
       { overview: { top_3_risks: [value] } },
@@ -50,6 +57,19 @@ describe('RG-TEXT-1 author-facing integrity authority', () => {
     expect(() => assertAuthorFacingIntegrity({ overview: { top_3_risks: [value] } })).toThrow(
       AuthorFacingIntegrityError,
     );
+  });
+
+  it.each([
+    '1. Clarify the emotional turn.',
+    '1) Clarify the emotional turn.',
+    '10. Consolidate the surveillance exposition.',
+  ])('accepts valid numbered prose: %s', (value) => {
+    expect(
+      inspectAuthorFacingIntegrity(
+        { recommendations: { quick_wins: [{ action: value }] } },
+        { rootPath: 'evaluation_result_v2' },
+      ),
+    ).toEqual([]);
   });
 
   it('walks every generated recommendation prose field rather than only action', () => {
