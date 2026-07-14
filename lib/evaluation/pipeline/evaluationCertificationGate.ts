@@ -435,6 +435,7 @@ export function getCertificationCoverage(): Record<InvariantDomain, { total: num
 
 export interface ECGOverview {
   overall_score_0_100?: number | null;
+  scored_criteria_count?: number | null;
   verdict?: string | null;
   one_paragraph_summary?: string | null;
   one_sentence_pitch?: string | null;
@@ -1053,6 +1054,7 @@ export function buildECGInputFromEvaluationResult(
     canonicalScore,
     overview: {
       overall_score_0_100: result.overview.overall_score_0_100,
+      scored_criteria_count: result.overview.scored_criteria_count,
       verdict: result.overview.verdict,
       one_paragraph_summary: result.overview.one_paragraph_summary,
       one_sentence_pitch: result.overview.one_sentence_pitch ?? null,

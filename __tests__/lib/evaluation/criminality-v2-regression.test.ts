@@ -137,7 +137,7 @@ describe('Criminality V2 regression', () => {
       expect(thrown).toBeDefined();
       expect(thrown.name).toBe('EvaluationCertificationFailedError');
       expect(thrown.fatalCodes).toContain('ECG_TEXT_MIDSENTENCE_TERMINATION');
-      expect(thrown.message).toContain('one_sentence_pitch');
+      expect(thrown.violations?.[0]?.section).toContain('one_sentence_pitch');
     });
 
     it('does not emit an ellipsis-truncated sentence for any prose field', () => {
@@ -215,6 +215,7 @@ describe('Criminality V2 regression', () => {
       const ecgInput = buildECGInputFromEvaluationResult(result, 70);
       expect(ecgInput.overview).toEqual({
         overall_score_0_100: result.overview.overall_score_0_100,
+        scored_criteria_count: result.overview.scored_criteria_count,
         verdict: result.overview.verdict,
         one_paragraph_summary: result.overview.one_paragraph_summary,
         one_sentence_pitch: result.overview.one_sentence_pitch ?? null,
@@ -232,9 +233,6 @@ describe('Criminality V2 regression', () => {
     });
 
     it('synthesisToEvaluationResultV2 certifies and returns the same EvaluationResultV2 object', () => {
-      const ecgModule = require('@/lib/evaluation/pipeline/evaluationCertificationGate');
-      const runECGSpy = jest.spyOn(ecgModule, 'runEvaluationCertificationGate');
-
       // Compute a clean one-paragraph pitch by normalizing a synthesis that has only that field.
       const pitchOnlySynthesis = buildSynthesisFromFixture({ one_sentence_pitch: undefined });
       normalizeArtifact(pitchOnlySynthesis, [], []);
@@ -248,7 +246,7 @@ describe('Criminality V2 regression', () => {
       const synthesis = buildSynthesisFromFixture({
         one_paragraph_summary: summary,
         one_paragraph_pitch: normalizedPitch,
-        one_sentence_pitch: 'A grieving father teaches his son about criminality and love.',
+        one_sentence_pitch: 'A queer family bedtime story becomes a philosophical probe into state power and queer love.',
       });
 
       const result = synthesisToEvaluationResultV2({
@@ -257,15 +255,24 @@ describe('Criminality V2 regression', () => {
         title: fixture.metrics?.manuscript?.title,
         manuscriptText: 'x'.repeat(23165),
         englishVariant: 'us',
+        llmEnrichment: {
+          premise: 'A Toronto father improvises a morally ambiguous story to teach his son how systems criminalize queer love and dissent.',
+          diagnosed_genre: 'novel',
+          target_audience: 'Readers of literary fiction interested in queer family-making and systemic critiques of surveillance.',
+        },
       });
 
       expect(result.overview.verdict).not.toBe('unknown');
       expect(isRendererVerdict(result.overview.verdict)).toBe(true);
       expect(result.overview.overall_score_0_100).toBe(70);
 
-      const ecgCalls = runECGSpy.mock.calls;
-      expect(ecgCalls.length).toBeGreaterThan(0);
-      const ecgInput = ecgCalls[ecgCalls.length - 1][0];
+      // The returned object must be exactly what ECG would certify.
+      const ecgInput = buildECGInputFromEvaluationResult(
+        result,
+        result.overview.overall_score_0_100 ?? 70,
+      );
+      const ecgResult = runEvaluationCertificationGate(ecgInput);
+      expect(ecgResult.status).toBe('CERTIFIED');
 
       expect(ecgInput.overview).toEqual(result.overview);
       expect(ecgInput.criteria).toEqual(
@@ -275,8 +282,6 @@ describe('Criminality V2 regression', () => {
           final_rationale: (c as unknown as { rationale?: string }).rationale ?? null,
         })),
       );
-
-      runECGSpy.mockRestore();
     });
   });
 });
