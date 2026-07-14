@@ -106,6 +106,25 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
     ).toEqual([]);
   });
 
+  it('allows labeled recommendation fragments while preserving structural checks', () => {
+    expect(
+      inspectAuthorFacingIntegrity(
+        {
+          recommendations: {
+            quick_wins: [
+              {
+                mechanism: 'the criterion lacks grounding in specific textual moments',
+                specific_fix: 'grounding the criterion in specific textual moments',
+                reader_effect: 'clearer escalation and stronger reader orientation',
+              },
+            ],
+          },
+        },
+        { rootPath: 'evaluation_result_v2' },
+      ),
+    ).toEqual([]);
+  });
+
   it('walks every generated recommendation prose field rather than only action', () => {
     const artifact = {
       recommendations: {
@@ -133,11 +152,11 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
     );
   });
 
-  it('inspects singular specific_fix fields', () => {
+  it('inspects singular specific_fix fields for structural defects', () => {
     const violations = inspectAuthorFacingIntegrity(
       {
         recommendations: {
-          quick_wins: [{ specific_fix: 'move the explanation after the customs decision.' }],
+          quick_wins: [{ specific_fix: 'move the explanation after the customs decision…' }],
         },
       },
       { rootPath: 'evaluation_result_v2' },
@@ -146,7 +165,7 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
       expect.arrayContaining([
         expect.objectContaining({
           path: 'evaluation_result_v2.recommendations.quick_wins[0].specific_fix',
-          code: 'AUTHOR_TEXT_LOWERCASE_START',
+          code: 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS',
         }),
       ]),
     );
