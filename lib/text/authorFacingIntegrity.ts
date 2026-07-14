@@ -56,9 +56,13 @@ const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risk
 // These fields are intentionally rendered as labeled phrases or fragments, not
 // standalone sentences. They still receive every structural integrity check
 // (ellipsis, placeholder, delimiter, spacing, punctuation, duplicate words),
-// but are not forced through sentence capitalization or terminal punctuation.
+// but are not forced through terminal punctuation.
 const PHRASE_ALLOWED_KEY_PATTERN = /(?:strengths?|risks?|titles?|headings?|headers?|labels?|mechanisms?|specific_fix(?:es)?|reader_effects?)$/i;
-const TERMINAL_PUNCTUATION = /[.!?]["'”’\)\]]*$/u;
+
+// Recommendation fields that are explicitly sentence fragments may start with a
+// lowercase letter; all other author-facing fields must begin with a capital.
+const FRAGMENT_KEY_PATTERN = /(?:mechanisms?|specific_fix(?:es)?|reader_effects?)$/i;
+const TERMINAL_PUNCTUATION = /[.!?]["'”’)\]]*$/u;
 const TRUNCATION_ELLIPSIS = /(?:\.\.\.|…)/u;
 
 /**
@@ -73,8 +77,39 @@ const SPACE_BEFORE_PUNCTUATION = /\s+[,:;.!?](?!\.)/u;
 const MISSING_SPACE_AFTER_PUNCTUATION = /[,;:](?=[\p{L}])/u;
 const REPEATED_PUNCTUATION = /(?:,,|;;|::|!!|\?\?|\.!|!\.|\?\.|\.\?)/u;
 const DOUBLE_HYPHEN = /--/u;
-const REPEATED_HORIZONTAL_WHITESPACE = /[^\n]\s{2,}[^\n]/u;
-const LOWERCASE_AFTER_SENTENCE = /[.!?]["'”’\)\]]*\s+([a-z])/u;
+const REPEATED_HORIZONTAL_WHITESPACE = /[^\n][ \t]{2,}[^\n]/u;
+function hasLowercaseAfterSentence(text: string): boolean {
+  const s = text;
+  const stack: string[] = [];
+  const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}', '“': '”', '‘': '’', '"': '"', "'": "'" };
+  const openChars = new Set(Object.keys(pairs));
+
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+
+    if (openChars.has(ch)) {
+      stack.push(ch);
+      continue;
+    }
+
+    const top = stack[stack.length - 1];
+    if (top && ch === pairs[top]) {
+      stack.pop();
+      continue;
+    }
+
+    if (stack.length === 0 && /[.!?]/u.test(ch)) {
+      let j = i + 1;
+      while (j < s.length && /["'”’)\]]/u.test(s[j])) j += 1;
+      while (j < s.length && /\s/u.test(s[j])) j += 1;
+      if (j < s.length && /[a-z]/u.test(s[j])) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 const DUPLICATE_WORD = /\b([A-Za-z]{2,})\s+\1\b/iu;
 
 function isExcludedPath(path: string, options: AuthorFacingIntegrityOptions): boolean {
@@ -94,6 +129,10 @@ function isAuthorTextPath(path: string): boolean {
 
 function isPhraseAllowedPath(path: string): boolean {
   return PHRASE_ALLOWED_KEY_PATTERN.test(leafKey(path));
+}
+
+function isFragmentPath(path: string): boolean {
+  return FRAGMENT_KEY_PATTERN.test(leafKey(path));
 }
 
 function requiresCompleteSentence(path: string): boolean {
@@ -168,10 +207,10 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
     push('AUTHOR_TEXT_UNBALANCED_DELIMITER', `${path} contains an unmatched quotation mark, bracket, brace, or parenthesis.`);
   }
 
-  if (isAuthorTextPath(path) && !isPhraseAllowedPath(path) && startsWithLowercase(value)) {
+  if (isAuthorTextPath(path) && !isFragmentPath(path) && startsWithLowercase(value)) {
     push('AUTHOR_TEXT_LOWERCASE_START', `${path} begins with a lowercase letter. CMOS author-facing sentences and headings must begin with a capital letter.`);
   }
-  if (isAuthorTextPath(path) && LOWERCASE_AFTER_SENTENCE.test(value)) {
+  if (isAuthorTextPath(path) && hasLowercaseAfterSentence(value)) {
     push('AUTHOR_TEXT_LOWERCASE_SENTENCE_START', `${path} contains a sentence that begins with a lowercase letter.`);
   }
 

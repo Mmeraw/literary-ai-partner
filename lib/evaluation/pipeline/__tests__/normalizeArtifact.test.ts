@@ -34,7 +34,8 @@ function makeSynthesis(overrides: {
 
 describe('normalizeArtifact — canonical evaluation prose', () => {
   it('preserves a valid 4,000-character one-sentence pitch', () => {
-    const pitch = `A ${'complex '.repeat(498)}story.`;
+    const words = Array.from({ length: 498 }, (_, i) => `layer${i}`).join(' ');
+    const pitch = `A ${words} story.`;
     expect(pitch.length).toBeLessThan(5000);
     const synthesis = makeSynthesis({ one_sentence_pitch: pitch });
     normalizeArtifact(synthesis, [], []);
