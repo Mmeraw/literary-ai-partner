@@ -36,7 +36,7 @@ const DEFAULT_EXCLUDED_PATH_FRAGMENTS = [
   '.manuscript_id', '.project_id', '.evaluation_run_id', '.source_hash',
   '.prompt_version', '.policy_family', '.repro_anchor', '.manuscript_coordinates',
   '.criterion_key', '.key', '.status', '.verdict', '.effort', '.impact',
-  '.priority', '.confidence_label',
+  '.priority', '.confidence_label', '.confidence_reasons',
 ];
 
 const SOURCE_QUOTATION_FRAGMENTS = [
