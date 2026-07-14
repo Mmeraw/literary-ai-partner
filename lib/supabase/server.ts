@@ -2,7 +2,7 @@
 // Server-side Supabase client for server components and API routes
 
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -39,13 +39,30 @@ export async function createClient() {
  */
 export async function getAuthenticatedUser() {
   try {
+    // Dev/test mode: allow the middleware bypass header to provide the user id
+    // so service/API scripts can run end-to-end without a real Supabase session.
+    if (
+      process.env.ALLOW_HEADER_USER_ID === 'true' &&
+      process.env.TEST_MODE === 'true'
+    ) {
+      try {
+        const headerStore = await headers();
+        const userId = headerStore.get('x-user-id')?.trim();
+        if (userId) {
+          return { id: userId, email: headerStore.get('x-user-email') || null } as any;
+        }
+      } catch {
+        // not inside a request context (e.g. a script) — fall through to cookie auth
+      }
+    }
+
     const supabase = await createClient();
     const { data: { user }, error } = await supabase.auth.getUser();
-    
+
     if (error || !user) {
       return null;
     }
-    
+
     return user;
   } catch (err) {
     console.error('[getAuthenticatedUser] Error:', err);

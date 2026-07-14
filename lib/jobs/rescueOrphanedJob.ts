@@ -69,6 +69,52 @@ export async function rescueOrphanedJob(
   }
 
   const row = rows[0];
+
+  // Canonical rescue leaves the progress.phase_status and per-phase start
+  // timestamps stale. Patch them so the queue sweeper doesn't see a split-brain
+  // state and immediately hard-stop the job.
+  const { data: progressRow } = await supabase
+    .from('evaluation_jobs')
+    .select('progress')
+    .eq('id', jobId)
+    .single();
+
+  const existingProgress = (progressRow?.progress && typeof progressRow.progress === 'object')
+    ? (progressRow.progress as Record<string, unknown>)
+    : {};
+
+  const cleanedProgress = {
+    ...existingProgress,
+    phase: row.phase,
+    phase_status: 'queued',
+    phase1_started_at: null,
+    phase1a_started_at: null,
+    phase2_started_at: null,
+    phase3_started_at: null,
+    hard_stop_at: null,
+    hard_stop_code: null,
+    hard_stop_reason: null,
+    hard_stop_internal_reason: null,
+    hard_stop_halted: false,
+    dashboard_status: null,
+    message: 'Rescued by admin rescue RPC',
+    watchdog_rescue_at: row.rescued_at,
+    watchdog_rescue_reason: reason,
+  };
+
+  const { error: patchErr } = await supabase
+    .from('evaluation_jobs')
+    .update({
+      phase1_started_at: null,
+      phase2_started_at: null,
+      progress: cleanedProgress,
+    })
+    .eq('id', jobId);
+
+  if (patchErr) {
+    console.warn(`[rescueOrphanedJob] progress patch failed for job ${jobId}:`, patchErr.message);
+  }
+
   console.log(`[rescueOrphanedJob] Rescued job ${row.id}: phase=${row.phase} rescuedAt=${row.rescued_at} reason="${reason}"`);
 
   return {

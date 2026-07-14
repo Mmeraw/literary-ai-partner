@@ -34,7 +34,10 @@ export const ClaimedJobRowSchema = z
     id: z.string().uuid({ message: 'claimed job id must be a UUID' }),
     phase: ClaimedJobPhaseSchema,
     status: ClaimedJobStatusSchema,
-    phase_status: z.string().nullable().optional(),
+    phase_status: z.literal('running', {
+      invalid_type_error: 'claimed job phase_status must be running',
+      required_error: 'claimed job must include phase_status',
+    }),
     claimed_by: z.string().nullable().optional(),
       // Postgres timestamptz can be returned as RFC3339 with numeric offset
       // (e.g. 2026-04-23T20:09:41.554452+00:00) instead of trailing Z.

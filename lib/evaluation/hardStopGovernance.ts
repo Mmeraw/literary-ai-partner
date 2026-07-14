@@ -17,6 +17,10 @@ export interface QueueHardStopCandidate {
   created_at?: string | null;
   updated_at?: string | null;
   phase0_completed_at?: string | null;
+  phase1_started_at?: string | null;
+  claimed_by?: string | null;
+  lease_until?: string | null;
+  worker_pulse_at?: string | null;
   manuscript_word_count?: number | null;
   progress?: Record<string, unknown> | null;
 }
@@ -369,6 +373,7 @@ export function isPostPhase0HandoffLimbo(job: QueueHardStopCandidate, args: {
   nowMs: number;
   graceMs: number;
   hasSeedArtifacts: boolean;
+  pulseThresholdMs?: number;
 }): boolean {
   if (job.status !== 'queued') return false;
   if (job.phase !== 'phase_1a') return false;
@@ -376,10 +381,26 @@ export function isPostPhase0HandoffLimbo(job: QueueHardStopCandidate, args: {
   if (!job.phase0_completed_at) return false;
   if (args.hasSeedArtifacts) return false;
 
-  const updatedAtMs = toIsoMs(job.updated_at ?? job.created_at);
-  if (updatedAtMs === null) return false;
+  // A real Phase 1A worker must have claimed the job. If the row still carries
+  // an active claim, lease, or recent pulse, the job is running and must not be
+  // terminalized by the queue sweeper.
+  if (job.claimed_by) return false;
 
-  return args.nowMs - updatedAtMs >= args.graceMs;
+  const leaseUntilMs = toIsoMs(job.lease_until ?? null);
+  if (leaseUntilMs !== null && leaseUntilMs > args.nowMs) return false;
+
+  const workerPulseAtMs = toIsoMs(job.worker_pulse_at ?? null);
+  const pulseThresholdMs = args.pulseThresholdMs ?? 20_000;
+  if (workerPulseAtMs !== null && args.nowMs - workerPulseAtMs < pulseThresholdMs) return false;
+
+  // Anchor the grace window to the actual phase 1A start timestamp, not the
+  // generic updated_at. updated_at is bumped by rescues and split-brain heals,
+  // which would otherwise reset the grace window and cause false POST_PHASE0
+  // handoff timeouts.
+  const phase1StartedAtMs = toIsoMs(job.phase1_started_at ?? null);
+  if (phase1StartedAtMs === null) return false;
+
+  return args.nowMs - phase1StartedAtMs >= args.graceMs;
 }
 
 export function isGlobalSlaExceeded(job: QueueHardStopCandidate, args: {
@@ -423,6 +444,7 @@ export function classifyQueuedHardStop(job: QueueHardStopCandidate, args: {
   shortFormSlaMs: number;
   longFormSlaMs: number;
   hasSeedArtifacts: boolean;
+  pulseThresholdMs?: number;
 }): HardStopDecision | null {
   const splitBrainRecovery = decideSplitBrainRecovery(job);
   if (splitBrainRecovery.state === 'structural') {

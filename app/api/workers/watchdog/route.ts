@@ -132,7 +132,7 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
   // phase_status=failed while persistence tries to set phase_status=complete.
   const { data: idleCandidates, error } = await supabase
     .from('evaluation_jobs')
-    .select('id, phase, phase_status, attempt_count, max_attempts, completed_units')
+    .select('id, phase, phase_status, attempt_count, max_attempts, completed_units, progress')
     .eq('status', 'running')
     .neq('phase_status', 'awaiting_approval')
     .neq('phase', 'phase_0')
@@ -161,19 +161,50 @@ async function rescueIdleJobs(): Promise<{ idleFound: number; idleRescued: numbe
     const nextAttempt = (typeof job.attempt_count === 'number' ? job.attempt_count : 0) + 1;
     const nextAttemptAt = calculateNextAttemptAt(nextAttempt);
 
-    // Re-queue: release lease so next process-evaluations pick-up resumes.
+    // Re-queue: release lease and reset phase-1 start timestamps so the next
+    // worker can start with a clean handoff. If we leave phase1_started_at or
+    // progress.phase_status 'running', the queue sweeper will see a split-brain
+    // state and may immediately hard-stop the job.
+    const existingProgress = (job.progress && typeof job.progress === 'object')
+      ? (job.progress as Record<string, unknown>)
+      : {};
+    const rescueProgress = {
+      ...existingProgress,
+      phase: job.phase,
+      phase_status: 'queued',
+      phase1_started_at: null,
+      phase1a_started_at: null,
+      phase2_started_at: null,
+      phase3_started_at: null,
+      hard_stop_at: null,
+      hard_stop_code: null,
+      hard_stop_reason: null,
+      hard_stop_internal_reason: null,
+      hard_stop_halted: false,
+      dashboard_status: null,
+      message: 'Rescued by watchdog idle-pulse sweep',
+      watchdog_rescue_at: now,
+      watchdog_rescue_reason: 'idle_pulse_threshold',
+    };
+
     const { error: rescueErr } = await supabase
       .from('evaluation_jobs')
       .update({
         status: 'queued',
         phase_status: 'queued',
         claimed_by: null,
+        claimed_at: null,
+        lease_token: null,
+        lease_until: null,
         last_heartbeat_at: null,
         last_heartbeat: null,
         worker_pulse_at: null,
+        phase1_started_at: null,
+        phase2_started_at: null,
         attempt_count: nextAttempt,
         next_attempt_at: nextAttemptAt,
         updated_at: now,
+        progress: rescueProgress,
       })
       .eq('id', job.id)
       .eq('status', 'running');

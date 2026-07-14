@@ -3035,6 +3035,16 @@ export async function failStaleRunningJobs(): Promise<{
             ...currentProgress,
             phase:                      rescueTargetPhase,
             phase_status:               rescueTargetPhaseStatus,
+            phase1_started_at:          null,
+            phase1a_started_at:         null,
+            phase2_started_at:          null,
+            phase3_started_at:          null,
+            hard_stop_at:               null,
+            hard_stop_code:             null,
+            hard_stop_reason:           null,
+            hard_stop_internal_reason:  null,
+            hard_stop_halted:           false,
+            dashboard_status:           null,
             watchdog_last_rescue_at:    rescueNow,
             watchdog_last_rescue_code:  currentProgress.error_code ?? null,
             watchdog_last_rescue_phase: currentProgress.phase ?? null,
@@ -3051,6 +3061,8 @@ export async function failStaleRunningJobs(): Promise<{
               claimed_at: null,
               lease_token: null,
               lease_until: null,
+              phase1_started_at: null,
+              phase2_started_at: null,
               attempt_count: rescueAttemptCount,
               updated_at: rescueNow,
               progress: rescuedProgress,
@@ -3301,12 +3313,24 @@ export async function failStaleRunningJobs(): Promise<{
             claimed_at: null,
             lease_token: null,
             lease_until: null,
+            phase1_started_at: null,
+            phase2_started_at: null,
             attempt_count: currentAttempts + 1,
             updated_at: staleRescueNow,
             progress: {
               ...currentProgress,
               phase: rescueTargetPhase,
               phase_status: JOB_STATUS.QUEUED,
+              phase1_started_at: null,
+              phase1a_started_at: null,
+              phase2_started_at: null,
+              phase3_started_at: null,
+              hard_stop_at: null,
+              hard_stop_code: null,
+              hard_stop_reason: null,
+              hard_stop_internal_reason: null,
+              hard_stop_halted: false,
+              dashboard_status: null,
               watchdog_last_rescue_at: staleRescueNow,
               watchdog_last_rescue_phase: currentPhaseForRescue,
               watchdog_rescue_count: ((currentProgress.watchdog_rescue_count as number | null) ?? 0) + 1,
@@ -4027,7 +4051,7 @@ async function terminalizeQueuedHardStops(): Promise<{
 
   const { data: queuedRows, error } = await supabase
     .from('evaluation_jobs')
-    .select('id, manuscript_id, status, phase, phase_status, created_at, updated_at, phase0_completed_at, manuscript_word_count, progress')
+    .select('id, manuscript_id, status, phase, phase_status, created_at, updated_at, phase0_completed_at, phase1_started_at, claimed_by, lease_until, worker_pulse_at, manuscript_word_count, progress')
     .eq('status', JOB_STATUS.QUEUED)
     .limit(50);
 
@@ -4178,6 +4202,7 @@ async function terminalizeQueuedHardStops(): Promise<{
       shortFormSlaMs: SHORT_FORM_GLOBAL_SLA_MS,
       longFormSlaMs: LONG_FORM_GLOBAL_SLA_MS,
       hasSeedArtifacts: hasSeedArtifacts.has(row.id),
+      pulseThresholdMs: 20_000,
     });
 
     if (!decision) {
@@ -4209,12 +4234,18 @@ async function terminalizeQueuedHardStops(): Promise<{
           hard_stop_halted: false,
           phase: row.phase,
           phase_status: 'queued',
+          phase1_started_at: null,
+          phase1a_started_at: null,
+          phase2_started_at: null,
+          phase3_started_at: null,
         };
         const { error: requeueErr } = await supabase
           .from('evaluation_jobs')
           .update({
             status: JOB_STATUS.QUEUED,
             phase_status: 'queued',
+            phase1_started_at: null,
+            phase2_started_at: null,
             updated_at: nowIso,
             progress: requeueProgress,
           })
@@ -5073,6 +5104,8 @@ export async function processEvaluationJob(
     return normalizedTarget;
   };
 
+  let pulseInterval: NodeJS.Timeout | null = null;
+
   try {
     console.log(`[Processor] Processing job ${jobId}`);
 
@@ -5255,12 +5288,12 @@ export async function processEvaluationJob(
       const pulseNow = new Date().toISOString();
       void supabase
         .from('evaluation_jobs')
-        .update({ worker_pulse_at: pulseNow })
+        .update({ worker_pulse_at: pulseNow, last_heartbeat_at: pulseNow, updated_at: pulseNow })
         .eq('id', jobId)
         .eq('status', JOB_STATUS.RUNNING)
         .then(({ error }: { error: unknown }) => {
           if (error) {
-            console.warn(`[${label}] worker_pulse_at stamp failed (non-fatal)`, error);
+            console.warn(`[${label}] worker pulse stamp failed (non-fatal)`, error);
           }
         });
     };
@@ -5375,13 +5408,15 @@ export async function processEvaluationJob(
         ...stageTimestampPatch,
       });
 
-      const { error: markRunningWriteError } = await supabase
+      const { data: runningRow, error: markRunningWriteError } = await supabase
         .from('evaluation_jobs')
         .update(runningPayload)
         .eq('id', jobId)
         .eq('status', JOB_STATUS.RUNNING)
         .eq('claimed_by', expectedClaimedBy)
-        .eq('lease_token', expectedLeaseToken);
+        .eq('lease_token', expectedLeaseToken)
+        .select('id')
+        .maybeSingle();
 
       if (markRunningWriteError) {
         const message = `Running state update failed for job ${jobId}: ${markRunningWriteError.message}`;
@@ -5390,6 +5425,10 @@ export async function processEvaluationJob(
           throw new ProcessorLeaseLostError({ jobId, failureCode: 'MARK_RUNNING_LEASE_LOST' });
         }
         throw new Error(message);
+      }
+
+      if (!runningRow) {
+        throw new ProcessorLeaseLostError({ jobId, failureCode: 'MARK_RUNNING_LEASE_LOST' });
       }
 
       console.log('[Worker] markRunning persisted', {
@@ -5827,6 +5866,12 @@ export async function processEvaluationJob(
 
     // 2. Update status to running
     await markRunning('Fetching writing', 2, executionPhase);
+
+    // Start the background pulse loop as soon as we have the running lease.
+    // The watchdog uses worker_pulse_at / last_heartbeat_at freshness; long
+    // setup calls (chunking, seed generation, ledger assembly) must not allow
+    // these timestamps to go stale.
+    pulseInterval = setInterval(() => pulseWorker('processor/pulse-loop'), 10_000);
 
     // NOTE: phase0_started_at / phase0_completed_at are written ONLY by runPhase0GoldPrimer().
     // Do NOT stamp them here for direct phase_1a entries — that produces false Phase 0 timings.
@@ -10461,7 +10506,9 @@ export async function processEvaluationJob(
       },
     });
 
-    if ((externalMode === 'required' || externalMode === 'veto') && !pipelineResult.cross_check) {
+    const crossCheckCompleted =
+      pipelineResult.external_adjudication?.status === 'cross_check_completed';
+    if ((externalMode === 'required' || externalMode === 'veto') && !crossCheckCompleted) {
       const missingCrossCheckResultError =
         `External adjudication mode '${externalMode}' requires cross-check output`;
       await markFailed(missingCrossCheckResultError);
@@ -10473,7 +10520,7 @@ export async function processEvaluationJob(
       supabase,
       jobId: String(job.id),
       telemetry: pipelineResult.provider_telemetry,
-      hasPass4CrossCheck: Boolean(pipelineResult.cross_check),
+      hasPass4CrossCheck: crossCheckCompleted,
     });
     progressState.provider_call_persistence = providerCallPersistence;
 
@@ -11974,6 +12021,11 @@ export async function processEvaluationJob(
     }
 
     return { success: false, error: errorMessage };
+  } finally {
+    if (pulseInterval) {
+      clearInterval(pulseInterval);
+      pulseInterval = null;
+    }
   }
 }
 
