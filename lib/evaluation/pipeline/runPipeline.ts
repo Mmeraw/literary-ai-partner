@@ -150,6 +150,7 @@ import {
   runEvaluationCertificationGate,
   buildECGInput,
   trimAtWordBoundary,
+  EvaluationCertificationFailedError,
 } from "./evaluationCertificationGate";
 import { normalizeArtifact } from "./normalizeArtifact";
 
@@ -3366,12 +3367,10 @@ export function synthesisToEvaluationResultV2(
   // WARN_ONLY: all violations logged above; always continues to persist.
   // OFF: gate was skipped; ecgResult.status === 'SKIPPED'.
   if (ecgResult.status === 'CERTIFICATION_FAILED') {
-    // Only reachable in ENFORCE mode.
-    throw new Error(
-      `ECG CERTIFICATION_FAILED [${ecgResult.fatal.map(v => v.code).join(', ')}]: ` +
-      `evaluation artifact does not meet consistency standards. ` +
-      `Regenerate the affected Pass 3 section — do not patch content manually.`,
-    );
+    // Only reachable in ENFORCE mode. Throw a typed error so the processor can
+    // surface a dedicated ECG_CERTIFICATION_FAILED failure_code with the fatal
+    // sub-codes preserved, instead of collapsing into PROCESSOR_UNCAUGHT_ERROR.
+    throw new EvaluationCertificationFailedError(ecgResult);
   }
 
   // Surface ECG violations into governance.warnings so they are preserved in

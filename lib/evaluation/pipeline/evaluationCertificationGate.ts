@@ -511,6 +511,48 @@ export interface ECGResult {
   summary: string;
 }
 
+/** Stable typed failure code for an ENFORCE-mode certification block. */
+export const ECG_CERTIFICATION_FAILED_CODE = 'ECG_CERTIFICATION_FAILED';
+
+/**
+ * Thrown when the ECG runs in ENFORCE mode and finds FATAL violations.
+ *
+ * Carries the fatal sub-codes (e.g. ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH) so the
+ * processor can surface a typed `ECG_CERTIFICATION_FAILED` failure_code with the
+ * underlying sub-codes preserved, instead of collapsing the block into the
+ * generic PROCESSOR_UNCAUGHT_ERROR bucket.
+ */
+export class EvaluationCertificationFailedError extends Error {
+  readonly code = ECG_CERTIFICATION_FAILED_CODE;
+  /** FATAL violation codes that caused the block, in registry order. */
+  readonly fatalCodes: string[];
+  /** Full FATAL violation records for diagnostics. */
+  readonly violations: ECGViolation[];
+
+  constructor(result: ECGResult) {
+    super(
+      `ECG CERTIFICATION_FAILED [${result.fatal.map((v) => v.code).join(', ')}]: ` +
+        `evaluation artifact does not meet consistency standards. ` +
+        `Regenerate the affected Pass 3 section — do not patch content manually.`,
+    );
+    this.name = 'EvaluationCertificationFailedError';
+    this.fatalCodes = result.fatal.map((v) => v.code);
+    this.violations = result.fatal;
+  }
+}
+
+/** Type guard for the typed certification failure (survives structured-clone boundaries). */
+export function isEvaluationCertificationFailedError(
+  error: unknown,
+): error is EvaluationCertificationFailedError {
+  return (
+    error instanceof EvaluationCertificationFailedError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      (error as { code?: unknown }).code === ECG_CERTIFICATION_FAILED_CODE)
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Utility helpers (internal — not exported, no mutation)
 // ─────────────────────────────────────────────────────────────────────────────
