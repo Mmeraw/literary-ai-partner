@@ -41,7 +41,8 @@ const PLACEHOLDER_PATTERNS = [
   /\bundefined\b/i, /\bnull\b/i,
 ];
 
-const PROSE_KEY_PATTERN = /(?:summary|pitch|strength|risk|rationale|recommendation|action|why|mechanism|specific_fix|reader_effect|expected_impact|symptom|cause|fix_direction|candidate_text|premise|audience|warning|limitation|reason|description|diagnosis|guidance|bio|query|synopsis|letter|story|revision|market|position|copy|note|title|heading|header|label)$/i;
+const AUTHOR_TEXT_KEY_PATTERN = /(?:summary|pitch|strength|risk|rationale|recommendation|action|why|mechanism|specific_fix|reader_effect|expected_impact|symptom|cause|fix_direction|candidate_text|premise|audience|warning|limitation|reason|description|diagnosis|guidance|bio|query|synopsis|letter|story|revision|market|position|copy|note|title|heading|header|label)$/i;
+const PHRASE_ALLOWED_KEY_PATTERN = /(?:strength|risk|title|heading|header|label)$/i;
 const TERMINAL_PUNCTUATION = /[.!?]["'”’\)\]]*$/u;
 const TRUNCATION_ELLIPSIS = /(?:\.\.\.|…)/u;
 
@@ -62,9 +63,15 @@ function leafKey(path: string): string {
   return path.replace(/\[\d+\]$/u, '').split('.').pop() ?? path;
 }
 
-function isProsePath(path: string, value: string): boolean {
-  if (PROSE_KEY_PATTERN.test(leafKey(path))) return true;
+function isAuthorTextPath(path: string, value: string): boolean {
+  if (AUTHOR_TEXT_KEY_PATTERN.test(leafKey(path))) return true;
   return value.trim().length >= 80 && /\s/u.test(value);
+}
+
+function requiresCompleteSentence(path: string, value: string): boolean {
+  const key = leafKey(path);
+  if (PHRASE_ALLOWED_KEY_PATTERN.test(key) && value.trim().length < 80) return false;
+  return isAuthorTextPath(path, value);
 }
 
 function hasUnbalancedDelimiters(value: string): boolean {
@@ -115,10 +122,11 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
     push('AUTHOR_TEXT_UNBALANCED_DELIMITER', `${path} contains an unmatched quote, bracket, brace, or parenthesis.`);
   }
 
-  if (isProsePath(path, value)) {
-    if (startsWithLowercase(value)) {
-      push('AUTHOR_TEXT_LOWERCASE_START', `${path} begins with a lowercase letter. CMOS author-facing sentences and headings must begin with a capital letter.`);
-    }
+  if (isAuthorTextPath(path, value) && startsWithLowercase(value)) {
+    push('AUTHOR_TEXT_LOWERCASE_START', `${path} begins with a lowercase letter. CMOS author-facing sentences and headings must begin with a capital letter.`);
+  }
+
+  if (requiresCompleteSentence(path, value)) {
     if (endsMidSentence(value)) {
       push('AUTHOR_TEXT_MIDSENTENCE_TERMINATION', `${path} ends mid-sentence or with a dangling connective/punctuation mark.`);
     }
