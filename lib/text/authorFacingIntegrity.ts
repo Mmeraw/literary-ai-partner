@@ -58,6 +58,7 @@ const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risk
 // (ellipsis, placeholder, delimiter, spacing, punctuation, duplicate words),
 // but are not forced through terminal punctuation.
 const PHRASE_ALLOWED_KEY_PATTERN = /(?:strengths?|risks?|titles?|headings?|headers?|labels?|mechanisms?|specific_fix(?:es)?|reader_effects?)$/i;
+const RECOMMENDATION_FRAGMENT_KEY_PATTERN = /(?:symptoms?|causes?|rationales?|fix_directions?)$/i;
 
 // Recommendation fields that are explicitly sentence fragments may start with a
 // lowercase letter; all other author-facing fields must begin with a capital.
@@ -78,6 +79,7 @@ const MISSING_SPACE_AFTER_PUNCTUATION = /[,;:](?=[\p{L}])/u;
 const REPEATED_PUNCTUATION = /(?:,,|;;|::|!!|\?\?|\.!|!\.|\?\.|\.\?)/u;
 const DOUBLE_HYPHEN = /--/u;
 const REPEATED_HORIZONTAL_WHITESPACE = /[^\n][ \t]{2,}[^\n]/u;
+
 function hasLowercaseAfterSentence(text: string): boolean {
   const s = text;
   const stack: string[] = [];
@@ -127,12 +129,16 @@ function isAuthorTextPath(path: string): boolean {
   return AUTHOR_TEXT_KEY_PATTERN.test(leafKey(path));
 }
 
+function isRecommendationFragmentPath(path: string): boolean {
+  return path.includes('.recommendations[') && RECOMMENDATION_FRAGMENT_KEY_PATTERN.test(leafKey(path));
+}
+
 function isPhraseAllowedPath(path: string): boolean {
-  return PHRASE_ALLOWED_KEY_PATTERN.test(leafKey(path));
+  return PHRASE_ALLOWED_KEY_PATTERN.test(leafKey(path)) || isRecommendationFragmentPath(path);
 }
 
 function isFragmentPath(path: string): boolean {
-  return FRAGMENT_KEY_PATTERN.test(leafKey(path));
+  return FRAGMENT_KEY_PATTERN.test(leafKey(path)) || isRecommendationFragmentPath(path) || leafKey(path) === 'gap_summary';
 }
 
 function requiresCompleteSentence(path: string): boolean {
@@ -164,6 +170,18 @@ function startsWithLowercase(value: string): boolean {
   return Boolean(first && first === first.toLocaleLowerCase() && first !== first.toLocaleUpperCase());
 }
 
+/**
+ * Ellipses inside a balanced quotation are source-preview punctuation, not
+ * concealed truncation of the generated editorial sentence. The surrounding
+ * prose is still inspected normally, and unquoted ellipses remain fail-closed.
+ */
+function containsUnquotedEllipsis(value: string): boolean {
+  const withoutBalancedQuotes = value
+    .replace(/“[^”]*”/gu, '')
+    .replace(/"[^"]*"/gu, '');
+  return TRUNCATION_ELLIPSIS.test(withoutBalancedQuotes);
+}
+
 function inspectString(path: string, rawValue: string): AuthorFacingIntegrityViolation[] {
   const value = rawValue.trim();
   if (!value) return [];
@@ -173,7 +191,7 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
     violations.push({ code, path, value: rawValue, message });
   };
 
-  if (TRUNCATION_ELLIPSIS.test(value)) {
+  if (containsUnquotedEllipsis(value)) {
     push('AUTHOR_TEXT_TRUNCATION_ELLIPSIS', `${path} contains an ellipsis. Generated author-facing output must never use ellipses to conceal truncation.`);
   }
   if (NUMBER_DASH_SEQUENCE.test(value)) {
