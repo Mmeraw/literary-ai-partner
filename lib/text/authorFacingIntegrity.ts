@@ -8,7 +8,14 @@ export type AuthorFacingIntegrityCode =
   | 'AUTHOR_TEXT_FALLBACK_SENTINEL'
   | 'AUTHOR_TEXT_UNBALANCED_DELIMITER'
   | 'AUTHOR_TEXT_LOWERCASE_START'
-  | 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE';
+  | 'AUTHOR_TEXT_LOWERCASE_SENTENCE_START'
+  | 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'
+  | 'AUTHOR_TEXT_SPACE_BEFORE_PUNCTUATION'
+  | 'AUTHOR_TEXT_MISSING_SPACE_AFTER_PUNCTUATION'
+  | 'AUTHOR_TEXT_REPEATED_PUNCTUATION'
+  | 'AUTHOR_TEXT_DOUBLE_HYPHEN'
+  | 'AUTHOR_TEXT_REPEATED_WHITESPACE'
+  | 'AUTHOR_TEXT_DUPLICATE_WORD';
 
 export interface AuthorFacingIntegrityViolation {
   code: AuthorFacingIntegrityCode;
@@ -46,11 +53,21 @@ const PHRASE_ALLOWED_KEY_PATTERN = /(?:strength|risk|title|heading|header|label)
 const TERMINAL_PUNCTUATION = /[.!?]["'”’\)\]]*$/u;
 const TRUNCATION_ELLIPSIS = /(?:\.\.\.|…)/u;
 
-// CMOS/platform law: numbered prose must use a normal list delimiter such as
-// "1. Text" or "1) Text". A number, a number plus period, or a number plus
-// parenthesis may never be followed by a hyphen, en dash, em dash, or double
-// hyphen: 1-, 1.–, 1.—, 1.--, and 1)– are all invalid.
-const NUMBER_DASH_SEQUENCE = /(?:^|\s)\d+(?:\s*[.)])?\s*(?:-|–|—)(?:-|–|—)*/u;
+/**
+ * RG-CMOS-4: malformed numbered-list markers are forbidden.
+ *
+ * This intentionally targets line/list starts so valid dates and ranges such as
+ * "2026-07-14" and "2026–2027" are not misclassified. Invalid examples:
+ * 1- Text, 1.- Text, 1.– Text, 1.— Text, 1.-- Text, and 1)— Text.
+ */
+const NUMBER_DASH_SEQUENCE = /(?:^|\n)\s*\d+(?:\s*[.)])?\s*(?:-|–|—)(?:-|–|—)*/u;
+const SPACE_BEFORE_PUNCTUATION = /\s+[,:;.!?](?!\.)/u;
+const MISSING_SPACE_AFTER_PUNCTUATION = /[,;:](?=[\p{L}])/u;
+const REPEATED_PUNCTUATION = /(?:,,|;;|::|!!|\?\?|\.!|!\.|\?\.|\.\?)/u;
+const DOUBLE_HYPHEN = /--/u;
+const REPEATED_HORIZONTAL_WHITESPACE = /[^\n]\s{2,}[^\n]/u;
+const LOWERCASE_AFTER_SENTENCE = /[.!?]["'”’\)\]]*\s+([a-z])/u;
+const DUPLICATE_WORD = /\b([A-Za-z]{2,})\s+\1\b/iu;
 
 function isExcludedPath(path: string, options: AuthorFacingIntegrityOptions): boolean {
   const fragments = [...DEFAULT_EXCLUDED_PATH_FRAGMENTS, ...(options.excludePathFragments ?? [])];
@@ -89,11 +106,15 @@ function hasUnbalancedDelimiters(value: string): boolean {
     }
     if (depth !== 0) return true;
   }
-  return (delimiterInput.match(/"/g) ?? []).length % 2 !== 0;
+
+  if ((delimiterInput.match(/"/g) ?? []).length % 2 !== 0) return true;
+  if ((delimiterInput.match(/“/g) ?? []).length !== (delimiterInput.match(/”/g) ?? []).length) return true;
+  return false;
 }
 
 function startsWithLowercase(value: string): boolean {
-  const first = value.match(/\p{L}/u)?.[0];
+  const body = value.replace(/^\s*\d+[.)]\s+/u, '');
+  const first = body.match(/\p{L}/u)?.[0];
   return Boolean(first && first === first.toLocaleLowerCase() && first !== first.toLocaleUpperCase());
 }
 
@@ -107,10 +128,28 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
   };
 
   if (TRUNCATION_ELLIPSIS.test(value)) {
-    push('AUTHOR_TEXT_TRUNCATION_ELLIPSIS', `${path} contains an ellipsis. Author-facing output must never use ellipses to conceal truncation.`);
+    push('AUTHOR_TEXT_TRUNCATION_ELLIPSIS', `${path} contains an ellipsis. Generated author-facing output must never use ellipses to conceal truncation.`);
   }
   if (NUMBER_DASH_SEQUENCE.test(value)) {
-    push('AUTHOR_TEXT_NUMBER_DASH_SEQUENCE', `${path} contains a number followed by a hyphen, en dash, em dash, or double hyphen. Use "1. Text" or "1) Text"; never "1.-", "1.–", "1.—", or "1.--".`);
+    push('AUTHOR_TEXT_NUMBER_DASH_SEQUENCE', `${path} contains a malformed numbered-list marker followed by a hyphen, en dash, em dash, or double hyphen. Use "1. Text" or "1) Text".`);
+  }
+  if (SPACE_BEFORE_PUNCTUATION.test(value)) {
+    push('AUTHOR_TEXT_SPACE_BEFORE_PUNCTUATION', `${path} contains a space before punctuation.`);
+  }
+  if (MISSING_SPACE_AFTER_PUNCTUATION.test(value)) {
+    push('AUTHOR_TEXT_MISSING_SPACE_AFTER_PUNCTUATION', `${path} is missing a space after a comma, semicolon, or colon.`);
+  }
+  if (REPEATED_PUNCTUATION.test(value)) {
+    push('AUTHOR_TEXT_REPEATED_PUNCTUATION', `${path} contains malformed repeated punctuation.`);
+  }
+  if (DOUBLE_HYPHEN.test(value)) {
+    push('AUTHOR_TEXT_DOUBLE_HYPHEN', `${path} contains a double hyphen. Use the correct punctuation mark and CMOS spacing.`);
+  }
+  if (REPEATED_HORIZONTAL_WHITESPACE.test(value)) {
+    push('AUTHOR_TEXT_REPEATED_WHITESPACE', `${path} contains repeated horizontal whitespace.`);
+  }
+  if (DUPLICATE_WORD.test(value)) {
+    push('AUTHOR_TEXT_DUPLICATE_WORD', `${path} contains an accidental adjacent duplicate word.`);
   }
   if (PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(value))) {
     push('AUTHOR_TEXT_PLACEHOLDER', `${path} contains placeholder or unresolved template text.`);
@@ -119,11 +158,14 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
     push('AUTHOR_TEXT_FALLBACK_SENTINEL', `${path} contains a raw fallback sentinel that must never reach an author-visible surface.`);
   }
   if (hasUnbalancedDelimiters(value)) {
-    push('AUTHOR_TEXT_UNBALANCED_DELIMITER', `${path} contains an unmatched quote, bracket, brace, or parenthesis.`);
+    push('AUTHOR_TEXT_UNBALANCED_DELIMITER', `${path} contains an unmatched quotation mark, bracket, brace, or parenthesis.`);
   }
 
   if (isAuthorTextPath(path, value) && startsWithLowercase(value)) {
     push('AUTHOR_TEXT_LOWERCASE_START', `${path} begins with a lowercase letter. CMOS author-facing sentences and headings must begin with a capital letter.`);
+  }
+  if (isAuthorTextPath(path, value) && LOWERCASE_AFTER_SENTENCE.test(value)) {
+    push('AUTHOR_TEXT_LOWERCASE_SENTENCE_START', `${path} contains a sentence that begins with a lowercase letter.`);
   }
 
   if (requiresCompleteSentence(path, value)) {
@@ -141,10 +183,19 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
 /**
  * Recursively inspect an author-visible artifact without mutating it.
  *
- * RG-TEXT-1: no truncated prose, truncated words, truncation ellipses,
- * placeholders, fallback sentinels, or incomplete sentence termination.
- * RG-CMOS-1: generated author-facing sentences/headings start with capitals,
- * and numbered prose never places any dash directly after the number marker.
+ * Governing standard: current Chicago Manual of Style, except where an explicit
+ * RevisionGrade or publishing-industry contract overrides it.
+ *
+ * RG-TEXT-1: completeness, no truncation, no placeholders, no concealed repair.
+ * RG-CMOS-1: capitalization and sentence starts.
+ * RG-CMOS-2: balanced delimiters and quotation marks.
+ * RG-CMOS-3: punctuation spacing.
+ * RG-CMOS-4: numbered-list syntax.
+ * RG-CMOS-5: dash and double-hyphen integrity.
+ * RG-CMOS-6: quotation-mark consistency.
+ * RG-CMOS-7: headings and labels begin with capitals.
+ * RG-CMOS-8: no malformed punctuation, repeated whitespace, or duplicate words.
+ * RG-CMOS-9: paragraph and sentence-boundary integrity.
  */
 export function inspectAuthorFacingIntegrity(
   value: unknown,
