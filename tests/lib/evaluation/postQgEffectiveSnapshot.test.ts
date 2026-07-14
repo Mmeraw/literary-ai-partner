@@ -42,7 +42,7 @@ function resultWith(overrides: Partial<EvaluationResultV2> = {}): EvaluationResu
       prompt_version: 'test-prompt',
     },
     overview: {
-      verdict: 'revise',
+      verdict: 'conditional',
       overall_score_0_100: 60,
       scored_criteria_count: 2,
       one_paragraph_summary: 'Theme needs revision while voice remains strong.',

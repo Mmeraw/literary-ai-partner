@@ -19,7 +19,7 @@ function makeValidArtifact(): EvaluationResultV2 {
       prompt_version: "mutation-test",
     },
     overview: {
-      verdict: "revise",
+      verdict: "conditional",
       overall_score_0_100: 70,
       scored_criteria_count: CRITERIA_KEYS.length,
       one_paragraph_summary: "summary",

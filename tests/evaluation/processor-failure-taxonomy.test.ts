@@ -123,6 +123,10 @@ describe('Rescuable failure codes — must allow at least one self-recovery atte
 
     // LLR exception: pre-artifact-generation block IS rescuable despite LLR_ prefix
     'LLR_PRE_ARTIFACT_GENERATION_BLOCK',
+
+    // Pass 3 artifact text contract failures are regeneration-required but not
+    // ECG certification failures; they get a bounded self-recovery retry.
+    'PHASE3_TEXT_CONTRACT_FAILED',
   ] as const;
 
   for (const code of rescuableCodes) {

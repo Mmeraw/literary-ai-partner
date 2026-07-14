@@ -37,7 +37,7 @@ function makeResult(
     generated_at: '2026-01-01T00:00:00.000Z',
     engine: { model: 'test-model', provider: 'openai', prompt_version: 'test-prompt' },
     overview: {
-      verdict: 'revise',
+      verdict: 'conditional',
       overall_score_0_100: 60,
       scored_criteria_count: criteria.length,
       one_paragraph_summary: summary,

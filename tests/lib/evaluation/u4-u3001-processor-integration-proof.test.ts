@@ -131,7 +131,7 @@ function makeFixture(summary: string, criteriaOverrides: EvaluationCriterionV2[]
     generated_at: '2026-07-07T00:00:00.000Z',
     engine: { model: 'synthetic', provider: 'other', prompt_version: 'u4-u3001-proof-v1' },
     overview: {
-      verdict: 'revise',
+      verdict: 'conditional',
       overall_score_0_100: 55,
       scored_criteria_count: CRITERIA_KEYS.length,
       one_paragraph_summary: summary,

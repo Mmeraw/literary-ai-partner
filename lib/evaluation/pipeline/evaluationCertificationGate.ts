@@ -47,6 +47,7 @@
  */
 
 import { getECGMode, type ECGMode } from '@/lib/evaluation/policy';
+import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import {
   trimAtSentenceBoundary as trimAtSentenceBoundaryShared,
   detectProseScoreDivergence,
@@ -434,6 +435,7 @@ export function getCertificationCoverage(): Record<InvariantDomain, { total: num
 
 export interface ECGOverview {
   overall_score_0_100?: number | null;
+  scored_criteria_count?: number | null;
   verdict?: string | null;
   one_paragraph_summary?: string | null;
   one_sentence_pitch?: string | null;
@@ -1034,6 +1036,52 @@ export function runEvaluationCertificationGate(input: ECGInput): ECGResult {
     advisory,
     certified_at,
     summary,
+  };
+}
+
+/**
+ * Build an ECGInput directly from a canonical EvaluationResultV2.
+ *
+ * This adapter is the single canonical bridge between the renderer-facing artifact
+ * and the certification gate. It keeps the ECG input mapping in one place so the
+ * certified object, the returned object, and the persisted object stay identical.
+ */
+export function buildECGInputFromEvaluationResult(
+  result: EvaluationResultV2,
+  canonicalScore: number,
+): ECGInput {
+  return {
+    canonicalScore,
+    overview: {
+      overall_score_0_100: result.overview.overall_score_0_100,
+      scored_criteria_count: result.overview.scored_criteria_count,
+      verdict: result.overview.verdict,
+      one_paragraph_summary: result.overview.one_paragraph_summary,
+      one_sentence_pitch: result.overview.one_sentence_pitch ?? null,
+      one_paragraph_pitch: result.overview.one_paragraph_pitch ?? null,
+      top_3_strengths: result.overview.top_3_strengths ?? null,
+      top_3_risks: result.overview.top_3_risks ?? null,
+    },
+    enrichment: result.enrichment
+      ? {
+          premise: result.enrichment.premise ?? null,
+          diagnosed_genre: result.enrichment.diagnosed_genre ?? null,
+          target_audience: result.enrichment.target_audience ?? null,
+        }
+      : null,
+    recommendations: {
+      quick_wins: result.recommendations.quick_wins?.map((r) => ({ action: r.action ?? null })) ?? null,
+      strategic_revisions: result.recommendations.strategic_revisions?.map((r) => ({ action: r.action ?? null })) ?? null,
+    },
+    criteria: result.criteria.map((c) => ({
+      key: c.key,
+      final_score_0_10: (c as unknown as { score_0_10?: number | null }).score_0_10 ?? null,
+      final_rationale: (c as unknown as { rationale?: string | null }).rationale ?? null,
+    })),
+    governance: {
+      confidence: result.governance.confidence,
+      confidence_label: result.governance.confidence_label,
+    },
   };
 }
 

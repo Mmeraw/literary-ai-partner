@@ -50,7 +50,7 @@ function makeBaseResult(
     generated_at: "2026-04-30T00:00:00.000Z",
     engine: { model: "test-model", provider: "openai", prompt_version: "test-prompt" },
     overview: {
-      verdict: "pass",
+      verdict: "market_ready",
       overall_score_0_100: overall,
       scored_criteria_count: 13,
       one_paragraph_summary: "Summary.",

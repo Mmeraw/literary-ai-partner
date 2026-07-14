@@ -1,0 +1,1471 @@
+{
+  "ids": {
+    "job_id": "e7d88308-7deb-4bdc-85af-b7d82c271b4c",
+    "user_id": "ad336840-8820-4ac6-bffc-a058c5e0241f",
+    "manuscript_id": 7723,
+    "evaluation_run_id": "caef2214-7b7e-440c-8f71-fb9c2b350f43"
+  },
+  "engine": {
+    "model": "gpt-5.1",
+    "provider": "openai",
+    "prompt_version": "pass1-craft-v8-provenance-hardening+pass2-editorial-v10-candidate-prose+pass3-synthesis-v21-rec-or-rationale-contract"
+  },
+  "metrics": {
+    "manuscript": {
+      "genre": "novel",
+      "title": "Criminality V2",
+      "char_count": 23165,
+      "word_count": 3872,
+      "target_audience": "Readers of literary fiction interested in queer family-making, systemic critiques of surveillance and criminalization, and morally ambiguous crime narratives, similar to audiences for writers who blend memoir-like intimacy with political and philosophical inquiry.",
+      "resolved_english_variant": "American English",
+      "requested_english_variant": "us"
+    },
+    "processing": {
+      "segment_count": 1
+    }
+  },
+  "criteria": [
+    {
+      "key": "concept",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "location": {
+            "char_end": 198,
+            "char_start": 157
+          }
+        },
+        {
+          "snippet": "Irmak raised the subject of having Utku’s children.",
+          "location": {
+            "char_end": 347,
+            "char_start": 315
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "The pairing of the unnamed narrator’s queer, grief-driven parenthood with MJ’s risky journey toward Desire in the Coachella Valley yields a layered, high-concept frame that feels both intimate and political. Scenes with Utku and Irmak in the Istanbul highlands and with MJ under the gaze of Five Eyes and the L3 Communications millimeter wave machine all support a cohesive argument about criminality, love, and surveillance that Aralık can interrogate. The pressure comes from the father’s decision to tell Aralık a morally ambiguous story about MJ at bedtime, which risks unsettling a child but promises a more truthful understanding of systems that punish people like MJ and Utku; because MJ’s eventual meeting with Desire is deferred, some of that conceptual pressure is intentionally left unresolved for later payoff.",
+      "score_0_10": 8,
+      "signal_present": true,
+      "confidence_band": "MEDIUM",
+      "recommendations": [
+        {
+          "action": "Deepen the exploration of the protagonist’s internal conflict regarding identity and legacy.",
+          "symptom": "The dramatic premise lacks a concrete question that compels the reader forward.",
+          "priority": "low",
+          "mechanism": "the dramatic premise does not crystallize into a concrete question, weakening reader buy-in",
+          "issue_family": "conceptual depth",
+          "specific_fix": "sharpen the premise hook by grounding one abstract concept in a concrete dramatic question the reader must see answered",
+          "reader_effect": "This will enhance thematic resonance and reader engagement.",
+          "anchor_snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "expected_impact": "This will enhance thematic resonance and reader engagement.",
+          "strategic_lever": "thematic exploration",
+          "candidate_text_a": "I sought to understand how my identity was shaped by Utku's absence and what legacy I could create for Aralık.",
+          "candidate_text_b": "I needed to reconcile my grief with the hope of building a future for Aralık that honored Utku's memory.",
+          "candidate_text_c": "I grappled with the weight of Utku's absence, yearning to forge a path for Aralık that would keep his spirit alive.",
+          "revision_granularity": "scene"
+        },
+        {
+          "action": "Reframe the abstract statement as a specific reader-facing promise to because the embedded MJ story halts with him entering the airplane washroom and the.",
+          "symptom": "The passage dramatic premise does not crystallize into a concrete question, weakening reader buy-in",
+          "priority": "low",
+          "mechanism": "the dramatic premise does not crystallize into a concrete question, weakening reader buy-in",
+          "issue_family": "concept",
+          "specific_fix": "sharpen the premise hook by grounding one abstract concept in a concrete dramatic question the reader must see answered",
+          "reader_effect": "sharper premise intrigue and a clearer dramatic question that compels the reader forward",
+          "anchor_snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "expected_impact": "Gives the reader a sharper premise hook and clearer dramatic question from the opening.",
+          "strategic_lever": "market_signal_clarity",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "SUFFICIENT",
+      "confidence_level": "moderate",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"concept\" scored 8/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Two evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence contains verbatim manuscript sentences rather than meta-commentary",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_MEDIUM",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 84
+    },
+    {
+      "key": "narrativeDrive",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "He would take the chance though.",
+          "location": {
+            "char_end": 1977,
+            "char_start": 1951
+          }
+        },
+        {
+          "snippet": "I took Irmak’s tiny hand into mine, studied her smooth olive-colored skin...",
+          "location": {
+            "char_end": 688,
+            "char_start": 648
+          }
+        },
+        {
+          "snippet": "I decided to introduce him to a character named MJ who had dipped his toes into the sometimes icy cold...",
+          "location": {
+            "char_end": 1088,
+            "char_start": 1034
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "Narrative momentum arises from the unnamed narrator’s bedtime ritual with Aralık and from MJ’s stepwise movement through the United Empire airport, past cameras and the L3 Communications millimeter wave machine, under the unseen gaze of Five Eyes. MJ’s refusal to enter the scanner and his fixation on the young fawn keep pressure alive, but prolonged exposition about statutes and intelligence alliances pauses forward motion relative to the emotional engine centered on Utku and Irmak. When the father ends the MJ story with “That’s the end of the story” just as MJ goes to the airplane washroom, the consequence of this accumulated pressure is intentionally deferred, which fits the reflective mode but softens immediate propulsion.",
+      "score_0_10": 6,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Increase the tension in scenes by introducing stakes that directly affect the protagonist’s goals.",
+          "symptom": "Stakes or decision pressure diffuses before reaching the reader, weakening narrative urgency.",
+          "priority": "high",
+          "mechanism": "the stakes signal arrives too late in the passage, diffusing narrative urgency at the turn",
+          "issue_family": "narrative pacing",
+          "specific_fix": "insert one concrete stakes beat that lands the deferred decision at the current scene turn",
+          "reader_effect": "This will create a more compelling narrative momentum.",
+          "anchor_snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "expected_impact": "This will create a more compelling narrative momentum.",
+          "strategic_lever": "tension escalation",
+          "candidate_text_a": "I needed to feel his energy, fearing that without it, my connection to Utku would fade forever.",
+          "candidate_text_b": "I was desperate to know if he was there waiting for me, knowing that my grief could consume me if I failed.",
+          "candidate_text_c": "I needed to feel his energy, or I risked losing the last thread connecting me to Utku.",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"narrativeDrive\" scored 6/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence contains verbatim manuscript sentences rather than meta-commentary",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 95
+    },
+    {
+      "key": "character",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "I’d wish I had. But then there were many things I wished for where it concerned Utku.",
+          "location": {
+            "char_end": 161,
+            "char_start": 104
+          }
+        },
+        {
+          "snippet": "Irmak had a special bond with him.",
+          "location": {
+            "char_end": 494,
+            "char_start": 471
+          }
+        },
+        {
+          "snippet": "I still live in Toronto and have been retired from Pratt & Whitney Canada for fourteen years...",
+          "location": {
+            "char_end": 1134,
+            "char_start": 1094
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "The unnamed narrator, shaped by Utku’s death and the sacred highland meeting place near Istanbul, comes across as psychologically coherent in his choice to both protect and challenge Aralık with MJ’s morally complex story. Irmak’s pansexual history with Utku and her later proposal in the highlands to have a child with the narrator reveal layered motivations around Desire and legacy, while MJ’s mixture of fear and bravado at the airport and his fixation on the young fawn enrich him beyond a stock smuggler. Pressure gathers as each of these characters makes decisions—Irmak about conceiving in Canada, MJ about refusing the L3 Communications scan, the narrator about narrating—and those decisions’ full emotional consequences for Aralık and MJ remain partially deferred in this excerpt.",
+      "score_0_10": 8,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Develop secondary characters like Irmak further to enhance their roles in the protagonist’s journey.",
+          "symptom": "Character motivation or decision logic is unclear at this location, weakening reader trust.",
+          "priority": "low",
+          "mechanism": "the abstract phrasing diffuses motivation before the decision point, weakening character agency",
+          "issue_family": "character development",
+          "specific_fix": "Develop secondary characters like Irmak further to enhance their roles in the protagonist’s journey.",
+          "reader_effect": "This will create a richer narrative tapestry and deepen emotional stakes.",
+          "anchor_snippet": "Irmak had a special bond with him.",
+          "expected_impact": "This will create a richer narrative tapestry and deepen emotional stakes.",
+          "strategic_lever": "relationship dynamics",
+          "candidate_text_a": "Irmak, with her vibrant spirit, often reminded me of the joy Utku brought into my life, making her presence vital.",
+          "candidate_text_b": "Irmak's fierce loyalty to Utku made her a bridge between my past and the future I wanted for Aralık.",
+          "candidate_text_c": "Irmak's laughter echoed Utku's, her memories intertwining with mine, reinforcing our shared grief and hope.",
+          "revision_granularity": "character"
+        },
+        {
+          "action": "Replace one abstract reaction line with a concrete decision beat and one desire-vs-fear contradiction; The pressure line in the passage near “I’d wish I had. But…” resolves before the reader sees immediate consequence. Hold the conflict open through a short action beat to secondary figures such as the young fawn and even Irmak in the present are more sketched because the abstract phrasing diffuses motivation before the decision point, weakening character agency.",
+          "symptom": "The passage abstract phrasing diffuses motivation before the decision point, weakening character agency",
+          "priority": "low",
+          "mechanism": "the abstract phrasing diffuses motivation before the decision point, weakening character agency",
+          "issue_family": "characterization",
+          "specific_fix": "replace one abstract reaction line with a concrete decision beat and one desire-vs-fear contradiction",
+          "reader_effect": "clearer motivation and emotional stakes, improving trust in character decisions",
+          "anchor_snippet": "I’d wish I had. But then there were many things I wished for where it concerned Utku.",
+          "expected_impact": "Gives the reader clearer motivation and emotional stakes, improving trust in character decisions.",
+          "strategic_lever": "character_voice_differentiation",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"character\" scored 8/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence contains verbatim manuscript sentences rather than meta-commentary",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 95
+    },
+    {
+      "key": "voice",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "I still live in Toronto and have been retired from Pratt & Whitney Canada for fourteen years.",
+          "location": {
+            "char_end": 1770,
+            "char_start": 1722
+          }
+        },
+        {
+          "snippet": "I thought back then if I ever were to have a son, I would name him as such.",
+          "location": {
+            "char_end": 83,
+            "char_start": 36
+          }
+        },
+        {
+          "snippet": "I recall talking about this with Utku, since I thought it odd that a lesbian would want sex with a gay guy.",
+          "location": {
+            "char_end": 554,
+            "char_start": 496
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "The first-person voice of the unnamed narrator, whether describing Utku’s absence in the Istanbul highlands or unpacking MJ’s passage through the L3 Communications machine and Five Eyes, is consistently reflective, slightly formal, and gently pedagogical toward Aralık. This register lets the same voice plausibly quote Irmak’s “Ahhhh, consider what?” and explain the Demagogue and Dark Overlords in terms Aralık can link to Darth Vader, while still carrying grief-heavy lines about myocarditis and sacred places. Pressure builds as the narrative voice must balance honesty about MJ’s body-cavity smuggling and Desire’s festival with the bedtime context; the decision to end with “You have to come to your conclusions about the ending” keeps the voice intact but knowingly leaves Aralık and the reader in thoughtful frustration.",
+      "score_0_10": 9,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Recast one summary sentence as close-third free indirect discourse to restore psychic distance; Several lines around the passage near “I still live in Toronto…” summarize effect before dramatizing cause. Re-ordering the beat sequence because the same didactic tone occasionally dominates MJ’s more suspenseful scenes,.",
+          "symptom": "The passage psychic distance collapses inconsistently, breaking the established POV rendering contract",
+          "priority": "low",
+          "mechanism": "the psychic distance collapses inconsistently, breaking the established POV rendering contract",
+          "issue_family": "voice",
+          "specific_fix": "recast one summary sentence as close-third free indirect discourse to restore psychic distance",
+          "reader_effect": "consistent narrative immersion with stable psychic distance throughout the passage",
+          "anchor_snippet": "I still live in Toronto and have been retired from Pratt & Whitney Canada for fourteen years.",
+          "expected_impact": "Gives the reader consistent narrative immersion with stable psychic distance throughout.",
+          "strategic_lever": "pov_rendering_precision",
+          "revision_granularity": "scene"
+        },
+        {
+          "action": "Recast one summary sentence as close-third free indirect discourse to restore consistent psychic distance.",
+          "symptom": "Psychic distance shifts without a trigger, pulling the reader out of the established narrative intimacy.",
+          "priority": "low",
+          "mechanism": "Unanchored psychic-distance shift disrupts the reader’s immersive contract with the narrator.",
+          "issue_family": "voice",
+          "specific_fix": "Recast one summary sentence as close-third free indirect discourse to restore psychic distance.",
+          "reader_effect": "Consistent narrative immersion with stable psychic distance throughout.",
+          "anchor_snippet": "The narrative voice shifts psychic distance mid-passage, breaking immersion where consistency is needed most.",
+          "expected_impact": "Gives the reader consistent narrative immersion with stable psychic distance throughout.",
+          "strategic_lever": "pov_rendering_precision",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"voice\" scored 9/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 95
+    },
+    {
+      "key": "sceneConstruction",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "The desert sun was a respite from the cold tundra where MJ lived.",
+          "location": {
+            "char_end": 1924,
+            "char_start": 1880
+          }
+        },
+        {
+          "snippet": "I looked at them often. In the weeks following Utku’s passing, I’d spend hours walking in front of his parents’ home...",
+          "location": {
+            "char_end": 245,
+            "char_start": 199
+          }
+        },
+        {
+          "snippet": "The congregation was far from civilization – allowing them to partake - without judgment - in rituals...",
+          "location": {
+            "char_end": 1137,
+            "char_start": 1090
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "Key scenes—Irmak and the unnamed narrator in the Istanbul highlands, MJ approaching the L3 Communications scanner under Five Eyes, and the Toronto bedtime exchange with Aralık—are clearly staged and anchored in specific settings, but several of them lean heavily on narrated explanation rather than in-scene beats. Pressure accumulates as MJ progresses from check-in through cameras and metal detectors toward the millimeter wave machine, yet the tension is occasionally undercut by stretches of legal commentary about Schedule 1 and 2 drugs and United Empire thresholds. The consequences of these scenes’ central moves, such as Irmak’s proposal or MJ’s choice to refuse the scan and later go to the airplane washroom, are mostly deferred to off-page time.",
+      "score_0_10": 6,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Incorporate more sensory details to enrich the atmosphere of key scenes.",
+          "symptom": "Scene cause-and-effect sequencing is disrupted, reducing structural coherence.",
+          "priority": "high",
+          "mechanism": "the causal sequencing is inverted, so the consequence lands before the trigger, losing scene-turn coherence",
+          "issue_family": "scene immersion",
+          "specific_fix": "split one long descriptive passage and move one image after the causal action beat",
+          "reader_effect": "This will deepen reader immersion and emotional engagement.",
+          "anchor_snippet": "I’d spend hours walking in front of his parents’ home and the general neighbourhood..",
+          "expected_impact": "This will deepen reader immersion and emotional engagement.",
+          "strategic_lever": "sensory detail",
+          "candidate_text_a": "I’d spend hours walking in front of his parents’ home, the scent of blooming jasmine filling the air.",
+          "candidate_text_b": "I’d wander past his parents’ home, the distant laughter of children echoing in the warm summer air.",
+          "candidate_text_c": "I’d stroll before his parents’ house, the rustle of leaves whispering secrets of the past.",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"sceneConstruction\" scored 6/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence contains verbatim manuscript sentences rather than meta-commentary",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 95
+    },
+    {
+      "key": "dialogue",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "“What is an anthropomorphic deity?”",
+          "location": {
+            "char_end": 1158,
+            "char_start": 1131
+          }
+        },
+        {
+          "snippet": "Ahhhh, consider what?”",
+          "location": {
+            "char_end": 548,
+            "char_start": 533
+          }
+        },
+        {
+          "snippet": "“So MJ was left-winged!” Aralık stated excitedly.",
+          "location": {
+            "char_end": 1741,
+            "char_start": 1714
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "Dialogue between Irmak and the unnamed narrator in the Istanbul highlands, and between the narrator and Aralık in the Toronto bedroom, feels natural in cadence and clearly conveys relationship dynamics and teaching moments. Irmak’s tentative “Ahhhh, consider what?” and direct “Having a child with me” line reveal both her vulnerability and boldness, while Aralık’s “Can I stay up later if I get the next one!?” shows playful negotiation. The pressure in these exchanges stems from the weight of Utku’s absence and Aralık’s demand to know “Then what happened?” to MJ, but the lines usually aim at explicit explanation (defining ‘Five Eyes’ or ‘Demagogue’) rather than layered subtext, so the consequences of these conversations lean more toward information transfer than psychological shift.",
+      "score_0_10": 7,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Trim some dialogue exchanges to enhance clarity and impact.",
+          "symptom": "Speaker intent or attribution is unclear, reducing tension in the exchange.",
+          "priority": "medium",
+          "mechanism": "the attribution gap causes speaker intent to blur, reducing tension in the exchange",
+          "issue_family": "dialogue clarity",
+          "specific_fix": "Trim some dialogue exchanges to enhance clarity and impact.",
+          "reader_effect": "This will maintain pacing and keep the reader focused on key interactions.",
+          "anchor_snippet": "Ahhhh, consider what?”",
+          "expected_impact": "This will maintain pacing and keep the reader focused on key interactions.",
+          "strategic_lever": "conciseness",
+          "candidate_text_a": "“What do you mean?” I asked.",
+          "candidate_text_b": "“What are you talking about?” I replied.",
+          "candidate_text_c": "“What do you mean by that?” I inquired.",
+          "revision_granularity": "dialogue"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"dialogue\" scored 7/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence contains verbatim manuscript sentences rather than meta-commentary",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 95
+    },
+    {
+      "key": "theme",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "location": {
+            "char_end": 198,
+            "char_start": 157
+          }
+        },
+        {
+          "snippet": "Although my mourning was deep and profound, I decided to continue living and not take my own life...",
+          "location": {
+            "char_end": 267,
+            "char_start": 210
+          }
+        },
+        {
+          "snippet": "He understood well the pull and power of money and the lengths that people would go to get to it.",
+          "location": {
+            "char_end": 1180,
+            "char_start": 1136
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "Themes of grief, queer kinship, systemic criminalization, and Desire’s untameable pull are tightly interwoven as the unnamed narrator moves from Utku’s death and the Istanbul highlands with Irmak, to MJ’s body-cavity smuggling and fear of the L3 Communications scanner, to teaching Aralık about Five Eyes and the Demagogue. The pressure arises from the collision between personal love—naming Aralık after a Turkish month learned with Utku—and the impersonal reach of United Empire drug statutes and surveillance, which MJ must navigate. Consequences of these themes land in the father’s choice to raise Aralık in the shadow of Utku and to expose him to MJ’s ambiguity, though MJ’s actual meeting with Desire is left for another time, deferring one of the key thematic nodes.",
+      "score_0_10": 9,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Consider weaving in additional thematic layers related to societal issues to deepen the narrative’s impact.",
+          "symptom": "Thematic signal is abstract rather than embodied, reducing emotional resonance.",
+          "priority": "low",
+          "mechanism": "the thematic signal is stated abstractly rather than embodied in concrete action, reducing resonance",
+          "issue_family": "thematic depth",
+          "specific_fix": "replace one abstract thematic statement with a concrete image or action that embodies the theme",
+          "reader_effect": "This will enrich the thematic complexity and engage readers on multiple levels.",
+          "anchor_snippet": "He understood well the pull and power of money and the lengths that people would go to get to it.",
+          "expected_impact": "This will enrich the thematic complexity and engage readers on multiple levels.",
+          "strategic_lever": "socio-political commentary",
+          "candidate_text_a": "He grasped not only the allure of money but also the societal structures that perpetuated inequality.",
+          "candidate_text_b": "He recognized the seductive power of wealth and the societal consequences that followed.",
+          "candidate_text_c": "He was acutely aware of how money shaped lives, often at the expense of morality and justice.",
+          "revision_granularity": "theme"
+        },
+        {
+          "action": "Reframe the abstract statement as a specific reader-facing promise to because the excerpt ends before MJ reaches the desert retreat or meets Desire, one of the.",
+          "symptom": "The passage thematic signal is stated abstractly rather than embodied in concrete action, reducing resonance",
+          "priority": "low",
+          "mechanism": "the thematic signal is stated abstractly rather than embodied in concrete action, reducing resonance",
+          "issue_family": "theme",
+          "specific_fix": "replace one abstract thematic statement with a concrete image or action that embodies the theme",
+          "reader_effect": "stronger thematic resonance and payoff at the scene turn",
+          "anchor_snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "expected_impact": "Gives the reader stronger thematic resonance through concrete embodiment rather than abstraction.",
+          "strategic_lever": "thematic_grounding",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"theme\" scored 9/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation includes a text anchor but remains broad",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 93
+    },
+    {
+      "key": "worldbuilding",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "The valley floor had been tamed into obedience decades prior and was now a bed of tranquility.",
+          "location": {
+            "char_end": 1715,
+            "char_start": 1638
+          }
+        },
+        {
+          "snippet": "They really became close though after high school when they had both moved to Istanbul.",
+          "location": {
+            "char_end": 525,
+            "char_start": 487
+          }
+        },
+        {
+          "snippet": "The valley floor had been tamed into obedience decades prior and was now a bed of tranquility...",
+          "location": {
+            "char_end": 1213,
+            "char_start": 1159
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "The blend of real-world geographies—Istanbul’s Asian-side highlands, Toronto, and the Coachella Valley—with a thinly veiled geopolitical map of the United Empire, Land Down-under, True North, Brexit, and Kiwi Land, and the ominous Five Eyes network creates a convincing environment for MJ’s smuggling and for the unnamed narrator’s lessons to Aralık. The L3 Communications millimeter wave machine, the network of cameras, and the Dark Overlords under the Demagogue all reinforce a dense system of control surrounding Desire’s festival. Pressure builds as MJ moves bodily through this apparatus and as Aralık tries to grasp that Five Eyes is “a signals intelligence alliance,” but at times the explanation of these systems overruns the dramatized experience of MJ and the young fawn inside them.",
+      "score_0_10": 7,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Anchor one passage with two specific sensory details—tactile, auditory, or olfactory—that ground the setting.",
+          "symptom": "Sensory grounding is absent from the passage, preventing the reader from anchoring in the physical setting.",
+          "priority": "medium",
+          "mechanism": "Missing sensory detail forces the reader to imagine the setting without authorial guidance, increasing cognitive load.",
+          "issue_family": "worldbuilding",
+          "specific_fix": "Anchor one passage with two specific sensory details that ground the setting without exposition.",
+          "reader_effect": "Immediate sensory grounding that reduces cognitive load and increases immersion.",
+          "anchor_snippet": "The setting lacks sensory grounding, leaving the reader without physical orientation in the world of the narrative.",
+          "expected_impact": "Gives the reader immediate sensory grounding, reducing cognitive load and increasing immersion.",
+          "strategic_lever": "sensory_specificity",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"worldbuilding\" scored 7/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Some evidence anchors are duplicates",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning does not explain effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 87
+    },
+    {
+      "key": "pacing",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "I decided to introduce him to a character named MJ who had dipped his toes into the sometimes icy cold...",
+          "location": {
+            "char_end": 1768,
+            "char_start": 1716
+          }
+        },
+        {
+          "snippet": "I’d spend hours walking in front of his parents’ home and the general neighbourhood...",
+          "location": {
+            "char_end": 245,
+            "char_start": 199
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "Relative to its hybrid literary ambitions and emotional engine, the excerpt’s pacing is uneven: emotionally charged sequences with Irmak in the Istanbul highlands and suspenseful movement with MJ through the L3 Communications scanner gauntlet generate narrative momentum, but they are frequently interrupted by dense exposition on United Empire statutes, Five Eyes, and political analogies for the Demagogue. Pressure around MJ’s body-cavity package and the young fawn builds well up to his refusal of the millimeter wave scan and his walk to the airplane washroom, but the decision to end the embedded story exactly there slows the sense of forward movement even as it preserves thematic ambiguity.",
+      "score_0_10": 5,
+      "signal_present": true,
+      "confidence_band": "MEDIUM",
+      "recommendations": [
+        {
+          "action": "Cut one reflective sentence and insert one immediate external action trigger; Within the passage near “I decided to introduce him…,” add a short action-response beat pair so scene movement stays visible and can even within a reflection-forward, literary mode, several expository paragraphs about because the reflective passage stalls forward momentum before the narrative urgency peaks.",
+          "symptom": "The passage reflective passage stalls forward momentum before the narrative urgency peaks",
+          "priority": "high",
+          "mechanism": "the reflective passage stalls forward momentum before the narrative urgency peaks",
+          "issue_family": "pacing",
+          "specific_fix": "cut one reflective sentence and insert one immediate external action trigger",
+          "reader_effect": "stronger forward momentum and cleaner urgency through the section turn",
+          "anchor_snippet": "I decided to introduce him to a character named MJ who had dipped his toes into the sometimes icy cold..",
+          "expected_impact": "Gives the reader stronger forward momentum and cleaner urgency through the section turn.",
+          "strategic_lever": "momentum_visibility",
+          "revision_granularity": "scene"
+        },
+        {
+          "action": "Cut one reflective sentence and insert one immediate external action trigger to restore forward momentum.",
+          "symptom": "Forward momentum stalls as reflection displaces the external action trigger needed at this scene beat.",
+          "priority": "high",
+          "mechanism": "Excess reflection before an action beat creates a pacing valley that saps urgency from the scene turn.",
+          "issue_family": "pacing",
+          "specific_fix": "Cut one reflective sentence and insert one immediate external action trigger.",
+          "reader_effect": "Stronger forward momentum and cleaner urgency through the section turn.",
+          "anchor_snippet": "Pacing stalls where a reflective passage delays the next external action trigger the scene needs to maintain momentum.",
+          "expected_impact": "Gives the reader stronger forward momentum and cleaner urgency through the section turn.",
+          "strategic_lever": "momentum_visibility",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "SUFFICIENT",
+      "confidence_level": "moderate",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"pacing\" scored 5/10 but returned 1 recommendation(s) (minimum 5 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Two evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence contains verbatim manuscript sentences rather than meta-commentary",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_MEDIUM",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 84
+    },
+    {
+      "key": "proseControl",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "The congregation was far from civilization – allowing them to partake - without judgment - in rituals and ceremonies...",
+          "location": {
+            "char_end": 267,
+            "char_start": 195
+          }
+        },
+        {
+          "snippet": "He was lithe, wearing beige cotton pants and a loose fitting, long-sleeved, white collar-less shirt.",
+          "location": {
+            "char_end": 1892,
+            "char_start": 1844
+          }
+        },
+        {
+          "snippet": "He had a fascination with the macabre and criminal elements.",
+          "location": {
+            "char_end": 1169,
+            "char_start": 1134
+          }
+        },
+        {
+          "snippet": "Aralık is of course my son.",
+          "location": {
+            "char_end": 27,
+            "char_start": 0
+          }
+        },
+        {
+          "snippet": "Aralık means December in Turkish.",
+          "location": {
+            "char_end": 62,
+            "char_start": 29
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "Line-level craft is generally strong: the unnamed narrator’s description of sun-parched hills in the Istanbul highlands, the valley below, and the ‘anthropomorphic deity of Desire’ showcases careful diction and rhythm, while the technical explanations of L3 Communications scanners and Five Eyes are syntactically clear. Utku’s memory and Irmak’s proposal are articulated in controlled, emotionally precise sentences, and MJ’s fears about his body-cavity package and United Empire law are rendered with intelligible detail. However, some long, heavily subordinated sentences in the airport exposition and the Five Eyes explanation can feel dense on first read, slightly obscuring MJ and the young fawn’s immediate sensory experiences and softening the impact of otherwise effective pacing choices.",
+      "score_0_10": 7,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Tighten one overlong sentence by splitting at the causal pivot and removing redundant qualifiers.",
+          "symptom": "Overlong sentence structure increases cognitive friction, slowing the reader at a point that needs clarity.",
+          "priority": "medium",
+          "mechanism": "Cluttered sentence structure with redundant qualifiers forces re-reading rather than forward momentum.",
+          "issue_family": "prose_control",
+          "specific_fix": "Tighten one overlong sentence by splitting at the causal pivot and removing redundant qualifiers.",
+          "reader_effect": "Tighter sentence-level clarity and reduced cognitive friction.",
+          "anchor_snippet": "Sentence-level prose control weakens where an overlong construction increases cognitive load without payoff.",
+          "expected_impact": "Gives the reader tighter sentence-level clarity and reduced cognitive friction.",
+          "strategic_lever": "prose_compression",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"proseControl\" scored 7/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning uses vague evaluative language",
+        "Recommendation references a specific text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 92
+    },
+    {
+      "key": "tone",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "location": {
+            "char_end": 198,
+            "char_start": 157
+          }
+        },
+        {
+          "snippet": "Although my mourning was deep and profound, I decided to continue living and not take my own life...",
+          "location": {
+            "char_end": 267,
+            "char_start": 210
+          }
+        },
+        {
+          "snippet": "I am a happy single parent.",
+          "location": {
+            "char_end": 1154,
+            "char_start": 1134
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "The tonal register coherently blends melancholy, moral seriousness, and flashes of wry humor across both the frame and the embedded story: the unnamed narrator’s grief for Utku and reverence for the sacred Istanbul highlands coexist with playful banter as Aralık bargains for more time by defining ‘right-wing,’ and with a lightly sardonic attitude toward the Demagogue, Dark Overlords, and Five Eyes. MJ’s tense progress past the L3 Communications machine and among the Empire’s security guards is narrated in a sober, controlled tone that respects the risk without sensationalizing it. This creates pressure as the text must remain suitable for a bedtime story while discussing body-cavity smuggling and Desire’s hedonistic desert festival; the choice to stop MJ’s story before any explicit sex, violence, or catastrophe helps preserve tonal balance, though it also keeps some potential intensity off-page.",
+      "score_0_10": 8,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Rewrite one tonal outlier sentence to match the established register of the surrounding passage; The prose rhythm around the passage near “I needed to feel his…” is close to landing; a shorter concrete sentence after the reflective line because the tone stays largely in a mid-range of seriousness and controlled wit, some of.",
+          "symptom": "The passage tonal register shifts mid-passage without a clear trigger, disrupting emotional continuity",
+          "priority": "low",
+          "mechanism": "the tonal register shifts mid-passage without a clear trigger, disrupting emotional continuity",
+          "issue_family": "voice",
+          "specific_fix": "rewrite one tonal outlier sentence to match the established register of the surrounding passage",
+          "reader_effect": "consistent emotional register that sustains reader trust through the passage",
+          "anchor_snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+          "expected_impact": "Gives the reader a consistent emotional register that sustains trust through the passage.",
+          "strategic_lever": "pov_rendering_precision",
+          "revision_granularity": "scene"
+        },
+        {
+          "action": "Rewrite one tonal outlier sentence to match the established emotional register of the surrounding passage.",
+          "symptom": "An untriggered tonal shift breaks the emotional register, pulling the reader out of the established mood.",
+          "priority": "low",
+          "mechanism": "Unanchored tonal register shift disrupts the reader’s emotional contract with the passage.",
+          "issue_family": "voice",
+          "specific_fix": "Rewrite one tonal outlier sentence to match the established register of the surrounding passage.",
+          "reader_effect": "A consistent emotional register that sustains trust through the passage.",
+          "anchor_snippet": "The tonal register shifts mid-passage without a clear trigger, disrupting the emotional continuity the reader expects.",
+          "expected_impact": "Gives the reader a consistent emotional register that sustains trust through the passage.",
+          "strategic_lever": "pov_rendering_precision",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"tone\" scored 8/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Three or more evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 95
+    },
+    {
+      "key": "narrativeClosure",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "That’s the end of the story. You have to come to your conclusions about the ending.",
+          "location": {
+            "char_end": 3822,
+            "char_start": 3773
+          }
+        },
+        {
+          "snippet": "Did MJ leave the drugs in his cavity? Was he eventually caught?",
+          "location": {
+            "char_end": 2218,
+            "char_start": 2183
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "Within this excerpt, the frame provides partial closure by situating the unnamed narrator as a ‘happy single parent’ in Toronto, having fulfilled Irmak’s wish from the Istanbul highlands and honored Utku through naming Aralık and revisiting their sacred meeting place. MJ’s embedded arc, however, remains broadly unresolved: he clears the United Empire’s airport, sits near the young fawn on the plane, and stands up to go to the washroom with contraband still inside him when the narrator abruptly ends the story and tells Aralık that he must draw his own conclusions. The pressure built around MJ’s body-cavity package, his fear of L3 Communications technology, his destination at Desire’s festival, and the ethical questions Aralık raises therefore sees its consequences deferred rather than landing concretely on the page.",
+      "score_0_10": 5,
+      "signal_present": true,
+      "confidence_band": "HIGH",
+      "recommendations": [
+        {
+          "action": "Provide clearer resolutions or hints at future developments to satisfy reader curiosity.",
+          "symptom": "A dangling thread lacks resolution, leaving the reader without consequence.",
+          "priority": "high",
+          "mechanism": "the dangling thread lacks a concrete resolution beat, leaving the reader without consequence",
+          "issue_family": "closure resolution",
+          "specific_fix": "add one concrete resolution beat that closes the dangling thread and signals consequence to the reader",
+          "reader_effect": "This will enhance reader satisfaction and engagement with the narrative.",
+          "anchor_snippet": "Did MJ leave the drugs in his cavity? Was he eventually caught?",
+          "expected_impact": "This will enhance reader satisfaction and engagement with the narrative.",
+          "strategic_lever": "narrative satisfaction",
+          "candidate_text_a": "MJ's fate remains uncertain, but his journey reveals the complexities of choice and consequence.",
+          "candidate_text_b": "While MJ's outcome is left ambiguous, it invites reflection on the nature of risk and morality.",
+          "candidate_text_c": "The story concludes with MJ's fate unresolved, prompting readers to ponder the implications of his choices.",
+          "revision_granularity": "ending"
+        },
+        {
+          "action": "Add one concrete resolution beat that closes the dangling thread and signals consequence to the reader; Convert the abstract claim into a concrete outcome cue to because MJ’s fate, his meeting with Desire in the Coachella Valley, and the impact of his.",
+          "symptom": "The passage dangling thread lacks a concrete resolution beat, leaving the reader without consequence",
+          "priority": "high",
+          "mechanism": "the dangling thread lacks a concrete resolution beat, leaving the reader without consequence",
+          "issue_family": "closure",
+          "specific_fix": "add one concrete resolution beat that closes the dangling thread and signals consequence to the reader",
+          "reader_effect": "stronger sense of resolution and consequence, reducing the feeling of dangling threads",
+          "anchor_snippet": "That’s the end of the story. You have to come to your conclusions about the ending.",
+          "expected_impact": "Gives the reader a stronger sense of resolution, reducing the feeling of dangling threads.",
+          "strategic_lever": "closure_state_lock",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "STRONG",
+      "confidence_level": "high",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"narrativeClosure\" scored 5/10 but returned 1 recommendation(s) (minimum 5 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Two evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence contains verbatim manuscript sentences rather than meta-commentary",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific verified text issue",
+        "EVIDENCE_CONFIDENCE_HIGH",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 95
+    },
+    {
+      "key": "marketability",
+      "status": "SCORABLE",
+      "evidence": [
+        {
+          "snippet": "He understood well the pull and power of money and the lengths that people would go to get to it.",
+          "location": {
+            "char_end": 1807,
+            "char_start": 1771
+          }
+        },
+        {
+          "snippet": "The congregation was far from civilization – allowing them to partake - without judgment - in rituals...",
+          "location": {
+            "char_end": 1137,
+            "char_start": 1090
+          }
+        }
+      ],
+      "scorable": true,
+      "rationale": "From a market perspective, the hybrid of queer grief memoir (Utku and Irmak in Istanbul, the unnamed narrator’s single parenthood in Toronto), literary crime (MJ’s body-cavity smuggling through the United Empire’s L3 Communications security system), and political-philosophical reflection (Five Eyes, Dark Overlords, the Demagogue) positions the work for readers of literary fiction interested in surveillance and Desire. The emotional bond between the narrator and Aralık and the intellectual rigor of the Five Eyes explanations are likely to appeal to a niche but committed audience. However, uneven pacing, the deliberate lack of closure around MJ’s fate and Desire’s festival, and the density of expository passages may make it a harder sell to broader markets that expect clearer narrative payoffs even in literary-leaning crime stories.",
+      "score_0_10": 6,
+      "signal_present": true,
+      "confidence_band": "MEDIUM",
+      "recommendations": [
+        {
+          "action": "Move one genre-signaling detail to the first paragraph to establish category expectations from the opening.",
+          "symptom": "The opening lacks a genre signal, reducing submission alignment and delaying the reader’s category orientation.",
+          "priority": "high",
+          "mechanism": "Delayed genre signaling forces the reader to infer category rather than receiving it from the author.",
+          "issue_family": "market_positioning",
+          "specific_fix": "Move one genre-signaling detail to the first paragraph to establish category expectations earlier.",
+          "reader_effect": "Clearer genre alignment and a stronger first-impression hook.",
+          "anchor_snippet": "Genre expectations are not established early enough, leaving the reader uncertain about the category of the work.",
+          "expected_impact": "Gives the reader clearer genre alignment and a stronger first-impression hook.",
+          "strategic_lever": "market_signal_clarity",
+          "revision_granularity": "scene"
+        }
+      ],
+      "signal_strength": "SUFFICIENT",
+      "confidence_level": "moderate",
+      "technical_defects": [
+        {
+          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "retryable": true,
+          "author_facing_reason": "Criterion \"marketability\" scored 6/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
+        }
+      ],
+      "confidence_reasons": [
+        "Two evidence anchors were provided",
+        "Anchor includes verbatim text from the submission",
+        "Rationale or recommendations name a craft mechanism specific to this story area",
+        "Evidence avoids generic summary language",
+        "Evidence example length is meaningful and readable",
+        "Reasoning names a concrete craft mechanism",
+        "Reasoning explains effect on reader or story",
+        "Reasoning avoids vague language",
+        "Recommendation references a specific text issue",
+        "EVIDENCE_CONFIDENCE_MEDIUM",
+        "SCOPE_CAP_HIGH"
+      ],
+      "scorability_status": "scorable",
+      "confidence_score_0_100": 84
+    }
+  ],
+  "overview": {
+    "verdict": "revise",
+    "top_3_risks": [
+      "Narrative momentum around MJ’s smuggling attempt and his foreshadowed meeting with Desire builds pressure but then defers or withholds concrete consequences, which may leave readers—and Aralık—unsatisfied.",
+      "Expository passages about United Empire drug statutes, Five Eyes, and L3 Communications sometimes displace scene-driven beats with MJ, the young fawn, or the Empire’s security guards, softening tension even for readers tolerant of reflection.",
+      "Dialogue in key teaching moments between the unnamed narrator and Aralık, and in Irmak’s proposal to have a child, leans toward didactic explanation rather than subtext-rich exchange, occasionally flattening character dynamics."
+    ],
+    "top_3_strengths": [
+      "The frame-story concept that pairs a queer, grieving parent with a morally ambiguous smuggler, MJ, creates a rich platform to interrogate criminality, Desire, and systemic surveillance through Aralık’s questions.",
+      "The narrative voice—an introspective, gently didactic first person from the unnamed narrator—sustains intimacy while moving fluidly between Toronto, Istanbul’s highlands, and the Coachella Valley, anchoring Utku and Irmak in emotionally credible ways.",
+      "Thematic integration is strong, as the text braids Utku’s death, Irmak’s proposal, MJ’s body-cavity smuggling, Desire’s festival, and Five Eyes into a coherent argument about how love, grief, and systems intersect."
+    ],
+    "one_sentence_pitch": "A grieving Toronto father uses a suspenseful tale about MJ, a would-be drug smuggler bound for a desert festival of Desire, to teach his curious son Aralık that criminality is tangled with love, loss, and the oppressive systems watching them all.",
+    "one_paragraph_pitch": "In present-day Toronto, a retired Pratt & Whitney Canada employee and happy single parent reads a homemade bedtime story to his fourteen-year-old son, Aralık, hoping to answer the boy’s questions about whether MJ is a bad person. As the unnamed narrator recalls his lost lover Utku, his agreement with pansexual friend Irmak to conceive a child, and their sacred meeting place in the Istanbul highlands, the embedded tale follows MJ from a cold homeland through a gauntlet of cameras, metal detectors, and an L3 Communications millimeter wave machine toward a hedonistic Coachella Valley festival dev",
+    "overall_score_0_100": 70,
+    "one_paragraph_summary": "This excerpt lands at 65/100 largely because Narrative Drive & Momentum, Pacing & Structural Balance, and Narrative Closure lag behind stronger work in Concept & Core Premise, Thematic Integration, and Point of View & Voice Control. The most robust elements to preserve are the intimate, didactic voice between the unnamed narrator and Aralık and the layered thematic weave of queer grief, systemic criminalization, and Desire’s pull. The principal blocker to market readiness is the structural pattern in which MJ’s smuggling arc and the teased meeting with Desire accrue pressure but then dissipate without concrete on-page consequence, weakening narrative propulsion relative to the excerpt’s ambitions.",
+    "scored_criteria_count": 13
+  },
+  "artifacts": [],
+  "enrichment": {
+    "premise": "A bereaved Toronto father who once loved Utku and conceived a child with their pansexual friend Irmak now reads his teenage son a story about MJ, a smuggler bound for a desert festival of Desire, to explore how love, law, and surveillance shape what we call crime. As MJ hides pills in his body to slip past the United Empire’s L3 Communications scanners and Five Eyes, the boy presses for answers his father is not yet ready to give.",
+    "diagnosed_genre": "literary fiction",
+    "target_audience": "Readers of literary fiction interested in queer family-making, systemic critiques of surveillance and criminalization, and morally ambiguous crime narratives, similar to audiences for writers who blend memoir-like intimacy with political and philosophical inquiry.",
+    "trigger_warnings": [
+      "substance abuse",
+      "self-harm",
+      "sexual content (explicit)"
+    ],
+    "dialogue_percentage": 65.3,
+    "reading_grade_level": 9.4,
+    "narrative_percentage": 34.7
+  },
+  "governance": {
+    "warnings": [
+      "ECG_WARN_ONLY: 4 certification violation(s) detected but not enforced (ECG_MODE=WARN_ONLY): ECG_AUTH_EXEC_SUMMARY_SCORE_MISMATCH, ECG_TEXT_TRUNCATED_WORD, ECG_TEXT_MIDSENTENCE_TERMINATION, ECG_RENDERER_VERDICT_UNKNOWN",
+      "[ArtifactGate:HOLD] reason_codes=EVIDENCE-MISSING-1,INTERP-MISSING-1",
+      "[ArtifactValidation:HOLD] reason_codes=EVIDENCE-MISSING-1,INTERP-MISSING-1"
+    ],
+    "confidence": 0.9,
+    "limitations": [
+      "Pass 1 and Pass 2 analyzed the full submission (3872 words).",
+      "Pass 3 synthesis uses the full manuscript for deep context grounding."
+    ],
+    "transparency": {
+      "repro_anchor": "caef2214-7b7e-440c-8f71-fb9c2b350f43|2026-07-13T22:53:13.264Z|work_type_matrix.v1",
+      "score_ledger": {
+        "max_total": 10,
+        "raw_total": 6.97,
+        "weighting": "weighted",
+        "normalized_total": 6.97
+      },
+      "criteria_plan": {
+        "C": [],
+        "O": [],
+        "R": [
+          "concept",
+          "narrativeDrive",
+          "character",
+          "voice",
+          "sceneConstruction",
+          "dialogue",
+          "theme",
+          "worldbuilding",
+          "pacing",
+          "proseControl",
+          "tone",
+          "narrativeClosure",
+          "marketability"
+        ],
+        "NA": []
+      },
+      "matrix_version": "work_type_matrix.v1",
+      "coverage_summary": {
+        "sampling_strategy": "full_text",
+        "source_char_count": 23165,
+        "source_word_count": 3872,
+        "partial_evaluation": false,
+        "analyzed_char_count": 23165,
+        "analyzed_word_count": 3872
+      },
+      "evaluation_scope": {
+        "route": "SHORT_FORM",
+        "input_scale": "light_chapter",
+        "reason_codes": [],
+        "manuscript_wide_certifiable": true,
+        "criterion_scope_policy_version": "v0.2"
+      },
+      "excellence_filter": {
+        "verdict": "not-yet-ready",
+        "blocking_criteria": [
+          "narrativeDrive",
+          "sceneConstruction",
+          "pacing",
+          "narrativeClosure",
+          "marketability"
+        ]
+      },
+      "propagation_summary": {
+        "reasons": [],
+        "authority_level": "normal",
+        "upstream_integrity": "strong",
+        "weak_evidence_count": 0,
+        "low_confidence_count": 0,
+        "bottom_score_criteria": [
+          "pacing",
+          "narrativeClosure"
+        ],
+        "missing_evidence_count": 0,
+        "moderate_confidence_count": 3,
+        "scorable_low_confidence_count": 0
+      },
+      "final_work_type_used": "novel",
+      "artifact_reason_codes": [
+        "EVIDENCE-MISSING-1",
+        "INTERP-MISSING-1"
+      ],
+      "artifact_validated_at": "2026-07-13T22:53:13.263Z",
+      "external_adjudication": {
+        "mode": "optional",
+        "status": "cross_check_completed",
+        "cross_check_returned": true
+      },
+      "short_form_external_qa": {
+        "mode": "off",
+        "default_provider_call": false
+      },
+      "short_form_evidence_gate": {
+        "mode": "short_form_standard",
+        "criteria": [
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 2,
+            "reason_codes": [],
+            "criterion_key": "concept",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [],
+            "criterion_key": "narrativeDrive",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [],
+            "criterion_key": "character",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [],
+            "criterion_key": "voice",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [],
+            "criterion_key": "sceneConstruction",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [],
+            "criterion_key": "dialogue",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [
+              "CLAIM_SCOPE_LIMITED_TO_EXCERPT"
+            ],
+            "criterion_key": "theme",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [],
+            "criterion_key": "worldbuilding",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 2,
+            "reason_codes": [
+              "CLAIM_SCOPE_LIMITED_TO_EXCERPT"
+            ],
+            "criterion_key": "pacing",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 5,
+            "reason_codes": [],
+            "criterion_key": "proseControl",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 3,
+            "reason_codes": [],
+            "criterion_key": "tone",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 2,
+            "reason_codes": [
+              "CLAIM_SCOPE_LIMITED_TO_EXCERPT"
+            ],
+            "criterion_key": "narrativeClosure",
+            "confidence_cap": "MODERATE"
+          },
+          {
+            "status": "scorable",
+            "public_note": "Scored from direct submitted-text evidence.",
+            "anchor_count": 2,
+            "reason_codes": [
+              "CLAIM_SCOPE_LIMITED_TO_EXCERPT"
+            ],
+            "criterion_key": "marketability",
+            "confidence_cap": "MODERATE"
+          }
+        ],
+        "word_count": 3872,
+        "schema_version": "short_form_evidence_gate_v1"
+      },
+      "genre_expectation_context": {
+        "diagnosed_genre": "literary fiction",
+        "resolution_notes": [
+          "genre_signal:memoir|testimony|personal essay|confessional|reflection|creative nonfiction=>reflection_forward,voice_forward",
+          "genre_expectation:memoir_creative_nonfiction",
+          "genre_signal:crime|noir|police procedural=>puzzle_forward,dread_forward",
+          "genre_expectation:crime_fiction",
+          "genre_signal:literary|upmarket=>mood_forward,voice_forward",
+          "genre_expectation:literary_upmarket",
+          "dominant_craft_engine:emotional_payoff=>emotional_payoff_forward"
+        ],
+        "expectation_profiles": [
+          "reflection_forward",
+          "voice_forward",
+          "puzzle_forward",
+          "dread_forward",
+          "mood_forward",
+          "emotional_payoff_forward"
+        ],
+        "dominant_craft_engine": "emotional_payoff",
+        "genre_expectation_ids": [
+          "memoir_creative_nonfiction",
+          "crime_fiction",
+          "literary_upmarket"
+        ],
+        "shelf_target_audience": "Readers of literary fiction interested in queer family-making, systemic critiques of surveillance and criminalization, and morally ambiguous crime narratives, similar to audiences for writers who blend memoir-like intimacy with political and philosophical inquiry.",
+        "genre_expectation_labels": [
+          "Memoir / creative nonfiction",
+          "Crime fiction / noir / procedural",
+          "Literary / upmarket fiction"
+        ]
+      },
+      "artifact_validation_result": "HOLD",
+      "short_form_final_sanity_check": {
+        "codes": [
+          "SHORT_FORM_LONGFORM_ARTIFACT_LEAK",
+          "SHORT_FORM_MIDSENTENCE_TERMINATION",
+          "SHORT_FORM_COPY_DEFECT"
+        ],
+        "verdict": "BLOCK",
+        "blocking": true,
+        "schema_version": "short_form_final_sanity_check_v1",
+        "internal_reason": "Short-form sanity check found SHORT_FORM_LONGFORM_ARTIFACT_LEAK, SHORT_FORM_MIDSENTENCE_TERMINATION, SHORT_FORM_COPY_DEFECT",
+        "public_safe_reason": "The report needs correction before release because some claims are not supported by the submitted text."
+      }
+    },
+    "policy_family": "multi-pass-dual-axis",
+    "confidence_label": "high",
+    "confidence_reasons": [
+      "low=0",
+      "moderate=3",
+      "missing=0",
+      "weak=0"
+    ],
+    "observability_warnings": []
+  },
+  "generated_at": "2026-07-13T22:53:12.289Z",
+  "detected_mode": {
+    "evidence": [
+      {
+        "where": "char~18447",
+        "signal": "survivor-disclosure marker: abuse"
+      }
+    ],
+    "alternates": [
+      {
+        "mode": "TRANSGRESSIVE",
+        "reason": "register volatility may indicate transgressive craft in sections"
+      }
+    ],
+    "confidence": "MODERATE",
+    "proposedEvaluationMode": "TESTIMONY",
+    "proposedVoicePreservationMode": "MAXIMUM"
+  },
+  "confirmed_mode": null,
+  "mode_telemetry": [],
+  "schema_version": "evaluation_result_v2",
+  "recommendations": {
+    "quick_wins": [
+      {
+        "why": "the stakes signal arrives too late in the passage, diffusing narrative urgency at the turn",
+        "action": "Increase the tension in scenes by introducing stakes that directly affect the protagonist’s goals.",
+        "effort": "medium",
+        "impact": "high",
+        "mechanism": "The stakes signal arrives too late in the passage, diffusing narrative urgency at the turn.",
+        "criterion_key": "narrativeDrive",
+        "reader_effect": "This will create a more compelling narrative momentum.",
+        "anchor_snippet": "I needed to feel his energy and was desperate to know if he was there waiting for me.",
+        "candidate_text_a": "I needed to feel his energy, fearing that without it, my connection to Utku would fade forever."
+      },
+      {
+        "why": "the causal sequencing is inverted, so the consequence lands before the trigger, losing scene-turn coherence",
+        "action": "Incorporate more sensory details to enrich the atmosphere of key scenes.",
+        "effort": "medium",
+        "impact": "high",
+        "mechanism": "The causal sequencing is inverted, so the consequence lands before the trigger, losing scene-turn coherence.",
+        "criterion_key": "sceneConstruction",
+        "reader_effect": "This will deepen reader immersion and emotional engagement.",
+        "anchor_snippet": "I’d spend hours walking in front of his parents’ home and the general neighbourhood..",
+        "candidate_text_a": "I’d spend hours walking in front of his parents’ home, the scent of blooming jasmine filling the air."
+      },
+      {
+        "why": "Gives the reader stronger forward momentum and cleaner urgency through the section turn.",
+        "action": "Cut one reflective sentence and insert one immediate external action trigger; Within the passage near “I decided to introduce him…,” add a short action-response beat pair so scene movement stays visible and can even within a reflection-forward, literary mode, several expository paragraphs about because the reflective passage stalls forward momentum before the narrative urgency peaks.",
+        "effort": "medium",
+        "impact": "high",
+        "mechanism": "The reflective passage stalls forward momentum before the narrative urgency peaks.",
+        "criterion_key": "pacing",
+        "reader_effect": "Stronger forward momentum and cleaner urgency through the section turn.",
+        "anchor_snippet": "I decided to introduce him to a character named MJ who had dipped his toes into the sometimes icy cold.."
+      },
+      {
+        "why": "Gives the reader a stronger sense of resolution, reducing the feeling of dangling threads.",
+        "action": "Add one concrete resolution beat that closes the dangling thread and signals consequence to the reader; Convert the abstract claim into a concrete outcome cue to because MJ’s fate, his meeting with Desire in the Coachella Valley, and the impact of his.",
+        "effort": "medium",
+        "impact": "high",
+        "mechanism": "The dangling thread lacks a concrete resolution beat, leaving the reader without consequence.",
+        "criterion_key": "narrativeClosure",
+        "reader_effect": "Stronger sense of resolution and consequence, reducing the feeling of dangling threads.",
+        "anchor_snippet": "That’s the end of the story. You have to come to your conclusions about the ending."
+      },
+      {
+        "why": "the dangling thread lacks a concrete resolution beat, leaving the reader without consequence",
+        "action": "Provide clearer resolutions or hints at future developments to satisfy reader curiosity.",
+        "effort": "medium",
+        "impact": "high",
+        "mechanism": "The dangling thread lacks a concrete resolution beat, leaving the reader without consequence.",
+        "criterion_key": "narrativeClosure",
+        "reader_effect": "This will enhance reader satisfaction and engagement with the narrative.",
+        "anchor_snippet": "Did MJ leave the drugs in his cavity? Was he eventually caught?",
+        "candidate_text_a": "MJ's fate remains uncertain, but his journey reveals the complexities of choice and consequence."
+      }
+    ],
+    "strategic_revisions": [
+      {
+        "why": "the attribution gap causes speaker intent to blur, reducing tension in the exchange",
+        "action": "Trim some dialogue exchanges to enhance clarity and impact.",
+        "effort": "medium",
+        "impact": "medium",
+        "mechanism": "The attribution gap causes speaker intent to blur, reducing tension in the exchange.",
+        "criterion_key": "dialogue",
+        "reader_effect": "This will maintain pacing and keep the reader focused on key interactions.",
+        "anchor_snippet": "Ahhhh, consider what?”",
+        "candidate_text_a": "“What do you mean?” I asked."
+      },
+      {
+        "why": "Gives the reader immediate sensory grounding, reducing cognitive load and increasing immersion.",
+        "action": "Anchor one passage with two specific sensory details—tactile, auditory, or olfactory—that ground the setting.",
+        "effort": "medium",
+        "impact": "medium",
+        "mechanism": "Missing sensory detail forces the reader to imagine the setting without authorial guidance, increasing cognitive load.",
+        "criterion_key": "worldbuilding",
+        "reader_effect": "Immediate sensory grounding that reduces cognitive load and increases immersion.",
+        "anchor_snippet": "The setting lacks sensory grounding, leaving the reader without physical orientation in the world of the narrative."
+      },
+      {
+        "why": "Gives the reader tighter sentence-level clarity and reduced cognitive friction.",
+        "action": "Tighten one overlong sentence by splitting at the causal pivot and removing redundant qualifiers.",
+        "effort": "medium",
+        "impact": "medium",
+        "mechanism": "Cluttered sentence structure with redundant qualifiers forces re-reading rather than forward momentum.",
+        "criterion_key": "proseControl",
+        "reader_effect": "Tighter sentence-level clarity and reduced cognitive friction.",
+        "anchor_snippet": "Sentence-level prose control weakens where an overlong construction increases cognitive load without payoff."
+      }
+    ]
+  },
+  "score_denominator_policy": "full_canonical"
+}

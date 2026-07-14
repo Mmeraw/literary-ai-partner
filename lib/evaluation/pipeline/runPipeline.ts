@@ -148,11 +148,11 @@ import { resolvedEnglishVariantLabel } from "@/lib/evaluation/englishVariant";
 import { classifyPhase1aFailure } from "./phase1aFailureClassification";
 import {
   runEvaluationCertificationGate,
-  buildECGInput,
-  trimAtWordBoundary,
+  buildECGInputFromEvaluationResult,
   EvaluationCertificationFailedError,
 } from "./evaluationCertificationGate";
-import { normalizeArtifact } from "./normalizeArtifact";
+import { normalizeArtifact, trimToLastCompleteSentence } from "./normalizeArtifact";
+import { SUMMARY_POLICY } from "@/lib/config/lengthPolicy";
 
 // Below this word count we evaluate as a single structural unit (one chunk).
 // Above this, the chunked path MUST engage — see runPipeline guard below.
@@ -2967,6 +2967,36 @@ export function synthesisToEvaluationResult(
 }
 
 /**
+ * Map internal Pass 3 verdict vocabulary to renderer-facing EvaluationResultV2
+ * verdict values. The canonical score + coverage posture drive the renderer
+ * verdict; an unrecognized internal value must never leak through as "unknown".
+ */
+export function toReportVerdict(
+  internalVerdict: "pass" | "revise" | "fail",
+  {
+    coverageLimited,
+    scoredCount,
+  }: { coverageLimited: boolean; scoredCount: number },
+): "market_ready" | "not_market_ready" | "conditional" | "not_evaluable" | "coverage_limited" | "withheld" {
+  if (coverageLimited) {
+    return "coverage_limited";
+  }
+  if (scoredCount === 0) {
+    return "not_evaluable";
+  }
+  switch (internalVerdict) {
+    case "pass":
+      return "market_ready";
+    case "revise":
+      return "conditional";
+    case "fail":
+      return "not_market_ready";
+    default:
+      return "withheld";
+  }
+}
+
+/**
  * Map SynthesisOutput to EvaluationResultV2 using governed applicability +
  * observability normalization at the synthesis boundary.
  */
@@ -3191,31 +3221,9 @@ export function synthesisToEvaluationResultV2(
   const coverageLimited =
     certification.route === "LONG_FORM" && !certification.manuscriptWideCertifiable;
 
-  const candidateOverviewSummary = normalizeSummaryWithBottomWeaknesses(
-    coverageLimited
-      ? buildCoverageLimitedSummary(synthesis.coverage_scope)
-      : synthesis.overall.one_paragraph_summary,
-    propagation.bottomScoreCriteria,
-  );
-
   const fallbackWeaknesses = propagation.bottomScoreCriteria.slice(0, 2).join(" and ") || "priority criteria";
   const fallbackOverviewSummary =
     `This manuscript shows meaningful strengths and clear readiness potential, with the most consequential revision pressure in ${fallbackWeaknesses}; targeted craft tightening should materially improve submission posture.`;
-
-  const rawOverviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
-  // Hard cap at 750 chars — generous limit so LLM writes substantive summaries.
-  // trimAtWordBoundary ensures we never cut mid-word (fixes "occasiona" truncation).
-  const overviewSummary = trimAtWordBoundary(rawOverviewSummary, 750);
-
-  const overviewOneSentencePitch =
-    typeof synthesis.overall.one_sentence_pitch === "string" && synthesis.overall.one_sentence_pitch.trim().length > 0
-      ? synthesis.overall.one_sentence_pitch.trim()
-      : undefined;
-
-  const overviewOneParagraphPitch =
-    typeof synthesis.overall.one_paragraph_pitch === "string" && synthesis.overall.one_paragraph_pitch.trim().length > 0
-      ? synthesis.overall.one_paragraph_pitch.trim()
-      : undefined;
 
   const fallbackStrengths = criteriaSortedByScore.slice(0, 3).map((criterion) => {
     const label = getCriterionDisplayLabel(criterion.key);
@@ -3309,80 +3317,49 @@ export function synthesisToEvaluationResultV2(
     );
   }
 
-  // ── Stage 2: Artifact Certification Authority (verdict only — no mutation) ─
-  // The ACA is a referee. It reads the normalized artifact and emits
-  // CERTIFIED, CERTIFICATION_FAILED, or SKIPPED based on ECG_MODE.
-  // It never patches, repairs, or regenerates content.
-  const ecgInput = buildECGInput(
-    {
-      overview: {
-        overall_score_0_100: weighted.overall_score_0_100,
-        verdict: synthesis.overall.verdict,
-        one_paragraph_summary: synthesis.overall.one_paragraph_summary,
-        one_sentence_pitch: synthesis.overall.one_sentence_pitch ?? null,
-        one_paragraph_pitch: synthesis.overall.one_paragraph_pitch ?? null,
-        top_3_strengths: synthesis.overall.top_3_strengths ?? null,
-        top_3_risks: synthesis.overall.top_3_risks ?? null,
-      },
-      enrichment: resolvedLlmEnrichment
-        ? {
-            premise: resolvedLlmEnrichment.premise ?? null,
-            diagnosed_genre: resolvedLlmEnrichment.diagnosed_genre ?? null,
-            target_audience: resolvedLlmEnrichment.target_audience ?? null,
-          }
-        : null,
-      recommendations: {
-        quick_wins: quickWins?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
-        strategic_revisions: strategicRevisions?.map((r: { action?: string }) => ({ action: r.action ?? null })) ?? null,
-      },
-      criteria: synthesis.criteria.map(c => ({
-        key: c.key,
-        final_score_0_10: c.final_score_0_10,
-        final_rationale: c.final_rationale,
-      })),
-      governance: {
-        confidence: weighted.scored_count === 0 ? 0.55 : derivedConfidence.confidence,
-        confidence_label: weighted.scored_count === 0 ? 'withheld' : derivedConfidence.confidenceLabel,
-      },
-    },
-    weighted.overall_score_0_100,
+  // ── Derive final overview fields from the normalized synthesis artifact ───
+  // All prose has already been capped and trimmed at complete-sentence boundaries.
+  const reportVerdict = toReportVerdict(synthesis.overall.verdict, {
+    coverageLimited,
+    scoredCount: weighted.scored_count,
+  });
+
+  const candidateOverviewSummary = normalizeSummaryWithBottomWeaknesses(
+    coverageLimited
+      ? buildCoverageLimitedSummary(synthesis.coverage_scope)
+      : synthesis.overall.one_paragraph_summary,
+    propagation.bottomScoreCriteria,
+    SUMMARY_POLICY.cap,
   );
-  const ecgResult = runEvaluationCertificationGate(ecgInput);
 
-  // Log ECG result always — violations feed into governance.warnings below.
-  if (ecgResult.violations.length > 0) {
-    console.warn(`[ECG] ${ecgResult.summary}`);
-    for (const v of ecgResult.fatal) {
-      console.warn(`  [ECG FATAL] ${v.code} (${v.section}): ${v.message}`);
-    }
-    for (const v of ecgResult.advisory) {
-      console.info(`  [ECG ADVISORY] ${v.code} (${v.section}): ${v.message}`);
-    }
-  } else {
-    console.info(`[ECG] ${ecgResult.summary}`);
-  }
+  const rawOverviewSummary = ensureSubstantiveText(candidateOverviewSummary, 40) ?? fallbackOverviewSummary;
+  const overviewSummary = trimToLastCompleteSentence(rawOverviewSummary, SUMMARY_POLICY.cap, 'overview.one_paragraph_summary');
 
-  // ── ECG_MODE routing ──────────────────────────────────────────────────────
-  // ENFORCE mode: FATAL violations block persistence.
-  // WARN_ONLY: all violations logged above; always continues to persist.
-  // OFF: gate was skipped; ecgResult.status === 'SKIPPED'.
-  if (ecgResult.status === 'CERTIFICATION_FAILED') {
-    // Only reachable in ENFORCE mode. Throw a typed error so the processor can
-    // surface a dedicated ECG_CERTIFICATION_FAILED failure_code with the fatal
-    // sub-codes preserved, instead of collapsing into PROCESSOR_UNCAUGHT_ERROR.
-    throw new EvaluationCertificationFailedError(ecgResult);
-  }
+  const overviewOneSentencePitch =
+    typeof synthesis.overall.one_sentence_pitch === "string" && synthesis.overall.one_sentence_pitch.trim().length > 0
+      ? synthesis.overall.one_sentence_pitch.trim()
+      : undefined;
 
-  // Surface ECG violations into governance.warnings so they are preserved in
-  // the stored artifact and visible to operators and the UI governance banner.
-  if (ecgResult.fatal.length > 0) {
-    governanceWarnings.push(
-      `ECG_WARN_ONLY: ${ecgResult.fatal.length} certification violation(s) detected but not enforced ` +
-      `(ECG_MODE=${ecgResult.mode}): ${ecgResult.fatal.map(v => v.code).join(', ')}`,
-    );
-  }
+  const overviewOneParagraphPitch =
+    typeof synthesis.overall.one_paragraph_pitch === "string" && synthesis.overall.one_paragraph_pitch.trim().length > 0
+      ? synthesis.overall.one_paragraph_pitch.trim()
+      : undefined;
 
-  return {
+  const finalOverview = {
+    verdict: reportVerdict,
+    overall_score_0_100: weighted.overall_score_0_100,
+    scored_criteria_count: weighted.scored_count,
+    one_sentence_pitch: overviewOneSentencePitch,
+    one_paragraph_pitch: overviewOneParagraphPitch,
+    one_paragraph_summary: overviewSummary,
+    top_3_strengths: coverageLimited ? [] : overviewTopStrengths,
+    top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : overviewTopRisks,
+  };
+
+  // ── Assemble the candidate EvaluationResultV2 artifact before certification ─
+  // ECG will certify this exact object; after certification we will add the ECG
+  // warning annotations immutably. No other representation is built after this point.
+  const candidateResult: EvaluationResultV2 = {
     schema_version: "evaluation_result_v2",
     score_denominator_policy: "full_canonical",
     ids,
@@ -3395,16 +3372,7 @@ export function synthesisToEvaluationResultV2(
     detected_mode: detectedMode,
     confirmed_mode: null,
     mode_telemetry: [],
-    overview: {
-      verdict: synthesis.overall.verdict,
-      overall_score_0_100: weighted.overall_score_0_100,
-      scored_criteria_count: weighted.scored_count,
-      one_sentence_pitch: overviewOneSentencePitch,
-      one_paragraph_pitch: overviewOneParagraphPitch,
-      one_paragraph_summary: overviewSummary,
-      top_3_strengths: coverageLimited ? [] : overviewTopStrengths,
-      top_3_risks: coverageLimited ? ["coverage_limited_long_form_evaluation"] : overviewTopRisks,
-    },
+    overview: finalOverview,
     criteria: governedCriteriaWithTemplateFallbacks,
     recommendations: {
       quick_wins: quickWins,
@@ -3422,9 +3390,13 @@ export function synthesisToEvaluationResultV2(
       },
       processing: {},
     },
-    enrichment: opts.manuscriptText
-      ? computeEnrichment(opts.manuscriptText, resolvedLlmEnrichment)
-      : undefined,
+    enrichment:
+      opts.manuscriptText ||
+      resolvedLlmEnrichment.premise ||
+      resolvedLlmEnrichment.diagnosed_genre ||
+      resolvedLlmEnrichment.target_audience
+        ? computeEnrichment(opts.manuscriptText || "", resolvedLlmEnrichment)
+        : undefined,
     artifacts: [],
     governance: {
       confidence:
@@ -3470,11 +3442,6 @@ export function synthesisToEvaluationResultV2(
           authority_level: propagation.authorityLevel,
           reasons: propagation.reasons,
         },
-        // PR #506 — Froggin Noggin Pass 4 provenance truth. Always emitted when
-        // runPipeline has computed an externalAdjudication status (which it now
-        // always does on the success path). Allows the report surface to render
-        // "External Adjudication: Completed · Required Mode · Perplexity · 29,568-char
-        // evidence packet" without inferring anything from missing fields.
         ...(externalAdjudication
           ? {
               external_adjudication: {
@@ -3496,4 +3463,60 @@ export function synthesisToEvaluationResultV2(
       },
     },
   };
+
+  // ── Stage 2: Artifact Certification Authority (verdict only — no mutation) ─
+  // The ACA is a referee. It reads the normalized artifact and emits
+  // CERTIFIED, CERTIFICATION_FAILED, or SKIPPED based on ECG_MODE.
+  // It never patches, repairs, or regenerates content.
+  const ecgInput = buildECGInputFromEvaluationResult(
+    candidateResult,
+    weighted.overall_score_0_100,
+  );
+  const ecgResult = runEvaluationCertificationGate(ecgInput);
+
+  // Log ECG result always — violations feed into governance.warnings below.
+  if (ecgResult.violations.length > 0) {
+    console.warn(`[ECG] ${ecgResult.summary}`);
+    for (const v of ecgResult.fatal) {
+      console.warn(`  [ECG FATAL] ${v.code} (${v.section}): ${v.message}`);
+    }
+    for (const v of ecgResult.advisory) {
+      console.info(`  [ECG ADVISORY] ${v.code} (${v.section}): ${v.message}`);
+    }
+  } else {
+    console.info(`[ECG] ${ecgResult.summary}`);
+  }
+
+  // ── ECG_MODE routing ──────────────────────────────────────────────────────
+  // ENFORCE mode: FATAL violations block persistence.
+  // WARN_ONLY: all violations logged above; always continues to persist.
+  // OFF: gate was skipped; ecgResult.status === 'SKIPPED'.
+  if (ecgResult.status === 'CERTIFICATION_FAILED') {
+    // Only reachable in ENFORCE mode. Throw a typed error so the processor can
+    // surface a dedicated ECG_CERTIFICATION_FAILED failure_code with the fatal
+    // sub-codes preserved, instead of collapsing into PROCESSOR_UNCAUGHT_ERROR.
+    throw new EvaluationCertificationFailedError(ecgResult);
+  }
+
+  // Surface ECG violations into governance.warnings so they are preserved in
+  // the stored artifact and visible to operators and the UI governance banner.
+  // This is done immutably: the object certified by ECG is the same object
+  // returned, with only the warning annotations appended after certification.
+  const ecgWarnings: string[] =
+    ecgResult.fatal.length > 0
+      ? [
+          `ECG_WARN_ONLY: ${ecgResult.fatal.length} certification violation(s) detected but not enforced ` +
+            `(ECG_MODE=${ecgResult.mode}): ${ecgResult.fatal.map((v) => v.code).join(', ')}`,
+        ]
+      : [];
+
+  const finalEvaluationResult: EvaluationResultV2 = {
+    ...candidateResult,
+    governance: {
+      ...candidateResult.governance,
+      warnings: [...candidateResult.governance.warnings, ...ecgWarnings],
+    },
+  };
+
+  return finalEvaluationResult;
 }

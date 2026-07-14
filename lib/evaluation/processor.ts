@@ -161,6 +161,7 @@ import {
 } from '@/lib/manuscripts/nonEvaluativeSections';
 import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2, Pass3PreflightDraft, Pass1aChunkOutput, ExternalAdjudicationStatus } from '@/lib/evaluation/pipeline/types';
 import { isEvaluationCertificationFailedError } from '@/lib/evaluation/pipeline/evaluationCertificationGate';
+import { isArtifactTextContractError } from '@/lib/evaluation/pipeline/normalizeArtifact';
 import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
@@ -10584,8 +10585,29 @@ export async function processEvaluationJob(
         return { success: false, error: certificationError.message };
       }
 
-      // Not a certification failure — preserve existing handling for genuinely
-      // unexpected exceptions (routed to PROCESSOR_UNCAUGHT_ERROR).
+      if (isArtifactTextContractError(certificationError)) {
+        // Phase 3 output failed its author-facing text contract before ECG was
+        // invoked. This is a generation/regeneration-required failure, not an ECG
+        // certification failure. ECG must not be called for an artifact that
+        // already violates its length/sentence contract.
+        await markFailed(certificationError.message, 'PHASE3_TEXT_CONTRACT_FAILED', {
+          pipelineStage: 'phase_3',
+          reasonCodes: ['PHASE3_TEXT_CONTRACT_FAILED', certificationError.code, certificationError.reason],
+          diagnostics: {
+            contract_field: certificationError.field,
+            contract_reason: certificationError.reason,
+            actual_length: certificationError.actualLength,
+            cap: certificationError.cap,
+            regeneration_required: true,
+            retryable: true,
+          },
+        });
+
+        return { success: false, error: certificationError.message };
+      }
+
+      // Not a certification or text-contract failure — preserve existing handling
+      // for genuinely unexpected exceptions (routed to PROCESSOR_UNCAUGHT_ERROR).
       throw certificationError;
     }
 

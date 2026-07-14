@@ -169,7 +169,11 @@ export type EvaluationResultV2 = {
   } | null;
   mode_telemetry?: ModeTelemetryEvent[];
   overview: {
-    verdict: "pass" | "revise" | "fail";
+    /**
+     * Renderer-facing verdict vocabulary. Internal Pass 3 pass/revise/fail is
+     * mapped to these values before certification and persistence.
+     */
+    verdict: "market_ready" | "not_market_ready" | "conditional" | "not_evaluable" | "coverage_limited" | "withheld";
     /**
      * Null when zero criteria are scorable. This prevents aggregate fake-zero.
      */

@@ -38,7 +38,7 @@ function resultWith(overrides: Partial<EvaluationResultV2>): EvaluationResultV2 
       prompt_version: 'test-prompt',
     },
     overview: {
-      verdict: 'revise',
+      verdict: 'conditional',
       overall_score_0_100: 60,
       scored_criteria_count: 2,
       one_paragraph_summary: 'The manuscript has strong voice but needs revision.',
@@ -103,7 +103,7 @@ describe('artifactConsistencyGateV1', () => {
   test('passes when summary and action trace reference bottom weakness criteria', () => {
     const effective = resultWith({
       overview: {
-        verdict: 'revise',
+        verdict: 'conditional',
         overall_score_0_100: 60,
         scored_criteria_count: 2,
         one_paragraph_summary: 'The manuscript has strong voice, but the main weakness is theme clarity.',
@@ -124,7 +124,7 @@ describe('artifactConsistencyGateV1', () => {
   test('blocks when a bottom weakness lacks any traceable recommendation or action item', () => {
     const effective = resultWith({
       overview: {
-        verdict: 'revise',
+        verdict: 'conditional',
         overall_score_0_100: 60,
         scored_criteria_count: 2,
         one_paragraph_summary: 'The manuscript has strong voice, but the main weakness is theme clarity.',
@@ -163,7 +163,7 @@ describe('artifactConsistencyGateV1', () => {
         criterion('voice', 8),
       ],
       overview: {
-        verdict: 'revise',
+        verdict: 'conditional',
         overall_score_0_100: 60,
         scored_criteria_count: 2,
         one_paragraph_summary: 'Theme remains the primary weakness and needs revision.',
@@ -195,7 +195,7 @@ describe('artifactConsistencyGateV1', () => {
         criterion('voice', 8),
       ],
       overview: {
-        verdict: 'revise',
+        verdict: 'conditional',
         overall_score_0_100: 70,
         scored_criteria_count: 2,
         one_paragraph_summary: 'The manuscript has strong voice and momentum.',
@@ -216,7 +216,7 @@ describe('artifactConsistencyGateV1', () => {
         criterion('voice', 8),
       ],
       overview: {
-        verdict: 'revise',
+        verdict: 'conditional',
         overall_score_0_100: 60,
         scored_criteria_count: 2,
         one_paragraph_summary: 'The manuscript has strong voice and momentum.',
@@ -263,7 +263,7 @@ describe('artifactConsistencyGateV1', () => {
         criterion('voice', 8),
       ],
       overview: {
-        verdict: 'revise',
+        verdict: 'conditional',
         overall_score_0_100: 60,
         scored_criteria_count: 2,
         one_paragraph_summary: 'Theme remains the primary weakness and needs revision.',
