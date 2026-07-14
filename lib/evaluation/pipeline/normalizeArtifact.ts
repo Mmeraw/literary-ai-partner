@@ -37,12 +37,10 @@
  *   Pass 3 output → normalizeArtifact() → ECG → persist
  */
 
-import { trimAtSentenceBoundary } from './evaluationCertificationGate';
 import {
   capitalizeFirstAlpha,
   ensureTerminalPunctuation,
   collapseAdjacentDuplicateWords,
-  endsMidSentence,
 } from '@/lib/text/authorFacingProse';
 import {
   SUMMARY_POLICY,
@@ -53,8 +51,7 @@ import {
 export type ArtifactTextContractReason =
   | 'NO_COMPLETE_SENTENCE_WITHIN_CAP'
   | 'ONE_SENTENCE_PITCH_OVER_CAP'
-  | 'ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE'
-  | 'ONE_SENTENCE_PITCH_ENDS_WITH_ELLIPSIS';
+  | 'ONE_SENTENCE_PITCH_MULTIPLE_SENTENCES';
 
 /**
  * Thrown when an author-facing text field cannot satisfy its length/sentence
@@ -71,8 +68,8 @@ export class ArtifactTextContractError extends Error {
     readonly cap: number,
   ) {
     super(
-      `${field} cannot satisfy its text contract (${reason}) within ${cap} characters ` +
-        `(actual ${actualLength}). Regenerate the field upstream.`,
+      `${field} failed its text contract: ${reason} (actual=${actualLength}, cap=${cap}). ` +
+        'Regenerate the field upstream.',
     );
     this.name = 'ArtifactTextContractError';
   }
@@ -122,7 +119,35 @@ const OVERVIEW_MAX_CHARS = SUMMARY_POLICY.cap; // 1000
 const ONE_SENTENCE_PITCH_MAX_CHARS = ONE_SENTENCE_PITCH_POLICY.cap; // 220
 const ONE_PARAGRAPH_PITCH_MAX_CHARS = ONE_PARAGRAPH_PITCH_POLICY.cap; // 750
 
-const SENTENCE_TERMINATOR = /[.!?…](?=\s|$)/g;
+// Common abbreviations and titles whose periods must not be counted as sentence
+// terminators. The token checked is the text immediately preceding the
+// punctuation (e.g. "U.S" for the final period in "U.S.").
+const ABBREVIATIONS = new Set<string>([
+  'U.S',
+  'U.K',
+  'e.g',
+  'i.e',
+  'vs',
+  'Dr',
+  'Mr',
+  'Mrs',
+  'Ms',
+  'St',
+  'vol',
+  'etc',
+  'Inc',
+  'Ltd',
+  'Jr',
+  'Sr',
+  'A.M',
+  'P.M',
+  'Ph.D',
+  'M.D',
+  'B.A',
+  'M.A',
+  'B.S',
+  'M.S',
+]);
 
 function contractError(
   field: string,
@@ -133,38 +158,82 @@ function contractError(
   throw new ArtifactTextContractError(field, reason, actualLength, cap);
 }
 
+function tokenBeforePunctuation(text: string, index: number): string {
+  let i = index - 1;
+  while (i >= 0 && !/\s/.test(text[i])) {
+    i--;
+  }
+  return text.slice(i + 1, index);
+}
+
+function isEllipsisPeriod(text: string, index: number): boolean {
+  if (text[index] !== '.') return false;
+  // The third (or later) dot of a run of consecutive periods ("...").
+  return text[index - 1] === '.' && text[index - 2] === '.';
+}
+
+function isSentenceTerminator(text: string, index: number): boolean {
+  const ch = text[index];
+  if (!/[.!?]/.test(ch)) return false;
+  if (ch === '.' && isEllipsisPeriod(text, index)) return false;
+
+  const next = text[index + 1];
+  if (next !== undefined && !/\s/.test(next)) return false;
+
+  const token = tokenBeforePunctuation(text, index);
+  if (ABBREVIATIONS.has(token) || /^[A-Z]$/.test(token)) return false;
+
+  return true;
+}
+
+function findSentenceTerminators(text: string): Array<{ index: number; length: number }> {
+  const matches: Array<{ index: number; length: number }> = [];
+  for (let i = 0; i < text.length; i++) {
+    if (isSentenceTerminator(text, i)) {
+      matches.push({ index: i, length: 1 });
+    }
+  }
+  return matches;
+}
+
+function isCompleteSentence(text: string): boolean {
+  const trimmed = text.trim();
+  const terms = findSentenceTerminators(trimmed);
+  if (terms.length === 0) return false;
+  const last = terms[terms.length - 1];
+  return last.index === trimmed.length - 1;
+}
+
 /**
  * Trim a multi-sentence field to the last complete sentence that fits within the
  * hard cap. The trailing incomplete sentence or fragment is dropped. We never
- * emit an ellipsis-truncated sentence: if trimAtSentenceBoundary can only
- * produce an ellipsis (no complete sentence fits within the cap), we fail with a
- * typed contract error instead.
+ * emit an ellipsis-truncated sentence; if no complete sentence fits within the
+ * cap, we fail with a typed contract error instead.
  */
 export function trimToLastCompleteSentence(text: string, maxLength: number, field: string): string {
-  if (text.length <= maxLength) {
-    if (!endsMidSentence(text)) {
-      return text;
+  const trimmed = text.trim();
+  if (trimmed.length <= maxLength) {
+    if (isCompleteSentence(trimmed)) {
+      return trimmed;
     }
-    const complete = trimAtSentenceBoundary(text);
-    if (!endsMidSentence(complete) && complete.trim().length > 0) {
-      return complete;
+    const terms = findSentenceTerminators(trimmed);
+    if (terms.length > 0) {
+      const last = terms[terms.length - 1];
+      return trimmed.slice(0, last.index + 1);
     }
-    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
+    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', trimmed.length, maxLength);
   }
 
-  const bounded = trimAtSentenceBoundary(text, maxLength);
-  const wasTruncated = bounded.length < text.length;
-  if (wasTruncated && (bounded.endsWith('…') || bounded.endsWith('...'))) {
-    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
+  let lastTerm = -1;
+  for (let i = 0; i < Math.min(trimmed.length, maxLength); i++) {
+    if (isSentenceTerminator(trimmed, i)) {
+      lastTerm = i;
+    }
   }
-  if (!endsMidSentence(bounded)) {
-    return bounded;
+  if (lastTerm >= 0) {
+    return trimmed.slice(0, lastTerm + 1);
   }
-  const complete = trimAtSentenceBoundary(bounded);
-  if (!endsMidSentence(complete) && complete.trim().length > 0) {
-    return complete;
-  }
-  contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
+  contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', trimmed.length, maxLength);
 }
 
 /**
@@ -174,27 +243,25 @@ export function trimToLastCompleteSentence(text: string, maxLength: number, fiel
  * contract failure that must be regenerated.
  */
 function assertOneSentencePitch(text: string, maxLength: number, field: string): string {
-  const trimmed = text.trim();
+  // Collapse whitespace only; do not mutate content or punctuation.
+  const trimmed = text.trim().replace(/\s+/g, ' ');
   const len = trimmed.length;
 
   if (len > maxLength) {
     contractError(field, 'ONE_SENTENCE_PITCH_OVER_CAP', len, maxLength);
   }
-  if (trimmed.endsWith('…') || trimmed.endsWith('...')) {
-    contractError(field, 'ONE_SENTENCE_PITCH_ENDS_WITH_ELLIPSIS', len, maxLength);
-  }
 
-  const matches = Array.from(trimmed.matchAll(SENTENCE_TERMINATOR));
-  if (matches.length === 0) {
+  const terms = findSentenceTerminators(trimmed);
+  if (terms.length === 0) {
     contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', len, maxLength);
   }
-  if (matches.length > 1) {
-    contractError(field, 'ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE', len, maxLength);
+  if (terms.length > 1) {
+    contractError(field, 'ONE_SENTENCE_PITCH_MULTIPLE_SENTENCES', len, maxLength);
   }
 
-  const end = matches[0].index + matches[0][0].length;
+  const end = terms[0].index + terms[0].length;
   if (end !== trimmed.length && trimmed.slice(end).trim().length > 0) {
-    contractError(field, 'ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE', len, maxLength);
+    contractError(field, 'ONE_SENTENCE_PITCH_MULTIPLE_SENTENCES', len, maxLength);
   }
 
   return trimmed;

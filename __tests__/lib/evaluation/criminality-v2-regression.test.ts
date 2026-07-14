@@ -159,8 +159,19 @@ describe('Criminality V2 regression', () => {
         normalizeArtifact(synthesis, [], []);
       } catch (e: any) {
         expect(e.field).toBe('overview.one_sentence_pitch');
-        expect(e.reason).toBe('ONE_SENTENCE_PITCH_NOT_ONE_SENTENCE');
+        expect(e.reason).toBe('ONE_SENTENCE_PITCH_MULTIPLE_SENTENCES');
       }
+    });
+
+    it('accepts a one-sentence pitch containing abbreviations as a single sentence', () => {
+      // "U.S.", "Dr.", and "e.g." should not be counted as sentence terminators.
+      const synthesis = buildSynthesisFromFixture({
+        one_sentence_pitch: 'A Dr. Smith story set in the U.S., e.g. a family saga, unfolds in one sentence.',
+      });
+      normalizeArtifact(synthesis, [], []);
+      expect(synthesis.overall.one_sentence_pitch).toBe(
+        'A Dr. Smith story set in the U.S., e.g. a family saga, unfolds in one sentence.',
+      );
     });
 
     it('does not emit an ellipsis-truncated sentence for any prose field', () => {
@@ -230,6 +241,33 @@ describe('Criminality V2 regression', () => {
   });
 
   describe('ECG object identity', () => {
+    beforeEach(() => {
+      jest.mocked(runEvaluationCertificationGate).mockClear();
+    });
+
+    it('does not invoke ECG when the one-sentence pitch violates its text contract', () => {
+      const synthesis = buildSynthesisFromFixture({
+        one_sentence_pitch: 'A father tells a story. His son learns a lesson about love.',
+      });
+
+      expect(() =>
+        synthesisToEvaluationResultV2({
+          synthesis,
+          ids: fixture.ids as any,
+          title: fixture.metrics?.manuscript?.title,
+          manuscriptText: 'x'.repeat(23165),
+          englishVariant: 'us',
+          llmEnrichment: {
+            premise: 'A father teaches his son about love through a story.',
+            diagnosed_genre: 'novel',
+            target_audience: 'Adult literary fiction readers.',
+          },
+        }),
+      ).toThrow(ArtifactTextContractError);
+
+      expect(jest.mocked(runEvaluationCertificationGate)).not.toHaveBeenCalled();
+    });
+
     it('buildECGInputFromEvaluationResult mirrors the canonical EvaluationResultV2 fields', () => {
       const result: EvaluationResultV2 = {
         ...fixture,

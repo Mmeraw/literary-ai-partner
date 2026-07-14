@@ -10586,14 +10586,20 @@ export async function processEvaluationJob(
       }
 
       if (isArtifactTextContractError(certificationError)) {
-        await markFailed(certificationError.message, 'PHASE3_ARTIFACT_TEXT_CONTRACT_FAILED', {
+        // Phase 3 output failed its author-facing text contract before ECG was
+        // invoked. This is a generation/regeneration-required failure, not an ECG
+        // certification failure. ECG must not be called for an artifact that
+        // already violates its length/sentence contract.
+        await markFailed(certificationError.message, 'PHASE3_TEXT_CONTRACT_FAILED', {
           pipelineStage: 'phase_3',
-          reasonCodes: ['PHASE3_ARTIFACT_TEXT_CONTRACT_FAILED', certificationError.code, certificationError.reason],
+          reasonCodes: ['PHASE3_TEXT_CONTRACT_FAILED', certificationError.code, certificationError.reason],
           diagnostics: {
             contract_field: certificationError.field,
             contract_reason: certificationError.reason,
             actual_length: certificationError.actualLength,
             cap: certificationError.cap,
+            regeneration_required: true,
+            retryable: true,
           },
         });
 

@@ -3390,9 +3390,13 @@ export function synthesisToEvaluationResultV2(
       },
       processing: {},
     },
-    enrichment: opts.manuscriptText
-      ? computeEnrichment(opts.manuscriptText, resolvedLlmEnrichment)
-      : undefined,
+    enrichment:
+      opts.manuscriptText ||
+      resolvedLlmEnrichment.premise ||
+      resolvedLlmEnrichment.diagnosed_genre ||
+      resolvedLlmEnrichment.target_audience
+        ? computeEnrichment(opts.manuscriptText || "", resolvedLlmEnrichment)
+        : undefined,
     artifacts: [],
     governance: {
       confidence:
