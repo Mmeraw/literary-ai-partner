@@ -34,7 +34,8 @@ function makeSynthesis(overrides: {
 
 describe('normalizeArtifact — canonical evaluation prose', () => {
   it('preserves a valid 4,000-character one-sentence pitch', () => {
-    const pitch = `A ${'complex '.repeat(498)}story.`;
+    const words = Array.from({ length: 498 }, (_, i) => `layer${i}`).join(' ');
+    const pitch = `A ${words} story.`;
     expect(pitch.length).toBeLessThan(5000);
     const synthesis = makeSynthesis({ one_sentence_pitch: pitch });
     normalizeArtifact(synthesis, [], []);
@@ -101,18 +102,18 @@ describe('normalizeArtifact — canonical evaluation prose', () => {
 });
 
 describe('normalizeArtifact — recommendation normalization', () => {
-  it('capitalizes, normalizes whitespace, and adds terminal punctuation', () => {
+  it('capitalizes and normalizes whitespace without appending punctuation', () => {
     const synthesis = makeSynthesis();
-    const quickWins = [{ action: '  compress  the exposition' }];
+    const quickWins = [{ action: '  compress  the exposition.  ' }];
     normalizeArtifact(synthesis, quickWins, []);
     expect(quickWins[0].action).toBe('Compress the exposition.');
   });
 
-  it('normalizes strategic and criterion recommendations', () => {
+  it('normalizes complete strategic and criterion recommendations', () => {
     const synthesis = makeSynthesis({
-      criteriaRecs: [{ action: 'add a concrete resolution beat at the climax' }],
+      criteriaRecs: [{ action: 'add a concrete resolution beat at the climax.' }],
     });
-    const strategic = [{ action: 'introduce physical beats in the scene' }];
+    const strategic = [{ action: 'introduce physical beats in the scene.' }];
     normalizeArtifact(synthesis, [], strategic);
     expect(strategic[0].action).toBe('Introduce physical beats in the scene.');
     expect(synthesis.criteria[0].recommendations![0].action).toBe(

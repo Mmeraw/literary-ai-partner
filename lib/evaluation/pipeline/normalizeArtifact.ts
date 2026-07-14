@@ -9,10 +9,10 @@
 
 import {
   capitalizeFirstAlpha,
-  ensureTerminalPunctuation,
   collapseAdjacentDuplicateWords,
   endsMidSentence,
 } from '@/lib/text/authorFacingProse';
+import { assertAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
 import {
   SUMMARY_POLICY,
   ONE_SENTENCE_PITCH_POLICY,
@@ -55,6 +55,7 @@ export function isArtifactTextContractError(err: unknown): err is ArtifactTextCo
 
 const RECOMMENDATION_PROSE_FIELDS = [
   'action',
+  'why',
   'symptom',
   'cause',
   'mechanism',
@@ -62,13 +63,17 @@ const RECOMMENDATION_PROSE_FIELDS = [
   'specific_fix',
   'reader_effect',
   'expected_impact',
+  'mistake_proofing',
+  'candidate_text_a',
+  'candidate_text_b',
+  'candidate_text_c',
 ] as const;
 
 export interface NormalizationRecord {
   field: string;
   before: string;
   after: string;
-  operation: 'capitalize' | 'terminal_punct' | 'whitespace' | 'trim_whitespace';
+  operation: 'capitalize' | 'whitespace' | 'trim_whitespace';
 }
 
 export interface NormalizeArtifactResult {
@@ -165,11 +170,12 @@ export function normalizeArtifact(
       top_3_risks?: string[];
     };
     criteria: Array<{
-      recommendations?: Array<{ action?: string }> | null;
+      rationale?: string;
+      recommendations?: Array<Record<string, unknown>> | null;
     }>;
   },
-  quickWins: Array<{ action?: string }>,
-  strategicRevisions: Array<{ action?: string }>,
+  quickWins: Array<Record<string, unknown>>,
+  strategicRevisions: Array<Record<string, unknown>>,
 ): NormalizeArtifactResult {
   const normalizations: NormalizationRecord[] = [];
 
@@ -263,30 +269,34 @@ export function normalizeArtifact(
           value = capitalized;
         }
 
-        const punctuated = ensureTerminalPunctuation(value);
-        if (punctuated !== value) {
-          normalizations.push({
-            field: `${prefix}[${i}].${field}`,
-            before: value,
-            after: punctuated,
-            operation: 'terminal_punct',
-          });
-          value = punctuated;
-        }
-
+        // RG-TEXT-1: never append punctuation to conceal incomplete generation.
+        // The shared integrity authority below rejects incomplete prose so the
+        // affected field can regenerate upstream.
         rec[field] = value;
       }
     }
   }
 
-  normalizeRecs(quickWins as Array<Record<string, unknown>>, 'recommendations.quick_wins');
-  normalizeRecs(strategicRevisions as Array<Record<string, unknown>>, 'recommendations.strategic_revisions');
+  normalizeRecs(quickWins, 'recommendations.quick_wins');
+  normalizeRecs(strategicRevisions, 'recommendations.strategic_revisions');
 
   for (let ci = 0; ci < synthesis.criteria.length; ci++) {
     const criterion = synthesis.criteria[ci];
     if (!criterion.recommendations) continue;
-    normalizeRecs(criterion.recommendations as Array<Record<string, unknown>>, `criteria[${ci}].recommendations`);
+    normalizeRecs(criterion.recommendations, `criteria[${ci}].recommendations`);
   }
+
+  assertAuthorFacingIntegrity(
+    {
+      overview: synthesis.overall,
+      criteria: synthesis.criteria,
+      recommendations: {
+        quick_wins: quickWins,
+        strategic_revisions: strategicRevisions,
+      },
+    },
+    { rootPath: 'evaluation_result_v2' },
+  );
 
   return { normalizations };
 }

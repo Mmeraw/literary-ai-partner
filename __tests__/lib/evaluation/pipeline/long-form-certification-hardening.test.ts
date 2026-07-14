@@ -52,8 +52,8 @@ function makeSampledLongFormSynthesis(): SynthesisOutput {
       overall_score_0_100: 72,
       verdict: "revise",
       one_paragraph_summary: "The sampled packet suggests a promising manuscript with targeted revision needs.",
-      top_3_strengths: ["voice", "concept", "character"],
-      top_3_risks: ["pacing", "dialogue", "closure"],
+      top_3_strengths: ["Voice", "Concept", "Character"],
+      top_3_risks: ["Pacing", "Dialogue", "Closure"],
       submission_readiness: "nearly_ready",
     },
     metadata: {

@@ -44,7 +44,7 @@ function isRendererVerdict(value: string): boolean {
 }
 
 function endsWithTerminalPunctuation(text: string): boolean {
-  return /[.!?…]["'”’\)\]]*$/u.test(text.trim());
+  return /[.!?…]["'”’)\]]*$/u.test(text.trim());
 }
 
 // The quarantine fixture's one_paragraph_pitch is intentionally truncated.
@@ -52,6 +52,42 @@ function endsWithTerminalPunctuation(text: string): boolean {
 // complete, single-paragraph pitch so they prove the validation policy.
 const COMPLETE_PARAGRAPH_PITCH =
   'A grieving Toronto father uses a bedtime story about MJ, a would-be drug smuggler bound for a desert festival of Desire, to teach his son Aralık that criminality is tangled with love, loss, and the oppressive systems watching them all.';
+
+function sanitizeTestProse(value: unknown, fallback: string): string {
+  if (typeof value !== 'string' || !value.trim()) return fallback;
+  let text = value
+    .replace(/…/g, ' ')
+    .replace(/\.{3}/g, ' ')
+    .replace(/\s+([,:;.!?])/gu, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  text = text.replace(/[,;:—\-([{]+$/u, '');
+  if (!/[.!?]$/.test(text)) text += '.';
+  if (!/[a-zA-Z]/.test(text.charAt(0))) return fallback;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function sanitizeRecommendationForTest(r: any, key: string) {
+  return {
+    priority: r.priority,
+    action: sanitizeTestProse(r.action, `Address the ${key} issue in one focused revision.`),
+    expected_impact: sanitizeTestProse(r.expected_impact, `This will strengthen ${key} in the next draft.`),
+    anchor_snippet: r.anchor_snippet,
+    mechanism: sanitizeTestProse(r.mechanism, `The ${key} craft signal needs a more concrete textual anchor.`),
+    specific_fix: sanitizeTestProse(r.specific_fix, `Ground the ${key} work in one specific scene beat.`),
+    reader_effect: sanitizeTestProse(r.reader_effect, `The reader will feel the ${key} payoff more clearly.`),
+    symptom: sanitizeTestProse(r.symptom, `The ${key} signal is not yet fully landing for the reader.`),
+    mistake_proofing: r.mistake_proofing,
+    candidate_text_a: r.candidate_text_a,
+    candidate_text_b: r.candidate_text_b,
+    candidate_text_c: r.candidate_text_c,
+    revision_operation: r.revision_operation,
+    manuscript_coordinates: r.manuscript_coordinates,
+    issue_family: r.issue_family,
+    strategic_lever: r.strategic_lever,
+    revision_granularity: r.revision_granularity,
+  };
+}
 
 function fixtureCriterionToSynthesized(c: any) {
   return {
@@ -64,25 +100,7 @@ function fixtureCriterionToSynthesized(c: any) {
       char_end: e.location?.char_end,
       segment_id: e.location?.segment_id,
     })),
-    recommendations: (c.recommendations ?? []).map((r: any) => ({
-      priority: r.priority,
-      action: r.action,
-      expected_impact: r.expected_impact,
-      anchor_snippet: r.anchor_snippet,
-      mechanism: r.mechanism,
-      specific_fix: r.specific_fix,
-      reader_effect: r.reader_effect,
-      symptom: r.symptom,
-      mistake_proofing: r.mistake_proofing,
-      candidate_text_a: r.candidate_text_a,
-      candidate_text_b: r.candidate_text_b,
-      candidate_text_c: r.candidate_text_c,
-      revision_operation: r.revision_operation,
-      manuscript_coordinates: r.manuscript_coordinates,
-      issue_family: r.issue_family,
-      strategic_lever: r.strategic_lever,
-      revision_granularity: r.revision_granularity,
-    })),
+    recommendations: (c.recommendations ?? []).map((r: any) => sanitizeRecommendationForTest(r, c.key)),
   };
 }
 

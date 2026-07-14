@@ -1,50 +1,8 @@
-/**
- * U2-004 G5 — Confidence Level Policy Tests
- *
- * ## What these tests verify
- *
- * 1. maxLowConfidenceScore() — the canonical ceiling helper exported from
- *    criterionConfidence.ts — returns correct values per key.
- *
- * 2. enforceConfidenceLevelPolicy (wired as the final .map() in
- *    synthesisToEvaluationResultV2) is a structurally sound defensive layer.
- *    Its activation path in the current V2 runtime is narrow:
- *
- *    - normalizeCriterion() already caps confidence_score_0_100 to 59 whenever
- *      confidenceBandFromLevel === "LOW" (line 372 criterionObservability.ts).
- *    - enforceTextualAnchorConfidence() caps to 45 (anchor-absence path) and
- *      also sets confidence_level = "low".
- *    - The adapter does NOT pass the incoming SynthesisOutput.confidence_level
- *      into normalizeCriterion — both score and level are fully recomputed.
- *
- *    Therefore the invariant is already structurally enforced in the V2 path.
- *    enforceConfidenceLevelPolicy acts as a belt-and-suspenders guard for:
- *      (a) future adapters that bypass normalizeCriterion, or
- *      (b) future post-normalization transformations that set confidence_level
- *          to "low" without capping the score.
- *
- * 3. The global invariant holds on real V2 output: no criterion exits with
- *    confidence_level === "low" AND confidence_score_0_100 ≥ MODERATE_MIN.
- *
- * ## What is NOT tested here
- *
- * A "clamp fires" test with injected confidence_level: "low" + rich evidence
- * cannot be written through synthesisToEvaluationResultV2 because the adapter
- * discards the incoming confidence_level before normalizeCriterion runs.
- * The policy's direct unit activation path requires either:
- *   (a) a future adapter that forwards the label post-recomputation, or
- *   (b) a direct call bypassing the adapter (not representative of production).
- * Forcing such a fixture would be a fake test. The invariant test below is the
- * honest proof that the policy works end-to-end.
- */
-
 import { describe, expect, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { maxLowConfidenceScore } from "@/lib/evaluation/pipeline/criterionConfidence";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
 import type { SynthesisOutput } from "@/lib/evaluation/pipeline/types";
-
-// ── Fixture helpers ───────────────────────────────────────────────────────────
 
 function makeSynthesis(
   overrideCriteria?: SynthesisOutput["criteria"],
@@ -60,17 +18,17 @@ function makeSynthesis(
         score_delta: 0,
         final_rationale:
           `Strong ${key} execution shows adequate craft support, visible manuscript evidence, and reader-facing consequence across the evaluated scene material.`,
-        pressure_points: ["Clear pressure and stakes visible throughout."],
-        decision_points: ["A visible turn lands mid-manuscript."],
+        pressure_points: ["Clear pressure and stakes remain visible throughout."],
+        decision_points: ["A visible turn lands in the middle of the manuscript."],
         consequence_status: "landed" as const,
         evidence: [
-          { snippet: `"The ${key} beat lands clearly in the opening chapter."` },
+          { snippet: `The ${key} beat lands clearly in the opening chapter.` },
         ],
         recommendations: [
           {
             priority: "medium" as const,
             action: `In chapter 2, tighten the ${key} turn by adding one concrete consequence beat so the reader can track the causal movement through the scene.`,
-            expected_impact: `Creates a clearer ${key} arc across the manuscript and gives the reader stronger confidence in the revised scene logic.`,
+            expected_impact: `This creates a clearer ${key} arc across the manuscript and gives the reader stronger confidence in the revised scene logic.`,
             anchor_snippet: `The ${key} beat lands clearly in the opening chapter.`,
             source_pass: 3 as const,
             issue_family: "scene_structure" as const,
@@ -83,7 +41,9 @@ function makeSynthesis(
         ],
         confidence_score_0_100: 72,
         confidence_level: "moderate" as const,
-        confidence_reasons: ["three_or_more_evidence_anchors"],
+        confidence_reasons: [
+          "Three or more evidence anchors support this criterion.",
+        ],
         scorability_status: "scorable" as const,
       })),
     overall: {
@@ -147,253 +107,126 @@ function adapt(synthesis: SynthesisOutput) {
   });
 }
 
-// ── maxLowConfidenceScore — unit tests ────────────────────────────────────────
+function assertLowConfidenceInvariant(result: ReturnType<typeof adapt>): void {
+  for (const criterion of result.criteria) {
+    const cap = maxLowConfidenceScore(criterion.key);
+    if (criterion.confidence_level === "low") {
+      expect(criterion.confidence_score_0_100).toBeLessThanOrEqual(cap);
+    }
+    if ((criterion.confidence_score_0_100 ?? 0) > cap) {
+      expect(criterion.confidence_level).not.toBe("low");
+    }
+  }
+}
 
 describe("maxLowConfidenceScore — canonical ceiling per criterion key", () => {
-  test("general keys return 59 (MODERATE_MIN 60 − 1)", () => {
-    expect(maxLowConfidenceScore("character")).toBe(59);
-    expect(maxLowConfidenceScore("narrativeDrive")).toBe(59);
-    expect(maxLowConfidenceScore("voice")).toBe(59);
-    expect(maxLowConfidenceScore("pacing")).toBe(59);
-    expect(maxLowConfidenceScore("dialogue")).toBe(59);
-    expect(maxLowConfidenceScore("theme")).toBe(59);
+  test("general keys return 59", () => {
+    for (const key of ["character", "narrativeDrive", "voice", "pacing", "dialogue", "theme"]) {
+      expect(maxLowConfidenceScore(key)).toBe(59);
+    }
   });
 
-  test("proseControl returns 54 (MODERATE_MIN_BY_KEY[proseControl] 55 − 1)", () => {
+  test("proseControl returns 54", () => {
     expect(maxLowConfidenceScore("proseControl")).toBe(54);
   });
 
-  test("unknown key falls back to general threshold (59)", () => {
+  test("unknown and absent keys fall back to 59", () => {
     expect(maxLowConfidenceScore("unknownCriterionXYZ")).toBe(59);
-  });
-
-  test("null/undefined key falls back to general threshold (59)", () => {
     expect(maxLowConfidenceScore(null)).toBe(59);
     expect(maxLowConfidenceScore(undefined)).toBe(59);
   });
 
-  test("ceiling is one below moderate threshold — not an arbitrary constant", () => {
-    // This test documents the relationship explicitly.
-    // If MODERATE_MIN ever changes, this will catch any drift in the helper.
-    const generalCap = maxLowConfidenceScore("character");
-    const proseControlCap = maxLowConfidenceScore("proseControl");
-    // A score at the cap must be "low"; a score one above must not be.
-    expect(generalCap).toBeLessThan(60);     // MODERATE_MIN for general keys
-    expect(proseControlCap).toBeLessThan(55); // MODERATE_MIN for proseControl
+  test("ceilings remain below their moderate thresholds", () => {
+    expect(maxLowConfidenceScore("character")).toBeLessThan(60);
+    expect(maxLowConfidenceScore("proseControl")).toBeLessThan(55);
   });
 });
 
-// ── Global invariant — V2 adapter output ─────────────────────────────────────
-
 describe("Global invariant — synthesisToEvaluationResultV2 output consistency", () => {
-  test("no criterion exits with confidence_level=low AND score >= moderate threshold", () => {
-    // This is the core PL-7 invariant.
-    // The V2 adapter enforces it through normalizeCriterion (structural)
-    // and enforceConfidenceLevelPolicy (defensive final layer).
-    const result = adapt(makeSynthesis());
-
-    for (const criterion of result.criteria) {
-      const cap = maxLowConfidenceScore(criterion.key);
-      if (criterion.confidence_level === "low") {
-        expect(criterion.confidence_score_0_100).toBeLessThanOrEqual(cap);
-      }
-      // Contrapositive: if score is above the cap, label cannot be "low"
-      if ((criterion.confidence_score_0_100 ?? 0) > cap) {
-        expect(criterion.confidence_level).not.toBe("low");
-      }
-    }
+  test("no criterion exits with low confidence above the moderate threshold", () => {
+    assertLowConfidenceInvariant(adapt(makeSynthesis()));
   });
 
-  test("anchor-absent criteria: enforceTextualAnchorConfidence caps to 45, level=low, score consistent", () => {
-    // When a criterion has no textual anchor signal, enforceTextualAnchorConfidence
-    // sets confidence_level="low" and caps score to 45 (which is already ≤ 59).
-    // enforceConfidenceLevelPolicy must be a no-op in this case (45 ≤ cap).
-    const noAnchorCriteria = CRITERIA_KEYS.map((key) => ({
-      key,
+  test("anchor-absent criteria remain within the low-confidence ceiling", () => {
+    const criteria = CRITERIA_KEYS.map((key) => ({
+      ...makeSynthesis().criteria.find((criterion) => criterion.key === key)!,
       craft_score: 5,
       editorial_score: 5,
       final_score_0_10: 5,
-      score_delta: 0,
-      final_rationale:
-        `The ${key} criterion needs stronger grounding because the current evidence does not yet provide enough textual specificity, causal pressure, or reader-facing consequence.`,
-      pressure_points: [],
-      decision_points: [],
       consequence_status: "absent" as const,
-      // No snippet — enforceTextualAnchorConfidence will fire
       evidence: [{ snippet: "" }],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Strengthen the ${key} arc by adding one concrete textual beat that shows the reader how the pressure changes on the page.`,
-          expected_impact: `Creates clearer ${key} development and gives the reader stronger evidence for the criterion judgment.`,
-          anchor_snippet: undefined,
-          source_pass: 3 as const,
-          issue_family: "scene_structure" as const,
-          strategic_lever: "scene_goal_clarity" as const,
-          revision_granularity: "scene" as const,
-          mechanism: "the criterion is underdeveloped without a visible textual pressure change",
-          specific_fix: "add one concrete beat that changes the pressure on the page",
-          reader_effect: "stronger consequence and clearer reader confidence",
-        },
-      ],
       confidence_score_0_100: 55,
       confidence_level: "moderate" as const,
       confidence_reasons: [],
-      scorability_status: "scorable" as const,
     }));
 
     const result = synthesisToEvaluationResultV2({
-      synthesis: makeSynthesis(noAnchorCriteria),
+      synthesis: makeSynthesis(criteria),
       ids: BASE_IDS,
-      // Source text that does NOT contain any snippet text
-      sourceText: "completely unrelated source material",
-      manuscriptText: "completely unrelated source material",
+      sourceText: "Completely unrelated source material.",
+      manuscriptText: "Completely unrelated source material.",
       title: "G5 Anchor-Absent Fixture",
       llmEnrichment: ECG_ENRICHMENT,
     });
 
-    for (const criterion of result.criteria) {
-      const cap = maxLowConfidenceScore(criterion.key);
-      // Invariant must hold regardless of which policy step enforced it
-      if (criterion.confidence_level === "low") {
-        expect(criterion.confidence_score_0_100).toBeLessThanOrEqual(cap);
-      }
-      // Score should not exceed cap for low-confidence criteria
-      if ((criterion.confidence_score_0_100 ?? 0) > cap) {
-        expect(criterion.confidence_level).not.toBe("low");
-      }
-    }
+    assertLowConfidenceInvariant(result);
   });
 
-  test("mixed criteria: invariant holds across all confidence levels", () => {
-    // Alternate between strong evidence (should produce moderate/high) and
-    // no evidence (should produce low). Invariant must hold for every criterion.
-    const mixedCriteria = CRITERIA_KEYS.map((key, i) => {
-      const isStrong = i % 2 === 0;
-      return {
-        key,
-        craft_score: isStrong ? 8 : 3,
-        editorial_score: isStrong ? 8 : 3,
-        final_score_0_10: isStrong ? 8 : 3,
-        score_delta: 0,
-        final_rationale: isStrong
-          ? `Strong ${key} execution shows scene construction with clear propulsion, textual grounding, and reader-facing consequence.`
-          : `The ${key} criterion cannot be evaluated confidently because the fixture intentionally withholds textual anchors and leaves the signal too weak for a stable judgment.`,
-        pressure_points: isStrong ? ["Visible pressure and stakes."] : [],
-        decision_points: isStrong ? ["Clear decision beat."] : [],
-        consequence_status: (isStrong ? "landed" : "absent") as "landed" | "absent",
-        evidence: isStrong
-          ? [{ snippet: `"The ${key} beat lands clearly in the opening chapter."` }]
-          : [],
-        recommendations: isStrong
-          ? [
-              {
-                priority: "medium" as const,
-                action: `Tighten the ${key} turn in chapter 2 by adding one visible consequence beat that clarifies the reader-facing pressure shift.`,
-                expected_impact: `Creates clearer ${key} development and gives the reader stronger confidence in the scene logic.`,
-                anchor_snippet: `The ${key} beat lands clearly in the opening chapter.`,
-                source_pass: 3 as const,
-                issue_family: "scene_structure" as const,
-                strategic_lever: "scene_goal_clarity" as const,
-                revision_granularity: "scene" as const,
-                mechanism: "the turn is diffuse without a visible consequence beat",
-                specific_fix: "tighten one beat by adding a concrete consequence",
-                reader_effect: "clearer momentum and stronger reader confidence",
-              },
-            ]
-          : [],
-        confidence_score_0_100: isStrong ? 72 : 10,
-        confidence_level: (isStrong ? "moderate" : "low") as "moderate" | "low",
-        confidence_reasons: [],
-        scorability_status: (isStrong ? "scorable" : "scorable_low_confidence") as
-          | "scorable"
-          | "scorable_low_confidence",
-      };
-    });
+  test("mixed evidence levels preserve the invariant", () => {
+    const criteria = makeSynthesis().criteria.map((criterion, index) => ({
+      ...criterion,
+      craft_score: index % 2 === 0 ? 8 : 3,
+      editorial_score: index % 2 === 0 ? 8 : 3,
+      final_score_0_10: index % 2 === 0 ? 8 : 3,
+      evidence: index % 2 === 0 ? criterion.evidence : [],
+      confidence_score_0_100: index % 2 === 0 ? 72 : 10,
+      confidence_level: (index % 2 === 0 ? "moderate" : "low") as "moderate" | "low",
+      confidence_reasons: [],
+      scorability_status: (index % 2 === 0 ? "scorable" : "scorable_low_confidence") as
+        | "scorable"
+        | "scorable_low_confidence",
+    }));
 
-    const result = adapt(makeSynthesis(mixedCriteria));
-
-    for (const criterion of result.criteria) {
-      const cap = maxLowConfidenceScore(criterion.key);
-      if (criterion.confidence_level === "low") {
-        expect(criterion.confidence_score_0_100).toBeLessThanOrEqual(cap);
-      }
-      if ((criterion.confidence_score_0_100 ?? 0) > cap) {
-        expect(criterion.confidence_level).not.toBe("low");
-      }
-    }
+    assertLowConfidenceInvariant(adapt(makeSynthesis(criteria)));
   });
 });
 
-// ── enforceConfidenceLevelPolicy — structural coverage ───────────────────────
-
 describe("enforceConfidenceLevelPolicy — structural presence in V2 adapter chain", () => {
-  test("when CONFIDENCE_LEVEL_SCORE_CLAMPED fires, score is within canonical range", () => {
-    // The policy IS reachable in production: normalizeCriterion can produce
-    // confidence_level="low" (via EVIDENCE_CONFIDENCE_LOW signal-strength band)
-    // with a cappedConfidenceScore that still exceeds the moderate threshold
-    // before enforceConfidenceLevelPolicy runs. When it fires, both the score
-    // and the reason tag must be consistent with the invariant.
+  test("when the clamp reason fires, the score is within the canonical range", () => {
     const result = adapt(makeSynthesis());
-
     for (const criterion of result.criteria) {
       if ((criterion.confidence_reasons ?? []).includes("CONFIDENCE_LEVEL_SCORE_CLAMPED")) {
-        // If the policy fired, the criterion must be low-confidence
         expect(criterion.confidence_level).toBe("low");
-        // And the score must be within the canonical low ceiling
-        const cap = maxLowConfidenceScore(criterion.key);
-        expect(criterion.confidence_score_0_100).toBeLessThanOrEqual(cap);
+        expect(criterion.confidence_score_0_100).toBeLessThanOrEqual(
+          maxLowConfidenceScore(criterion.key),
+        );
       }
     }
   });
 
-  test("CONFIDENCE_LEVEL_SCORE_CLAMPED reason is not added when anchor-absence fires first", () => {
-    // enforceTextualAnchorConfidence caps score to 45 (already ≤ 59), so
-    // enforceConfidenceLevelPolicy should see score ≤ cap and be a no-op.
-    const noAnchorCriteria = CRITERIA_KEYS.map((key) => ({
-      key,
+  test("anchor absence does not add the score-clamped reason", () => {
+    const criteria = CRITERIA_KEYS.map((key) => ({
+      ...makeSynthesis().criteria.find((criterion) => criterion.key === key)!,
       craft_score: 5,
       editorial_score: 5,
       final_score_0_10: 5,
-      score_delta: 0,
-      final_rationale:
-        `The ${key} criterion needs grounding because the current fixture intentionally lacks textual anchors, specific pressure, and reader-facing consequence.`,
-      pressure_points: [],
-      decision_points: [],
       consequence_status: "absent" as const,
       evidence: [{ snippet: "" }],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Strengthen the ${key} arc by adding one concrete textual beat that makes the criterion signal visible to the reader.`,
-          expected_impact: `Creates clearer ${key} development and gives the reader stronger confidence in the criterion judgment.`,
-          anchor_snippet: undefined,
-          source_pass: 3 as const,
-          issue_family: "scene_structure" as const,
-          strategic_lever: "scene_goal_clarity" as const,
-          revision_granularity: "scene" as const,
-          mechanism: "the criterion signal is absent without a concrete textual anchor",
-          specific_fix: "introduce one concrete beat that makes the criterion visible",
-          reader_effect: "establishes baseline reader confidence",
-        },
-      ],
       confidence_score_0_100: 55,
       confidence_level: "moderate" as const,
       confidence_reasons: [],
-      scorability_status: "scorable" as const,
     }));
 
     const result = synthesisToEvaluationResultV2({
-      synthesis: makeSynthesis(noAnchorCriteria),
+      synthesis: makeSynthesis(criteria),
       ids: BASE_IDS,
-      sourceText: "completely unrelated source material",
-      manuscriptText: "completely unrelated source material",
+      sourceText: "Completely unrelated source material.",
+      manuscriptText: "Completely unrelated source material.",
       title: "G5 No-Double-Cap Fixture",
       llmEnrichment: ECG_ENRICHMENT,
     });
 
     for (const criterion of result.criteria) {
-      // Policy must not add its own reason on top of NO_TEXTUAL_ANCHOR
       expect(criterion.confidence_reasons ?? []).not.toContain(
         "CONFIDENCE_LEVEL_SCORE_CLAMPED",
       );

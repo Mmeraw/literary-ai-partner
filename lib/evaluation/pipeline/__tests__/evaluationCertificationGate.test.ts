@@ -51,7 +51,7 @@
  * └───────────────┴───────────────────────────────┴─────────────────────────────────────────┘
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
+import { describe, it, expect } from "@jest/globals";
 import {
   runEvaluationCertificationGate,
   buildECGInput,
@@ -67,6 +67,7 @@ import {
   normalizeArtifact,
   ArtifactTextContractError,
 } from "@/lib/evaluation/pipeline/normalizeArtifact";
+import { AuthorFacingIntegrityError } from "@/lib/text/authorFacingIntegrity";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ECG_MODE isolation helper
@@ -293,11 +294,10 @@ describe("normalizeArtifact()", () => {
     expect(quickWins[0].action).toMatch(/^Compress/);
   });
 
-  it("adds terminal punctuation to a recommendation action that lacks it", () => {
+  it("rejects a recommendation action that lacks terminal punctuation", () => {
     const synthesis = makeSynthesis();
     const quickWins = [{ action: "Compress the mid-chapter exposition for better pacing" }];
-    normalizeArtifact(synthesis, quickWins, []);
-    expect(quickWins[0].action).toMatch(/\.$/);
+    expect(() => normalizeArtifact(synthesis, quickWins, [])).toThrow(AuthorFacingIntegrityError);
   });
 
   it("collapses multiple whitespace in a recommendation action", () => {
@@ -351,14 +351,10 @@ describe("normalizeArtifact()", () => {
     expect(synthesis.overall.one_paragraph_summary).toBe(before);
   });
 
-  it("returns a log of normalizations applied", () => {
+  it("rejects an incomplete recommendation action and does not fabricate terminal punctuation", () => {
     const synthesis = makeSynthesis();
     const quickWins = [{ action: "compress the exposition" }]; // lowercase, no punct
-    const result = normalizeArtifact(synthesis, quickWins, []);
-    expect(result.normalizations.length).toBeGreaterThanOrEqual(2); // capitalize + terminal_punct
-    const ops = result.normalizations.map(n => n.operation);
-    expect(ops).toContain("capitalize");
-    expect(ops).toContain("terminal_punct");
+    expect(() => normalizeArtifact(synthesis, quickWins, [])).toThrow(AuthorFacingIntegrityError);
   });
 
   it("does not sentence-trim a summary that is within the technical ceiling", () => {

@@ -43,8 +43,8 @@ function makeSynthesis(): SynthesisOutput {
       overall_score_0_100: 70,
       verdict: "revise",
       one_paragraph_summary: "Solid manuscript requiring targeted revision.",
-      top_3_strengths: ["voice", "premise", "character"],
-      top_3_risks: ["pacing", "tension", "closure"],
+      top_3_strengths: ["Voice", "Premise", "Character"],
+      top_3_risks: ["Pacing", "Tension", "Closure"],
       submission_readiness: "nearly_ready",
     },
     metadata: {
