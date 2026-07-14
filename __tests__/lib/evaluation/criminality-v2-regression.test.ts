@@ -106,16 +106,16 @@ function buildSynthesisFromFixture(overrides?: Partial<SynthesisOutput['overall'
 
 describe('Criminality V2 regression', () => {
   describe('normalizeArtifact', () => {
-    it('trims one_paragraph_pitch to a complete sentence without a mid-word fragment', () => {
+    it('preserves the complete one_paragraph_pitch without canonical trimming', () => {
       const synthesis = buildSynthesisFromFixture({ one_sentence_pitch: undefined });
+      const before = synthesis.overall.one_paragraph_pitch;
       normalizeArtifact(synthesis, [], []);
 
       const pitch = synthesis.overall.one_paragraph_pitch ?? '';
-      expect(pitch).not.toMatch(/dev$/);
-      expect(pitch.length).toBeLessThanOrEqual(750);
+      expect(pitch).toBe(before);
+      expect(pitch.length).toBeLessThanOrEqual(10_000);
       expect(endsWithTerminalPunctuation(pitch)).toBe(true);
       expect(endsMidSentence(pitch)).toBe(false);
-      expect(pitch).not.toMatch(/(?:\.\.\.|…)$/u);
     });
 
     it('does not alter a complete within-cap summary', () => {
@@ -126,8 +126,7 @@ describe('Criminality V2 regression', () => {
     });
 
     it('fails an over-cap one-sentence pitch without truncating it', () => {
-      const longPitch =
-        'A grieving Toronto father uses a deeply morally murky tale of a young drug smuggler named MJ and the dangerously enigmatic figure known only as Desire to teach his precocious and questioning son exactly what the slippery word criminality really means in a broken world ruled by shadowy Dark Overlords and all-seeing surveillance empires.';
+      const longPitch = `A ${'very '.repeat(1250)}long but grammatically complete pitch.`;
       const synthesis = buildSynthesisFromFixture({ one_sentence_pitch: longPitch });
       try {
         normalizeArtifact(synthesis, [], []);
@@ -136,8 +135,8 @@ describe('Criminality V2 regression', () => {
         expect(error).toBeInstanceOf(ArtifactTextContractError);
         expect(error.field).toBe('overview.one_sentence_pitch');
         expect(error.reason).toBe('ONE_SENTENCE_PITCH_OVER_CAP');
-        expect(error.actualLength).toBeGreaterThan(300);
-        expect(error.cap).toBe(300);
+        expect(error.actualLength).toBeGreaterThan(5000);
+        expect(error.cap).toBe(5000);
       }
     });
 
