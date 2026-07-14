@@ -160,6 +160,7 @@ import {
   stripNonEvaluativeSections,
 } from '@/lib/manuscripts/nonEvaluativeSections';
 import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, CharacterLedgerV2, Pass3PreflightDraft, Pass1aChunkOutput, ExternalAdjudicationStatus } from '@/lib/evaluation/pipeline/types';
+import { mapArtifactCriteria } from '@/lib/evaluation/mapArtifactCriteria';
 import { isEvaluationCertificationFailedError } from '@/lib/evaluation/pipeline/evaluationCertificationGate';
 import { isArtifactTextContractError } from '@/lib/evaluation/pipeline/normalizeArtifact';
 import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
@@ -10694,13 +10695,7 @@ export async function processEvaluationJob(
       `[Processor] ${jobId}: evaluationResult synthesized overall=${evaluationResult.overview.overall_score_0_100}`,
     );
 
-    const artifactCriteria = evaluationResult.criteria.map((criterion) => ({
-      key: criterion.key,
-      final_score_0_10: criterion.score_0_10,
-      reasoning: criterion.rationale,
-      evidence: criterion.evidence.map((item) => item.snippet).filter(Boolean).join(' | '),
-      interpretation: '',
-    }));
+    const artifactCriteria = mapArtifactCriteria(evaluationResult.criteria);
     const scoreLedger =
       artifactCriteria.length > 0
         ? buildScoreLedger({
@@ -11044,13 +11039,7 @@ export async function processEvaluationJob(
     const effectiveEvaluationResult =
       qualityGateV2.downgradedResult ?? evaluationResult;
 
-    const effectiveArtifactCriteria = effectiveEvaluationResult.criteria.map((criterion) => ({
-      key: criterion.key,
-      final_score_0_10: criterion.score_0_10,
-      reasoning: criterion.rationale,
-      evidence: criterion.evidence.map((item) => item.snippet).filter(Boolean).join(' | '),
-      interpretation: '',
-    }));
+    const effectiveArtifactCriteria = mapArtifactCriteria(effectiveEvaluationResult.criteria);
     const effectiveScoreLedger =
       effectiveArtifactCriteria.length > 0
         ? buildScoreLedger({
