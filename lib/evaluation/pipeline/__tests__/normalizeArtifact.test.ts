@@ -101,18 +101,18 @@ describe('normalizeArtifact — canonical evaluation prose', () => {
 });
 
 describe('normalizeArtifact — recommendation normalization', () => {
-  it('capitalizes, normalizes whitespace, and adds terminal punctuation', () => {
+  it('capitalizes and normalizes whitespace without appending punctuation', () => {
     const synthesis = makeSynthesis();
-    const quickWins = [{ action: '  compress  the exposition' }];
+    const quickWins = [{ action: '  compress  the exposition.  ' }];
     normalizeArtifact(synthesis, quickWins, []);
     expect(quickWins[0].action).toBe('Compress the exposition.');
   });
 
-  it('normalizes strategic and criterion recommendations', () => {
+  it('normalizes complete strategic and criterion recommendations', () => {
     const synthesis = makeSynthesis({
-      criteriaRecs: [{ action: 'add a concrete resolution beat at the climax' }],
+      criteriaRecs: [{ action: 'add a concrete resolution beat at the climax.' }],
     });
-    const strategic = [{ action: 'introduce physical beats in the scene' }];
+    const strategic = [{ action: 'introduce physical beats in the scene.' }];
     normalizeArtifact(synthesis, [], strategic);
     expect(strategic[0].action).toBe('Introduce physical beats in the scene.');
     expect(synthesis.criteria[0].recommendations![0].action).toBe(
