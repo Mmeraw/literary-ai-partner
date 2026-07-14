@@ -10,7 +10,7 @@
  *   QG_SHORT_REC          — action < 50 chars
  *   QG_LONG_REC           — recommendation action body > 1500 chars (pathological runaway)
  *   QG_LONG_EVIDENCE      — evidence snippet > 200 chars (keep concise for card display)
- *   QG_LONG_OVERVIEW      — one_paragraph_summary > 800 chars (751-800 auto-repaired)
+ *   QG_LONG_OVERVIEW      — one_paragraph_summary > SUMMARY_POLICY.cap (true runaway)
  *   QG_CRITERIA_MISSING   — output does not contain all 13 criteria
  *   QG_SCORE_RANGE        — score not in integer 0-10
  *   QG_CONSEQUENCE_CONTRACT — missing pressure/decision/consequence contract fields
@@ -83,7 +83,7 @@ import {
   type EvidenceGroundingReport,
   type CriteriaEvidenceGroundingReport,
 } from "./evidenceGroundingGate";
-import { trimAtWordBoundary } from "./evaluationCertificationGate";
+import { SUMMARY_POLICY } from "@/lib/config/lengthPolicy";
 
 export const QG_MIN_REC_LENGTH = 50;
 /** Pathological runaway cap for the recommendation action body. Display teasers rendered from
@@ -91,9 +91,14 @@ export const QG_MIN_REC_LENGTH = 50;
 export const QG_MAX_REC_LENGTH = 1500;
 export const QG_MAX_EVIDENCE_LENGTH = 300;
 export const QG_EVIDENCE_HARD_CEILING = 350;
-export const QG_MAX_OVERVIEW_LENGTH = 750;
-/** Hard ceiling: overview beyond this length is a true LLM runaway, not post-processing drift. */
-export const QG_OVERVIEW_HARD_CEILING = 800;
+export const QG_MAX_OVERVIEW_LENGTH = SUMMARY_POLICY.base;
+/**
+ * Quality-gate runaway threshold for the overview. The policy cap (SUMMARY_POLICY.cap)
+ * is enforced by normalizeArtifact via complete-sentence trimming; this ceiling only
+ * catches pathological overruns so the gate does not reject content that will be
+ * trimmed to a valid complete sentence downstream.
+ */
+export const QG_OVERVIEW_HARD_CEILING = SUMMARY_POLICY.cap + 500;
 /** Default fabrication ratio threshold — hard-fail when exceeded. */
 export const QG_EVIDENCE_FABRICATION_THRESHOLD = 0.50;
 /** Warning threshold for evidence fabrication — log diagnostic but don't fail. */
@@ -627,25 +632,17 @@ export function runQualityGate(
         : `All evidence excerpts ≤ ${QG_MAX_EVIDENCE_LENGTH} chars`,
   });
 
-  // ── Check 6: Overview length (≤750 target, 800 hard ceiling) ──────────────
-  // LLMs produce better summaries with generous limits. Users want richer content.
-  // 751-800: auto-repair by trimming at word boundary. >800: hard fail (true runaway).
-  let overviewLen = synthesis.overall.one_paragraph_summary.length;
-  if (overviewLen > QG_MAX_OVERVIEW_LENGTH && overviewLen <= QG_OVERVIEW_HARD_CEILING) {
-    // trimAtWordBoundary prevents mid-word cuts (e.g. "occasiona" truncation bug)
-    synthesis.overall.one_paragraph_summary = trimAtWordBoundary(
-      synthesis.overall.one_paragraph_summary,
-      QG_MAX_OVERVIEW_LENGTH,
-    );
-    overviewLen = synthesis.overall.one_paragraph_summary.length;
-  }
+  // ── Check 6: Overview length (≤base target, policy cap hard ceiling) ──────────────
+  // The quality gate is a coarse runaway detector; precise complete-sentence trimming
+  // and author-facing text contract enforcement are handled by normalizeArtifact.
+  const overviewLen = synthesis.overall.one_paragraph_summary.length;
   checks.push({
     check_id: "overview_length",
     passed: overviewLen <= QG_OVERVIEW_HARD_CEILING,
     error_code: overviewLen > QG_OVERVIEW_HARD_CEILING ? "QG_LONG_OVERVIEW" : undefined,
-    details: overviewLen <= QG_MAX_OVERVIEW_LENGTH
-      ? `Overview: ${overviewLen} chars (max ${QG_MAX_OVERVIEW_LENGTH})`
-      : `Overview: ${overviewLen} chars (auto-repaired from >${QG_MAX_OVERVIEW_LENGTH}, hard ceiling ${QG_OVERVIEW_HARD_CEILING})`,
+    details: overviewLen <= QG_OVERVIEW_HARD_CEILING
+      ? `Overview: ${overviewLen} chars (target ${QG_MAX_OVERVIEW_LENGTH}, cap ${QG_OVERVIEW_HARD_CEILING})`
+      : `Overview: ${overviewLen} chars exceeds hard cap ${QG_OVERVIEW_HARD_CEILING}`,
   });
 
   // ── Check 6b: Pitch/Summary Identity Separation (P1) ──────────────────────

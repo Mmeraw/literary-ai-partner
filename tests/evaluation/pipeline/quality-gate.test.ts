@@ -6,7 +6,11 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
-import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
+import {
+  runQualityGate,
+  QG_MAX_OVERVIEW_LENGTH,
+  QG_OVERVIEW_HARD_CEILING,
+} from "@/lib/evaluation/pipeline/qualityGate";
 import type { SynthesisOutput, SynthesizedCriterion, SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
@@ -248,9 +252,9 @@ describe("runQualityGate", () => {
 
   // ── QG_LONG_OVERVIEW ────────────────────────────────────────────────────
 
-  it("rejects one_paragraph_summary > 800 chars (QG_LONG_OVERVIEW hard ceiling)", () => {
-    const longSummary = "x".repeat(801);
-    expect(longSummary.length).toBeGreaterThan(800);
+  it("rejects one_paragraph_summary > hard ceiling (QG_LONG_OVERVIEW)", () => {
+    const longSummary = "x".repeat(QG_OVERVIEW_HARD_CEILING + 1);
+    expect(longSummary.length).toBeGreaterThan(QG_OVERVIEW_HARD_CEILING);
     const synthesis = makeValidSynthesis();
     synthesis.overall.one_paragraph_summary = longSummary;
     const result = runQualityGate(synthesis);
@@ -258,13 +262,16 @@ describe("runQualityGate", () => {
     expect(result.checks.find((c) => c.error_code === "QG_LONG_OVERVIEW")).toBeDefined();
   });
 
-  it("auto-repairs one_paragraph_summary 751-800 chars instead of failing", () => {
+  it("passes one_paragraph_summary above base but below hard ceiling without auto-repair", () => {
     const synthesis = makeValidSynthesis();
-    synthesis.overall.one_paragraph_summary = "a".repeat(780);
+    const summary = "a".repeat(QG_MAX_OVERVIEW_LENGTH + 30);
+    expect(summary.length).toBeGreaterThan(QG_MAX_OVERVIEW_LENGTH);
+    expect(summary.length).toBeLessThanOrEqual(QG_OVERVIEW_HARD_CEILING);
+    synthesis.overall.one_paragraph_summary = summary;
     const result = runQualityGate(synthesis);
     expect(result.pass).toBe(true);
     expect(result.checks.find((c) => c.error_code === "QG_LONG_OVERVIEW")).toBeUndefined();
-    expect(synthesis.overall.one_paragraph_summary.length).toBeLessThanOrEqual(750);
+    expect(synthesis.overall.one_paragraph_summary).toBe(summary);
   });
 
   it("passes one_paragraph_summary up to 750 chars without modification", () => {
@@ -606,7 +613,7 @@ describe("runQualityGate", () => {
   it("can report multiple failures simultaneously", () => {
     const synthesis = makeValidSynthesis();
     synthesis.criteria = synthesis.criteria.slice(0, 5); // QG_CRITERIA_MISSING
-    synthesis.overall.one_paragraph_summary = "x".repeat(850);          // QG_LONG_OVERVIEW (>800 hard ceiling)
+    synthesis.overall.one_paragraph_summary = "x".repeat(QG_OVERVIEW_HARD_CEILING + 1);          // QG_LONG_OVERVIEW (>hard ceiling)
     const result = runQualityGate(synthesis);
     expect(result.pass).toBe(false);
     const failedCodes = result.checks

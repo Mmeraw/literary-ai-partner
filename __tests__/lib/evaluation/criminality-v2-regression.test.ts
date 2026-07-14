@@ -126,7 +126,9 @@ describe('Criminality V2 regression', () => {
     });
 
     it('fails an over-cap one-sentence pitch without truncating it', () => {
-      const synthesis = buildSynthesisFromFixture();
+      const longPitch =
+        'A grieving Toronto father uses a deeply morally murky tale of a young drug smuggler named MJ and the dangerously enigmatic figure known only as Desire to teach his precocious and questioning son exactly what the slippery word criminality really means in a broken world ruled by shadowy Dark Overlords and all-seeing surveillance empires.';
+      const synthesis = buildSynthesisFromFixture({ one_sentence_pitch: longPitch });
       try {
         normalizeArtifact(synthesis, [], []);
         throw new Error('Expected ArtifactTextContractError');
@@ -134,8 +136,8 @@ describe('Criminality V2 regression', () => {
         expect(error).toBeInstanceOf(ArtifactTextContractError);
         expect(error.field).toBe('overview.one_sentence_pitch');
         expect(error.reason).toBe('ONE_SENTENCE_PITCH_OVER_CAP');
-        expect(error.actualLength).toBeGreaterThan(220);
-        expect(error.cap).toBe(220);
+        expect(error.actualLength).toBeGreaterThan(300);
+        expect(error.cap).toBe(300);
       }
     });
 
