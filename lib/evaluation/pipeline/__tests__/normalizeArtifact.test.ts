@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
-import { normalizeArtifact } from "@/lib/evaluation/pipeline/normalizeArtifact";
+import { normalizeArtifact, ArtifactTextContractError } from "@/lib/evaluation/pipeline/normalizeArtifact";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -158,19 +158,14 @@ describe("normalizeArtifact() — overview summary trim (cap 1000, sentence boun
     expect(after.includes("\u2026")).toBe(false); // no ellipsis when a sentence fits
   });
 
-  it("never cuts a word mid-token even when one sentence is longer than the cap", () => {
-    // A single sentence longer than the cap forces the word-boundary fallback,
-    // which is the only branch that appends an ellipsis. It must still end on a
-    // COMPLETE source word — never a partial like "antidisestablishme".
+  it("fails the text contract when a single sentence is too long for the cap", () => {
+    // A single sentence longer than the cap cannot be mechanically trimmed to a
+    // complete sentence without an ellipsis-truncated fragment. The strict
+    // wrapper must reject it with a typed contract error rather than produce
+    // an incomplete sentence.
     const source = "The blocker is " + "antidisestablishmentarianism ".repeat(50) + "and more.";
     const synthesis = makeSynthesis({ one_paragraph_summary: source });
-    normalizeArtifact(synthesis, [], []);
-    const trimmed = synthesis.overall.one_paragraph_summary;
-    expect(trimmed).toMatch(/\u2026$/);
-    const body = trimmed.slice(0, -1).trimEnd();
-    const lastToken = body.split(/\s+/).pop() ?? "";
-    const sourceTokens = new Set(source.split(/\s+/));
-    expect(sourceTokens.has(lastToken)).toBe(true);
+    expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
   });
 
   it("does NOT trim a summary that is exactly at the 1000-char cap", () => {

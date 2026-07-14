@@ -65,6 +65,7 @@ import {
 } from "@/lib/evaluation/pipeline/evaluationCertificationGate";
 import {
   normalizeArtifact,
+  ArtifactTextContractError,
 } from "@/lib/evaluation/pipeline/normalizeArtifact";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -306,15 +307,14 @@ describe("normalizeArtifact()", () => {
     expect(quickWins[0].action).toBe("Compress the exposition.");
   });
 
-  it("trims one_paragraph_summary within the 1000-char cap (word-boundary fallback for one giant token)", () => {
+  it("rejects one_paragraph_summary with no complete sentence within the 1000-char cap", () => {
     // A single 1100-char token has no sentence boundary, so the sentence-boundary
-    // trimmer falls back to a word-boundary cut with an ellipsis — still never
-    // mid-word (the fallback is the only ellipsis branch).
+    // trimmer would fall back to a word-boundary ellipsis. The strict Pass 3
+    // wrapper must reject that fallback and fail with a typed contract error
+    // instead of emitting an incomplete sentence.
     const longSummary = "The manuscript earns a 74/100 " + "a".repeat(1100);
     const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
-    normalizeArtifact(synthesis, [], []);
-    expect(synthesis.overall.one_paragraph_summary.length).toBeLessThanOrEqual(1000);
-    expect(synthesis.overall.one_paragraph_summary).toMatch(/…$/);
+    expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
   });
 
   it("does NOT alter the score, summary meaning, or pitch text (clean inputs)", () => {

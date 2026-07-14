@@ -108,18 +108,21 @@ function endsWithEllipsis(text: string): boolean {
  * summary/pitch fields and raises a typed regeneration-required error instead.
  */
 export function trimToLastCompleteSentence(text: string, maxLength: number, field: string): string {
-  const original = text.trim();
-  let result = trimAtSentenceBoundary(original, maxLength).trim();
+  if (!text.trim()) {
+    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
+  }
+
+  let result = trimAtSentenceBoundary(text, maxLength);
 
   // Within-cap text is intentionally returned unchanged by the shared helper.
   // Drop only a trailing incomplete fragment by invoking its complete-sentence
   // mode, then validate the result strictly.
   if (endsMidSentence(result)) {
-    result = trimAtSentenceBoundary(result).trim();
+    result = trimAtSentenceBoundary(result);
   }
 
   if (!result || endsWithEllipsis(result) || endsMidSentence(result)) {
-    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', original.length, maxLength);
+    contractError(field, 'NO_COMPLETE_SENTENCE_WITHIN_CAP', text.length, maxLength);
   }
 
   return result;
