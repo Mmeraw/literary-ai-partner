@@ -37,8 +37,6 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
   it.each([
     ['terminal unicode ellipsis', 'The pacing weakens when the airport se…', 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS'],
     ['terminal three-dot ellipsis', 'The pacing weakens when the airport se...', 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS'],
-    ['mid-sentence ending', 'The pacing weakens because the surveillance material', 'AUTHOR_TEXT_MIDSENTENCE_TERMINATION'],
-    ['dangling connective', 'The pacing weakens in the airport sequence because', 'AUTHOR_TEXT_MIDSENTENCE_TERMINATION'],
     ['unmatched parenthesis', 'Clarify the emotional turn (especially after the airport scene.', 'AUTHOR_TEXT_UNBALANCED_DELIMITER'],
     ['unmatched curly quotation mark', 'Clarify the “emotional turn before the airport scene.', 'AUTHOR_TEXT_UNBALANCED_DELIMITER'],
     ['placeholder', 'Revise [insert stronger ending here].', 'AUTHOR_TEXT_PLACEHOLDER'],
@@ -56,7 +54,7 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
     ['number-period plus em dash', '1.— Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
     ['number-period plus double hyphen', '1.-- Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
     ['number-parenthesis plus em dash', '1)— Clarify the emotional turn.', 'AUTHOR_TEXT_NUMBER_DASH_SEQUENCE'],
-  ])('rejects %s', (_label, value, code) => {
+  ])('rejects %s in phrase-allowed risk bullets', (_label, value, code) => {
     const violations = inspectAuthorFacingIntegrity(
       { overview: { top_3_risks: [value] } },
       { rootPath: 'evaluation_result_v2' },
@@ -65,6 +63,16 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
     expect(() => assertAuthorFacingIntegrity({ overview: { top_3_risks: [value] } })).toThrow(
       AuthorFacingIntegrityError,
     );
+  });
+
+  it.each([
+    ['mid-sentence ending', 'The pacing weakens because the surveillance material'],
+    ['dangling connective', 'The pacing weakens in the airport sequence because'],
+  ])('rejects %s in sentence-required prose', (_label, value) => {
+    const artifact = { overview: { one_paragraph_summary: value } };
+    const violations = inspectAuthorFacingIntegrity(artifact, { rootPath: 'evaluation_result_v2' });
+    expect(violations.map((violation) => violation.code)).toContain('AUTHOR_TEXT_MIDSENTENCE_TERMINATION');
+    expect(() => assertAuthorFacingIntegrity(artifact)).toThrow(AuthorFacingIntegrityError);
   });
 
   it.each([
@@ -82,13 +90,15 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
     ).toEqual([]);
   });
 
-  it('allows concise capitalized strength and risk phrases while enforcing long prose sentences', () => {
+  it('allows capitalized strength and risk phrases without an arbitrary length threshold', () => {
     expect(
       inspectAuthorFacingIntegrity(
         {
           overview: {
             top_3_strengths: ['Distinctive narrative voice'],
-            top_3_risks: ['Uneven midpoint pressure'],
+            top_3_risks: [
+              'Uneven midpoint pressure caused by the repeated transition pattern across several consecutive chapters',
+            ],
           },
         },
         { rootPath: 'evaluation_result_v2' },
@@ -118,6 +128,25 @@ describe('RG-TEXT-1 and mandatory RG-CMOS author-facing authority', () => {
         expect.objectContaining({
           path: 'evaluation_result_v2.recommendations.quick_wins[0].why',
           code: 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS',
+        }),
+      ]),
+    );
+  });
+
+  it('inspects singular specific_fix fields', () => {
+    const violations = inspectAuthorFacingIntegrity(
+      {
+        recommendations: {
+          quick_wins: [{ specific_fix: 'move the explanation after the customs decision.' }],
+        },
+      },
+      { rootPath: 'evaluation_result_v2' },
+    );
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'evaluation_result_v2.recommendations.quick_wins[0].specific_fix',
+          code: 'AUTHOR_TEXT_LOWERCASE_START',
         }),
       ]),
     );
