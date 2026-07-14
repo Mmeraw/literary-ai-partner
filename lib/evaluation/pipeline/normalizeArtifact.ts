@@ -113,6 +113,19 @@ export function validateEvaluationProse(text: string, maxLength: number, field: 
   return text;
 }
 
+/**
+ * Backward-compatible call surface for existing pipeline callers.
+ *
+ * Despite the legacy name, this function no longer trims. It performs harmless
+ * formatting cleanup and validates the complete canonical prose, throwing for
+ * upstream regeneration when the text is incomplete or exceeds the technical
+ * safeguard.
+ */
+export function trimToLastCompleteSentence(text: string, maxLength: number, field: string): string {
+  const formatted = normalizeAuthorFacingFormatting(text);
+  return validateEvaluationProse(formatted, maxLength, field);
+}
+
 function assertOneSentencePitch(text: string, maxLength: number, field: string): string {
   const len = text.length;
   if (len > maxLength) {
