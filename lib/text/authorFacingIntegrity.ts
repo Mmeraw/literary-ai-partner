@@ -51,7 +51,7 @@ const PLACEHOLDER_PATTERNS = [
 // Author-facing scope is determined by semantic field names, never by an
 // arbitrary character-count threshold. Singular and plural forms are both
 // explicit so arrays such as top_3_strengths and top_3_risks are inspected.
-const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risks?|rationales?|recommendations?|actions?|why|mechanisms?|specific_fix(?:es)?|reader_effects?|expected_impacts?|symptoms?|causes?|fix_directions?|candidate_texts?|premises?|audiences?|warnings?|limitations?|reasons?|descriptions?|diagnoses?|guidance|bios?|queries|synopses|letters?|stories|revisions?|markets?|positions?|copy|notes?|titles?|headings?|headers?|labels?)$/i;
+const AUTHOR_TEXT_KEY_PATTERN = /(?:summar(?:y|ies)|pitch(?:es)?|strengths?|risks?|rationales?|recommendations?|actions?|why|mechanisms?|specific_fix(?:es)?|reader_effects?|expected_impacts?|symptoms?|causes?|fix_directions?|candidate_text(?:_[abc]|s)?|premises?|audiences?|warnings?|limitations?|reasons?|descriptions?|diagnoses?|guidance|bios?|queries|synopses|letters?|stories|revisions?|markets?|positions?|copy|notes?|titles?|headings?|headers?|labels?)$/i;
 
 // These fields are intentionally rendered as labeled phrases or fragments, not
 // standalone sentences. They still receive every structural integrity check
@@ -298,6 +298,16 @@ export class AuthorFacingIntegrityError extends Error {
     super(`AUTHOR_FACING_TEXT_INTEGRITY_FAILED: ${violations.length} violation(s): ` + violations.map((violation) => `${violation.path}:${violation.code}`).join(', '));
     this.name = 'AuthorFacingIntegrityError';
   }
+}
+
+export function isAuthorFacingIntegrityError(err: unknown): err is AuthorFacingIntegrityError {
+  return (
+    err instanceof AuthorFacingIntegrityError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      (err as { code?: unknown }).code === 'AUTHOR_FACING_TEXT_INTEGRITY_FAILED' &&
+      Array.isArray((err as { violations?: unknown }).violations))
+  );
 }
 
 export function assertAuthorFacingIntegrity(
