@@ -170,6 +170,10 @@ import type { ManuscriptChunkEvidence, SinglePassOutput, Pass1aCharacterLedger, 
 import { mapArtifactCriteria } from '@/lib/evaluation/mapArtifactCriteria';
 import { isEvaluationCertificationFailedError } from '@/lib/evaluation/pipeline/evaluationCertificationGate';
 import { isArtifactTextContractError } from '@/lib/evaluation/pipeline/normalizeArtifact';
+import {
+  attemptCandidateIntegrityRepair,
+} from '@/lib/evaluation/pipeline/candidateIntegrityRepair';
+import { isAuthorFacingIntegrityError } from '@/lib/text/authorFacingIntegrity';
 import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
@@ -11023,69 +11027,131 @@ export async function processEvaluationJob(
     // as failure_code ECG_CERTIFICATION_FAILED with its sub-codes preserved,
     // instead of collapsing into the generic PROCESSOR_UNCAUGHT_ERROR bucket in
     // the outer catch. Any other error re-throws unchanged.
+    //
+    // Author-facing integrity failures on optional candidate_text_a/b/c fields are
+    // repaired locally: unsafe candidate seeds are rebuilt from grounded
+    // recommendation data; if that fails, the malformed optional candidates are
+    // quarantined and the otherwise valid evaluation continues. Non-candidate
+    // integrity violations still fail closed with AUTHOR_FACING_TEXT_INTEGRITY_FAILED.
     let evaluationResult: ReturnType<typeof synthesisToEvaluationResultV2>;
-    try {
-      evaluationResult = synthesisToEvaluationResultV2({
-        synthesis: pipelineResult.synthesis,
-        ids: {
-          evaluation_run_id: crypto.randomUUID(),
-          job_id: job.id,
-          manuscript_id: manuscript.id,
-          user_id: manuscript.user_id,
-        },
-        crossCheckResult: pipelineResult.cross_check,
-        pass4Governance: pipelineResult.pass4_governance,
-        // PR #506 — thread the explicit Pass 4 status so the report's
-        // governance.transparency.external_adjudication block can render
-        // "External Adjudication: Completed · Required Mode · packet=29568 chars"
-        // (or skipped / failed_soft with reason) without any inference.
-        externalAdjudication: pipelineResult.external_adjudication,
-        sourceText: manuscriptWithContent.content || "",
-        manuscriptText: manuscriptWithContent.content || "",
-        title: manuscript.title ?? undefined,
-        englishVariant: selectedEnglishVariant,
-        scopeProfile: scopeProfileForV2Gate,
-        llmEnrichment: pipelineResult.synthesis.enrichment,
-      });
-    } catch (certificationError) {
-      if (isEvaluationCertificationFailedError(certificationError)) {
-        const subCodes = certificationError.fatalCodes;
-        await markFailed(certificationError.message, 'ECG_CERTIFICATION_FAILED', {
+    let integrityRepairTelemetry: Record<string, unknown> | null = null;
+    const MAX_INTEGRITY_REPAIR_ATTEMPTS = 2;
+    let integrityRepairAttempt = 0;
+
+    while (true) {
+      let synthesisError: unknown;
+      try {
+        evaluationResult = synthesisToEvaluationResultV2({
+          synthesis: pipelineResult.synthesis,
+          ids: {
+            evaluation_run_id: crypto.randomUUID(),
+            job_id: job.id,
+            manuscript_id: manuscript.id,
+            user_id: manuscript.user_id,
+          },
+          crossCheckResult: pipelineResult.cross_check,
+          pass4Governance: pipelineResult.pass4_governance,
+          // PR #506 — thread the explicit Pass 4 status so the report's
+          // governance.transparency.external_adjudication block can render
+          // "External Adjudication: Completed · Required Mode · packet=29568 chars"
+          // (or skipped / failed_soft with reason) without any inference.
+          externalAdjudication: pipelineResult.external_adjudication,
+          sourceText: manuscriptWithContent.content || "",
+          manuscriptText: manuscriptWithContent.content || "",
+          title: manuscript.title ?? undefined,
+          englishVariant: selectedEnglishVariant,
+          scopeProfile: scopeProfileForV2Gate,
+          llmEnrichment: pipelineResult.synthesis.enrichment,
+        });
+        break;
+      } catch (err) {
+        synthesisError = err;
+      }
+
+      if (isEvaluationCertificationFailedError(synthesisError)) {
+        const subCodes = synthesisError.fatalCodes;
+        await markFailed(synthesisError.message, 'ECG_CERTIFICATION_FAILED', {
           pipelineStage: 'phase_3',
           reasonCodes: ['ECG_CERTIFICATION_FAILED', ...subCodes],
           diagnostics: {
             ecg_fatal_codes: subCodes,
-            ecg_fatal_violations: certificationError.violations,
+            ecg_fatal_violations: synthesisError.violations,
           },
         });
 
-        return { success: false, error: certificationError.message };
+        return { success: false, error: synthesisError.message };
       }
 
-      if (isArtifactTextContractError(certificationError)) {
+      if (isArtifactTextContractError(synthesisError)) {
         // Phase 3 output failed its author-facing text contract before ECG was
         // invoked. This is a generation/regeneration-required failure, not an ECG
         // certification failure. ECG must not be called for an artifact that
         // already violates its length/sentence contract.
-        await markFailed(certificationError.message, 'PHASE3_TEXT_CONTRACT_FAILED', {
+        await markFailed(synthesisError.message, 'PHASE3_TEXT_CONTRACT_FAILED', {
           pipelineStage: 'phase_3',
-          reasonCodes: ['PHASE3_TEXT_CONTRACT_FAILED', certificationError.code, certificationError.reason],
+          reasonCodes: ['PHASE3_TEXT_CONTRACT_FAILED', synthesisError.code, synthesisError.reason],
           diagnostics: {
-            contract_field: certificationError.field,
-            contract_reason: certificationError.reason,
-            actual_length: certificationError.actualLength,
-            cap: certificationError.cap,
+            contract_field: synthesisError.field,
+            contract_reason: synthesisError.reason,
+            actual_length: synthesisError.actualLength,
+            cap: synthesisError.cap,
             regeneration_required: true,
             retryable: true,
           },
         });
 
-        return { success: false, error: certificationError.message };
+        return { success: false, error: synthesisError.message };
       }
 
-      // Not a certification or text-contract failure — preserve existing handling
-      // for genuinely unexpected exceptions (routed to PROCESSOR_UNCAUGHT_ERROR).
-      throw certificationError;
+      if (!isAuthorFacingIntegrityError(synthesisError)) {
+        // Not a certification, text-contract, or integrity failure — preserve
+        // existing handling for genuinely unexpected exceptions.
+        throw synthesisError;
+      }
+
+      integrityRepairAttempt += 1;
+      const repairResult = attemptCandidateIntegrityRepair(pipelineResult.synthesis, synthesisError);
+      integrityRepairTelemetry = {
+        attempt: integrityRepairAttempt,
+        status: repairResult.status,
+        affectedPaths: repairResult.affectedPaths,
+        remainingViolations: repairResult.remainingViolations.map((v) => ({ path: v.path, code: v.code })),
+        ...repairResult.telemetry,
+      };
+
+      if (repairResult.status === 'unrepairable' || integrityRepairAttempt >= MAX_INTEGRITY_REPAIR_ATTEMPTS) {
+        const lastViolations =
+          repairResult.remainingViolations.length > 0 ? repairResult.remainingViolations : synthesisError.violations;
+        const subPaths = lastViolations.map((v) => `${v.path}:${v.code}`);
+        await markFailed(
+          `Author-facing integrity check failed: ${subPaths.join(', ')}`,
+          'AUTHOR_FACING_TEXT_INTEGRITY_FAILED',
+          {
+            pipelineStage: 'phase_3',
+            reasonCodes: ['AUTHOR_FACING_TEXT_INTEGRITY_FAILED', ...subPaths],
+            diagnostics: {
+              author_facing_integrity_violations: lastViolations,
+              repair_telemetry: integrityRepairTelemetry,
+              regeneration_required: true,
+            },
+          },
+        );
+
+        return { success: false, error: `Author-facing integrity check failed: ${subPaths.join(', ')}` };
+      }
+
+      console.info(
+        `[Processor] ${jobId}: candidate integrity ${repairResult.status} (attempt ${integrityRepairAttempt}); re-running synthesis.`,
+        integrityRepairTelemetry,
+      );
+      // Re-run synthesisToEvaluationResultV2 with the repaired/quarantined synthesis.
+    }
+
+    if (integrityRepairTelemetry) {
+      evaluationResult.governance.observability_warnings = [
+        ...(evaluationResult.governance.observability_warnings ?? []),
+        `Candidate text integrity ${integrityRepairTelemetry.status} at Phase 3 (attempt ${integrityRepairTelemetry.attempt}).`,
+      ];
     }
 
     // PR #506 — persist Pass 4 status onto the canonical JobProgress so the jobs

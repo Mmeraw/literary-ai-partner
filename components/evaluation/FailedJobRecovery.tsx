@@ -213,7 +213,7 @@ export function FailedJobRecovery({
           </Link>
           <Link
             href="/evaluate"
-            className="inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
+            className="inline-flex items-center gap-2 rounded-md border border-stone-600 bg-stone-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-stone-700"
           >
             Start new evaluation
           </Link>
@@ -264,7 +264,7 @@ export function FailedJobRecovery({
           </button>
           <Link
             href="/evaluate"
-            className="inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-stone-800"
+            className="inline-flex items-center gap-2 rounded-md border border-stone-600 bg-stone-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-stone-700"
           >
             Start New Evaluation
           </Link>
