@@ -138,6 +138,24 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
   it('repairs the derived why via its canonical source and produces a clean EvaluationResultV2', async () => {
     const synthesis = makeYellowWallpaperSynthesis();
 
+    // Pre-repair: the derived strategic_revisions[0].why resolves to expected_impact.
+    const preRepairProjection = buildEnrichedActionItems(
+      synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+      'medium',
+      5,
+    );
+    expect(preRepairProjection).toHaveLength(1);
+    expect(preRepairProjection[0]._source).toEqual({
+      criterion_index: 0,
+      recommendation_index: 0,
+      why_field: 'expected_impact',
+    });
+    const preRepairResolver = buildWritableAuthorFieldResolver([], preRepairProjection);
+    expect(
+      preRepairResolver('evaluation_result_v2.recommendations.strategic_revisions[0].why')
+        ?.canonicalPath,
+    ).toBe('evaluation_result_v2.criteria[0].recommendations[0].expected_impact');
+
     const repairResult = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
     expect(repairResult.ok).toBe(true);
     expect(repairResult.regeneratedFields).toEqual(
@@ -145,17 +163,7 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
         expect.stringMatching(/evaluation_result_v2\.criteria\[\d+\]\.recommendations\[0\]\.expected_impact/u),
       ]),
     );
-    // The derived strategic_revisions[0].why path resolves to its canonical source.
-    const projection = buildEnrichedActionItems(
-      synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
-      'medium',
-      5,
-    );
-    const resolver = buildWritableAuthorFieldResolver([], projection);
-    expect(
-      resolver('evaluation_result_v2.recommendations.strategic_revisions[0].why')?.canonicalPath,
-    ).toBe('evaluation_result_v2.criteria[0].recommendations[0].expected_impact');
-
+    expect(synthesis.criteria[0].recommendations[0].expected_impact).toMatch(/[.!?]$/u);
 
     const result = synthesisToEvaluationResultV2({
       synthesis,
@@ -207,7 +215,7 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
     expect(projectionViolations).toHaveLength(0);
 
     // The strategic_revisions[0].why derived from the repaired expected_impact must be complete.
-    expect(result.recommendations.strategic_revisions[0].why).toMatch(/[.!?]["'"’)\]]*$/u);
+    expect(result.recommendations.strategic_revisions[0].why).toMatch(/[.!?]$/u);
   });
 
   it('preserves internal _source provenance on derived items and strips it for the public artifact', () => {
