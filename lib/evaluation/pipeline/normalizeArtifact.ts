@@ -20,6 +20,7 @@ import {
   ONE_SENTENCE_PITCH_POLICY,
   ONE_PARAGRAPH_PITCH_POLICY,
 } from '@/lib/config/lengthPolicy';
+import { isCanonicalAuthorFacingField } from './authorFacingFieldRegistry';
 
 export type ArtifactTextContractReason =
   | 'EVALUATION_PROSE_OVER_TECHNICAL_CEILING'
@@ -146,44 +147,7 @@ function assertOneParagraphPitch(text: string, maxLength: number, field: string)
   return text;
 }
 
-/**
- * Explicit allowlist of leaf field names that hold author-facing prose in the
- * synthesis envelope. Fields such as evidence snippets, anchor snippets, IDs,
- * status codes, scores, and model names are intentionally omitted.
- */
-const AUTHOR_FACING_FIELD_KEYS = new Set([
-  // overview
-  'one_paragraph_summary',
-  'one_sentence_pitch',
-  'one_paragraph_pitch',
-  'top_3_strengths',
-  'top_3_risks',
-  // criterion body
-  'rationale',
-  'final_rationale',
-  'fit_summary',
-  'gap_summary',
-  'delta_explanation',
-  'deferred_consequence_risk',
-  'pressure_points',
-  'decision_points',
-  // recommendation / action item prose
-  'action',
-  'why',
-  'symptom',
-  'cause',
-  'mechanism',
-  'fix_direction',
-  'specific_fix',
-  'reader_effect',
-  'expected_impact',
-  'mistake_proofing',
-  'candidate_text_a',
-  'candidate_text_b',
-  'candidate_text_c',
-  // technical defect surface
-  'author_facing_reason',
-]);
+
 
 const STRING_ARRAY_FIELD_KEYS = new Set([
   'top_3_strengths',
@@ -193,7 +157,7 @@ const STRING_ARRAY_FIELD_KEYS = new Set([
 ]);
 
 function isAuthorFacingFieldKey(key: string): boolean {
-  return AUTHOR_FACING_FIELD_KEYS.has(key);
+  return isCanonicalAuthorFacingField(key);
 }
 
 function isStringArrayFieldKey(key: string): boolean {

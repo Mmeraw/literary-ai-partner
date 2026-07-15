@@ -154,6 +154,34 @@ function makeValidSynthesis(): SynthesisOutput {
   } as SynthesisOutput;
 }
 
+function makeYellowWallpaperSynthesis(): SynthesisOutput {
+  const s = makeValidSynthesis();
+  s.criteria = [
+    {
+      ...s.criteria[0],
+      key: 'dialogue',
+      recommendations: [
+        {
+          ...s.criteria[0].recommendations[0],
+          priority: 'medium',
+          action: 'Clarify the speaker attribution in the exchange.',
+          expected_impact:
+            'The attribution gap causes speaker intent to blur, reducing tension in the exchange',
+          reader_effect:
+            'The attribution gap causes speaker intent to blur, reducing tension in the exchange',
+          mechanism:
+            'The same attribution tag on both sides flattens the conflict into a single voice.',
+          specific_fix: 'Give each speaker a distinct action beat before replying.',
+          candidate_text_a: '“I am not going out,” I said, “and I am not going out at all.”',
+          candidate_text_b: '“I am not going out,” I said without looking up.',
+          candidate_text_c: 'I shook my head. “I am not going out.”',
+        },
+      ],
+    },
+  ];
+  return s;
+}
+
 function makeCd6d8266Synthesis(): SynthesisOutput {
   const s = makeValidSynthesis();
   // Extend to multiple criteria so paths match the regression fixture patterns.
@@ -366,6 +394,64 @@ describe('repairSynthesisIntegrity', () => {
     expect(synthesis.criteria[0].final_rationale).toBe(
       'The concept is clearly present and grounded in concrete scene anchors.',
     );
+  });
+
+  it('Yellow Wallpaper regression: derived strategic_revisions[0].why maps back to its canonical source and repairs', async () => {
+    const synthesis = makeYellowWallpaperSynthesis();
+    const beforeSnapshot = JSON.stringify(synthesis);
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(result.requiredAttempts).toBeGreaterThan(0);
+    // The regenerator must be asked to repair the canonical source field,
+    // not the derived projection path that does not exist on SynthesisOutput.
+    expect(result.regeneratedFields).toEqual(
+      expect.arrayContaining([
+        'evaluation_result_v2.criteria[0].recommendations[0].expected_impact',
+      ]),
+    );
+    expect(result.remainingViolations).toHaveLength(0);
+
+    // The regenerated source field must now be a complete sentence.
+    expect(synthesis.criteria[0].recommendations[0].expected_impact).toMatch(/[.!?]["'"’)\]]*$/u);
+
+    // Rebuilding the projection from the repaired synthesis produces no violations.
+    const { buildEnrichedActionItems } = await import('@/lib/evaluation/actionItemQualityGate');
+    const { inspectAuthorFacingIntegrity } = await import('@/lib/text/authorFacingIntegrity');
+    const { normalizeArtifact } = await import('@/lib/evaluation/pipeline/normalizeArtifact');
+
+    const quickWins = buildEnrichedActionItems(
+      synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+      'high',
+      5,
+    );
+    const strategicRevisions = buildEnrichedActionItems(
+      synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+      'medium',
+      5,
+    );
+    normalizeArtifact(synthesis, quickWins, strategicRevisions);
+    const projectionViolations = inspectAuthorFacingIntegrity(
+      {
+        overview: synthesis.overall,
+        criteria: synthesis.criteria,
+        recommendations: { quick_wins: quickWins, strategic_revisions: strategicRevisions },
+      },
+      { rootPath: 'evaluation_result_v2' },
+    );
+    expect(projectionViolations).toHaveLength(0);
+
+    // All unrelated synthesis fields must be byte-identical to the original.
+    // We allow only the expected_impact field to differ in this fixture.
+    const original = JSON.parse(beforeSnapshot);
+    expect(synthesis.criteria[0].recommendations[0].expected_impact).not.toBe(
+      original.criteria[0].recommendations[0].expected_impact,
+    );
+    const patched = JSON.parse(JSON.stringify(synthesis));
+    patched.criteria[0].recommendations[0].expected_impact =
+      original.criteria[0].recommendations[0].expected_impact;
+    expect(JSON.stringify(patched)).toBe(beforeSnapshot);
   });
 
   it('handles mixed candidate and required violations in one recovery cycle', async () => {

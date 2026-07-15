@@ -175,7 +175,10 @@ import type {
   EnforcementDecision,
 } from "@/lib/governance/lessonsLearned";
 import type { GovernanceDecision } from "@/lib/evaluation/governance/evaluatePass4Governance";
-import { buildEnrichedActionItems } from "@/lib/evaluation/actionItemQualityGate";
+import {
+  buildEnrichedActionItems,
+  toPublicActionItem,
+} from "@/lib/evaluation/actionItemQualityGate";
 import { canonicalizeRecommendationAction } from "@/lib/text/authorFacingProse";
 
 // Pass 4 governance result type — derived from evaluatePass4Governance return
@@ -2961,8 +2964,8 @@ export function synthesisToEvaluationResult(
     },
     criteria,
     recommendations: {
-      quick_wins,
-      strategic_revisions,
+      quick_wins: quick_wins.map(toPublicActionItem),
+      strategic_revisions: strategic_revisions.map(toPublicActionItem),
     },
     metrics: {
       manuscript: {
@@ -3401,8 +3404,8 @@ export function synthesisToEvaluationResultV2(
     overview: finalOverview,
     criteria: governedCriteriaWithTemplateFallbacks,
     recommendations: {
-      quick_wins: quickWins,
-      strategic_revisions: strategicRevisions,
+      quick_wins: quickWins.map(toPublicActionItem),
+      strategic_revisions: strategicRevisions.map(toPublicActionItem),
     },
     metrics: {
       manuscript: {
