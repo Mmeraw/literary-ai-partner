@@ -1,6 +1,7 @@
 import {
   canonicalizeRecommendationAction,
   hasRepeatedSentenceOpenings,
+  normalizeDuplicateCloseQuotes,
   sanitizeAuthorFacingProse,
   startsWithRepetitiveLeadIn,
   stripRecommendationLeadIn,
@@ -36,5 +37,24 @@ describe('authorFacingProse', () => {
     expect(sanitizeAuthorFacingProse('She opens with urgency. She opens with urgency. Then she names the cost.')).toBe(
       'She opens with urgency. Then she names the cost.',
     );
+  });
+
+  test('collapses duplicate smart close quotes after terminal punctuation', () => {
+    const input = 'The manuscript evidence “Ahhhh, consider what?”” supports this synthesis.';
+    expect(normalizeDuplicateCloseQuotes(input)).toBe(
+      'The manuscript evidence “Ahhhh, consider what?” supports this synthesis.',
+    );
+  });
+
+  test('leaves valid nested same-quote structures untouched', () => {
+    // Outer and inner quote both use smart double quotes (non-standard but balanced).
+    // Removing the two consecutive closes would unbalance the string, so we do not touch it.
+    const input = '“He said “yes.””';
+    expect(normalizeDuplicateCloseQuotes(input)).toBe(input);
+  });
+
+  test('does not alter already-balanced quotation', () => {
+    const input = 'The evidence “Ahhhh, consider what?” supports this synthesis.';
+    expect(normalizeDuplicateCloseQuotes(input)).toBe(input);
   });
 });

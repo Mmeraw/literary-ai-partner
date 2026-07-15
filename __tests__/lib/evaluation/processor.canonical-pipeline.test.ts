@@ -389,7 +389,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: ["Clear narrative throughline"],
           top_3_risks: ["Secondary character arc needs deepening"],
         },
@@ -465,7 +465,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       overview: {
         verdict: "pass",
         overall_score_0_100: 82,
-        one_paragraph_summary: "Summary",
+        one_paragraph_summary: "Summary.",
         top_3_strengths: ["Clear narrative throughline"],
         top_3_risks: ["Secondary character arc needs deepening"],
       },
@@ -622,7 +622,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: ["Clear narrative throughline"],
           top_3_risks: ["Secondary character arc needs deepening"],
         },
@@ -657,7 +657,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       overview: {
         verdict: "pass",
         overall_score_0_100: 82,
-        one_paragraph_summary: "Summary",
+        one_paragraph_summary: "Summary.",
         top_3_strengths: ["Clear narrative throughline"],
         top_3_risks: ["Secondary character arc needs deepening"],
       },
@@ -757,7 +757,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: ["Clear narrative throughline"],
           top_3_risks: ["Secondary character arc needs deepening"],
         },
@@ -792,7 +792,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       overview: {
         verdict: "pass",
         overall_score_0_100: 82,
-        one_paragraph_summary: "Summary",
+        one_paragraph_summary: "Summary.",
         top_3_strengths: ["Clear narrative throughline"],
         top_3_risks: ["Secondary character arc needs deepening"],
       },
@@ -948,7 +948,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: ["Clear narrative throughline"],
           top_3_risks: ["Secondary character arc needs deepening"],
         },
@@ -983,7 +983,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       overview: {
         verdict: "pass",
         overall_score_0_100: 82,
-        one_paragraph_summary: "Summary",
+        one_paragraph_summary: "Summary.",
         top_3_strengths: ["Clear narrative throughline"],
         top_3_risks: ["Secondary character arc needs deepening"],
       },
@@ -1124,7 +1124,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: [],
           top_3_risks: [],
         },
@@ -1325,7 +1325,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 82,
           verdict: "pass",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: [],
           top_3_risks: [],
         },
@@ -1530,7 +1530,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 50,
           verdict: "revise",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: ["Strong premise signal"],
           top_3_risks: ["Pacing inconsistency in middle"],
         },
@@ -1562,7 +1562,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         verdict: "revise",
         overall_score_0_100: 50,
         scored_criteria_count: 0,
-        one_paragraph_summary: "Summary",
+        one_paragraph_summary: "Summary.",
         top_3_strengths: ["Strong premise signal"],
         top_3_risks: ["Pacing inconsistency in middle"],
       },
@@ -1873,7 +1873,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
             overall: {
               overall_score_0_100: 74,
               verdict: "revise",
-              one_paragraph_summary: "Summary",
+              one_paragraph_summary: "Summary.",
               top_3_strengths: [],
               top_3_risks: [],
               submission_readiness: "nearly_ready",
@@ -2022,7 +2022,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         overall: {
           overall_score_0_100: 50,
           verdict: "revise",
-          one_paragraph_summary: "Summary",
+          one_paragraph_summary: "Summary.",
           top_3_strengths: ["Strong premise signal"],
           top_3_risks: ["Pacing inconsistency in middle"],
         },
@@ -2054,7 +2054,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         verdict: "revise",
         overall_score_0_100: 50,
         scored_criteria_count: 13,
-        one_paragraph_summary: "Summary",
+        one_paragraph_summary: "Summary.",
         top_3_strengths: ["Strong premise signal"],
         top_3_risks: ["Pacing inconsistency in middle"],
       },

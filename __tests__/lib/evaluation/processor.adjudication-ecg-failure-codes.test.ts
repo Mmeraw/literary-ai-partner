@@ -58,8 +58,9 @@ jest.mock("../../../lib/evaluation/artifactPersistence", () => ({
   upsertEvaluationArtifact: (...args: any[]) => upsertEvaluationArtifactMock(...args),
 }));
 
+const openAIChatCreateMock = jest.fn();
 const OpenAIMock = jest.fn(() => ({
-  chat: { completions: { create: jest.fn() } },
+  chat: { completions: { create: openAIChatCreateMock } },
 }));
 
 jest.mock("openai", () => ({ __esModule: true, default: OpenAIMock }));
@@ -163,6 +164,19 @@ function makeRealSynthesisOutput() {
       target_audience: "Adult readers of character-driven literary fiction with interest in craft-forward narrative.",
     },
   };
+}
+
+function makeDirtySynthesisOutput() {
+  const s = makeRealSynthesisOutput();
+  // Required-prose integrity failures
+  s.criteria[2].fit_summary = 'The voice works because the concrete details…';
+  s.criteria[4].gap_summary = 'The middle stalls during the step-by-step sequence…';
+  s.criteria[5].final_rationale = 'The dialogue is purposeful. then the subtext sharpens.';
+  s.criteria[7].recommendations[0].specific_fix = 'Trim the redundant beat. then clarify the next action.';
+  // Candidate-prose integrity failures
+  s.criteria[1].recommendations[0].candidate_text_a = 'add a clearer stake in the first beat. make the want explicit.';
+  s.criteria[3].recommendations[0].candidate_text_b = 'combine the two mirror-check beats. sharpen the objective.';
+  return s;
 }
 
 function makeSupabaseStub() {
@@ -372,6 +386,38 @@ describe("processEvaluationJob — external adjudication gate + ECG typed failur
       "@/lib/evaluation/pipeline/runPipeline",
     );
     synthesisToEvaluationResultV2Mock.mockImplementation(actual.synthesisToEvaluationResultV2);
+
+    // Default OpenAI chat completion: parse the requested field path from the
+    // prompt payload and return a valid JSON replacement. This lets the real
+    // regenerateRequiredProse repair required prose in integration tests without
+    // network calls.
+    openAIChatCreateMock.mockImplementation(async (params: { messages?: { role?: string; content?: string }[] }) => {
+      const userContent = params?.messages?.reverse().find((m) => m.role === 'user' && typeof m.content === 'string')?.content ?? '';
+      const payloadMatch = /PAYLOAD:\n([\s\S]+?)\n\nOUTPUT RULES:/u.exec(userContent);
+      let path = 'unknown.field';
+      if (payloadMatch) {
+        try {
+          const parsed = JSON.parse(payloadMatch[1]!);
+          if (typeof parsed?.path === 'string') {
+            path = parsed.path;
+          }
+        } catch {
+          // fallback
+        }
+      }
+      const field = path.replace(/.*\.(?=[^.]+$)/u, '');
+      const replacement =
+        field === 'fit_summary'
+          ? 'The voice carries the scene through concrete details and self-aware cost accounting.'
+          : field === 'gap_summary'
+          ? 'The middle sequence slows because the clock checks repeat without escalating tension.'
+          : field === 'final_rationale'
+          ? 'The narrator shows clear wants and the supporting characters each carry distinct values.'
+          : 'Revise the targeted passage so the craft signal lands clearly for the reader.';
+      return {
+        choices: [{ message: { content: JSON.stringify({ [path]: replacement }) } }],
+      };
+    });
   });
 
   test("(a) required mode PROCEEDS when external_adjudication completed and cross_check is undefined", async () => {
@@ -566,5 +612,40 @@ describe("processEvaluationJob — external adjudication gate + ECG typed failur
     expect(envelope?.reason_codes).toContain("ECG_CERTIFICATION_FAILED");
 
     expect(persistedV2Called(supabaseStub)).toBe(false);
+  });
+
+  test("(e) mixed candidate and required author-facing integrity violations are repaired in the same recovery cycle and the job completes", async () => {
+    process.env.EVAL_EXTERNAL_ADJUDICATION_MODE = "optional";
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-adjudication-ecg-pass");
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: makeDirtySynthesisOutput(),
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+      cross_check: undefined,
+      external_adjudication: {
+        status: "cross_check_completed",
+        mode: "optional",
+        cross_check_returned: true,
+      },
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-adjudication-ecg-test");
+
+    expect(result.success).toBe(true);
+    expect(findFailureCode(supabaseStub)).toBeUndefined();
+    expect(persistedV2Called(supabaseStub)).toBe(true);
+
+    const progressUpdate = supabaseStub.evaluationJobUpdates.find(
+      (u) =>
+        u.progress !== undefined &&
+        typeof u.progress === "object" &&
+        (u.progress as Record<string, unknown>).error_code === undefined,
+    );
+    expect(progressUpdate).toBeDefined();
   });
 });
