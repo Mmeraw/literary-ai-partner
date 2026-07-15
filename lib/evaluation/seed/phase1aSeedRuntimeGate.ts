@@ -1,7 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { stableSourceHash, upsertEvaluationArtifact } from '@/lib/evaluation/artifactPersistence';
 import { countWords } from '@/lib/evaluation/pipeline/submissionScope';
-import { buildSeedFitGapReport, type SeedFitGapReportV1 } from '@/lib/evaluation/seed/seedCompletenessGuard';
+import {
+  buildSeedFitGapReport,
+  type SeedFitGapReportV1,
+  validateEvaluationSeedCompleteness,
+  validateStorySeedCompleteness,
+} from '@/lib/evaluation/seed/seedCompletenessGuard';
 import { buildCompleteEvaluationSeedV1, buildCompleteStorySeedV1 } from '@/lib/evaluation/seed/seedScaffoldFactory';
 
 type PersistableSeedArtifactType = 'story_map_seed_v1' | 'evaluation_seed_v1' | 'seed_fit_gap_report_v1';
@@ -15,6 +20,10 @@ const persistSeedArtifact = upsertEvaluationArtifact as unknown as (params: {
   sourceHash: string;
   content: unknown;
 }) => Promise<string>;
+
+function hasBlockingSeedGaps(gaps: Array<{ severity?: unknown }>): boolean {
+  return gaps.some((gap) => gap.severity === 'blocker');
+}
 
 export type Phase1aSeedGateResult = {
   ok: true;
@@ -57,7 +66,8 @@ export async function ensureCompleteSeedsBeforePhase1a(args: {
   }
 
   let storySeed = existing.get('story_map_seed_v1');
-  if (!storySeed) {
+  const storySeedNeedsRepair = !storySeed || hasBlockingSeedGaps(validateStorySeedCompleteness(storySeed));
+  if (storySeedNeedsRepair) {
     storySeed = buildCompleteStorySeedV1({ generatedAt: now });
     await persistSeedArtifact({
       supabase: args.supabase,
@@ -78,7 +88,8 @@ export async function ensureCompleteSeedsBeforePhase1a(args: {
   }
 
   let evaluationSeed = existing.get('evaluation_seed_v1');
-  if (!evaluationSeed) {
+  const evaluationSeedNeedsRepair = !evaluationSeed || hasBlockingSeedGaps(validateEvaluationSeedCompleteness(evaluationSeed));
+  if (evaluationSeedNeedsRepair) {
     evaluationSeed = buildCompleteEvaluationSeedV1({
       generatedAt: now,
       wordCount: countWords(args.manuscriptText),
