@@ -20,6 +20,26 @@
  *   7. Effort/Impact Label — always present (derived from priority)
  */
 
+import { isCompleteAuthorFacingSentence } from '@/lib/text/authorFacingProse';
+
+export type WhyField =
+  | 'expected_impact'
+  | 'reader_effect'
+  | 'mechanism'
+  | 'specific_fix'
+  | 'action';
+
+/**
+ * Provenance tracing a derived action-item field back to its canonical source
+ * in the SynthesisOutput. This is kept on the internal representation and
+ * stripped before the action item is written to EvaluationResultV1/V2.
+ */
+export type ActionItemProvenance = {
+  criterion_index: number;
+  recommendation_index: number;
+  why_field: WhyField;
+};
+
 export type EnrichedActionItem = {
   action: string;
   why: string;
@@ -31,6 +51,8 @@ export type EnrichedActionItem = {
   reader_effect?: string;
   candidate_text_a?: string;
   criterion_key?: string;
+  /** Internal provenance — stripped before serialization. */
+  _provenance?: ActionItemProvenance;
 };
 
 type RawRecommendation = {
@@ -51,6 +73,8 @@ type CriterionWithRecommendations = {
   key?: string;
   recommendations: RawRecommendation[];
 };
+
+type InternalEnrichedActionItem = EnrichedActionItem & { _sortScore: number };
 
 // ─── Semantic Deduplication ───────────────────────────────────────────────
 
@@ -133,6 +157,42 @@ function openingVerb(text: string): string {
   return normalized.split(/\s+/)[0] || "";
 }
 
+// ─── Why source selection ───────────────────────────────────────────────────
+
+/**
+ * Select the `why` for an action item from the first source value that already
+ * satisfies the complete-sentence author-facing contract. Do not append
+ * punctuation or otherwise manufacture completeness. If no source is complete,
+ * fall back to the first non-empty source so the repair layer can regenerate the
+ * underlying canonical field.
+ */
+function chooseWhySource(rec: RawRecommendation): { text: string; field: WhyField } {
+  const candidates: Array<{ text: string; field: WhyField }> = [];
+  const add = (value: string | undefined, field: WhyField) => {
+    const t = (value || "").trim();
+    if (t) candidates.push({ text: t, field });
+  };
+
+  add(rec.expected_impact, 'expected_impact');
+  add(rec.reader_effect, 'reader_effect');
+  add(rec.mechanism, 'mechanism');
+  add(rec.specific_fix, 'specific_fix');
+  add(rec.action, 'action');
+
+  for (const candidate of candidates) {
+    if (isCompleteAuthorFacingSentence(candidate.text)) {
+      return candidate;
+    }
+  }
+
+  if (candidates.length > 0) {
+    return candidates[0];
+  }
+
+  // Defensive fallback: the caller already verified action is non-empty.
+  return { text: (rec.action || "").trim(), field: 'action' };
+}
+
 // ─── Core Quality Gate ────────────────────────────────────────────────────
 
 /**
@@ -141,15 +201,21 @@ function openingVerb(text: string): string {
  *
  * 1. Scene-Specificity — REQUIRE anchor_snippet (evidence from manuscript)
  * 2. Uniqueness — semantic dedup via Dice coefficient (>70% → reject)
- * 3. Craft Mechanism — prefer items with mechanism field
+ * 3. Craft Mechanism — mechanism field must be present
  * 4. Before/After Contrast — anchor_snippet = "before", candidate_text_a = "after"
- * 5. Reader Experience Delta — prefer items with reader_effect
+ * 5. Reader Experience Delta — reader_effect must be non-empty
  * 6. Non-Redundancy — opening fingerprint + shape diversity
  * 7. Effort/Impact Label — always present
  *
  * EVIDENCE-FIRST POLICY: Action Items without anchor_snippet (the author's
  * actual words) are rejected. Every recommendation must be grounded in
  * specific manuscript text the author can see and recognize.
+ *
+ * DERIVED-FIELD PROVENANCE: Each item records the canonical source
+ * recommendation (criterion index, recommendation index, and which source
+ * field was chosen for `why`). The integrity repair layer uses this to map
+ * violations in derived quick_wins / strategic_revisions back to real,
+ * mutable SynthesisOutput paths.
  */
 export function buildEnrichedActionItems(
   criteria: CriterionWithRecommendations[],
@@ -160,15 +226,20 @@ export function buildEnrichedActionItems(
   const impactLabel = priorityFilter === "high" ? "high" : "medium";
 
   // Collect all matching recommendations with full context
-  const evidenceBacked: (EnrichedActionItem & { _sortScore: number })[] = [];
-  const fallbackPool: (EnrichedActionItem & { _sortScore: number })[] = [];
+  const evidenceBacked: InternalEnrichedActionItem[] = [];
+  const fallbackPool: InternalEnrichedActionItem[] = [];
 
-  for (const criterion of criteria) {
-    for (const rec of criterion.recommendations) {
+  for (let criterionIndex = 0; criterionIndex < criteria.length; criterionIndex++) {
+    const criterion = criteria[criterionIndex];
+    if (!criterion || !Array.isArray(criterion.recommendations)) continue;
+
+    for (let recIndex = 0; recIndex < criterion.recommendations.length; recIndex++) {
+      const rec = criterion.recommendations[recIndex]!;
       if (rec.priority !== priorityFilter) continue;
       if (!rec.action || rec.action.trim().length === 0) continue;
 
       const hasAnchor = Boolean(rec.anchor_snippet && rec.anchor_snippet.trim().length > 0);
+      const whySource = chooseWhySource(rec);
 
       // Quality score: higher = more complete evidence + richer context
       let sortScore = 0;
@@ -178,23 +249,9 @@ export function buildEnrichedActionItems(
       if (rec.candidate_text_a && rec.candidate_text_a.trim().length > 0) sortScore += 2;
       if (rec.manuscript_coordinates && rec.manuscript_coordinates.trim().length > 0) sortScore += 1;
 
-      // Deduplicate `why` vs `reader_effect`: if expected_impact is identical
-      // to reader_effect (a common LLM conflation), derive `why` from mechanism
-      // or specific_fix instead so each field adds distinct value.
-      const rawWhy = (rec.expected_impact || "").trim();
-      const rawReaderEffect = (rec.reader_effect || "").trim();
-      let why: string;
-      if (rawWhy && rawReaderEffect && rawWhy.toLowerCase() === rawReaderEffect.toLowerCase()) {
-        // Fields are identical — use mechanism or specific_fix as the "why"
-        const altWhy = (rec.mechanism || rec.specific_fix || "").trim();
-        why = altWhy || rawWhy;
-      } else {
-        why = rawWhy;
-      }
-
-      const item = {
+      const item: InternalEnrichedActionItem = {
         action: rec.action,
-        why,
+        why: whySource.text,
         effort: effortLabel as "low" | "medium" | "high",
         impact: impactLabel as "low" | "medium" | "high",
         anchor_snippet: rec.anchor_snippet || undefined,
@@ -204,6 +261,11 @@ export function buildEnrichedActionItems(
         candidate_text_a: rec.candidate_text_a || undefined,
         criterion_key: criterion.key || undefined,
         _sortScore: sortScore,
+        _provenance: {
+          criterion_index: criterionIndex,
+          recommendation_index: recIndex,
+          why_field: whySource.field,
+        },
       };
 
       // Gate 1 (Evidence-First): Items WITH anchor_snippet are preferred.
@@ -263,9 +325,9 @@ export function buildEnrichedActionItems(
     shapeCounts.set(shape, shapeCount + 1);
     if (verb) verbCounts.set(verb, verbCount + 1);
 
-    // Strip internal sort score before emitting
-    const { _sortScore: _, ...item } = candidate;
-    selected.push(item);
+    // Strip internal sort score and provenance before emitting
+    const { _sortScore: _, _provenance: __, ...item } = candidate;
+    selected.push(item as EnrichedActionItem);
   }
 
   // Relaxed fill pass: if we couldn't fill maxItems with strict diversity,
@@ -284,12 +346,23 @@ export function buildEnrichedActionItems(
       if (isDuplicate) continue;
 
       if (fingerprint) seenFingerprints.add(fingerprint);
-      const { _sortScore: _, ...item } = candidate;
-      selected.push(item);
+      const { _sortScore: _, _provenance: __, ...item } = candidate;
+      selected.push(item as EnrichedActionItem);
     }
   }
 
   return selected;
+}
+
+/**
+ * Remove internal-only fields before an EnrichedActionItem is written to an
+ * EvaluationResult artifact or serialized.
+ */
+export function toPublicActionItem(item: EnrichedActionItem): EnrichedActionItem {
+  const publicItem: Record<string, unknown> = { ...item };
+  delete publicItem._provenance;
+  delete publicItem._sortScore;
+  return publicItem as EnrichedActionItem;
 }
 
 /**
@@ -303,7 +376,7 @@ export function buildLegacyActionItems(
 ): Array<{ action: string; why: string; effort: "medium"; impact: "high" | "medium" }> {
   const impactLabel: "high" | "medium" = priorityFilter === "high" ? "high" : "medium";
   const enriched = buildEnrichedActionItems(criteria, priorityFilter, maxItems);
-  return enriched.map((item) => ({
+  return enriched.map(toPublicActionItem).map((item) => ({
     action: item.action,
     why: item.why,
     effort: "medium" as const,

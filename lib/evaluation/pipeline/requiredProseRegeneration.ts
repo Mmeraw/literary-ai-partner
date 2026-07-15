@@ -19,6 +19,7 @@ import {
   getCanonicalPass3Model,
 } from '@/lib/evaluation/policy';
 import type { AuthorFacingIntegrityViolation } from '@/lib/text/authorFacingIntegrity';
+import { isCompleteAuthorFacingSentence } from '@/lib/text/authorFacingProse';
 import type { SynthesisOutput } from './types';
 import type { Pass3PreflightDraft } from './types';
 
@@ -158,16 +159,7 @@ function getRecommendationIndex(path: string): number | null {
   return parseInt(match[1]!, 10);
 }
 
-function isCompleteProse(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return false;
-  if (/…|\.\.\./u.test(trimmed)) return false;
-  const firstAlphaIndex = trimmed.search(/[a-zA-Z]/u);
-  if (firstAlphaIndex === -1) return false;
-  if (trimmed[firstAlphaIndex] !== trimmed[firstAlphaIndex].toUpperCase()) return false;
-  if (!/[.!?]["'”’)\]]*$/u.test(trimmed)) return false;
-  return true;
-}
+
 
 function safeStringify(value: unknown): string {
   if (value === undefined) return 'undefined';
@@ -478,7 +470,7 @@ export function assertRequestedPathsChangedOrWereValid(
     if (beforeVal === afterVal) {
       // Model returned exactly the same value and therefore did not regenerate.
       unchanged.push(path);
-    } else if (typeof afterVal === 'string' && !isCompleteProse(afterVal)) {
+    } else if (typeof afterVal === 'string' && !isCompleteAuthorFacingSentence(afterVal)) {
       // Model returned a value that still fails the local completeness check.
       unchanged.push(path);
     }
@@ -549,7 +541,7 @@ export async function regenerateRequiredProse(
 
     const generated = await callRegenerationLLM(openai, model, prompt, violation.path);
 
-    if (generated && isCompleteProse(generated)) {
+    if (generated && isCompleteAuthorFacingSentence(generated)) {
       const ok = setByPath(synthesis, violation.path, generated);
       if (ok) {
         regeneratedFields.push(violation.path);
