@@ -155,6 +155,9 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
       preRepairResolver('evaluation_result_v2.recommendations.strategic_revisions[0].why')
         ?.canonicalPath,
     ).toBe('evaluation_result_v2.criteria[0].recommendations[0].expected_impact');
+    expect(preRepairProjection[0].why).toBe(
+      synthesis.criteria[0].recommendations[0].expected_impact,
+    );
 
     const repairResult = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
     expect(repairResult.ok).toBe(true);
@@ -183,6 +186,7 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
     });
 
     // Internal provenance must be stripped before serialization.
+    expect(JSON.stringify(result)).not.toContain('"_source"');
     for (const item of result.recommendations.quick_wins) {
       expect(item).not.toHaveProperty('_source');
       expect(item).not.toHaveProperty('_sortScore');
@@ -216,6 +220,9 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
 
     // The strategic_revisions[0].why derived from the repaired expected_impact must be complete.
     expect(result.recommendations.strategic_revisions[0].why).toMatch(/[.!?]$/u);
+    expect(result.recommendations.strategic_revisions[0].why).toBe(
+      synthesis.criteria[0].recommendations[0].expected_impact,
+    );
   });
 
   it('preserves internal _source provenance on derived items and strips it for the public artifact', () => {
