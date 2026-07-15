@@ -1,10 +1,11 @@
 /**
  * Artifact Normalization Pre-Stage
  *
- * Applies cosmetic-only formatting cleanup before certification, then validates
- * strict structural contracts for canonical evaluation prose. Canonical prose
- * is never shortened to satisfy a length policy: invalid output is rejected for
- * upstream regeneration.
+ * Applies Tier-1 cosmetic formatting cleanup to every author-facing string in the
+ * synthesis envelope before certification, then validates strict structural
+ * contracts for canonical evaluation prose. Canonical prose is never shortened
+ * to satisfy a length policy: invalid output is rejected for upstream
+ * regeneration.
  */
 
 import {
@@ -53,22 +54,6 @@ export function isArtifactTextContractError(err: unknown): err is ArtifactTextCo
       (err as { code?: unknown }).code === 'ARTIFACT_TEXT_CONTRACT_FAILED')
   );
 }
-
-const RECOMMENDATION_PROSE_FIELDS = [
-  'action',
-  'why',
-  'symptom',
-  'cause',
-  'mechanism',
-  'fix_direction',
-  'specific_fix',
-  'reader_effect',
-  'expected_impact',
-  'mistake_proofing',
-  'candidate_text_a',
-  'candidate_text_b',
-  'candidate_text_c',
-] as const;
 
 export interface NormalizationRecord {
   field: string;
@@ -161,6 +146,60 @@ function assertOneParagraphPitch(text: string, maxLength: number, field: string)
   return text;
 }
 
+/**
+ * Explicit allowlist of leaf field names that hold author-facing prose in the
+ * synthesis envelope. Fields such as evidence snippets, anchor snippets, IDs,
+ * status codes, scores, and model names are intentionally omitted.
+ */
+const AUTHOR_FACING_FIELD_KEYS = new Set([
+  // overview
+  'one_paragraph_summary',
+  'one_sentence_pitch',
+  'one_paragraph_pitch',
+  'top_3_strengths',
+  'top_3_risks',
+  // criterion body
+  'rationale',
+  'final_rationale',
+  'fit_summary',
+  'gap_summary',
+  'delta_explanation',
+  'deferred_consequence_risk',
+  'pressure_points',
+  'decision_points',
+  // recommendation / action item prose
+  'action',
+  'why',
+  'symptom',
+  'cause',
+  'mechanism',
+  'fix_direction',
+  'specific_fix',
+  'reader_effect',
+  'expected_impact',
+  'mistake_proofing',
+  'candidate_text_a',
+  'candidate_text_b',
+  'candidate_text_c',
+  // technical defect surface
+  'author_facing_reason',
+]);
+
+const STRING_ARRAY_FIELD_KEYS = new Set([
+  'top_3_strengths',
+  'top_3_risks',
+  'pressure_points',
+  'decision_points',
+]);
+
+function isAuthorFacingFieldKey(key: string): boolean {
+  return AUTHOR_FACING_FIELD_KEYS.has(key);
+}
+
+function isStringArrayFieldKey(key: string): boolean {
+  return STRING_ARRAY_FIELD_KEYS.has(key);
+}
+
 export function normalizeArtifact(
   synthesis: {
     overall: {
@@ -185,7 +224,15 @@ export function normalizeArtifact(
     if (typeof raw !== 'string' || !raw.trim()) return null;
     let value = raw.trim();
 
-    const collapsedWs = value.replace(/\s+/g, ' ');
+    // Tier-1 whitespace cleanup: collapse horizontal runs and isolated line
+    // breaks into single spaces, but preserve paragraph breaks (\n\n) so
+    // multi-paragraph author-facing prose remains structurally valid.
+    const collapsedWs = value
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/(?<!\n)\n(?!\n)/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
     if (collapsedWs !== value) {
       normalizations.push({ field, before: value, after: collapsedWs, operation: 'whitespace' });
       value = collapsedWs;
@@ -212,6 +259,70 @@ export function normalizeArtifact(
     return value;
   }
 
+  function normalizeStringArray(arr: unknown[], field: string): string[] {
+    const out: string[] = [];
+    let changed = false;
+    for (let i = 0; i < arr.length; i++) {
+      const normalized = normalizeStringValue(arr[i], `${field}[${i}]`);
+      if (normalized !== null) {
+        out.push(normalized);
+        if (normalized !== arr[i]) changed = true;
+      } else if (typeof arr[i] === 'string') {
+        out.push(arr[i] as string);
+      } else {
+        out.push(String(arr[i]));
+      }
+    }
+    return changed ? out : (arr as string[]);
+  }
+
+  type NodeSetter = (value: unknown) => void;
+
+  function visit(current: unknown, path: string, set: NodeSetter): void {
+    if (current === null || current === undefined) return;
+
+    if (typeof current === 'string') {
+      const key = path.replace(/\[\d+\]$/u, '').split('.').pop() ?? path;
+      if (isAuthorFacingFieldKey(key)) {
+        const normalized = normalizeStringValue(current, path);
+        if (normalized !== null && normalized !== current) {
+          set(normalized);
+        }
+      }
+      return;
+    }
+
+    if (Array.isArray(current)) {
+      const key = path.split('.').pop() ?? path;
+      if (isStringArrayFieldKey(key)) {
+        const normalized = normalizeStringArray(current, path);
+        if (normalized !== current) {
+          set(normalized);
+        }
+        return;
+      }
+      for (let i = 0; i < current.length; i++) {
+        visit(current[i], `${path}[${i}]`, (value) => {
+          current[i] = value;
+        });
+      }
+      return;
+    }
+
+    if (typeof current === 'object') {
+      const record = current as Record<string, unknown>;
+      for (const [key, child] of Object.entries(record)) {
+        // Never descend into evidence/quotation objects; they contain manuscript
+        // source text that must not be rewritten.
+        if (key === 'evidence' || key === 'snippet' || key === 'anchor_snippet') continue;
+        visit(child, `${path}.${key}`, (value) => {
+          record[key] = value;
+        });
+      }
+    }
+  }
+
+  // ── Overview canonical prose contracts ─────────────────────────────────────
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
     const formatted = normalizeAuthorFacingFormatting(before);
@@ -261,34 +372,13 @@ export function normalizeArtifact(
     }
   }
 
-  function normalizeRecs(recs: Array<Record<string, unknown>>, prefix: string) {
-    for (let i = 0; i < recs.length; i++) {
-      const rec = recs[i];
-      for (const field of RECOMMENDATION_PROSE_FIELDS) {
-        const value = normalizeStringValue(rec[field], `${prefix}[${i}].${field}`);
-        if (value === null) continue;
-        // RG-TEXT-1: never append punctuation to conceal incomplete generation.
-        // The shared integrity authority below rejects incomplete prose so the
-        // affected field can regenerate upstream.
-        rec[field] = value;
-      }
-    }
-  }
-
-  normalizeRecs(quickWins, 'recommendations.quick_wins');
-  normalizeRecs(strategicRevisions, 'recommendations.strategic_revisions');
-
-  for (let ci = 0; ci < synthesis.criteria.length; ci++) {
-    const criterion = synthesis.criteria[ci];
-    for (const rationaleField of ['rationale', 'final_rationale'] as const) {
-      const value = normalizeStringValue(criterion[rationaleField], `criteria[${ci}].${rationaleField}`);
-      if (value !== null) {
-        criterion[rationaleField] = value;
-      }
-    }
-    if (!criterion.recommendations) continue;
-    normalizeRecs(criterion.recommendations, `criteria[${ci}].recommendations`);
-  }
+  // ── Universal Tier-1 author-facing text normalization ────────────────────────
+  // Walk the entire synthesis envelope, normalizing only explicitly allowed
+  // author-facing strings. Manuscript evidence, IDs, scores, status codes, and
+  // model metadata are skipped by omission from the allowlist.
+  visit(synthesis, 'synthesis', () => {});
+  visit(quickWins, 'recommendations.quick_wins', () => {});
+  visit(strategicRevisions, 'recommendations.strategic_revisions', () => {});
 
   assertAuthorFacingIntegrity(
     {
