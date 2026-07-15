@@ -385,3 +385,53 @@ export function trimAtSentenceBoundary(text: string, maxLength?: number): string
   if (lastEnd > 0) return text.substring(0, lastEnd).trimEnd();
   return trimAtWordBoundaryLocal(text, maxLength);
 }
+
+// ── Deterministic punctuation cleanup (Tier 1 safe) ───────────────────────────
+
+/**
+ * True when straight double quotes are paired and smart double quotes are paired.
+ */
+function quoteDelimitersAreBalanced(s: string): boolean {
+  const straight = (s.match(/"/g) ?? []).length;
+  const openSmart = (s.match(/“/g) ?? []).length;
+  const closeSmart = (s.match(/”/g) ?? []).length;
+  return straight % 2 === 0 && openSmart === closeSmart;
+}
+
+/**
+ * Collapse runs of identical trailing/inline close-quote duplicates that the
+ * LLM sometimes emits after terminal punctuation (e.g. `?""` or `?""`).
+ *
+ * Conservative: only removes a duplicate when the resulting string has balanced
+ * double-quote delimiters, so valid nested same-quote structures are not damaged.
+ */
+export function normalizeDuplicateCloseQuotes(text: string): string {
+  if (!text) return text;
+  let out = text;
+
+  // Match terminal punctuation followed by 2+ consecutive identical double
+  // close-quote characters (" or "). \3 backrefs the captured quote type.
+  const buildPattern = () => /([.!?])(\s*)(["”])\3+/gu;
+
+  for (let iteration = 0; iteration < 5; iteration++) {
+    const pattern = buildPattern();
+    const matches = Array.from(out.matchAll(pattern));
+    if (matches.length === 0) break;
+
+    let changed = false;
+    for (const match of matches) {
+      const [full, punct, ws, quote] = match;
+      const collapsed = punct + ws + quote;
+      const index = match.index ?? 0;
+      const candidate = out.slice(0, index) + collapsed + out.slice(index + full.length);
+      if (quoteDelimitersAreBalanced(candidate)) {
+        out = candidate;
+        changed = true;
+        break; // restart scan after mutation
+      }
+    }
+    if (!changed) break;
+  }
+
+  return out;
+}

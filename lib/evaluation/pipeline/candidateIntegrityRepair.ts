@@ -47,7 +47,7 @@ const CANDIDATE_PATH_PATTERN = /^(?:.*\.)?recommendations(?:\.quick_wins|\.strat
 
 const CRITERIA_CANDIDATE_PATH_PATTERN = /^(?:.*\.)?criteria\[(\d+)\]\.recommendations\[(\d+)\]\.(candidate_text_[abc])$/u;
 
-function isCandidateTextViolationPath(path: string): boolean {
+export function isCandidateTextViolationPath(path: string): boolean {
   return CANDIDATE_PATH_PATTERN.test(path) || CRITERIA_CANDIDATE_PATH_PATTERN.test(path);
 }
 
