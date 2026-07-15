@@ -197,26 +197,18 @@ async function seedJobIntakeProgress(params: {
 
   if (params.fastTrackPhase0) {
     Object.assign(nextProgress, {
-      phase: "phase_1a",
+      phase: "phase_0",
       phase_status: "queued",
-      message: "Short-form evaluation queued—using short-form criteria policy fast path",
+      message: "Short-form evaluation queued for Phase 0 seed preparation",
       phase0_fast_track: true,
       phase0_fast_track_reason: "short_form_under_25000_words",
-      phase0_bypass_reason: "short_form_policy_fast_track",
-      phase0_started_at: now,
-      phase0_completed_at: now,
-      phase0_total_duration_ms: 0,
-      phase0_measured_duration_ms: 0,
-      phase0_llm_duration_ms: 0,
-      phase0_dwell_duration_ms: 0,
       phase0_calibration_word_count: params.manuscriptWordCount ?? null,
-      phase0_proof_normalized: true,
       total_units: 100,
-      completed_units: 8,
+      completed_units: 0,
     });
 
     Object.assign(updatePayload, {
-      phase: "phase_1a",
+      phase: "phase_0",
       phase_status: "queued",
     });
   }
@@ -241,7 +233,7 @@ async function seedJobIntakeProgress(params: {
   }
 
   if (params.fastTrackPhase0) {
-    logger.info("Short-form evaluation fast-tracked past Phase 0", {
+    logger.info("Short-form evaluation marked for Phase 0 fast-track seed preparation", {
       trace_id: params.trace_id,
       request_id: params.request_id,
       event: "api.jobs.create.phase0_fast_track",
@@ -738,7 +730,10 @@ export async function POST(req: Request) {
       });
     }
 
-    const shouldFastTrackPhase0 = false;
+    const shouldFastTrackPhase0 =
+      isEvaluationJobType(validatedJobType) &&
+      typeof (resolvedManuscriptWordCount ?? immediateManuscriptWordCount) === "number" &&
+      (resolvedManuscriptWordCount ?? immediateManuscriptWordCount)! < 25_000;
 
     await seedJobIntakeProgress({
       job,

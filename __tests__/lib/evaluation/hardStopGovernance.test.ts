@@ -4,6 +4,7 @@ import {
   classifyQueuedHardStop,
   classifySplitBrain,
   decideSplitBrainRecovery,
+  hasCompletePhase1aSeedState,
   isGlobalSlaExceeded,
   isMaxAgeKillSwitchExpired,
   isPostPhase0HandoffLimbo,
@@ -168,6 +169,31 @@ describe('hardStopGovernance', () => {
         { nowMs: Date.parse('2026-06-01T03:02:30.000Z'), graceMs: 90_000, hasSeedArtifacts: false },
       ),
     ).toBe(true);
+  });
+
+  test('requires both seeds and a non-blocked fit-gap report for complete Phase 1A seed state', () => {
+    expect(
+      hasCompletePhase1aSeedState([
+        { artifact_type: 'story_map_seed_v1', content: { artifact_type: 'story_map_seed_v1' } },
+        { artifact_type: 'evaluation_seed_v1', content: { artifact_type: 'evaluation_seed_v1' } },
+        { artifact_type: 'seed_fit_gap_report_v1', content: { status: 'ok' } },
+      ]),
+    ).toBe(true);
+
+    expect(
+      hasCompletePhase1aSeedState([
+        { artifact_type: 'story_map_seed_v1', content: { artifact_type: 'story_map_seed_v1' } },
+        { artifact_type: 'seed_fit_gap_report_v1', content: { status: 'ok' } },
+      ]),
+    ).toBe(false);
+
+    expect(
+      hasCompletePhase1aSeedState([
+        { artifact_type: 'story_map_seed_v1', content: { artifact_type: 'story_map_seed_v1' } },
+        { artifact_type: 'evaluation_seed_v1', content: { artifact_type: 'evaluation_seed_v1' } },
+        { artifact_type: 'seed_fit_gap_report_v1', content: { status: 'blocked' } },
+      ]),
+    ).toBe(false);
   });
 
   test('resolves a hard-capped provider budget from workload size', () => {

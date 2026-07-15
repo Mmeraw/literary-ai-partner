@@ -208,6 +208,8 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   // Code: runPass1a() per chunk → reduceCharacterEvidence() →
   //       buildStoryLayerFromLedger() → buildLedgerQualityReport()
   //       in processor.ts:6716-8100
+  // Phase 0 completion is attested via phase0_completed_at timestamp.
+  // Persisting phase0_authority_proof_v1 as an artifact is tracked separately.
   // Outputs: pass1a_chunk_cache_v1, pass1a_character_ledger_v1,
   //          seed_contradiction_report_v1, pass1a_story_layer_v1,
   //          ledger_quality_report_v1
@@ -215,8 +217,8 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
     phase_id: 'phase_1a',
     runtime_phase: 'phase_1a',
     sipoc_stage_ref: 'ADJACENT_PHASE_0_5A',
-    required_inputs: ['phase0_authority_proof_v1', 'story_map_seed_v1'],
-    required_authority_proof: true,
+    required_inputs: ['story_map_seed_v1', 'evaluation_seed_v1'],
+    required_authority_proof: false,
     output_artifacts: [
       'pass1a_chunk_cache_v1',
       'pass1a_character_ledger_v1',
