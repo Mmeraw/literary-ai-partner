@@ -34,9 +34,10 @@ export type WhyField =
  * in the SynthesisOutput. This is kept on the internal representation and
  * stripped before the action item is written to EvaluationResultV1/V2.
  */
-export type ActionItemProvenance = {
+export type ActionItemSource = {
   criterion_index: number;
   recommendation_index: number;
+  /** The canonical recommendation field that supplies `why`. Other derived fields use the violation path's leaf key. */
   why_field: WhyField;
 };
 
@@ -52,7 +53,7 @@ export type EnrichedActionItem = {
   candidate_text_a?: string;
   criterion_key?: string;
   /** Internal provenance — stripped before serialization. */
-  _provenance?: ActionItemProvenance;
+  _source?: ActionItemSource;
 };
 
 type RawRecommendation = {
@@ -161,10 +162,13 @@ function openingVerb(text: string): string {
 
 /**
  * Select the `why` for an action item from the first source value that already
- * satisfies the complete-sentence author-facing contract. Do not append
- * punctuation or otherwise manufacture completeness. If no source is complete,
- * fall back to the first non-empty source so the repair layer can regenerate the
- * underlying canonical field.
+ * satisfies the complete-sentence author-facing contract. Only
+ * `expected_impact`, `reader_effect`, and `mechanism` are eligible `why`
+ * sources; `specific_fix` and `action` serve different editorial purposes and
+ * must not be promoted to `why`. Do not append punctuation or otherwise
+ * manufacture completeness. If no source is complete, fall back to the first
+ * non-empty source so the repair layer can regenerate the underlying canonical
+ * field.
  */
 function chooseWhySource(rec: RawRecommendation): { text: string; field: WhyField } {
   const candidates: Array<{ text: string; field: WhyField }> = [];
@@ -176,8 +180,6 @@ function chooseWhySource(rec: RawRecommendation): { text: string; field: WhyFiel
   add(rec.expected_impact, 'expected_impact');
   add(rec.reader_effect, 'reader_effect');
   add(rec.mechanism, 'mechanism');
-  add(rec.specific_fix, 'specific_fix');
-  add(rec.action, 'action');
 
   for (const candidate of candidates) {
     if (isCompleteAuthorFacingSentence(candidate.text)) {
@@ -261,7 +263,7 @@ export function buildEnrichedActionItems(
         candidate_text_a: rec.candidate_text_a || undefined,
         criterion_key: criterion.key || undefined,
         _sortScore: sortScore,
-        _provenance: {
+        _source: {
           criterion_index: criterionIndex,
           recommendation_index: recIndex,
           why_field: whySource.field,
@@ -325,9 +327,8 @@ export function buildEnrichedActionItems(
     shapeCounts.set(shape, shapeCount + 1);
     if (verb) verbCounts.set(verb, verbCount + 1);
 
-    // Strip internal sort score and provenance before emitting
-    const { _sortScore: _, _provenance: __, ...item } = candidate;
-    selected.push(item as EnrichedActionItem);
+    // Keep internal provenance/sort score for downstream repair; final serialization strips them.
+    selected.push(candidate as EnrichedActionItem);
   }
 
   // Relaxed fill pass: if we couldn't fill maxItems with strict diversity,
@@ -346,8 +347,7 @@ export function buildEnrichedActionItems(
       if (isDuplicate) continue;
 
       if (fingerprint) seenFingerprints.add(fingerprint);
-      const { _sortScore: _, _provenance: __, ...item } = candidate;
-      selected.push(item as EnrichedActionItem);
+      selected.push(candidate as EnrichedActionItem);
     }
   }
 
@@ -360,7 +360,7 @@ export function buildEnrichedActionItems(
  */
 export function toPublicActionItem(item: EnrichedActionItem): EnrichedActionItem {
   const publicItem: Record<string, unknown> = { ...item };
-  delete publicItem._provenance;
+  delete publicItem._source;
   delete publicItem._sortScore;
   return publicItem as EnrichedActionItem;
 }

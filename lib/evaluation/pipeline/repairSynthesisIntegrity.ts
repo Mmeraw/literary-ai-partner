@@ -2,12 +2,21 @@
  * Mistake-proofed author-facing integrity repair for Pass 3 synthesis output.
  *
  * Recovery chain:
- *   1. Tier-1 normalization (normalizeArtifact).
- *   2. Whole-envelope validation (inspectAuthorFacingIntegrity).
- *   3. Targeted required-field regeneration, with fresh validation after every
- *      mutation and a strict mutation boundary.
- *   4. Targeted candidate-field regeneration/quarantine, with fresh validation.
- *   5. Final whole-envelope validation before the caller runs certification.
+ *   1. Build the EvaluationResultV2 projection from canonical synthesis and a
+ *      derived-field resolver so every author-facing path has an owner before
+ *      any normalization/validation runs.
+ *   2. Tier-1 normalization (normalizeArtifact) on the projection.
+ *   3. Whole-envelope validation (inspectAuthorFacingIntegrity) on the derived
+ *      EvaluationResultV2 projection.
+ *   4. Path ownership: every violation is resolved to its canonical writable
+ *      source via the derived-field resolver. Derived recommendation paths
+ *      (quick_wins / strategic_revisions) map back to
+ *      criteria[sourceCriterionIndex].recommendations[sourceRecommendationIndex].sourceField.
+ *   5. Targeted required-field regeneration mutates only canonical SynthesisOutput
+ *      fields, then the projection is rebuilt from scratch and re-validated.
+ *   6. Targeted candidate-field regeneration/quarantine, with fresh validation.
+ *   7. Final whole-envelope validation and derived-recommendation parity check
+ *      before the caller runs certification.
  *
  * Required and candidate prose keep separate retry counters.
  */
@@ -15,14 +24,14 @@
 import {
   buildEnrichedActionItems,
   toPublicActionItem,
-  type ActionItemProvenance,
   type EnrichedActionItem,
 } from '@/lib/evaluation/actionItemQualityGate';
 import { normalizeArtifact } from '@/lib/evaluation/pipeline/normalizeArtifact';
 import {
-  DERIVED_AUTHOR_FACING_FIELDS,
-  isKnownAuthorFacingPath,
-} from '@/lib/evaluation/pipeline/authorFacingFieldRegistry';
+  buildWritableAuthorFieldResolver,
+  assertDerivedRecommendationParity,
+  UnownedAuthorFacingFieldError,
+} from '@/lib/evaluation/pipeline/derivedFieldResolver';
 import {
   attemptCandidateIntegrityRepair,
   isCandidateTextViolationPath,
@@ -73,64 +82,19 @@ function buildAuthorEnvelope(
   };
 }
 
-function getQuickWins(synthesis: SynthesisOutput): EnrichedActionItem[] {
-  return buildEnrichedActionItems(
+function buildProjection(synthesis: SynthesisOutput) {
+  const quickWins = buildEnrichedActionItems(
     synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     'high',
     5,
   );
-}
-
-function getStrategicRevisions(synthesis: SynthesisOutput): EnrichedActionItem[] {
-  return buildEnrichedActionItems(
+  const strategicRevisions = buildEnrichedActionItems(
     synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
     'medium',
     5,
   );
-}
-
-type ProvenanceTarget = {
-  criterion_index: number;
-  recommendation_index: number;
-  sourceField: string;
-};
-
-const DERIVED_AUTHOR_FACING_FIELDS_ARRAY = [...DERIVED_AUTHOR_FACING_FIELDS] as const;
-
-function buildDerivedPathProvenanceMap(
-  quickWins: EnrichedActionItem[],
-  strategicRevisions: EnrichedActionItem[],
-): Map<string, ProvenanceTarget> {
-  const map = new Map<string, ProvenanceTarget>();
-
-  const addArray = (arrayName: 'quick_wins' | 'strategic_revisions', items: EnrichedActionItem[]) => {
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      const provenance = item._provenance;
-      if (!provenance) continue;
-      const base = `evaluation_result_v2.recommendations.${arrayName}[${i}]`;
-      for (const field of DERIVED_AUTHOR_FACING_FIELDS_ARRAY) {
-        const sourceField = field === 'why' ? provenance.why_field : field;
-        map.set(`${base}.${field}`, {
-          criterion_index: provenance.criterion_index,
-          recommendation_index: provenance.recommendation_index,
-          sourceField,
-        });
-      }
-    }
-  };
-
-  addArray('quick_wins', quickWins);
-  addArray('strategic_revisions', strategicRevisions);
-  return map;
-}
-
-function normalizeArtifactEnvelope(synthesis: SynthesisOutput) {
-  const quickWins = getQuickWins(synthesis);
-  const strategicRevisions = getStrategicRevisions(synthesis);
-  normalizeArtifact(synthesis, quickWins, strategicRevisions);
-  const provenanceMap = buildDerivedPathProvenanceMap(quickWins, strategicRevisions);
-  return { quickWins, strategicRevisions, provenanceMap };
+  const resolver = buildWritableAuthorFieldResolver(quickWins, strategicRevisions);
+  return { quickWins, strategicRevisions, resolver };
 }
 
 function collectViolations(
@@ -149,18 +113,6 @@ function collectViolations(
   );
 }
 
-function mapDerivedViolationToCanonical(
-  violation: AuthorFacingIntegrityViolation,
-  provenanceMap: Map<string, ProvenanceTarget>,
-): AuthorFacingIntegrityViolation {
-  const target = provenanceMap.get(violation.path);
-  if (!target) return violation;
-  return {
-    ...violation,
-    path: `evaluation_result_v2.criteria[${target.criterion_index}].recommendations[${target.recommendation_index}].${target.sourceField}`,
-  };
-}
-
 function contractErrorToViolation(err: ArtifactTextContractError): AuthorFacingIntegrityViolation {
   return {
     path: `evaluation_result_v2.${err.field}`,
@@ -174,6 +126,60 @@ function normalizeViolations(violations: AuthorFacingIntegrityViolation[]) {
   const seen = new Set<string>();
   const out: AuthorFacingIntegrityViolation[] = [];
   for (const v of violations) {
+    if (seen.has(v.path)) continue;
+    seen.add(v.path);
+    out.push(v);
+  }
+  return out;
+}
+
+function resolveRequiredCanonicalPaths(
+  violations: AuthorFacingIntegrityViolation[],
+  resolver: ReturnType<typeof buildWritableAuthorFieldResolver>,
+): { resolved: AuthorFacingIntegrityViolation[]; unowned: string[] } {
+  const resolved: AuthorFacingIntegrityViolation[] = [];
+  const unowned: string[] = [];
+  for (const v of violations) {
+    const field = resolver(v.path);
+    if (!field) {
+      unowned.push(v.path);
+      continue;
+    }
+    resolved.push({
+      ...v,
+      path: field.canonicalPath,
+    });
+  }
+  return { resolved, unowned };
+}
+
+function normalizeAndInspectProjection(
+  synthesis: SynthesisOutput,
+  quickWins: EnrichedActionItem[],
+  strategicRevisions: EnrichedActionItem[],
+  enforceParity: boolean,
+): AuthorFacingIntegrityViolation[] {
+  const preViolations: AuthorFacingIntegrityViolation[] = [];
+  try {
+    normalizeArtifact(synthesis, quickWins, strategicRevisions);
+  } catch (err) {
+    if (err instanceof ArtifactTextContractError) {
+      preViolations.push(contractErrorToViolation(err));
+    } else if (err instanceof AuthorFacingIntegrityError) {
+      preViolations.push(...err.violations);
+    } else {
+      throw err;
+    }
+  }
+
+  if (enforceParity && preViolations.length === 0) {
+    assertDerivedRecommendationParity(synthesis, quickWins, strategicRevisions);
+  }
+
+  const collected = collectViolations(synthesis, quickWins, strategicRevisions);
+  const seen = new Set<string>();
+  const out: AuthorFacingIntegrityViolation[] = [];
+  for (const v of [...preViolations, ...collected]) {
     if (seen.has(v.path)) continue;
     seen.add(v.path);
     out.push(v);
@@ -204,46 +210,22 @@ export async function repairSynthesisIntegrity(
 
   // Required-prose repair loop.
   for (let i = 0; i < maxRequiredAttempts; i++) {
-    let quickWins: EnrichedActionItem[] = [];
-    let strategicRevisions: EnrichedActionItem[] = [];
-    let violations: AuthorFacingIntegrityViolation[] = [];
+    const { quickWins, strategicRevisions, resolver } = buildProjection(synthesis);
+    const violations = normalizeAndInspectProjection(synthesis, quickWins, strategicRevisions, false);
 
-    let provenanceMap = new Map<string, ProvenanceTarget>();
-
-    try {
-      const envelope = normalizeArtifactEnvelope(synthesis);
-      quickWins = envelope.quickWins;
-      strategicRevisions = envelope.strategicRevisions;
-      provenanceMap = envelope.provenanceMap;
-      violations = collectViolations(synthesis, quickWins, strategicRevisions);
-    } catch (err) {
-      if (err instanceof ArtifactTextContractError) {
-        violations = [contractErrorToViolation(err)];
-      } else if (err instanceof AuthorFacingIntegrityError) {
-        violations = err.violations;
-      } else {
-        throw err;
-      }
-    }
-
-    const unknownViolations = violations.filter((v) => !isKnownAuthorFacingPath(v.path));
-    if (unknownViolations.length > 0) {
-      throw new Error(
-        `Author-facing integrity violation at unknown path(s): ${unknownViolations.map((v) => v.path).join(', ')}. ` +
-          'Add the field to authorFacingFieldRegistry.ts.',
-      );
-    }
-
-    const required = normalizeViolations(
-      violations
-        .filter((v) => !isCandidateTextViolationPath(v.path))
-        .map((v) => mapDerivedViolationToCanonical(v, provenanceMap)),
+    const requiredViolations = normalizeViolations(
+      violations.filter((v) => !isCandidateTextViolationPath(v.path)),
     );
-    if (required.length === 0) break;
+
+    const { resolved, unowned } = resolveRequiredCanonicalPaths(requiredViolations, resolver);
+    if (unowned.length > 0) {
+      throw new UnownedAuthorFacingFieldError(unowned);
+    }
+    if (resolved.length === 0) break;
 
     requiredAttempts++;
     const beforeSnapshot: SynthesisOutput = JSON.parse(JSON.stringify(synthesis));
-    const result = await regenerateRequiredProse(synthesis, required, {
+    const result = await regenerateRequiredProse(synthesis, resolved, {
       openaiApiKey: options.openaiApiKey,
       title: options.title,
       manuscriptText: options.manuscriptText,
@@ -257,7 +239,7 @@ export async function repairSynthesisIntegrity(
     const illegalMutations = assertOnlyRequestedPathsChanged(
       beforeSnapshot,
       synthesis,
-      required.map((v) => v.path),
+      resolved.map((v) => v.path),
     );
     if (illegalMutations.length > 0) {
       Object.assign(synthesis, beforeSnapshot);
@@ -268,7 +250,7 @@ export async function repairSynthesisIntegrity(
         candidateAttempts,
         regeneratedFields,
         quarantinedFields,
-        remainingViolations: required,
+        remainingViolations: resolved,
         telemetry: {
           ...telemetry,
           mutationBoundaryViolations: illegalMutations,
@@ -279,24 +261,8 @@ export async function repairSynthesisIntegrity(
 
   // Candidate-prose repair loop.
   for (let i = 0; i < maxCandidateAttempts; i++) {
-    let quickWins: EnrichedActionItem[] = [];
-    let strategicRevisions: EnrichedActionItem[] = [];
-    let violations: AuthorFacingIntegrityViolation[] = [];
-
-    try {
-      const envelope = normalizeArtifactEnvelope(synthesis);
-      quickWins = envelope.quickWins;
-      strategicRevisions = envelope.strategicRevisions;
-      violations = collectViolations(synthesis, quickWins, strategicRevisions);
-    } catch (err) {
-      if (err instanceof ArtifactTextContractError) {
-        violations = [contractErrorToViolation(err)];
-      } else if (err instanceof AuthorFacingIntegrityError) {
-        violations = err.violations;
-      } else {
-        throw err;
-      }
-    }
+    const { quickWins, strategicRevisions } = buildProjection(synthesis);
+    const violations = normalizeAndInspectProjection(synthesis, quickWins, strategicRevisions, false);
 
     const candidates = normalizeViolations(violations.filter((v) => isCandidateTextViolationPath(v.path)));
     if (candidates.length === 0) break;
@@ -311,16 +277,11 @@ export async function repairSynthesisIntegrity(
     quarantinedFields = [...new Set([...quarantinedFields, ...result.affectedPaths])];
   }
 
-  // Final validation: normalize + inspect to produce the canonical remaining list.
+  // Final validation: derive + inspect + parity check.
   let finalViolations: AuthorFacingIntegrityViolation[] = [];
-  let finalQuickWins: EnrichedActionItem[] = [];
-  let finalStrategicRevisions: EnrichedActionItem[] = [];
-
+  const { quickWins, strategicRevisions, resolver } = buildProjection(synthesis);
   try {
-    const envelope = normalizeArtifactEnvelope(synthesis);
-    finalQuickWins = envelope.quickWins;
-    finalStrategicRevisions = envelope.strategicRevisions;
-    finalViolations = collectViolations(synthesis, finalQuickWins, finalStrategicRevisions);
+    finalViolations = normalizeAndInspectProjection(synthesis, quickWins, strategicRevisions, true);
   } catch (err) {
     if (err instanceof ArtifactTextContractError) {
       finalViolations = [contractErrorToViolation(err)];
@@ -329,6 +290,12 @@ export async function repairSynthesisIntegrity(
     } else {
       throw err;
     }
+  }
+
+  // Ensure every remaining violation is owned, even if it appears only at the final stage.
+  const { unowned } = resolveRequiredCanonicalPaths(finalViolations, resolver);
+  if (unowned.length > 0) {
+    throw new UnownedAuthorFacingFieldError(unowned);
   }
 
   const remainingRequired = finalViolations.filter((v) => !isCandidateTextViolationPath(v.path));

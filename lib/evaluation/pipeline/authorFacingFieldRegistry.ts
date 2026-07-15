@@ -52,8 +52,8 @@ export const CANONICAL_AUTHOR_FACING_FIELDS = new Set([
 /**
  * Fields that appear only inside derived quick_wins / strategic_revisions
  * action items. They are not stored on SynthesisOutput; their source values are
- * tracked by ActionItemProvenance and repaired by regenerating the canonical
- * source field.
+ * tracked by `ActionItemSource` (`_source` on internal enriched items) and
+ * repaired by regenerating the canonical source field.
  */
 export const DERIVED_AUTHOR_FACING_FIELDS = new Set([
   'action',

@@ -13,7 +13,8 @@ import { synthesisToEvaluationResultV2 } from '@/lib/evaluation/pipeline/runPipe
 import { repairSynthesisIntegrity } from '@/lib/evaluation/pipeline/repairSynthesisIntegrity';
 import { inspectAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
 import { normalizeArtifact } from '@/lib/evaluation/pipeline/normalizeArtifact';
-import { buildEnrichedActionItems } from '@/lib/evaluation/actionItemQualityGate';
+import { buildEnrichedActionItems, toPublicActionItem } from '@/lib/evaluation/actionItemQualityGate';
+import { buildWritableAuthorFieldResolver } from '@/lib/evaluation/pipeline/derivedFieldResolver';
 import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import type { CriterionKey } from '@/lib/evaluation/pipeline/perplexityCrossCheck';
 import * as requiredProseRegeneration from '@/lib/evaluation/pipeline/requiredProseRegeneration';
@@ -54,7 +55,7 @@ function makeYellowWallpaperSynthesis(): SynthesisOutput {
           issue_family: 'scene_structure',
           strategic_lever: 'scene_goal_clarity',
           revision_granularity: 'scene',
-          mechanism: 'The same attribution tag on both sides flattens the conflict into a single voice.',
+          mechanism: '',
           specific_fix: 'Give each speaker a distinct action beat before replying.',
           symptom: 'The dialogue feels flat because speakers are not distinct.',
           cause: 'Attribution tags are uniform and lack action beats.',
@@ -144,6 +145,17 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
         expect.stringMatching(/evaluation_result_v2\.criteria\[\d+\]\.recommendations\[0\]\.expected_impact/u),
       ]),
     );
+    // The derived strategic_revisions[0].why path resolves to its canonical source.
+    const projection = buildEnrichedActionItems(
+      synthesis.criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+      'medium',
+      5,
+    );
+    const resolver = buildWritableAuthorFieldResolver([], projection);
+    expect(
+      resolver('evaluation_result_v2.recommendations.strategic_revisions[0].why')?.canonicalPath,
+    ).toBe('evaluation_result_v2.criteria[0].recommendations[0].expected_impact');
+
 
     const result = synthesisToEvaluationResultV2({
       synthesis,
@@ -164,11 +176,11 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
 
     // Internal provenance must be stripped before serialization.
     for (const item of result.recommendations.quick_wins) {
-      expect(item).not.toHaveProperty('_provenance');
+      expect(item).not.toHaveProperty('_source');
       expect(item).not.toHaveProperty('_sortScore');
     }
     for (const item of result.recommendations.strategic_revisions) {
-      expect(item).not.toHaveProperty('_provenance');
+      expect(item).not.toHaveProperty('_source');
       expect(item).not.toHaveProperty('_sortScore');
     }
 
@@ -197,4 +209,22 @@ describe('Yellow Wallpaper synthesisToEvaluationResultV2 E2E', () => {
     // The strategic_revisions[0].why derived from the repaired expected_impact must be complete.
     expect(result.recommendations.strategic_revisions[0].why).toMatch(/[.!?]["'"’)\]]*$/u);
   });
+
+  it('preserves internal _source provenance on derived items and strips it for the public artifact', () => {
+    const allItems = buildEnrichedActionItems(
+      makeYellowWallpaperSynthesis().criteria.map((c) => ({ key: c.key, recommendations: c.recommendations })),
+      'medium',
+      5,
+    );
+    expect(allItems).toHaveLength(1);
+    expect(allItems[0]._source).toEqual({
+      criterion_index: 0,
+      recommendation_index: 0,
+      why_field: 'expected_impact',
+    });
+    const publicItem = toPublicActionItem(allItems[0]);
+    expect(publicItem).not.toHaveProperty('_source');
+    expect(publicItem).not.toHaveProperty('_sortScore');
+  });
+
 });
