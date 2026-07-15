@@ -21,6 +21,11 @@ export interface QueueHardStopCandidate {
   progress?: Record<string, unknown> | null;
 }
 
+export interface Phase1aSeedArtifactSnapshot {
+  artifact_type?: string | null;
+  content?: unknown;
+}
+
 export interface SupportAlertPayload {
   to: typeof REVISIONGRADE_SUPPORT_EMAIL;
   subject: string;
@@ -257,6 +262,36 @@ function toIsoMs(value: string | null | undefined): number | null {
   if (!value) return null;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hasPersistedContent(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'object' && Object.keys(value as Record<string, unknown>).length === 0) return false;
+  return true;
+}
+
+export function hasCompletePhase1aSeedState(rows: readonly Phase1aSeedArtifactSnapshot[]): boolean {
+  const byType = new Map<string, unknown>();
+  for (const row of rows) {
+    if (typeof row.artifact_type === 'string') {
+      byType.set(row.artifact_type, row.content);
+    }
+  }
+
+  const storySeed = byType.get('story_map_seed_v1');
+  const evaluationSeed = byType.get('evaluation_seed_v1');
+  const fitGapReport = byType.get('seed_fit_gap_report_v1');
+  const fitGapStatus =
+    fitGapReport && typeof fitGapReport === 'object'
+      ? (fitGapReport as Record<string, unknown>).status
+      : null;
+
+  return (
+    hasPersistedContent(storySeed) &&
+    hasPersistedContent(evaluationSeed) &&
+    hasPersistedContent(fitGapReport) &&
+    fitGapStatus !== 'blocked'
+  );
 }
 
 export function resolveEffectiveRuntimeStartMs(job: Pick<QueueHardStopCandidate, 'created_at' | 'updated_at' | 'progress'>): number | null {

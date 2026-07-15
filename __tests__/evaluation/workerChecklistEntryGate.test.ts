@@ -40,12 +40,12 @@ describe('worker checklist entry gate', () => {
     expect(block?.reason).toContain('story_map_seed_v1');
   });
 
-  it('allows phase_1a when authority proof and story map seed are usable', () => {
+  it('allows phase_1a when required seed artifacts are usable', () => {
     const block = evaluateWorkerChecklistEntry({
       candidate: candidate('phase_1a'),
       artifacts: [
-        artifact('phase0_authority_proof_v1'),
         artifact('story_map_seed_v1'),
+        artifact('evaluation_seed_v1'),
       ],
     });
 

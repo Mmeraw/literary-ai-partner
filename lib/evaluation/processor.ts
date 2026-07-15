@@ -111,6 +111,7 @@ import {
 import {
   classifyQueuedHardStop,
   decideSplitBrainRecovery,
+  hasCompletePhase1aSeedState,
   classifySplitBrain,
   isMaxAgeKillSwitchExpired,
   partitionMaxAgeKillSwitchCandidates,
@@ -148,6 +149,12 @@ import {
   selectResumeCheckpoint,
   type RuntimeArtifactRow,
 } from '@/lib/evaluation/phase-architecture-v2/checklistRuntimeWiring';
+import {
+  assertChecklistPhaseMayStart,
+  type ChecklistArtifactMap,
+} from '@/lib/evaluation/phase-architecture-v2/checklistEnforcer';
+import { ensureCompleteSeedsBeforePhase1a } from '@/lib/evaluation/seed/phase1aSeedRuntimeGate';
+import { completePhase0ToPhase1aHandoff } from '@/lib/evaluation/phase0ToPhase1aHandoff';
 import { ensureChunksFromText } from '@/lib/manuscripts/chunks';
 import {
   selectChunkerConfig,
@@ -4132,7 +4139,7 @@ async function terminalizeQueuedHardStops(): Promise<{
 
   const { data: seedArtifacts } = await supabase
     .from('evaluation_artifacts')
-    .select('job_id, artifact_type')
+    .select('job_id, artifact_type, content')
     .in('job_id', rows.map((row) => row.id))
     .in('artifact_type', [
       'story_map_seed_v1',
@@ -4140,7 +4147,14 @@ async function terminalizeQueuedHardStops(): Promise<{
       'seed_fit_gap_report_v1',
     ]);
 
-  const hasSeedArtifacts = new Set((seedArtifacts ?? []).map((row) => row.job_id as string));
+  const seedArtifactsByJob = new Map<string, Array<{ artifact_type?: string | null; content?: unknown }>>();
+  for (const row of seedArtifacts ?? []) {
+    const jobIdForArtifact = String((row as { job_id?: unknown }).job_id ?? '');
+    if (!jobIdForArtifact) continue;
+    const bucket = seedArtifactsByJob.get(jobIdForArtifact) ?? [];
+    bucket.push(row as { artifact_type?: string | null; content?: unknown });
+    seedArtifactsByJob.set(jobIdForArtifact, bucket);
+  }
 
   let hardStopped = 0;
   const hardStoppedIds: string[] = [];
@@ -4188,10 +4202,61 @@ async function terminalizeQueuedHardStops(): Promise<{
       graceMs: POST_PHASE0_HANDOFF_GRACE_MS,
       shortFormSlaMs: SHORT_FORM_GLOBAL_SLA_MS,
       longFormSlaMs: LONG_FORM_GLOBAL_SLA_MS,
-      hasSeedArtifacts: hasSeedArtifacts.has(row.id),
+      hasSeedArtifacts: hasCompletePhase1aSeedState(seedArtifactsByJob.get(row.id) ?? []),
     });
 
     if (!decision) {
+      continue;
+    }
+
+    if (decision.code === 'POST_PHASE0_HANDOFF_TIMEOUT') {
+      const existingProgress = row.progress && typeof row.progress === 'object' ? row.progress : {};
+      const resetProgress = {
+        ...existingProgress,
+        phase: 'phase_0',
+        phase_status: 'queued',
+        phase0_completed_at: null,
+        phase0_completed: false,
+        phase0_rollback_at: nowIso,
+        phase0_rollback_reason: 'missing_phase1a_seed_artifacts',
+        hard_stop_code: decision.code,
+        hard_stop_reason: decision.reason,
+        hard_stop_at: nowIso,
+        hard_stop_halted: false,
+        dashboard_status: 'recovery_in_progress',
+        recovery_message: 'Evaluation seed preparation is being repaired before analysis continues.',
+      };
+
+      const { error: resetErr } = await supabase
+        .from('evaluation_jobs')
+        .update({
+          status: JOB_STATUS.QUEUED,
+          phase: PHASES.PHASE_0,
+          phase_status: JOB_STATUS.QUEUED,
+          phase0_completed_at: null,
+          claimed_by: null,
+          claimed_at: null,
+          lease_token: null,
+          lease_until: null,
+          last_heartbeat_at: null,
+          last_heartbeat: null,
+          worker_pulse_at: null,
+          updated_at: nowIso,
+          progress: resetProgress,
+        })
+        .eq('id', row.id)
+        .eq('status', JOB_STATUS.QUEUED);
+
+      if (resetErr) {
+        console.warn('[Watchdog] post-phase0 missing-seed reset failed:', row.id, resetErr.message);
+        continue;
+      }
+
+      console.warn('[Watchdog] reset seedless post-Phase-0 handoff to phase_0', {
+        job_id: row.id,
+        failure_code: decision.code,
+        reason: decision.reason,
+      });
       continue;
     }
 
@@ -4784,9 +4849,9 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
 /**
  * Extracts seed entity names from story seed claims for use in the two-pass protocol.
  */
-function extractSeedEntityNames(storySeed: SeedArtifact): string[] {
+function extractSeedEntityNames(storySeed: unknown): string[] {
   const seedEntityNames: string[] = [];
-  for (const claim of storySeed.claims) {
+  for (const claim of legacySeedClaims(storySeed)) {
     if (claim.temp_seed_entity_id) {
       const name = claim.temp_seed_entity_id
         .replace(/^temp_seed_entity_/, '')
@@ -4813,17 +4878,28 @@ function extractSeedEntityNames(storySeed: SeedArtifact): string[] {
  * Seeds are 95%+ quality from DREAM benchmarks/gold standards and are treated as
  * baseline authority, not suggestions.
  */
+function legacySeedClaims(seed: unknown): SeedClaim[] {
+  if (!seed || typeof seed !== 'object') return [];
+  const claims = (seed as { claims?: unknown }).claims;
+  return Array.isArray(claims) ? claims.filter((claim): claim is SeedClaim => (
+    claim !== null &&
+    typeof claim === 'object' &&
+    typeof (claim as { claim_id?: unknown }).claim_id === 'string' &&
+    typeof (claim as { hypothesis?: unknown }).hypothesis === 'string'
+  )) : [];
+}
+
 function buildPass1aSeedContextBlock(seeds: {
-  storySeed: SeedArtifact;
-  evaluationSeed: SeedArtifact;
+  storySeed: unknown;
+  evaluationSeed: unknown;
 }): string {
   const seedEntityNames = extractSeedEntityNames(seeds.storySeed);
 
-  const storyClaims = seeds.storySeed.claims.slice(0, 6).map(c => ({
+  const storyClaims = legacySeedClaims(seeds.storySeed).slice(0, 6).map(c => ({
     claim_id: c.claim_id,
     hypothesis: c.hypothesis,
   }));
-  const evalClaims = seeds.evaluationSeed.claims.slice(0, 6).map(c => ({
+  const evalClaims = legacySeedClaims(seeds.evaluationSeed).slice(0, 6).map(c => ({
     claim_id: c.claim_id,
     hypothesis: c.hypothesis,
   }));
@@ -5794,32 +5870,66 @@ export async function processEvaluationJob(
         phase0CompletedAt: phase0EndNow,
       });
 
-      // Re-queue at phase_1a: release lease, transition phase.
-      // A fresh worker will claim and begin manuscript processing.
-      const { error: reQueueErr } = await supabase
-        .from('evaluation_jobs')
-        .update({
-          status: JOB_STATUS.QUEUED,
-          phase: PHASES.PHASE_1A,
-          phase_status: JOB_STATUS.QUEUED,
-          claimed_by: null,
-          lease_token: null,
-          lease_until: null,
-          last_heartbeat_at: null,
-          last_heartbeat: null,
-          worker_pulse_at: null,
-          phase0_completed_at: phase0EndNow,
-          updated_at: phase0EndNow,
-          progress: { ...progressState, ...phase0TelemetryPatch },
-        })
-        .eq('id', jobId)
-        .eq('status', JOB_STATUS.RUNNING);
+      const { data: phase0Manuscript, error: phase0ManuscriptError } = await supabase
+        .from('manuscripts')
+        .select('*')
+        .eq('id', job.manuscript_id)
+        .single();
 
-      if (reQueueErr) {
-        const msg = `Phase 0 → phase_1a re-queue failed: ${reQueueErr.message}`;
-        console.error(`[Processor/Phase0] ${jobId}: ${msg}`);
-        await markFailed(msg);
+      if (phase0ManuscriptError || !phase0Manuscript) {
+        const msg = `Phase 0 handoff blocked: manuscript not found: ${phase0ManuscriptError?.message ?? 'missing row'}`;
+        await markFailed(msg, 'PIPELINE_INPUT_INVALID', { pipelineStage: 'phase_0_handoff' });
         return { success: false, error: msg };
+      }
+
+      const { text: phase0ResolvedText } = await resolveManuscriptText(supabase, phase0Manuscript as Manuscript);
+      const phase0StripResult = stripNonEvaluativeSections(phase0ResolvedText || '');
+      const phase0ManuscriptText = phase0StripResult.sanitizedText?.trim() ?? '';
+
+      if (phase0ManuscriptText.length === 0) {
+        const msg = 'Phase 0 handoff blocked: manuscript text unavailable for seed generation.';
+        await markFailed(msg, 'PIPELINE_INPUT_INVALID', { pipelineStage: 'phase_0_handoff' });
+        return { success: false, error: msg };
+      }
+
+      const phase0SeedGate = await ensureCompleteSeedsBeforePhase1a({
+        supabase,
+        jobId: String(job.id),
+        manuscriptId: Number(job.manuscript_id),
+        userId: String((phase0Manuscript as Manuscript).user_id),
+        manuscriptText: phase0ManuscriptText,
+        workType: (phase0Manuscript as Manuscript).work_type,
+      });
+
+      if (phase0SeedGate.ok === false) {
+        await markFailed(
+          phase0SeedGate.error_message,
+          phase0SeedGate.error_code,
+          { pipelineStage: 'phase_0_handoff_seed_gate', diagnostics: { fit_gap_report: phase0SeedGate.fitGapReport } },
+        );
+        return { success: false, error: phase0SeedGate.error_code };
+      }
+
+      // Re-queue at phase_1a only through the seed-verified atomic handoff.
+      // A fresh worker will claim and begin manuscript processing.
+      const handoffResult = await completePhase0ToPhase1aHandoff({
+        supabase,
+        jobId: String(job.id),
+        expectedClaimedBy,
+        expectedLeaseToken,
+        progressPatch: { ...progressState, ...phase0TelemetryPatch },
+      });
+
+      if (handoffResult.ok === false) {
+        const msg = `Phase 0 → phase_1a atomic handoff failed: ${handoffResult.error}`;
+        console.error(`[Processor/Phase0] ${jobId}: ${msg}`);
+        await markFailed(msg, 'PHASE0_HANDOFF_ATOMIC_RPC_FAILED', { pipelineStage: 'phase_0_handoff' });
+        return { success: false, error: msg };
+      }
+
+      if (handoffResult.updated === false) {
+        console.warn(`[Processor/Phase0] ${jobId}: phase_0 → phase_1a handoff skipped; optimistic lock lost`);
+        return { success: true };
       }
 
       console.log(`[Processor/Phase0] ${jobId}: re-queued at phase_1a — stabilizing before kick`);
@@ -7136,6 +7246,71 @@ export async function processEvaluationJob(
     // builds ledger V1+V2, persists artifact, then queues phase_2.
     // MANDATORY — if it fails, the job fails (ledger required for Pass 3).
     if (executionPhase === 'phase_1a') {
+      const phase1aSeedGate = await ensureCompleteSeedsBeforePhase1a({
+        supabase,
+        jobId: String(job.id),
+        manuscriptId: Number(job.manuscript_id),
+        userId: manuscriptWithContent.user_id,
+        manuscriptText: manuscriptWithContent.content || '',
+        workType: effectiveWorkType,
+      });
+
+      if (phase1aSeedGate.ok === false) {
+        await markFailed(
+          phase1aSeedGate.error_message,
+          phase1aSeedGate.error_code,
+          {
+            pipelineStage: 'phase_1a_seed_gate',
+            diagnostics: { fit_gap_report: phase1aSeedGate.fitGapReport },
+          },
+        );
+        return { success: false, error: phase1aSeedGate.error_code };
+      }
+
+      const { data: checklistRows, error: checklistReadError } = await supabase
+        .from('evaluation_artifacts')
+        .select('id, artifact_type, content')
+        .eq('job_id', String(job.id))
+        .in('artifact_type', ['story_map_seed_v1', 'evaluation_seed_v1']);
+
+      if (checklistReadError) {
+        await markFailed(
+          `Phase 1A checklist artifact read failed: ${checklistReadError.message}`,
+          'CHECKLIST_PHASE_INPUTS_READ_FAILED',
+          { pipelineStage: 'phase_1a_checklist_gate' },
+        );
+        return { success: false, error: 'CHECKLIST_PHASE_INPUTS_READ_FAILED' };
+      }
+
+      const checklistArtifacts: ChecklistArtifactMap = {};
+      for (const row of checklistRows ?? []) {
+        const artifactType = (row as { artifact_type?: unknown }).artifact_type;
+        if (artifactType !== 'story_map_seed_v1' && artifactType !== 'evaluation_seed_v1') continue;
+        checklistArtifacts[artifactType] = {
+          artifact_type: artifactType,
+          artifact_id: String((row as { id?: unknown }).id ?? artifactType),
+          schema_valid: Boolean((row as { content?: unknown }).content),
+          semantic_status: 'valid',
+          is_resume_safe: true,
+        };
+      }
+
+      const checklistResult = assertChecklistPhaseMayStart('phase_1a', checklistArtifacts);
+      if (checklistResult.ok === false) {
+        await markFailed(
+          checklistResult.reason,
+          checklistResult.code,
+          {
+            pipelineStage: 'phase_1a_checklist_gate',
+            diagnostics: {
+              missing_inputs: checklistResult.missing_inputs,
+              invalid_inputs: checklistResult.invalid_inputs,
+            },
+          },
+        );
+        return { success: false, error: checklistResult.code };
+      }
+
       // phase0_completed_at is written only by runPhase0GoldPrimer() when real Phase 0 runs.
       // Do NOT stamp it here — this is the phase_1a execution path, not Phase 0 completion.
       await markRunning('Running Pass 1A character sweep', 10, 'phase_1a');

@@ -159,7 +159,7 @@ describe("processEvaluationJob phase routing guard", () => {
     expect(result.error).not.toContain("Job not eligible for processing");
   });
 
-  test("fails closed when phase_1a cannot ensure SEED artifacts", async () => {
+  test("fails closed when phase_1a cannot read seed artifacts", async () => {
     const now = new Date();
     const leaseUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
     const queuedPhase1aJob = {
@@ -252,11 +252,6 @@ describe("processEvaluationJob phase routing guard", () => {
     const result = await processEvaluationJob("job-phase1a-seed-guard");
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain("SEED_ARTIFACTS_MISSING");
-
-    const failedWrite = updateMock.mock.calls.find(
-      ([payload]: Array<Record<string, unknown>>) => payload?.failure_code === "SEED_ARTIFACTS_MISSING",
-    );
-    expect(failedWrite).toBeDefined();
+    expect(result.error).toContain("SEED_ARTIFACT_READ_FAILED");
   });
 });

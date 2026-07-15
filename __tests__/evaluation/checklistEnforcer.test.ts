@@ -69,13 +69,25 @@ describe('Phase Architecture v2 checklist-as-code enforcer', () => {
     expect(result.code).toBe('CHECKLIST_PHASE_MAY_START');
   });
 
-  it('blocks Phase 1A without story_map_seed_v1', () => {
+  it('blocks Phase 1A without seed artifacts but not phase0_authority_proof_v1', () => {
     const result = assertChecklistPhaseMayStart('phase_1a', {
       phase0_authority_proof_v1: valid('phase0_authority_proof_v1'),
     });
 
     expect(result.ok).toBe(false);
     expect(result.missing_inputs).toContain('story_map_seed_v1');
+    expect(result.missing_inputs).toContain('evaluation_seed_v1');
+    expect(result.missing_inputs).not.toContain('phase0_authority_proof_v1');
+  });
+
+  it('allows Phase 1A with complete seeds and no phase0_authority_proof_v1 artifact', () => {
+    const result = assertChecklistPhaseMayStart('phase_1a', {
+      story_map_seed_v1: valid('story_map_seed_v1'),
+      evaluation_seed_v1: valid('evaluation_seed_v1'),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.code).toBe('CHECKLIST_PHASE_MAY_START');
   });
 
   it('blocks Phase 2 without accepted_story_ledger_v1', () => {
@@ -130,7 +142,6 @@ describe('Phase Architecture v2 checklist-as-code enforcer', () => {
     expect(checklistRowsRequiringAuthorityProof().map((row) => row.phase_id)).toEqual([
       'phase_0_5a',
       'phase_0_5b',
-      'phase_1a',
     ]);
   });
 });

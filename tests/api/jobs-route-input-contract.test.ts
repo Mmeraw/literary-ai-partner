@@ -533,7 +533,7 @@ describe("POST /api/jobs input contract", () => {
     expect(mockAttachFreeDiagnosticJob).not.toHaveBeenCalled();
   });
 
-  test("never fast-tracks Phase 0 — all submissions require full Phase 0 dwell", async () => {
+  test("short-form fast-track stays in canonical phase_0 and does not stamp Phase 0 complete", async () => {
     const updateMock = jest.fn(() => ({
       eq: jest.fn(async () => ({ error: null })),
     }));
@@ -597,11 +597,19 @@ describe("POST /api/jobs input contract", () => {
     const response = await POST(req);
     expect(response.status).toBe(201);
 
-    // Phase 0 fast-track is never applied — all submissions run full Phase 0
+    // Short-form fast-track is metadata only: intake must not bypass Phase 0
+    // or stamp phase0_completed_at before mandatory seeds are persisted.
     if (updateMock.mock.calls.length > 0) {
       const firstCall = (updateMock.mock.calls as unknown[][])[0]?.[0] as Record<string, unknown> | undefined;
       const progressArg = firstCall?.progress as Record<string, unknown> | undefined;
-      expect(progressArg?.phase0_fast_track).toBeFalsy();
+      expect(firstCall?.phase).toBe("phase_0");
+      expect(firstCall?.phase_status).toBe("queued");
+      expect(firstCall?.phase0_completed_at).toBeUndefined();
+      expect(progressArg?.phase).toBe("phase_0");
+      expect(progressArg?.phase_status).toBe("queued");
+      expect(progressArg?.phase0_fast_track).toBe(true);
+      expect(progressArg?.phase0_fast_track_reason).toBe("short_form_under_25000_words");
+      expect(progressArg?.phase0_completed_at).toBeUndefined();
       expect(progressArg?.phase0_bypass_reason).toBeFalsy();
     }
   });
