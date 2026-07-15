@@ -11,6 +11,7 @@ import {
   capitalizeFirstAlpha,
   collapseAdjacentDuplicateWords,
   endsMidSentence,
+  normalizeDuplicateCloseQuotes,
 } from '@/lib/text/authorFacingProse';
 import { assertAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
 import {
@@ -73,7 +74,7 @@ export interface NormalizationRecord {
   field: string;
   before: string;
   after: string;
-  operation: 'capitalize' | 'whitespace' | 'trim_whitespace';
+  operation: 'capitalize' | 'whitespace' | 'trim_whitespace' | 'punctuation';
 }
 
 export interface NormalizeArtifactResult {
@@ -171,6 +172,7 @@ export function normalizeArtifact(
     };
     criteria: Array<{
       rationale?: string;
+      final_rationale?: string;
       recommendations?: Array<Record<string, unknown>> | null;
     }>;
   },
@@ -178,6 +180,37 @@ export function normalizeArtifact(
   strategicRevisions: Array<Record<string, unknown>>,
 ): NormalizeArtifactResult {
   const normalizations: NormalizationRecord[] = [];
+
+  function normalizeStringValue(raw: unknown, field: string): string | null {
+    if (typeof raw !== 'string' || !raw.trim()) return null;
+    let value = raw.trim();
+
+    const collapsedWs = value.replace(/\s+/g, ' ');
+    if (collapsedWs !== value) {
+      normalizations.push({ field, before: value, after: collapsedWs, operation: 'whitespace' });
+      value = collapsedWs;
+    }
+
+    const dedup = collapseAdjacentDuplicateWords(value);
+    if (dedup !== value) {
+      normalizations.push({ field, before: value, after: dedup, operation: 'whitespace' });
+      value = dedup;
+    }
+
+    const capitalized = capitalizeFirstAlpha(value);
+    if (capitalized !== value) {
+      normalizations.push({ field, before: value, after: capitalized, operation: 'capitalize' });
+      value = capitalized;
+    }
+
+    const dedupedQuotes = normalizeDuplicateCloseQuotes(value);
+    if (dedupedQuotes !== value) {
+      normalizations.push({ field, before: value, after: dedupedQuotes, operation: 'punctuation' });
+      value = dedupedQuotes;
+    }
+
+    return value;
+  }
 
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
@@ -232,43 +265,8 @@ export function normalizeArtifact(
     for (let i = 0; i < recs.length; i++) {
       const rec = recs[i];
       for (const field of RECOMMENDATION_PROSE_FIELDS) {
-        const raw = rec[field];
-        if (typeof raw !== 'string' || !raw.trim()) continue;
-        let value = raw.trim();
-
-        const collapsedWs = value.replace(/\s+/g, ' ');
-        if (collapsedWs !== value) {
-          normalizations.push({
-            field: `${prefix}[${i}].${field}`,
-            before: value,
-            after: collapsedWs,
-            operation: 'whitespace',
-          });
-          value = collapsedWs;
-        }
-
-        const dedup = collapseAdjacentDuplicateWords(value);
-        if (dedup !== value) {
-          normalizations.push({
-            field: `${prefix}[${i}].${field}`,
-            before: value,
-            after: dedup,
-            operation: 'whitespace',
-          });
-          value = dedup;
-        }
-
-        const capitalized = capitalizeFirstAlpha(value);
-        if (capitalized !== value) {
-          normalizations.push({
-            field: `${prefix}[${i}].${field}`,
-            before: value,
-            after: capitalized,
-            operation: 'capitalize',
-          });
-          value = capitalized;
-        }
-
+        const value = normalizeStringValue(rec[field], `${prefix}[${i}].${field}`);
+        if (value === null) continue;
         // RG-TEXT-1: never append punctuation to conceal incomplete generation.
         // The shared integrity authority below rejects incomplete prose so the
         // affected field can regenerate upstream.
@@ -282,6 +280,12 @@ export function normalizeArtifact(
 
   for (let ci = 0; ci < synthesis.criteria.length; ci++) {
     const criterion = synthesis.criteria[ci];
+    for (const rationaleField of ['rationale', 'final_rationale'] as const) {
+      const value = normalizeStringValue(criterion[rationaleField], `criteria[${ci}].${rationaleField}`);
+      if (value !== null) {
+        criterion[rationaleField] = value;
+      }
+    }
     if (!criterion.recommendations) continue;
     normalizeRecs(criterion.recommendations, `criteria[${ci}].recommendations`);
   }

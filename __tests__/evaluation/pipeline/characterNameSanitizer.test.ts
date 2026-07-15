@@ -46,6 +46,26 @@ describe("isAllowedCharacterName", () => {
     expect(isAllowedCharacterName("Santiago")).toBe(true);
   });
 
+  it("accepts uppercase monograms and short initialisms (M, X, MJ)", () => {
+    expect(isAllowedCharacterName("M")).toBe(true);
+    expect(isAllowedCharacterName("X")).toBe(true);
+    expect(isAllowedCharacterName("MJ")).toBe(true);
+  });
+
+  it("still rejects one-letter false positives (I, A, O)", () => {
+    expect(isAllowedCharacterName("I")).toBe(false);
+    expect(isAllowedCharacterName("A")).toBe(false);
+    expect(isAllowedCharacterName("O")).toBe(false);
+    expect(isAllowedCharacterName("NO")).toBe(false);
+    expect(isAllowedCharacterName("OK")).toBe(false);
+  });
+
+  it("accepts Turkish short names from Criminality V2 regression", () => {
+    expect(isAllowedCharacterName("Utku")).toBe(true);
+    expect(isAllowedCharacterName("Aralık")).toBe(true);
+    expect(isAllowedCharacterName("Irmak")).toBe(true);
+  });
+
   it("rejects empty and whitespace-only names", () => {
     expect(isAllowedCharacterName("")).toBe(false);
     expect(isAllowedCharacterName("   ")).toBe(false);
