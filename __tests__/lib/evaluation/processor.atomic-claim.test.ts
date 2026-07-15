@@ -590,6 +590,7 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnThis(),
           not: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockResolvedValue({ data: [], error: null }),
           lt: jest.fn().mockImplementation(() => ({
             order: jest.fn().mockReturnThis(),
             limit: jest.fn().mockImplementation(() => {
@@ -633,6 +634,7 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnThis(),
           not: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockResolvedValue({ data: [], error: null }),
           lt: jest.fn().mockReturnValue({
             order: jest.fn().mockReturnThis(),
             limit: jest.fn().mockResolvedValue({ data: [staleJob], error: null }),
@@ -684,9 +686,10 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
       order: jest.fn(() => queryChain),
       limit: jest.fn(() => {
         limitCallCount++;
-        // 1: frozen watchdog (empty), 2: age-based (empty), 3: lease_until scan (found stale)
+        // 1: frozen watchdog (empty), 2: queued Review Gate repair (empty),
+        // 3: age-based (empty), 4: lease_until scan (found stale)
         return Promise.resolve({
-          data: limitCallCount <= 2 ? [] : [staleJob],
+          data: limitCallCount <= 3 ? [] : [staleJob],
           error: null,
         });
       }),
@@ -738,18 +741,19 @@ describe('failStaleRunningJobs — expired lease recovery', () => {
       order: jest.fn(() => queryChain),
       limit: jest.fn(() => {
         limitCallCount++;
-        if (limitCallCount <= 2) {
-          // 1: frozen watchdog (empty), 2: age-based (empty)
+        if (limitCallCount <= 3) {
+          // 1: frozen watchdog (empty), 2: queued Review Gate repair (empty),
+          // 3: age-based (empty)
           return Promise.resolve({ data: [], error: null });
         }
-        if (limitCallCount === 3) {
-          // 3: lease_until scan → column missing
+        if (limitCallCount === 4) {
+          // 4: lease_until scan → column missing
           return Promise.resolve({
             data: null,
             error: { message: 'column evaluation_jobs.lease_until does not exist', code: '42703' },
           });
         }
-        // 4: lease_expires_at fallback → found stale job
+        // 5: lease_expires_at fallback → found stale job
         return Promise.resolve({ data: [staleJob], error: null });
       }),
     });
