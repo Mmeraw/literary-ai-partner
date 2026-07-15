@@ -19,6 +19,7 @@ import {
   getCanonicalPass3Model,
 } from '@/lib/evaluation/policy';
 import type { AuthorFacingIntegrityViolation } from '@/lib/text/authorFacingIntegrity';
+import { isCompleteAuthorFacingSentence } from '@/lib/text/authorFacingProse';
 import type { SynthesisOutput } from './types';
 import type { Pass3PreflightDraft } from './types';
 
@@ -158,25 +159,25 @@ function getRecommendationIndex(path: string): number | null {
   return parseInt(match[1]!, 10);
 }
 
-function isCompleteProse(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return false;
-  if (/…|\.\.\./u.test(trimmed)) return false;
-  const firstAlphaIndex = trimmed.search(/[a-zA-Z]/u);
-  if (firstAlphaIndex === -1) return false;
-  if (trimmed[firstAlphaIndex] !== trimmed[firstAlphaIndex].toUpperCase()) return false;
-  if (!/[.!?]["'”’)\]]*$/u.test(trimmed)) return false;
-  return true;
-}
+
 
 function safeStringify(value: unknown): string {
   if (value === undefined) return 'undefined';
   return JSON.stringify(value);
 }
 
-function truncateString(value: string, max: number): string {
+/**
+ * Clip context to a rough byte budget without adding an ellipsis. The result is
+ * marked as an internal excerpt so the model does not treat the clipping as
+ * author-facing prose to emulate.
+ */
+function clipContextExcerpt(value: string, max: number): string {
   if (value.length <= max) return value;
-  return value.slice(0, max) + '…';
+  const suffix = ' [excerpt]';
+  const budget = Math.max(0, max - suffix.length);
+  const boundary = value.lastIndexOf(' ', budget);
+  const end = boundary > 0 ? boundary : budget;
+  return value.slice(0, end) + suffix;
 }
 
 function compactCriterionContext(criterion: SynthesisOutput['criteria'][number]): unknown {
@@ -184,7 +185,7 @@ function compactCriterionContext(criterion: SynthesisOutput['criteria'][number])
     .slice(0, 4)
     .map((e, idx) => ({
       id: idx + 1,
-      snippet: truncateString(String(e?.snippet ?? ''), 220),
+      snippet: clipContextExcerpt(String(e?.snippet ?? ''), 220),
       char_start: e?.char_start,
       char_end: e?.char_end,
     }));
@@ -201,13 +202,13 @@ function compactCriterionContext(criterion: SynthesisOutput['criteria'][number])
       .slice(0, 3)
       .map((r) => ({
         priority: r.priority,
-        action: truncateString(String(r.action ?? ''), 160),
-        expected_impact: truncateString(String(r.expected_impact ?? ''), 160),
-        specific_fix: truncateString(String(r.specific_fix ?? ''), 160),
-        reader_effect: truncateString(String(r.reader_effect ?? ''), 160),
-        symptom: truncateString(String(r.symptom ?? ''), 160),
-        cause: truncateString(String(r.cause ?? ''), 160),
-        fix_direction: truncateString(String(r.fix_direction ?? ''), 160),
+        action: clipContextExcerpt(String(r.action ?? ''), 160),
+        expected_impact: clipContextExcerpt(String(r.expected_impact ?? ''), 160),
+        specific_fix: clipContextExcerpt(String(r.specific_fix ?? ''), 160),
+        reader_effect: clipContextExcerpt(String(r.reader_effect ?? ''), 160),
+        symptom: clipContextExcerpt(String(r.symptom ?? ''), 160),
+        cause: clipContextExcerpt(String(r.cause ?? ''), 160),
+        fix_direction: clipContextExcerpt(String(r.fix_direction ?? ''), 160),
       })),
   };
 }
@@ -239,15 +240,15 @@ function buildFieldPrompt(
         recommendation: {
           index: ri,
           priority: rec.priority,
-          action: truncateString(String(rec.action ?? ''), 160),
-          expected_impact: truncateString(String(rec.expected_impact ?? ''), 160),
-          mechanism: truncateString(String(rec.mechanism ?? ''), 160),
-          specific_fix: truncateString(String(rec.specific_fix ?? ''), 160),
-          reader_effect: truncateString(String(rec.reader_effect ?? ''), 160),
-          symptom: truncateString(String(rec.symptom ?? ''), 160),
-          cause: truncateString(String(rec.cause ?? ''), 160),
-          fix_direction: truncateString(String(rec.fix_direction ?? ''), 160),
-          mistake_proofing: truncateString(String(rec.mistake_proofing ?? ''), 160),
+          action: clipContextExcerpt(String(rec.action ?? ''), 160),
+          expected_impact: clipContextExcerpt(String(rec.expected_impact ?? ''), 160),
+          mechanism: clipContextExcerpt(String(rec.mechanism ?? ''), 160),
+          specific_fix: clipContextExcerpt(String(rec.specific_fix ?? ''), 160),
+          reader_effect: clipContextExcerpt(String(rec.reader_effect ?? ''), 160),
+          symptom: clipContextExcerpt(String(rec.symptom ?? ''), 160),
+          cause: clipContextExcerpt(String(rec.cause ?? ''), 160),
+          fix_direction: clipContextExcerpt(String(rec.fix_direction ?? ''), 160),
+          mistake_proofing: clipContextExcerpt(String(rec.mistake_proofing ?? ''), 160),
         },
         constraints: {
           preserve_score: true,
@@ -284,8 +285,8 @@ function buildFieldPrompt(
       criteria_summary: synthesis.criteria.map((c) => ({
         key: c.key,
         final_score_0_10: c.final_score_0_10,
-        fit_summary: truncateString(String(c.fit_summary ?? ''), 120),
-        gap_summary: truncateString(String(c.gap_summary ?? ''), 120),
+        fit_summary: clipContextExcerpt(String(c.fit_summary ?? ''), 120),
+        gap_summary: clipContextExcerpt(String(c.gap_summary ?? ''), 120),
       })),
       constraints: {
         preserve_score: true,
@@ -478,7 +479,7 @@ export function assertRequestedPathsChangedOrWereValid(
     if (beforeVal === afterVal) {
       // Model returned exactly the same value and therefore did not regenerate.
       unchanged.push(path);
-    } else if (typeof afterVal === 'string' && !isCompleteProse(afterVal)) {
+    } else if (typeof afterVal === 'string' && !isCompleteAuthorFacingSentence(afterVal)) {
       // Model returned a value that still fails the local completeness check.
       unchanged.push(path);
     }
@@ -549,7 +550,7 @@ export async function regenerateRequiredProse(
 
     const generated = await callRegenerationLLM(openai, model, prompt, violation.path);
 
-    if (generated && isCompleteProse(generated)) {
+    if (generated && isCompleteAuthorFacingSentence(generated)) {
       const ok = setByPath(synthesis, violation.path, generated);
       if (ok) {
         regeneratedFields.push(violation.path);

@@ -2,6 +2,23 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * True when a string satisfies the complete-sentence author-facing contract:
+ * non-empty, no ellipsis, capitalized first alpha, terminal punctuation, and
+ * no dangling connective/mid-sentence termination.
+ */
+export function isCompleteAuthorFacingSentence(text: string | null | undefined): boolean {
+  const trimmed = normalizeWhitespace(String(text ?? "")).trim();
+  if (!trimmed) return false;
+  if (/…|\.\.\./u.test(trimmed)) return false;
+  const firstAlphaIndex = trimmed.search(/[a-zA-Z]/u);
+  if (firstAlphaIndex === -1) return false;
+  if (trimmed[firstAlphaIndex] !== trimmed[firstAlphaIndex].toUpperCase()) return false;
+  if (!/[.!?]["'"’)\]]*$/u.test(trimmed)) return false;
+  if (endsMidSentence(trimmed)) return false;
+  return true;
+}
+
 const FAMILY_PREFIX_PATTERN = /^\s*[•*\-]?\s*(quick win|strategic revision)\s*:\s*/i;
 
 const RECOMMENDATION_LEAD_IN_PATTERNS = [
