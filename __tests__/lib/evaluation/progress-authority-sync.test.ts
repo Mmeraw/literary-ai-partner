@@ -20,8 +20,9 @@ describe('evaluation job progress authority synchronization', () => {
     expect(sql).toContain('ON public.evaluation_jobs');
   });
 
-  it('ratchets completed units across column, JSONB, and prior high-water values', () => {
-    expect(sql).toMatch(/v_high_water\s*:=\s*GREATEST\([\s\S]*v_requested_completed[\s\S]*v_progress_completed[\s\S]*v_requested_high_water[\s\S]*v_old_completed[\s\S]*v_old_high_water[\s\S]*\)/);
+  it('ratchets completed units across current and prior column/JSONB authorities', () => {
+    expect(sql).toMatch(/v_high_water\s*:=\s*GREATEST\([\s\S]*v_requested_completed[\s\S]*v_progress_completed[\s\S]*v_requested_high_water[\s\S]*v_old_completed[\s\S]*v_old_progress_completed[\s\S]*v_old_high_water[\s\S]*\)/);
+    expect(sql).toContain("v_old_progress -> 'completed_units'");
     expect(sql).toContain('NEW.completed_units := v_high_water;');
     expect(sql).toContain("'completed_units', v_high_water");
     expect(sql).toContain("'progress_high_water', v_high_water");
@@ -35,7 +36,7 @@ describe('evaluation job progress authority synchronization', () => {
   });
 
   it('preserves truthful Review Gate state instead of inferring Phase 2 from artifacts', () => {
-    expect(sql).toContain('including review_gate');
+    expect(sql).toContain('review_gate');
     expect(sql).not.toMatch(/evaluation_artifacts/i);
     expect(sql).not.toMatch(/accepted_story_ledger_v1/i);
     expect(sql).not.toMatch(/phase_2[^\n]*artifact/i);

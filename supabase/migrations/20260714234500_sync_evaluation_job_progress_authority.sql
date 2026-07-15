@@ -1,17 +1,10 @@
 -- Synchronize evaluation_jobs column authority with its progress JSONB shadow.
 --
--- Production incident addressed:
---   Durable phase artifacts could exist while progress.phase and progress counters
---   still described an earlier phase. The processor also computes a monotonic
---   progress_high_water but some writers can persist a lower top-level
---   completed_units value on retry/resume.
---
 -- Contract:
 --   * evaluation_jobs.phase / phase_status remain authoritative.
 --   * progress.phase / phase_status mirror those columns on every relevant write.
 --   * completed_units and progress.completed_units share one monotonic high-water.
---   * review_gate / awaiting_approval remain truthful hard-stop states; this trigger
---     does not infer or skip a gate from artifact presence alone.
+--   * review_gate / awaiting_approval remain truthful hard-stop states.
 
 CREATE OR REPLACE FUNCTION public.sync_evaluation_job_progress_authority()
 RETURNS trigger
@@ -42,6 +35,12 @@ DECLARE
     WHEN TG_OP = 'UPDATE' THEN COALESCE(OLD.completed_units, 0)
     ELSE 0
   END;
+  v_old_progress_completed integer := CASE
+    WHEN TG_OP = 'UPDATE'
+      AND jsonb_typeof(v_old_progress -> 'completed_units') = 'number'
+      THEN (v_old_progress ->> 'completed_units')::integer
+    ELSE 0
+  END;
   v_old_high_water integer := CASE
     WHEN TG_OP = 'UPDATE'
       AND jsonb_typeof(v_old_progress -> 'progress_high_water') = 'number'
@@ -58,18 +57,14 @@ BEGIN
     v_progress_completed,
     v_requested_high_water,
     v_old_completed,
+    v_old_progress_completed,
     v_old_high_water
   );
 
-  -- Keep unit counters valid when a total is available. Evaluation jobs currently
-  -- use 100 units, but this remains generic for tests and future job types.
   IF NEW.total_units IS NOT NULL AND NEW.total_units > 0 THEN
     v_high_water := LEAST(v_high_water, NEW.total_units);
   END IF;
 
-  -- Normalize the one legacy DB phase alias while preserving every canonical
-  -- phase, including review_gate. The trigger mirrors authority; it never invents
-  -- a downstream phase from artifact presence.
   v_phase := CASE
     WHEN NEW.phase = 'phase_1' THEN 'phase_1a'
     ELSE NEW.phase
