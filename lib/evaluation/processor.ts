@@ -4849,7 +4849,7 @@ function buildEvaluationSeedArtifact(args: { generatedAt: string }): SeedArtifac
 /**
  * Extracts seed entity names from story seed claims for use in the two-pass protocol.
  */
-function extractSeedEntityNames(storySeed: unknown): string[] {
+export function extractSeedEntityNames(storySeed: unknown): string[] {
   const seedEntityNames: string[] = [];
   for (const claim of legacySeedClaims(storySeed)) {
     if (claim.temp_seed_entity_id) {
@@ -7414,17 +7414,9 @@ export async function processEvaluationJob(
         });
 
         // Extract seed entity names for post-extraction consistency check.
-        for (const claim of ensuredSeeds.storySeed.claims) {
-          if (claim.temp_seed_entity_id) {
-            const name = claim.temp_seed_entity_id
-              .replace(/^temp_seed_entity_/, '')
-              .replace(/_/g, ' ')
-              .trim();
-            if (name.length > 0 && name !== 'fallback primary work') {
-              seedEntityNamesForConsistency.push(name);
-            }
-          }
-        }
+        // Complete scaffold seeds may not carry legacy claim arrays; the helper
+        // normalizes that shape to an empty list rather than failing Phase 1A.
+        seedEntityNamesForConsistency = extractSeedEntityNames(ensuredSeeds.storySeed);
 
         // ── Phase 0.5A/0.5B logging for mistake-proofing ─────────────────
         // Every phase transition must be visible in the progress timeline.
