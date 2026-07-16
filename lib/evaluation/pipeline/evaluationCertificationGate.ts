@@ -47,6 +47,7 @@
  */
 
 import { getECGMode, type ECGMode } from '@/lib/evaluation/policy';
+import { hasGovernedOpportunityCoverage } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import {
   trimAtSentenceBoundary as trimAtSentenceBoundaryShared,
@@ -470,6 +471,9 @@ export interface ECGCriterion {
   key?: string | null;
   final_score_0_10?: number | null;
   final_rationale?: string | null;
+  recommendation_status?: string | null;
+  recommendation_status_rationale?: string | null;
+  recommendation_count?: number | null;
 }
 
 export interface ECGGovernance {
@@ -1190,8 +1194,31 @@ function checkCompleteness(input: ECGInput): ECGViolation[] {
   const totalRecs =
     (input.recommendations?.quick_wins?.length ?? 0) +
     (input.recommendations?.strategic_revisions?.length ?? 0);
-  if (totalRecs === 0)
-    vs.push(violation('ECG_ART_MISSING_RECOMMENDATIONS', 'No quick_wins or strategic_revisions present. At least one actionable recommendation is required.'));
+
+  // ODP: zero total recommendations is acceptable when every scored criterion
+  // either carries recommendations or a governed zero-opportunity status.
+  const scoredCriteria = (input.criteria ?? []).filter(
+    (c) => c.final_score_0_10 !== null && c.final_score_0_10 !== undefined,
+  );
+  const hasCoverage =
+    scoredCriteria.length === 0 ||
+    scoredCriteria.every((c) =>
+      hasGovernedOpportunityCoverage({
+        score: c.final_score_0_10 ?? null,
+        meaningfulOpportunityCount: c.recommendation_count ?? 0,
+        recommendationStatus: c.recommendation_status,
+        recommendationStatusRationale: c.recommendation_status_rationale,
+      }),
+    );
+
+  if (totalRecs === 0 && !hasCoverage) {
+    vs.push(
+      violation(
+        'ECG_ART_MISSING_RECOMMENDATIONS',
+        'No quick_wins or strategic_revisions present and at least one scored criterion lacks governed opportunity coverage. Under ODP, every scored criterion must either carry recommendations or a valid recommendation_status with rationale.',
+      ),
+    );
+  }
 
   return vs;
 }
@@ -1249,9 +1276,9 @@ export function trimAtWordBoundary(text: string, maxLength: number): string {
   const candidate = text.substring(0, maxLength - 1);
   const lastSpace = candidate.lastIndexOf(' ');
   if (lastSpace > maxLength * 0.6) {
-    return candidate.substring(0, lastSpace).replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
+    return candidate.substring(0, lastSpace).replace(/[\s,;:.\u2014-]+$/u, '') + '\u2026';
   }
-  return candidate.replace(/[\s,;:.\u2014\-]+$/u, '') + '\u2026';
+  return candidate.replace(/[\s,;:.\u2014-]+$/u, '') + '\u2026';
 }
 
 /**
@@ -1380,6 +1407,11 @@ export function buildECGInputFromEvaluationResult(
       key: c.key,
       final_score_0_10: (c as unknown as { score_0_10?: number | null }).score_0_10 ?? null,
       final_rationale: (c as unknown as { rationale?: string | null }).rationale ?? null,
+      recommendation_status: (c as unknown as { recommendation_status?: string | null }).recommendation_status ?? null,
+      recommendation_status_rationale: (c as unknown as { recommendation_status_rationale?: string | null }).recommendation_status_rationale ?? null,
+      recommendation_count: Array.isArray((c as unknown as { recommendations?: unknown[] }).recommendations)
+        ? ((c as unknown as { recommendations?: unknown[] }).recommendations ?? []).length
+        : 0,
     })),
     governance: {
       confidence: result.governance.confidence,

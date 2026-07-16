@@ -14,6 +14,13 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
 import { sanitizeCMOSCriterion, sanitizeCMOSOverall } from "../cmosSanitizer";
 import { isMeaningfulRecommendation } from "./templateCompletenessGate";
+import {
+  getOpportunityScoreGuidance,
+  getProductOpportunityCeiling,
+  getShortFormPerCriterionCeiling,
+  isGovernedRecommendationStatus,
+  type EvaluationOpportunityMode,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import type {
   SinglePassOutput,
   SynthesisOutput,
@@ -31,7 +38,6 @@ import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
 import {
   checkRecommendationIntegrity,
   meetsMinimumTier,
-  type IntegrityResult,
 } from "./recommendationIntegrityGate";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
@@ -529,7 +535,7 @@ function applyExpectationProfileRecommendationGuard(args: {
       technical_defects: [
         ...(criterion.technical_defects ?? []),
         {
-          code: "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          code: "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           author_facing_reason:
             "Recommendation guard suppressed unsafe momentum/hook directives for the resolved expectation profile because explicit malfunction evidence was not present.",
           retryable: false,
@@ -1350,9 +1356,9 @@ export function parsePass3Response(
       evidence = backfillEvidenceFromAxis(pass1, pass2, key);
     }
 
-    if (recommendations.length === 0) {
-      recommendations = backfillRecommendationsFromAxis(pass1, pass2, key);
-    }
+    // Do not backfill recommendations from Pass 1/2 to meet obsolete density floors.
+    // The canonical ODP requires recommendations to be genuine Pass-3 discoveries
+    // or an explicit governed status rationale when the array is empty.
 
     if (key === "proseControl") {
       evidence = enforceProseControlAnchorFloor(evidence, baselineRationale, manuscriptText);
@@ -1410,6 +1416,9 @@ export function parsePass3Response(
     // Score 9-10 recs are "craft-elevation" opportunities, not corrections.
     const suppressedRecommendations = recommendations;
 
+    const rawRecStatus = rawEntry?.["recommendation_status"];
+    const rawRecStatusRationale = rawEntry?.["recommendation_status_rationale"];
+
     criteria.push({
       key,
       // PR-D: canonical scores are 1..10; never emit 0.
@@ -1428,6 +1437,9 @@ export function parsePass3Response(
       deferred_consequence_risk: deferredRisk,
       evidence,
       recommendations: suppressedRecommendations,
+      recommendation_status: isGovernedRecommendationStatus(rawRecStatus) ? rawRecStatus : undefined,
+      recommendation_status_rationale:
+        typeof rawRecStatusRationale === "string" ? String(rawRecStatusRationale).trim() : undefined,
       technical_defects: technicalDefects.length > 0 ? dedupeTechnicalDefects(technicalDefects) : undefined,
     });
   }
@@ -1452,70 +1464,20 @@ export function parsePass3Response(
         })
       : spineGovernedCriteria;
 
-  // ── Post-synthesis validation gate: enforce recommendation density ──
-  // EVIDENCE-DRIVEN POLICY: Every criterion must produce recommendations.
-  // Score determines severity framing, NOT whether recommendations exist.
-  // Score-9 criteria get "growth area" recs; score-10 get "craft-elevation" recs.
-  const DENSITY_FLOOR: Record<string, number> = { "<=5": 5, "6-7": 3, "8": 2, "9": 2, "10": 1 };
+  const manuscriptWordCount = manuscriptText ? countWords(manuscriptText) : undefined;
+
+  // ── Post-synthesis coverage telemetry (not a gate) ───────────────────────────
+  // Opportunity counts are governed by the canonical ODP; a lower-than-expected
+  // count is a signal to search more deeply, not to fabricate recommendations.
   for (const c of finalCriteria) {
-    if (hasGovernanceSuppressedRecommendations(c)) continue;
-    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : c.final_score_0_10 === 9 ? "9" : "10";
-    const minRecs = DENSITY_FLOOR[bucket] ?? 1;
-    if (c.recommendations.length < minRecs) {
-      const defect = {
-        code: "SCORE_LE8_EMPTY_RECOMMENDATIONS" as const,
-        author_facing_reason:
-          `Criterion "${c.key}" scored ${c.final_score_0_10}/10 but returned ${c.recommendations.length} recommendation(s) (minimum ${minRecs} required). This is a pipeline defect — the evaluation engine will attempt to backfill.`,
-        retryable: true,
-      };
-      c.technical_defects = [...(c.technical_defects ?? []), defect];
-      console.warn(
-        `[Pass3-Gate] SCORE_LE8_EMPTY_RECOMMENDATIONS: ${c.key} score=${c.final_score_0_10} recs=${c.recommendations.length} min=${minRecs}`,
-      );
-      // Backfill fit_summary and gap_summary from rationale if missing
-      if (!c.fit_summary && c.final_rationale) {
-        c.fit_summary = c.final_rationale.split(".").slice(0, 2).join(".").trim() + ".";
-      }
-      if (!c.gap_summary && c.final_rationale) {
-        const sentences = c.final_rationale.split(".");
-        c.gap_summary = sentences.length > 2
-          ? sentences.slice(-3, -1).join(".").trim() + "."
-          : `Score ${c.final_score_0_10}/10 indicates room for improvement on ${c.key}.`;
-      }
-    }
-  }
-
-  // ── Producer-side density repair: synthesize evidence-anchored recs to satisfy the template gate ──
-  // EVIDENCE-DRIVEN POLICY: Every criterion gets recommendations, including score 9 and 10.
-  // Score-8 → 2 rec minimum, score-9 → 2 rec minimum (growth area), score-10 → 1 rec minimum (craft-elevation).
-  // This repair runs AFTER the defect-flagging loop so it can fill the gap that the LLM left,
-  // using only anchors already present in the criterion — no fabrication.
-  const TEMPLATE_GATE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 2, "9": 2, "10": 1 };
-  for (const c of finalCriteria) {
-    // NOTE: density repair must still backfill governance-suppressed criteria.
-    // Although the template gate has an isGovernanceSuppressed exemption,
-    // downstream mappings/dedupe/gate state may not preserve the suppression
-    // exemption reliably — scored criteria should remain gate-complete.
-    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : c.final_score_0_10 === 9 ? "9" : "10";
-    const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 1;
-    if (minRecs === 0) continue;
-
-    // Use the EXACT same isMeaningfulRecommendation check as the template gate
-    // to avoid divergence (e.g., GENERIC_RE filtering, PLACEHOLDER_RE checks).
-    const satisfyingCount = c.recommendations.filter((r) => isMeaningfulRecommendation(r)).length;
-    if (satisfyingCount >= minRecs) continue;
-
-    const needed = minRecs - satisfyingCount;
-    const repaired = buildDensityRepairRecommendations(c, needed);
-    if (repaired.length > 0) {
-      c.recommendations = [...c.recommendations, ...repaired];
+    if (c.final_score_0_10 == null || hasGovernanceSuppressedRecommendations(c)) continue;
+    const mode: EvaluationOpportunityMode =
+      manuscriptWordCount !== undefined && manuscriptWordCount < 25_000 ? "short_form" : "long_form_multi_layer";
+    const guidance = getOpportunityScoreGuidance(mode, c.final_score_0_10);
+    const meaningful = c.recommendations.filter((r) => isMeaningfulRecommendation(r)).length;
+    if (meaningful < guidance.expectedMin) {
       console.info(
-        `[Pass3-DensityRepair] ${c.key} score=${c.final_score_0_10} added ${repaired.length} evidence-anchored rec(s) (had ${satisfyingCount}, needed ${minRecs})`,
-      );
-    } else if (satisfyingCount < minRecs) {
-      // No anchors available: leave as-is and let the gate report the defect.
-      console.warn(
-        `[Pass3-DensityRepair] ${c.key} score=${c.final_score_0_10} could not synthesize recs — no evidence anchors available`,
+        `[Pass3-CoverageTelemetry] ${c.key} score=${c.final_score_0_10} has ${meaningful} meaningful recommendation(s); expected ~${guidance.expectedMin}. No synthetic backfill will be added.`,
       );
     }
   }
@@ -1526,7 +1488,7 @@ export function parsePass3Response(
   //   Score ≤6  → "high"   (Recommended — these are the weakest areas)
   //   Score 7   → "medium" (Optional — real but non-urgent revision targets)
   //   Score ≥8  → "low"    (Consider — enhancement opportunities only)
-  // This runs AFTER density repair so repaired recs also get correct priority.
+  // This runs after all deterministic enrichment so surviving recs get correct priority.
   for (const c of finalCriteria) {
     const score = c.final_score_0_10;
     const deterministicPriority: "high" | "medium" | "low" =
@@ -1587,9 +1549,9 @@ export function parsePass3Response(
       groups.set(ref.redundancyKey, existing);
     }
 
-    // For groups with >1 member: keep the one on the lowest-scoring criterion, remove others
-    // Density-floor protection: don't remove a rec if it would leave its criterion below minimum
-    const DEDUP_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 2, "9": 2, "10": 1 };
+    // For groups with >1 member: keep the one on the lowest-scoring criterion, remove others.
+    // Do NOT protect obsolete per-criterion density floors — duplicate collapse is a quality
+    // improvement, not a quota-preservation operation.
     const removalsPerCriterion = new Map<number, number>(); // ci -> count of recs to remove
     const removeSet = new Set<string>(); // "ci:ri" keys to remove
     for (const [, refs] of groups) {
@@ -1600,14 +1562,8 @@ export function parsePass3Response(
       const collapsedCriteria: string[] = [];
       for (let i = 1; i < refs.length; i++) {
         const ci = refs[i].criterionIdx;
-        const cScore = finalCriteria[ci].final_score_0_10;
-        const bucket = cScore <= 5 ? "<=5" : cScore <= 7 ? "6-7" : cScore === 8 ? "8" : cScore === 9 ? "9" : "10";
-        const minRecs = DEDUP_DENSITY_FLOOR[bucket] ?? 1;
-        const currentCount = finalCriteria[ci].recommendations.length;
-        const alreadyRemoving = removalsPerCriterion.get(ci) ?? 0;
-        if (currentCount - alreadyRemoving - 1 < minRecs) continue; // protect density floor
         removeSet.add(`${ci}:${refs[i].recIdx}`);
-        removalsPerCriterion.set(ci, alreadyRemoving + 1);
+        removalsPerCriterion.set(ci, (removalsPerCriterion.get(ci) ?? 0) + 1);
         collapsedCriteria.push(refs[i].criterionKey);
       }
       // Tag the primary with the collapsed criteria
@@ -1645,14 +1601,33 @@ export function parsePass3Response(
     }
   }
 
-  // ── Post-synthesis total recommendation cap: 100 for long-form (≥25k), 50 for short-form (<25k) ──
-  const TOTAL_REC_CAP_LONG_FORM = 100;
-  const TOTAL_REC_CAP_SHORT_FORM = 50;
-  const wordCount = manuscriptText ? manuscriptText.split(/\s+/).filter(Boolean).length : undefined;
-  const totalRecCap = (wordCount !== undefined && wordCount < 25_000)
-    ? TOTAL_REC_CAP_SHORT_FORM
-    : TOTAL_REC_CAP_LONG_FORM;
+  // ── Post-synthesis opportunity caps (canonical ODP) ────────────────────────
+  // Opportunities are discoveries, not quotas. The ceiling is a safety cap only.
+  const mode: EvaluationOpportunityMode =
+    manuscriptWordCount !== undefined && manuscriptWordCount < 25_000 ? "short_form" : "long_form_multi_layer";
 
+  // Short-Form: enforce the per-criterion word-count ceiling, keeping highest-priority recs.
+  if (mode === "short_form" && manuscriptWordCount !== undefined) {
+    const perCriterionCeiling = getShortFormPerCriterionCeiling(manuscriptWordCount);
+    const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    let perCriterionTrimmed = 0;
+    for (const c of finalCriteria) {
+      if (c.recommendations.length <= perCriterionCeiling) continue;
+      const before = c.recommendations.length;
+      const sorted = [...c.recommendations].sort(
+        (a, b) => (SEVERITY_ORDER[a.priority] ?? 2) - (SEVERITY_ORDER[b.priority] ?? 2),
+      );
+      c.recommendations = sorted.slice(0, perCriterionCeiling);
+      perCriterionTrimmed += before - perCriterionCeiling;
+    }
+    if (perCriterionTrimmed > 0) {
+      console.info(
+        `[Pass3-PerCriterionCap] Short-form per-criterion ceiling ${perCriterionCeiling} removed ${perCriterionTrimmed} lower-priority recommendation(s)`,
+      );
+    }
+  }
+
+  const totalRecCap = getProductOpportunityCeiling(mode);
   const allRecs: Array<{ criterionIdx: number; recIdx: number; priority: "high" | "medium" | "low" }> = [];
   for (let ci = 0; ci < finalCriteria.length; ci++) {
     for (let ri = 0; ri < finalCriteria[ci].recommendations.length; ri++) {
@@ -1661,30 +1636,9 @@ export function parsePass3Response(
   }
 
   if (allRecs.length > totalRecCap) {
-    // Protect density-floor recs from eviction: each criterion must retain at least
-    // the minimum recs required by the template completeness gate.
-    const protectedSet = new Set<string>();
-    for (let ci = 0; ci < finalCriteria.length; ci++) {
-      const score = finalCriteria[ci].final_score_0_10;
-      const bucket = score <= 5 ? "<=5" : score <= 7 ? "6-7" : score === 8 ? "8" : score === 9 ? "9" : "10";
-      const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 1;
-      // Protect the first `minRecs` recommendations for this criterion
-      for (let ri = 0; ri < Math.min(minRecs, finalCriteria[ci].recommendations.length); ri++) {
-        protectedSet.add(`${ci}:${ri}`);
-      }
-    }
-
-    // Sort remaining (unprotected) by severity: high first, then medium, then low
     const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
-    const unprotectedRecs = allRecs.filter(r => !protectedSet.has(`${r.criterionIdx}:${r.recIdx}`));
-    unprotectedRecs.sort((a, b) => (SEVERITY_ORDER[a.priority] ?? 2) - (SEVERITY_ORDER[b.priority] ?? 2));
-
-    // Keep all protected recs + fill remaining cap with highest-priority unprotected
-    const remainingCap = totalRecCap - protectedSet.size;
-    const keepSet = new Set([
-      ...protectedSet,
-      ...unprotectedRecs.slice(0, remainingCap < 0 ? 0 : remainingCap).map(r => `${r.criterionIdx}:${r.recIdx}`),
-    ]);
+    allRecs.sort((a, b) => (SEVERITY_ORDER[a.priority] ?? 2) - (SEVERITY_ORDER[b.priority] ?? 2));
+    const keepSet = new Set(allRecs.slice(0, totalRecCap).map((r) => `${r.criterionIdx}:${r.recIdx}`));
 
     for (let ci = 0; ci < finalCriteria.length; ci++) {
       finalCriteria[ci].recommendations = finalCriteria[ci].recommendations.filter(
@@ -1693,42 +1647,18 @@ export function parsePass3Response(
     }
 
     console.info(
-      `[Pass3-Cap] Enforced total recommendation cap: ${allRecs.length} → ${keepSet.size} (protected=${protectedSet.size}, wordCount=${wordCount ?? "unknown"}, mode=${wordCount !== undefined && wordCount < 25_000 ? "short-form" : "long-form"})`,
-    );
-  }
-
-  // ── Final density-repair verification: last-resort guarantee that every criterion meets the gate floor ──
-  // Runs AFTER integrity gate, density repair, AND cap enforcement. If any criterion in the
-  // density-floor range still lacks enough meaningful recs (e.g. because recs were quarantined,
-  // the action matched GENERIC_RE, governance suppression skipped repair, or cap evicted them),
-  // inject a pre-validated deterministic rec that is guaranteed to pass isMeaningfulRecommendation.
-  for (const c of finalCriteria) {
-    // NOTE: governance-suppressed criteria must still get last-resort recs.
-    // Although the gate has a suppression exemption, downstream dedupe/mapping
-    // may not preserve that state — backfill is the safer contract.
-    const bucket = c.final_score_0_10 <= 5 ? "<=5" : c.final_score_0_10 <= 7 ? "6-7" : c.final_score_0_10 === 8 ? "8" : c.final_score_0_10 === 9 ? "9" : "10";
-    const minRecs = TEMPLATE_GATE_DENSITY_FLOOR[bucket] ?? 1;
-    if (minRecs === 0) continue;
-
-    const currentMeaningful = c.recommendations.filter((r) => isMeaningfulRecommendation(r)).length;
-    if (currentMeaningful >= minRecs) continue;
-
-    const shortfall = minRecs - currentMeaningful;
-    const lastResortRecs = buildLastResortRecommendations(c.key, c.final_score_0_10, shortfall, c);
-    c.recommendations = [...c.recommendations, ...lastResortRecs];
-
-    console.info(
-      `[Pass3-FinalVerification] ${c.key} score=${c.final_score_0_10} injected ${lastResortRecs.length} last-resort rec(s) (had ${currentMeaningful} meaningful, needed ${minRecs})`,
+      `[Pass3-Cap] Enforced total recommendation cap: ${allRecs.length} → ${keepSet.size} (wordCount=${manuscriptWordCount ?? "unknown"}, mode=${mode})`,
     );
   }
 
   // ── Option 2: Post-LLM anchor enforcement — defence in depth ──────────────
-  // After all synthesis, density repair, and last-resort paths, sweep every
-  // recommendation and replace any anchor_snippet classified as editorial_diagnosis
-  // with the best available grounded evidence from the criterion. This is the
-  // deterministic safety net: regardless of what the LLM or repair paths produced,
+  // After synthesis and deterministic enrichment, sweep every recommendation and
+  // replace any anchor_snippet classified as editorial_diagnosis with the best
+  // available grounded evidence from the criterion. This is the deterministic
+  // safety net: regardless of what the LLM produced,
   // no editorial_diagnosis anchor survives to persistence.
-  if (manuscriptText && manuscriptText.trim().length > 0) {
+  const canonicalManuscriptText = manuscriptText;
+  if (canonicalManuscriptText && canonicalManuscriptText.trim().length > 0) {
     let enforcedCount = 0;
     for (const c of finalCriteria) {
       // Build a pool of grounded anchors for this criterion from evidence
@@ -1741,13 +1671,13 @@ export function parsePass3Response(
       ];
       // Pre-filter pool to only verified grounded anchors.
       const verifiedPool = groundedPool.filter((anchor) => {
-        const result = classifyAnchor(anchor, manuscriptText!);
+        const result = classifyAnchor(anchor, canonicalManuscriptText);
         return result.anchor_type !== "editorial_diagnosis";
       });
       if (verifiedPool.length === 0) continue;
 
       for (const rec of c.recommendations) {
-        const result = classifyAnchor(rec.anchor_snippet, manuscriptText!);
+        const result = classifyAnchor(rec.anchor_snippet, canonicalManuscriptText);
         if (result.anchor_type === "editorial_diagnosis") {
           // Replace with best grounded anchor from the verified pool.
           rec.anchor_snippet = verifiedPool[enforcedCount % verifiedPool.length].slice(0, 300);
@@ -1799,11 +1729,6 @@ export function parsePass3Response(
   const risks = Array.isArray(rawOverall["top_3_risks"])
     ? (rawOverall["top_3_risks"] as unknown[]).slice(0, 3).map(String)
     : [];
-
-  // Build metadata
-  const rawMeta = typeof obj["metadata"] === "object" && obj["metadata"] !== null
-    ? (obj["metadata"] as Record<string, unknown>)
-    : {};
 
   // CMOS 17th Ed. — deterministic post-processing of all author-facing text
   const sanitizedCriteria = finalCriteria.map(
@@ -2533,574 +2458,6 @@ function buildSymptomFromContext(
       return "Craft clarity or momentum weakens at this location in the manuscript.";  }
 }
 
-function extractIntentFragment(action: string): string {
-  const normalized = action.replace(/\s+/g, " ").trim();
-  if (!normalized) return "";
-
-  const withoutLeadIn = normalized
-    .replace(/^in\s+[^,]+,\s*/i, "")
-    .replace(/^for\s+[^,]+,\s*/i, "")
-    .replace(/[.;:!?]+$/g, "")
-    .trim();
-
-  return withoutLeadIn.slice(0, 120);
-}
-
-function normalizeIntentForActionTail(intentFragment: string): string {
-  const compact = intentFragment.replace(/\s+/g, " ").trim().replace(/[.;:!?]+$/, "");
-  if (!compact) return "";
-
-  const lowered = `${compact.charAt(0).toLowerCase()}${compact.slice(1)}`;
-  const withoutLeadingConjunction = lowered.replace(/^(and|or)\s+/i, "");
-  const withoutTrailingDanglers = withoutLeadingConjunction
-    .replace(/\s+(and|or|to|of|in|on|with|for|where|a|an|the)$/i, "")
-    .trim();
-
-  if (!withoutTrailingDanglers) return "";
-
-  return withoutTrailingDanglers.length <= 90
-    ? withoutTrailingDanglers
-    : withoutTrailingDanglers.slice(0, 90).replace(/\s+\S*$/, "").trim();
-}
-
-type RecommendationFamily =
-  | "observational"
-  | "surgical"
-  | "contrastive"
-  | "pressure"
-  | "reader_effect"
-  | "structural"
-  | "opportunity"
-  | "scene_level"
-  | "cadence";
-
-// ── Canonical criterion → issue_family / strategic_lever maps ─────────────
-// Used by density repair to build contract-compliant synthesized recommendations
-// from existing evidence anchors and rationale without fabricating content.
-const CRITERION_ISSUE_FAMILY: Record<
-  SynthesizedCriterion["key"],
-  SynthesizedCriterion["recommendations"][number]["issue_family"]
-> = {
-  concept: "concept",
-  narrativeDrive: "tension",
-  character: "characterization",
-  voice: "voice",
-  sceneConstruction: "scene_structure",
-  dialogue: "dialogue",
-  theme: "theme",
-  worldbuilding: "worldbuilding",
-  pacing: "pacing",
-  proseControl: "prose_control",
-  tone: "voice",
-  narrativeClosure: "closure",
-  marketability: "market_positioning",
-};
-
-const CRITERION_STRATEGIC_LEVER: Record<
-  SynthesizedCriterion["key"],
-  SynthesizedCriterion["recommendations"][number]["strategic_lever"]
-> = {
-  concept: "market_signal_clarity",
-  narrativeDrive: "tension_escalation",
-  character: "character_voice_differentiation",
-  voice: "pov_rendering_precision",
-  sceneConstruction: "scene_goal_clarity",
-  dialogue: "dialogue_exposition_density",
-  theme: "thematic_grounding",
-  worldbuilding: "sensory_specificity",
-  pacing: "momentum_visibility",
-  proseControl: "prose_compression",
-  tone: "pov_rendering_precision",
-  narrativeClosure: "closure_state_lock",
-  marketability: "market_signal_clarity",
-};
-
-const CRITERION_PREFERRED_FAMILIES: Record<
-  SynthesizedCriterion["key"],
-  readonly RecommendationFamily[]
-> = {
-  concept: ["observational", "opportunity", "reader_effect"],
-  narrativeDrive: ["pressure", "structural", "scene_level"],
-  character: ["contrastive", "pressure", "observational"],
-  voice: ["cadence", "observational", "surgical"],
-  sceneConstruction: ["structural", "scene_level", "contrastive"],
-  dialogue: ["pressure", "contrastive", "scene_level"],
-  theme: ["observational", "opportunity", "reader_effect"],
-  worldbuilding: ["scene_level", "observational", "reader_effect"],
-  pacing: ["structural", "pressure", "scene_level"],
-  proseControl: ["cadence", "surgical", "observational"],
-  tone: ["cadence", "observational", "contrastive"],
-  narrativeClosure: ["reader_effect", "structural", "opportunity"],
-  marketability: ["opportunity", "reader_effect", "contrastive"],
-};
-
-function deterministicHash(text: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return Math.abs(hash >>> 0);
-}
-
-function summarizeAnchorContext(anchorSnippet: string): string {
-  const normalized = anchorSnippet
-    .replace(/\s+/g, " ")
-    .replace(/^[\u201c\u201d"']+|[\u201c\u201d"']+$/g, "")
-    .trim();
-  if (!normalized) return "the selected passage";
-
-  // Extract just the first few words for a brief reference label.
-  // Do NOT embed full manuscript text into action templates — that causes
-  // downstream contamination when action becomes rationale/title/symptom.
-  const words = normalized.split(/\s+/);
-  const preview = words.slice(0, 5).join(" ");
-  return `the passage near \u201c${preview}\u2026\u201d`;
-}
-function capitalizeSentence(text: string): string {
-  const trimmed = text.trim();
-  if (!trimmed) return "";
-  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
-}
-
-type ActionTemplateParams = {
-  context: string;
-  intentTail: string;
-};
-
-function enforceEditorialActionContract(
-  action: string,
-  criterionKey: SynthesizedCriterion["key"],
-): string {
-  const normalized = action.replace(/\s+/g, " ").trim().replace(/[.;:!?]+$/, "");
-  if (!normalized) return normalized;
-
-  const hasSpecificFixMove = EDITORIAL_FIX_MARKERS.test(normalized);
-  const hasMechanismCause = EDITORIAL_MECHANISM_MARKERS.test(normalized);
-
-  let repaired = normalized;
-
-  if (!hasSpecificFixMove) {
-    const fixLead = buildCriterionAwareSpecificFixDefault(criterionKey).replace(/[.;:!?]+$/, "");
-    repaired = `${fixLead}; ${repaired}`;
-  }
-
-  if (!hasMechanismCause) {
-    const mechanism = buildCriterionAwareMechanismDefault(criterionKey).replace(/[.;:!?]+$/, "");
-    const withoutDanglingConnector = repaired
-      .replace(/[,:;]?\s+(let|can|to|and|or)$/i, "")
-      .trim();
-    repaired = `${withoutDanglingConnector} because ${mechanism}`;
-  }
-
-  return repaired;
-}
-
-const ACTION_TEMPLATES_BY_FAMILY: Record<RecommendationFamily, readonly ((params: ActionTemplateParams) => string)[]> = {
-  observational: [
-    ({ context, intentTail }) =>
-      `The current draft surfaces pressure in ${context}, but the consequence arrives abstractly. A concrete causal beat would ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `Several lines around ${context} summarize effect before dramatizing cause. Re-ordering the beat sequence would ${intentTail}.`,
-  ],
-  surgical: [
-    ({ context, intentTail }) =>
-      `Revise one line in ${context} to replace abstraction with a concrete sensory-action choice, then keep the next beat causal so the passage can ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `Tighten the sentence-level execution in ${context}: swap one vague phrase for a specific action image and trim the trailing summary to ${intentTail}.`,
-  ],
-  contrastive: [
-    ({ context, intentTail }) =>
-      `Rather than explaining the pressure in ${context}, let one interruption or decision beat carry it on the page so the scene can ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `Instead of resolving the moment in exposition at ${context}, pivot to a visible reaction-then-consequence turn to ${intentTail}.`,
-  ],
-  pressure: [
-    ({ context, intentTail }) =>
-      `Tension softens around ${context} because the decision pressure diffuses too early. Keep the external trigger active for one more beat to ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `The pressure line in ${context} resolves before the reader sees immediate consequence. Hold the conflict open through a short action beat to ${intentTail}.`,
-  ],
-  reader_effect: [
-    ({ context, intentTail }) =>
-      `Readers will track stakes more clearly if ${context} lands on a concrete consequence rather than thematic summary; this would ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `To strengthen reader trust, let ${context} conclude with visible payoff instead of abstraction; the result should ${intentTail}.`,
-  ],
-  structural: [
-    ({ context, intentTail }) =>
-      `Scene momentum drops near ${context} when reflection resolves before action. Re-sequencing the turn as trigger → reaction → consequence would ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `The structural turn at ${context} is close, but the causal order is inverted. Move the trigger ahead of reflection so the section can ${intentTail}.`,
-  ],
-  opportunity: [
-    ({ intentTail }) =>
-      `Reframe the abstract statement as a specific reader-facing promise to ${intentTail}.`,
-    ({ intentTail }) =>
-      `Convert the abstract claim into a concrete outcome cue to ${intentTail}.`,
-  ],
-  scene_level: [
-    ({ context, intentTail }) =>
-      `At the scene level, ${context} would benefit from one immediate external action cue before returning to reflection, helping the passage ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `Within ${context}, add a short action-response beat pair so scene movement stays visible and can ${intentTail}.`,
-  ],
-  cadence: [
-    ({ context, intentTail }) =>
-      `Cadence flattens in ${context} when long abstract phrasing stacks without tactile detail. Varying sentence rhythm with one concrete beat would ${intentTail}.`,
-    ({ context, intentTail }) =>
-      `The prose rhythm around ${context} is close to landing; a shorter concrete sentence after the reflective line would ${intentTail}.`,
-  ],
-};
-
-function buildCriterionAwareActionRepair(
-  criterionKey: SynthesizedCriterion["key"],
-  anchorSnippet: string,
-  intentFragment: string,
-): string {
-  const anchor = anchorSnippet.slice(0, 72);
-  const context = summarizeAnchorContext(anchor);
-  const normalizedIntent = normalizeIntentForActionTail(intentFragment);
-  const intentTail = normalizedIntent.length > 0
-    ? normalizedIntent
-    : "increase scene-level clarity and consequence";
-
-  const preferredFamilies = CRITERION_PREFERRED_FAMILIES[criterionKey] ?? ["observational"];
-  const familySeed = deterministicHash(`${criterionKey}|${anchor}|${intentTail}`);
-  const family = preferredFamilies[familySeed % preferredFamilies.length];
-  const familyTemplates = ACTION_TEMPLATES_BY_FAMILY[family] ?? ACTION_TEMPLATES_BY_FAMILY.observational;
-  const template = familyTemplates[familySeed % familyTemplates.length];
-  const rawAction = template({
-    context,
-    intentTail,
-  });
-
-  return ensureTerminalPunctuation(
-    capitalizeSentence(enforceEditorialActionContract(rawAction, criterionKey)),
-  );
-}
-
-function buildCriterionAwareImpactRepair(
-  criterionKey: SynthesizedCriterion["key"],
-): string {
-  switch (criterionKey) {
-    case "concept":
-      return "Gives the reader a sharper premise hook and clearer dramatic question from the opening.";
-    case "character":
-      return "Gives the reader clearer motivation and emotional stakes, improving trust in character decisions.";
-    case "sceneConstruction":
-      return "Gives the reader clearer scene cause-and-effect and stronger transition coherence.";
-    case "dialogue":
-      return "Gives the reader clearer speaker intent and tension progression, increasing engagement.";
-    case "pacing":
-      return "Gives the reader stronger forward momentum and cleaner urgency through the section turn.";
-    case "voice":
-      return "Gives the reader consistent narrative immersion with stable psychic distance throughout.";
-    case "theme":
-      return "Gives the reader stronger thematic resonance through concrete embodiment rather than abstraction.";
-    case "narrativeDrive":
-      return "Gives the reader increased momentum as the stalled decision converts to visible consequence.";
-    case "worldbuilding":
-      return "Gives the reader immediate sensory grounding, reducing cognitive load and increasing immersion.";
-    case "tone":
-      return "Gives the reader a consistent emotional register that sustains trust through the passage.";
-    case "proseControl":
-      return "Gives the reader tighter sentence-level clarity and reduced cognitive friction.";
-    case "narrativeClosure":
-      return "Gives the reader a stronger sense of resolution, reducing the feeling of dangling threads.";
-    case "marketability":
-      return "Gives the reader clearer genre alignment and a stronger first-impression hook.";
-    default:
-      return "Gives the reader clearer cause-and-effect, stronger immersion, and higher engagement at the turn.";
-  }
-}
-
-/**
- * Producer-side density repair: build evidence-anchored recommendations from
- * existing criterion evidence, rationale, and deterministic criterion-aware
- * templates. Must not fabricate content — only uses anchors already present
- * in the criterion before calling this function.
- *
- * Each synthesized rec will have:
- *   anchor_snippet  ← from evidence or quoted rationale
- *   action          ← criterion-aware template + anchor context
- *   specific_fix    ← criterion-aware deterministic default
- *   mechanism       ← criterion-aware deterministic default
- *   reader_effect   ← criterion-aware deterministic default
- *   expected_impact ← criterion-aware deterministic default
- *
- * That gives ≥5 meaningful fields, well above the template gate's 2-field
- * minimum, and always includes a non-empty specific_fix so the actionish
- * check in isMeaningfulRecommendation passes.
- */
-function buildDensityRepairRecommendations(
-  c: SynthesizedCriterion,
-  needed: number,
-): SynthesizedCriterion["recommendations"] {
-  if (needed <= 0) return [];
-
-  const key = c.key;
-  const repaired: SynthesizedCriterion["recommendations"] = [];
-
-  // Gather source anchors: prefer verbatim evidence snippets (≥20 chars),
-  // then fall back to quoted spans from the rationale.
-  const evidenceSnippets = c.evidence
-    .map((e) => (typeof e.snippet === "string" ? e.snippet.trim() : ""))
-    .filter((s) => s.length >= 20);
-
-  const rationaleSpans = extractQuotedRationaleSpans(c.final_rationale)
-    .filter((s) => s.length >= 20);
-
-  // Anchors must be manuscript-grounded. Rationale excerpts and synthetic
-  // diagnostic text are NOT valid anchors — the evidence grounding gate
-  // (QG_EVIDENCE_FABRICATION) correctly rejects them as editorial_diagnosis.
-  // If no evidence snippets or quoted rationale spans are available, do not
-  // fabricate an anchor; return an empty array so the caller can let the gate
-  // report the defect honestly rather than injecting ungrounded text.
-  const anchors: string[] = [
-    ...evidenceSnippets,
-    ...rationaleSpans,
-  ];
-
-  if (anchors.length === 0) {
-    // No manuscript-grounded anchor available. Do not fabricate.
-    return [];
-  }
-
-  // Intent fragment for action template: prefer gap_summary over rationale sentence.
-  const intentFragment = c.gap_summary
-    ? c.gap_summary.replace(/[.;!?]+$/, "").trim()
-    : (c.final_rationale.split(".")[0] ?? "").trim();
-
-  const issueFamily = CRITERION_ISSUE_FAMILY[key];
-  const strategicLever = CRITERION_STRATEGIC_LEVER[key];
-  const mechanism = buildCriterionAwareMechanismDefault(key);
-  const specificFix = buildCriterionAwareSpecificFixDefault(key);
-  const readerEffect = buildCriterionAwareReaderEffectDefault(key);
-  const expectedImpact = buildCriterionAwareImpactRepair(key);
-
-  for (let i = 0; i < needed; i++) {
-    // Rotate anchors so each synthesized rec references a distinct evidence span.
-    const anchorSnippet = anchors[i % anchors.length].slice(0, 200);
-    const action = buildCriterionAwareActionRepair(key, anchorSnippet, intentFragment);
-
-    if (!action || !specificFix) continue; // guard — should never happen given defaults
-
-    repaired.push({
-      priority: c.final_score_0_10 <= 6 ? "high" : c.final_score_0_10 === 7 ? "medium" : "low",
-      action: clampRecommendationAction(action),
-      expected_impact: expectedImpact,
-      anchor_snippet: anchorSnippet,
-      source_pass: 3,
-      issue_family: issueFamily,
-      strategic_lever: strategicLever,
-      revision_granularity: "scene",
-      mechanism,
-      specific_fix: specificFix,
-      reader_effect: readerEffect,
-      // Derive symptom from criterion-aware context (root-cause: never emit generic fallback prose)
-      symptom: buildSymptomFromContext(mechanism, action, key),
-      cause: mechanism,
-      rationale: specificFix,
-      fix_direction: specificFix,
-    });
-  }
-
-  return repaired;
-}
-
-/**
- * Last-resort deterministic recommendations that are **pre-validated** to pass
- * `isMeaningfulRecommendation`. Called only when ALL prior repair attempts
- * (LLM output, density repair, evidence-anchored fallback) have been exhausted
- * or filtered. Every field is hand-crafted to avoid GENERIC_RE and PLACEHOLDER_RE
- * while exceeding the 12-char minimum threshold.
- *
- * These recs use criterion-aware specific_fix defaults (non-generic, ≥12 chars)
- * as the actionish value, paired with a manuscript-grounding anchor and symptom
- * that both exceed the 20-char threshold — satisfying every branch in the gate.
- */
-const LAST_RESORT_RECS: Record<string, {
-  action: string;
-  specific_fix: string;
-  anchor_snippet: string;
-  symptom: string;
-  mechanism: string;
-  reader_effect: string;
-  expected_impact: string;
-}> = {
-  concept: {
-    action: "Reframe the opening premise around a single dramatic question that the reader must see answered.",
-    specific_fix: "Sharpen the premise hook by grounding one abstract concept in a concrete dramatic question the reader must see answered.",
-    anchor_snippet: "The central premise remains abstract, lacking a concrete dramatic question that compels the reader forward through the narrative.",
-    symptom: "The concept does not crystallize into a single answerable question early enough, diffusing reader investment.",
-    mechanism: "Abstract premise statement without a concrete embodiment delays the reader's commitment to the narrative question.",
-    reader_effect: "Sharper premise intrigue and a clearer dramatic question that compels the reader forward.",
-    expected_impact: "Gives the reader a sharper premise hook and clearer dramatic question from the opening.",
-  },
-  narrativeDrive: {
-    action: "Insert one concrete stakes beat at the scene turn to convert the deferred decision into visible consequence.",
-    specific_fix: "Insert one concrete stakes beat that lands the deferred decision at the current scene turn.",
-    anchor_snippet: "The narrative momentum stalls at the scene turn because the stakes remain abstract rather than visible in character action.",
-    symptom: "Forward momentum stalls as the deferred decision lacks a concrete consequence beat at the scene turn.",
-    mechanism: "Deferred stakes without a visible consequence beat reduce urgency at the narrative pivot point.",
-    reader_effect: "Increased momentum as the stalled decision converts to visible consequence.",
-    expected_impact: "Gives the reader increased momentum as the stalled decision converts to visible consequence.",
-  },
-  character: {
-    action: "Replace one abstract reaction line with a concrete decision beat showing desire-vs-fear contradiction.",
-    specific_fix: "Replace one abstract reaction line with a concrete decision beat and one desire-vs-fear contradiction.",
-    anchor_snippet: "Character motivation remains abstract, with reactions summarized rather than dramatized through concrete decision beats.",
-    symptom: "The character's internal state is told rather than shown, reducing emotional stakes and trust in their decisions.",
-    mechanism: "Abstract reaction summaries bypass the reader's empathy circuit; concrete decision beats engage it directly.",
-    reader_effect: "Clearer motivation and emotional stakes, improving trust in character decisions.",
-    expected_impact: "Gives the reader clearer motivation and emotional stakes, improving trust in character decisions.",
-  },
-  voice: {
-    action: "Recast one summary sentence as close-third free indirect discourse to restore consistent psychic distance.",
-    specific_fix: "Recast one summary sentence as close-third free indirect discourse to restore psychic distance.",
-    anchor_snippet: "The narrative voice shifts psychic distance mid-passage, breaking immersion where consistency is needed most.",
-    symptom: "Psychic distance shifts without a trigger, pulling the reader out of the established narrative intimacy.",
-    mechanism: "Unanchored psychic-distance shift disrupts the reader's immersive contract with the narrator.",
-    reader_effect: "Consistent narrative immersion with stable psychic distance throughout.",
-    expected_impact: "Gives the reader consistent narrative immersion with stable psychic distance throughout.",
-  },
-  sceneConstruction: {
-    action: "Split one long descriptive passage at the causal pivot and relocate the image after the action beat.",
-    specific_fix: "Split one long descriptive passage and move one image after the causal action beat.",
-    anchor_snippet: "Scene construction weakens where a long descriptive block delays the causal action beat the reader needs.",
-    symptom: "The scene's cause-and-effect chain is obscured by a descriptive passage that delays the action pivot.",
-    mechanism: "Front-loaded description before the causal beat inverts the scene's momentum and delays reader orientation.",
-    reader_effect: "Clearer scene cause-and-effect and stronger transition coherence.",
-    expected_impact: "Gives the reader clearer scene cause-and-effect and stronger transition coherence.",
-  },
-  dialogue: {
-    action: "Replace one expository exchange with two short turns plus an interruption beat that reveals subtext.",
-    specific_fix: "Replace one expository exchange with two short turns plus an interruption beat.",
-    anchor_snippet: "Dialogue expository passages convey information without revealing character tension or subtext beneath the surface.",
-    symptom: "Speaker intent is flattened into exposition, removing the tension that makes dialogue scenes propulsive.",
-    mechanism: "Expository dialogue replaces subtext with information delivery, collapsing the tension differential between speakers.",
-    reader_effect: "Clearer speaker intent and tension progression, increasing engagement.",
-    expected_impact: "Gives the reader clearer speaker intent and tension progression, increasing engagement.",
-  },
-  theme: {
-    action: "Replace one abstract thematic statement with a concrete image or character action that embodies the theme.",
-    specific_fix: "Replace one abstract thematic statement with a concrete image or action that embodies the theme.",
-    anchor_snippet: "The thematic signal is stated abstractly rather than embodied in concrete action or imagery within the scene.",
-    symptom: "Thematic resonance is weakened because the idea is told rather than shown through scene-level embodiment.",
-    mechanism: "Abstract thematic statement bypasses the reader's interpretive engagement; embodied theme activates it.",
-    reader_effect: "Stronger thematic resonance through concrete embodiment rather than abstraction.",
-    expected_impact: "Gives the reader stronger thematic resonance through concrete embodiment rather than abstraction.",
-  },
-  worldbuilding: {
-    action: "Anchor one passage with two specific sensory details — tactile, auditory, or olfactory — that ground the setting.",
-    specific_fix: "Anchor one passage with two specific sensory details that ground the setting without exposition.",
-    anchor_snippet: "The setting lacks sensory grounding, leaving the reader without physical orientation in the world of the narrative.",
-    symptom: "Sensory grounding is absent from the passage, preventing the reader from anchoring in the physical setting.",
-    mechanism: "Missing sensory detail forces the reader to imagine the setting without authorial guidance, increasing cognitive load.",
-    reader_effect: "Immediate sensory grounding that reduces cognitive load and increases immersion.",
-    expected_impact: "Gives the reader immediate sensory grounding, reducing cognitive load and increasing immersion.",
-  },
-  pacing: {
-    action: "Cut one reflective sentence and insert one immediate external action trigger to restore forward momentum.",
-    specific_fix: "Cut one reflective sentence and insert one immediate external action trigger.",
-    anchor_snippet: "Pacing stalls where a reflective passage delays the next external action trigger the scene needs to maintain momentum.",
-    symptom: "Forward momentum stalls as reflection displaces the external action trigger needed at this scene beat.",
-    mechanism: "Excess reflection before an action beat creates a pacing valley that saps urgency from the scene turn.",
-    reader_effect: "Stronger forward momentum and cleaner urgency through the section turn.",
-    expected_impact: "Gives the reader stronger forward momentum and cleaner urgency through the section turn.",
-  },
-  proseControl: {
-    action: "Tighten one overlong sentence by splitting at the causal pivot and removing redundant qualifiers.",
-    specific_fix: "Tighten one overlong sentence by splitting at the causal pivot and removing redundant qualifiers.",
-    anchor_snippet: "Sentence-level prose control weakens where an overlong construction increases cognitive load without payoff.",
-    symptom: "Overlong sentence structure increases cognitive friction, slowing the reader at a point that needs clarity.",
-    mechanism: "Cluttered sentence structure with redundant qualifiers forces re-reading rather than forward momentum.",
-    reader_effect: "Tighter sentence-level clarity and reduced cognitive friction.",
-    expected_impact: "Gives the reader tighter sentence-level clarity and reduced cognitive friction.",
-  },
-  tone: {
-    action: "Rewrite one tonal outlier sentence to match the established emotional register of the surrounding passage.",
-    specific_fix: "Rewrite one tonal outlier sentence to match the established register of the surrounding passage.",
-    anchor_snippet: "The tonal register shifts mid-passage without a clear trigger, disrupting the emotional continuity the reader expects.",
-    symptom: "An untriggered tonal shift breaks the emotional register, pulling the reader out of the established mood.",
-    mechanism: "Unanchored tonal register shift disrupts the reader's emotional contract with the passage.",
-    reader_effect: "A consistent emotional register that sustains trust through the passage.",
-    expected_impact: "Gives the reader a consistent emotional register that sustains trust through the passage.",
-  },
-  narrativeClosure: {
-    action: "Add one concrete resolution beat that closes the dangling thread and signals consequence to the reader.",
-    specific_fix: "Add one concrete resolution beat that closes the dangling thread and signals consequence to the reader.",
-    anchor_snippet: "A narrative thread is left unresolved, leaving the reader without the consequence beat needed for closure.",
-    symptom: "The dangling thread lacks a resolution beat, leaving the reader with a sense of incompleteness at the ending.",
-    mechanism: "Missing resolution beat for an established narrative thread denies the reader expected consequence.",
-    reader_effect: "A stronger sense of resolution that reduces the feeling of dangling threads.",
-    expected_impact: "Gives the reader a stronger sense of resolution, reducing the feeling of dangling threads.",
-  },
-  marketability: {
-    action: "Move one genre-signaling detail to the first paragraph to establish category expectations from the opening.",
-    specific_fix: "Move one genre-signaling detail to the first paragraph to establish category expectations earlier.",
-    anchor_snippet: "Genre expectations are not established early enough, leaving the reader uncertain about the category of the work.",
-    symptom: "The opening lacks a genre signal, reducing submission alignment and delaying the reader's category orientation.",
-    mechanism: "Delayed genre signaling forces the reader to infer category rather than receiving it from the author.",
-    reader_effect: "Clearer genre alignment and a stronger first-impression hook.",
-    expected_impact: "Gives the reader clearer genre alignment and a stronger first-impression hook.",
-  },
-};
-
-export function buildLastResortRecommendations(
-  key: SynthesizedCriterion["key"],
-  score: number,
-  needed: number,
-  criterion?: SynthesizedCriterion,
-): SynthesizedCriterion["recommendations"] {
-  if (needed <= 0) return [];
-
-  const template = LAST_RESORT_RECS[key];
-  if (!template) return [];
-
-  // Use manuscript-grounded evidence from the criterion instead of the
-  // hardcoded editorial anchor_snippet in LAST_RESORT_RECS. The template
-  // anchors are diagnostic text that the evidence grounding gate correctly
-  // rejects as editorial_diagnosis → QG_EVIDENCE_FABRICATION.
-  const evidenceAnchors: string[] = (criterion?.evidence ?? [])
-    .map((e) => (typeof e.snippet === "string" ? e.snippet.trim() : ""))
-    .filter((s) => s.length >= 10);
-
-  // Also try quoted spans from the rationale (may contain manuscript quotes).
-  const rationaleQuotes = criterion?.final_rationale
-    ? extractQuotedRationaleSpans(criterion.final_rationale).filter((s) => s.length >= 10)
-    : [];
-
-  const groundedAnchors = [...evidenceAnchors, ...rationaleQuotes];
-
-  const recs: SynthesizedCriterion["recommendations"] = [];
-  for (let i = 0; i < needed; i++) {
-    // Prefer grounded anchor; fall back to template only if zero evidence exists.
-    const anchorSnippet = groundedAnchors.length > 0
-      ? groundedAnchors[i % groundedAnchors.length].slice(0, 200)
-      : template.anchor_snippet;
-
-    recs.push({
-      priority: score <= 6 ? "high" : score === 7 ? "medium" : "low",
-      action: template.action,
-      specific_fix: template.specific_fix,
-      anchor_snippet: anchorSnippet,
-      source_pass: 3,
-      issue_family: CRITERION_ISSUE_FAMILY[key] ?? "exposition",
-      strategic_lever: CRITERION_STRATEGIC_LEVER[key] ?? "scene_goal_clarity",
-      revision_granularity: "scene",
-      mechanism: template.mechanism,
-      reader_effect: template.reader_effect,
-      expected_impact: template.expected_impact,
-      symptom: template.symptom,
-      cause: template.mechanism,
-      rationale: template.specific_fix,
-      fix_direction: template.specific_fix,
-    });
-  }
-  return recs;
-}
 
 function normalizeForPhraseMatch(text: string): string {
   return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -3201,7 +2558,7 @@ function buildBackfilledRationale(
         }
         
         return parts.join(" ").trim();
-      } catch (_err) {
+      } catch {
         // Fall back to generic if diagnostic computation fails
       }
     }
@@ -3253,103 +2610,6 @@ function backfillEvidenceFromAxis(
  * context fields so the action reads as a complete editorial instruction.
  * Only fires when action < 50 chars; longer actions are kept as-is.
  */
-function enrichShortAction(
-  action: string,
-  expectedImpact: string,
-  issueFamily: string | undefined,
-  anchorSnippet: string,
-): string {
-  if (action.length >= 50) return action;
-
-  // Build a grammatically correct sentence: "<action> to address <family>; <impact>"
-  let enriched = action;
-
-  if (issueFamily && !action.toLowerCase().includes(issueFamily.toLowerCase())) {
-    // "tighten syntax to address prose clarity"
-    enriched += `—to address ${issueFamily.replace(/_/g, " ")}`;
-  }
-
-  if (expectedImpact && !action.toLowerCase().includes(expectedImpact.toLowerCase())) {
-    // Strip leading "to " from expectedImpact if present to avoid "to to enhance..."
-    const impact = expectedImpact.replace(/^to\s+/i, "");
-    enriched += `; this will ${impact}`;
-  }
-
-  if (enriched.length >= 50) return enriched;
-
-  if (anchorSnippet) {
-    const snippet = anchorSnippet.length > 80
-      ? anchorSnippet.slice(0, 77) + "..."
-      : anchorSnippet;
-    return `${enriched} (near: "${snippet}")`;
-  }
-  return enriched;
-}
-
-function backfillRecommendationsFromAxis(
-  pass1: SinglePassOutput,
-  pass2: SinglePassOutput,
-  key: string,
-): SynthesizedCriterion["recommendations"] {
-  const criterionKey = key as SynthesizedCriterion["key"];
-  const fromPass = (pass: SinglePassOutput, sourcePass: 1 | 2): SynthesizedCriterion["recommendations"] => {
-    const passCriterion = pass.criteria.find((c) => c.key === key);
-    if (!passCriterion) return [];
-    return passCriterion.recommendations
-      .map((r) => {
-        const rawAction = String(r.action ?? "").trim();
-        const rawExpectedImpact = String(r.expected_impact ?? "").trim();
-        const rawAnchorSnippet = String(r.anchor_snippet ?? "").trim();
-        const enrichedAction = enrichShortAction(
-          rawAction,
-          rawExpectedImpact,
-          r.issue_family,
-          rawAnchorSnippet,
-        );
-        const base = {
-          priority: r.priority,
-          action: enrichedAction,
-          expected_impact: rawExpectedImpact,
-          anchor_snippet: rawAnchorSnippet,
-          source_pass: sourcePass,
-          issue_family: r.issue_family,
-          strategic_lever: r.strategic_lever,
-          revision_granularity: r.revision_granularity,
-          mechanism: "",
-          specific_fix: "",
-          reader_effect: "",
-          symptom: typeof (r as Record<string, unknown>).symptom === "string" && ((r as Record<string, unknown>).symptom as string).trim().length > 0
-            ? ((r as Record<string, unknown>).symptom as string).trim()
-            : buildSymptomFromContext("", rawAction, criterionKey),
-        };
-        // Run through normalizer so the specificity triple is populated/repaired
-        const normalized = normalizeRecommendationContract(base);
-        return {
-          ...normalized,
-          action: clampRecommendationAction(normalized.action),
-          // Carry through candidate prose from Pass 1/2 chunk cache
-          ...(typeof r.candidate_text_a === "string" && r.candidate_text_a.trim() ? { candidate_text_a: r.candidate_text_a.trim() } : {}),
-          ...(typeof r.candidate_text_b === "string" && r.candidate_text_b.trim() ? { candidate_text_b: r.candidate_text_b.trim() } : {}),
-          ...(typeof r.candidate_text_c === "string" && r.candidate_text_c.trim() ? { candidate_text_c: r.candidate_text_c.trim() } : {}),
-        };
-      })
-      .filter((r) => r.action.length > 0 && r.expected_impact.length > 0 && r.anchor_snippet.length > 0);
-  };
-
-  const combined = [...fromPass(pass1, 1), ...fromPass(pass2, 2)];
-  const seen = new Set<string>();
-  const deduped: SynthesizedCriterion["recommendations"] = [];
-
-  for (const rec of combined) {
-    const sig = rec.action.toLowerCase();
-    if (seen.has(sig)) continue;
-    seen.add(sig);
-    deduped.push(rec);
-    if (deduped.length >= 3) break;
-  }
-
-  return deduped;
-}
 
 function parseStringArray(raw: unknown, maxItems: number): string[] {
   if (!Array.isArray(raw)) return [];

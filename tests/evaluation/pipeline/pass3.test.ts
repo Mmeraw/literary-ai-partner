@@ -9,7 +9,7 @@ import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { parsePass3Response, runPass3Synthesis } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
-import { validateTemplateCompleteness, isMeaningfulRecommendation } from "@/lib/evaluation/pipeline/templateCompletenessGate";
+import { validateTemplateCompleteness } from "@/lib/evaluation/pipeline/templateCompletenessGate";
 import { PASS3_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass3-synthesis";
 import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
@@ -36,29 +36,55 @@ function makePassOutput(pass: 1 | 2, axis: string): SinglePassOutput {
   };
 }
 
+const FIXTURE_FAMILY_LEVER: Record<string, { issue_family: string; strategic_lever: string }> = {
+  concept: { issue_family: "concept", strategic_lever: "market_signal_clarity" },
+  narrativeDrive: { issue_family: "tension", strategic_lever: "tension_escalation" },
+  character: { issue_family: "characterization", strategic_lever: "character_voice_differentiation" },
+  voice: { issue_family: "voice", strategic_lever: "pov_rendering_precision" },
+  sceneConstruction: { issue_family: "scene_structure", strategic_lever: "scene_goal_clarity" },
+  dialogue: { issue_family: "dialogue", strategic_lever: "dialogue_exposition_density" },
+  theme: { issue_family: "theme", strategic_lever: "thematic_grounding" },
+  worldbuilding: { issue_family: "worldbuilding", strategic_lever: "sensory_specificity" },
+  pacing: { issue_family: "pacing", strategic_lever: "momentum_visibility" },
+  proseControl: { issue_family: "prose_control", strategic_lever: "prose_compression" },
+  tone: { issue_family: "exposition", strategic_lever: "exposition_load_reduction" },
+  narrativeClosure: { issue_family: "closure", strategic_lever: "closure_state_lock" },
+  marketability: { issue_family: "market_positioning", strategic_lever: "structural_commitment" },
+};
+
 function makePass3Fixture(overrides: Record<string, unknown> = {}) {
   return {
-    criteria: CRITERIA_KEYS.map((key) => ({
-      key,
-      craft_score: 7,
-      editorial_score: 6,
-      final_score_0_10: 7,
-      delta_explanation: undefined,
-      final_rationale:
-        `Synthesized analysis for ${key}: the manuscript shows functional craft execution, but the evaluation still identifies concrete revision leverage in clarity, consequence, and reader payoff.`,
-      evidence: [{ snippet: "The river moved slowly." }],
-      recommendations: [
-        {
-          priority: "medium",
-          action: `Refine the ${key} dimension to achieve stronger integration between craft and editorial goals.`,
-          expected_impact: "Elevates overall quality.",
-          anchor_snippet: '"slowly"',
-          issue_family: "scene_structure",
-          strategic_lever: "scene_goal_clarity",
-          revision_granularity: "scene",
-        },
-      ],
-    })),
+    criteria: CRITERIA_KEYS.map((key) => {
+      const { issue_family, strategic_lever } = FIXTURE_FAMILY_LEVER[key] ?? {
+        issue_family: "scene_structure",
+        strategic_lever: "scene_goal_clarity",
+      };
+      return {
+        key,
+        craft_score: 7,
+        editorial_score: 6,
+        final_score_0_10: 7,
+        delta_explanation: undefined,
+        final_rationale:
+          `Synthesized analysis for ${key}: the manuscript shows functional craft execution, but the evaluation still identifies concrete revision leverage in clarity, consequence, and reader payoff.`,
+        evidence: [{ snippet: "The river moved slowly." }],
+        recommendations: [
+          {
+            priority: "medium",
+            action: `At the passage where ${key} weakens, replace the summary statement with one concrete image so the reader can feel the pressure on the page.`,
+            expected_impact: "Gives the reader a sharper sensory image and increases trust in the emotional turn.",
+            anchor_snippet: "The river moved slowly while Sister carried the silence with her.",
+            mechanism: `The ${key} beat is told rather than dramatized, so the reader infers the consequence instead of observing it.`,
+            specific_fix: `Show one specific action in the ${key} moment instead of naming the abstract quality.`,
+            reader_effect: "The reader will experience the beat through concrete detail rather than summary.",
+            symptom: `The ${key} passage summarizes its own meaning.`,
+            issue_family,
+            strategic_lever,
+            revision_granularity: "scene",
+          },
+        ],
+      };
+    }),
     overall: {
       overall_score_0_100: 70,
       verdict: "revise",
@@ -85,6 +111,31 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
       pass3_model: "gpt-4o-mini",
     },
     ...overrides,
+  };
+}
+
+/** Build a minimal EvaluationResultLike shape for validateTemplateCompleteness from a SynthesisOutput. */
+function toEvaluationResultLike(synthesis: any) {
+  return {
+    one_paragraph_summary: synthesis.overall.one_paragraph_summary,
+    one_sentence_summary: synthesis.overall.one_sentence_summary ?? synthesis.overall.one_sentence_pitch,
+    top_3_strengths: synthesis.overall.top_3_strengths,
+    top_3_risks: synthesis.overall.top_3_risks,
+    enrichment: synthesis.enrichment ?? {
+      premise: "A standalone premise used to avoid identity overlap.",
+      diagnosed_genre: "literary fiction",
+      target_audience: "Adult readers of literary fiction.",
+    },
+    criteria: synthesis.criteria.map((c: any) => ({
+      key: c.key,
+      score_0_10: c.final_score_0_10,
+      rationale: c.final_rationale,
+      evidence: c.evidence,
+      recommendations: c.recommendations,
+      recommendation_status: c.recommendation_status,
+      recommendation_status_rationale: c.recommendation_status_rationale,
+      technical_defects: c.technical_defects,
+    })),
   };
 }
 
@@ -421,11 +472,10 @@ describe("parsePass3Response", () => {
     }
   });
 
-  // ── Density repair: producer-side evidence-anchored synthesis ────────────────
+  // ── Opportunity Discovery Policy coverage tests ──────────────────────────────
 
-  it("density repair: score-4 criterion with no LLM recs gets evidence-anchored recs added", () => {
+  it("ODP: low-scoring criterion with no recs and no governed status is not backfilled", () => {
     const fixture = makePass3Fixture();
-    // Give one criterion a low score and strip its recommendations
     fixture.criteria[0] = {
       ...fixture.criteria[0],
       craft_score: 4,
@@ -433,154 +483,99 @@ describe("parsePass3Response", () => {
       final_score_0_10: 4,
       recommendations: [],
       evidence: [{ snippet: "The river moved through darkness, cold and indifferent to the village." }],
+      final_rationale: "The concept fails to establish a clear thematic premise by the first act, leaving the central dramatic question implicit.",
     };
 
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
 
-    const repaired = result.criteria[0];
-    // Template gate requires ≥2 meaningful recs for score ≤5
-    expect(repaired.recommendations.length).toBeGreaterThanOrEqual(2);
-    // Every synthesized rec must have a non-empty action and specific_fix
-    for (const rec of repaired.recommendations) {
-      expect(rec.action.trim().length).toBeGreaterThan(0);
-      expect(rec.specific_fix.trim().length).toBeGreaterThan(0);
-      expect(rec.anchor_snippet.trim().length).toBeGreaterThan(0);
-      expect(rec.source_pass).toBe(3);
-    }
+    // No deterministic backfill is performed to meet obsolete floors.
+    expect(result.criteria[0].recommendations).toHaveLength(0);
+
+    // The missing coverage surfaces as a template-completeness defect.
+    const gate = validateTemplateCompleteness(toEvaluationResultLike(result));
+    const missing = gate.violations.filter(
+      (v) => v.code === "OPPORTUNITY_COVERAGE_MISSING" && v.criterion === "concept",
+    );
+    expect(missing.length).toBeGreaterThan(0);
   });
 
-  it("density repair: score-6 criterion with no LLM recs gets at least 1 rec added", () => {
+  it("ODP: weak criterion with governed insufficient_evidence status passes without recs", () => {
     const fixture = makePass3Fixture();
-    fixture.criteria[1] = {
+    (fixture.criteria[1] as Record<string, unknown>) = {
       ...fixture.criteria[1],
       craft_score: 6,
       editorial_score: 6,
       final_score_0_10: 6,
       recommendations: [],
+      recommendation_status: "insufficient_evidence",
+      recommendation_status_rationale:
+        "The passage is too short to isolate a concrete narrative-drive flaw; the existing beat is functional.",
       evidence: [{ snippet: "Zimeon opened the door and stared at the empty room." }],
+      final_rationale:
+        "Narrative drive weakens in the second act because the stakes diffuse before the decision point.",
     };
 
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[1].recommendations).toHaveLength(0);
 
-    const repaired = result.criteria[1];
-    // Template gate requires ≥1 meaningful rec for score 6-7
-    expect(repaired.recommendations.length).toBeGreaterThanOrEqual(1);
-    expect(repaired.recommendations[0].anchor_snippet.trim().length).toBeGreaterThan(0);
-    expect(repaired.recommendations[0].source_pass).toBe(3);
+    const gate = validateTemplateCompleteness(toEvaluationResultLike(result));
+    const missing = gate.violations.filter(
+      (v) => v.code === "OPPORTUNITY_COVERAGE_MISSING" && v.criterion === "narrativeDrive",
+    );
+    expect(missing).toHaveLength(0);
   });
 
-  it("density repair: repaired recs pass the template completeness gate", () => {
-    const fixture = makePass3Fixture({
-      overall: {
-        overall_score_0_100: 65,
-        verdict: "revise",
-        one_sentence_pitch:
-          "A haunted family story turns grief, secrecy, and moral pressure into a literary horror premise with clear revision leverage.",
-        one_paragraph_pitch:
-          "Sister moves through a haunted family story where grief, secrecy, and moral pressure keep narrowing the choices available to her. The draft has strong atmosphere and emotional specificity, but pacing, thematic escalation, and closure need sharper consequence before the work can feel submission-ready.",
-        one_paragraph_summary:
-          "Sister has a strong atmospheric premise and emotionally legible family pressure, but pacing, thematic escalation, and closure need targeted revision before the report can call it submission-ready.",
-        top_3_strengths: [
-          "Atmospheric voice creates immediate unease and tonal authority.",
-          "Family pressure gives the central conflict emotional specificity.",
-          "Scene-level imagery provides strong anchors for revision work.",
-        ],
-        top_3_risks: [
-          "Pacing may flatten if transitions do not escalate consequence.",
-          "Theme may feel repetitive without clearer turn-by-turn development.",
-          "Closure may underdeliver if final consequences remain implicit.",
-        ],
-        submission_readiness: "nearly_ready",
-      },
-      enrichment: {
-        premise: "A haunted family story follows Sister through escalating grief, secrecy, and moral pressure.",
-        diagnosed_genre: "literary horror",
-        target_audience: "Adult readers of character-driven literary horror who value atmosphere and psychological tension.",
-      },
-    });
-    // Strip recs from two low-scoring criteria
-    fixture.criteria[0] = {
-      ...fixture.criteria[0],
-      craft_score: 4, editorial_score: 4, final_score_0_10: 4,
-      recommendations: [],
-      evidence: [{ snippet: "The old house stood against the hill, grey and insistent." }],
-      final_rationale: "The concept fails to establish a clear thematic premise by the first act, leaving the central dramatic question implicit.",
-    };
-    fixture.criteria[1] = {
-      ...fixture.criteria[1],
-      craft_score: 6, editorial_score: 6, final_score_0_10: 6,
-      recommendations: [],
-      evidence: [{ snippet: "He arrived late and alone, carrying nothing but the silence." }],
-      final_rationale: "Narrative drive weakens in the second act because the stakes diffuse before the decision point.",
-    };
-
-    const synthesis = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
-    synthesis.overall.verdict = "conditional" as unknown as typeof synthesis.overall.verdict;
-    const v2 = synthesisToEvaluationResultV2({
-      synthesis,
-      ids: {
-        evaluation_run_id: "density-repair-gate-test",
-        job_id: "00000000-0000-0000-0000-000000000001",
-        manuscript_id: 1,
-        user_id: "test-user",
-      },
-      manuscriptText: "The old house stood against the hill, grey and insistent. He arrived late and alone, carrying nothing but the silence.",
-      title: "Sister",
-      llmEnrichment: synthesis.enrichment,
-      scopeProfile: {
-        inputScale: "standard_chapter",
-        wordCount: 4899,
-        chunkCount: 1,
-        scorableCount: 1,
-        confidenceCapSummary: "HIGH",
-        scopePolicyVersion: "v1",
-      } as import("@/lib/evaluation/pipeline/submissionScope").SubmissionScopeProfile,
-    });
-    const gateResult = validateTemplateCompleteness(v2 as Parameters<typeof validateTemplateCompleteness>[0]);
-
-    // The density repair should satisfy the gate — no DENSITY_FLOOR_VIOLATION expected
-    const densityViolations = gateResult.violations.filter((v) => v.code === "DENSITY_FLOOR_VIOLATION");
-    expect(densityViolations).toHaveLength(0);
-  });
-
-  it("density repair: score-9 criterion gets minimum 1 growth-area rec", () => {
+  it("ODP: high-scoring criterion with zero recs is allowed and not backfilled", () => {
     const fixture = makePass3Fixture();
-    fixture.criteria[2] = {
+    (fixture.criteria[2] as Record<string, unknown>) = {
       ...fixture.criteria[2],
       craft_score: 9,
       editorial_score: 9,
       final_score_0_10: 9,
       recommendations: [],
+      recommendation_status: "no_recommendation_warranted",
+      recommendation_status_rationale:
+        "The character work is consistent and evidence-backed; no revision opportunity is visible.",
     };
 
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
 
-    // Score 9: density floor requires at least 1 growth-area recommendation
-    expect(result.criteria[2].recommendations.length).toBeGreaterThanOrEqual(1);
+    expect(result.criteria[2].recommendations).toHaveLength(0);
   });
 
-  it("density repair: criterion with no evidence anchors does not fabricate recommendations", () => {
+  it("ODP: one genuine recommendation is preserved; no duplicate is backfilled", () => {
     const fixture = makePass3Fixture();
-    fixture.criteria[3] = {
-      ...fixture.criteria[3],
-      craft_score: 4, editorial_score: 4, final_score_0_10: 4,
+    // Add a near-duplicate rec with a different wording but the same strategic lever.
+    const baseRec = fixture.criteria[3].recommendations[0];
+    fixture.criteria[3].recommendations = [
+      baseRec,
+      { ...baseRec, action: `Revisit the same ${fixture.criteria[3].key} beat to make the pressure more visible.` },
+    ];
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    const dialogueRecs = result.criteria[3].recommendations;
+
+    // Cross-criterion deduplication removes the duplicate; no deterministic
+    // backfill is injected to replace it.
+    expect(dialogueRecs.length).toBeLessThanOrEqual(1);
+  });
+
+  it("ODP: criterion with no evidence anchors does not receive fabricated recs", () => {
+    const fixture = makePass3Fixture();
+    fixture.criteria[4] = {
+      ...fixture.criteria[4],
+      craft_score: 4,
+      editorial_score: 4,
+      final_score_0_10: 4,
       recommendations: [],
       evidence: [],
-      final_rationale: "", // no rationale either
+      final_rationale: "",
     };
 
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
 
-    // Without any anchors the repair must produce nothing rather than fabricate
-    // (the defect will remain for the gate to report)
-    for (const rec of result.criteria[3].recommendations) {
-      // Any recs that do exist must still come from upstream pass1/pass2 backfill
-      expect(rec.anchor_snippet.trim().length).toBeGreaterThanOrEqual(0);
-    }
-    // No fabricated content: all recs must have source_pass set
-    for (const rec of result.criteria[3].recommendations) {
-      expect([1, 2, 3]).toContain(rec.source_pass);
-    }
+    // No evidence means nothing to anchor an opportunity to.
+    expect(result.criteria[4].recommendations).toHaveLength(0);
   });
 });
 
@@ -950,17 +945,13 @@ describe("consequence tracking contract", () => {
     expect(result.criteria[0].decision_points[0].length).toBeGreaterThan(0);
   });
 
-  // ── PR #1078 Regression: governance-suppressed criteria must still get density repair ──
-  // Root cause of TEMPLATE_COMPLETENESS_GATE_FAILED for Sister + River evaluations:
-  // narrativeClosure scored 7/10 but had 0 meaningful recommendations after governance
-  // suppression removed LLM recs. The final fallback was skipping these criteria.
+  // ── ODP regression: governance-suppressed criteria are not backfilled ─────────
+  // Under the canonical Opportunity Discovery Policy, a suppressed criterion may
+  // legitimately report zero recommendations when the LLM cannot find evidence.
+  // No deterministic density backfill is performed.
 
-  it("governance-suppressed narrativeClosure (score=7) still gets backfilled recommendations", () => {
+  it("ODP: governance-suppressed narrativeClosure (score=7) does not get backfilled", () => {
     const fixture = makePass3Fixture();
-    // Find narrativeClosure and set up the failure scenario:
-    // - score 7 (density floor requires 1 meaningful rec)
-    // - 0 recommendations (LLM produced nothing)
-    // - governance-suppression technical defect present
     const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
     (fixture.criteria[ncIdx] as Record<string, unknown>) = {
       ...fixture.criteria[ncIdx],
@@ -978,13 +969,10 @@ describe("consequence tracking contract", () => {
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
     const nc = result.criteria.find((c) => c.key === "narrativeClosure");
     expect(nc).toBeDefined();
-
-    // Must have at least 1 meaningful recommendation despite governance suppression
-    const meaningfulRecs = nc!.recommendations.filter((r) => isMeaningfulRecommendation(r));
-    expect(meaningfulRecs.length).toBeGreaterThanOrEqual(1);
+    expect(nc!.recommendations).toHaveLength(0);
   });
 
-  it("governance-suppressed narrativeClosure passes template completeness gate after repair", () => {
+  it("ODP: narrativeClosure passes template completeness gate with governed status", () => {
     const fixture = makePass3Fixture({
       enrichment: {
         premise: "A family story about loss and memory.",
@@ -993,12 +981,14 @@ describe("consequence tracking contract", () => {
         target_audience: "Adult readers of literary fiction exploring family dynamics and grief.",
       },
     });
-    // Set up governance-suppressed narrativeClosure with 0 recs
     const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
     (fixture.criteria[ncIdx] as Record<string, unknown>) = {
       ...fixture.criteria[ncIdx],
       final_score_0_10: 7,
       recommendations: [],
+      recommendation_status: "gate_suppressed_no_safe_recommendation",
+      recommendation_status_rationale:
+        "The closure beats are sparse and the available evidence would require fabricating a consequence that is not on the page.",
       technical_defects: [
         {
           code: "DIAGNOSTIC_SPINE_PROMISE_MISMATCH",
@@ -1010,24 +1000,16 @@ describe("consequence tracking contract", () => {
 
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
     result.overall.verdict = "conditional" as unknown as typeof result.overall.verdict;
-    const v2 = synthesisToEvaluationResultV2({
-      synthesis: result,
-      ids: { evaluation_run_id: "test", job_id: "test", manuscript_id: 1, user_id: "test" },
-      sourceText: "The morning was damp and overcast, the river restless in its banks.",
-      manuscriptText: "The morning was damp and overcast, the river restless in its banks.",
-      llmEnrichment: result.enrichment,
-    });
 
-    const gateResult = validateTemplateCompleteness(v2);
-    const densityViolations = gateResult.violations.filter(
-      (v) => v.code === "DENSITY_FLOOR_VIOLATION" && v.criterion === "narrativeClosure",
+    const gateResult = validateTemplateCompleteness(toEvaluationResultLike(result));
+    const coverageViolations = gateResult.violations.filter(
+      (v) => v.code === "OPPORTUNITY_COVERAGE_MISSING" && v.criterion === "narrativeClosure",
     );
-    expect(densityViolations).toHaveLength(0);
+    expect(coverageViolations).toHaveLength(0);
   });
 
-  it("zero-rec narrativeClosure (no governance defects) also gets backfilled", () => {
+  it("ODP: zero-rec narrativeClosure (score=7) without status emits coverage defect", () => {
     const fixture = makePass3Fixture();
-    // Score 7 with 0 recs and NO governance defects — pure LLM omission
     const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
     fixture.criteria[ncIdx] = {
       ...fixture.criteria[ncIdx],
@@ -1038,8 +1020,12 @@ describe("consequence tracking contract", () => {
     const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
     const nc = result.criteria.find((c) => c.key === "narrativeClosure");
     expect(nc).toBeDefined();
+    expect(nc!.recommendations).toHaveLength(0);
 
-    const meaningfulRecs = nc!.recommendations.filter((r) => isMeaningfulRecommendation(r));
-    expect(meaningfulRecs.length).toBeGreaterThanOrEqual(1);
+    const gate = validateTemplateCompleteness(toEvaluationResultLike(result));
+    const coverageViolation = gate.violations.find(
+      (v) => v.code === "OPPORTUNITY_COVERAGE_MISSING" && v.criterion === "narrativeClosure",
+    );
+    expect(coverageViolation).toBeDefined();
   });
 });

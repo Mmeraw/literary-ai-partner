@@ -17,17 +17,15 @@ import { runPass1 as defaultRunPass1 } from "./runPass1";
 import { runPass2 as defaultRunPass2 } from "./runPass2";
 import {
   runPass3Synthesis as defaultRunPass3,
-  buildLastResortRecommendations,
   buildCriterionAwareMechanismDefault,
   buildCriterionAwareSpecificFixDefault,
   buildCriterionAwareReaderEffectDefault,
   reconcileSummaryScore,
 } from "./runPass3Synthesis";
-import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import { runPass12HandoffGate, shouldPassHandoffGate } from "./pass12HandoffGate";
 import { validatePass1OutputCompleteness, validatePass2OutputCompleteness, validatePass3OutputCompleteness } from "./passOutputCompletenessGate";
 import { recordProviderTelemetry, ProviderTelemetryEntry } from "./providerTelemetry";
-import { enforcePass2LexicalIndependence, PASS2_INDEPENDENCE_FAIL_THRESHOLD } from "./pass2IndependenceGuard";
+import { enforcePass2LexicalIndependence } from "./pass2IndependenceGuard";
 import { checkPass3EvidenceFidelity } from "./pass3EvidenceFidelityCheck";
 import { runCriteriaEvidenceGroundingGate } from "./evidenceGroundingGate";
 // runPass3bLongform runtime import removed — now called from /api/workers/process-dream (issue #543)
@@ -86,7 +84,6 @@ import { summarizePromptCoverage, getDefaultPassInputCharBudget } from "./prompt
 import { getEvalPassTimeoutMs } from "@/lib/evaluation/config";
 import {
   buildCriteriaPlanForScale,
-  scopePolicy,
 } from "@/lib/evaluation/signal/scopePolicy";
 import {
   buildCoverageLimitedSummary,
@@ -887,46 +884,6 @@ export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
       criteria,
     },
     removedCount,
-  };
-}
-
-/**
- * Enforce template density floor after pre-gate deduplication.
- *
- * dedupeRecommendationsPreGate() can remove duplicate action text across criteria,
- * potentially leaving a criterion below the density floor even though synthesis repair
- * already backfilled it. This safety net re-injects last-resort recs for any criterion
- * that fell below the floor after dedupe.
- */
-const POST_DEDUPE_DENSITY_FLOOR: Record<string, number> = { "<=5": 2, "6-7": 1, "8": 2, "9": 2, "10": 1 };
-
-function enforceTemplateDensityAfterPreGateDedupe(synthesis: SynthesisOutput): {
-  synthesis: SynthesisOutput;
-  restoredCount: number;
-} {
-  let restoredCount = 0;
-  const criteria = synthesis.criteria.map((criterion) => {
-    if (criterion.final_score_0_10 == null) return criterion;
-    const bucket = criterion.final_score_0_10 <= 5 ? "<=5" : criterion.final_score_0_10 <= 7 ? "6-7" : criterion.final_score_0_10 === 8 ? "8" : criterion.final_score_0_10 === 9 ? "9" : "10";
-    const minRecs = POST_DEDUPE_DENSITY_FLOOR[bucket] ?? 1;
-    if (minRecs === 0) return criterion;
-
-    const meaningful = criterion.recommendations.filter((r) => isMeaningfulRecommendation(r));
-    if (meaningful.length >= minRecs) return criterion;
-
-    const needed = minRecs - meaningful.length;
-    const lastResort = buildLastResortRecommendations(criterion.key, criterion.final_score_0_10, needed);
-    restoredCount += lastResort.length;
-
-    return {
-      ...criterion,
-      recommendations: [...criterion.recommendations, ...lastResort],
-    };
-  });
-
-  return {
-    synthesis: { ...synthesis, criteria },
-    restoredCount,
   };
 }
 
@@ -2433,18 +2390,6 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     });
   }
 
-  // Post-dedupe density enforcement: dedupe may strip the only meaningful rec
-  // for a criterion, leaving it below the template gate density floor.
-  const densityResult = enforceTemplateDensityAfterPreGateDedupe(pass3Output);
-  pass3Output = densityResult.synthesis;
-  if (densityResult.restoredCount > 0) {
-    console.log("[Pipeline][PostDedupe] density fallback restored", {
-      manuscript_id: opts.manuscriptId ?? null,
-      title: opts.title,
-      restored_recommendations: densityResult.restoredCount,
-    });
-  }
-
   // Editorial specificity repair: backfill mechanism/specific_fix/reader_effect
   // for anchored recommendations that the LLM left hollow. This is the SIPOC
   // mistake-proofing step between Pass 3 output and Quality Gate.
@@ -3108,6 +3053,8 @@ export function synthesisToEvaluationResultV2(
             revision_granularity: r.revision_granularity || undefined,
           })),
           technical_defects: c.technical_defects,
+          recommendation_status: c.recommendation_status,
+          recommendation_status_rationale: c.recommendation_status_rationale,
         },
         {
           criteriaPlan: resolvedCriteriaPlan,

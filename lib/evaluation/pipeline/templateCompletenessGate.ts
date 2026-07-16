@@ -21,6 +21,9 @@
 
 import { REVISIONGRADE_SUPPORT_EMAIL } from '@/lib/evaluation/hardStopGovernance';
 import { CRITERIA_KEYS } from '@/schemas/criteria-keys';
+import {
+  hasGovernedOpportunityCoverage,
+} from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 
 export type TemplateViolation = {
   code: string;
@@ -57,6 +60,8 @@ type CriterionLike = {
   recommendations?: unknown[];
   confidence_level?: string;
   technical_defects?: { code: string; author_facing_reason: string }[];
+  recommendation_status?: unknown;
+  recommendation_status_rationale?: unknown;
 };
 
 type EvaluationResultLike = {
@@ -88,14 +93,6 @@ type EvaluationResultLike = {
   };
 };
 
-const DENSITY_FLOOR: Record<string, number> = {
-  '<=5': 2,
-  '6-7': 1,
-  '8': 2,
-  '9': 2,
-  '10': 1,
-};
-
 const FORMAT_WORDS = new Set([
   'book',
   'chapter',
@@ -115,14 +112,6 @@ const FORMAT_WORDS = new Set([
 const VALID_CONFIDENCE_LEVELS = new Set(['high', 'moderate', 'medium', 'low']);
 const PLACEHOLDER_RE = /\b(?:n\/?a|none|not specified|tbd|todo|placeholder|example|lorem ipsum|\[location|\[operation|\[priority|\[severity|\[confidence)\b/i;
 const GENERIC_RE = /\b(?:improve|strengthen|clarify|develop|enhance|expand|tighten|revise)\s+(?:the\s+)?(?:writing|story|manuscript|novel|chapter|section|piece)\b/i;
-
-function getDensityBucket(score: number): string | null {
-  if (score <= 5) return '<=5'; // <=5: minimum 2
-  if (score <= 7) return '6-7'; // 6-7: minimum 1
-  if (score === 8) return '8';  // 8: minimum 2 (actionable improvement)
-  if (score === 9) return '9';  // 9: minimum 2 (craft-elevation)
-  return '10';                  // 10: minimum 1 (mastery-level refinement)
-}
 
 function nonEmptyText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -360,31 +349,24 @@ export function validateTemplateCompleteness(
     }
 
     if (hasNumericScore) {
-      // Skip density floor for criteria whose recommendations were governance-suppressed
-      // (e.g., removed by the Diagnostic Spine Recommendation Guard because they
-      // conflicted with the manuscript's primary reader promise or central argument).
-      const isGovernanceSuppressed = (c.technical_defects ?? []).some((defect) =>
-        defect.code === 'DIAGNOSTIC_SPINE_PROMISE_MISMATCH' ||
-        defect.code === 'DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH' ||
-        defect.author_facing_reason.includes('Recommendation guard suppressed unsafe') ||
-        defect.author_facing_reason.includes('recommendations were suppressed because they contradicted'),
-      );
+      const recCount = countMeaningfulRecommendations(c.recommendations);
+      const governed = hasGovernedOpportunityCoverage({
+        score,
+        meaningfulOpportunityCount: recCount,
+        recommendationStatus: c.recommendation_status,
+        recommendationStatusRationale: c.recommendation_status_rationale,
+      });
 
-      const bucket = getDensityBucket(score);
-      if (bucket && !isGovernanceSuppressed) {
-        const minRecs = DENSITY_FLOOR[bucket] ?? 2;
-        const recCount = countMeaningfulRecommendations(c.recommendations);
-        if (recCount < minRecs) {
-          pushViolation(violations, {
-            code: 'DENSITY_FLOOR_VIOLATION',
-            criterion: c.key,
-            field_path: `criteria.${c.key}.recommendations`,
-            invariant_id: 'criterion_recommendation_density_floor',
-            message: `Criterion "${c.key}" scored ${score}/10 — requires ${minRecs} meaningful recommendations, has ${recCount}.`,
-            severity: 'critical',
-          });
-          hasAnyDensityViolation = true;
-        }
+      if (!governed) {
+        pushViolation(violations, {
+          code: 'OPPORTUNITY_COVERAGE_MISSING',
+          criterion: c.key,
+          field_path: `criteria.${c.key}.recommendations`,
+          invariant_id: 'criterion_opportunity_coverage_governed',
+          message: `Criterion "${c.key}" scored ${score}/10 and has ${recCount} meaningful recommendation(s) without a governed status rationale. Weak criteria must either provide opportunities or an explicit insufficient_evidence / gate_suppressed status.`,
+          severity: 'critical',
+        });
+        hasAnyDensityViolation = true;
       } else if (Array.isArray(c.recommendations)) {
         const rawCount = c.recommendations.length;
         const meaningfulCount = countMeaningfulRecommendations(c.recommendations);
@@ -403,7 +385,7 @@ export function validateTemplateCompleteness(
   }
 
   const hasLowScoring = result.criteria.some(
-    (c) => typeof c.score_0_10 === 'number' && c.score_0_10 <= 8,
+    (c) => typeof c.score_0_10 === 'number' && c.score_0_10 <= 7,
   );
   if (hasLowScoring) {
     const quickWins = countMeaningfulRecommendations(result.recommendations?.quick_wins);
@@ -414,7 +396,7 @@ export function validateTemplateCompleteness(
         field_path: 'recommendations',
         invariant_id: 'top_recommendations_present_for_low_scores',
         message:
-          'Criteria scoring ≤8 exist but no meaningful quick_wins or strategic_revisions were generated.',
+          'Criteria scoring ≤7 exist but no meaningful quick_wins or strategic_revisions were generated.',
         severity: hasAnyDensityViolation ? 'critical' : 'warning',
       });
     }

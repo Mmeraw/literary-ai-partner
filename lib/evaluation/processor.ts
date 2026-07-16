@@ -59,10 +59,8 @@
 
 import { createHash, randomUUID } from 'crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
-import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
 import { persistEvaluationResultV2 } from './persistEvaluationResultV2';
 import {
@@ -88,7 +86,6 @@ import {
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
 import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
 import { runSummaryCriterionConsistencyGate } from '@/lib/evaluation/pipeline/summaryCriterionConsistencyGate';
-import { lookupKicksForStage } from '@/lib/evaluation/fipocRegistry';
 import { buildPostQgEffectiveSnapshotV1 } from '@/lib/evaluation/postQgEffectiveSnapshot';
 import { getFailureRecoveryDefinition } from '@/lib/governance/failureRecoveryPolicy';
 import {
@@ -231,19 +228,14 @@ import {
   type PipelineSkipResult,
 } from '@/lib/config/pipelineGuard';
 import { pipelineLog } from '@/lib/evaluation/pipeline/pipelineLogger';
-import { createRevisionSession } from '@/lib/revision/sessions';
-import { executeWaveLayer } from '@/lib/pipeline/wave-execution-layer';
-import { executeWaveModules } from '@/lib/revision/wave-executor';
 import {
   getPhaseStartTimestamps,
-  getPhaseCompleteTimestamps,
   buildWritablePatch,
-  FORBIDDEN_PATCH_COLUMNS,
   type PhaseName,
 } from '@/lib/evaluation/phaseTimestamps';
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
-import { normalizeEnglishVariant, resolvedEnglishVariantLabel } from '@/lib/evaluation/englishVariant';
+import { normalizeEnglishVariant } from '@/lib/evaluation/englishVariant';
 import {
   buildAuthorExposureCertificationV1FromManifest,
   buildReportRenderManifestV1,
@@ -1967,7 +1959,6 @@ const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
   // before this set is ever consulted. Entry was unreachable dead code.
   'QG_MISSING_RATIONALE',
   'QG_MISSING_EVIDENCE',
-  'QG_DENSITY_FLOOR_VIOLATION',
   'QG_ARTIFACT_GATE_FAIL',
   'QG_PITCH_IDENTITY_DUPLICATE',
   'QG_EVIDENCE_FABRICATION',
@@ -7400,16 +7391,7 @@ export async function processEvaluationJob(
 
         // Count author-facing (non-quarantined) recommendations
         const allRecs = finalCriteria.flatMap((c) => c.recommendations ?? []);
-        const authorFacingRecs = allRecs.filter((r) => !r.quarantined);
         const quarantinedRecs = allRecs.filter((r) => r.quarantined);
-
-        // QUALITY_ZERO_AUTHOR_RECOMMENDATIONS
-        if (allRecs.length === 0 || authorFacingRecs.length === 0) {
-          qualityViolations.push({
-            code: 'QUALITY_ZERO_AUTHOR_RECOMMENDATIONS',
-            detail: `total_recs=${allRecs.length}, author_facing=${authorFacingRecs.length} — no usable recommendations in deliverable`,
-          });
-        }
 
         // QUALITY_ALL_RECS_QUARANTINED
         if (allRecs.length > 0 && quarantinedRecs.length === allRecs.length) {
@@ -7419,27 +7401,17 @@ export async function processEvaluationJob(
           });
         }
 
-        // QUALITY_DENSITY_UNMET: enforce actual density floor per criterion
-        //   score ≤ 8 → at least 1 non-quarantined rec
-        //   score ≤ 5 → at least 2 non-quarantined recs
-        const densityFailures: Array<{ key: string; score: number; required: number; actual: number }> = [];
-        for (const c of finalCriteria) {
-          const score = typeof c.score === 'number' ? c.score : 10;
-          if (score > 8) continue; // no density requirement for high-scoring criteria
-          const nonQuarantinedRecs = (c.recommendations ?? []).filter((r) => !r.quarantined).length;
-          const required = score <= 5 ? 2 : 1;
-          if (nonQuarantinedRecs < required) {
-            densityFailures.push({ key: c.key ?? 'unknown', score, required, actual: nonQuarantinedRecs });
+        // ODP telemetry: zero total recommendations is not a defect when every criterion
+        // is already strong. Density floors are replaced by evidence-and-length-aware policy.
+        if (allRecs.length === 0) {
+          const lowScoringCriteria = finalCriteria.filter(
+            (c) => typeof c.score === 'number' && c.score <= 7,
+          );
+          if (lowScoringCriteria.length > 0) {
+            console.warn(
+              `[Processor][WAVE] Zero recommendations in deliverable but ${lowScoringCriteria.length} criteria scored ≤7 — template completeness gate should have caught this.`,
+            );
           }
-        }
-        if (densityFailures.length > 0) {
-          const failSummary = densityFailures
-            .map((f) => `${f.key}(score=${f.score}, need=${f.required}, have=${f.actual})`)
-            .join(', ');
-          qualityViolations.push({
-            code: 'QUALITY_DENSITY_UNMET',
-            detail: `${densityFailures.length} criteria below density floor: ${failSummary}`,
-          });
         }
 
         // NOTE: Gate 15 blocking is enforced pre-RPC (before persistEvaluationResultV2).

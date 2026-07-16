@@ -323,7 +323,8 @@ function templateViolationFieldPath(code: string, criterion?: string | null): st
       return criterion ? `criteria.${criterion}.evidence` : 'criteria.evidence';
     case 'INVALID_CONFIDENCE_LEVEL':
       return criterion ? `criteria.${criterion}.confidence_level` : 'criteria.confidence_level';
-    case 'DENSITY_FLOOR_VIOLATION':
+    case 'OPPORTUNITY_COVERAGE_MISSING':
+    case 'RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED':
     case 'INVALID_HIGH_SCORE_RECOMMENDATIONS':
       return criterion ? `criteria.${criterion}.recommendations` : 'criteria.recommendations';
     case 'MISSING_TOP_RECOMMENDATIONS':
@@ -353,8 +354,9 @@ function templateViolationInvariantId(code: string): string {
       return 'criterion_evidence_present';
     case 'INVALID_CONFIDENCE_LEVEL':
       return 'criterion_confidence_level_valid';
-    case 'DENSITY_FLOOR_VIOLATION':
-      return 'criterion_recommendation_density_floor';
+    case 'OPPORTUNITY_COVERAGE_MISSING':
+    case 'RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED':
+      return 'criterion_opportunity_coverage_governed';
     case 'INVALID_HIGH_SCORE_RECOMMENDATIONS':
       return 'criterion_recommendation_content_valid';
     case 'MISSING_TOP_RECOMMENDATIONS':

@@ -203,6 +203,11 @@ export function hasGovernedOpportunityCoverage(args: {
   if (args.meaningfulOpportunityCount > 0) return true;
   if (args.score === null) return isGovernedRecommendationStatus(args.recommendationStatus);
 
+  // Scores 8+ may legitimately produce zero evidence-backed recommendations.
+  // The policy still prefers explicit status metadata, but the absence of
+  // opportunities on a strong criterion is not a pipeline defect.
+  if (args.score >= 8) return true;
+
   const statusValid = isGovernedRecommendationStatus(args.recommendationStatus);
   const rationaleValid = typeof args.recommendationStatusRationale === 'string'
     && args.recommendationStatusRationale.trim().length >= 20;
