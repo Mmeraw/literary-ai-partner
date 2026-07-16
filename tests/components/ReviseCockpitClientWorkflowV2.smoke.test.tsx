@@ -4,6 +4,17 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), refresh: jest.fn(), back: jest.fn(), forward: jest.fn(), prefetch: jest.fn() }),
+  usePathname: () => '/workbench-v2',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+jest.mock('next/link', () => ({
+  __esModule: true,
+  default: ({ children, ...props }: any) => <a {...props}>{children}</a>,
+}));
+
 import ReviseCockpitClientWorkflowV2 from '@/components/revision/ReviseCockpitClientWorkflowV2';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
 

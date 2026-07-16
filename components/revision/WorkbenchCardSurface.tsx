@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@/lib/utils';
 import CopyPasteRewriteCard from './CopyPasteRewriteCard';
 import StrategyCard from './StrategyCard';
 import WithheldSummary from './WithheldSummary';
@@ -16,6 +17,8 @@ export type WorkbenchCardSurfaceActions = {
   onReject?: () => void;
   onRequestReanalysis?: () => void;
 };
+
+const focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--rg-workbench-gold)]';
 
 export default function WorkbenchCardSurface({
   viewModel,
@@ -43,19 +46,21 @@ export default function WorkbenchCardSurface({
       return (
         <div className="space-y-4" data-testid="revision-strategy-surface">
           <StrategyCard viewModel={viewModel} />
-          <div className="flex flex-wrap gap-2 border-t border-stone-800 pt-4">
-            <button type="button" onClick={actions.onCustomPlan} className="rounded border border-stone-700 px-3 py-2 text-xs text-stone-300">
-              Custom Plan / Notes
-            </button>
-            <button type="button" onClick={actions.onDefer} className="rounded border border-stone-700 px-3 py-2 text-xs text-stone-300">
-              Defer
-            </button>
-            <button type="button" onClick={actions.onRequestReanalysis} className="rounded border border-amber-800/70 px-3 py-2 text-xs text-amber-200">
-              Request Re-analysis
-            </button>
-            <button type="button" onClick={actions.onReject} className="rounded border border-red-900/70 px-3 py-2 text-xs text-red-300">
-              Reject
-            </button>
+          <div className="sticky bottom-0 mt-8 border-t border-[var(--rg-workbench-border)] bg-[color:var(--rg-workbench-bg)]/95 py-4 backdrop-blur">
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={actions.onCustomPlan} className={cn('h-10 rounded-md border border-[var(--rg-workbench-border)] px-4 text-sm text-[var(--rg-workbench-text-secondary)] transition hover:border-[var(--rg-workbench-border-strong)]', focusRing)}>
+                Custom Plan / Notes
+              </button>
+              <button type="button" onClick={actions.onDefer} className={cn('h-10 rounded-md border border-[var(--rg-workbench-border)] px-4 text-sm text-[var(--rg-workbench-text-secondary)] transition hover:border-[var(--rg-workbench-border-strong)]', focusRing)}>
+                Defer
+              </button>
+              <button type="button" onClick={actions.onRequestReanalysis} className={cn('h-10 rounded-md border border-[#7b4b1f] px-4 text-sm text-[var(--rg-workbench-gold)] transition hover:border-[var(--rg-workbench-gold)]', focusRing)}>
+                Request Re-analysis
+              </button>
+              <button type="button" onClick={actions.onReject} className={cn('h-10 rounded-md border border-[#8f4141] px-4 text-sm text-[var(--rg-workbench-danger)] transition hover:border-[#c06a6a]', focusRing)}>
+                Reject
+              </button>
+            </div>
           </div>
         </div>
       );

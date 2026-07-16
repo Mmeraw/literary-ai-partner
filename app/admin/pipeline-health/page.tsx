@@ -686,7 +686,7 @@ export default function PipelineHealthPage() {
                             {job.errorCode}
                           </span>
                         ) : (
-                          <span className="text-stone-500 text-xs">—</span>
+                          <span className="text-rg-dim text-xs">—</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-xs text-stone-200">
@@ -727,7 +727,7 @@ export default function PipelineHealthPage() {
                           <span className="text-gray-300">|</span>
                           <span title="pass_diag">{artifactDot(job.hasPassDiag)}</span>
                         </div>
-                        <div className="text-stone-400 text-xs mt-0.5">v2|drm|diag</div>
+                        <div className="text-rg-cream2 text-xs mt-0.5">v2|drm|diag</div>
                       </td>
                     </tr>
                   );

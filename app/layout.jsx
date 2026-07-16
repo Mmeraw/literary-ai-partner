@@ -4,6 +4,7 @@ import "./globals.css";
 import "./mobile-responsive-guard.css";
 import "./button-contrast-guard.css";
 import "./report-surface-polish.css";
+import "./revise-workbench-tokens.css";
 import HeaderNav from "../components/HeaderNav";
 import SiteFooter from "../components/SiteFooter";
 import ReportColorSystemHydrator from "../components/reports/ReportColorSystemHydrator";
