@@ -796,15 +796,19 @@ export interface ECGProseAdapterTelemetry {
   unregisteredPaths: string[];
 }
 
-function buildLegacyEnforcedProseFields(input: ECGInput): ProseField[] {
+function buildLegacyEnforcedProseFields(
+  input: ECGInput,
+): { fields: ProseField[]; unregisteredPaths: string[] } {
   const fields: ProseField[] = [];
+  const unregisteredPaths: string[] = [];
 
   const pushField = (path: string, value: string | undefined | null): void => {
     const trimmed = (value ?? '').trim();
     if (!trimmed) return;
     const contract = resolveAuthorFacingFieldContract(path);
     if (!contract) {
-      throw new UnregisteredAuthorFacingPathError([path]);
+      unregisteredPaths.push(path);
+      return;
     }
     fields.push({ path, value: trimmed, contract });
   };
@@ -855,7 +859,7 @@ function buildLegacyEnforcedProseFields(input: ECGInput): ProseField[] {
     ),
   );
 
-  return fields;
+  return { fields, unregisteredPaths };
 }
 
 function legacyLocalPremiseViolations(
@@ -917,8 +921,10 @@ export function checkAuthorFacingProse(
   const unregisteredPaths: string[] = [];
   const unexpectedAuthorityViolations: AuthorFacingIntegrityViolation[] = [];
 
-  const fields = buildLegacyEnforcedProseFields(input);
+  const { fields, unregisteredPaths: projectionUnregistered } =
+    buildLegacyEnforcedProseFields(input);
   const dispositions: CompatibilityDisposition[] = [];
+  unregisteredPaths.push(...projectionUnregistered);
 
   for (const field of fields) {
     centralMappedPaths.push(field.path);

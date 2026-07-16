@@ -48,6 +48,17 @@ describe('authorFacingProseAuthority', () => {
     );
   });
 
+  it('uses the resolved registry contract when fieldKind is omitted', () => {
+    const violations = inspectAuthorFacingProse({
+      text: 'A pitch with no punctuation',
+      fieldPath: 'evaluation_result_v2.overview.one_sentence_pitch',
+    });
+
+    expect(violations.map(({ code }) => code)).toContain(
+      'AUTHOR_TEXT_MIDSENTENCE_TERMINATION',
+    );
+  });
+
   it('reports registry gaps instead of silently guessing ownership', () => {
     const artifact = {
       overview: {

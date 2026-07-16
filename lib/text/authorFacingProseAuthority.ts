@@ -170,11 +170,16 @@ export function inspectAuthorFacingProse({
   fieldPath,
   fieldKind,
 }: InspectAuthorFacingProseInput): AuthorFacingIntegrityViolation[] {
-  if (!fieldKind && resolveAuthorFacingFieldContract(fieldPath) === null) {
+  const contract = resolveAuthorFacingFieldContract(fieldPath);
+
+  if (!fieldKind && contract === null) {
     throw new UnregisteredAuthorFacingPathError([fieldPath]);
   }
+
+  const effectiveKind = fieldKind ?? contract!.kind;
+
   return inspectString(fieldPath, text, {
-    forceCompleteSentence: fieldKindRequiresTerminalPunctuation(fieldKind),
+    forceCompleteSentence: fieldKindRequiresTerminalPunctuation(effectiveKind),
   });
 }
 
