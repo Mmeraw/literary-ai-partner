@@ -244,6 +244,7 @@ describe("endsWithDanglingConnective", () => {
 
   it("does not flag hyphenated compounds that end with a dangling-word token", () => {
     expect(endsWithDanglingConnective("weakening reader buy-in")).toBe(false);
+    expect(endsWithDanglingConnective("Weakening reader buy-in")).toBe(false);
     expect(endsWithDanglingConnective("The reader buys in")).toBe(true);
     expect(endsWithDanglingConnective("a for-profit choice")).toBe(false);
   });

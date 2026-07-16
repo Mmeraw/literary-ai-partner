@@ -2,7 +2,7 @@ import type { EvaluationCriterionV2, EvaluationResultV2 } from '@/schemas/evalua
 import type { ShortFormEvidenceGateResult } from './shortFormEvidenceGate';
 import {
   collapseAdjacentDuplicateWords,
-  endsWithDanglingConnective,
+  endsMidSentence,
   capitalizeFirstAlpha,
 } from '@/lib/text/authorFacingProse';
 
@@ -169,13 +169,14 @@ export function runShortFormFinalSanityCheck(input: {
   // ── Copy-integrity backstop (A4 + global mid-sentence invariant) ──────────
   // The trivial cases are auto-repaired upstream by the shared helpers at the
   // normalizeArtifact pre-stage. This referee blocks anything that survived to
-  // persist-time: prose ending mid-sentence (dangling connective/comma/colon/
-  // open paren), a lowercase opening, or an accidental adjacent-duplicate word.
+  // persist-time: prose ending mid-sentence (missing terminal punctuation,
+  // dangling connective/comma/colon/open paren), a lowercase opening, or an
+  // accidental adjacent-duplicate word.
   for (const { field, text } of collectDiagnosticSegments(input.evaluationResult)) {
     const trimmed = text.trim();
     if (!trimmed) continue;
     const sample = trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
-    if (endsWithDanglingConnective(trimmed)) {
+    if (endsMidSentence(trimmed)) {
       addViolation('SHORT_FORM_MIDSENTENCE_TERMINATION', field, sample);
     }
     // Lowercase opening (first alpha char is lowercase).

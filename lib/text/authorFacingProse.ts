@@ -316,7 +316,7 @@ const DANGLING_TAIL_WORDS = [
 ];
 const DANGLING_TAIL_WORDS_SET = new Set(DANGLING_TAIL_WORDS.map((w) => w.toLowerCase()));
 // Punctuation that is unambiguously incomplete at the end of author-facing prose.
-const DANGLING_TAIL_PUNCTUATION = /[, :;\u2014(\[]\s*$/iu;
+const DANGLING_TAIL_PUNCTUATION = /[,:;\u2014(\[]\s*$/u;
 
 function endsWithDanglingWord(text: string): boolean {
   const lastToken = text.trim().split(/\s+/).pop();

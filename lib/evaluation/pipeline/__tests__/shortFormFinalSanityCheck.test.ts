@@ -108,8 +108,8 @@ describe("runShortFormFinalSanityCheck — copy-integrity backstop", () => {
     );
   });
 
-  it("does not block hyphenated words that end with a dangling-word token", () => {
-    const result = buildResult([
+  it("blocks punctuationless hyphenated words and passes when terminal punctuation is present", () => {
+    const incomplete = buildResult([
       {
         rationale: CLEAN_RATIONALE,
         recommendations: [
@@ -119,9 +119,31 @@ describe("runShortFormFinalSanityCheck — copy-integrity backstop", () => {
         ],
       },
     ]);
-    const out = runShortFormFinalSanityCheck({ wordCount: 4200, evaluationResult: result });
-    expect(out.codes).not.toContain("SHORT_FORM_MIDSENTENCE_TERMINATION");
-    expect(out.verdict).toBe("PASS");
+    const outIncomplete = runShortFormFinalSanityCheck({ wordCount: 4200, evaluationResult: incomplete });
+    expect(outIncomplete.codes).toContain("SHORT_FORM_MIDSENTENCE_TERMINATION");
+    expect(outIncomplete.verdict).toBe("BLOCK");
+    expect(outIncomplete.violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SHORT_FORM_MIDSENTENCE_TERMINATION",
+          field: "criteria[0].recommendations[0].mechanism",
+        }),
+      ]),
+    );
+
+    const complete = buildResult([
+      {
+        rationale: CLEAN_RATIONALE,
+        recommendations: [
+          {
+            mechanism: "Weakening reader buy-in.",
+          },
+        ],
+      },
+    ]);
+    const outComplete = runShortFormFinalSanityCheck({ wordCount: 4200, evaluationResult: complete });
+    expect(outComplete.codes).not.toContain("SHORT_FORM_MIDSENTENCE_TERMINATION");
+    expect(outComplete.verdict).toBe("PASS");
   });
 
   it("passes a clean short-form report with no copy defects", () => {
