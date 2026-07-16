@@ -1,5 +1,5 @@
-import styles from "./cockpit.module.css";
+import type { ReactNode } from "react";
 
-export default function Layout(props: any) {
-  return <div className={styles.cockpit}>{props.children}</div>;
+export default function WorkbenchV2Layout(props: { children: ReactNode }) {
+  return <>{props.children}</>;
 }

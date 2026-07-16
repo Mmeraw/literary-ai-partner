@@ -1,0 +1,69 @@
+/* Revise Workbench semantic dark-surface design tokens.
+ *
+ * These variables/classes describe intent (surface, border, text emphasis)
+ * instead of overriding generic Tailwind utilities. They are only consumed by
+ * workbench components so the dark workbench stays readable without leaking
+ * into light-themed report/evaluate pages.
+ */
+
+:root {
+  --rg-workbench-bg: #0d0a05;
+  --rg-workbench-surface: #151109;
+  --rg-workbench-surface-raised: #1b160d;
+  --rg-workbench-surface-selected: #241809;
+
+  --rg-workbench-border: #3a3021;
+  --rg-workbench-border-strong: #5b4728;
+
+  --rg-workbench-text-primary: #f4eee4;
+  --rg-workbench-text-secondary: #d8cbb5;
+  --rg-workbench-text-muted: #b6a890;
+  --rg-workbench-text-faint: #948671;
+
+  --rg-workbench-gold: #d7b663;
+  --rg-workbench-gold-strong: #edcd72;
+
+  --rg-workbench-success: #a7d9b1;
+  --rg-workbench-warning: #e7c071;
+  --rg-workbench-danger: #e59a9a;
+
+  --rg-workbench-sidebar-width: 380px;
+  --rg-workbench-header-height: auto;
+  --rg-workbench-radius: 12px;
+}
+
+.rg-workbench {
+  background: var(--rg-workbench-bg);
+  color: var(--rg-workbench-text-primary);
+}
+
+.rg-workbench-text-primary {
+  color: var(--rg-workbench-text-primary);
+}
+
+.rg-workbench-text-secondary {
+  color: var(--rg-workbench-text-secondary);
+}
+
+.rg-workbench-text-muted {
+  color: var(--rg-workbench-text-muted);
+}
+
+.rg-workbench-text-faint {
+  color: var(--rg-workbench-text-faint);
+}
+
+.rg-workbench-surface {
+  background: var(--rg-workbench-surface);
+  border-color: var(--rg-workbench-border);
+}
+
+.rg-workbench-surface-raised {
+  background: var(--rg-workbench-surface-raised);
+  border-color: var(--rg-workbench-border);
+}
+
+.rg-workbench-selected {
+  background: var(--rg-workbench-surface-selected);
+  border-color: var(--rg-workbench-gold);
+}

@@ -56,7 +56,7 @@ describe('Workbench presentation golden masters', () => {
     render(<WithheldSummary viewModel={withheldPresentationFixture} />);
 
     expect(screen.getByText(/Held item/i)).toBeTruthy();
-    expect(screen.getByText(/Why this was held/i)).toBeTruthy();
+    expect(screen.getByText(/Why this is held/i)).toBeTruthy();
     expect(screen.getByText(/How to recover it/i)).toBeTruthy();
     expect(screen.queryByText(/Option A/i)).toBeNull();
     expect(screen.queryByRole('button', { name: /Generate/i })).toBeNull();

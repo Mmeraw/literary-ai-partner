@@ -68,7 +68,7 @@ module.exports = {
                 'rg-cream2':'#C8BEA8',
                 'rg-gold':  '#A07A36',
                 'rg-red':   '#7A2B1A',
-                'rg-dim':   '#6B6560',
+                'rg-dim':   '#A69D8E',
             },
             keyframes: {
                 'accordion-down': {
