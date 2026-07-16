@@ -37,6 +37,8 @@ export type RawCriterionInput = {
   key: CriterionKey;
   score_0_10?: number | null;
   rationale?: string;
+  fit_summary?: string;
+  gap_summary?: string;
   evidence?: EvidenceAnchorInput[];
   signal_strength?: SignalStrength;
   recommendations?: Array<{
@@ -49,6 +51,7 @@ export type RawCriterionInput = {
     reader_effect?: string;
     symptom?: string;
     mistake_proofing?: string;
+    potential_damage?: string[];
     candidate_text_a?: string;
     candidate_text_b?: string;
     candidate_text_c?: string;
@@ -330,6 +333,7 @@ export function normalizeCriterion(
       ...(r.reader_effect ? { reader_effect: r.reader_effect } : {}),
       ...(r.symptom ? { symptom: r.symptom } : {}),
       ...(r.mistake_proofing ? { mistake_proofing: r.mistake_proofing } : {}),
+      ...(r.potential_damage ? { potential_damage: r.potential_damage } : {}),
       ...(r.candidate_text_a ? { candidate_text_a: r.candidate_text_a } : {}),
       ...(r.candidate_text_b ? { candidate_text_b: r.candidate_text_b } : {}),
       ...(r.candidate_text_c ? { candidate_text_c: r.candidate_text_c } : {}),
@@ -402,6 +406,8 @@ export function normalizeCriterion(
       confidence_level: cappedConfidenceLevel,
       confidence_reasons: confidenceReasons,
       scorability_status: "non_scorable",
+      fit_summary: raw.fit_summary,
+      gap_summary: raw.gap_summary,
       rationale,
       evidence,
       recommendations,
@@ -433,6 +439,8 @@ export function normalizeCriterion(
         confidence.scorability_status === "non_scorable"
           ? "scorable_low_confidence"
           : confidence.scorability_status,
+      fit_summary: raw.fit_summary,
+      gap_summary: raw.gap_summary,
       rationale,
       evidence,
       recommendations,
@@ -457,6 +465,8 @@ export function normalizeCriterion(
     confidence_level: cappedConfidenceLevel,
     confidence_reasons: confidenceReasons,
     scorability_status: "non_scorable",
+    fit_summary: raw.fit_summary,
+    gap_summary: raw.gap_summary,
     rationale,
     evidence,
     recommendations,

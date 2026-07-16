@@ -177,7 +177,7 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(docxText).toContain('Confidentiality');
   });
 
-  test('opportunity detail rows (Evidence/Symptom/Cause/Fix/Reader effect) appear in all 3 formats', async () => {
+  test('opportunity detail rows (Evidence/What We Observed/Why It Matters/Suggested Direction/Expected Reader Experience/Preserve) appear in all 3 formats', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
     const longEvidence = 'A dark truck, fast, heading toward the river, with a reference identifier 123e4567-e89b-12d3-a456-426614174000 and a long unbroken pressure phrase that must remain fully present instead of clipping off the right side of the generated report page.';
@@ -241,15 +241,16 @@ describe('download adapters parity (ViewModel renderers)', () => {
       .filter(({ line }) => line.length > 78);
     expect(overlongTxtLines).toEqual([]);
 
-    // TXT must include all 6 diagnostic fields
+    const txtCollapsed = txt.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+
+    // TXT must include all 6 presentation-ready opportunity fields
     expect(txt).toContain('Evidence: \u201cA dark truck, fast, heading toward the river, with a referenc');
     expect(txt).toContain('identifier 123e4567-e89b-12d3-a456-426614174000');
-    expect(txt).toContain('Symptom: Stakes or decision pressure diffuses before reaching the reader.');
-    expect(txt).toContain('Cause: Mid-chapter tension release without replacement hook.');
-    expect(txt).toContain('Fix direction: Insert a ticking-clock reminder every 800 words and keep');
-    expect(txt).toContain('long-market-positioning-language-without-friendly-breakpoints.');
-    expect(txt).toContain('Reader effect: Sustains reader engagement and enhances narrative urgency.');
-    expect(txt).toContain('Mistake-proofing: Check each scene break for forward-pull sentence.');
+    expect(txtCollapsed).toContain('What We Observed: Stakes or decision pressure diffuses before reaching the reader.');
+    expect(txtCollapsed).toContain('Why It Matters: Mid-chapter tension release without replacement hook.');
+    expect(txtCollapsed).toContain('Suggested Direction: Insert a ticking-clock reminder every 800 words and keep the sentence fully visible even when it contains long-market-positioning-language-without-friendly-breakpoints.');
+    expect(txtCollapsed).toContain('Expected Reader Experience: Sustains reader engagement and enhances narrative urgency.');
+    expect(txtCollapsed).toContain('Preserve: Check each scene break for forward-pull sentence.');
 
     const txtLines = txt.split('\n');
     const evidenceLine = txtLines.findIndex((line) => line.startsWith('    Evidence:'));

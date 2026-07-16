@@ -21,6 +21,7 @@ export type CanonicalOpportunityLedgerItem = {
   expected_impact: string;
   candidate_text_a?: string;
   mistake_proofing?: string;
+  potential_damage?: string[];
   source_priority?: string;
 };
 
@@ -55,6 +56,7 @@ type RawCriterionRecommendation = {
   specific_fix?: string;
   reader_effect?: string;
   mistake_proofing?: string;
+  potential_damage?: string[];
   candidate_text_a?: string;
   manuscript_coordinates?: string;
   issue_family?: string;
@@ -85,6 +87,7 @@ type RawOpportunity = {
   expected_impact: string;
   candidate_text_a?: string;
   mistake_proofing?: string;
+  potential_damage?: string[];
   issue_type: string;
   source_priority?: string;
 };
@@ -344,6 +347,9 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
         expected_impact: cleanOptional(rec.expected_impact),
         candidate_text_a: cleanOptional(rec.candidate_text_a) || undefined,
         mistake_proofing: cleanOptional(rec.mistake_proofing) || undefined,
+        potential_damage: Array.isArray(rec.potential_damage)
+          ? rec.potential_damage.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+          : undefined,
         issue_type: issueType,
         source_priority: typeof rec.priority === 'string' ? rec.priority : undefined,
       });
@@ -389,6 +395,7 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
     expected_impact: chooseMostSpecific(cluster.map((item) => item.expected_impact || item.reader_effect)),
     candidate_text_a: chooseMostSpecific(cluster.map((item) => item.candidate_text_a ?? '')) || undefined,
     mistake_proofing: chooseMostSpecific(cluster.map((item) => item.mistake_proofing ?? '')) || undefined,
+    potential_damage: unique(cluster.flatMap((item) => item.potential_damage ?? [])).filter((item) => item.trim().length > 0),
     source_priority: primary?.source_priority,
   };
 }
@@ -515,6 +522,7 @@ export function opportunityToCriterionRecommendation(item: CanonicalOpportunityL
     specific_fix: item.fix_direction,
     reader_effect: item.reader_effect,
     mistake_proofing: item.mistake_proofing,
+    potential_damage: item.potential_damage,
     candidate_text_a: item.candidate_text_a,
     manuscript_coordinates: item.location,
     collapsed_from_criteria: item.related_criteria.filter((criterion) => criterion !== item.primary_criterion),

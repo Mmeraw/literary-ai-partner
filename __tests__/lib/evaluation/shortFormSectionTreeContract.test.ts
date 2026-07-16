@@ -67,7 +67,7 @@ describe('short-form section tree contract', () => {
     }
   });
 
-  test('required section surfaces never render empty', () => {
+  test('required section surfaces are not padded with fabricated fallback prose', () => {
     const doc = buildShortFormEvaluationDocument({
       displayTitle: 'Sparse Manuscript',
       result: {
@@ -92,10 +92,10 @@ describe('short-form section tree contract', () => {
       },
     });
 
-    expect(doc.executiveSummary.trim().length).toBeGreaterThan(0);
-    expect(doc.topStrengths.length).toBeGreaterThan(0);
-    expect(doc.topRisks.length).toBeGreaterThan(0);
-    expect(doc.topRecommendations.length).toBeGreaterThan(0);
+    expect(doc.executiveSummary.trim().length).toBe(0);
+    expect(doc.topStrengths.length).toBe(0);
+    expect(doc.topRisks.length).toBe(0);
+    expect(doc.topRecommendations.length).toBe(0);
     expect(doc.criteriaScoreGrid.length).toBe(13);
     expect(doc.criterionDetails.length).toBe(13);
     expect(doc.titleBlock.genre.trim().length).toBeGreaterThan(0);
@@ -106,7 +106,7 @@ describe('short-form section tree contract', () => {
     'short_form_evaluation' as const,
     'long_form_evaluation' as const,
     'long_form_multi_layer_evaluation' as const,
-  ])('mode %s keeps modeSpecific surfaces non-empty', (mode) => {
+  ])('mode %s omits modeSpecific surfaces when source content is absent', (mode) => {
     const doc = buildUnifiedEvaluationDocument({
       mode,
       displayTitle: 'Sparse Unified Manuscript',
@@ -124,14 +124,14 @@ describe('short-form section tree contract', () => {
       dream: null,
     });
 
-    expect(doc.modeSpecific.manuscriptScaleContinuityFindings.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.storyLedgerArchitectureMap.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.reviewGateReadinessSurface.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.governedLedgerAddenda.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.crossLayerSynthesis.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.layerAwareRevisionSequencing.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.continuityCoverageProof.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.readinessReleasabilityPosture.trim().length).toBeGreaterThan(0);
+    expect(doc.modeSpecific.manuscriptScaleContinuityFindings.length).toBe(0);
+    expect(doc.modeSpecific.storyLedgerArchitectureMap.length).toBe(0);
+    expect(doc.modeSpecific.reviewGateReadinessSurface.length).toBe(0);
+    expect(doc.modeSpecific.governedLedgerAddenda.length).toBe(0);
+    expect(doc.modeSpecific.crossLayerSynthesis.length).toBe(0);
+    expect(doc.modeSpecific.layerAwareRevisionSequencing.length).toBe(0);
+    expect(doc.modeSpecific.continuityCoverageProof.length).toBe(0);
+    expect(doc.modeSpecific.readinessReleasabilityPosture.trim().length).toBe(0);
   });
 
   test('Price of Vanity recommendations dedupe through one canonical opportunity ledger', () => {

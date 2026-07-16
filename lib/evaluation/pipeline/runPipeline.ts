@@ -3022,6 +3022,8 @@ export function synthesisToEvaluationResultV2(
           key: c.key,
           score_0_10: c.final_score_0_10,
           rationale: c.final_rationale,
+          fit_summary: c.fit_summary || undefined,
+          gap_summary: c.gap_summary || undefined,
           evidence: c.evidence.map((e) => ({
             snippet: e.snippet,
             location:
@@ -3043,6 +3045,7 @@ export function synthesisToEvaluationResultV2(
             reader_effect: r.reader_effect || undefined,
             symptom: r.symptom || undefined,
             mistake_proofing: r.mistake_proofing || undefined,
+            potential_damage: r.potential_damage || undefined,
             candidate_text_a: r.candidate_text_a || undefined,
             candidate_text_b: r.candidate_text_b || undefined,
             candidate_text_c: r.candidate_text_c || undefined,

@@ -43,6 +43,8 @@ import type { EvaluationIntegrityBanner } from '@/lib/evaluation/warningClassifi
 import { formatCriterionConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
 import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
 import { detectRawFallbackSentinel } from '@/lib/text/authorFacingProse';
+import type { PresentedOpportunity, PresentedOpportunitySection } from '@/lib/evaluation/presentation/reportPresentation';
+import { presentOpportunities } from '@/lib/evaluation/presentation/reportPresentation';
 
 // ────────────────────────────────────────────────────────────────────────────
 // ViewModel Types
@@ -100,6 +102,14 @@ export type CriterionDetailViewModel = {
   supportLabel: string | null;
   rationaleLabel: string | undefined;
   rationaleText: string;
+  /** Warm, author-facing summary of what is working on this criterion, when available. */
+  fitSummary: string | null;
+  /** Warm, author-facing summary of the growth opportunity on this criterion, when available. */
+  growthSummary: string | null;
+  /** ODP-governed status when a criterion produces no recommendations. */
+  recommendationStatus: string | null;
+  recommendationStatusRationale: string | null;
+  /** @deprecated Raw canonical recommendations — prefer presentedOpportunities for rendering. */
   recommendations: Array<{
     opportunity_id: string | undefined;
     priority: string | undefined;
@@ -110,9 +120,14 @@ export type CriterionDetailViewModel = {
     specific_fix: string | undefined;
     reader_effect: string | undefined;
     mistake_proofing: string | undefined;
+    potential_damage: string[] | undefined;
     collapsed_from_criteria: string[] | undefined;
   }>;
+  /** Renderer-ready presentation of this criterion's revision opportunities. */
+  presentedOpportunities: PresentedOpportunity[];
 };
+
+export type { PresentedOpportunity, PresentedOpportunitySection };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Long-Form Multi-Layer Evaluation ViewModel
@@ -511,16 +526,15 @@ export function normalizeEvaluationReportViewModel({
     confidenceLabel: row.confidenceLabel ?? null,
   }));
 
-  const criterionDetails: CriterionDetailViewModel[] = ued.criterionDetails.map(detail => ({
-    key: detail.key,
-    label: detail.label,
-    scoreLabel: detail.scoreLabel,
-    scorePalette: deriveScorePalette(detail.scoreLabel),
-    confidenceLabel: detail.confidenceLabel ?? null,
-    supportLabel: detail.supportLabel ? sanitizeText(detail.supportLabel, isLongForm) : null,
-    rationaleLabel: detail.rationaleLabel,
-    rationaleText: sanitizeText(detail.rationaleText, isLongForm),
-    recommendations: (detail.recommendations ?? []).map(rec => {
+  const criterionDetails: CriterionDetailViewModel[] = ued.criterionDetails.map((detail) => {
+    const fitSummary = detail.fitSummary ? sanitizeText(detail.fitSummary, isLongForm) : null;
+    const growthSummary = detail.growthSummary ? sanitizeText(detail.growthSummary, isLongForm) : null;
+    const recommendationStatus = detail.recommendationStatus ?? null;
+    const recommendationStatusRationale = detail.recommendationStatusRationale
+      ? sanitizeText(detail.recommendationStatusRationale, isLongForm)
+      : null;
+
+    const recommendations = (detail.recommendations ?? []).map((rec) => {
       // Sanitize each field first
       const anchor_snippet = rec.anchor_snippet ? normalizeEvidenceSnippet(sanitizeText(rec.anchor_snippet, isLongForm)) : undefined;
       const symptom = rec.symptom ? sanitizeText(rec.symptom, isLongForm) : undefined;
@@ -528,6 +542,11 @@ export function normalizeEvaluationReportViewModel({
       const specific_fix = rec.specific_fix ? sanitizeText(rec.specific_fix, isLongForm) : undefined;
       const reader_effect = rec.reader_effect ? sanitizeText(rec.reader_effect, isLongForm) : undefined;
       const mistake_proofing = rec.mistake_proofing ? sanitizeText(rec.mistake_proofing, isLongForm) : undefined;
+      const potential_damage = Array.isArray(rec.potential_damage)
+        ? rec.potential_damage
+            .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+            .map((item) => sanitizeText(item, isLongForm))
+        : undefined;
 
       return {
         opportunity_id: rec.opportunity_id,
@@ -540,16 +559,42 @@ export function normalizeEvaluationReportViewModel({
         specific_fix: specific_fix && isGenericOpportunityFallbackText(specific_fix) ? undefined : specific_fix,
         reader_effect: reader_effect && isGenericOpportunityFallbackText(reader_effect) ? undefined : reader_effect,
         mistake_proofing: mistake_proofing && isGenericOpportunityFallbackText(mistake_proofing) ? undefined : mistake_proofing,
+        potential_damage,
         collapsed_from_criteria: rec.collapsed_from_criteria,
       };
-    }).filter(rec => {
+    }).filter((rec) => {
       // Discard recommendation only if it has no meaningful displayable rows left
-      const displayableFields = [rec.anchor_snippet, rec.symptom, rec.mechanism, rec.specific_fix, rec.reader_effect, rec.mistake_proofing];
-      const hasDisplayableContent = displayableFields.some(f => typeof f === 'string' && f.trim().length > 0);
+      const displayableFields = [
+        rec.anchor_snippet,
+        rec.symptom,
+        rec.mechanism,
+        rec.specific_fix,
+        rec.reader_effect,
+        rec.mistake_proofing,
+        ...(rec.potential_damage ?? []),
+      ];
+      const hasDisplayableContent = displayableFields.some((f) => typeof f === 'string' && f.trim().length > 0);
       // Keep if it has any displayable content OR has collapsed_from_criteria (action-only)
       return hasDisplayableContent || (rec.collapsed_from_criteria && rec.collapsed_from_criteria.length > 0);
-    }),
-  }));
+    });
+
+    return {
+      key: detail.key,
+      label: detail.label,
+      scoreLabel: detail.scoreLabel,
+      scorePalette: deriveScorePalette(detail.scoreLabel),
+      confidenceLabel: detail.confidenceLabel ?? null,
+      supportLabel: detail.supportLabel ? sanitizeText(detail.supportLabel, isLongForm) : null,
+      rationaleLabel: detail.rationaleLabel,
+      rationaleText: sanitizeText(detail.rationaleText, isLongForm),
+      fitSummary,
+      growthSummary,
+      recommendationStatus,
+      recommendationStatusRationale,
+      recommendations,
+      presentedOpportunities: presentOpportunities(recommendations),
+    };
+  });
 
   const confidenceExplanation = sanitizeText(
     ued.confidenceExplanation,

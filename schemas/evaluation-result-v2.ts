@@ -85,6 +85,10 @@ type CriterionBase = {
   confidence_level?: "high" | "moderate" | "low";
   confidence_reasons?: string[];
   scorability_status?: "scorable" | "scorable_low_confidence" | "non_scorable";
+  /** What the manuscript is doing well on this criterion — may inform a warm strengths section. */
+  fit_summary?: string;
+  /** What prevents a 10 on this criterion — may inform a warm growth section. */
+  gap_summary?: string;
   rationale: string;
   evidence: Array<{
     snippet: string;
@@ -105,6 +109,8 @@ type CriterionBase = {
     reader_effect?: string;
     symptom?: string;
     mistake_proofing?: string;
+    /** What existing craft strengths this revision could damage — guardrail for Preserve. */
+    potential_damage?: string[];
     candidate_text_a?: string;
     candidate_text_b?: string;
     candidate_text_c?: string;

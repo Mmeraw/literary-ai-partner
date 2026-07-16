@@ -80,11 +80,6 @@ function unique(values: Array<string | undefined | null>): string[] {
   return [...set];
 }
 
-function ensureNonEmpty(values: string[], fallback: string[]): string[] {
-  if (values.length > 0) return values;
-  return fallback;
-}
-
 function isUnavailableHeaderValue(value: string | null | undefined): boolean {
   const normalized = (value ?? '').trim().toLowerCase();
   return normalized.length === 0 || normalized === 'not available' || normalized === 'not specified' || normalized === 'unknown';
@@ -153,7 +148,7 @@ export function buildUnifiedEvaluationDocument(input: {
     score: typeof overallScore === 'number' ? overallScore : null,
   });
 
-  const revisionPriorityPlan = (base.topRecommendations.length > 0 ? base.topRecommendations : ['Refine the highest-impact structural risks first.'])
+  const revisionPriorityPlan = base.topRecommendations
     .slice(0, 5)
     .map((recommendation, index) => ({
       priority: index + 1,
@@ -209,29 +204,15 @@ export function buildUnifiedEvaluationDocument(input: {
   const readinessReleasabilityPosture =
     dream?.releasability?.length
       ? dream.releasability.map((item) => `${item.dimension}: ${item.verdict}`).join('; ')
-      : `${base.titleBlock.marketReadiness}. Prioritize high-impact revisions before submission.`;
+      : '';
 
-  const safeManuscriptScaleContinuityFindings = ensureNonEmpty(manuscriptScaleContinuityFindings, [
-    'Continuity findings are provisionally grounded in the current canonical evaluation surfaces.',
-  ]);
-  const safeStoryLedgerArchitectureMap = ensureNonEmpty(storyLedgerArchitectureMap, [
-    'Story/layer architecture evidence is not yet available in this artifact set.',
-  ]);
-  const safeReviewGateReadinessSurface = ensureNonEmpty(reviewGateReadinessSurface, [
-    'Review-gate readiness surface not available; treat releasability as pending verification.',
-  ]);
-  const safeGovernedLedgerAddenda = ensureNonEmpty(governedLedgerAddenda, [
-    'No governed ledger addenda were attached to this run.',
-  ]);
-  const safeCrossLayerSynthesis = ensureNonEmpty(crossLayerSynthesis, [
-    'Cross-layer synthesis was not provided; use criterion-level findings as current authority.',
-  ]);
-  const safeLayerAwareRevisionSequencing = ensureNonEmpty(layerAwareRevisionSequencing, [
-    'Sequence revisions by highest impact risk first, then recalibrate supporting architecture.',
-  ]);
-  const safeContinuityCoverageProof = ensureNonEmpty(continuityCoverageProof, [
-    'Continuity coverage proof unavailable; certify only evidence-backed findings present in canonical output.',
-  ]);
+  const safeManuscriptScaleContinuityFindings = manuscriptScaleContinuityFindings;
+  const safeStoryLedgerArchitectureMap = storyLedgerArchitectureMap;
+  const safeReviewGateReadinessSurface = reviewGateReadinessSurface;
+  const safeGovernedLedgerAddenda = governedLedgerAddenda;
+  const safeCrossLayerSynthesis = crossLayerSynthesis;
+  const safeLayerAwareRevisionSequencing = layerAwareRevisionSequencing;
+  const safeContinuityCoverageProof = continuityCoverageProof;
 
   return {
     ...base,

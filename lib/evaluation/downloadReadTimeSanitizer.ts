@@ -25,6 +25,7 @@
 
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
 import { getForbiddenReplacements } from '@/lib/evaluation/reportForbiddenPatterns';
+import { sanitizeCMOS } from '@/lib/evaluation/cmosSanitizer';
 
 const DOWNLOAD_SANITIZER_PATTERNS = getForbiddenReplacements();
 
@@ -34,7 +35,8 @@ function sanitizeText(value: string): string {
   for (const pattern of DOWNLOAD_SANITIZER_PATTERNS) {
     result = result.replace(pattern.re, pattern.replacement);
   }
-  return mistakeProofText(result, '').trim() || value;
+  result = mistakeProofText(result, '').trim() || value;
+  return sanitizeCMOS(result);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

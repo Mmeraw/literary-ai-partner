@@ -166,18 +166,22 @@ function renderableFragmentsForField(path: string, value: unknown): string[] {
     return value.flatMap((detail) => {
       if (!detail || typeof detail !== 'object') return [];
       const record = detail as Record<string, unknown>;
-      const recommendationFragments = Array.isArray(record.recommendations)
-        ? record.recommendations.flatMap((recommendation) => {
-            if (!recommendation || typeof recommendation !== 'object') return [];
-            const rec = recommendation as Record<string, unknown>;
+
+      const presentedOpportunityFragments = Array.isArray(record.presentedOpportunities)
+        ? record.presentedOpportunities.flatMap((opportunity) => {
+            if (!opportunity || typeof opportunity !== 'object') return [];
+            const opp = opportunity as Record<string, unknown>;
+            const sectionFragments = Array.isArray(opp.sections)
+              ? opp.sections.flatMap((section) => {
+                  if (!section || typeof section !== 'object') return [];
+                  const sec = section as Record<string, unknown>;
+                  return [sec.label, sec.text].flatMap((fragment) => flattenRenderablePrimitives(fragment));
+                })
+              : [];
             return [
-              rec.anchor_snippet,
-              rec.symptom,
-              rec.mechanism,
-              rec.specific_fix || rec.action,
-              rec.reader_effect || rec.expected_impact,
-              rec.mistake_proofing,
-              rec.collapsed_from_criteria,
+              opp.heading,
+              opp.priorityLabel,
+              ...sectionFragments,
             ].flatMap((fragment) => flattenRenderablePrimitives(fragment));
           })
         : [];
@@ -189,7 +193,11 @@ function renderableFragmentsForField(path: string, value: unknown): string[] {
         record.supportLabel,
         record.rationaleLabel,
         record.rationaleText,
-        ...recommendationFragments,
+        record.fitSummary,
+        record.growthSummary,
+        record.recommendationStatus,
+        record.recommendationStatusRationale,
+        ...presentedOpportunityFragments,
       ].flatMap((fragment) => flattenRenderablePrimitives(fragment));
     });
   }
