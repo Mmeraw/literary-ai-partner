@@ -33,12 +33,18 @@ jest.mock("@/lib/evaluation/artifactPersistence", () => ({
   upsertEvaluationArtifact: (...args: any[]) => upsertEvaluationArtifactMock(...args),
 }));
 
+const repairSynthesisIntegrityMock = jest.fn();
+
 const OpenAIMock = jest.fn(() => ({
   chat: {
     completions: {
       create: jest.fn(),
     },
   },
+}));
+
+jest.mock("@/lib/evaluation/pipeline/repairSynthesisIntegrity", () => ({
+  repairSynthesisIntegrity: (...args: unknown[]) => repairSynthesisIntegrityMock(...args),
 }));
 
 jest.mock("openai", () => ({
@@ -372,6 +378,25 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     // Ensure timeout config passes the invariant check (openAi >= pass)
     process.env.EVAL_PASS_TIMEOUT_MS = "180000";
     process.env.EVAL_OPENAI_TIMEOUT_MS = "180000";
+
+    // Canonical pipeline tests exercise the gate and persistence contracts, not
+    // the repair implementation. Keep repair as a transparent pass-through so an
+    // unconfigured OpenAI mock cannot leak a raw TypeError into these tests.
+    repairSynthesisIntegrityMock.mockImplementation(async (synthesis: unknown) => ({
+      ok: true,
+      synthesis,
+      requiredAttempts: 0,
+      candidateAttempts: 0,
+      regeneratedFields: [],
+      quarantinedFields: [],
+      remainingViolations: [],
+      telemetry: {
+        requiredAttempts: 0,
+        candidateAttempts: 0,
+        regeneratedFields: [],
+        quarantinedFields: [],
+      },
+    }));
   });
 
   afterEach(() => {
@@ -2143,6 +2168,57 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       supabaseStub.evaluationJobUpdates.some(
         (payload: Record<string, unknown>) => payload.status === "complete",
       ),
+    ).toBe(false);
+  });
+
+  test("wraps missing repair completion in the QualityGateV2 contract", async () => {
+    const supabaseStub = makeSupabaseStub();
+    createClientMock.mockReturnValue(supabaseStub);
+
+    repairSynthesisIntegrityMock.mockRejectedValueOnce(
+      new Error(
+        "Repair model returned no completion content for evaluation_result_v2.criteria[0].rationale",
+      ),
+    );
+
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 50,
+          verdict: "revise",
+          one_paragraph_summary: "Summary.",
+          top_3_strengths: ["Strong premise signal"],
+          top_3_risks: ["Pacing inconsistency in middle"],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    runQualityGateV2Mock.mockReturnValue({
+      pass: true,
+      checks: [],
+      warnings: [],
+    });
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-repair-llm-missing");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("[QualityGateV2]");
+    expect(result.error).toContain("Author-facing integrity repair failed");
+    expect(result.error).not.toContain("Cannot read properties of undefined");
+    expect(result.error).not.toContain("reading 'choices'");
+    expect(
+      supabaseStub.rpcCalls.some((call: { fn: string }) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(false);
   });
 });
