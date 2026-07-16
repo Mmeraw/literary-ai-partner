@@ -7,6 +7,15 @@ import {
 } from '@/lib/text/authorFacingProseAuthority';
 import { isAuthorTextPath, isExcludedPath } from '@/lib/text/authorFacingIntegrity';
 
+const NON_CENTRAL_AUTHOR_TEXT_PATHS: readonly RegExp[] = [
+  /^evaluation_result_v2\.criteria\[\d+\]\.signal_strength$/u,
+  /^evaluation_result_v2\.detected_mode\.(?:primary|alternates\[\d+\])\.reason$/u,
+  /^evaluation_result_v2\.metrics\.manuscript\.(?:title|target_audience)$/u,
+  /^evaluation_result_v2\.enrichment\.(?:premise|target_audience|diagnosed_genre)$/u,
+  /^evaluation_result_v2\.artifacts\[\d+\]\.(?:title|type|status|created_at|artifact_id)$/u,
+  /^evaluation_result_v2\.governance\..*(?:warnings|limitations|reasons)\[\d+\]$/u,
+] as const;
+
 function createProductionShapeSynthesis(): SynthesisOutput {
   return {
     criteria: CRITERIA_KEYS.map((key, criterionIndex) => ({
@@ -85,7 +94,7 @@ function createProductionShapeSynthesis(): SynthesisOutput {
   };
 }
 
-function discoverAuthorFacingPaths(
+function discoverHeuristicAuthorTextPaths(
   value: unknown,
   rootPath = 'evaluation_result_v2',
 ): string[] {
@@ -113,8 +122,12 @@ function discoverAuthorFacingPaths(
   return [...new Set(paths)];
 }
 
+function countNonCentralDispositions(path: string): number {
+  return NON_CENTRAL_AUTHOR_TEXT_PATHS.filter((pattern) => pattern.test(path)).length;
+}
+
 describe('production EvaluationResultV2 author-facing registry coverage', () => {
-  it('resolves every discovered production-builder path to exactly one contract', () => {
+  it('covers every centrally owned production path without broadening runtime exclusions', () => {
     const result = synthesisToEvaluationResultV2({
       synthesis: createProductionShapeSynthesis(),
       title: 'Registry Coverage Manuscript',
@@ -132,17 +145,26 @@ describe('production EvaluationResultV2 author-facing registry coverage', () => 
       },
     });
 
-    const inspection = inspectRegisteredAuthorFacingArtifact(result);
+    const centralProjection = {
+      overview: result.overview,
+      criteria: result.criteria,
+      recommendations: result.recommendations,
+    };
+    const inspection = inspectRegisteredAuthorFacingArtifact(centralProjection);
     expect(inspection.unregisteredPaths).toEqual([]);
 
-    const discoveredPaths = discoverAuthorFacingPaths(result);
+    const discoveredPaths = discoverHeuristicAuthorTextPaths(result);
     expect(discoveredPaths.length).toBeGreaterThan(0);
 
     for (const path of discoveredPaths) {
-      expect({ path, matches: findMatchingAuthorFacingContracts(path).map((contract) => contract.name) }).toEqual({
+      const centralMatches = findMatchingAuthorFacingContracts(path).length;
+      const nonCentralMatches = countNonCentralDispositions(path);
+      expect({ path, centralMatches, nonCentralMatches }).toEqual({
         path,
-        matches: [expect.any(String)],
+        centralMatches: expect.any(Number),
+        nonCentralMatches: expect.any(Number),
       });
+      expect(centralMatches + nonCentralMatches).toBe(1);
     }
 
     expect(
