@@ -16,12 +16,10 @@ import { scanObjectForForbiddenMarketClaims } from '@/lib/release/forbiddenMarke
 // as part of U2-005 authority hardening.
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import {
-  getDisplayText,
   splitIntoParagraphs,
 } from '@/lib/evaluation/reportRenderSafety';
 import { resolveReportTitle } from '@/lib/evaluation/reportTitle';
 import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
-import type { LongFormMultiLayerEvaluationViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import { hasActiveSupportGrant, logSupportView } from '@/lib/support/checkSupportAccess';
 import { getLongFormMultiLayerSections } from '@/lib/evaluation/sharedLongFormMultiLayerSections';
 import { SynthesisPoller } from '@/components/evaluation/SynthesisPoller';
@@ -62,7 +60,6 @@ type EvaluationReportContext = {
   result: EvaluationResultV1 | EvaluationResultV2;
   manuscriptTitle: string | null;
   manuscriptId: number | null;
-  progress: unknown;
 };
 
 type ReportSearchParams = {
@@ -74,11 +71,7 @@ function firstSearchParam(value: string | string[] | undefined): string | undefi
   return value;
 }
 
-function hasMeaningfulText(value: unknown): boolean {
-  return typeof value === 'string' ? value.trim().length > 0 : typeof value === 'number';
-}
-
-function renderNoIndentOrderedList(items: string[], itemClassName = 'text-[#5C5549]'): JSX.Element {
+function renderNoIndentOrderedList(items: string[], itemClassName = 'text-[#5C5549]') {
   return (
     <ol className="space-y-1">
       {items.map((item, index) => (
@@ -122,7 +115,6 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
       evaluation_result,
       status,
       validity_status,
-      progress,
       manuscript_id,
       manuscripts!inner(user_id,title)
     `)
@@ -159,7 +151,6 @@ async function getEvaluationResult(jobId: string, userId: string): Promise<Evalu
     result,
     manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
     manuscriptId: typeof rawManuscriptId === 'number' ? rawManuscriptId : null,
-    progress: (job as { progress?: unknown }).progress ?? null,
   };
 }
 
@@ -174,7 +165,6 @@ async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationR
       evaluation_result,
       status,
       validity_status,
-      progress,
       manuscript_id,
       manuscripts(title)
     `)
@@ -210,7 +200,6 @@ async function getEvaluationResultForSupport(jobId: string): Promise<EvaluationR
     result,
     manuscriptTitle: extractManuscriptTitle((job as { manuscripts?: unknown }).manuscripts),
     manuscriptId: typeof rawManuscriptId === 'number' ? rawManuscriptId : null,
-    progress: (job as { progress?: unknown }).progress ?? null,
   };
 }
 
@@ -305,7 +294,7 @@ export default async function ReportPage({
     notFound();
   }
 
-  const { result: resultRaw, manuscriptTitle, manuscriptId, progress } = report;
+  const { result: resultRaw, manuscriptTitle, manuscriptId } = report;
   // Cast to V1 for rendering — V2 is a structural superset; both share
   // governance / engine / metrics / criteria / generated_at top-level shape.
   // The report renderer was written against V1 field names which are present in V2.
@@ -374,7 +363,7 @@ export default async function ReportPage({
     );
   }
 
-  const { overview, criteria, recommendations, metrics, artifacts, governance } = result;
+  const { metrics, governance } = result;
 
   // ── ViewModel: all rendered content flows through this single boundary ──
   const vm = normalizeEvaluationReportViewModel({
@@ -580,11 +569,11 @@ export default async function ReportPage({
               <p className="mt-2 font-serif text-3xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.total}</p>
             </div>
             <div className="rounded-sm border border-[#C97A7A] bg-[#FDF0F0] p-4 text-center" style={{borderTop:'2px solid #8B2E2E'}}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#8B2E2E]">Recommended</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#8B2E2E]">Priority Revision</p>
               <p className="mt-2 font-serif text-3xl font-bold text-[#8B2E2E]">{vm.revisionOpportunitySummary.recommended}</p>
             </div>
             <div className="rounded-sm border border-[#D9A441] bg-[#FFF8EC] p-4 text-center" style={{borderTop:'2px solid #B8922A'}}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#B8922A]">Optional</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#B8922A]">Recommended Revision</p>
               <p className="mt-2 font-serif text-3xl font-bold text-[#B8922A]">{vm.revisionOpportunitySummary.optional}</p>
             </div>
             <div className="rounded-sm border border-[#9DC79D] bg-[#EEF7EF] p-4 text-center" style={{borderTop:'2px solid #437A22'}}>
@@ -714,24 +703,36 @@ export default async function ReportPage({
                       ) : null}
                     </div>
                   )}
-                  {/* Two-column layout on lg+: rationale left, ledger opportunity right */}
-                  <div className={detail.recommendations.length > 0 ? 'lg:grid lg:grid-cols-[1fr_340px] lg:gap-6' : ''}>
-                    <p className="text-sm leading-relaxed !text-[#1C1814]">{detail.rationaleText}</p>
-                    {detail.recommendations.length > 0 ? (
+                  {/* Two-column layout on lg+: rationale left, opportunities right */}
+                  <div className={detail.presentedOpportunities.length > 0 ? 'lg:grid lg:grid-cols-[1fr_340px] lg:gap-6' : ''}>
+                    <div className="space-y-3">
+                      {detail.fitSummary ? (
+                        <div>
+                          <p className="mb-1 text-xs font-semibold tracking-[0.06em] uppercase text-[#3A6B2A]">What&apos;s Working Well</p>
+                          <p className="text-sm leading-relaxed !text-[#1C1814]">{detail.fitSummary}</p>
+                        </div>
+                      ) : null}
+                      {detail.growthSummary ? (
+                        <div>
+                          <p className="mb-1 text-xs font-semibold tracking-[0.06em] uppercase text-[#8B2E2E]">Opportunity for Growth</p>
+                          <p className="text-sm leading-relaxed !text-[#1C1814]">{detail.growthSummary}</p>
+                        </div>
+                      ) : null}
+                      <div>
+                        {detail.rationaleLabel ? (
+                          <p className="mb-1 text-xs font-semibold tracking-[0.06em] uppercase text-[#8B2E2E]">{detail.rationaleLabel}</p>
+                        ) : null}
+                        <p className="text-sm leading-relaxed !text-[#1C1814]">{detail.rationaleText}</p>
+                      </div>
+                      {detail.recommendationStatus && detail.presentedOpportunities.length === 0 ? (
+                        <p className="text-sm italic !text-[#5C5549]">
+                          {detail.recommendationStatusRationale ?? detail.recommendationStatus.replace(/_/g, ' ')}
+                        </p>
+                      ) : null}
+                    </div>
+                    {detail.presentedOpportunities.length > 0 ? (
                       <div className="mt-4 lg:mt-0">
-                        <CriterionOpportunities
-                          recommendations={detail.recommendations as Array<{
-                            priority?: string;
-                            anchor_snippet?: string;
-                            anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
-                            symptom?: string;
-                            mechanism?: string;
-                            specific_fix?: string;
-                            reader_effect?: string;
-                            mistake_proofing?: string;
-                            collapsed_from_criteria?: string[];
-                          }>}
-                        />
+                        <CriterionOpportunities presentedOpportunities={detail.presentedOpportunities} />
                       </div>
                     ) : null}
                   </div>
@@ -772,13 +773,13 @@ export default async function ReportPage({
                     <div className="mt-2 space-y-2">
                       {analysis.fitEvidence.length > 0 ? (
                         <div>
-                          <p className="font-medium text-[#1C1814]">What Is Working:</p>
+                          <p className="font-medium text-[#1C1814]">What&apos;s Working Well:</p>
                           {renderNoIndentOrderedList(analysis.fitEvidence)}
                         </div>
                       ) : null}
                       {analysis.gapEvidence.length > 0 ? (
                         <div>
-                          <p className="font-medium text-[#1C1814]">What Weakens Impact:</p>
+                          <p className="font-medium text-[#1C1814]">Opportunity for Growth:</p>
                           {renderNoIndentOrderedList(analysis.gapEvidence)}
                         </div>
                       ) : null}

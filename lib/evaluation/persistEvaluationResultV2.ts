@@ -375,6 +375,12 @@ function sanitizeEvaluationResultForPersistence(evaluationResult: EvaluationResu
       criteria: evaluationResult.criteria.map((criterion) => ({
         ...criterion,
         rationale: sanitizeNonEmptyTextForPersistence(criterion.rationale, metrics),
+        fit_summary: typeof criterion.fit_summary === "string"
+          ? sanitizeNonEmptyTextForPersistence(criterion.fit_summary, metrics)
+          : criterion.fit_summary,
+        gap_summary: typeof criterion.gap_summary === "string"
+          ? sanitizeNonEmptyTextForPersistence(criterion.gap_summary, metrics)
+          : criterion.gap_summary,
         // evidence[*].snippet is manuscript content — never sanitize author text.
         // Only sanitize the editorial .note annotation.
         evidence: criterion.evidence.map((item) => ({
@@ -406,6 +412,11 @@ function sanitizeEvaluationResultForPersistence(evaluationResult: EvaluationResu
             typeof recommendation.mistake_proofing === "string"
               ? sanitizeNonEmptyTextForPersistence(recommendation.mistake_proofing, metrics)
               : recommendation.mistake_proofing,
+          potential_damage: Array.isArray(recommendation.potential_damage)
+            ? recommendation.potential_damage
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => sanitizeNonEmptyTextForPersistence(item, metrics))
+            : recommendation.potential_damage,
         })),
       })),
       recommendations: {

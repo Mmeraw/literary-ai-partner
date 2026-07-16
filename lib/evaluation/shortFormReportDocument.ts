@@ -26,6 +26,7 @@ import {
   type ReportHeaderContract,
 } from '@/lib/evaluation/reportHeaderPolicy';
 import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
+import { ABSENCE_STATUS_TEXT } from '@/lib/evaluation/presentation/reportDesignSystem';
 
 /** Format words that are not valid genre names — mirrors templateCompletenessGate.FORMAT_WORDS. */
 const FORMAT_WORDS = new Set([
@@ -53,6 +54,7 @@ export type ShortFormCriterionRecommendation = {
   specific_fix?: string;
   reader_effect?: string;
   mistake_proofing?: string;
+  potential_damage?: string[];
   collapsed_from_criteria?: string[];
 };
 
@@ -61,10 +63,20 @@ export type ShortFormCriterion = {
   score_0_10: number | null;
   confidence_level?: 'high' | 'moderate' | 'low';
   rationale?: string;
+  fit_summary?: string;
+  gap_summary?: string;
   recommendations?: ShortFormCriterionRecommendation[];
   status?: 'NOT_APPLICABLE' | 'NO_SIGNAL' | 'INSUFFICIENT_SIGNAL' | 'SCORABLE';
   scorable?: boolean;
   scorability_status?: 'scorable' | 'scorable_low_confidence' | 'non_scorable';
+  recommendation_status?:
+    | 'recommendation_provided'
+    | 'no_recommendation_warranted'
+    | 'genre_appropriate_no_revision_warranted'
+    | 'criterion_not_applicable'
+    | 'insufficient_evidence'
+    | 'gate_suppressed_no_safe_recommendation';
+  recommendation_status_rationale?: string;
   confidence_score_0_100?: number;
   confidence_reasons?: string[];
   insufficient_signal_reason?: {
@@ -144,6 +156,10 @@ export type ShortFormCriterionDetail = {
   supportLabel: string | null;
   rationaleLabel?: string;
   rationaleText: string;
+  fitSummary?: string;
+  growthSummary?: string;
+  recommendationStatus?: string;
+  recommendationStatusRationale?: string;
   recommendations: ShortFormCriterionRecommendation[];
 };
 
@@ -394,12 +410,6 @@ function ensureOrderedCriteria(criteria: ShortFormCriterion[]): ShortFormCriteri
   );
 }
 
-function ensureNonEmptyList(values: string[], fallback: string[]): string[] {
-  const cleaned = values.map((value) => value.trim()).filter((value) => value.length > 0);
-  if (cleaned.length > 0) return cleaned;
-  return fallback.map((value) => value.trim()).filter((value) => value.length > 0);
-}
-
 function opportunityToShortFormCriterionRecommendation(
   item: CanonicalRenderedOpportunity,
 ): ShortFormCriterionRecommendation {
@@ -417,6 +427,7 @@ function opportunityToShortFormCriterionRecommendation(
     specific_fix: recommendation.specific_fix,
     reader_effect: recommendation.reader_effect,
     mistake_proofing: recommendation.mistake_proofing,
+    potential_damage: recommendation.potential_damage,
     collapsed_from_criteria: recommendation.collapsed_from_criteria,
   };
 }
@@ -507,6 +518,12 @@ export function buildShortFormEvaluationDocument(input: {
       supportLabel: getCriterionSupportLabel(renderable),
       rationaleLabel: rationalePresentation?.label,
       rationaleText: detailText,
+      fitSummary: criterion.fit_summary ? mistakeProofText(criterion.fit_summary) : undefined,
+      growthSummary: criterion.gap_summary ? mistakeProofText(criterion.gap_summary) : undefined,
+      recommendationStatus: criterion.recommendation_status,
+      recommendationStatusRationale: criterion.recommendation_status_rationale
+        ? mistakeProofText(criterion.recommendation_status_rationale)
+        : undefined,
       // Only canonical ledger-sourced recommendations cross the UED boundary.
       // No fallback to raw criterion.recommendations — if the ledger rejected
       // them, they are not valid surfaced opportunities.
@@ -516,44 +533,28 @@ export function buildShortFormEvaluationDocument(input: {
 
   const readingGrade = toFiniteNumber(result.enrichment?.reading_grade_level);
   const dialogue = toFiniteNumber(result.enrichment?.dialogue_percentage);
-  const narrative = toFiniteNumber(result.enrichment?.narrative_percentage);
-  const computedNarrative = typeof dialogue === 'number' ? Math.max(0, 100 - dialogue) : null;
 
   const contentWarningsRaw = Array.isArray(result.enrichment?.trigger_warnings)
     ? result.enrichment?.trigger_warnings.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     : [];
 
-  const fallbackExecutiveSummary =
-    'This evaluation identifies actionable strengths and risks with prioritized revision guidance to improve manuscript readiness.';
-  const executiveSummarySource =
+  const executiveSummary =
     typeof result.overview?.one_paragraph_summary === 'string' && result.overview.one_paragraph_summary.trim().length > 0
-      ? result.overview.one_paragraph_summary
-      : fallbackExecutiveSummary;
-  const executiveSummary = mistakeProofText(executiveSummarySource);
+      ? mistakeProofText(result.overview.one_paragraph_summary)
+      : ABSENCE_STATUS_TEXT;
 
-  const fallbackStrengths = orderedCriteria
-    .filter((criterion) => typeof criterion.score_0_10 === 'number')
-    .sort((a, b) => (b.score_0_10 ?? -1) - (a.score_0_10 ?? -1))
-    .slice(0, 3)
-    .map((criterion) => `${getCriterionDisplayLabel(criterion.key as CriterionKey)} demonstrates a clear relative strength in the evaluated sample.`);
+  const topStrengths = (result.overview?.top_3_strengths ?? [])
+    .map((item) => mistakeProofText(item))
+    .filter(Boolean);
+  const topRisks = (result.overview?.top_3_risks ?? [])
+    .map((item) => mistakeProofText(item))
+    .filter(Boolean);
+  const resolvedTopRecommendations = (canonicalTopRecommendations.length > 0 ? canonicalTopRecommendations : topRecommendations)
+    .map((item) => mistakeProofText(item))
+    .filter(Boolean);
 
-  if (fallbackStrengths.length === 0) {
-    fallbackStrengths.push('Core manuscript potential is visible in the available evidence sample.');
-  }
-
-  const fallbackRisks = orderedCriteria
-    .filter((criterion) => typeof criterion.score_0_10 === 'number')
-    .sort((a, b) => (a.score_0_10 ?? 11) - (b.score_0_10 ?? 11))
-    .slice(0, 3)
-    .map((criterion) => `${getCriterionDisplayLabel(criterion.key as CriterionKey)} remains a revision risk requiring focused improvement.`);
-
-  if (fallbackRisks.length === 0) {
-    fallbackRisks.push('Insufficient scored evidence requires targeted revision review before submission decisions.');
-  }
-
-  const fallbackTopRecommendations = [
-    'Prioritize the lowest-scoring criteria with the highest reader-impact revisions first.',
-  ];
+  const withAbsenceStatus = (items: string[]): string[] =>
+    items.length > 0 ? items : [ABSENCE_STATUS_TEXT];
 
   // ── Score-10 suppression: near-perfect manuscripts don't need a shopping list ──
   const scorableCriteria = orderedCriteria.filter(c => typeof c.score_0_10 === 'number');
@@ -610,24 +611,9 @@ export function buildShortFormEvaluationDocument(input: {
         : ['No content warnings identified.'],
     revisionOpportunitySummary: opportunitySummary,
     executiveSummary,
-    topStrengths: ensureNonEmptyList(
-      (result.overview?.top_3_strengths ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
-      fallbackStrengths,
-    ),
-    topRisks: isPerfectScore
-      ? ['No significant revision risks identified at this quality level.']
-      : ensureNonEmptyList(
-          (result.overview?.top_3_risks ?? []).map((item) => mistakeProofText(item)).filter(Boolean),
-          fallbackRisks,
-        ),
-    topRecommendations: isPerfectScore
-      ? ['This manuscript demonstrates exceptional quality across all evaluated criteria. Consider final line-edit polish and submission-readiness review only.']
-      : ensureNonEmptyList(
-          (canonicalTopRecommendations.length > 0 ? canonicalTopRecommendations : topRecommendations)
-            .map((item) => mistakeProofText(item))
-            .filter(Boolean),
-          fallbackTopRecommendations,
-        ),
+    topStrengths: withAbsenceStatus(topStrengths),
+    topRisks: withAbsenceStatus(isPerfectScore ? [] : topRisks),
+    topRecommendations: withAbsenceStatus(isPerfectScore ? [] : resolvedTopRecommendations),
     canonicalOpportunityLedger,
     criteriaScoreGrid,
     criterionDetails,

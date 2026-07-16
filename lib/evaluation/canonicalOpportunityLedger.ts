@@ -21,6 +21,8 @@ export type CanonicalOpportunityLedgerItem = {
   expected_impact: string;
   candidate_text_a?: string;
   mistake_proofing?: string;
+  potential_damage?: string[];
+  anchor_type?: string;
   source_priority?: string;
 };
 
@@ -55,6 +57,7 @@ type RawCriterionRecommendation = {
   specific_fix?: string;
   reader_effect?: string;
   mistake_proofing?: string;
+  potential_damage?: string[];
   candidate_text_a?: string;
   manuscript_coordinates?: string;
   issue_family?: string;
@@ -85,6 +88,8 @@ type RawOpportunity = {
   expected_impact: string;
   candidate_text_a?: string;
   mistake_proofing?: string;
+  potential_damage?: string[];
+  anchor_type?: string;
   issue_type: string;
   source_priority?: string;
 };
@@ -153,6 +158,30 @@ function displayCriterion(key: string): string {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ') || 'General';
   }
+}
+
+const VERBATIM_QUOTE_PAIRS: Record<string, string> = {
+  '\u0022': '\u0022', // straight double quote "
+  '\u201C': '\u201D', // left/right double quotation marks
+  '\u2018': '\u2019', // left/right single quotation marks
+};
+
+function evidenceIsBalancedVerbatimQuote(evidence: string): boolean {
+  const clean = evidence.trim();
+  if (clean.length < 3) return false;
+  const open = clean[0];
+  const expectedClose = VERBATIM_QUOTE_PAIRS[open];
+  if (!expectedClose) return false;
+  const close = clean[clean.length - 1];
+  if (close !== expectedClose) return false;
+  const quoteChars = new Set([open, expectedClose]);
+  let count = 0;
+  for (const ch of clean) {
+    if (quoteChars.has(ch)) count += 1;
+  }
+  // Only the wrapping pair of the same family may be present, no stray unmatched
+  // internal quotes that could make the evidence look malformed.
+  return count === 2;
 }
 
 function evidenceLooksLikeQuote(evidence: string, action: string, symptom: string): boolean {
@@ -344,6 +373,10 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
         expected_impact: cleanOptional(rec.expected_impact),
         candidate_text_a: cleanOptional(rec.candidate_text_a) || undefined,
         mistake_proofing: cleanOptional(rec.mistake_proofing) || undefined,
+        potential_damage: Array.isArray(rec.potential_damage)
+          ? rec.potential_damage.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+          : undefined,
+        anchor_type: cleanOptional(rec.anchor_type) || undefined,
         issue_type: issueType,
         source_priority: typeof rec.priority === 'string' ? rec.priority : undefined,
       });
@@ -367,6 +400,9 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
   const issueType = primary?.issue_type ?? 'general';
 
   const evidence = chooseStrongestEvidence(cluster.map((item) => item.evidence));
+  const evidenceItem = cluster.find((item) => item.evidence === evidence) ?? primary;
+  const inferredAnchorType = evidenceIsBalancedVerbatimQuote(evidence) ? 'verbatim_quote' : 'editorial_diagnosis';
+  const anchorType = evidenceItem?.anchor_type || primary?.anchor_type || inferredAnchorType;
   const action = chooseMostSpecific(cluster.map((item) => item.action));
   const fix = chooseMostSpecific(cluster.map((item) => item.fix_direction || item.action));
   const readerEffect = chooseMostSpecific(cluster.map((item) => item.reader_effect || item.expected_impact));
@@ -389,6 +425,8 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
     expected_impact: chooseMostSpecific(cluster.map((item) => item.expected_impact || item.reader_effect)),
     candidate_text_a: chooseMostSpecific(cluster.map((item) => item.candidate_text_a ?? '')) || undefined,
     mistake_proofing: chooseMostSpecific(cluster.map((item) => item.mistake_proofing ?? '')) || undefined,
+    potential_damage: unique(cluster.flatMap((item) => item.potential_damage ?? [])).filter((item) => item.trim().length > 0),
+    anchor_type: anchorType,
     source_priority: primary?.source_priority,
   };
 }
@@ -509,12 +547,13 @@ export function opportunityToCriterionRecommendation(item: CanonicalOpportunityL
     action: item.action || item.fix_direction,
     expected_impact: item.expected_impact || item.reader_effect,
     anchor_snippet: item.evidence,
-    anchor_type: 'verbatim_quote',
+    anchor_type: item.anchor_type || 'editorial_diagnosis',
     symptom: item.symptom,
     mechanism: item.cause,
     specific_fix: item.fix_direction,
     reader_effect: item.reader_effect,
     mistake_proofing: item.mistake_proofing,
+    potential_damage: item.potential_damage,
     candidate_text_a: item.candidate_text_a,
     manuscript_coordinates: item.location,
     collapsed_from_criteria: item.related_criteria.filter((criterion) => criterion !== item.primary_criterion),

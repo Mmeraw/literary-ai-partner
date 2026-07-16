@@ -3,6 +3,7 @@ import path from 'path';
 
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
 import { buildUnifiedEvaluationDocument } from '../../../lib/evaluation/unifiedEvaluationDocument';
+import { ABSENCE_STATUS_TEXT } from '../../../lib/evaluation/presentation/reportDesignSystem';
 
 type ContractShape = {
   sectionsInOrder: string[];
@@ -67,7 +68,7 @@ describe('short-form section tree contract', () => {
     }
   });
 
-  test('required section surfaces never render empty', () => {
+  test('required section surfaces receive an explicit absence status when source content is absent', () => {
     const doc = buildShortFormEvaluationDocument({
       displayTitle: 'Sparse Manuscript',
       result: {
@@ -92,10 +93,10 @@ describe('short-form section tree contract', () => {
       },
     });
 
-    expect(doc.executiveSummary.trim().length).toBeGreaterThan(0);
-    expect(doc.topStrengths.length).toBeGreaterThan(0);
-    expect(doc.topRisks.length).toBeGreaterThan(0);
-    expect(doc.topRecommendations.length).toBeGreaterThan(0);
+    expect(doc.executiveSummary.trim()).toBe(ABSENCE_STATUS_TEXT);
+    expect(doc.topStrengths).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.topRisks).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.topRecommendations).toEqual([ABSENCE_STATUS_TEXT]);
     expect(doc.criteriaScoreGrid.length).toBe(13);
     expect(doc.criterionDetails.length).toBe(13);
     expect(doc.titleBlock.genre.trim().length).toBeGreaterThan(0);
@@ -106,7 +107,7 @@ describe('short-form section tree contract', () => {
     'short_form_evaluation' as const,
     'long_form_evaluation' as const,
     'long_form_multi_layer_evaluation' as const,
-  ])('mode %s keeps modeSpecific surfaces non-empty', (mode) => {
+  ])('mode %s surfaces an explicit absence status when modeSpecific source content is absent', (mode) => {
     const doc = buildUnifiedEvaluationDocument({
       mode,
       displayTitle: 'Sparse Unified Manuscript',
@@ -124,14 +125,14 @@ describe('short-form section tree contract', () => {
       dream: null,
     });
 
-    expect(doc.modeSpecific.manuscriptScaleContinuityFindings.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.storyLedgerArchitectureMap.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.reviewGateReadinessSurface.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.governedLedgerAddenda.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.crossLayerSynthesis.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.layerAwareRevisionSequencing.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.continuityCoverageProof.length).toBeGreaterThan(0);
-    expect(doc.modeSpecific.readinessReleasabilityPosture.trim().length).toBeGreaterThan(0);
+    expect(doc.modeSpecific.manuscriptScaleContinuityFindings).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.modeSpecific.storyLedgerArchitectureMap).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.modeSpecific.reviewGateReadinessSurface).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.modeSpecific.governedLedgerAddenda).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.modeSpecific.crossLayerSynthesis).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.modeSpecific.layerAwareRevisionSequencing).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.modeSpecific.continuityCoverageProof).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.modeSpecific.readinessReleasabilityPosture.trim()).toBe(ABSENCE_STATUS_TEXT);
   });
 
   test('Price of Vanity recommendations dedupe through one canonical opportunity ledger', () => {

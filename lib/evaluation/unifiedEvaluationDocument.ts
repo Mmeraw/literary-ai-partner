@@ -3,6 +3,7 @@ import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bL
 import { getReportHeaderContract } from '@/lib/evaluation/reportHeaderPolicy';
 import { deriveShelfConfidence, type CanonicalConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
 import { getEvaluationTemplateContractMetadata } from '@/lib/evaluation/contracts/evaluationContractRegistry';
+import { ABSENCE_STATUS_TEXT } from '@/lib/evaluation/presentation/reportDesignSystem';
 
 export type CanonicalEvaluationMode =
   | 'short_form_evaluation'
@@ -46,6 +47,14 @@ export type UnifiedEvaluationDocument = Omit<ReturnType<typeof buildShortFormEva
   };
 };
 
+function withAbsenceStatus(items: string[]): string[] {
+  return items.length > 0 ? items : [ABSENCE_STATUS_TEXT];
+}
+
+function withAbsenceStatusString(value: string): string {
+  return value.trim().length > 0 ? value : ABSENCE_STATUS_TEXT;
+}
+
 function deriveTargetAudience(input: {
   explicit?: string;
   genre?: string;
@@ -78,11 +87,6 @@ function unique(values: Array<string | undefined | null>): string[] {
     if (v.length > 0) set.add(v);
   }
   return [...set];
-}
-
-function ensureNonEmpty(values: string[], fallback: string[]): string[] {
-  if (values.length > 0) return values;
-  return fallback;
 }
 
 function isUnavailableHeaderValue(value: string | null | undefined): boolean {
@@ -153,16 +157,21 @@ export function buildUnifiedEvaluationDocument(input: {
     score: typeof overallScore === 'number' ? overallScore : null,
   });
 
-  const revisionPriorityPlan = (base.topRecommendations.length > 0 ? base.topRecommendations : ['Refine the highest-impact structural risks first.'])
-    .slice(0, 5)
-    .map((recommendation, index) => ({
-      priority: index + 1,
-      title: recommendation,
-      location: 'Manuscript-wide',
-      operation: index === 0 ? 'Edit' : 'Refine',
-      recommendation,
-      rationale: 'Prioritized from highest-impact diagnostic findings.',
-    }));
+  const topRecommendationsAreReal = base.topRecommendations.length > 0 && base.topRecommendations[0] !== ABSENCE_STATUS_TEXT;
+  const topRisksAreReal = base.topRisks.length > 0 && base.topRisks[0] !== ABSENCE_STATUS_TEXT;
+
+  const revisionPriorityPlan = topRecommendationsAreReal
+    ? base.topRecommendations
+        .slice(0, 5)
+        .map((recommendation, index) => ({
+          priority: index + 1,
+          title: recommendation,
+          location: 'Manuscript-wide',
+          operation: index === 0 ? 'Edit' : 'Refine',
+          recommendation,
+          rationale: 'Prioritized from highest-impact diagnostic findings.',
+        }))
+    : [];
 
   const dream = input.dream;
   const continuityCoverageProof = unique([
@@ -173,13 +182,15 @@ export function buildUnifiedEvaluationDocument(input: {
 
   const manuscriptScaleContinuityFindings = continuityCoverageProof.length > 0
     ? continuityCoverageProof.slice(0, 8)
-    : unique([
-        ...base.topRisks,
-        ...base.criterionDetails
-          .filter((detail) => detail.scoreLabel !== 'Not scorable')
-          .slice(0, 3)
-          .map((detail) => `${detail.label}: ${detail.rationaleText}`),
-      ]).slice(0, 8);
+    : topRisksAreReal
+      ? unique([
+          ...base.topRisks,
+          ...base.criterionDetails
+            .filter((detail) => detail.scoreLabel !== 'Not scorable')
+            .slice(0, 3)
+            .map((detail) => `${detail.label}: ${detail.rationaleText}`),
+        ]).slice(0, 8)
+      : [];
 
   const storyLedgerArchitectureMap = unique([
     ...(dream?.structural_stack?.map((layer) => `${layer.layer_name}: ${layer.function} (${layer.status})`) ?? []),
@@ -206,32 +217,19 @@ export function buildUnifiedEvaluationDocument(input: {
     (item) => `Priority ${item.priority}: ${item.title} — ${item.operation} (${item.location})`,
   );
 
-  const readinessReleasabilityPosture =
+  const readinessReleasabilityPosture = withAbsenceStatusString(
     dream?.releasability?.length
       ? dream.releasability.map((item) => `${item.dimension}: ${item.verdict}`).join('; ')
-      : `${base.titleBlock.marketReadiness}. Prioritize high-impact revisions before submission.`;
+      : '',
+  );
 
-  const safeManuscriptScaleContinuityFindings = ensureNonEmpty(manuscriptScaleContinuityFindings, [
-    'Continuity findings are provisionally grounded in the current canonical evaluation surfaces.',
-  ]);
-  const safeStoryLedgerArchitectureMap = ensureNonEmpty(storyLedgerArchitectureMap, [
-    'Story/layer architecture evidence is not yet available in this artifact set.',
-  ]);
-  const safeReviewGateReadinessSurface = ensureNonEmpty(reviewGateReadinessSurface, [
-    'Review-gate readiness surface not available; treat releasability as pending verification.',
-  ]);
-  const safeGovernedLedgerAddenda = ensureNonEmpty(governedLedgerAddenda, [
-    'No governed ledger addenda were attached to this run.',
-  ]);
-  const safeCrossLayerSynthesis = ensureNonEmpty(crossLayerSynthesis, [
-    'Cross-layer synthesis was not provided; use criterion-level findings as current authority.',
-  ]);
-  const safeLayerAwareRevisionSequencing = ensureNonEmpty(layerAwareRevisionSequencing, [
-    'Sequence revisions by highest impact risk first, then recalibrate supporting architecture.',
-  ]);
-  const safeContinuityCoverageProof = ensureNonEmpty(continuityCoverageProof, [
-    'Continuity coverage proof unavailable; certify only evidence-backed findings present in canonical output.',
-  ]);
+  const safeManuscriptScaleContinuityFindings = withAbsenceStatus(manuscriptScaleContinuityFindings);
+  const safeStoryLedgerArchitectureMap = withAbsenceStatus(storyLedgerArchitectureMap);
+  const safeReviewGateReadinessSurface = withAbsenceStatus(reviewGateReadinessSurface);
+  const safeGovernedLedgerAddenda = withAbsenceStatus(governedLedgerAddenda);
+  const safeCrossLayerSynthesis = withAbsenceStatus(crossLayerSynthesis);
+  const safeLayerAwareRevisionSequencing = withAbsenceStatus(layerAwareRevisionSequencing);
+  const safeContinuityCoverageProof = withAbsenceStatus(continuityCoverageProof);
 
   return {
     ...base,

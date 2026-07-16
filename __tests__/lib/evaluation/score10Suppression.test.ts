@@ -1,4 +1,5 @@
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
+import { ABSENCE_STATUS_TEXT } from '../../../lib/evaluation/presentation/reportDesignSystem';
 
 describe('score-10 recommendation suppression', () => {
   const CRITERION_KEYS = [
@@ -49,9 +50,7 @@ describe('score-10 recommendation suppression', () => {
       result: buildPerfectResult(98, 10),
     });
 
-    expect(doc.topRecommendations).toHaveLength(1);
-    expect(doc.topRecommendations[0]).toContain('exceptional quality');
-    expect(doc.topRecommendations[0]).not.toContain('Prioritize');
+    expect(doc.topRecommendations).toEqual([ABSENCE_STATUS_TEXT]);
   });
 
   test('perfect score (95+) suppresses topRisks', () => {
@@ -60,8 +59,7 @@ describe('score-10 recommendation suppression', () => {
       result: buildPerfectResult(96, 9),
     });
 
-    expect(doc.topRisks).toHaveLength(1);
-    expect(doc.topRisks[0]).toContain('No significant revision risks');
+    expect(doc.topRisks).toEqual([ABSENCE_STATUS_TEXT]);
   });
 
   test('perfect score (95+) suppresses actionItems', () => {
@@ -80,8 +78,8 @@ describe('score-10 recommendation suppression', () => {
       result: buildPerfectResult(92, 9),
     });
 
-    expect(doc.topRecommendations[0]).toContain('exceptional quality');
-    expect(doc.topRisks[0]).toContain('No significant revision risks');
+    expect(doc.topRecommendations).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.topRisks).toEqual([ABSENCE_STATUS_TEXT]);
   });
 
   test('score 85 with mixed criteria does NOT suppress recommendations', () => {
@@ -89,6 +87,10 @@ describe('score-10 recommendation suppression', () => {
     // Override a few criteria to be lower
     result.criteria[0] = { ...result.criteria[0], score_0_10: 6 };
     result.criteria[1] = { ...result.criteria[1], score_0_10: 7 };
+    result.recommendations = {
+      quick_wins: [{ action: 'Strengthen the opening hook.', why: 'First pages are decisive.', effort: 'low', impact: 'high' }],
+      strategic_revisions: [],
+    };
 
     const doc = buildShortFormEvaluationDocument({
       displayTitle: 'Not Perfect Test',
@@ -96,6 +98,7 @@ describe('score-10 recommendation suppression', () => {
     });
 
     // Should NOT get the suppression message
+    expect(doc.topRecommendations.length).toBeGreaterThan(0);
     expect(doc.topRecommendations[0]).not.toContain('exceptional quality');
   });
 });

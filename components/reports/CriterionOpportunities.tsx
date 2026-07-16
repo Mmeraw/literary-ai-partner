@@ -1,112 +1,116 @@
 "use client";
-import { useState } from "react";
 
-type Opportunity = {
-  opportunity_id?: string;
-  priority?: string;
-  anchor_snippet?: string;
-  anchor_type?: 'verbatim_quote' | 'paraphrased_observation' | 'editorial_diagnosis';
-  symptom?: string;
-  mechanism?: string;
-  specific_fix?: string;
-  reader_effect?: string;
-  mistake_proofing?: string;
-  collapsed_from_criteria?: string[];
+import { useState } from "react";
+import type { PresentedOpportunity, PresentedOpportunitySection } from "@/lib/evaluation/presentation/reportPresentation";
+import { OPPORTUNITY_PRIORITY_LABELS } from "@/lib/evaluation/presentation/reportDesignSystem";
+
+type Props = {
+  presentedOpportunities: PresentedOpportunity[];
 };
 
-function severityLabel(priority?: string): string {
-  if (priority === "high") return "LEDGER PRIORITY";
-  if (priority === "medium") return "LEDGER OPTION";
-  return "LEDGER NOTE";
-}
-
-function severityAccent(priority?: string): string {
-  if (priority === "high") return "border-l-[#8B2E2E]";
-  if (priority === "medium") return "border-l-[#C8A96E]";
-  return "border-l-[#D9D0C3]";
-}
-
-function severityLabelColor(priority?: string): string {
-  if (priority === "high") return "text-[#8B2E2E]";
-  if (priority === "medium") return "text-[#B8922A]";
-  return "text-[#5C5549]";
-}
-
-function OpportunityCard({ opp, idx }: { opp: Opportunity; idx: number }) {
-  const label = severityLabel(opp.priority);
-  const accent = severityAccent(opp.priority);
-  const labelColor = severityLabelColor(opp.priority);
-  const rows: [string, string, boolean][] = [];
-  if (opp.anchor_snippet) {
-    const anchorLabel = opp.anchor_type === 'paraphrased_observation' ? 'Observation' : opp.anchor_type === 'editorial_diagnosis' ? 'Diagnostic Basis' : 'Evidence';
-    const isQuote = opp.anchor_type !== 'editorial_diagnosis';
-    rows.push([anchorLabel, opp.anchor_snippet, isQuote]);
+function priorityClass(priority: PresentedOpportunity["priority"]): string {
+  switch (priority) {
+    case "high":
+      return "border-l-[#8B2E2E]";
+    case "medium":
+      return "border-l-[#C8A96E]";
+    case "low":
+      return "border-l-[#D9D0C3]";
+    case "unknown":
+    default:
+      return "border-l-[#9A9087]";
   }
-  if (opp.symptom) rows.push(["Symptom", opp.symptom, false]);
-  if (opp.mechanism) rows.push(["Cause", opp.mechanism, false]);
-  if (opp.specific_fix) rows.push(["Fix direction", opp.specific_fix, false]);
-  if (opp.reader_effect) rows.push(["Reader effect", opp.reader_effect, false]);
-  if (opp.mistake_proofing) rows.push(["Mistake-proofing", opp.mistake_proofing, false]);
-  if (opp.collapsed_from_criteria && opp.collapsed_from_criteria.length > 0) {
-    rows.push(["Also affects", opp.collapsed_from_criteria.map(k => k.replace(/([A-Z])/g, ' $1').trim()).join(", "), false]);
+}
+
+function priorityTextClass(priority: PresentedOpportunity["priority"]): string {
+  switch (priority) {
+    case "high":
+      return "text-[#8B2E2E]";
+    case "medium":
+      return "text-[#B8922A]";
+    case "low":
+      return "text-[#5C5549]";
+    case "unknown":
+    default:
+      return "text-[#9A9087]";
   }
+}
+
+function SectionValue({ section }: { section: PresentedOpportunitySection }) {
+  if (section.items && section.items.length > 0) {
+    return (
+      <ul className="list-disc pl-4 text-[#1C1814] leading-relaxed [overflow-wrap:anywhere]">
+        {section.items.map((item, i) => (
+          <li key={`${item.slice(0, 24)}-${i}`}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  const isQuote = section.role === "quotation";
+  const value = isQuote ? `\u201c${section.text}\u201d` : section.text;
 
   return (
-    <div className={`overflow-hidden rounded-sm border border-[#D9D0C3] border-l-4 ${accent} bg-white shadow-[0_1px_0_rgba(28,24,20,0.03)]`}>
-      <div className={`px-3 py-2 border-b border-[#E6DED2] bg-[#FAF7F2] ${labelColor}`}>
+    <span className="text-[#1C1814] leading-relaxed [overflow-wrap:anywhere]">
+      {value}
+    </span>
+  );
+}
+
+function SectionRow({ section }: { section: PresentedOpportunitySection }) {
+  return (
+    <div className="grid grid-cols-1 gap-1.5 px-3 py-2.5 text-xs sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3">
+      <span className="font-semibold uppercase tracking-wide text-[#5C5549]">
+        {section.label}
+      </span>
+      <SectionValue section={section} />
+    </div>
+  );
+}
+
+function OpportunityCard({ opp, idx }: { opp: PresentedOpportunity; idx: number }) {
+  const priorityLabel = OPPORTUNITY_PRIORITY_LABELS[opp.priority] ?? OPPORTUNITY_PRIORITY_LABELS.unknown;
+
+  return (
+    <div className={`overflow-hidden rounded-sm border border-[#D9D0C3] border-l-4 ${priorityClass(opp.priority)} bg-white shadow-[0_1px_0_rgba(28,24,20,0.03)]`}>
+      <div className={`px-3 py-2 border-b border-[#E6DED2] bg-[#FAF7F2] ${priorityTextClass(opp.priority)}`}>
         <span className="text-[10px] font-bold uppercase tracking-wider">
-          {label} #{idx + 1}
+          {priorityLabel} #{idx + 1}
         </span>
       </div>
       <div className="divide-y divide-[#EDE7DE]">
-        {rows.map(([k, v, isQuote]) => (
-          <div key={k} className="grid grid-cols-1 gap-1.5 px-3 py-2.5 text-xs sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3">
-            <span className="font-semibold uppercase tracking-wide text-[#5C5549]">{k}</span>
-            <span className="text-[#1C1814] leading-relaxed [overflow-wrap:anywhere]">
-              {isQuote ? <>&ldquo;{v}&rdquo;</> : v}
-            </span>
-          </div>
+        {opp.sections.map((section) => (
+          <SectionRow key={section.key} section={section} />
         ))}
       </div>
     </div>
   );
 }
 
-type Props = {
-  recommendations: Opportunity[];
-};
-
-export default function CriterionOpportunities({ recommendations }: Props) {
-  const sorted = [...recommendations]
-    .sort((a, b) => {
-      const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
-      return (order[a.priority ?? "low"] ?? 2) - (order[b.priority ?? "low"] ?? 2);
-    })
-    .slice(0, 1);
-
+export default function CriterionOpportunities({ presentedOpportunities }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  if (sorted.length === 0) return null;
+  if (presentedOpportunities.length === 0) return null;
 
-  const visible = expanded ? sorted : sorted.slice(0, 1);
+  const visible = expanded ? presentedOpportunities : presentedOpportunities.slice(0, 1);
 
   return (
     <div className="mt-3 space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-[#8B2E2E]">
-          Ledger Opportunity
+          Revision Opportunities
         </p>
-        {sorted.length > 1 && (
+        {presentedOpportunities.length > 1 && (
           <button
             onClick={() => setExpanded((v) => !v)}
             className="text-xs text-[#8B2E2E] hover:text-[#6F1D1B] font-medium"
           >
-            {expanded ? "Show less" : `Show all ${sorted.length}`}
+            {expanded ? "Show less" : `Show all ${presentedOpportunities.length}`}
           </button>
         )}
       </div>
       {visible.map((opp, i) => (
-        <OpportunityCard key={opp.opportunity_id ?? i} opp={opp} idx={i} />
+        <OpportunityCard key={opp.id ?? i} opp={opp} idx={i} />
       ))}
     </div>
   );

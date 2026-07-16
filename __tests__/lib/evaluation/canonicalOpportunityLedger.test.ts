@@ -1,6 +1,7 @@
 import {
   buildCanonicalOpportunityLedger,
   formatOpportunityForTopRecommendation,
+  opportunityToCriterionRecommendation,
 } from '@/lib/evaluation/canonicalOpportunityLedger';
 import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import { buildUnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
@@ -137,5 +138,86 @@ describe('canonical opportunity duplicate collapse', () => {
 
     expect(vm.revisionOpportunitySummary.total).toBe(1);
     expect(renderedOpportunityIds).toEqual(new Set(['OPP-001']));
+  });
+});
+
+describe('canonical opportunity anchor_type propagation', () => {
+  function resultWithEvidence(evidence: string, anchorType?: string): ShortFormResultLike {
+    return {
+      generated_at: '2026-07-16T00:00:00.000Z',
+      overview: {
+        overall_score_0_100: 80,
+        verdict: 'revise',
+        one_paragraph_summary: 'Anchor type propagation test.',
+        top_3_strengths: ['Voice'],
+        top_3_risks: ['Pacing'],
+      },
+      metrics: {
+        manuscript: {
+          title: 'Anchor Test',
+          word_count: 5000,
+          genre: 'literary fiction',
+          target_audience: 'Adult readers',
+        },
+      },
+      enrichment: {
+        premise: 'A premise.',
+        trigger_warnings: [],
+      },
+      criteria: [
+        {
+          key: 'narrativeDrive',
+          score_0_10: 7,
+          confidence_level: 'high',
+          rationale: 'Rationale.',
+          recommendations: [
+            {
+              priority: 'medium',
+              action: 'Act.',
+              expected_impact: 'Impact.',
+              anchor_snippet: evidence,
+              anchor_type: anchorType,
+              symptom: 'Symptom.',
+              mechanism: 'Mechanism.',
+              specific_fix: 'Fix.',
+            },
+          ],
+        },
+      ],
+    } as ShortFormResultLike;
+  }
+
+  it('preserves explicit verbatim_quote anchor_type', () => {
+    const result = resultWithEvidence(
+      'The protagonist lacks a clear external goal in the opening chapter.',
+      'verbatim_quote',
+    );
+    const ledger = buildCanonicalOpportunityLedger(result);
+    const rec = opportunityToCriterionRecommendation(ledger.opportunities[0]);
+    expect(rec.anchor_type).toBe('verbatim_quote');
+  });
+
+  it('infers verbatim_quote from well-formed balanced legacy quotes', () => {
+    const result = resultWithEvidence('"The river remembers blood."', undefined);
+    const ledger = buildCanonicalOpportunityLedger(result);
+    const rec = opportunityToCriterionRecommendation(ledger.opportunities[0]);
+    expect(rec.anchor_type).toBe('verbatim_quote');
+  });
+
+  it('leaves unquoted editorial prose as editorial_diagnosis', () => {
+    const result = resultWithEvidence(
+      'The protagonist lacks a clear external goal in the opening chapter because no stakes are named.',
+      undefined,
+    );
+    const ledger = buildCanonicalOpportunityLedger(result);
+    const rec = opportunityToCriterionRecommendation(ledger.opportunities[0]);
+    expect(rec.anchor_type).toBe('editorial_diagnosis');
+  });
+
+  it('does not certify malformed evidence with stray unmatched quotes as verbatim', () => {
+    const result = resultWithEvidence('"The river doesn\'t take by accident," Robert said.', undefined);
+    const ledger = buildCanonicalOpportunityLedger(result);
+    const rec = opportunityToCriterionRecommendation(ledger.opportunities[0]);
+    expect(rec.anchor_type).toBe('editorial_diagnosis');
   });
 });

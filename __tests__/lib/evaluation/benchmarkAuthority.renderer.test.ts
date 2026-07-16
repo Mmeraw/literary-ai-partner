@@ -61,7 +61,12 @@ function stripHtmlTags(html: string): string {
 }
 
 function normalizeSurfaceText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
+  return value
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function assertStringsInSurface(surfacePlain: string, surfaceName: string, expectedStrings: string[]) {
