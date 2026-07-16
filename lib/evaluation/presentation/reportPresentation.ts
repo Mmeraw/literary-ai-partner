@@ -26,9 +26,10 @@ export type PresentedOpportunitySection = {
   label: string;
   text: string;
   role: PresentedOpportunitySectionRole;
+  items?: string[];
 };
 
-export type PresentedOpportunityPriority = 'high' | 'medium' | 'low';
+export type PresentedOpportunityPriority = 'high' | 'medium' | 'low' | 'unknown';
 
 export type PresentedOpportunity = {
   id: string | undefined;
@@ -54,11 +55,11 @@ type CanonicalOpportunityInput = {
 
 function normalizePriority(value: string | undefined): PresentedOpportunityPriority {
   if (value === 'high' || value === 'medium' || value === 'low') return value;
-  return 'low';
+  return 'unknown';
 }
 
 function priorityLabel(priority: PresentedOpportunityPriority): string {
-  return OPPORTUNITY_PRIORITY_LABELS[priority] ?? 'Consider';
+  return OPPORTUNITY_PRIORITY_LABELS[priority] ?? OPPORTUNITY_PRIORITY_LABELS.unknown;
 }
 
 function renderAlsoAffects(keys: string[] | undefined): string | undefined {
@@ -68,25 +69,28 @@ function renderAlsoAffects(keys: string[] | undefined): string | undefined {
     .join(', ');
 }
 
-function renderPreserve(
-  mistakeProofing: string | undefined,
+function renderPreserve(mistakeProofing: string | undefined): string | undefined {
+  return mistakeProofing && mistakeProofing.trim().length > 0
+    ? mistakeProofing.trim()
+    : undefined;
+}
+
+function renderRiskIfMishandled(
   potentialDamage: string | string[] | undefined,
-): string | undefined {
-  const parts: string[] = [];
-  if (mistakeProofing && mistakeProofing.trim().length > 0) {
-    parts.push(mistakeProofing.trim());
+): { text: string; items?: string[] } | undefined {
+  if (!potentialDamage) return undefined;
+
+  if (Array.isArray(potentialDamage)) {
+    const items = potentialDamage
+      .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      .map((item) => item.trim());
+    if (items.length === 0) return undefined;
+    return { text: items.join(' '), items };
   }
-  if (potentialDamage) {
-    if (Array.isArray(potentialDamage)) {
-      potentialDamage
-        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-        .forEach((item) => parts.push(item.trim()));
-    } else if (typeof potentialDamage === 'string' && potentialDamage.trim().length > 0) {
-      parts.push(potentialDamage.trim());
-    }
-  }
-  if (parts.length === 0) return undefined;
-  return parts.join(' ');
+
+  const text = potentialDamage.trim();
+  if (text.length === 0) return undefined;
+  return { text };
 }
 
 /**
@@ -94,7 +98,7 @@ function renderPreserve(
  *
  * The returned `sections` are ordered and labelled according to the shared
  * design system. Renderers only decide medium-specific formatting (quotes
- * for verbatim evidence, bullets for preserve items, etc.).
+ * for verbatim evidence, bullets for multi-item guardrails, etc.).
  */
 export function presentOpportunity(
   input: CanonicalOpportunityInput,
@@ -104,33 +108,32 @@ export function presentOpportunity(
   const heading = `Revision Opportunity ${index + 1}`;
 
   const evidenceRole: PresentedOpportunitySectionRole =
-    input.anchor_type === 'paraphrased_observation' || input.anchor_type === 'editorial_diagnosis'
-      ? 'editorial_prose'
-      : 'quotation';
+    input.anchor_type === 'verbatim_quote' ? 'quotation' : 'editorial_prose';
+
+  const risk = renderRiskIfMishandled(input.potential_damage);
 
   const candidateSections: Array<
-    | { key: PresentedOpportunitySectionKey; value: string | undefined; role: PresentedOpportunitySectionRole }
+    | { key: PresentedOpportunitySectionKey; value: string; role: PresentedOpportunitySectionRole; items?: string[] }
     | undefined
   > = [
-    { key: 'evidence', value: input.anchor_snippet, role: evidenceRole },
-    { key: 'observation', value: input.symptom, role: 'editorial_prose' },
-    { key: 'whyItMatters', value: input.mechanism, role: 'editorial_prose' },
-    { key: 'suggestedDirection', value: input.specific_fix, role: 'editorial_prose' },
-    {
-      key: 'preserve',
-      value: renderPreserve(input.mistake_proofing, input.potential_damage),
-      role: 'guardrail',
-    },
-    { key: 'expectedReaderExperience', value: input.reader_effect, role: 'editorial_prose' },
+    { key: 'evidence', value: input.anchor_snippet ?? '', role: evidenceRole },
+    { key: 'observation', value: input.symptom ?? '', role: 'editorial_prose' },
+    { key: 'whyItMatters', value: input.mechanism ?? '', role: 'editorial_prose' },
+    { key: 'suggestedDirection', value: input.specific_fix ?? '', role: 'editorial_prose' },
+    { key: 'preserve', value: renderPreserve(input.mistake_proofing) ?? '', role: 'guardrail' },
+    risk
+      ? { key: 'riskIfMishandled', value: risk.text, role: 'guardrail', items: risk.items }
+      : undefined,
+    { key: 'expectedReaderExperience', value: input.reader_effect ?? '', role: 'editorial_prose' },
     {
       key: 'alsoAffects',
-      value: renderAlsoAffects(input.collapsed_from_criteria),
+      value: renderAlsoAffects(input.collapsed_from_criteria) ?? '',
       role: 'metadata',
     },
   ];
 
   const sections: PresentedOpportunitySection[] = candidateSections
-    .filter((section): section is { key: PresentedOpportunitySectionKey; value: string; role: PresentedOpportunitySectionRole } =>
+    .filter((section): section is { key: PresentedOpportunitySectionKey; value: string; role: PresentedOpportunitySectionRole; items?: string[] } =>
       section !== undefined && typeof section.value === 'string' && section.value.trim().length > 0,
     )
     .map((section) => ({
@@ -138,6 +141,7 @@ export function presentOpportunity(
       label: OPPORTUNITY_PRESENTATION_LABELS[section.key],
       text: section.value.trim(),
       role: section.role,
+      items: section.items,
     }));
 
   return {

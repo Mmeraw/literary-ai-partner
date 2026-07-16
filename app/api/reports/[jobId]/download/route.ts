@@ -13,6 +13,8 @@ import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bL
 import { loadCertifiedUnifiedEvaluationDocumentArtifact } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import type { EvaluationReportViewModel, LongFormMultiLayerEvaluationViewModel, PresentedOpportunity } from '@/lib/evaluation/evaluationReportViewModel';
+import type { PresentedOpportunitySectionRole } from '@/lib/evaluation/presentation/reportPresentation';
+import { OPPORTUNITY_PRIORITY_LABELS } from '@/lib/evaluation/presentation/reportDesignSystem';
 
 import { validateDownloadParity } from '@/lib/evaluation/downloadParityGate';
 import {
@@ -176,10 +178,31 @@ type ExportableResultShape = {
   };
 };
 
-function exportSeverity(priority?: string): string {
-  if (priority === 'high') return 'RECOMMENDED';
-  if (priority === 'medium') return 'OPTIONAL';
-  return 'CONSIDER';
+function priorityBadgeClass(priority: PresentedOpportunity['priority']): string {
+  switch (priority) {
+    case 'high':
+      return 'opp-badge-high';
+    case 'medium':
+      return 'opp-badge-medium';
+    case 'low':
+    case 'unknown':
+    default:
+      return 'opp-badge-consider';
+  }
+}
+
+function priorityDocxColor(priority: PresentedOpportunity['priority']): string {
+  switch (priority) {
+    case 'high':
+      return RG.oxblood;
+    case 'medium':
+      return RG.gold;
+    case 'low':
+      return RG.textMuted;
+    case 'unknown':
+    default:
+      return RG.textFaint;
+  }
 }
 
 function pushTxtListBlock(lines: string[], label: string, values: string[], options: { ordered?: boolean } = {}): void {
@@ -343,9 +366,24 @@ function pushTxtMetadata(lines: string[], label: string, value: string): void {
 // applies them before renderers see data; retained here as defense-in-depth).
 
 
-function pushTxtOpportunityDetailRow(lines: string[], label: string, value: string): void {
-  const valueForLabel = label === 'Evidence' ? normalizeEvidenceSnippet(value) : sanitizeCMOS(value);
-  const renderedValue = label === 'Evidence' ? `\u201c${valueForLabel}\u201d` : valueForLabel;
+function pushTxtOpportunityDetailRow(
+  lines: string[],
+  label: string,
+  value: string,
+  role: PresentedOpportunitySectionRole = 'editorial_prose',
+  items?: string[],
+): void {
+  if (items && items.length > 0) {
+    lines.push(`    ${label}:`);
+    items.forEach((item) => {
+      pushWrapped(lines, item, { firstIndent: '      \u2022 ', nextIndent: '        ' });
+    });
+    return;
+  }
+
+  const isEvidence = role === 'quotation';
+  const valueForLabel = isEvidence ? normalizeEvidenceSnippet(value) : sanitizeCMOS(value);
+  const renderedValue = isEvidence ? `\u201c${valueForLabel}\u201d` : valueForLabel;
   // D1: single-space-after-colon backstop at the TXT label:value join (the only
   // renderer that concatenates label + value into one string; web/PDF/DOCX use
   // separate cells). Idempotent \u2014 leaves the correct "Symptom: After" untouched.
@@ -672,10 +710,10 @@ function appendLongFormMultiLayerTxtSections(lines: string[], lf: LongFormMultiL
 }
 
 // ── Phase 4b: VM-aware opportunity formatter (no cleanReportText — VM owns sanitization) ──
-function vmOpportunityRows(opp: PresentedOpportunity): Array<[string, string]> {
+function vmOpportunityRows(opp: PresentedOpportunity): Array<[string, string, PresentedOpportunitySectionRole, string[] | undefined]> {
   return opp.sections.map((section) => {
     const value = section.role === 'quotation' ? normalizeEvidenceSnippet(section.text) : section.text;
-    return [section.label, value];
+    return [section.label, value, section.role, section.items];
   });
 }
 
@@ -866,9 +904,9 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
       detail.presentedOpportunities.forEach((opp, index) => {
         const detailRows = vmOpportunityRows(opp);
         if (detailRows.length === 0) return;
-        lines.push(`${exportSeverity(opp.priority).toUpperCase()} #${index + 1}`);
-        detailRows.forEach(([label, value]) => {
-          pushTxtOpportunityDetailRow(lines, label, value);
+        lines.push(`${(OPPORTUNITY_PRIORITY_LABELS[opp.priority] ?? OPPORTUNITY_PRIORITY_LABELS.unknown).toUpperCase()} #${index + 1}`);
+        detailRows.forEach(([label, value, role, items]) => {
+          pushTxtOpportunityDetailRow(lines, label, value, role, items);
         });
       });
     } else if (detail.recommendationStatus) {
@@ -968,9 +1006,12 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
       ? `<ul class="${options.ordered ? 'rg-ordered-list' : 'rg-bullet-list'}">${items.map((item, index) => `<li><span class="rg-list-marker">${options.ordered ? `${index + 1}.` : '\u2022'}</span><span>${escapeHtml(item)}</span></li>`).join('')}</ul>`
       : '<p>None supplied.</p>';
 
-  const renderOpportunityFields = (rows: Array<[string, string]>) => rows
-    .map(([label, value]) => {
-      const isEvidence = label === 'Evidence';
+  const renderOpportunityFields = (rows: Array<[string, string, PresentedOpportunitySectionRole, string[] | undefined]>) => rows
+    .map(([label, value, role, items]) => {
+      if (items && items.length > 0) {
+        return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div>${list(items)}</div>`;
+      }
+      const isEvidence = role === 'quotation';
       const valHtml = isEvidence ? `\u201c${escapeHtml(normalizeEvidenceSnippet(value))}\u201d` : escapeHtml(value);
       const valClass = isEvidence ? 'opp-val opp-val-evidence' : 'opp-val';
       return `<div class="opp-field"><div class="opp-key">${escapeHtml(label)}</div><div class="${valClass}">${valHtml}</div></div>`;
@@ -989,9 +1030,9 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
               const rows = vmOpportunityRows(opp);
               if (rows.length === 0) return '';
               const detailHtml = renderOpportunityFields(rows);
-              const severity = exportSeverity(opp.priority).toUpperCase();
-              const badgeClass = severity === 'RECOMMENDED' ? 'opp-badge-high' : severity === 'OPTIONAL' ? 'opp-badge-medium' : 'opp-badge-consider';
-              return `<div class="opp-recommendation"><div class="opp-header"><p class="opp-severity">Revision Opportunity #${index + 1}</p><span class="opp-badge ${badgeClass}">${escapeHtml(severity)}</span></div>${detailHtml}</div>`;
+              const priorityLabel = (OPPORTUNITY_PRIORITY_LABELS[opp.priority] ?? OPPORTUNITY_PRIORITY_LABELS.unknown).toUpperCase();
+              const badgeClass = priorityBadgeClass(opp.priority);
+              return `<div class="opp-recommendation"><div class="opp-header"><p class="opp-severity">Revision Opportunity #${index + 1}</p><span class="opp-badge ${badgeClass}">${escapeHtml(priorityLabel)}</span></div>${detailHtml}</div>`;
             }).join('');
             if (renderedRecommendations.length === 0) return '';
             return `<div class="opp-block"><div class="opp-label">Revision Opportunities (${detail.presentedOpportunities.length})</div>${renderedRecommendations}</div>`;
@@ -1416,11 +1457,46 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       ],
     });
 
-  const makeOpportunityDetailRow = (label: string, value: string): TableRow => {
-    const isEvidence = label === 'Evidence';
-    const isDiagnostic = label === 'Observation' || label === 'Diagnostic Basis';
+  const makeOpportunityDetailRow = (
+    label: string,
+    value: string,
+    role: PresentedOpportunitySectionRole = 'editorial_prose',
+    items?: string[],
+  ): TableRow => {
+    const isEvidence = role === 'quotation';
+    const isDiagnostic = label === 'What We Observed';
     const valueColor = isDiagnostic ? RG.textMuted : RG.textPrimary;
-    const renderedValue = isEvidence ? normalizeEvidenceSnippet(value) : value;
+
+    const children: Paragraph[] = [];
+    if (items && items.length > 0) {
+      children.push(
+        new Paragraph({
+          spacing: { before: 30, after: 30, line: 300 },
+          children: [new TextRun({ text: `${label}:`, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })],
+        }),
+      );
+      items.forEach((item) => {
+        children.push(
+          new Paragraph({
+            spacing: { before: 0, after: 30, line: 276 },
+            children: [new TextRun({ text: `\u2022 ${item}`, size: 19, color: docxHex(RG.textPrimary), font: 'Calibri' })],
+          }),
+        );
+      });
+    } else {
+      const renderedValue = isEvidence ? `\u201c${normalizeEvidenceSnippet(value)}\u201d` : value;
+      children.push(
+        new Paragraph({
+          spacing: { before: 30, after: 60, line: 300 },
+          children: [
+            new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }),
+            isEvidence
+              ? new TextRun({ text: renderedValue, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })
+              : new TextRun({ text: renderedValue, size: 19, color: docxHex(valueColor), font: 'Calibri' }),
+          ],
+        }),
+      );
+    }
 
     return new TableRow({
       children: [
@@ -1433,17 +1509,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
           },
           margins: CELL_MARGINS,
           shading: { type: ShadingType.SOLID, color: docxHex(RG.surfaceAlt) },
-          children: [
-            new Paragraph({
-              spacing: { before: 30, after: 60, line: 300 },
-              children: [
-                new TextRun({ text: `${label}: `, bold: true, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' }),
-                isEvidence
-                  ? new TextRun({ text: `\u201c${renderedValue}\u201d`, size: 19, color: docxHex(RG.textMuted), font: 'Calibri' })
-                  : new TextRun({ text: renderedValue, size: 19, color: docxHex(valueColor), font: 'Calibri' }),
-              ],
-            }),
-          ],
+          children,
         }),
       ],
     });
@@ -1729,7 +1795,7 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
       detail.presentedOpportunities.forEach((opp, index) => {
         const rows = vmOpportunityRows(opp);
         if (rows.length === 0) return;
-        const severity = exportSeverity(opp.priority).toUpperCase();
+        const priorityLabel = (OPPORTUNITY_PRIORITY_LABELS[opp.priority] ?? OPPORTUNITY_PRIORITY_LABELS.unknown).toUpperCase();
         children.push(new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
           rows: [
@@ -1746,12 +1812,12 @@ async function renderDocxFromViewModel(vm: EvaluationReportViewModel, jobId = ''
                   spacing: { before: 60, after: 60 },
                   children: [
                     new TextRun({ text: `Revision Opportunity #${index + 1}`, bold: true, size: 20, color: docxHex(RG.oxblood), font: 'Calibri' }),
-                    new TextRun({ text: `  ${severity}`, bold: true, size: 16, color: severity === 'RECOMMENDED' ? docxHex(RG.oxblood) : docxHex(RG.textMuted), font: 'Calibri' }),
+                    new TextRun({ text: `  ${priorityLabel}`, bold: true, size: 16, color: docxHex(priorityDocxColor(opp.priority)), font: 'Calibri' }),
                   ],
                 })],
               })],
             }),
-            ...rows.map(([label, value]) => makeOpportunityDetailRow(label, value)),
+            ...rows.map(([label, value, role, items]) => makeOpportunityDetailRow(label, value, role, items)),
           ],
         }));
       });
@@ -2441,5 +2507,6 @@ export const __testingDownload = {
   renderTxtFromViewModel,
   renderHtmlFromViewModel,
   renderDocxFromViewModel,
+  buildChromiumPdf,
   loadCertifiedUnifiedEvaluationDocumentArtifact,
 };

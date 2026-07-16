@@ -175,7 +175,11 @@ function renderableFragmentsForField(path: string, value: unknown): string[] {
               ? opp.sections.flatMap((section) => {
                   if (!section || typeof section !== 'object') return [];
                   const sec = section as Record<string, unknown>;
-                  return [sec.label, sec.text].flatMap((fragment) => flattenRenderablePrimitives(fragment));
+                  const textFragments = [sec.label, sec.text, sec.role].flatMap((fragment) => flattenRenderablePrimitives(fragment));
+                  const itemFragments = Array.isArray(sec.items)
+                    ? sec.items.flatMap((item) => flattenRenderablePrimitives(item))
+                    : [];
+                  return [...textFragments, ...itemFragments];
                 })
               : [];
             return [

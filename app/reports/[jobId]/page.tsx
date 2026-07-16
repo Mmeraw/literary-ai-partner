@@ -569,11 +569,11 @@ export default async function ReportPage({
               <p className="mt-2 font-serif text-3xl font-bold text-[#1C1814]">{vm.revisionOpportunitySummary.total}</p>
             </div>
             <div className="rounded-sm border border-[#C97A7A] bg-[#FDF0F0] p-4 text-center" style={{borderTop:'2px solid #8B2E2E'}}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#8B2E2E]">Recommended</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#8B2E2E]">Priority Revision</p>
               <p className="mt-2 font-serif text-3xl font-bold text-[#8B2E2E]">{vm.revisionOpportunitySummary.recommended}</p>
             </div>
             <div className="rounded-sm border border-[#D9A441] bg-[#FFF8EC] p-4 text-center" style={{borderTop:'2px solid #B8922A'}}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#B8922A]">Optional</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#B8922A]">Recommended Revision</p>
               <p className="mt-2 font-serif text-3xl font-bold text-[#B8922A]">{vm.revisionOpportunitySummary.optional}</p>
             </div>
             <div className="rounded-sm border border-[#9DC79D] bg-[#EEF7EF] p-4 text-center" style={{borderTop:'2px solid #437A22'}}>

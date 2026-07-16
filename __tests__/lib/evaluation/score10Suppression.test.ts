@@ -1,4 +1,5 @@
 import { buildShortFormEvaluationDocument } from '../../../lib/evaluation/shortFormReportDocument';
+import { ABSENCE_STATUS_TEXT } from '../../../lib/evaluation/presentation/reportDesignSystem';
 
 describe('score-10 recommendation suppression', () => {
   const CRITERION_KEYS = [
@@ -49,7 +50,7 @@ describe('score-10 recommendation suppression', () => {
       result: buildPerfectResult(98, 10),
     });
 
-    expect(doc.topRecommendations).toHaveLength(0);
+    expect(doc.topRecommendations).toEqual([ABSENCE_STATUS_TEXT]);
   });
 
   test('perfect score (95+) suppresses topRisks', () => {
@@ -58,7 +59,7 @@ describe('score-10 recommendation suppression', () => {
       result: buildPerfectResult(96, 9),
     });
 
-    expect(doc.topRisks).toHaveLength(0);
+    expect(doc.topRisks).toEqual([ABSENCE_STATUS_TEXT]);
   });
 
   test('perfect score (95+) suppresses actionItems', () => {
@@ -77,8 +78,8 @@ describe('score-10 recommendation suppression', () => {
       result: buildPerfectResult(92, 9),
     });
 
-    expect(doc.topRecommendations).toHaveLength(0);
-    expect(doc.topRisks).toHaveLength(0);
+    expect(doc.topRecommendations).toEqual([ABSENCE_STATUS_TEXT]);
+    expect(doc.topRisks).toEqual([ABSENCE_STATUS_TEXT]);
   });
 
   test('score 85 with mixed criteria does NOT suppress recommendations', () => {

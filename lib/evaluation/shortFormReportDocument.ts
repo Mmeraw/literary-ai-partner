@@ -26,6 +26,7 @@ import {
   type ReportHeaderContract,
 } from '@/lib/evaluation/reportHeaderPolicy';
 import { formatScoreFractionForDisplay } from '@/lib/ui/score-formatting';
+import { ABSENCE_STATUS_TEXT } from '@/lib/evaluation/presentation/reportDesignSystem';
 
 /** Format words that are not valid genre names — mirrors templateCompletenessGate.FORMAT_WORDS. */
 const FORMAT_WORDS = new Set([
@@ -540,7 +541,20 @@ export function buildShortFormEvaluationDocument(input: {
   const executiveSummary =
     typeof result.overview?.one_paragraph_summary === 'string' && result.overview.one_paragraph_summary.trim().length > 0
       ? mistakeProofText(result.overview.one_paragraph_summary)
-      : '';
+      : ABSENCE_STATUS_TEXT;
+
+  const topStrengths = (result.overview?.top_3_strengths ?? [])
+    .map((item) => mistakeProofText(item))
+    .filter(Boolean);
+  const topRisks = (result.overview?.top_3_risks ?? [])
+    .map((item) => mistakeProofText(item))
+    .filter(Boolean);
+  const resolvedTopRecommendations = (canonicalTopRecommendations.length > 0 ? canonicalTopRecommendations : topRecommendations)
+    .map((item) => mistakeProofText(item))
+    .filter(Boolean);
+
+  const withAbsenceStatus = (items: string[]): string[] =>
+    items.length > 0 ? items : [ABSENCE_STATUS_TEXT];
 
   // ── Score-10 suppression: near-perfect manuscripts don't need a shopping list ──
   const scorableCriteria = orderedCriteria.filter(c => typeof c.score_0_10 === 'number');
@@ -597,19 +611,9 @@ export function buildShortFormEvaluationDocument(input: {
         : ['No content warnings identified.'],
     revisionOpportunitySummary: opportunitySummary,
     executiveSummary,
-    topStrengths: (result.overview?.top_3_strengths ?? [])
-      .map((item) => mistakeProofText(item))
-      .filter(Boolean),
-    topRisks: isPerfectScore
-      ? []
-      : (result.overview?.top_3_risks ?? [])
-          .map((item) => mistakeProofText(item))
-          .filter(Boolean),
-    topRecommendations: isPerfectScore
-      ? []
-      : (canonicalTopRecommendations.length > 0 ? canonicalTopRecommendations : topRecommendations)
-          .map((item) => mistakeProofText(item))
-          .filter(Boolean),
+    topStrengths: withAbsenceStatus(topStrengths),
+    topRisks: withAbsenceStatus(isPerfectScore ? [] : topRisks),
+    topRecommendations: withAbsenceStatus(isPerfectScore ? [] : resolvedTopRecommendations),
     canonicalOpportunityLedger,
     criteriaScoreGrid,
     criterionDetails,

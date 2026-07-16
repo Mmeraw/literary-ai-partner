@@ -22,6 +22,7 @@ export type CanonicalOpportunityLedgerItem = {
   candidate_text_a?: string;
   mistake_proofing?: string;
   potential_damage?: string[];
+  anchor_type?: string;
   source_priority?: string;
 };
 
@@ -88,6 +89,7 @@ type RawOpportunity = {
   candidate_text_a?: string;
   mistake_proofing?: string;
   potential_damage?: string[];
+  anchor_type?: string;
   issue_type: string;
   source_priority?: string;
 };
@@ -350,6 +352,7 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
         potential_damage: Array.isArray(rec.potential_damage)
           ? rec.potential_damage.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
           : undefined,
+        anchor_type: cleanOptional(rec.anchor_type) || undefined,
         issue_type: issueType,
         source_priority: typeof rec.priority === 'string' ? rec.priority : undefined,
       });
@@ -373,6 +376,9 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
   const issueType = primary?.issue_type ?? 'general';
 
   const evidence = chooseStrongestEvidence(cluster.map((item) => item.evidence));
+  const evidenceItem = cluster.find((item) => item.evidence === evidence) ?? primary;
+  const inferredAnchorType = /["“”]/.test(evidence) ? 'verbatim_quote' : 'editorial_diagnosis';
+  const anchorType = evidenceItem?.anchor_type || primary?.anchor_type || inferredAnchorType;
   const action = chooseMostSpecific(cluster.map((item) => item.action));
   const fix = chooseMostSpecific(cluster.map((item) => item.fix_direction || item.action));
   const readerEffect = chooseMostSpecific(cluster.map((item) => item.reader_effect || item.expected_impact));
@@ -396,6 +402,7 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
     candidate_text_a: chooseMostSpecific(cluster.map((item) => item.candidate_text_a ?? '')) || undefined,
     mistake_proofing: chooseMostSpecific(cluster.map((item) => item.mistake_proofing ?? '')) || undefined,
     potential_damage: unique(cluster.flatMap((item) => item.potential_damage ?? [])).filter((item) => item.trim().length > 0),
+    anchor_type: anchorType,
     source_priority: primary?.source_priority,
   };
 }
@@ -516,7 +523,7 @@ export function opportunityToCriterionRecommendation(item: CanonicalOpportunityL
     action: item.action || item.fix_direction,
     expected_impact: item.expected_impact || item.reader_effect,
     anchor_snippet: item.evidence,
-    anchor_type: 'verbatim_quote',
+    anchor_type: item.anchor_type || 'editorial_diagnosis',
     symptom: item.symptom,
     mechanism: item.cause,
     specific_fix: item.fix_direction,

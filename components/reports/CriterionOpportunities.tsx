@@ -14,8 +14,11 @@ function priorityClass(priority: PresentedOpportunity["priority"]): string {
       return "border-l-[#8B2E2E]";
     case "medium":
       return "border-l-[#C8A96E]";
-    default:
+    case "low":
       return "border-l-[#D9D0C3]";
+    case "unknown":
+    default:
+      return "border-l-[#9A9087]";
   }
 }
 
@@ -25,29 +28,48 @@ function priorityTextClass(priority: PresentedOpportunity["priority"]): string {
       return "text-[#8B2E2E]";
     case "medium":
       return "text-[#B8922A]";
-    default:
+    case "low":
       return "text-[#5C5549]";
+    case "unknown":
+    default:
+      return "text-[#9A9087]";
   }
 }
 
-function SectionRow({ section }: { section: PresentedOpportunitySection }) {
+function SectionValue({ section }: { section: PresentedOpportunitySection }) {
+  if (section.items && section.items.length > 0) {
+    return (
+      <ul className="list-disc pl-4 text-[#1C1814] leading-relaxed [overflow-wrap:anywhere]">
+        {section.items.map((item, i) => (
+          <li key={`${item.slice(0, 24)}-${i}`}>{item}</li>
+        ))}
+      </ul>
+    );
+  }
+
   const isQuote = section.role === "quotation";
   const value = isQuote ? `\u201c${section.text}\u201d` : section.text;
 
+  return (
+    <span className="text-[#1C1814] leading-relaxed [overflow-wrap:anywhere]">
+      {value}
+    </span>
+  );
+}
+
+function SectionRow({ section }: { section: PresentedOpportunitySection }) {
   return (
     <div className="grid grid-cols-1 gap-1.5 px-3 py-2.5 text-xs sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3">
       <span className="font-semibold uppercase tracking-wide text-[#5C5549]">
         {section.label}
       </span>
-      <span className="text-[#1C1814] leading-relaxed [overflow-wrap:anywhere]">
-        {value}
-      </span>
+      <SectionValue section={section} />
     </div>
   );
 }
 
 function OpportunityCard({ opp, idx }: { opp: PresentedOpportunity; idx: number }) {
-  const priorityLabel = OPPORTUNITY_PRIORITY_LABELS[opp.priority] ?? "Consider";
+  const priorityLabel = OPPORTUNITY_PRIORITY_LABELS[opp.priority] ?? OPPORTUNITY_PRIORITY_LABELS.unknown;
 
   return (
     <div className={`overflow-hidden rounded-sm border border-[#D9D0C3] border-l-4 ${priorityClass(opp.priority)} bg-white shadow-[0_1px_0_rgba(28,24,20,0.03)]`}>

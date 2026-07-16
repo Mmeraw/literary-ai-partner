@@ -177,7 +177,7 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(docxText).toContain('Confidentiality');
   });
 
-  test('opportunity detail rows (Evidence/What We Observed/Why It Matters/Suggested Direction/Expected Reader Experience/Preserve) appear in all 3 formats', async () => {
+  test('opportunity detail rows (Evidence/What We Observed/Why It Matters/Suggested Direction/Expected Reader Experience/Preserve/Risk if Mishandled) appear in all 3 formats', async () => {
     const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
     const testing = routeModule.__testingDownload;
     const longEvidence = 'A dark truck, fast, heading toward the river, with a reference identifier 123e4567-e89b-12d3-a456-426614174000 and a long unbroken pressure phrase that must remain fully present instead of clipping off the right side of the generated report page.';
@@ -215,11 +215,13 @@ describe('download adapters parity (ViewModel renderers)', () => {
                 priority: 'medium',
                 action: 'Increase the stakes surrounding the missing man.',
                 anchor_snippet: longEvidence,
+                anchor_type: 'verbatim_quote',
                 symptom: 'Stakes or decision pressure diffuses before reaching the reader.',
                 mechanism: 'Mid-chapter tension release without replacement hook.',
                 specific_fix: longFix,
                 reader_effect: 'Sustains reader engagement and enhances narrative urgency.',
                 mistake_proofing: 'Check each scene break for forward-pull sentence.',
+                potential_damage: ['Flattened scene transitions', 'Loss of reader urgency'],
               },
             ],
           },
@@ -243,7 +245,7 @@ describe('download adapters parity (ViewModel renderers)', () => {
 
     const txtCollapsed = txt.replace(/\n/g, ' ').replace(/\s+/g, ' ');
 
-    // TXT must include all 6 presentation-ready opportunity fields
+    // TXT must include all 7 presentation-ready opportunity fields
     expect(txt).toContain('Evidence: \u201cA dark truck, fast, heading toward the river, with a referenc');
     expect(txt).toContain('identifier 123e4567-e89b-12d3-a456-426614174000');
     expect(txtCollapsed).toContain('What We Observed: Stakes or decision pressure diffuses before reaching the reader.');
@@ -251,6 +253,9 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(txtCollapsed).toContain('Suggested Direction: Insert a ticking-clock reminder every 800 words and keep the sentence fully visible even when it contains long-market-positioning-language-without-friendly-breakpoints.');
     expect(txtCollapsed).toContain('Expected Reader Experience: Sustains reader engagement and enhances narrative urgency.');
     expect(txtCollapsed).toContain('Preserve: Check each scene break for forward-pull sentence.');
+    expect(txtCollapsed).toContain('Risk if Mishandled:');
+    expect(txtCollapsed).toContain('Flattened scene transitions');
+    expect(txtCollapsed).toContain('Loss of reader urgency');
 
     const txtLines = txt.split('\n');
     const evidenceLine = txtLines.findIndex((line) => line.startsWith('    Evidence:'));
@@ -266,7 +271,7 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(txt).not.toContain('ACTION ITEMS');
     expect(txt).not.toContain('Strategic Revisions:');
 
-    // HTML/PDF must include all 6 diagnostic fields
+    // HTML/PDF must include all 7 diagnostic fields
     expect(html).not.toContain('class="score-box"');
     expect(html).not.toContain('background:#1C1814');
     expect(html).not.toContain('background: #1c1814');
@@ -284,12 +289,15 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(html).toContain(longFix);
     expect(html).toContain('Sustains reader engagement and enhances narrative urgency.');
     expect(html).toContain('Check each scene break for forward-pull sentence.');
+    expect(html).toContain('Risk if Mishandled');
+    expect(html).toContain('Flattened scene transitions');
+    expect(html).toContain('Loss of reader urgency');
 
     // HTML/PDF must NOT include Action Items (short-form per Revision Surface Ownership Contract)
     expect(html).not.toContain('<h2>Action Items</h2>');
     expect(html).not.toContain('<h3>Strategic Revisions</h3>');
 
-    // DOCX must include all 6 diagnostic fields
+    // DOCX must include all 7 diagnostic fields
     const docxBuffer = await testing.renderDocxFromViewModel(vm);
     const { value: docxText } = await mammoth.extractRawText({ buffer: docxBuffer });
     expect(docxText).toContain('A dark truck, fast, heading toward the river, with a reference identifier');
@@ -298,6 +306,9 @@ describe('download adapters parity (ViewModel renderers)', () => {
     expect(docxText).toContain('Insert a ticking-clock reminder every 800 words and keep the sentence fully visible');
     expect(docxText).toContain('Sustains reader engagement and enhances narrative urgency.');
     expect(docxText).toContain('Check each scene break for forward-pull sentence.');
+    expect(docxText).toContain('Risk if Mishandled');
+    expect(docxText).toContain('Flattened scene transitions');
+    expect(docxText).toContain('Loss of reader urgency');
 
     // DOCX must NOT include Action Items (short-form per Revision Surface Ownership Contract)
     expect(docxText).not.toContain('Action Items');

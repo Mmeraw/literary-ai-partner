@@ -3,6 +3,7 @@ import type { LongformDreamDocument } from '@/lib/evaluation/pipeline/runPass3bL
 import { getReportHeaderContract } from '@/lib/evaluation/reportHeaderPolicy';
 import { deriveShelfConfidence, type CanonicalConfidenceLabel } from '@/lib/evaluation/confidenceFieldPolicy';
 import { getEvaluationTemplateContractMetadata } from '@/lib/evaluation/contracts/evaluationContractRegistry';
+import { ABSENCE_STATUS_TEXT } from '@/lib/evaluation/presentation/reportDesignSystem';
 
 export type CanonicalEvaluationMode =
   | 'short_form_evaluation'
@@ -45,6 +46,14 @@ export type UnifiedEvaluationDocument = Omit<ReturnType<typeof buildShortFormEva
     readinessReleasabilityPosture: string;
   };
 };
+
+function withAbsenceStatus(items: string[]): string[] {
+  return items.length > 0 ? items : [ABSENCE_STATUS_TEXT];
+}
+
+function withAbsenceStatusString(value: string): string {
+  return value.trim().length > 0 ? value : ABSENCE_STATUS_TEXT;
+}
 
 function deriveTargetAudience(input: {
   explicit?: string;
@@ -148,16 +157,21 @@ export function buildUnifiedEvaluationDocument(input: {
     score: typeof overallScore === 'number' ? overallScore : null,
   });
 
-  const revisionPriorityPlan = base.topRecommendations
-    .slice(0, 5)
-    .map((recommendation, index) => ({
-      priority: index + 1,
-      title: recommendation,
-      location: 'Manuscript-wide',
-      operation: index === 0 ? 'Edit' : 'Refine',
-      recommendation,
-      rationale: 'Prioritized from highest-impact diagnostic findings.',
-    }));
+  const topRecommendationsAreReal = base.topRecommendations.length > 0 && base.topRecommendations[0] !== ABSENCE_STATUS_TEXT;
+  const topRisksAreReal = base.topRisks.length > 0 && base.topRisks[0] !== ABSENCE_STATUS_TEXT;
+
+  const revisionPriorityPlan = topRecommendationsAreReal
+    ? base.topRecommendations
+        .slice(0, 5)
+        .map((recommendation, index) => ({
+          priority: index + 1,
+          title: recommendation,
+          location: 'Manuscript-wide',
+          operation: index === 0 ? 'Edit' : 'Refine',
+          recommendation,
+          rationale: 'Prioritized from highest-impact diagnostic findings.',
+        }))
+    : [];
 
   const dream = input.dream;
   const continuityCoverageProof = unique([
@@ -168,13 +182,15 @@ export function buildUnifiedEvaluationDocument(input: {
 
   const manuscriptScaleContinuityFindings = continuityCoverageProof.length > 0
     ? continuityCoverageProof.slice(0, 8)
-    : unique([
-        ...base.topRisks,
-        ...base.criterionDetails
-          .filter((detail) => detail.scoreLabel !== 'Not scorable')
-          .slice(0, 3)
-          .map((detail) => `${detail.label}: ${detail.rationaleText}`),
-      ]).slice(0, 8);
+    : topRisksAreReal
+      ? unique([
+          ...base.topRisks,
+          ...base.criterionDetails
+            .filter((detail) => detail.scoreLabel !== 'Not scorable')
+            .slice(0, 3)
+            .map((detail) => `${detail.label}: ${detail.rationaleText}`),
+        ]).slice(0, 8)
+      : [];
 
   const storyLedgerArchitectureMap = unique([
     ...(dream?.structural_stack?.map((layer) => `${layer.layer_name}: ${layer.function} (${layer.status})`) ?? []),
@@ -201,18 +217,19 @@ export function buildUnifiedEvaluationDocument(input: {
     (item) => `Priority ${item.priority}: ${item.title} — ${item.operation} (${item.location})`,
   );
 
-  const readinessReleasabilityPosture =
+  const readinessReleasabilityPosture = withAbsenceStatusString(
     dream?.releasability?.length
       ? dream.releasability.map((item) => `${item.dimension}: ${item.verdict}`).join('; ')
-      : '';
+      : '',
+  );
 
-  const safeManuscriptScaleContinuityFindings = manuscriptScaleContinuityFindings;
-  const safeStoryLedgerArchitectureMap = storyLedgerArchitectureMap;
-  const safeReviewGateReadinessSurface = reviewGateReadinessSurface;
-  const safeGovernedLedgerAddenda = governedLedgerAddenda;
-  const safeCrossLayerSynthesis = crossLayerSynthesis;
-  const safeLayerAwareRevisionSequencing = layerAwareRevisionSequencing;
-  const safeContinuityCoverageProof = continuityCoverageProof;
+  const safeManuscriptScaleContinuityFindings = withAbsenceStatus(manuscriptScaleContinuityFindings);
+  const safeStoryLedgerArchitectureMap = withAbsenceStatus(storyLedgerArchitectureMap);
+  const safeReviewGateReadinessSurface = withAbsenceStatus(reviewGateReadinessSurface);
+  const safeGovernedLedgerAddenda = withAbsenceStatus(governedLedgerAddenda);
+  const safeCrossLayerSynthesis = withAbsenceStatus(crossLayerSynthesis);
+  const safeLayerAwareRevisionSequencing = withAbsenceStatus(layerAwareRevisionSequencing);
+  const safeContinuityCoverageProof = withAbsenceStatus(continuityCoverageProof);
 
   return {
     ...base,
