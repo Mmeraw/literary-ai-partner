@@ -363,10 +363,37 @@ function pushTxtOpportunityDetailRow(lines: string[], label: string, value: stri
   pushWrapped(lines, rendered, { firstIndent: '    ', nextIndent: '    ', sanitize: false });
 }
 
-function fitToWidth(value: string, maxWidth: number): string {
-  if (value.length <= maxWidth) return value;
-  if (maxWidth <= 1) return value.slice(0, maxWidth);
-  return `${value.slice(0, maxWidth - 1)}…`;
+function wrapToWidth(value: string, maxWidth: number): string[] {
+  if (value.length <= maxWidth) return [value];
+  const words = value.split(' ');
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const candidate = current.length === 0 ? word : `${current} ${word}`;
+    if (candidate.length <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    if (current.length > 0) {
+      lines.push(current);
+    }
+
+    if (word.length > maxWidth) {
+      let w = word;
+      while (w.length > maxWidth) {
+        lines.push(w.slice(0, maxWidth));
+        w = w.slice(maxWidth);
+      }
+      current = w;
+    } else {
+      current = word;
+    }
+  }
+
+  if (current.length > 0) lines.push(current);
+  return lines;
 }
 
 /** Encoding-safety normalization for PDF/HTML output — no content sanitization. */
@@ -803,10 +830,18 @@ function renderTxtFromViewModel(vm: EvaluationReportViewModel, jobId = ''): stri
     labelWidth = TXT_WRAP_WIDTH - scoreWidth - confidenceWidth - separatorWidth;
   }
 
-  lines.push(`${fitToWidth('Criterion', labelWidth).padEnd(labelWidth)}   ${fitToWidth('Score', scoreWidth).padEnd(scoreWidth)}   ${fitToWidth('Confidence', confidenceWidth).padEnd(confidenceWidth)}`.trimEnd());
+  const header = `${'Criterion'.padEnd(labelWidth)}   ${'Score'.padEnd(scoreWidth)}   ${'Confidence'.padEnd(confidenceWidth)}`.trimEnd();
+  lines.push(header);
   lines.push(`${'\u2500'.repeat(labelWidth)}   ${'\u2500'.repeat(scoreWidth)}   ${'\u2500'.repeat(confidenceWidth)}`);
   vm.criteriaScoreGrid.forEach((row) => {
-    lines.push(`${fitToWidth(row.label, labelWidth).padEnd(labelWidth)}   ${fitToWidth(row.scoreLabel, scoreWidth).padEnd(scoreWidth)}   ${fitToWidth(formatConfidenceLabel(row.confidenceLabel), confidenceWidth).padEnd(confidenceWidth)}`.trimEnd());
+    const wrappedLabel = wrapToWidth(row.label, labelWidth);
+    const score = row.scoreLabel.padEnd(scoreWidth);
+    const confidence = formatConfidenceLabel(row.confidenceLabel).padEnd(confidenceWidth);
+    const first = `${wrappedLabel[0].padEnd(labelWidth)}   ${score}   ${confidence}`.trimEnd();
+    lines.push(first);
+    for (let i = 1; i < wrappedLabel.length; i += 1) {
+      lines.push(wrappedLabel[i].padEnd(labelWidth).trimEnd());
+    }
   });
   lines.push('');
 
