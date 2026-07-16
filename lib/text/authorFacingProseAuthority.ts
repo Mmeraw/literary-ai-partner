@@ -99,8 +99,16 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   },
   {
     name: 'canonical recommendation prose - phrase',
-    pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.(?:mechanism|specific_fix|reader_effect|mistake_proofing)$/u,
+    pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.(?:mechanism|specific_fix|reader_effect|mistake_proofing|rationale)$/u,
     kind: 'phrase',
+    required: true,
+    repairPolicy: 'regenerate',
+    ownership: 'canonical',
+  },
+  {
+    name: 'criterion technical-defect author-facing reason',
+    pattern: /(?:^|\.)criteria\[\d+\]\.technical_defects\[\d+\]\.author_facing_reason$/u,
+    kind: 'sentence',
     required: true,
     repairPolicy: 'regenerate',
     ownership: 'canonical',
@@ -139,10 +147,19 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   },
 ] as const;
 
+export function findMatchingAuthorFacingContracts(
+  fieldPath: string,
+): AuthorFacingPathContract[] {
+  return AUTHOR_FACING_PATH_CONTRACTS.filter(({ pattern }) => {
+    pattern.lastIndex = 0;
+    return pattern.test(fieldPath);
+  });
+}
+
 export function resolveAuthorFacingFieldContract(
   fieldPath: string,
 ): AuthorFacingPathContract | null {
-  return AUTHOR_FACING_PATH_CONTRACTS.find(({ pattern }) => pattern.test(fieldPath)) ?? null;
+  return findMatchingAuthorFacingContracts(fieldPath)[0] ?? null;
 }
 
 export interface InspectAuthorFacingProseInput {
