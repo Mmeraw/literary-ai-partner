@@ -107,9 +107,15 @@ export default function DownloadReportButton({
     const rect = trigger.getBoundingClientRect();
     const availableAbove = rect.top - VIEWPORT_MARGIN_PX;
     const availableBelow = window.innerHeight - rect.bottom - VIEWPORT_MARGIN_PX;
+    const triggerMidpoint = rect.top + rect.height / 2;
 
-    // Prefer opening below for the report-header control when the menu fits.
-    // Near the footer, retain the upward-opening menu so all formats remain visible.
+    // The report has two download controls. Keep the header control opening
+    // downward, while any control in the lower half of the viewport opens
+    // upward so the footer cannot cover or clip the format menu.
+    if (triggerMidpoint >= window.innerHeight / 2) {
+      return 'above';
+    }
+
     if (availableBelow >= MENU_HEIGHT_ESTIMATE_PX || availableBelow >= availableAbove) {
       return 'below';
     }
