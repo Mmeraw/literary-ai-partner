@@ -156,7 +156,7 @@ describe('Criminality V2 regression', () => {
     });
 
     it('fails an over-cap one-sentence pitch without truncating it', () => {
-      const longPitch = `A ${'very '.repeat(1250)}long but grammatically complete pitch.`;
+      const longPitch = `A ${Array.from({ length: 1250 }, (_, i) => `w${i}`).join(' ')} long but grammatically complete pitch.`;
       const synthesis = buildSynthesisFromFixture({ one_sentence_pitch: longPitch });
       try {
         normalizeArtifact(synthesis, [], []);

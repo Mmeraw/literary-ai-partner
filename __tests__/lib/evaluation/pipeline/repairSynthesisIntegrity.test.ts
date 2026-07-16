@@ -34,7 +34,7 @@ function setByPath(obj: unknown, path: string, value: unknown): boolean {
   let current: unknown = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i]!;
-    const arrayMatch = part.match(/^([^\[]+)\[(\d+)\]$/u);
+    const arrayMatch = part.match(/^([^.[]+)\[(\d+)\]$/u);
     if (arrayMatch) {
       const key = arrayMatch[1]!;
       const index = parseInt(arrayMatch[2]!, 10);
@@ -47,7 +47,7 @@ function setByPath(obj: unknown, path: string, value: unknown): boolean {
     if (current === undefined || current === null) return false;
   }
   const last = parts[parts.length - 1]!;
-  const lastArrayMatch = last.match(/^([^\[]+)\[(\d+)\]$/u);
+  const lastArrayMatch = last.match(/^([^.[]+)\[(\d+)\]$/u);
   if (lastArrayMatch) {
     const key = lastArrayMatch[1]!;
     const index = parseInt(lastArrayMatch[2]!, 10);
@@ -65,7 +65,7 @@ function getByPath(obj: unknown, path: string): unknown {
   const parts = normalized.split('.');
   let current: unknown = obj;
   for (const part of parts) {
-    const arrayMatch = part.match(/^([^\[]+)\[(\d+)\]$/u);
+    const arrayMatch = part.match(/^([^.[]+)\[(\d+)\]$/u);
     if (arrayMatch) {
       const key = arrayMatch[1]!;
       const index = parseInt(arrayMatch[2]!, 10);
@@ -166,9 +166,8 @@ function makeYellowWallpaperSynthesis(): SynthesisOutput {
           priority: 'medium',
           action: 'Clarify the speaker attribution in the exchange.',
           expected_impact:
-            'The attribution gap causes speaker intent to blur, reducing tension in the exchange',
-          reader_effect:
-            'The attribution gap causes speaker intent to blur, reducing tension in the exchange',
+            'The attribution gap causes speaker intent to blur, reducing tension in the ex…',
+          reader_effect: '',
           mechanism:
             'The same attribution tag on both sides flattens the conflict into a single voice.',
           specific_fix: 'Give each speaker a distinct action beat before replying.',
