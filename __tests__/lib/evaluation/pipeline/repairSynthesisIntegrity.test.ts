@@ -17,6 +17,7 @@ import {
   repairSynthesisIntegrity,
 } from '@/lib/evaluation/pipeline/repairSynthesisIntegrity';
 import * as requiredProseRegeneration from '@/lib/evaluation/pipeline/requiredProseRegeneration';
+import { assertAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
 
 jest.mock('@/lib/evaluation/pipeline/requiredProseRegeneration', () => ({
   ...jest.requireActual('@/lib/evaluation/pipeline/requiredProseRegeneration'),
@@ -465,5 +466,66 @@ describe('repairSynthesisIntegrity', () => {
     expect(result.candidateAttempts).toBeGreaterThan(0);
     expect(result.remainingViolations).toHaveLength(0);
     expect(getByPath(synthesis, 'evaluation_result_v2.criteria[0].fit_summary')).toMatch(/\.$/);
+  });
+
+  it('rejects unchanged invalid required replacements at the orchestration level', async () => {
+    const synthesis = makeValidSynthesis();
+    // A dangling connective cannot be papered over by Tier-1 normalization.
+    synthesis.criteria[0].fit_summary = 'The voice works because';
+
+    mockedRegenerateRequiredProse.mockImplementationOnce(async (_synth, violations) => {
+      // Simulate a degenerate regenerator that claims success but leaves the
+      // invalid prose unchanged.
+      return {
+        ok: true,
+        synthesis: _synth,
+        regeneratedFields: violations.map((v) => v.path),
+        failedFields: [],
+        telemetry: { attempts: 1, regeneratedFields: [], failedFields: [], model: 'mock' },
+      };
+    });
+
+    const result = await repairSynthesisIntegrity(synthesis, {
+      openaiApiKey: 'test-key',
+      maxRequiredAttempts: 1,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.remainingViolations.length).toBeGreaterThan(0);
+    expect(
+      result.remainingViolations.some((v) =>
+        v.path.includes('criteria[0].fit_summary'),
+      ),
+    ).toBe(true);
+  });
+
+  it('candidate quarantine cannot remove required prose', async () => {
+    const synthesis = makeValidSynthesis();
+    const originalFitSummary = synthesis.criteria[0].fit_summary;
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front make the want explicit';
+    synthesis.criteria[0].recommendations[0].candidate_text_b = 'restate the first beat sharpen the objective';
+    synthesis.criteria[0].recommendations[0].candidate_text_c = 'reframe the opening around the want';
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(result.candidateAttempts).toBeGreaterThan(0);
+    // Required prose on the criterion must survive candidate quarantine.
+    expect(synthesis.criteria[0].fit_summary).toBe(originalFitSummary);
+    expect(synthesis.criteria[0].gap_summary).toBeDefined();
+    expect(synthesis.criteria[0].final_rationale).toBeDefined();
+  });
+
+  it('produces a final artifact that passes assertAuthorFacingIntegrity', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].fit_summary = 'The voice works because the details…';
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front. make the want explicit.';
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(() =>
+      assertAuthorFacingIntegrity(synthesis, { rootPath: 'evaluation_result_v2' }),
+    ).not.toThrow();
   });
 });

@@ -93,8 +93,41 @@ function getLeafKey(path: string): string {
   return path.replace(/\[\d+\]/g, '').split('.').pop() ?? path;
 }
 
-function stripRootPath(path: string): string {
-  return path.replace(/^evaluation_result_v2\./u, '');
+/**
+ * Canonicalize path notation for object access: dot- and bracket-indexed
+ * arrays both resolve to bracket form, and root prefixes are removed.
+ *
+ *   criteria.4.fit_summary       -> criteria[4].fit_summary
+ *   evaluation_result_v2.criteria[4].fit_summary -> criteria[4].fit_summary
+ */
+function canonicalAccessPath(path: string): string {
+  return path
+    .replace(/^evaluation_result_v2\./u, '')
+    .replace(/^synthesis\./u, '')
+    .replace(/\.(\d+)(?=\.|$|\[)/gu, '[$1]');
+}
+
+/**
+ * Normalize path notation for mutation-boundary comparison: bracket and dot
+ * array indices both collapse to dot form, root prefixes are removed, and
+ * leading/multiple dots are cleaned. Used only for diff-path comparison.
+ *
+ *   criteria[4].fit_summary       -> criteria.4.fit_summary
+ *   evaluation_result_v2.criteria.4.fit_summary -> criteria.4.fit_summary
+ */
+function normalizeDiffPath(path: string): string {
+  return path
+    .replace(/^evaluation_result_v2\./u, '')
+    .replace(/^synthesis\./u, '')
+    .replace(/\[(\d+)\]/gu, '.$1')
+    .replace(/^\./u, '')
+    .replace(/\.{2,}/gu, '.');
+}
+
+function isRequestedChange(changedPath: string, requestedPath: string): boolean {
+  const changed = normalizeDiffPath(changedPath);
+  const requested = normalizeDiffPath(requestedPath);
+  return changed === requested || changed.startsWith(`${requested}.`);
 }
 
 function classifyViolation(path: string): 'derived' | 'canonical' | 'other' {
@@ -105,7 +138,7 @@ function classifyViolation(path: string): 'derived' | 'canonical' | 'other' {
 }
 
 function getByPath(obj: unknown, path: string): unknown {
-  const parts = stripRootPath(path).split('.');
+  const parts = canonicalAccessPath(path).split('.');
   let current: unknown = obj;
   for (const part of parts) {
     const arrayMatch = part.match(/^([^\[]+)\[(\d+)\]$/u);
@@ -124,7 +157,7 @@ function getByPath(obj: unknown, path: string): unknown {
 }
 
 function setByPath(obj: unknown, path: string, value: unknown): boolean {
-  const parts = stripRootPath(path).split('.');
+  const parts = canonicalAccessPath(path).split('.');
   if (parts.length === 0) return false;
   let current: unknown = obj;
   for (let i = 0; i < parts.length - 1; i++) {
@@ -188,7 +221,10 @@ function clipContextExcerpt(value: string, max: number): string {
   return value.slice(0, end) + suffix;
 }
 
-function compactCriterionContext(criterion: SynthesisOutput['criteria'][number]): unknown {
+function compactCriterionContext(
+  criterion: SynthesisOutput['criteria'][number],
+  pass3PreflightDraft?: Pass3PreflightDraft | null,
+): unknown {
   const evidenceAnchors = (criterion.evidence ?? [])
     .slice(0, 4)
     .map((e, idx) => ({
@@ -198,14 +234,23 @@ function compactCriterionContext(criterion: SynthesisOutput['criteria'][number])
       char_end: e?.char_end,
     }));
 
+  // Use the authoritative Pass 1/2 findings from the Pass 3A preflight draft
+  // when available. Evidence anchors are manuscript grounding, not editorial
+  // diagnosis, so they must not be substituted for craft/interpretation findings.
+  const draft = pass3PreflightDraft?.criterionDrafts?.find(
+    (d) => d.criterion === criterion.key,
+  );
+  const pass1Findings = draft?.strengthFindings ?? [];
+  const pass2Findings = draft?.weaknessFindings ?? [];
+
   return {
     id: criterion.key,
     name: criterion.key,
     score: criterion.final_score_0_10,
     confidence: criterion.confidence_level ?? 'moderate',
     evidence_anchors: evidenceAnchors,
-    pass1_findings: evidenceAnchors,
-    pass2_findings: evidenceAnchors,
+    pass1_findings: pass1Findings,
+    pass2_findings: pass2Findings,
     existing_recommendations: (criterion.recommendations ?? [])
       .slice(0, 3)
       .map((r) => ({
@@ -225,6 +270,7 @@ function buildFieldPrompt(
   synthesis: SynthesisOutput,
   path: string,
   violation: AuthorFacingIntegrityViolation,
+  pass3PreflightDraft?: Pass3PreflightDraft | null,
 ): string | null {
   const key = getLeafKey(path);
   const currentValue = getByPath(synthesis, path);
@@ -236,6 +282,8 @@ function buildFieldPrompt(
     const criterion = synthesis.criteria[ci];
     if (!criterion) return null;
 
+    const criterionContext = compactCriterionContext(criterion, pass3PreflightDraft);
+
     const ri = getRecommendationIndex(path);
     if (ri !== null) {
       const rec = criterion.recommendations?.[ri];
@@ -244,7 +292,7 @@ function buildFieldPrompt(
         path,
         current_value: currentValue,
         violation_codes: [violation.code],
-        criterion: compactCriterionContext(criterion),
+        criterion: criterionContext,
         recommendation: {
           index: ri,
           priority: rec.priority,
@@ -270,7 +318,7 @@ function buildFieldPrompt(
         path,
         current_value: currentValue,
         violation_codes: [violation.code],
-        criterion: compactCriterionContext(criterion),
+        criterion: criterionContext,
         constraints: {
           preserve_score: true,
           preserve_evidence: true,
@@ -400,21 +448,7 @@ async function callRegenerationLLM(
   return null;
 }
 
-function normalizePath(path: string): string {
-  // Remove the root prefix that the integrity inspector uses and any leading
-  // 'synthesis.' artifact from the mutation collector.
-  return path.replace(/^evaluation_result_v2\./u, '').replace(/^synthesis\./u, '');
-}
 
-function isDescendantOf(changedPath: string, requestedPath: string): boolean {
-  const changed = normalizePath(changedPath);
-  const requested = normalizePath(requestedPath);
-  if (changed === requested) return true;
-  return (
-    changed.startsWith(`${requested}.`) ||
-    changed.startsWith(`${requested}[`)
-  );
-}
 
 function collectLeafDiffPaths(
   before: unknown,
@@ -482,10 +516,29 @@ export function assertOnlyRequestedPathsChanged(
 
   return changed.filter((changedPath) => {
     return !requestedPaths.some((requested) =>
-      normalizePath(changedPath) === normalizePath(requested) ||
-      isDescendantOf(changedPath, requested),
+      isRequestedChange(changedPath, requested),
     );
   });
+}
+
+function isValidRequiredProse(value: unknown): boolean {
+  return typeof value === 'string' && isCompleteAuthorFacingSentence(value);
+}
+
+function hasChangedOrWasAlreadyValid(
+  before: unknown,
+  after: unknown,
+  path: string,
+): boolean {
+  const beforeVal = getByPath(before, path);
+  const afterVal = getByPath(after, path);
+  const changed = beforeVal !== afterVal;
+  const beforeValid = isValidRequiredProse(beforeVal);
+  const afterValid = isValidRequiredProse(afterVal);
+
+  if (changed && afterValid) return true;
+  if (!changed && beforeValid && afterValid) return true;
+  return false;
 }
 
 export function assertRequestedPathsChangedOrWereValid(
@@ -493,19 +546,9 @@ export function assertRequestedPathsChangedOrWereValid(
   after: unknown,
   requestedPaths: string[],
 ): string[] {
-  const unchanged: string[] = [];
-  for (const path of requestedPaths) {
-    const beforeVal = getByPath(before, path);
-    const afterVal = getByPath(after, path);
-    if (beforeVal === afterVal) {
-      // Model returned exactly the same value and therefore did not regenerate.
-      unchanged.push(path);
-    } else if (typeof afterVal === 'string' && !isCompleteAuthorFacingSentence(afterVal)) {
-      // Model returned a value that still fails the local completeness check.
-      unchanged.push(path);
-    }
-  }
-  return unchanged;
+  return requestedPaths.filter(
+    (path) => !hasChangedOrWasAlreadyValid(before, after, path),
+  );
 }
 
 export async function regenerateRequiredProse(
@@ -578,7 +621,12 @@ export async function regenerateRequiredProse(
   let totalCompletionTokens = 0;
 
   for (const violation of unique) {
-    const prompt = buildFieldPrompt(synthesis, violation.path, violation);
+    const prompt = buildFieldPrompt(
+      synthesis,
+      violation.path,
+      violation,
+      options.pass3PreflightDraft,
+    );
     if (!prompt) {
       failedFields.push(violation.path);
       continue;

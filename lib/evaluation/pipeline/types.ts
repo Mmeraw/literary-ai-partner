@@ -719,6 +719,12 @@ export type PipelineResult =
        * Undefined if Pass 1A was skipped or ledger build failed (non-fatal).
        */
       characterLedgerV2?: CharacterLedgerV2;
+      /**
+       * Pass 3A preflight draft used to produce this synthesis. Threaded into
+       * targeted integrity regeneration so Pass 1/2 findings remain authoritative.
+       * Null when the preflight draft was unavailable or unusable.
+       */
+      pass3PreflightDraft?: Pass3PreflightDraft | null;
       /** Recovery metadata: retry counts and fallback usage per pass. */
       recovery?: {
         retry_counts?: Partial<Record<"pass1" | "pass2" | "pass3", number>>;
