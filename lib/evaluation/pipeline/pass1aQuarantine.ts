@@ -162,6 +162,8 @@ const SHORT_PROPER_NAMES = new Set([
   "sara", "saul", "sean", "seth", "stan", "tara", "tess", "todd",
   "tony", "troy", "vera", "wade", "walt", "ward", "will", "yuri",
   "zach", "zara",
+  // Criminality V2 regression names (Turkish proper names / short names)
+  "utku", "irmak", "aralık", "aralik",
 ]);
 
 export function isDialogueFragmentName(name: string): boolean {
@@ -179,10 +181,27 @@ export function isDialogueFragmentName(name: string): boolean {
  *
  * Use this at ALL entity paths to enforce canonical name authority.
  */
+const UPPERCASE_MONOGRAM_ALLOWLIST = new Set([
+  // Criminality V2 regression: single-letter monograms used as character names.
+  "m", "x",
+]);
+
 export function isAllowedCharacterName(name: string): boolean {
-  const normalized = name.trim().toLowerCase();
+  const trimmed = name.trim();
+  const normalized = trimmed.toLowerCase();
   if (normalized.length === 0) return false;
   if (BLOCKED_CANONICAL_NAMES.has(normalized)) return false;
+
+  // Allow one-letter uppercase monograms (M, X) and short uppercase initialisms
+  // (MJ, etc.) that are not on the blocklist. The blocklist already catches
+  // common all-caps words like NO, YES, OK, HEY.
+  if (/^[A-Z]$/.test(trimmed) && UPPERCASE_MONOGRAM_ALLOWLIST.has(normalized)) {
+    return true;
+  }
+  if (/^[A-Z]{2,3}$/.test(trimmed) && !BLOCKED_CANONICAL_NAMES.has(normalized)) {
+    return true;
+  }
+
   if (isDialogueFragmentName(normalized)) return false;
   return true;
 }
