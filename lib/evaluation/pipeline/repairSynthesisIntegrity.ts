@@ -40,7 +40,7 @@ import {
   assertOnlyRequestedPathsChanged,
   regenerateRequiredProse,
 } from '@/lib/evaluation/pipeline/requiredProseRegeneration';
-import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import type { Pass3PreflightDraft, SinglePassOutput, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import {
   AuthorFacingIntegrityError,
   type AuthorFacingIntegrityViolation,
@@ -52,6 +52,12 @@ export interface RepairSynthesisIntegrityOptions {
   openaiApiKey?: string;
   title?: string;
   manuscriptText?: string;
+  /** Pass 3A preflight draft carrying synthesized strength/weakness context. */
+  pass3PreflightDraft?: Pass3PreflightDraft | null;
+  /** Authoritative Pass 1 craft output for provenanced regeneration context. */
+  pass1Output?: SinglePassOutput | null;
+  /** Authoritative Pass 2 editorial output for provenanced regeneration context. */
+  pass2Output?: SinglePassOutput | null;
   maxRequiredAttempts?: number;
   maxCandidateAttempts?: number;
 }
@@ -234,6 +240,9 @@ export async function repairSynthesisIntegrity(
       openaiApiKey: options.openaiApiKey,
       title: options.title,
       manuscriptText: options.manuscriptText,
+      pass3PreflightDraft: options.pass3PreflightDraft,
+      pass1Output: options.pass1Output,
+      pass2Output: options.pass2Output,
     });
     telemetry.requiredAttemptsTelemetry = [
       ...(telemetry.requiredAttemptsTelemetry as Record<string, unknown>[]),

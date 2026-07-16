@@ -12,7 +12,7 @@
 
 export {};
 
-import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import type { Pass3PreflightDraft, SinglePassOutput, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import {
   repairSynthesisIntegrity,
 } from '@/lib/evaluation/pipeline/repairSynthesisIntegrity';
@@ -527,5 +527,50 @@ describe('repairSynthesisIntegrity', () => {
     expect(() =>
       assertAuthorFacingIntegrity(synthesis, { rootPath: 'evaluation_result_v2' }),
     ).not.toThrow();
+  });
+
+  it('forwards provenance context to regenerateRequiredProse', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].fit_summary = 'The voice works because the details…';
+
+    const pass3PreflightDraft = {
+      schema_version: 'pass3_preflight_draft_v1',
+      pass: '3A',
+      visibility: 'internal_only',
+      criterionDrafts: [],
+    } as unknown as Pass3PreflightDraft;
+
+    const pass1Output = {
+      pass: 1,
+      axis: 'craft_execution',
+      criteria: [],
+      model: 'gpt-4o',
+      prompt_version: 'v1',
+      temperature: 0,
+      generated_at: new Date().toISOString(),
+    } as unknown as SinglePassOutput;
+
+    const pass2Output = {
+      pass: 2,
+      axis: 'editorial_literary',
+      criteria: [],
+      model: 'o3',
+      prompt_version: 'v1',
+      temperature: 0,
+      generated_at: new Date().toISOString(),
+    } as unknown as SinglePassOutput;
+
+    await repairSynthesisIntegrity(synthesis, {
+      openaiApiKey: 'test-key',
+      pass3PreflightDraft,
+      pass1Output,
+      pass2Output,
+    });
+
+    expect(mockedRegenerateRequiredProse).toHaveBeenCalled();
+    const callOptions = mockedRegenerateRequiredProse.mock.calls[0][2];
+    expect(callOptions.pass3PreflightDraft).toBe(pass3PreflightDraft);
+    expect(callOptions.pass1Output).toBe(pass1Output);
+    expect(callOptions.pass2Output).toBe(pass2Output);
   });
 });

@@ -2673,6 +2673,9 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     routing: pipelineRouting,
     provider_telemetry: providerTelemetry,
     characterLedgerV2: characterLedgerV2,
+    pass3PreflightDraft: opts._prebuiltPreflightDraft ?? null,
+    pass1Output: pass1Output ?? null,
+    pass2Output: pass2Output ?? null,
   };
 }
 

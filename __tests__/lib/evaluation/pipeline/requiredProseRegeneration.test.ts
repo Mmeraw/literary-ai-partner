@@ -5,7 +5,7 @@ import {
   regenerateRequiredProse,
   RepairRegenerationError,
 } from '@/lib/evaluation/pipeline/requiredProseRegeneration';
-import type { Pass3PreflightDraft, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import type { Pass3PreflightDraft, SinglePassOutput, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 
 const createMock = jest.fn();
 
@@ -421,5 +421,100 @@ describe('requiredProseRegeneration', () => {
     expect(criterion.pass2_findings).toEqual([]);
     expect(criterion.preflight_strength_findings).toEqual([]);
     expect(criterion.preflight_weakness_findings).toEqual([]);
+  });
+
+  test('uses provenanced Pass 1 and Pass 2 rationales as pass1_findings and pass2_findings', async () => {
+    const synthesis = baseSynthesis();
+    synthesis.criteria[0].fit_summary = 'Incomplete';
+
+    const violation: AuthorFacingIntegrityViolation = {
+      path: 'evaluation_result_v2.criteria[0].fit_summary',
+      code: 'AUTHOR_TEXT_TRUNCATED_WORD',
+      value: 'Incomplete',
+      message: 'truncated',
+    };
+
+    const pass1Output = {
+      pass: 1,
+      axis: 'craft_execution',
+      model: 'gpt-4o',
+      prompt_version: 'v1',
+      temperature: 0,
+      generated_at: new Date().toISOString(),
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 6,
+          rationale: 'Pass 1 craft rationale.',
+          evidence: [],
+          recommendations: [
+            {
+              priority: 'high',
+              action: 'Pass 1 recommended action.',
+              expected_impact: 'Fixes the issue.',
+              anchor_snippet: 'snippet',
+              issue_family: 'characterization',
+              strategic_lever: 'scene_goal_clarity',
+              revision_granularity: 'scene',
+            },
+          ],
+        },
+      ],
+    } as unknown as SinglePassOutput;
+
+    const pass2Output = {
+      pass: 2,
+      axis: 'editorial_literary',
+      model: 'o3',
+      prompt_version: 'v1',
+      temperature: 0,
+      generated_at: new Date().toISOString(),
+      criteria: [
+        {
+          key: 'concept',
+          score_0_10: 6,
+          rationale: 'Pass 2 editorial rationale.',
+          evidence: [],
+          recommendations: [],
+        },
+      ],
+    } as unknown as SinglePassOutput;
+
+    createMock.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              'evaluation_result_v2.criteria[0].fit_summary':
+                'This is complete now.',
+            }),
+          },
+        },
+      ],
+    });
+
+    await regenerateRequiredProse(synthesis, [violation], {
+      openaiApiKey: 'sk-test',
+      pass1Output,
+      pass2Output,
+    });
+
+    const prompt = createMock.mock.calls[0][0].messages[1].content as string;
+    const payload = extractPayload(prompt);
+    const criterion = payload.criterion as Record<string, unknown>;
+    expect(criterion.pass1_findings).toEqual([
+      'Pass 1 craft rationale.',
+      'Pass 1 recommended action.',
+    ]);
+    expect(criterion.pass2_findings).toEqual([
+      'Pass 2 editorial rationale.',
+    ]);
+    // Provenanced pass findings are distinct from preflight strength/weakness.
+    expect(criterion.pass1_findings).not.toEqual(
+      criterion.preflight_strength_findings,
+    );
+    expect(criterion.pass2_findings).not.toEqual(
+      criterion.preflight_weakness_findings,
+    );
   });
 });

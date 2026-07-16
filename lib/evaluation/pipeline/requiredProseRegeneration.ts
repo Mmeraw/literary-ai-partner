@@ -20,8 +20,11 @@ import {
 } from '@/lib/evaluation/policy';
 import type { AuthorFacingIntegrityViolation } from '@/lib/text/authorFacingIntegrity';
 import { isCompleteAuthorFacingSentence } from '@/lib/text/authorFacingProse';
-import type { SynthesisOutput } from './types';
-import type { Pass3PreflightDraft } from './types';
+import type {
+  Pass3PreflightDraft,
+  SinglePassOutput,
+  SynthesisOutput,
+} from './types';
 
 export class RegenerationMutationError extends Error {
   readonly code = 'REGENERATION_MUTATION_ERROR';
@@ -46,8 +49,12 @@ export interface RequiredProseRegenerationOptions {
   openaiApiKey?: string;
   /** Model override. Defaults to the Pass 3 canonical model. */
   model?: string;
-  /** Pass 3A preflight draft — used only as optional context, never copied. */
+  /** Pass 3A preflight draft — used only as optional synthesis context. */
   pass3PreflightDraft?: Pass3PreflightDraft | null;
+  /** Authoritative Pass 1 craft output for provenanced context. */
+  pass1Output?: SinglePassOutput | null;
+  /** Authoritative Pass 2 editorial output for provenanced context. */
+  pass2Output?: SinglePassOutput | null;
   /** Original manuscript text for grounding. */
   manuscriptText?: string;
   /** Manuscript title for grounding. */
@@ -221,9 +228,24 @@ function clipContextExcerpt(value: string, max: number): string {
   return value.slice(0, end) + suffix;
 }
 
+function collectPassFindings(
+  passOutput: SinglePassOutput | null | undefined,
+  criterionKey: string,
+): string[] {
+  const c = passOutput?.criteria.find((x) => x.key === criterionKey);
+  if (!c) return [];
+  const findings = [c.rationale];
+  for (const rec of c.recommendations ?? []) {
+    if (rec.action) findings.push(rec.action);
+  }
+  return findings.filter((f): f is string => f.trim().length > 0);
+}
+
 function compactCriterionContext(
   criterion: SynthesisOutput['criteria'][number],
   pass3PreflightDraft?: Pass3PreflightDraft | null,
+  pass1Output?: SinglePassOutput | null,
+  pass2Output?: SinglePassOutput | null,
 ): unknown {
   const evidenceAnchors = (criterion.evidence ?? [])
     .slice(0, 4)
@@ -250,11 +272,10 @@ function compactCriterionContext(
     score: criterion.final_score_0_10,
     confidence: criterion.confidence_level ?? 'moderate',
     evidence_anchors: evidenceAnchors,
-    // Pass 1/2 findings are intentionally omitted until the orchestration layer
-    // can supply provenance-aware SinglePassOutput context. Empty defaults are
-    // safer than mislabeling Pass 3A synthesized findings as Pass 1/2 output.
-    pass1_findings: [] as string[],
-    pass2_findings: [] as string[],
+    // Provenanced Pass 1 craft findings and Pass 2 editorial findings. Fall back
+    // to empty arrays when the authoritative SinglePassOutput is unavailable.
+    pass1_findings: collectPassFindings(pass1Output, criterion.key),
+    pass2_findings: collectPassFindings(pass2Output, criterion.key),
     preflight_strength_findings: preflightStrengthFindings,
     preflight_weakness_findings: preflightWeaknessFindings,
     existing_recommendations: (criterion.recommendations ?? [])
@@ -277,6 +298,8 @@ function buildFieldPrompt(
   path: string,
   violation: AuthorFacingIntegrityViolation,
   pass3PreflightDraft?: Pass3PreflightDraft | null,
+  pass1Output?: SinglePassOutput | null,
+  pass2Output?: SinglePassOutput | null,
 ): string | null {
   const key = getLeafKey(path);
   const currentValue = getByPath(synthesis, path);
@@ -288,7 +311,12 @@ function buildFieldPrompt(
     const criterion = synthesis.criteria[ci];
     if (!criterion) return null;
 
-    const criterionContext = compactCriterionContext(criterion, pass3PreflightDraft);
+    const criterionContext = compactCriterionContext(
+      criterion,
+      pass3PreflightDraft,
+      pass1Output,
+      pass2Output,
+    );
 
     const ri = getRecommendationIndex(path);
     if (ri !== null) {
@@ -632,6 +660,8 @@ export async function regenerateRequiredProse(
       violation.path,
       violation,
       options.pass3PreflightDraft,
+      options.pass1Output,
+      options.pass2Output,
     );
     if (!prompt) {
       failedFields.push(violation.path);
