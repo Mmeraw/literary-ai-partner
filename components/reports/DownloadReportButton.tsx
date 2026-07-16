@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 type Format = 'pdf' | 'txt' | 'docx';
 type JobStatus = 'queued' | 'running' | 'complete' | 'failed' | 'unknown';
+type MenuPlacement = 'above' | 'below';
 
 type DownloadReportButtonProps = {
   jobId: string;
@@ -35,12 +36,16 @@ const MIME_TYPES: Record<Format, string> = {
   txt: 'text/plain',
 };
 
+const MENU_HEIGHT_ESTIMATE_PX = 340;
+const VIEWPORT_MARGIN_PX = 16;
+
 export default function DownloadReportButton({
   jobId,
   disabled,
   unavailableLabel = 'Available after evaluation completes',
 }: DownloadReportButtonProps) {
   const [open, setOpen] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>('above');
   const [status, setStatus] = useState<JobStatus>('unknown');
   const [downloading, setDownloading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -92,6 +97,23 @@ export default function DownloadReportButton({
     if (resolvedDisabled) setOpen(false);
   }, [resolvedDisabled]);
 
+  function resolveMenuPlacement(): MenuPlacement {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return 'above';
+
+    const rect = wrapper.getBoundingClientRect();
+    const availableAbove = rect.top - VIEWPORT_MARGIN_PX;
+    const availableBelow = window.innerHeight - rect.bottom - VIEWPORT_MARGIN_PX;
+
+    // Prefer opening below for the report-header control when the menu fits.
+    // Near the footer, retain the upward-opening menu so all formats remain visible.
+    if (availableBelow >= MENU_HEIGHT_ESTIMATE_PX || availableBelow >= availableAbove) {
+      return 'below';
+    }
+
+    return 'above';
+  }
+
   async function handleSelect(format: Format) {
     if (resolvedDisabled || downloading) return;
     setOpen(false);
@@ -142,6 +164,7 @@ export default function DownloadReportButton({
         onClick={() => {
           if (!resolvedDisabled && !downloading) {
             setErrorMessage(null);
+            if (!open) setMenuPlacement(resolveMenuPlacement());
             setOpen((v) => !v);
           }
         }}
@@ -159,14 +182,17 @@ export default function DownloadReportButton({
         {resolvedDisabled ? (
           <span className="text-xs font-normal text-gray-500">{unavailableLabel}</span>
         ) : !downloading ? (
-          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+          <span aria-hidden="true">{open && menuPlacement === 'above' ? '▴' : '▾'}</span>
         ) : null}
       </button>
       {!resolvedDisabled && open && !downloading && (
         <div
           role="menu"
           data-testid="download-report-menu"
-          className="absolute right-0 bottom-full mb-1 w-64 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg z-[200]"
+          data-placement={menuPlacement}
+          className={`absolute right-0 w-64 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg z-[200] ${
+            menuPlacement === 'below' ? 'top-full mt-1' : 'bottom-full mb-1'
+          }`}
         >
           {OPTIONS.map((opt) => (
             <button
