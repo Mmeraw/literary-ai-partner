@@ -322,7 +322,7 @@ describe('requiredProseRegeneration', () => {
     return JSON.parse(prompt.slice(start, end));
   }
 
-  test('uses real Pass 1/2 findings from pass3PreflightDraft in the prompt', async () => {
+  test('uses preflight strength/weakness findings in the prompt without claiming Pass 1/2 provenance', async () => {
     const synthesis = baseSynthesis();
     synthesis.criteria[0].fit_summary = 'Incomplete';
 
@@ -373,13 +373,20 @@ describe('requiredProseRegeneration', () => {
     const prompt = createMock.mock.calls[0][0].messages[1].content as string;
     const payload = extractPayload(prompt);
     const criterion = payload.criterion as Record<string, unknown>;
-    expect(criterion.pass1_findings).toEqual(['POV is strong.']);
-    expect(criterion.pass2_findings).toEqual(['Pacing drags.']);
-    expect(criterion.evidence_anchors).not.toEqual(criterion.pass1_findings);
-    expect(criterion.evidence_anchors).not.toEqual(criterion.pass2_findings);
+    expect(criterion.preflight_strength_findings).toEqual(['POV is strong.']);
+    expect(criterion.preflight_weakness_findings).toEqual(['Pacing drags.']);
+    // Pass 1/2 findings are not claimed from Pass 3A preflight strength/weakness.
+    expect(criterion.pass1_findings).toEqual([]);
+    expect(criterion.pass2_findings).toEqual([]);
+    expect(criterion.evidence_anchors).not.toEqual(
+      criterion.preflight_strength_findings,
+    );
+    expect(criterion.evidence_anchors).not.toEqual(
+      criterion.preflight_weakness_findings,
+    );
   });
 
-  test('falls back to empty pass1/2 findings when preflight data is missing', async () => {
+  test('falls back to empty preflight and pass1/2 findings when context is missing', async () => {
     const synthesis = baseSynthesis();
     synthesis.criteria[0].fit_summary = 'Incomplete';
 
@@ -412,5 +419,7 @@ describe('requiredProseRegeneration', () => {
     const criterion = payload.criterion as Record<string, unknown>;
     expect(criterion.pass1_findings).toEqual([]);
     expect(criterion.pass2_findings).toEqual([]);
+    expect(criterion.preflight_strength_findings).toEqual([]);
+    expect(criterion.preflight_weakness_findings).toEqual([]);
   });
 });

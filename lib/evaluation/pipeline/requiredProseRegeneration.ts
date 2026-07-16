@@ -234,14 +234,15 @@ function compactCriterionContext(
       char_end: e?.char_end,
     }));
 
-  // Use the authoritative Pass 1/2 findings from the Pass 3A preflight draft
-  // when available. Evidence anchors are manuscript grounding, not editorial
-  // diagnosis, so they must not be substituted for craft/interpretation findings.
+  // Pass 3A preflight may include synthesized strength/weakness findings, but
+  // they are *not* provenanced as Pass 1 craft vs Pass 2 editorial unless the
+  // upstream contract explicitly carries that mapping. Be honest in the prompt:
+  // label them as preflight findings, not as pass1_findings / pass2_findings.
   const draft = pass3PreflightDraft?.criterionDrafts?.find(
     (d) => d.criterion === criterion.key,
   );
-  const pass1Findings = draft?.strengthFindings ?? [];
-  const pass2Findings = draft?.weaknessFindings ?? [];
+  const preflightStrengthFindings = draft?.strengthFindings ?? [];
+  const preflightWeaknessFindings = draft?.weaknessFindings ?? [];
 
   return {
     id: criterion.key,
@@ -249,8 +250,13 @@ function compactCriterionContext(
     score: criterion.final_score_0_10,
     confidence: criterion.confidence_level ?? 'moderate',
     evidence_anchors: evidenceAnchors,
-    pass1_findings: pass1Findings,
-    pass2_findings: pass2Findings,
+    // Pass 1/2 findings are intentionally omitted until the orchestration layer
+    // can supply provenance-aware SinglePassOutput context. Empty defaults are
+    // safer than mislabeling Pass 3A synthesized findings as Pass 1/2 output.
+    pass1_findings: [] as string[],
+    pass2_findings: [] as string[],
+    preflight_strength_findings: preflightStrengthFindings,
+    preflight_weakness_findings: preflightWeaknessFindings,
     existing_recommendations: (criterion.recommendations ?? [])
       .slice(0, 3)
       .map((r) => ({
