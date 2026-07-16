@@ -3,7 +3,6 @@ import {
   assertOnlyRequestedPathsChanged,
   assertRequestedPathsChangedOrWereValid,
   regenerateRequiredProse,
-  RepairRegenerationError,
 } from '@/lib/evaluation/pipeline/requiredProseRegeneration';
 import type { Pass3PreflightDraft, SinglePassOutput, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 

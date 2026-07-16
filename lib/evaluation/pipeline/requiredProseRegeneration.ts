@@ -148,7 +148,7 @@ function getByPath(obj: unknown, path: string): unknown {
   const parts = canonicalAccessPath(path).split('.');
   let current: unknown = obj;
   for (const part of parts) {
-    const arrayMatch = part.match(/^([^\[]+)\[(\d+)\]$/u);
+    const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/u);
     if (arrayMatch) {
       const key = arrayMatch[1]!;
       const index = parseInt(arrayMatch[2]!, 10);
@@ -169,7 +169,7 @@ function setByPath(obj: unknown, path: string, value: unknown): boolean {
   let current: unknown = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i]!;
-    const arrayMatch = part.match(/^([^\[]+)\[(\d+)\]$/u);
+    const arrayMatch = part.match(/^([^[]+)\[(\d+)\]$/u);
     if (arrayMatch) {
       const key = arrayMatch[1]!;
       const index = parseInt(arrayMatch[2]!, 10);
@@ -182,7 +182,7 @@ function setByPath(obj: unknown, path: string, value: unknown): boolean {
     if (current === undefined || current === null) return false;
   }
   const last = parts[parts.length - 1]!;
-  const lastArrayMatch = last.match(/^([^\[]+)\[(\d+)\]$/u);
+  const lastArrayMatch = last.match(/^([^[]+)\[(\d+)\]$/u);
   if (lastArrayMatch) {
     const key = lastArrayMatch[1]!;
     const index = parseInt(lastArrayMatch[2]!, 10);
@@ -208,11 +208,6 @@ function getRecommendationIndex(path: string): number | null {
 }
 
 
-
-function safeStringify(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  return JSON.stringify(value);
-}
 
 /**
  * Clip context to a rough byte budget without adding an ellipsis. The result is
