@@ -8,7 +8,7 @@ function makeSynthesis(overrides: {
   one_paragraph_summary?: string;
   one_sentence_pitch?: string;
   one_paragraph_pitch?: string;
-  criteriaRecs?: Array<{ action?: string }>;
+  criteriaRecs?: Array<Record<string, unknown>>;
 } = {}) {
   return {
     overall: {
@@ -66,14 +66,12 @@ describe('normalizeArtifact — canonical evaluation prose', () => {
     const summary = `${'Complete sentence. '.repeat(1100)}`;
     const synthesis = makeSynthesis({ one_paragraph_summary: summary });
     expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
-    expect(synthesis.overall.one_paragraph_summary).toBe(summary);
   });
 
-  it('rejects incomplete canonical prose rather than deleting the trailing fragment', () => {
-    const summary = 'This is a complete sentence. This final thought remains';
-    const synthesis = makeSynthesis({ one_paragraph_summary: summary });
+  it('rejects genuine incomplete canonical prose', () => {
+    const synthesis = makeSynthesis({ one_paragraph_summary: 'The reader loses momentum because' });
     expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
-    expect(synthesis.overall.one_paragraph_summary).toBe(summary);
+    expect(synthesis.overall.one_paragraph_summary).toBe('The reader loses momentum because');
   });
 
   it('rejects multiple paragraphs in one_paragraph_pitch', () => {
@@ -90,7 +88,7 @@ describe('normalizeArtifact — canonical evaluation prose', () => {
     expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
   });
 
-  it('performs harmless line-ending and outer-whitespace cleanup only', () => {
+  it('performs harmless line-ending and outer-whitespace cleanup', () => {
     const synthesis = makeSynthesis({
       one_paragraph_summary: '  First paragraph is complete.\r\n\r\nSecond paragraph is complete.  ',
     });
@@ -101,31 +99,85 @@ describe('normalizeArtifact — canonical evaluation prose', () => {
   });
 });
 
-describe('normalizeArtifact — recommendation normalization', () => {
-  it('capitalizes and normalizes whitespace without appending punctuation', () => {
-    const synthesis = makeSynthesis();
-    const quickWins = [{ action: '  compress  the exposition.  ' }];
-    normalizeArtifact(synthesis, quickWins, []);
-    expect(quickWins[0].action).toBe('Compress the exposition.');
-  });
-
-  it('normalizes complete strategic and criterion recommendations', () => {
+describe('normalizeArtifact — universal author-facing punctuation mistake-proofing', () => {
+  it('repairs the DIAMONDS punctuation-only recommendation fields before integrity validation', () => {
     const synthesis = makeSynthesis({
-      criteriaRecs: [{ action: 'add a concrete resolution beat at the climax.' }],
+      criteriaRecs: [
+        {
+          mechanism: 'The stakes signal arrives too late in the passage, diffusing narrative urgency at the turn',
+          specific_fix: 'Insert one concrete stakes beat that lands the deferred decision at the current scene turn',
+          reader_effect: 'Clearer motivation and emotional stakes, improving trust in character decisions',
+        },
+      ],
     });
-    const strategic = [{ action: 'introduce physical beats in the scene.' }];
-    normalizeArtifact(synthesis, [], strategic);
-    expect(strategic[0].action).toBe('Introduce physical beats in the scene.');
-    expect(synthesis.criteria[0].recommendations![0].action).toBe(
-      'Add a concrete resolution beat at the climax.',
+
+    expect(() => normalizeArtifact(synthesis, [], [])).not.toThrow();
+    const rec = synthesis.criteria[0].recommendations![0];
+    expect(rec.mechanism).toBe(
+      'The stakes signal arrives too late in the passage, diffusing narrative urgency at the turn.',
+    );
+    expect(rec.specific_fix).toBe(
+      'Insert one concrete stakes beat that lands the deferred decision at the current scene turn.',
+    );
+    expect(rec.reader_effect).toBe(
+      'Clearer motivation and emotional stakes, improving trust in character decisions.',
     );
   });
 
-  it('does not change score language', () => {
+  it('normalizes colon spacing and preserves valid numeric constructions', () => {
     const synthesis = makeSynthesis({
-      one_paragraph_summary: 'This manuscript earns 80/100. The principal blocker is pacing.',
+      criteriaRecs: [
+        {
+          action: 'Revise this range:3–5 pages while preserving GPT-5.1 and Phase 0.5',
+        },
+      ],
     });
     normalizeArtifact(synthesis, [], []);
-    expect(synthesis.overall.one_paragraph_summary).toContain('80/100');
+    expect(synthesis.criteria[0].recommendations![0].action).toBe(
+      'Revise this range: 3–5 pages while preserving GPT-5.1 and Phase 0.5.',
+    );
+  });
+
+  it('does not paper over a genuine terminal-dash truncation', () => {
+    const synthesis = makeSynthesis({ criteriaRecs: [{ action: 'Strengthen the climax—' }] });
+    expect(() => normalizeArtifact(synthesis, [], [])).toThrow();
+    expect(synthesis.criteria[0].recommendations![0].action).toBe('Strengthen the climax—');
+  });
+
+  it('preserves evidence and anchor snippets byte-for-byte', () => {
+    const synthesis = makeSynthesis({
+      criteriaRecs: [
+        {
+          action: 'tighten the scene',
+          anchor_snippet: '  original  text -- exactly ',
+        },
+      ],
+    });
+    (synthesis.criteria[0] as Record<string, unknown>).evidence = [
+      { snippet: '  manuscript  evidence -- unchanged ' },
+    ];
+
+    normalizeArtifact(synthesis, [], []);
+    const rec = synthesis.criteria[0].recommendations![0];
+    expect(rec.anchor_snippet).toBe('  original  text -- exactly ');
+    expect(((synthesis.criteria[0] as Record<string, unknown>).evidence as Array<{ snippet: string }>)[0].snippet)
+      .toBe('  manuscript  evidence -- unchanged ');
+  });
+
+  it('is idempotent', () => {
+    const synthesis = makeSynthesis({ criteriaRecs: [{ action: '  tighten  the exposition' }] });
+    normalizeArtifact(synthesis, [], []);
+    const once = JSON.stringify(synthesis);
+    normalizeArtifact(synthesis, [], []);
+    expect(JSON.stringify(synthesis)).toBe(once);
+  });
+
+  it('normalizes short-form and long-form routes through the same boundary', () => {
+    const shortForm = makeSynthesis({ criteriaRecs: [{ action: 'tighten the short-form scene' }] });
+    const longForm = makeSynthesis({ criteriaRecs: [{ action: 'tighten the multi-layer scene' }] });
+    normalizeArtifact(shortForm, [], []);
+    normalizeArtifact(longForm, [], []);
+    expect(shortForm.criteria[0].recommendations![0].action).toBe('Tighten the short-form scene.');
+    expect(longForm.criteria[0].recommendations![0].action).toBe('Tighten the multi-layer scene.');
   });
 });
