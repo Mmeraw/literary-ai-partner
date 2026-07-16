@@ -989,7 +989,7 @@ export async function persistEvaluationResultV2(params: {
       phase_status: "complete",
       total_units: params.totalUnits,
       completed_units: params.completedUnits,
-      message: "Evaluation completed",
+      message: "Evaluation complete",
       finished_at: completionTime,
       gate_enforcement: gateTrace,
     },

@@ -138,14 +138,14 @@ describe("processEvaluationJob short-text fail-closed", () => {
     expect(runningUpdate).toMatchObject({
       status: "running",
       total_units: 100,
-      completed_units: 2,
+      completed_units: 0,
     });
 
     const finalUpdate = supabaseStub.evaluationJobUpdates.at(-1) as UpdatePayload;
     expect(finalUpdate).toMatchObject({
       status: "failed",
       total_units: 100,
-      completed_units: 2,
+      completed_units: 0,
     });
     expect(String(finalUpdate.last_error || "")).toMatch(/minimum 40 words/i);
   });
