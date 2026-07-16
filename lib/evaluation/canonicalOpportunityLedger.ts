@@ -160,6 +160,30 @@ function displayCriterion(key: string): string {
   }
 }
 
+const VERBATIM_QUOTE_PAIRS: Record<string, string> = {
+  '\u0022': '\u0022', // straight double quote "
+  '\u201C': '\u201D', // left/right double quotation marks
+  '\u2018': '\u2019', // left/right single quotation marks
+};
+
+function evidenceIsBalancedVerbatimQuote(evidence: string): boolean {
+  const clean = evidence.trim();
+  if (clean.length < 3) return false;
+  const open = clean[0];
+  const expectedClose = VERBATIM_QUOTE_PAIRS[open];
+  if (!expectedClose) return false;
+  const close = clean[clean.length - 1];
+  if (close !== expectedClose) return false;
+  const quoteChars = new Set([open, expectedClose]);
+  let count = 0;
+  for (const ch of clean) {
+    if (quoteChars.has(ch)) count += 1;
+  }
+  // Only the wrapping pair of the same family may be present, no stray unmatched
+  // internal quotes that could make the evidence look malformed.
+  return count === 2;
+}
+
 function evidenceLooksLikeQuote(evidence: string, action: string, symptom: string): boolean {
   const clean = evidence.trim();
   if (clean.length < 8) return false;
@@ -377,7 +401,7 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
 
   const evidence = chooseStrongestEvidence(cluster.map((item) => item.evidence));
   const evidenceItem = cluster.find((item) => item.evidence === evidence) ?? primary;
-  const inferredAnchorType = /["“”]/.test(evidence) ? 'verbatim_quote' : 'editorial_diagnosis';
+  const inferredAnchorType = evidenceIsBalancedVerbatimQuote(evidence) ? 'verbatim_quote' : 'editorial_diagnosis';
   const anchorType = evidenceItem?.anchor_type || primary?.anchor_type || inferredAnchorType;
   const action = chooseMostSpecific(cluster.map((item) => item.action));
   const fix = chooseMostSpecific(cluster.map((item) => item.fix_direction || item.action));
