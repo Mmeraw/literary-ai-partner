@@ -91,6 +91,23 @@ describe('DownloadReportButton', () => {
     expect(screen.getByRole('button', { name: /Download Report/i }).textContent).toContain('▴');
   });
 
+  it('opens a lower-page download menu upward even when the old height estimate would fit below', async () => {
+    mockJobStatusComplete();
+    mockButtonPosition(500, 540);
+    render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download Report/i }).getAttribute('aria-disabled')).not.toBe('true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
+
+    const menu = screen.getByTestId('download-report-menu');
+    expect(menu.className).toContain('bottom-full');
+    expect(menu.className).not.toContain('top-full');
+    expect(menu.getAttribute('data-placement')).toBe('above');
+  });
+
   it('routes PDF option to canonical download endpoint', async () => {
     mockJobStatusComplete();
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
