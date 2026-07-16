@@ -48,6 +48,17 @@ describe('authorFacingProseAuthority', () => {
     );
   });
 
+  it('uses the resolved registry contract when fieldKind is omitted', () => {
+    const violations = inspectAuthorFacingProse({
+      text: 'A pitch with no punctuation',
+      fieldPath: 'evaluation_result_v2.overview.one_sentence_pitch',
+    });
+
+    expect(violations.map(({ code }) => code)).toContain(
+      'AUTHOR_TEXT_MIDSENTENCE_TERMINATION',
+    );
+  });
+
   it('reports registry gaps instead of silently guessing ownership', () => {
     const artifact = {
       overview: {
@@ -62,10 +73,10 @@ describe('authorFacingProseAuthority', () => {
 
     const result = inspectRegisteredAuthorFacingArtifact(artifact);
 
-    expect(result.violations.length).toBeGreaterThan(0);
-    expect(result.unregisteredPaths).toContain(
+    expect(result.unregisteredPaths).toEqual([
       'evaluation_result_v2.criteria[0].market_summary',
-    );
+    ]);
+    expect(result.violations).toEqual([]);
   });
 
   it('returns no violations for a registered complete projection', () => {

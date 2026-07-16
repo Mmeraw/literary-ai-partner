@@ -54,6 +54,13 @@ import {
   detectRawFallbackSentinel,
   endsMidSentence,
 } from '@/lib/text/authorFacingProse';
+import {
+  inspectAuthorFacingProse,
+  resolveAuthorFacingFieldContract,
+  UnregisteredAuthorFacingPathError,
+  type AuthorFacingIntegrityViolation,
+  type AuthorFacingPathContract,
+} from '@/lib/text/authorFacingProseAuthority';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -633,6 +640,349 @@ function violation(code: string, message: string): ECGViolation {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Author-facing prose authority adapter (Stage 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CompatibilityDisposition =
+  | { kind: 'mapped'; violation: ECGViolation }
+  | { kind: 'legacy-local'; reason: string; violation: ECGViolation }
+  | { kind: 'legacy-not-enforced'; authorityViolation: AuthorFacingIntegrityViolation }
+  | { kind: 'unexpected'; authorityViolation: AuthorFacingIntegrityViolation };
+
+function extractIndex(path: string, key: string): number | null {
+  const re = new RegExp(`${key}\\[(\\d+)\\]`);
+  const m = path.match(re);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function pathLabel(path: string): string {
+  if (path.includes('enrichment.premise')) return 'premise';
+  if (path.includes('overview.one_sentence_pitch')) return 'one_sentence_pitch';
+  if (path.includes('overview.one_paragraph_pitch')) return 'one_paragraph_pitch';
+  if (path.includes('overview.one_paragraph_summary')) return 'one_paragraph_summary';
+  if (path.includes('overview.top_3_strengths')) {
+    const idx = extractIndex(path, 'top_3_strengths');
+    return idx !== null ? `top_3_strengths[${idx}]` : 'top_3_strengths';
+  }
+  if (path.includes('overview.top_3_risks')) {
+    const idx = extractIndex(path, 'top_3_risks');
+    return idx !== null ? `top_3_risks[${idx}]` : 'top_3_risks';
+  }
+  return path.split('.').pop() ?? path;
+}
+
+function recommendationSourceFromPath(path: string): 'quick_wins' | 'strategic_revisions' | null {
+  if (path.includes('recommendations.quick_wins')) return 'quick_wins';
+  if (path.includes('recommendations.strategic_revisions')) return 'strategic_revisions';
+  return null;
+}
+
+function mapAuthorityViolationToLegacyEcg(
+  authorityViolation: AuthorFacingIntegrityViolation,
+  input: ECGInput,
+): CompatibilityDisposition {
+  const { path, value, code } = authorityViolation;
+  const text = value.trim();
+  const label = pathLabel(path);
+  const source = recommendationSourceFromPath(path);
+
+  // Helper to build an ECGViolation from a legacy message.
+  const mapped = (ecgCode: string, message: string): CompatibilityDisposition => ({
+    kind: 'mapped',
+    violation: violation(ecgCode, message),
+  });
+
+  // Legacy-local: enrichment.premise is enforced by the existing ECG checkText
+  // but is not part of the central author-facing contract for Stage 2.
+  const legacyLocal = (ecgCode: string, message: string): CompatibilityDisposition => ({
+    kind: 'legacy-local',
+    reason: 'not-part-of-certified-author-facing-contract',
+    violation: violation(ecgCode, message),
+  });
+
+  const legacyNotEnforced = (): CompatibilityDisposition => ({
+    kind: 'legacy-not-enforced',
+    authorityViolation,
+  });
+
+  const isPremise = path.includes('enrichment.premise');
+  const isSummary = path.includes('overview.one_paragraph_summary');
+  const isSentencePitch = path.includes('overview.one_sentence_pitch');
+  const isParagraphPitch = path.includes('overview.one_paragraph_pitch');
+  const isStrengthOrRisk = path.includes('overview.top_3_strengths') || path.includes('overview.top_3_risks');
+  const isAction = source !== null;
+  const isFinalRationale = path.includes('criteria[') && path.endsWith('.final_rationale');
+
+  const isTextField = isSummary || isSentencePitch || isParagraphPitch || isStrengthOrRisk || isPremise;
+
+  switch (code) {
+    case 'AUTHOR_TEXT_PLACEHOLDER': {
+      if (isAction) {
+        return mapped(
+          'ECG_REC_PLACEHOLDER',
+          `Recommendation in "${source}" contains placeholder text: "${text.substring(0, 80)}"`,
+        );
+      }
+      if (isFinalRationale) {
+        const criterionIndex = extractIndex(path, 'criteria');
+        const criterionKey = criterionIndex !== null ? (input.criteria?.[criterionIndex]?.key ?? criterionIndex) : 'unknown';
+        return mapped('ECG_TEXT_PLACEHOLDER', `Criterion "${criterionKey}" rationale contains placeholder text.`);
+      }
+      if (isSummary) {
+        return mapped('ECG_TEXT_PLACEHOLDER', 'Executive summary contains placeholder text. Fill all template slots before certification.');
+      }
+      if (isTextField) {
+        return mapped('ECG_TEXT_PLACEHOLDER', `"${label}" contains placeholder text. Fill all template slots before certification.`);
+      }
+      return legacyNotEnforced();
+    }
+
+    case 'AUTHOR_TEXT_TRUNCATED_WORD': {
+      if (!hasTruncatedWord(text)) return legacyNotEnforced();
+      if (isSummary) {
+        return mapped('ECG_TEXT_TRUNCATED_WORD', 'Executive summary appears truncated mid-word. normalizeArtifact() must trim at word boundary before gate runs.');
+      }
+      if (isTextField) {
+        return mapped('ECG_TEXT_TRUNCATED_WORD', `"${label}" appears to contain a truncated word. Run trimAtWordBoundary in normalizeArtifact() before certification.`);
+      }
+      return legacyNotEnforced();
+    }
+
+    case 'AUTHOR_TEXT_MIDSENTENCE_TERMINATION': {
+      if (isAction) {
+        return mapped(
+          'ECG_REC_MISSING_TERMINAL_PUNCT',
+          `Recommendation in "${source}" lacks terminal punctuation. normalizeArtifact() should have corrected this: "…${text.slice(-40)}"`,
+        );
+      }
+      if (isSentencePitch || isParagraphPitch || isStrengthOrRisk || isPremise) {
+        return mapped(
+          'ECG_TEXT_MIDSENTENCE_TERMINATION',
+          `"${label}" ends mid-sentence (missing terminal punctuation or a dangling connective/comma/colon/em-dash/open-bracket). Pass 3 must emit complete sentences: "…${text.trim().slice(-40)}"`,
+        );
+      }
+      // overview.one_paragraph_summary and criteria.final_rationale did not enforce
+      // terminal punctuation in the legacy gate.
+      return legacyNotEnforced();
+    }
+
+    case 'AUTHOR_TEXT_LOWERCASE_START': {
+      if (isAction) {
+        return mapped(
+          'ECG_REC_LOWERCASE_START',
+          `Recommendation in "${source}" starts lowercase. normalizeArtifact() should have corrected this: "${text.substring(0, 60)}"`,
+        );
+      }
+      return legacyNotEnforced();
+    }
+
+    default:
+      // Structural integrity codes (ellipsis, duplicate words, spacing, etc.) are
+      // not enforced by the legacy ECG surface in Stage 2.
+      return legacyNotEnforced();
+  }
+}
+
+interface ProseField {
+  path: string;
+  value: string;
+  contract: AuthorFacingPathContract;
+}
+
+export interface ECGProseAdapterTelemetry {
+  centralMappedPaths: string[];
+  legacyLocalPaths: string[];
+  unexpectedAuthorityViolations: AuthorFacingIntegrityViolation[];
+  unregisteredPaths: string[];
+}
+
+function buildLegacyEnforcedProseFields(
+  input: ECGInput,
+): { fields: ProseField[]; unregisteredPaths: string[] } {
+  const fields: ProseField[] = [];
+  const unregisteredPaths: string[] = [];
+
+  const pushField = (path: string, value: string | undefined | null): void => {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) return;
+    const contract = resolveAuthorFacingFieldContract(path);
+    if (!contract) {
+      unregisteredPaths.push(path);
+      return;
+    }
+    fields.push({ path, value: trimmed, contract });
+  };
+
+  pushField(
+    'evaluation_result_v2.overview.one_paragraph_summary',
+    input.overview.one_paragraph_summary,
+  );
+  pushField(
+    'evaluation_result_v2.overview.one_sentence_pitch',
+    input.overview.one_sentence_pitch,
+  );
+  pushField(
+    'evaluation_result_v2.overview.one_paragraph_pitch',
+    input.overview.one_paragraph_pitch,
+  );
+
+  (input.overview.top_3_strengths ?? []).forEach((s, i) =>
+    pushField(
+      `evaluation_result_v2.overview.top_3_strengths[${i}]`,
+      s,
+    ),
+  );
+  (input.overview.top_3_risks ?? []).forEach((s, i) =>
+    pushField(
+      `evaluation_result_v2.overview.top_3_risks[${i}]`,
+      s,
+    ),
+  );
+
+  (input.criteria ?? []).forEach((c, i) =>
+    pushField(
+      `evaluation_result_v2.criteria[${i}].final_rationale`,
+      c.final_rationale,
+    ),
+  );
+
+  (input.recommendations?.quick_wins ?? []).forEach((r, i) =>
+    pushField(
+      `evaluation_result_v2.recommendations.quick_wins[${i}].action`,
+      r.action,
+    ),
+  );
+  (input.recommendations?.strategic_revisions ?? []).forEach((r, i) =>
+    pushField(
+      `evaluation_result_v2.recommendations.strategic_revisions[${i}].action`,
+      r.action,
+    ),
+  );
+
+  return { fields, unregisteredPaths };
+}
+
+function legacyLocalPremiseViolations(
+  input: ECGInput,
+): { violations: ECGViolation[]; dispositions: CompatibilityDisposition[] } {
+  const violations: ECGViolation[] = [];
+  const dispositions: CompatibilityDisposition[] = [];
+  const premise = input.enrichment?.premise?.trim();
+  if (!premise) return { violations, dispositions };
+
+  const add = (ecgCode: string, message: string): void => {
+    const v = violation(ecgCode, message);
+    violations.push(v);
+    dispositions.push({
+      kind: 'legacy-local',
+      reason: 'not-part-of-certified-author-facing-contract',
+      violation: v,
+    });
+  };
+
+  if (hasTruncatedWord(premise)) {
+    add(
+      'ECG_TEXT_TRUNCATED_WORD',
+      '"premise" appears to contain a truncated word. Run trimAtWordBoundary in normalizeArtifact() before certification.',
+    );
+  }
+  if (hasPlaceholder(premise)) {
+    add(
+      'ECG_TEXT_PLACEHOLDER',
+      '"premise" contains placeholder text. Fill all template slots before certification.',
+    );
+  }
+  if (endsMidSentence(premise)) {
+    add(
+      'ECG_TEXT_MIDSENTENCE_TERMINATION',
+      '"premise" ends mid-sentence (missing terminal punctuation or a dangling connective/comma/colon/em-dash/open-bracket). Pass 3 must emit complete sentences: "…' +
+        premise.trim().slice(-40) +
+        '"',
+    );
+  }
+
+  return { violations, dispositions };
+}
+
+/**
+ * Inspect the ECG's legacy-enforced prose fields through the central
+ * author-facing prose authority, then map each native violation to the existing
+ * ECG code surface. enrichment.premise is handled as a legacy-local field
+ * because Stage 2 has not established its central writable ownership.
+ */
+export function checkAuthorFacingProse(
+  input: ECGInput,
+): {
+  violations: ECGViolation[];
+  dispositions: CompatibilityDisposition[];
+  telemetry: ECGProseAdapterTelemetry;
+} {
+  const centralMappedPaths: string[] = [];
+  const unregisteredPaths: string[] = [];
+  const unexpectedAuthorityViolations: AuthorFacingIntegrityViolation[] = [];
+
+  const { fields, unregisteredPaths: projectionUnregistered } =
+    buildLegacyEnforcedProseFields(input);
+  const dispositions: CompatibilityDisposition[] = [];
+  unregisteredPaths.push(...projectionUnregistered);
+
+  for (const field of fields) {
+    centralMappedPaths.push(field.path);
+    const authorityViolations = inspectAuthorFacingProse({
+      text: field.value,
+      fieldPath: field.path,
+      fieldKind: field.contract.kind,
+    });
+    for (const v of authorityViolations) {
+      const disposition = mapAuthorityViolationToLegacyEcg(v, input);
+      dispositions.push(disposition);
+      if (disposition.kind === 'unexpected') {
+        unexpectedAuthorityViolations.push(v);
+      }
+    }
+  }
+
+  const premise = legacyLocalPremiseViolations(input);
+  dispositions.push(...premise.dispositions);
+
+  const legacyLocalPaths = ['evaluation_result_v2.enrichment.premise'];
+
+  if (unregisteredPaths.length > 0) {
+    throw new UnregisteredAuthorFacingPathError(unregisteredPaths);
+  }
+
+  if (unexpectedAuthorityViolations.length > 0) {
+    throw new Error(
+      `ECG prose adapter encountered unexpected authority violations: ${unexpectedAuthorityViolations
+        .map((v) => v.code)
+        .join(', ')}`,
+    );
+  }
+
+  const violations = dispositions
+    .filter(
+      (
+        d,
+      ): d is
+        | { kind: 'mapped'; violation: ECGViolation }
+        | { kind: 'legacy-local'; reason: string; violation: ECGViolation } =>
+        d.kind === 'mapped' || d.kind === 'legacy-local',
+    )
+    .map((d) => d.violation);
+
+  return {
+    violations,
+    dispositions,
+    telemetry: {
+      centralMappedPaths,
+      legacyLocalPaths,
+      unexpectedAuthorityViolations,
+      unregisteredPaths,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Invariant checkers (pure — read-only, no mutation)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -766,57 +1116,19 @@ function checkSummary(input: ECGInput): ECGViolation[] {
       `Executive summary does not reference the canonical score (${input.canonicalScore}/100). Recommended for reader orientation.`));
   }
 
-  if (hasTruncatedWord(summary)) {
-    vs.push(violation('ECG_TEXT_TRUNCATED_WORD',
-      `Executive summary appears truncated mid-word. normalizeArtifact() must trim at word boundary before gate runs.`));
-  }
-
-  if (hasPlaceholder(summary)) {
-    vs.push(violation('ECG_TEXT_PLACEHOLDER',
-      `Executive summary contains placeholder text. All template slots must be filled before certification.`));
-  }
+  // Truncated-word and placeholder detection for the executive summary are
+  // now owned by the central author-facing prose authority adapter
+  // (checkAuthorFacingProse). checkSummary retains the editorial contract checks
+  // (pitch language, eval language, score presence) that are not pure prose
+  // integrity decisions.
 
   return vs;
 }
 
-function checkText(input: ECGInput): ECGViolation[] {
-  const vs: ECGViolation[] = [];
-
-  const fields: Array<[string, string | null | undefined]> = [
-    ['one_sentence_pitch', input.overview.one_sentence_pitch],
-    ['one_paragraph_pitch', input.overview.one_paragraph_pitch],
-    ['premise', input.enrichment?.premise],
-    ...(input.overview.top_3_strengths ?? []).map((s, i) => [`top_3_strengths[${i}]`, s] as [string, string]),
-    ...(input.overview.top_3_risks ?? []).map((s, i) => [`top_3_risks[${i}]`, s] as [string, string]),
-  ];
-
-  for (const [label, value] of fields) {
-    if (!value?.trim()) continue;
-    if (hasTruncatedWord(value)) {
-      vs.push(violation('ECG_TEXT_TRUNCATED_WORD',
-        `"${label}" appears to contain a truncated word. Run trimAtWordBoundary in normalizeArtifact() before certification.`));
-    }
-    if (hasPlaceholder(value)) {
-      vs.push(violation('ECG_TEXT_PLACEHOLDER',
-        `"${label}" contains placeholder text. Fill all template slots before certification.`));
-    }
-    // Global invariant: known full-sentence prose must not end mid-sentence.
-    // endsMidSentence is a pure inspector; this gate keeps the pass/fail authority.
-    if (endsMidSentence(value)) {
-      vs.push(violation('ECG_TEXT_MIDSENTENCE_TERMINATION',
-        `"${label}" ends mid-sentence (missing terminal punctuation or a dangling connective/comma/colon/em-dash/open-bracket). Pass 3 must emit complete sentences: "…${value.trim().slice(-40)}"`));
-    }
-  }
-
-  for (const c of input.criteria ?? []) {
-    if ((c.final_rationale ?? '').trim() && hasPlaceholder(c.final_rationale!)) {
-      vs.push(violation('ECG_TEXT_PLACEHOLDER',
-        `Criterion "${c.key}" rationale contains placeholder text.`));
-    }
-  }
-
-  return vs;
-}
+// Text-integrity detection (pitches, strengths/risks, premise, final_rationale)
+// is now delegated to the central author-facing prose authority via
+// checkAuthorFacingProse. The old checkText implementation is intentionally
+// removed in Stage 2; do not re-introduce independent prose regexes here.
 
 function checkRecommendations(input: ECGInput): ECGViolation[] {
   const vs: ECGViolation[] = [];
@@ -834,19 +1146,9 @@ function checkRecommendations(input: ECGInput): ECGViolation[] {
       vs.push(violation('ECG_REC_TOO_SHORT',
         `Recommendation in "${source}" is ${action.length} chars (min 50): "${action}"`));
     }
-    if (hasPlaceholder(action)) {
-      vs.push(violation('ECG_REC_PLACEHOLDER',
-        `Recommendation in "${source}" contains placeholder text: "${action.substring(0, 80)}"`));
-    }
-    // ADVISORY: typography normalization should have handled these
-    if (action.charAt(0) !== action.charAt(0).toUpperCase()) {
-      vs.push(violation('ECG_REC_LOWERCASE_START',
-        `Recommendation in "${source}" starts lowercase. normalizeArtifact() should have corrected this: "${action.substring(0, 60)}"`));
-    }
-    if (!/[.!?…)]$/.test(action)) {
-      vs.push(violation('ECG_REC_MISSING_TERMINAL_PUNCT',
-        `Recommendation in "${source}" lacks terminal punctuation. normalizeArtifact() should have corrected this: "…${action.slice(-40)}"`));
-    }
+    // Placeholder, lowercase-start, and terminal-punctuation detection for
+    // recommendation actions are now owned by the central author-facing prose
+    // authority adapter (checkAuthorFacingProse).
   }
 
   return vs;
@@ -998,11 +1300,12 @@ export function runEvaluationCertificationGate(input: ECGInput): ECGResult {
   }
 
   // ── Run all invariant checkers (pure, read-only) ─────────────────────────
+  const { violations: proseViolations } = checkAuthorFacingProse(input);
   const allViolations: ECGViolation[] = [
     ...checkAuthority(input),
     ...checkIdentity(input),
     ...checkSummary(input),
-    ...checkText(input),
+    ...proseViolations,
     ...checkRecommendations(input),
     ...checkCompleteness(input),
     ...checkRenderer(input),
