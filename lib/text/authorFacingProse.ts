@@ -19,7 +19,7 @@ export function isCompleteAuthorFacingSentence(text: string | null | undefined):
   return true;
 }
 
-const FAMILY_PREFIX_PATTERN = /^\s*[•*\-]?\s*(quick win|strategic revision)\s*:\s*/i;
+const FAMILY_PREFIX_PATTERN = /^\s*[•*-]?\s*(quick win|strategic revision)\s*:\s*/i;
 
 const RECOMMENDATION_LEAD_IN_PATTERNS = [
   /^in the anchored moment\s+"[^"]+",\s*/i,
@@ -168,7 +168,7 @@ export function ensureTerminalPunctuation(text: string): string {
   if (!trimmed) return text;
   if (TERMINAL_PUNCTUATION_AT_END.test(trimmed)) return trimmed;
   // Replace a dangling clause-level punctuation mark with a period.
-  const withoutDangling = trimmed.replace(/[,;:—\-]+$/u, "");
+  const withoutDangling = trimmed.replace(/[,;:—-]+$/u, "");
   return (withoutDangling || trimmed) + ".";
 }
 
@@ -180,7 +180,7 @@ export function ensureTerminalPunctuation(text: string): string {
  */
 export function ensureSingleSpaceAfterColon(text: string): string {
   if (!text) return text;
-  return text.replace(/([^\s\d]):(?=\S)(?!\d)\s*/g, "$1: ").replace(/([^\s\d]):[ \t]{2,}/g, "$1: ");
+  return text.replace(/([^\s\d]):(?=\S)\s*/g, "$1: ").replace(/([^\s\d]):[ \t]{2,}/g, "$1: ");
 }
 
 // Function words whose IMMEDIATE doubling ("the the") is essentially always an
@@ -316,7 +316,7 @@ const DANGLING_TAIL_WORDS = [
 ];
 const DANGLING_TAIL_WORDS_SET = new Set(DANGLING_TAIL_WORDS.map((w) => w.toLowerCase()));
 // Punctuation that is unambiguously incomplete at the end of author-facing prose.
-const DANGLING_TAIL_PUNCTUATION = /[,:;\u2014(\[]\s*$/u;
+const DANGLING_TAIL_PUNCTUATION = /[[,;:\u2014(]\s*$/u;
 
 function endsWithDanglingWord(text: string): boolean {
   const lastToken = text.trim().split(/\s+/).pop();
@@ -368,9 +368,9 @@ function trimAtWordBoundaryLocal(text: string, maxLength: number): string {
   const candidate = text.substring(0, maxLength - 1);
   const lastSpace = candidate.lastIndexOf(" ");
   if (lastSpace > maxLength * 0.6) {
-    return candidate.substring(0, lastSpace).replace(/[\s,;:.—\-]+$/u, "") + "…";
+    return candidate.substring(0, lastSpace).replace(/[\s,;:.—-]+$/u, "") + "…";
   }
-  return candidate.replace(/[\s,;:.—\-]+$/u, "") + "…";
+  return candidate.replace(/[\s,;:.—-]+$/u, "") + "…";
 }
 
 /**

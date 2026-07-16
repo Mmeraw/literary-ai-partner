@@ -68,7 +68,6 @@ import {
   normalizeArtifact,
   ArtifactTextContractError,
 } from "@/lib/evaluation/pipeline/normalizeArtifact";
-import { AuthorFacingIntegrityError } from "@/lib/text/authorFacingIntegrity";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ECG_MODE isolation helper
@@ -295,10 +294,11 @@ describe("normalizeArtifact()", () => {
     expect(quickWins[0].action).toMatch(/^Compress/);
   });
 
-  it("rejects a recommendation action that lacks terminal punctuation", () => {
+  it("repairs a recommendation action that merely lacks terminal punctuation", () => {
     const synthesis = makeSynthesis();
     const quickWins = [{ action: "Compress the mid-chapter exposition for better pacing" }];
-    expect(() => normalizeArtifact(synthesis, quickWins, [])).toThrow(AuthorFacingIntegrityError);
+    normalizeArtifact(synthesis, quickWins, []);
+    expect(quickWins[0].action).toBe("Compress the mid-chapter exposition for better pacing.");
   });
 
   it("collapses multiple whitespace in a recommendation action", () => {
@@ -308,14 +308,11 @@ describe("normalizeArtifact()", () => {
     expect(quickWins[0].action).toBe("Compress the exposition.");
   });
 
-  it("rejects one_paragraph_summary with no complete sentence within the 1000-char cap", () => {
-    // A single 1100-char token has no sentence boundary, so the sentence-boundary
-    // trimmer would fall back to a word-boundary ellipsis. The strict Pass 3
-    // wrapper must reject that fallback and fail with a typed contract error
-    // instead of emitting an incomplete sentence.
-    const longSummary = "The manuscript earns a 74/100 " + "a".repeat(1100);
-    const synthesis = makeSynthesis({ one_paragraph_summary: longSummary });
+  it("rejects a one_paragraph_summary that ends on a dangling connective and does not fabricate terminal punctuation", () => {
+    const synthesis = makeSynthesis({ one_paragraph_summary: "The reader loses momentum because" });
     expect(() => normalizeArtifact(synthesis, [], [])).toThrow(ArtifactTextContractError);
+    // Normalization must not append a period that would hide the truncation.
+    expect(synthesis.overall.one_paragraph_summary).not.toMatch(/[.!?]$/u);
   });
 
   it("does NOT alter the score, summary meaning, or pitch text (clean inputs)", () => {
@@ -352,10 +349,11 @@ describe("normalizeArtifact()", () => {
     expect(synthesis.overall.one_paragraph_summary).toBe(before);
   });
 
-  it("rejects an incomplete recommendation action and does not fabricate terminal punctuation", () => {
+  it("repairs a recommendation action that is missing only terminal punctuation and a lowercase opening", () => {
     const synthesis = makeSynthesis();
-    const quickWins = [{ action: "compress the exposition" }]; // lowercase, no punct
-    expect(() => normalizeArtifact(synthesis, quickWins, [])).toThrow(AuthorFacingIntegrityError);
+    const quickWins = [{ action: "the scene loses momentum" }];
+    normalizeArtifact(synthesis, quickWins, []);
+    expect(quickWins[0].action).toBe("The scene loses momentum.");
   });
 
   it("does not sentence-trim a summary that is within the technical ceiling", () => {

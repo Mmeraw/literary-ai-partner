@@ -162,8 +162,6 @@ const TERMINAL_PUNCTUATION_REQUIRED_FIELDS = new Set([
   'one_paragraph_summary',
   'one_sentence_pitch',
   'one_paragraph_pitch',
-  'top_3_strengths',
-  'top_3_risks',
   'rationale',
   'final_rationale',
   'fit_summary',
@@ -200,7 +198,7 @@ function mayRepairTerminalPunctuation(value: string, key: string): boolean {
   if (endsWithDanglingConnective(value)) return false;
   // A terminal dash or open delimiter is a strong truncation signal and must
   // remain visible to authorFacingIntegrity rather than being papered over.
-  if (/[\-–—([{]\s*$/u.test(value)) return false;
+  if (/[-–—([{]\s*$/u.test(value)) return false;
   return true;
 }
 
@@ -271,14 +269,15 @@ export function normalizeArtifact(
     const out: string[] = [];
     let changed = false;
     for (let i = 0; i < arr.length; i++) {
-      const normalized = normalizeStringValue(arr[i], `${field}[${i}]`);
+      const item = arr[i];
+      const normalized = normalizeStringValue(item, `${field}[${i}]`);
       if (normalized !== null) {
         out.push(normalized);
-        if (normalized !== arr[i]) changed = true;
-      } else if (typeof arr[i] === 'string') {
-        out.push(arr[i]);
+        if (normalized !== item) changed = true;
+      } else if (typeof item === 'string') {
+        out.push(item);
       } else {
-        out.push(String(arr[i]));
+        out.push(String(item));
       }
     }
     return changed ? out : (arr as string[]);

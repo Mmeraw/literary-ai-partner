@@ -481,7 +481,7 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
     expect(decision.reasonCodes).toContain("FALLBACK_GENERATOR_USED");
   });
 
-  test("auto-repairs truncated recommendation actions and persists instead of hard-failing", async () => {
+  test("does not auto-repair truncated recommendation actions at the persistence boundary", async () => {
     const supabase = makeSupabaseStub();
     const resultWithTruncatedRec = makeValidEvaluationResultV2();
 
@@ -492,6 +492,8 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
         expected_impact: "Improves criterion clarity and execution consistency.",
       },
     ];
+
+    expect(validateStructuralArtifact(resultWithTruncatedRec).ok).toBe(false);
 
     const persistResult = await persistEvaluationResultV2({
       supabase: supabase as unknown as SupabaseClient,
@@ -504,22 +506,10 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
       completedUnits: 5,
     });
 
-    expect(persistResult.persisted).toBe(true);
-    expect(supabase.rpcCalls).toHaveLength(1);
-
-    const persistedArtifact = supabase.rpcCalls[0].payload.p_artifact_content as EvaluationResultV2;
-    const persistedProgress = supabase.rpcCalls[0].payload.p_progress as Record<string, unknown>;
-    const repairedAction = persistedArtifact.criteria[0].recommendations[0]?.action;
-
-    expect(typeof repairedAction).toBe("string");
-    expect(repairedAction).not.toBe("Merge this recommendation with the.");
-    const structuralValidation = validateStructuralArtifact(persistedArtifact);
-    expect(structuralValidation.ok).toBe(true);
-
-    expect(persistedProgress.recoverable_repair_applied).toBe(true);
-    expect(persistedProgress.recoverable_repair_code).toBe("CRITERION_RECOMMENDATION_TRUNCATED");
-    expect(persistedProgress.recoverable_repair_result).toBe("passed_after_revalidation");
-    expect(isIsoTimestamp(persistedProgress.recoverable_repair_at)).toBe(true);
+    expect(persistResult.persisted).toBe(false);
+    expect(persistResult.gateDecision).toBe("FAIL");
+    expect(persistResult.reason).toMatch(/CRITERION_RECOMMENDATION_TRUNCATED|structural validation/i);
+    expect(supabase.rpcCalls).toHaveLength(0);
   });
 
   test("sanitizes malformed/off-topic contamination before persistence so downloads remain available", async () => {

@@ -16,7 +16,7 @@ import { normalizeArtifact } from '@/lib/evaluation/pipeline/normalizeArtifact';
 import { buildEnrichedActionItems, toPublicActionItem } from '@/lib/evaluation/actionItemQualityGate';
 import { buildWritableAuthorFieldResolver } from '@/lib/evaluation/pipeline/derivedFieldResolver';
 import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
-import type { CriterionKey } from '@/lib/evaluation/pipeline/perplexityCrossCheck';
+
 import * as requiredProseRegeneration from '@/lib/evaluation/pipeline/requiredProseRegeneration';
 
 jest.mock('@/lib/evaluation/pipeline/requiredProseRegeneration', () => ({
@@ -47,9 +47,8 @@ function makeYellowWallpaperSynthesis(): SynthesisOutput {
           priority: 'medium' as const,
           action: 'Clarify the speaker attribution in the dialogue exchange so each voice is distinct.',
           expected_impact:
-            'The attribution gap causes speaker intent to blur, reducing tension in the exchange',
-          reader_effect:
-            'The attribution gap causes speaker intent to blur, reducing tension in the exchange',
+            'The attribution gap causes speaker intent to blur, reducing tension in the ex…',
+          reader_effect: '',
           anchor_snippet: 'The river moved slowly through the valley.',
           source_pass: 2 as const,
           issue_family: 'scene_structure',
@@ -100,7 +99,7 @@ beforeEach(() => {
       let current: unknown = synthesis;
       for (let i = 0; i < parts.length - 1; i++) {
         const part = parts[i]!;
-        const arrayMatch = part.match(/^([^\[]+)\[(\d+)\]$/u);
+        const arrayMatch = part.match(/^([^.[]+)\[(\d+)\]$/u);
         if (arrayMatch) {
           const key = arrayMatch[1]!;
           const index = parseInt(arrayMatch[2]!, 10);
@@ -113,7 +112,7 @@ beforeEach(() => {
         if (current === undefined || current === null) throw new Error('Invalid path');
       }
       const last = parts[parts.length - 1]!;
-      const lastArrayMatch = last.match(/^([^\[]+)\[(\d+)\]$/u);
+      const lastArrayMatch = last.match(/^([^.[]+)\[(\d+)\]$/u);
       if (lastArrayMatch) {
         const key = lastArrayMatch[1]!;
         const index = parseInt(lastArrayMatch[2]!, 10);
