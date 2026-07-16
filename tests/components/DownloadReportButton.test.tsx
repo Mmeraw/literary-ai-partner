@@ -14,9 +14,11 @@ describe('DownloadReportButton', () => {
     global.fetch = fetchMock as unknown as typeof fetch;
     window.URL.createObjectURL = jest.fn(() => 'blob:mock');
     window.URL.revokeObjectURL = jest.fn();
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 900 });
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.resetAllMocks();
   });
 
@@ -39,8 +41,41 @@ describe('DownloadReportButton', () => {
     });
   }
 
-  it('always opens the format menu upward so footer content cannot hide options', async () => {
+  function mockButtonPosition(top: number, bottom: number) {
+    jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      top,
+      bottom,
+      left: 0,
+      right: 200,
+      width: 200,
+      height: bottom - top,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    });
+  }
+
+  it('opens the header download menu downward when there is room below', async () => {
     mockJobStatusComplete();
+    mockButtonPosition(120, 160);
+    render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Download Report/i }).getAttribute('aria-disabled')).not.toBe('true');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Download Report/i }));
+
+    const menu = screen.getByTestId('download-report-menu');
+    expect(menu.className).toContain('top-full');
+    expect(menu.className).not.toContain('bottom-full');
+    expect(menu.getAttribute('data-placement')).toBe('below');
+    expect(screen.getByRole('button', { name: /Download Report/i }).textContent).toContain('▾');
+  });
+
+  it('keeps the footer download menu opening upward when space below is limited', async () => {
+    mockJobStatusComplete();
+    mockButtonPosition(820, 860);
     render(<DownloadReportButton jobId="e5ced7ac-117f-4d13-8cd0-3957c15dc189" disabled={false} />);
 
     await waitFor(() => {
@@ -52,6 +87,7 @@ describe('DownloadReportButton', () => {
     const menu = screen.getByTestId('download-report-menu');
     expect(menu.className).toContain('bottom-full');
     expect(menu.className).not.toContain('top-full');
+    expect(menu.getAttribute('data-placement')).toBe('above');
     expect(screen.getByRole('button', { name: /Download Report/i }).textContent).toContain('▴');
   });
 
