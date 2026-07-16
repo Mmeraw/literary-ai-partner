@@ -314,10 +314,19 @@ const DANGLING_TAIL_WORDS = [
   "if", "as", "than", "then", "with", "to", "of", "in", "on", "at", "by",
   "from", "into", "onto", "the", "a", "an", "this", "these", "those",
 ];
-const DANGLING_TAIL_PATTERN = new RegExp(
-  `(?:\\b(?:${DANGLING_TAIL_WORDS.join("|")})\\b|,|:|;|\\u2014|\\(|\\[)\\s*$`,
-  "iu",
-);
+const DANGLING_TAIL_WORDS_SET = new Set(DANGLING_TAIL_WORDS.map((w) => w.toLowerCase()));
+// Punctuation that is unambiguously incomplete at the end of author-facing prose.
+const DANGLING_TAIL_PUNCTUATION = /[,:;\u2014(\[]\s*$/u;
+
+function endsWithDanglingWord(text: string): boolean {
+  const lastToken = text.trim().split(/\s+/).pop();
+  if (!lastToken) return false;
+  return DANGLING_TAIL_WORDS_SET.has(lastToken.toLowerCase());
+}
+
+function hasDanglingTail(text: string): boolean {
+  return DANGLING_TAIL_PUNCTUATION.test(text) || endsWithDanglingWord(text);
+}
 
 /**
  * Detect whether author-facing prose ends mid-sentence. (global invariant)
@@ -333,7 +342,7 @@ export function endsMidSentence(text: string | null | undefined): boolean {
   if (text == null) return false;
   const trimmed = normalizeWhitespace(text);
   if (!trimmed) return false;
-  if (DANGLING_TAIL_PATTERN.test(trimmed)) return true;
+  if (hasDanglingTail(trimmed)) return true;
   return !TERMINAL_PUNCTUATION_AT_END.test(trimmed);
 }
 
@@ -347,7 +356,7 @@ export function endsWithDanglingConnective(text: string | null | undefined): boo
   if (text == null) return false;
   const trimmed = normalizeWhitespace(text);
   if (!trimmed) return false;
-  return DANGLING_TAIL_PATTERN.test(trimmed);
+  return hasDanglingTail(trimmed);
 }
 
 // Matches a sentence terminator (. ! ? …) plus any trailing closing
