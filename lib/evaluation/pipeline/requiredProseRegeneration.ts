@@ -18,8 +18,12 @@ import {
   buildOpenAITemperatureParam,
   getCanonicalPass3Model,
 } from '@/lib/evaluation/policy';
-import type { AuthorFacingIntegrityViolation } from '@/lib/text/authorFacingIntegrity';
+import {
+  inspectAuthorFacingIntegrity,
+  type AuthorFacingIntegrityViolation,
+} from '@/lib/text/authorFacingIntegrity';
 import { isCompleteAuthorFacingSentence } from '@/lib/text/authorFacingProse';
+import { isCandidateTextViolationPath } from './candidateIntegrityRepair';
 import type {
   Pass3PreflightDraft,
   SinglePassOutput,
@@ -59,6 +63,11 @@ export interface RequiredProseRegenerationOptions {
   manuscriptText?: string;
   /** Manuscript title for grounding. */
   title?: string;
+  /**
+   * Maximum regeneration attempts. Used by regenerateCandidateProse;
+   * regenerateRequiredProse relies on the caller's loop.
+   */
+  maxAttempts?: number;
 }
 
 export interface RequiredProseRegenerationTelemetry {
@@ -82,22 +91,56 @@ export interface RequiredProseRegenerationResult {
   regeneratedFields: string[];
   /** Fields that could not be regenerated. */
   failedFields: string[];
+  /** Paths the LLM attempted to mutate that were not in the requested set. */
+  mutationBoundaryViolations: string[];
   /** Telemetry for observability. */
   telemetry: RequiredProseRegenerationTelemetry;
 }
 
 const REQUIRED_DERIVED_FIELDS = new Set(['fit_summary', 'gap_summary']);
-const REQUIRED_CANONICAL_FIELDS = new Set([
-  'rationale',
-  'final_rationale',
-  'one_paragraph_summary',
-  'one_sentence_pitch',
-  'one_paragraph_pitch',
-]);
 
 function getLeafKey(path: string): string {
   // e.g. evaluation_result_v2.criteria[3].recommendations[0].action -> action
   return path.replace(/\[\d+\]/g, '').split('.').pop() ?? path;
+}
+
+function cloneSnapshot<T>(value: T): T {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneSnapshot(item)) as unknown as T;
+  }
+
+  if (value !== null && typeof value === 'object') {
+    const output: Record<string, unknown> = {};
+
+    for (const key of Object.keys(value)) {
+      output[key] = cloneSnapshot(
+        (value as Record<string, unknown>)[key],
+      );
+    }
+
+    return output as T;
+  }
+
+  return value;
+}
+
+/**
+ * Fully restore a mutable object from a deep-cloned snapshot.
+ * This removes any top-level additions and replaces nested state exactly,
+ * preserving optional keys whose value is undefined.
+ */
+function restoreFromSnapshot<T extends Record<string, unknown>>(
+  target: T,
+  snapshot: T,
+): void {
+  for (const key of Object.keys(target)) {
+    delete target[key];
+  }
+  Object.assign(target, cloneSnapshot(snapshot));
 }
 
 /**
@@ -135,13 +178,6 @@ function isRequestedChange(changedPath: string, requestedPath: string): boolean 
   const changed = normalizeDiffPath(changedPath);
   const requested = normalizeDiffPath(requestedPath);
   return changed === requested || changed.startsWith(`${requested}.`);
-}
-
-function classifyViolation(path: string): 'derived' | 'canonical' | 'other' {
-  const key = getLeafKey(path);
-  if (REQUIRED_DERIVED_FIELDS.has(key)) return 'derived';
-  if (REQUIRED_CANONICAL_FIELDS.has(key)) return 'canonical';
-  return 'other';
 }
 
 function getByPath(obj: unknown, path: string): unknown {
@@ -288,6 +324,13 @@ function compactCriterionContext(
   };
 }
 
+function getCandidateVariant(key: string): 'A' | 'B' | 'C' | null {
+  if (key === 'candidate_text_a') return 'A';
+  if (key === 'candidate_text_b') return 'B';
+  if (key === 'candidate_text_c') return 'C';
+  return null;
+}
+
 function buildFieldPrompt(
   synthesis: SynthesisOutput,
   path: string,
@@ -299,6 +342,8 @@ function buildFieldPrompt(
   const key = getLeafKey(path);
   const currentValue = getByPath(synthesis, path);
   const ci = getCriterionIndex(path);
+  const candidateVariant = getCandidateVariant(key);
+  const isCandidate = candidateVariant !== null;
 
   let payload: Record<string, unknown>;
 
@@ -334,12 +379,14 @@ function buildFieldPrompt(
           cause: clipContextExcerpt(String(rec.cause ?? ''), 160),
           fix_direction: clipContextExcerpt(String(rec.fix_direction ?? ''), 160),
           mistake_proofing: clipContextExcerpt(String(rec.mistake_proofing ?? ''), 160),
+          ...(isCandidate ? { variant: candidateVariant } : {}),
         },
         constraints: {
           preserve_score: true,
           preserve_evidence: true,
           preserve_recommendations: true,
           return_only_requested_field: true,
+          ...(isCandidate ? { regenerate_only_candidate_variant: candidateVariant } : {}),
         },
       };
     } else {
@@ -394,12 +441,21 @@ function buildFieldPrompt(
         'The value must be complete, publication-ready editorial prose.',
         'Respect the existing field contract: one_paragraph_summary may be multi-paragraph; one_sentence_pitch must be exactly one sentence; one_paragraph_pitch must be one paragraph.',
       ]
+    : isCandidate
+    ? [
+        `The value must be a single, complete, publication-ready sentence of copy-paste manuscript prose for the author (variant ${candidateVariant}).`,
+        'Produce concrete prose the author can paste directly into the manuscript.',
+        'Do not concatenate or repeat the action, specific_fix, mechanism, reader_effect, or symptom fields.',
+        'Do not include meta-commentary, markdown, bullets, numbering, or templated language such as "This addresses...".',
+      ]
     : [
         'The value must be a complete, publication-ready sentence or short paragraph.',
       ];
 
   return [
-    'Regenerate one required author-facing prose field for a literary-manuscript evaluation report.',
+    isCandidate
+      ? 'Regenerate one optional copy-paste candidate revision for a literary-manuscript evaluation report.'
+      : 'Regenerate one required author-facing prose field for a literary-manuscript evaluation report.',
     'Return ONLY a JSON object with the requested field path as the single top-level key.',
     '',
     'PAYLOAD:',
@@ -413,7 +469,9 @@ function buildFieldPrompt(
     '- No mid-sentence cut-off.',
     '- Ground every claim in the provided evidence anchors.',
     '- Do not include markdown, bullets, numbering, or commentary.',
-    '- Do not alter the score, evidence, recommendations, or any other field.',
+    isCandidate
+      ? '- Do not alter the score, evidence, other recommendation fields, or any other field.'
+      : '- Do not alter the score, evidence, recommendations, or any other field.',
   ].join('\n');
 }
 
@@ -422,7 +480,7 @@ async function callRegenerationLLM(
   model: string,
   prompt: string,
   fieldPath: string,
-): Promise<string | null> {
+): Promise<Record<string, string> | null> {
   const maxTokens =
     fieldPath.includes('one_paragraph_summary') || fieldPath.includes('one_paragraph_pitch')
       ? 1400
@@ -438,7 +496,7 @@ async function callRegenerationLLM(
         {
           role: 'system',
           content:
-            'You are a senior developmental editor regenerating a single required field for a manuscript evaluation report. ' +
+            'You are a senior developmental editor regenerating a single author-facing prose field or copy-paste candidate revision for a manuscript evaluation report. ' +
             'Return ONLY a JSON object with one key: the exact FIELD PATH the user provides. ' +
             'The value must be complete, publication-ready prose: capitalized first letter, terminal punctuation, no ellipses, no mid-sentence cuts.',
         },
@@ -465,12 +523,18 @@ async function callRegenerationLLM(
 
   try {
     const parsed = JSON.parse(raw);
-    const value = parsed[fieldPath];
-    if (typeof value === 'string') return value.trim();
-    // Some models return the leaf key instead of the full path.
+    if (!parsed || typeof parsed !== 'object') return null;
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === 'string') result[key] = value.trim();
+    }
+    // Some models return the leaf key instead of the full path; map it back.
     const leaf = getLeafKey(fieldPath);
-    const leafValue = parsed[leaf];
-    if (typeof leafValue === 'string') return leafValue.trim();
+    if (leaf && result[leaf] !== undefined && result[fieldPath] === undefined) {
+      result[fieldPath] = result[leaf];
+      delete result[leaf];
+    }
+    return result;
   } catch {
     // ignore
   }
@@ -591,6 +655,7 @@ export async function regenerateRequiredProse(
       synthesis,
       regeneratedFields: [],
       failedFields: [],
+      mutationBoundaryViolations: [],
       telemetry: {
         attempts: 0,
         regeneratedFields: [],
@@ -610,6 +675,7 @@ export async function regenerateRequiredProse(
       synthesis,
       regeneratedFields: [],
       failedFields: violations.map((v) => v.path),
+      mutationBoundaryViolations: [],
       telemetry: {
         attempts: 0,
         regeneratedFields: [],
@@ -625,13 +691,9 @@ export async function regenerateRequiredProse(
     maxRetries: 2,
   });
 
-  // Target only required fields. Candidate fields are repaired/quarantined elsewhere.
-  const requiredViolations = violations.filter((v) => {
-    const type = classifyViolation(v.path);
-    // recommendation quick_wins / strategic_revisions action/expected_impact render
-    // to the author, so treat them as required canonical prose here.
-    return type === 'derived' || type === 'canonical' || type === 'other';
-  });
+  // Target only required fields. Candidate fields are repaired/quarantined by
+  // regenerateCandidateProse.
+  const requiredViolations = violations.filter((v) => !isCandidateTextViolationPath(v.path));
 
   const seen = new Set<string>();
   const unique: AuthorFacingIntegrityViolation[] = [];
@@ -663,16 +725,22 @@ export async function regenerateRequiredProse(
       continue;
     }
 
-    const generated = await callRegenerationLLM(openai, model, prompt, violation.path);
+    const generatedMap = await callRegenerationLLM(openai, model, prompt, violation.path);
 
-    if (generated && isCompleteAuthorFacingSentence(generated)) {
-      const ok = setByPath(synthesis, violation.path, generated);
-      if (ok) {
-        regeneratedFields.push(violation.path);
-      } else {
-        failedFields.push(violation.path);
+    if (generatedMap && typeof generatedMap === 'object') {
+      for (const [path, value] of Object.entries(generatedMap)) {
+        if (isCompleteAuthorFacingSentence(value)) {
+          const ok = setByPath(synthesis, path, value);
+          if (ok) {
+            if (path === violation.path) regeneratedFields.push(violation.path);
+          }
+        }
       }
     } else {
+      failedFields.push(violation.path);
+    }
+
+    if (!regeneratedFields.includes(violation.path) && !failedFields.includes(violation.path)) {
       failedFields.push(violation.path);
     }
   }
@@ -685,12 +753,13 @@ export async function regenerateRequiredProse(
   );
   if (unexpectedChanges.length > 0) {
     // Revert synthesis to the snapshot and report failure for the requested paths.
-    Object.assign(synthesis, beforeSnapshot);
+    restoreFromSnapshot(synthesis, beforeSnapshot);
     return {
       ok: false,
       synthesis,
       regeneratedFields: [],
       failedFields: requestedPaths,
+      mutationBoundaryViolations: unexpectedChanges,
       telemetry: {
         attempts: regeneratedFields.length + failedFields.length,
         regeneratedFields: [],
@@ -722,6 +791,7 @@ export async function regenerateRequiredProse(
     synthesis,
     regeneratedFields,
     failedFields,
+    mutationBoundaryViolations: [],
     telemetry: {
       attempts: regeneratedFields.length + failedFields.length,
       regeneratedFields,
@@ -734,4 +804,182 @@ export async function regenerateRequiredProse(
       },
     },
   };
+}
+
+function normalizeViolationsLocal(
+  violations: AuthorFacingIntegrityViolation[],
+): AuthorFacingIntegrityViolation[] {
+  const seen = new Set<string>();
+  return violations.filter((v) => {
+    if (seen.has(v.path)) return false;
+    seen.add(v.path);
+    return true;
+  });
+}
+
+/**
+ * Bounded targeted LLM regeneration for optional candidate_text_a/b/c fields.
+ *
+ * Candidate text is copy-paste manuscript prose for the author, not metadata to be
+ * concatenated from action/specific_fix. This entry point regenerates only the
+ * requested candidate path, enforces the same mutation boundary as required prose,
+ * and leaves any still-invalid candidate fields for the caller to quarantine.
+ */
+export async function regenerateCandidateProse(
+  synthesis: SynthesisOutput,
+  candidateViolations: AuthorFacingIntegrityViolation[],
+  options: RequiredProseRegenerationOptions = {},
+): Promise<RequiredProseRegenerationResult> {
+  const apiKey =
+    (options.openaiApiKey?.trim() || process.env.OPENAI_API_KEY)?.trim() || '';
+  const model = options.model?.trim() || getCanonicalPass3Model();
+
+  if (candidateViolations.some((v) => !isCandidateTextViolationPath(v.path))) {
+    return {
+      ok: false,
+      synthesis,
+      regeneratedFields: [],
+      failedFields: candidateViolations.map((v) => v.path),
+      mutationBoundaryViolations: [],
+      telemetry: {
+        attempts: 0,
+        regeneratedFields: [],
+        failedFields: candidateViolations.map((v) => v.path),
+        model,
+      },
+    };
+  }
+
+  if (!apiKey) {
+    return {
+      ok: false,
+      synthesis,
+      regeneratedFields: [],
+      failedFields: candidateViolations.map((v) => v.path),
+      mutationBoundaryViolations: [],
+      telemetry: {
+        attempts: 0,
+        regeneratedFields: [],
+        failedFields: candidateViolations.map((v) => v.path),
+        model,
+      },
+    };
+  }
+
+  const openai = new OpenAI({
+    apiKey,
+    timeout: getEvalOpenAiTimeoutMs(),
+    maxRetries: 2,
+  });
+
+  const maxAttempts = options.maxAttempts ?? 2;
+  const originalPaths = new Set(candidateViolations.map((v) => v.path));
+  let remaining = normalizeViolationsLocal(candidateViolations);
+  let attempts = 0;
+  let mutationBoundaryViolations: string[] = [];
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (remaining.length === 0) break;
+    attempts += 1;
+
+    const beforeSnapshot: SynthesisOutput = JSON.parse(JSON.stringify(synthesis));
+    const requestedPaths = remaining.map((v) => v.path);
+    const attemptRegenerated: string[] = [];
+
+    for (const violation of remaining) {
+      const prompt = buildFieldPrompt(
+        synthesis,
+        violation.path,
+        violation,
+        options.pass3PreflightDraft,
+        options.pass1Output,
+        options.pass2Output,
+      );
+      if (!prompt) {
+        continue;
+      }
+
+      const generatedMap = await callRegenerationLLM(openai, model, prompt, violation.path);
+      if (generatedMap && typeof generatedMap === 'object') {
+        for (const [path, value] of Object.entries(generatedMap)) {
+          if (isCompleteAuthorFacingSentence(value)) {
+            const ok = setByPath(synthesis, path, value);
+            if (ok && path === violation.path) {
+              attemptRegenerated.push(violation.path);
+            }
+          }
+        }
+      }
+    }
+
+    // Mutation boundary: ensure the LLM changed only the requested candidate paths.
+    const unexpectedChanges = assertOnlyRequestedPathsChanged(
+      beforeSnapshot,
+      synthesis,
+      requestedPaths,
+    );
+    if (unexpectedChanges.length > 0) {
+      restoreFromSnapshot(synthesis, beforeSnapshot);
+      mutationBoundaryViolations = unexpectedChanges;
+      break;
+    }
+
+    // Ensure regenerated paths actually became valid and unchanged invalid paths are not accepted.
+    const unchangedOrInvalid = assertRequestedPathsChangedOrWereValid(
+      beforeSnapshot,
+      synthesis,
+      requestedPaths,
+    );
+    for (const path of unchangedOrInvalid) {
+      const idx = attemptRegenerated.indexOf(path);
+      if (idx !== -1) attemptRegenerated.splice(idx, 1);
+    }
+
+    // Re-inspect candidate fields that still violate author-facing integrity.
+    const reInspect = inspectAuthorFacingIntegrity(
+      { overview: synthesis.overall, criteria: synthesis.criteria, recommendations: {} },
+      { rootPath: 'evaluation_result_v2' },
+    ).filter((v) => isCandidateTextViolationPath(v.path) && originalPaths.has(v.path));
+    remaining = normalizeViolationsLocal(reInspect);
+  }
+
+  const failedFields = remaining.map((v) => v.path);
+  const regeneratedFields = Array.from(originalPaths).filter(
+    (p) => !failedFields.includes(p),
+  );
+
+  return {
+    ok: failedFields.length === 0 && regeneratedFields.length > 0,
+    synthesis,
+    regeneratedFields,
+    failedFields,
+    mutationBoundaryViolations,
+    telemetry: {
+      attempts,
+      regeneratedFields,
+      failedFields,
+      model,
+    },
+  };
+}
+
+/**
+ * Quarantine (remove) unresolved optional candidate text fields.
+ *
+ * Only candidate_text_a/b/c paths are touched; required prose paths are rejected.
+ * Returns the list of paths that were actually quarantined.
+ */
+export function quarantineCandidateFields(
+  synthesis: SynthesisOutput,
+  paths: string[],
+): string[] {
+  const quarantined: string[] = [];
+  for (const path of paths) {
+    if (!isCandidateTextViolationPath(path)) continue;
+    const ok = setByPath(synthesis, path, undefined);
+    if (ok) {
+      quarantined.push(path);
+    }
+  }
+  return quarantined;
 }
