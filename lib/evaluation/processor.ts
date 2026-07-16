@@ -66,6 +66,11 @@ import { WAVE_GUIDE_SUMMARY, WAVE_GUIDE_VERSION } from './WAVE_GUIDE';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
 import { persistEvaluationResultV2 } from './persistEvaluationResultV2';
 import {
+  ProgressAuthority,
+  type EvaluationProgressEvent,
+  type ProgressPhase,
+} from './progressAuthority';
+import {
   runPipeline,
   synthesisToEvaluationResultV2,
 } from '@/lib/evaluation/pipeline/runPipeline';
@@ -5538,6 +5543,8 @@ export async function processEvaluationJob(
     progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
+    const progressAuthority = ProgressAuthority.fromPersisted(progressState);
+
     const selectedEnglishVariant = normalizeEnglishVariant((job as Record<string, unknown>).english_variant);
 
     expectedLeaseToken = typeof job.lease_token === 'string' ? job.lease_token : null;
@@ -5634,40 +5641,44 @@ export async function processEvaluationJob(
         });
     };
 
-    const markRunning = async (
-      message: string,
-      completedUnits: number,
-      phase: 'phase_1a' | 'phase_2' | 'phase_3' = 'phase_1a',
-    ) => {
+    const markRunning = async (event: EvaluationProgressEvent) => {
       if (!hasCanonicalPreClaimOwnership || !hasLivePreClaimLease) {
         throw new Error('markRunning requires claimed job');
       }
 
-      const now = new Date().toISOString();
+      const now = event.at ?? new Date().toISOString();
+      const authorityPhase = (event.phase ?? progressState.phase ?? 'phase_1a') as ProgressPhase;
+      // evaluation_jobs.phase is a physical enum column. WAVE/finalization
+      // progress is kept inside progress JSONB while the DB row stays phase_3.
+      const dbPhase: 'phase_1a' | 'phase_2' | 'phase_3' =
+        authorityPhase === 'phase_2' ? 'phase_2' :
+        authorityPhase === 'phase_1a' ? 'phase_1a' :
+        'phase_3';
 
       // Phase_3 start is JSONB-only (no DB column exists)
-      if (phase === 'phase_3') progressState.phase3_started_at = now;
+      if (dbPhase === 'phase_3') progressState.phase3_started_at = now;
 
-      // Monotonic ratchet: progress percentage never goes backward. Kicks and
-      // retries are invisible plumbing — the user only sees forward movement.
-      const prevHighWater = (progressState as Record<string, unknown>).progress_high_water as number ?? 0;
-      const safeCompletedUnits = Math.max(completedUnits, prevHighWater);
+      // Drive the weighted, monotonic ProgressAuthority and produce the public
+      // progress snapshot. completed_units is derived from completed work, not
+      // from an arbitrary phase milestone.
+      const authoritySnapshot = progressAuthority.report({ ...event, at: now, phase: authorityPhase });
+      const safeCompletedUnits = authoritySnapshot.overall.completed_units;
 
       // DB column patch — only columns that physically exist on evaluation_jobs.
       // Never build this inline: use getPhaseStartTimestamps so column drift
       // is caught by the schema-guard test in CI.
-      const stageTimestampPatch = getPhaseStartTimestamps(phase as PhaseName, now);
+      const stageTimestampPatch = getPhaseStartTimestamps(dbPhase as PhaseName, now);
 
       const nextProgress = {
         ...progressState,
         ...stageTimestampPatch,
-        ...buildPhaseLogPatch(progressState, phase, 'entered', now),
-        phase,
-        phase_status: 'running',
+        ...buildPhaseLogPatch(progressState, authorityPhase, 'entered', now),
+        ...authoritySnapshot,
+        phase_status: 'running' as const,
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
         completed_units: safeCompletedUnits,
-        progress_high_water: safeCompletedUnits,
-        message,
+        progress_high_water: authoritySnapshot.progress_high_water,
+        message: authoritySnapshot.message,
         last_heartbeat_at: now,
         // FIX: clear recovery death-flags on every successful worker claim.
         // progressState carries these forward from the prior SLA-halted run;
@@ -5683,15 +5694,15 @@ export async function processEvaluationJob(
 
       Object.assign(progressState, nextProgress);
 
-      const stageLabel = phase === 'phase_1a' ? 'phase1' : phase === 'phase_2' ? 'phase2' : phase as ProcessorStageBoundary;
+      const stageLabel = authorityPhase === 'phase_1a' ? 'phase1' : authorityPhase === 'phase_2' ? 'phase2' : authorityPhase as ProcessorStageBoundary;
       logProcessorStageBoundary({
         jobId,
         stage: (stageLabel === 'phase1' || stageLabel === 'phase2' || stageLabel === 'finalized' || stageLabel === 'pass3') ? stageLabel as ProcessorStageBoundary : 'phase1',
         state: 'start',
         at: now,
         metadata: {
-          completed_units: completedUnits,
-          message,
+          completed_units: safeCompletedUnits,
+          message: authoritySnapshot.message,
         },
       });
 
@@ -5700,10 +5711,10 @@ export async function processEvaluationJob(
       // This is belt-and-suspenders on top of getPhaseStartTimestamps.
       const runningPayload = buildWritablePatch({
         status: nextLifecycleStatus(JOB_STATUS.RUNNING),
-        phase,
+        phase: dbPhase,
         phase_status: 'running',
         total_units: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completed_units: completedUnits,
+        completed_units: safeCompletedUnits,
         progress: nextProgress,
         started_at: canonicalStartedAt,
         last_heartbeat: now,
@@ -5734,9 +5745,10 @@ export async function processEvaluationJob(
 
       console.log('[Worker] markRunning persisted', {
         job_id: jobId,
-        phase,
+        phase: authorityPhase,
+        db_phase: dbPhase,
         phase_status: 'running',
-        completed_units: completedUnits,
+        completed_units: safeCompletedUnits,
         started_at: runningPayload.started_at,
         heartbeat_at: runningPayload.heartbeat_at,
       });
@@ -6200,7 +6212,11 @@ export async function processEvaluationJob(
     }
 
     // 2. Update status to running
-    await markRunning('Fetching writing', 2, executionPhase);
+    await markRunning({
+      type: 'phase_started',
+      phase: executionPhase === 'phase_3' ? 'phase_3' : 'phase_2' === executionPhase ? 'phase_2' : 'phase_1a',
+      message: 'Fetching writing',
+    });
 
     // NOTE: phase0_started_at / phase0_completed_at are written ONLY by runPhase0GoldPrimer().
     // Do NOT stamp them here for direct phase_1a entries — that produces false Phase 0 timings.
@@ -6778,7 +6794,11 @@ export async function processEvaluationJob(
       // assign outer pipelineResult, fall through to persistence path.
       if (!hasEvalResult) {
         pulseWorker('phase3/before-pass3b-synthesis');
-        await markRunning('Running Pass 3B synthesis', 80, 'phase_3');
+        await markRunning({
+          type: 'phase_started',
+          phase: 'phase_3',
+          message: 'Running Pass 3B synthesis',
+        });
         refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
         pulseWorker('phase3/before-handoff-read');
@@ -7112,7 +7132,11 @@ export async function processEvaluationJob(
       } else {
         // ── WAVE-only path: eval_result already exists, skip synthesis ─────────
         // This is the rerun/retry case. Run WAVE inline + complete.
-        await markRunning('Running WAVE readiness analysis', 95, 'phase_3');
+        await markRunning({
+          type: 'phase_started',
+          phase: 'wave',
+          message: 'Running WAVE readiness analysis',
+        });
       refreshPhaseDeadline(progressState.phase3_started_at as string | undefined);
 
       // Heartbeat renewal loop — WAVE can run for several minutes on large manuscripts.
@@ -7566,7 +7590,11 @@ export async function processEvaluationJob(
 
       // phase0_completed_at is written only by runPhase0GoldPrimer() when real Phase 0 runs.
       // Do NOT stamp it here — this is the phase_1a execution path, not Phase 0 completion.
-      await markRunning('Running Pass 1A character sweep', 10, 'phase_1a');
+      await markRunning({
+        type: 'phase_started',
+        phase: 'phase_1a',
+        message: 'Running Pass 1A character sweep',
+      });
       refreshPhaseDeadline(progressState.phase1a_started_at as string | undefined);
 
       // ── PHASE_0_NOT_PROVEN guard ────────────────────────────────────────────
@@ -8211,8 +8239,12 @@ export async function processEvaluationJob(
           // watchdog-reclaimed workers resume where the last worker left off
           // instead of resetting the progress bar backward.
           const resumeChunkFraction = totalChunks > 0 ? completedIndexes.size / totalChunks : 0;
-          const resumeProgressUnits = Math.max(10, Math.round(10 + resumeChunkFraction * 30));
-          await markRunning('Analyzing writing', resumeProgressUnits, 'phase_1a');
+          await markRunning({
+            type: 'phase_progress',
+            phase: 'phase_1a',
+            fraction: resumeChunkFraction,
+            message: `Analyzing writing (${completedIndexes.size}/${totalChunks} sections)`,
+          });
 
           console.log(`[phase_1a] ${jobId}: batch ${batchIndex + 1}/${batchesTotal} — processing chunks [${batchSliceIndexes.join(',')}] budget=${budgetMs}ms`);
 
@@ -8644,18 +8676,24 @@ export async function processEvaluationJob(
               pass3aSelfChainFields.degraded_at = batchStateForDegraded.degraded_at ?? new Date().toISOString();
             }
 
-            // Progress bar: scale Phase 1A chunk progress to 10–40% band.
-            // totalChunks adapts to manuscript length automatically.
+            // Progress bar: scale Phase 1A chunk progress weighted by the
+            // ProgressAuthority so it is monotonic and part-aware.
             const chunkFraction = totalChunks > 0 ? completedAfterBatch.size / totalChunks : 0;
-            const selfChainProgressPercent = Math.round(10 + chunkFraction * 30);
+            const selfChainProgressSnapshot = progressAuthority.report({
+              type: 'phase_progress',
+              phase: 'phase_1a',
+              fraction: chunkFraction,
+              message: `Analyzing writing (${completedAfterBatch.size}/${totalChunks} sections)`,
+              at: selfChainAt,
+            });
 
             const updatedProgress = {
               ...progressState,
+              ...selfChainProgressSnapshot,
               phase: 'phase_1a',
               phase_status: 'queued',
-              message: `Analyzing writing (${completedAfterBatch.size}/${totalChunks} sections)`,
               total_units: 100,
-              completed_units: selfChainProgressPercent,
+              completed_units: selfChainProgressSnapshot.overall.completed_units,
               track_c_status: trackCStatusForSelfChain,
               ...pass3aSelfChainFields,
               phase1a_batch_state: { ...updatedBatchState, ...latestTrackCBatchFields },
@@ -8666,6 +8704,7 @@ export async function processEvaluationJob(
                 selfChainLogEntry,
               ],
             };
+            Object.assign(progressState, updatedProgress);
 
             const { error: selfChainErr } = await supabase
               .from('evaluation_jobs')
@@ -9963,7 +10002,11 @@ export async function processEvaluationJob(
       await stabilize();
 
       pulseWorker('phase2/after-stabilize');
-      await markRunning('Resuming from phase 1 handoff', 55, 'phase_2');
+      await markRunning({
+        type: 'phase_started',
+        phase: 'phase_2',
+        message: 'Resuming from phase 1 handoff',
+      });
       refreshPhaseDeadline(progressState.phase2_started_at as string | undefined);
 
       pulseWorker('phase2/before-upstream-canonical-assert');
@@ -11753,11 +11796,11 @@ export async function processEvaluationJob(
     // do NOT kill me." Uses future timestamp so watchdog's stale-pulse query
     // naturally skips this job.
     declarePersistenceLock('persistence/lock-acquired');
-    await markRunning(
-      'Persisting evaluation artifacts',
-      98,
-      executionPhase === 'phase_3' ? 'phase_3' : 'phase_2',
-    );
+    await markRunning({
+      type: 'finalizing',
+      phase: executionPhase === 'phase_3' ? 'phase_3' : 'phase_2',
+      message: 'Preparing your completed evaluation…',
+    });
 
     const existingProgress = { ...progressState };
 
@@ -12081,6 +12124,10 @@ export async function processEvaluationJob(
         },
       });
 
+      const finalizedProgressSnapshot = progressAuthority.finalize();
+      Object.assign(progressState, finalizedProgressSnapshot);
+      const existingProgress = { ...progressState };
+
       const persistenceResult = await persistEvaluationResultV2({
         supabase,
         jobId: job.id,
@@ -12089,7 +12136,7 @@ export async function processEvaluationJob(
         sourceHash,
         progressSnapshot: existingProgress,
         totalUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
-        completedUnits: EVALUATION_PROGRESS_TOTAL_UNITS,
+        completedUnits: finalizedProgressSnapshot.overall.completed_units,
         onHeartbeat: () => declarePersistenceLock('persistence/during-persist'),
       });
 
