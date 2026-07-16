@@ -2105,7 +2105,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         signal_strength: "SUFFICIENT",
         confidence_band: "MEDIUM",
         score_0_10: 7,
-        rationale: "Criterion rationale",
+        rationale: "Criterion rationale.",
         evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
         recommendations: [],
       })),
