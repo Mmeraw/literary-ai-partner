@@ -449,8 +449,9 @@ export function runQualityGate(
   // require PASS_MINIMUM+; FAIL-tier recs are quarantined (not shown to author).
   //
   // This is a WARNING + FILTER, not a hard gate-fail. The evaluation job only
-  // fails if remaining recommendations can't meet the report's minimum density
-  // contract. Better 8 excellent recs than 14 with one broken sentence.
+  // fails if no recommendations survive integrity filtering. Opportunity counts
+  // are governed by the canonical ODP (ceilings and evidence-aware guidance,
+  // never quotas). Better a small set of excellent recs than padded duplicates.
   const integrityFailures: string[] = [];
   let totalRecs = 0;
   for (const c of synthesis.criteria) {

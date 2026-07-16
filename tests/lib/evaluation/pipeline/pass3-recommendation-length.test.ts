@@ -125,7 +125,7 @@ describe("Pass3 recommendation length contract", () => {
     expect(longRecFailure).toBeUndefined();
   });
 
-  test("7. backfilled recommendations are clamped at 1500 chars", () => {
+  test("7. recommendations are not backfilled from Pass 1/2 to satisfy density", () => {
     const passWithLongRecommendation = {
       criteria: [
         {
@@ -175,8 +175,10 @@ describe("Pass3 recommendation length contract", () => {
       basePass as any,
     );
 
-    const action = characterAction(result);
-    expect(action.length).toBeLessThanOrEqual(1500);
+    const criterion = result.criteria.find((c) => c.key === "character");
+    // ODP: Pass 1/2 recommendations must not be copied into a criterion that
+    // produced no discovery in synthesis.
+    expect(criterion?.recommendations).toHaveLength(0);
 
     const gate = runQualityGate(result);
     const longRecFailure = gate.checks.find(

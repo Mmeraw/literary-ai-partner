@@ -29,6 +29,7 @@ import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig
 import { trackCompletionCost } from "@/lib/jobs/cost";
 import { summarizePromptCoverage } from "./promptInput";
 import { countWords } from "./submissionScope";
+import { hasGovernedOpportunityCoverage } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import { getConfiguredChunkCap } from "./chunkCap";
 import {
   ChunkCountExceedsCapError,
@@ -245,6 +246,7 @@ async function runChunksWithConcurrency<T>(
   let cursor = 0;
 
   const runWorker = async (): Promise<void> => {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const index = cursor;
       cursor += 1;
@@ -618,6 +620,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
 
         let attempt = 0;
         try {
+          // eslint-disable-next-line no-constant-condition
           while (true) {
             try {
               const result = await runPass2({
@@ -1205,35 +1208,30 @@ export function parsePass2Response(
     });
   }
 
-  // ── Density enforcement: fail if all recs stripped from criterion that required them ──
+  // ── ODP coverage check: weak criteria must either have genuine recommendations
+  // or an explicit governed status rationale. High-scoring empty criteria are allowed.
   const manuscriptWordCount = opts?.manuscriptWordCount ?? 0;
   if (manuscriptWordCount > 0) {
     for (const criterion of criteria) {
       const score = criterion.score_0_10;
-      if (score === null || score > 5) continue;
+      if (score === null) continue;
 
-      const uniqueAnchors = new Set(
-        criterion.evidence
-          .map((e) => e.snippet?.trim().toLowerCase())
-          .filter((s): s is string => Boolean(s)),
-      ).size;
+      const meaningful = criterion.recommendations.filter((r) =>
+        typeof r.action === "string" && r.action.trim().length > 0 &&
+        typeof r.anchor_snippet === "string" && r.anchor_snippet.trim().length > 0,
+      ).length;
 
-      const scopeMinimum =
-        manuscriptWordCount < 1_000
-          ? 1
-          : manuscriptWordCount < 3_000
-            ? 1
-            : manuscriptWordCount < 25_000
-              ? 2
-              : 2;
+      const governed = hasGovernedOpportunityCoverage({
+        score,
+        meaningfulOpportunityCount: meaningful,
+        recommendationStatus: (criterion as any).recommendation_status,
+        recommendationStatusRationale: (criterion as any).recommendation_status_rationale,
+      });
 
-      const required = Math.min(scopeMinimum, uniqueAnchors);
-
-      if (required > 0 && criterion.recommendations.length < required) {
+      if (!governed) {
         throw new Error(
-          `[Pass2] RECOMMENDATION_DENSITY_UNMET: ${criterion.key} score=${score}, ` +
-            `words=${manuscriptWordCount}, anchors=${uniqueAnchors}, ` +
-            `required=${required}, valid=${criterion.recommendations.length}`,
+          `[Pass2] OPPORTUNITY_COVERAGE_MISSING: ${criterion.key} score=${score} ` +
+            `has ${meaningful} meaningful recommendation(s) and no governed status rationale.`,
         );
       }
     }

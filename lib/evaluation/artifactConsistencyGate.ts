@@ -1,5 +1,6 @@
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { CriterionKey } from '@/schemas/criteria-keys';
+import { hasGovernedOpportunityCoverage } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import {
   missingBottomWeaknessCriteria,
@@ -33,12 +34,24 @@ export type ArtifactConsistencyGateV1 = {
 
 function criterionHasRecommendation(result: EvaluationResultV2, key: CriterionKey): boolean {
   const criterion = result.criteria.find((item) => item.key === key);
-  if (criterion?.recommendations?.some((rec) => rec.action.trim().length > 0)) return true;
+  if (!criterion) return false;
 
-  return [
-    ...result.recommendations.quick_wins,
-    ...result.recommendations.strategic_revisions,
-  ].some((rec) => rec.criterion_key === key && rec.action.trim().length > 0);
+  const hasRec =
+    criterion.recommendations?.some((rec) => rec.action.trim().length > 0) ||
+    [...result.recommendations.quick_wins, ...result.recommendations.strategic_revisions].some(
+      (rec) => rec.criterion_key === key && rec.action.trim().length > 0,
+    );
+
+  if (hasRec) return true;
+
+  // ODP: a weak criterion without recommendations is still covered if it carries
+  // a governed zero-opportunity status with concrete rationale.
+  return hasGovernedOpportunityCoverage({
+    score: (criterion as { score_0_10?: number | null }).score_0_10 ?? null,
+    meaningfulOpportunityCount: criterion.recommendations?.length ?? 0,
+    recommendationStatus: criterion.recommendation_status,
+    recommendationStatusRationale: criterion.recommendation_status_rationale,
+  });
 }
 
 export function evaluateArtifactConsistencyGateV1(

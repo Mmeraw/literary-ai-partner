@@ -206,7 +206,7 @@ describe("normalizeRecommendationAction", () => {
       );
     });
 
-    it("throws RECOMMENDATION_DENSITY_UNMET if all recs rejected for low-scoring criterion (3000+ words)", () => {
+    it("throws OPPORTUNITY_COVERAGE_MISSING if all recs rejected for low-scoring criterion (3000+ words)", () => {
       const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
       const rawResponse = JSON.stringify({
         pass: 2,
@@ -244,11 +244,11 @@ describe("normalizeRecommendationAction", () => {
         generated_at: "2026-06-09T00:00:00.000Z",
       });
 
-      // With 5000-word scope, density enforcement fires (requires ≥1 rec for score ≤5)
-      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 })).toThrow("RECOMMENDATION_DENSITY_UNMET");
+      // With 5000-word scope, coverage enforcement fires for weak criteria with no governed status
+      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 })).toThrow("OPPORTUNITY_COVERAGE_MISSING");
     });
 
-    it("does NOT throw density error for short submission (201 words) even if all recs stripped", () => {
+    it("does NOT throw coverage error for high-scoring short submission (201 words) when all recs are stripped", () => {
       const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
       const rawResponse = JSON.stringify({
         pass: 2,
@@ -256,8 +256,8 @@ describe("normalizeRecommendationAction", () => {
         criteria: [
           {
             key: "concept",
-            score_0_10: 4,
-            rationale: "The concept is present but underdeveloped in this short passage.",
+            score_0_10: 9,
+            rationale: 'The concept is "present but underdeveloped" in this short passage.',
             evidence: [],
             recommendations: [
               {
@@ -277,7 +277,7 @@ describe("normalizeRecommendationAction", () => {
         generated_at: "2026-06-09T00:00:00.000Z",
       });
 
-      // With 201-word scope, density enforcement does NOT fire — 0 recs is acceptable
+      // With 201-word scope, a high-scoring criterion with zero genuine recommendations is governed and acceptable
       const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 201 });
       expect(result.criteria[0].recommendations).toHaveLength(0);
     });
