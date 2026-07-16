@@ -3,6 +3,7 @@ import {
   assertOnlyRequestedPathsChanged,
   assertRequestedPathsChangedOrWereValid,
   regenerateRequiredProse,
+  RepairRegenerationError,
 } from '@/lib/evaluation/pipeline/requiredProseRegeneration';
 import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 
@@ -114,5 +115,47 @@ describe('requiredProseRegeneration', () => {
     expect(
       assertRequestedPathsChangedOrWereValid(before, after, ['synthesis.a']),
     ).toEqual(['synthesis.a']);
+  });
+
+  test('throws RepairRegenerationError when OpenAI returns no completion (undefined response)', async () => {
+    const synthesis = baseSynthesis();
+    synthesis.criteria[0].fit_summary = 'Incomplete';
+
+    const violation: AuthorFacingIntegrityViolation = {
+      path: 'evaluation_result_v2.criteria[0].fit_summary',
+      code: 'AUTHOR_TEXT_TRUNCATED_WORD',
+      value: 'Incomplete',
+      message: 'truncated',
+    };
+
+    createMock.mockResolvedValueOnce(undefined);
+
+    await expect(
+      regenerateRequiredProse(synthesis, [violation], { openaiApiKey: 'sk-test' }),
+    ).rejects.toMatchObject({
+      name: 'RepairRegenerationError',
+      code: 'REPAIR_REGENERATION_ERROR',
+    });
+  });
+
+  test('throws RepairRegenerationError when OpenAI returns an empty choices array', async () => {
+    const synthesis = baseSynthesis();
+    synthesis.criteria[0].fit_summary = 'Incomplete';
+
+    const violation: AuthorFacingIntegrityViolation = {
+      path: 'evaluation_result_v2.criteria[0].fit_summary',
+      code: 'AUTHOR_TEXT_TRUNCATED_WORD',
+      value: 'Incomplete',
+      message: 'truncated',
+    };
+
+    createMock.mockResolvedValueOnce({ choices: [] });
+
+    await expect(
+      regenerateRequiredProse(synthesis, [violation], { openaiApiKey: 'sk-test' }),
+    ).rejects.toMatchObject({
+      name: 'RepairRegenerationError',
+      code: 'REPAIR_REGENERATION_ERROR',
+    });
   });
 });
