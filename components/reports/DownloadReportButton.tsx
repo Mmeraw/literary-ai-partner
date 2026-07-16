@@ -101,7 +101,10 @@ export default function DownloadReportButton({
     const wrapper = wrapperRef.current;
     if (!wrapper) return 'above';
 
-    const rect = wrapper.getBoundingClientRect();
+    const trigger = wrapper.querySelector<HTMLButtonElement>('button');
+    if (!trigger) return 'above';
+
+    const rect = trigger.getBoundingClientRect();
     const availableAbove = rect.top - VIEWPORT_MARGIN_PX;
     const availableBelow = window.innerHeight - rect.bottom - VIEWPORT_MARGIN_PX;
 

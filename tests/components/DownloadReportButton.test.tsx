@@ -69,7 +69,7 @@ describe('DownloadReportButton', () => {
     const menu = screen.getByTestId('download-report-menu');
     expect(menu.className).toContain('top-full');
     expect(menu.className).not.toContain('bottom-full');
-    expect(menu).toHaveAttribute('data-placement', 'below');
+    expect(menu.getAttribute('data-placement')).toBe('below');
     expect(screen.getByRole('button', { name: /Download Report/i }).textContent).toContain('▾');
   });
 
@@ -87,7 +87,7 @@ describe('DownloadReportButton', () => {
     const menu = screen.getByTestId('download-report-menu');
     expect(menu.className).toContain('bottom-full');
     expect(menu.className).not.toContain('top-full');
-    expect(menu).toHaveAttribute('data-placement', 'above');
+    expect(menu.getAttribute('data-placement')).toBe('above');
     expect(screen.getByRole('button', { name: /Download Report/i }).textContent).toContain('▴');
   });
 
