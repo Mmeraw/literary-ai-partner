@@ -1,10 +1,10 @@
 /**
  * Artifact Normalization Pre-Stage
  *
- * Applies Tier-1 cosmetic formatting cleanup to every author-facing string in the
- * synthesis envelope before certification, then validates strict structural
- * contracts for canonical evaluation prose. Canonical prose is never shortened
- * to satisfy a length policy: invalid output is rejected for upstream
+ * Applies Tier-1 cosmetic formatting cleanup to every governed author-facing
+ * string in the synthesis envelope before certification, then validates strict
+ * structural contracts for canonical evaluation prose. Canonical prose is never
+ * shortened to satisfy a length policy: invalid output is rejected for upstream
  * regeneration.
  */
 
@@ -12,6 +12,9 @@ import {
   capitalizeFirstAlpha,
   collapseAdjacentDuplicateWords,
   endsMidSentence,
+  endsWithDanglingConnective,
+  ensureSingleSpaceAfterColon,
+  ensureTerminalPunctuation,
   normalizeDuplicateCloseQuotes,
 } from '@/lib/text/authorFacingProse';
 import { assertAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
@@ -20,7 +23,10 @@ import {
   ONE_SENTENCE_PITCH_POLICY,
   ONE_PARAGRAPH_PITCH_POLICY,
 } from '@/lib/config/lengthPolicy';
-import { isCanonicalAuthorFacingField } from './authorFacingFieldRegistry';
+import {
+  isCanonicalAuthorFacingField,
+  isExcludedAuthorFacingPath,
+} from './authorFacingFieldRegistry';
 
 export type ArtifactTextContractReason =
   | 'EVALUATION_PROSE_OVER_TECHNICAL_CEILING'
@@ -105,14 +111,7 @@ export function validateEvaluationProse(text: string, maxLength: number, field: 
   return text;
 }
 
-/**
- * Backward-compatible call surface for existing pipeline callers.
- *
- * Despite the legacy name, this function no longer trims. It performs harmless
- * formatting cleanup and validates the complete canonical prose, throwing for
- * upstream regeneration when the text is incomplete or exceeds the technical
- * safeguard.
- */
+/** Backward-compatible call surface for existing pipeline callers. */
 export function trimToLastCompleteSentence(text: string, maxLength: number, field: string): string {
   const formatted = normalizeAuthorFacingFormatting(text);
   return validateEvaluationProse(formatted, maxLength, field);
@@ -147,13 +146,41 @@ function assertOneParagraphPitch(text: string, maxLength: number, field: string)
   return text;
 }
 
-
-
 const STRING_ARRAY_FIELD_KEYS = new Set([
   'top_3_strengths',
   'top_3_risks',
   'pressure_points',
   'decision_points',
+]);
+
+/**
+ * Fields whose contract is complete author-facing prose rather than a label,
+ * fragment, quotation, or candidate-text surface. Missing terminal punctuation
+ * is safe to repair only for these governed fields.
+ */
+const TERMINAL_PUNCTUATION_REQUIRED_FIELDS = new Set([
+  'one_paragraph_summary',
+  'one_sentence_pitch',
+  'one_paragraph_pitch',
+  'top_3_strengths',
+  'top_3_risks',
+  'rationale',
+  'final_rationale',
+  'fit_summary',
+  'gap_summary',
+  'delta_explanation',
+  'deferred_consequence_risk',
+  'action',
+  'why',
+  'symptom',
+  'cause',
+  'mechanism',
+  'fix_direction',
+  'specific_fix',
+  'reader_effect',
+  'expected_impact',
+  'mistake_proofing',
+  'author_facing_reason',
 ]);
 
 function isAuthorFacingFieldKey(key: string): boolean {
@@ -162,6 +189,19 @@ function isAuthorFacingFieldKey(key: string): boolean {
 
 function isStringArrayFieldKey(key: string): boolean {
   return STRING_ARRAY_FIELD_KEYS.has(key);
+}
+
+function leafKey(path: string): string {
+  return path.replace(/\[\d+\]$/u, '').split('.').pop() ?? path;
+}
+
+function mayRepairTerminalPunctuation(value: string, key: string): boolean {
+  if (!TERMINAL_PUNCTUATION_REQUIRED_FIELDS.has(key)) return false;
+  if (endsWithDanglingConnective(value)) return false;
+  // A terminal dash or open delimiter is a strong truncation signal and must
+  // remain visible to authorFacingIntegrity rather than being papered over.
+  if (/[\-–—([{]\s*$/u.test(value)) return false;
+  return true;
 }
 
 export function normalizeArtifact(
@@ -184,40 +224,44 @@ export function normalizeArtifact(
 ): NormalizeArtifactResult {
   const normalizations: NormalizationRecord[] = [];
 
+  function record(field: string, before: string, after: string, operation: NormalizationRecord['operation']): void {
+    if (before !== after) normalizations.push({ field, before, after, operation });
+  }
+
   function normalizeStringValue(raw: unknown, field: string): string | null {
     if (typeof raw !== 'string' || !raw.trim()) return null;
     let value = raw.trim();
+    const key = leafKey(field);
 
-    // Tier-1 whitespace cleanup: collapse horizontal runs and isolated line
-    // breaks into single spaces, but preserve paragraph breaks (\n\n) so
-    // multi-paragraph author-facing prose remains structurally valid.
     const collapsedWs = value
       .replace(/\r\n?/g, '\n')
       .replace(/[ \t]+/g, ' ')
       .replace(/(?<!\n)\n(?!\n)/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
-    if (collapsedWs !== value) {
-      normalizations.push({ field, before: value, after: collapsedWs, operation: 'whitespace' });
-      value = collapsedWs;
-    }
+    record(field, value, collapsedWs, 'whitespace');
+    value = collapsedWs;
 
     const dedup = collapseAdjacentDuplicateWords(value);
-    if (dedup !== value) {
-      normalizations.push({ field, before: value, after: dedup, operation: 'whitespace' });
-      value = dedup;
-    }
+    record(field, value, dedup, 'whitespace');
+    value = dedup;
 
     const capitalized = capitalizeFirstAlpha(value);
-    if (capitalized !== value) {
-      normalizations.push({ field, before: value, after: capitalized, operation: 'capitalize' });
-      value = capitalized;
-    }
+    record(field, value, capitalized, 'capitalize');
+    value = capitalized;
+
+    const colonSpaced = ensureSingleSpaceAfterColon(value);
+    record(field, value, colonSpaced, 'punctuation');
+    value = colonSpaced;
 
     const dedupedQuotes = normalizeDuplicateCloseQuotes(value);
-    if (dedupedQuotes !== value) {
-      normalizations.push({ field, before: value, after: dedupedQuotes, operation: 'punctuation' });
-      value = dedupedQuotes;
+    record(field, value, dedupedQuotes, 'punctuation');
+    value = dedupedQuotes;
+
+    if (mayRepairTerminalPunctuation(value, key)) {
+      const terminalized = ensureTerminalPunctuation(value);
+      record(field, value, terminalized, 'punctuation');
+      value = terminalized;
     }
 
     return value;
@@ -232,7 +276,7 @@ export function normalizeArtifact(
         out.push(normalized);
         if (normalized !== arr[i]) changed = true;
       } else if (typeof arr[i] === 'string') {
-        out.push(arr[i] as string);
+        out.push(arr[i]);
       } else {
         out.push(String(arr[i]));
       }
@@ -243,15 +287,13 @@ export function normalizeArtifact(
   type NodeSetter = (value: unknown) => void;
 
   function visit(current: unknown, path: string, set: NodeSetter): void {
-    if (current === null || current === undefined) return;
+    if (current === null || current === undefined || isExcludedAuthorFacingPath(path)) return;
 
     if (typeof current === 'string') {
-      const key = path.replace(/\[\d+\]$/u, '').split('.').pop() ?? path;
+      const key = leafKey(path);
       if (isAuthorFacingFieldKey(key)) {
         const normalized = normalizeStringValue(current, path);
-        if (normalized !== null && normalized !== current) {
-          set(normalized);
-        }
+        if (normalized !== null && normalized !== current) set(normalized);
       }
       return;
     }
@@ -260,9 +302,7 @@ export function normalizeArtifact(
       const key = path.split('.').pop() ?? path;
       if (isStringArrayFieldKey(key)) {
         const normalized = normalizeStringArray(current, path);
-        if (normalized !== current) {
-          set(normalized);
-        }
+        if (normalized !== current) set(normalized);
         return;
       }
       for (let i = 0; i < current.length; i++) {
@@ -274,72 +314,41 @@ export function normalizeArtifact(
     }
 
     if (typeof current === 'object') {
-      const record = current as Record<string, unknown>;
-      for (const [key, child] of Object.entries(record)) {
-        // Never descend into evidence/quotation objects; they contain manuscript
-        // source text that must not be rewritten.
-        if (key === 'evidence' || key === 'snippet' || key === 'anchor_snippet') continue;
-        visit(child, `${path}.${key}`, (value) => {
-          record[key] = value;
+      const recordValue = current as Record<string, unknown>;
+      for (const [key, child] of Object.entries(recordValue)) {
+        const childPath = `${path}.${key}`;
+        if (isExcludedAuthorFacingPath(childPath)) continue;
+        visit(child, childPath, (value) => {
+          recordValue[key] = value;
         });
       }
     }
   }
 
-  // ── Overview canonical prose contracts ─────────────────────────────────────
+  // Normalize canonical overview prose before its strict prose contracts run.
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
-    const formatted = normalizeAuthorFacingFormatting(before);
-    validateEvaluationProse(formatted, OVERVIEW_TECHNICAL_CEILING, 'overview.one_paragraph_summary');
-    if (formatted !== before) {
-      synthesis.overall.one_paragraph_summary = formatted;
-      normalizations.push({
-        field: 'overview.one_paragraph_summary',
-        before,
-        after: formatted,
-        operation: 'trim_whitespace',
-      });
-    }
+    const normalized = normalizeStringValue(before, 'synthesis.overall.one_paragraph_summary') ?? before;
+    validateEvaluationProse(normalized, OVERVIEW_TECHNICAL_CEILING, 'overview.one_paragraph_summary');
+    synthesis.overall.one_paragraph_summary = normalized;
   }
 
   if (synthesis.overall.one_sentence_pitch) {
     const before = synthesis.overall.one_sentence_pitch;
-    const formatted = normalizeAuthorFacingFormatting(before).replace(/\s+/g, ' ');
-    assertOneSentencePitch(formatted, ONE_SENTENCE_PITCH_TECHNICAL_CEILING, 'overview.one_sentence_pitch');
-    if (formatted !== before) {
-      synthesis.overall.one_sentence_pitch = formatted;
-      normalizations.push({
-        field: 'overview.one_sentence_pitch',
-        before,
-        after: formatted,
-        operation: 'trim_whitespace',
-      });
-    }
+    const normalized = (normalizeStringValue(before, 'synthesis.overall.one_sentence_pitch') ?? before).replace(/\s+/g, ' ');
+    assertOneSentencePitch(normalized, ONE_SENTENCE_PITCH_TECHNICAL_CEILING, 'overview.one_sentence_pitch');
+    synthesis.overall.one_sentence_pitch = normalized;
   }
 
   if (synthesis.overall.one_paragraph_pitch) {
     const before = synthesis.overall.one_paragraph_pitch;
-    const formatted = normalizeAuthorFacingFormatting(before);
-    assertOneParagraphPitch(
-      formatted,
-      ONE_PARAGRAPH_PITCH_TECHNICAL_CEILING,
-      'overview.one_paragraph_pitch',
-    );
-    if (formatted !== before) {
-      synthesis.overall.one_paragraph_pitch = formatted;
-      normalizations.push({
-        field: 'overview.one_paragraph_pitch',
-        before,
-        after: formatted,
-        operation: 'trim_whitespace',
-      });
-    }
+    const normalized = normalizeStringValue(before, 'synthesis.overall.one_paragraph_pitch') ?? before;
+    assertOneParagraphPitch(normalized, ONE_PARAGRAPH_PITCH_TECHNICAL_CEILING, 'overview.one_paragraph_pitch');
+    synthesis.overall.one_paragraph_pitch = normalized;
   }
 
-  // ── Universal Tier-1 author-facing text normalization ────────────────────────
-  // Walk the entire synthesis envelope, normalizing only explicitly allowed
-  // author-facing strings. Manuscript evidence, IDs, scores, status codes, and
-  // model metadata are skipped by omission from the allowlist.
+  // Universal author-facing text normalization for short-form, long-form,
+  // multi-layer, retry, and replay routes that converge on normalizeArtifact.
   visit(synthesis, 'synthesis', () => {});
   visit(quickWins, 'recommendations.quick_wins', () => {});
   visit(strategicRevisions, 'recommendations.strategic_revisions', () => {});
