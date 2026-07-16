@@ -296,13 +296,26 @@ export type SynthesizedCriterion = {
     code:
       | "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED"
       | "RECOMMENDATION_TRUNCATED"
-      | "SCORE_LE8_EMPTY_RECOMMENDATIONS"
+      | "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED"
       | "DIAGNOSTIC_SPINE_PROMISE_MISMATCH"
       | "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH"
       | "DIAGNOSTIC_SPINE_WEAK_OR_ABSENT";
     author_facing_reason: string;
     retryable: boolean;
   }>;
+  /**
+   * ODP-governed status when a criterion produces no recommendations.
+   * Required for weak scores unless insufficient evidence or suppression is documented.
+   */
+  recommendation_status?:
+    | "recommendation_provided"
+    | "no_recommendation_warranted"
+    | "genre_appropriate_no_revision_warranted"
+    | "criterion_not_applicable"
+    | "insufficient_evidence"
+    | "gate_suppressed_no_safe_recommendation";
+  /** Concrete rationale for recommendation_status, ≥20 chars when status is set. */
+  recommendation_status_rationale?: string;
 };
 
 // ── Pass 3 output ────────────────────────────────────────────────────────────

@@ -84,7 +84,7 @@
       "confidence_level": "moderate",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"concept\" scored 8/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -159,7 +159,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"narrativeDrive\" scored 6/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -247,7 +247,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"character\" scored 8/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -332,7 +332,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"voice\" scored 9/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -406,7 +406,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"sceneConstruction\" scored 6/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -481,7 +481,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"dialogue\" scored 7/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -569,7 +569,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"theme\" scored 9/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -640,7 +640,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"worldbuilding\" scored 7/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -718,7 +718,7 @@
       "confidence_level": "moderate",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"pacing\" scored 5/10 but returned 1 recommendation(s) (minimum 5 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -804,7 +804,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"proseControl\" scored 7/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -888,7 +888,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"tone\" scored 8/10 but returned 1 recommendation(s) (minimum 2 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -968,7 +968,7 @@
       "confidence_level": "high",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"narrativeClosure\" scored 5/10 but returned 1 recommendation(s) (minimum 5 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }
@@ -1033,7 +1033,7 @@
       "confidence_level": "moderate",
       "technical_defects": [
         {
-          "code": "SCORE_LE8_EMPTY_RECOMMENDATIONS",
+          "code": "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           "retryable": true,
           "author_facing_reason": "Criterion \"marketability\" scored 6/10 but returned 1 recommendation(s) (minimum 3 required). This is a pipeline defect — the evaluation engine will attempt to backfill."
         }

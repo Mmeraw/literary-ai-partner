@@ -227,7 +227,7 @@ function buildCriterionFallbackEntry(criterion: SynthesizedCriterion): Record<st
     confidence: toDreamConfidence(criterion.confidence_level),
     fit_evidence: fitEvidence.length > 0 ? fitEvidence : [`Pass 3 rationale: ${rationale.slice(0, 180)}`],
     gap_evidence: [`Pass 3b omitted explicit gap evidence for ${criterion.key}; fallback preserved Pass 3 rationale.`],
-    revision_queue: revisionQueue.length > 0 ? revisionQueue : [`Refine ${criterion.key} with manuscript-grounded revisions from Pass 3 recommendations.`],
+    revision_queue: revisionQueue,
   };
 }
 

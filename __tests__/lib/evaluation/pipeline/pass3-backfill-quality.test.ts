@@ -98,8 +98,9 @@ describe("Pass 3 backfill quality", () => {
     expect(concept!.final_rationale.toLowerCase()).not.toContain("neither pass supplied");
     expect(concept!.final_rationale.length).toBeGreaterThanOrEqual(40);
     expect(concept!.evidence.length).toBeGreaterThan(0);
-    expect(concept!.recommendations.length).toBeGreaterThan(0);
-    expect(concept!.recommendations[0].source_pass).toBe(1);
+    // ODP: rationale/evidence may be backfilled, but recommendations are never
+    // synthesized from Pass 1/2 to meet a density floor.
+    expect(concept!.recommendations).toHaveLength(0);
   });
 
   test("backfills generic voice rationale with explicit POV/rendering mechanism language", () => {
@@ -899,16 +900,15 @@ describe("Pass 3 backfill quality", () => {
 
     const parsed = parsePass3Response(raw, pass1, pass2, "o3");
 
-    for (const key of CRITERIA_KEYS) {
-      const action = parsed.criteria.find((c) => c.key === key)?.recommendations?.[0]?.action ?? "";
-      expect(action).toContain("The current draft surfaces pressure");
-      expect(action).not.toMatch(EDITORIAL_FIX_MARKERS);
-      expect(action).not.toMatch(EDITORIAL_MECHANISM_MARKERS);
-    }
+    // Cross-criterion dedup collapses identical strategic-lever recs to one
+    // canonical representative. No synthetic fields are injected into the action.
+    const allRecs = parsed.criteria.flatMap((c) => c.recommendations);
+    expect(allRecs.length).toBeGreaterThanOrEqual(1);
+    const survivingRec = allRecs[0];
+    expect(survivingRec.action).toContain("The current draft surfaces pressure");
+    expect(survivingRec.action).not.toMatch(EDITORIAL_FIX_MARKERS);
+    expect(survivingRec.action).not.toMatch(EDITORIAL_MECHANISM_MARKERS);
 
-    // Pass full_manuscript scope so the editorial quality gate fires as a
-    // hard block. The scope-aware gate only blocks for multi_chapter /
-    // full_manuscript; shorter scales downgrade to warn.
     const gate = runQualityGate({
       criteria: parsed.criteria,
       overall: parsed.overall,
@@ -924,8 +924,12 @@ describe("Pass 3 backfill quality", () => {
     });
     const editorialCheck = gate.checks.find((c) => c.check_id === "recommendation_editorial_quality");
 
-    expect(editorialCheck?.passed).toBe(false);
-    expect(editorialCheck?.error_code).toBe("QG_EDITORIAL_GENERIC_FEEDBACK");
+    // The surviving rec is generic (no mechanism/specific_fix) but not systemic
+    // enough to block a full-manuscript report; the gate warns instead.
+    expect(editorialCheck?.passed).toBe(true);
+    expect(editorialCheck?.details).toMatch(/WARN|editorial recommendation quality issue/i);
+    expect(survivingRec.mechanism).toBe("");
+    expect(survivingRec.specific_fix).toBe("");
   });
 
   // ─────────────────────────────────────────────────────────────────────

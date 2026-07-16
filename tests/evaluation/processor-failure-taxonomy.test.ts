@@ -187,7 +187,6 @@ describe('Self-recovery attempt count policy', () => {
     expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_RATIONALE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_EVIDENCE')).toBe(1);
-    expect(maxSelfRecoveryAttemptsForFailureCode('QG_DENSITY_FLOOR_VIOLATION')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_ARTIFACT_GATE_FAIL')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_PITCH_IDENTITY_DUPLICATE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_EVIDENCE_FABRICATION')).toBe(1);
@@ -303,7 +302,6 @@ describe('Prefix-matching edge cases', () => {
   it('kick-eligible QG_ codes are NOT terminal — FIPOC override', () => {
     expect(isTerminalFailureCode('QG_MISSING_RATIONALE')).toBe(false);
     expect(isTerminalFailureCode('QG_MISSING_EVIDENCE')).toBe(false);
-    expect(isTerminalFailureCode('QG_DENSITY_FLOOR_VIOLATION')).toBe(false);
     expect(isTerminalFailureCode('QG_ARTIFACT_GATE_FAIL')).toBe(false);
     expect(isTerminalFailureCode('QG_PITCH_IDENTITY_DUPLICATE')).toBe(false);
     expect(isTerminalFailureCode('QG_EVIDENCE_FABRICATION')).toBe(false);

@@ -60,6 +60,14 @@ export type RawCriterionInput = {
   }>;
   technical_defects?: CriterionTechnicalDefect[];
   insufficient_signal_reason?: InsufficientSignalReason;
+  recommendation_status?:
+    | "recommendation_provided"
+    | "no_recommendation_warranted"
+    | "genre_appropriate_no_revision_warranted"
+    | "criterion_not_applicable"
+    | "insufficient_evidence"
+    | "gate_suppressed_no_safe_recommendation";
+  recommendation_status_rationale?: string;
 };
 
 const PATTERN_CRITERIA = new Set<CriterionKey>(["voice", "tone", "pacing", "theme"]);
@@ -397,6 +405,8 @@ export function normalizeCriterion(
       rationale,
       evidence,
       recommendations,
+      recommendation_status: raw.recommendation_status,
+      recommendation_status_rationale: raw.recommendation_status_rationale,
       technical_defects,
     };
   }
@@ -426,6 +436,8 @@ export function normalizeCriterion(
       rationale,
       evidence,
       recommendations,
+      recommendation_status: raw.recommendation_status,
+      recommendation_status_rationale: raw.recommendation_status_rationale,
       technical_defects,
     };
   }
@@ -448,6 +460,8 @@ export function normalizeCriterion(
     rationale,
     evidence,
     recommendations,
+    recommendation_status: raw.recommendation_status,
+    recommendation_status_rationale: raw.recommendation_status_rationale,
     technical_defects,
     insufficient_signal_reason: buildStructuredReason(status, raw.insufficient_signal_reason),
   };

@@ -20,10 +20,6 @@
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import {
-  buildLastResortRecommendations,
-} from "@/lib/evaluation/pipeline/runPass3Synthesis";
-import { isMeaningfulRecommendation } from "@/lib/evaluation/pipeline/templateCompletenessGate";
-import {
   classifyAnchor,
   runEvidenceGroundingGate,
 } from "@/lib/evaluation/pipeline/evidenceGroundingGate";
@@ -120,72 +116,6 @@ describe("PROOF: QG_EVIDENCE_FABRICATION — editorial diagnostic anchors reject
   });
 });
 
-// ─── PROOF 2: Evidence-First Last-Resort Recs ─────────────────────────────────
-// Production: buildLastResortRecommendations used hardcoded editorial anchors
-// Fix: PR #1140 — uses criterion.evidence[].snippet instead
-
-describe("PROOF: Last-resort recs use manuscript evidence, not editorial templates", () => {
-  const abstractCriteria = ["voice", "pacing", "proseControl", "tone", "narrativeClosure", "marketability"];
-
-  for (const key of abstractCriteria) {
-    it(`${key}: last-resort rec uses evidence snippet when available`, () => {
-      const evidenceSnippet = EVIDENCE_SNIPPETS[key];
-      const mockCriterion = {
-        key,
-        final_score_0_10: 5,
-        final_rationale: "Test rationale for the criterion.",
-        evidence: [{ snippet: evidenceSnippet }],
-        recommendations: [],
-        gap_summary: "",
-        technical_defects: [],
-      } as any;
-
-      const recs = buildLastResortRecommendations(key, 5, 2, mockCriterion);
-      expect(recs.length).toBe(2);
-
-      for (const rec of recs) {
-        expect(rec.anchor_snippet).toBe(evidenceSnippet.slice(0, 200));
-        const classification = classifyAnchor(rec.anchor_snippet, LONG_MANUSCRIPT);
-        expect(classification.anchor_type).not.toBe("editorial_diagnosis");
-      }
-    });
-
-    it(`${key}: last-resort rec falls back to template only when ZERO evidence exists`, () => {
-      const mockCriterion = {
-        key,
-        final_score_0_10: 5,
-        final_rationale: "Test rationale.",
-        evidence: [],
-        recommendations: [],
-        gap_summary: "",
-        technical_defects: [],
-      } as any;
-
-      const recs = buildLastResortRecommendations(key, 5, 1, mockCriterion);
-      expect(recs.length).toBe(1);
-    });
-  }
-
-  it("all 13 criteria × score ≤5: every last-resort rec passes isMeaningfulRecommendation", () => {
-    for (const key of CRITERIA_KEYS) {
-      const evidenceSnippet = EVIDENCE_SNIPPETS[key] || EVIDENCE_SNIPPETS.concept;
-      const mockCriterion = {
-        key,
-        final_score_0_10: 4,
-        final_rationale: "Test rationale.",
-        evidence: [{ snippet: evidenceSnippet }],
-        recommendations: [],
-        gap_summary: "",
-        technical_defects: [],
-      } as any;
-
-      const recs = buildLastResortRecommendations(key, 4, 2, mockCriterion);
-      for (const rec of recs) {
-        expect(isMeaningfulRecommendation(rec)).toBe(true);
-      }
-    }
-  });
-});
 
 // ─── PROOF 3: KICK_MATRIX Wired to Runtime ───────────────────────────────────
 // Production: KICK_MATRIX existed only in tests/CSV exports — dead code
@@ -201,7 +131,6 @@ describe("PROOF: Evaluation KICK_MATRIX is wired to runtime", () => {
     "QG_EVIDENCE_FABRICATION",
     "QG_MISSING_RATIONALE",
     "QG_MISSING_EVIDENCE",
-    "QG_DENSITY_FLOOR_VIOLATION",
     "QG_ARTIFACT_GATE_FAIL",
     "QG_PITCH_IDENTITY_DUPLICATE",
   ];
@@ -270,80 +199,3 @@ describe("PROOF: Post-LLM anchor enforcement catches editorial diagnosis", () =>
   });
 });
 
-// ─── PROOF 5: Price of Vanity Replay ──────────────────────────────────────────
-// Exact replay of df1cd27a failure using real production data
-
-describe("PROOF: 'Price of Vanity' replay — all anchors now grounded", () => {
-  const failedCriteria = [
-    { key: "voice", badAnchor: "The narrative voice shifts psychic distance mid-passage..." },
-    { key: "pacing", badAnchor: "Pacing stalls where a reflective passage delays..." },
-    { key: "proseControl", badAnchor: "Sentence-level prose control weakens where an overlong construction..." },
-    { key: "tone", badAnchor: "The tonal register shifts mid-passage without a clear trigger..." },
-    { key: "narrativeClosure", badAnchor: "A narrative thread is left unresolved, leaving the reader..." },
-    { key: "marketability", badAnchor: "Genre expectations are not established early enough..." },
-  ];
-
-  for (const { key, badAnchor } of failedCriteria) {
-    it(`${key}: evidence-first rec replaces editorial anchor`, () => {
-      const goodEvidence = EVIDENCE_SNIPPETS[key];
-      const mockCriterion = {
-        key,
-        final_score_0_10: 5,
-        final_rationale: "This criterion was assessed based on manuscript analysis.",
-        evidence: [{ snippet: goodEvidence }],
-        recommendations: [],
-        gap_summary: "",
-        technical_defects: [],
-      } as any;
-
-      const recs = buildLastResortRecommendations(key, 5, 1, mockCriterion);
-      expect(recs.length).toBe(1);
-
-      // The anchor MUST be the evidence snippet, NOT the editorial text
-      const anchorResult = classifyAnchor(recs[0].anchor_snippet, LONG_MANUSCRIPT);
-      expect(anchorResult.anchor_type).not.toBe("editorial_diagnosis");
-
-      // The bad anchor would have been rejected
-      const badResult = classifyAnchor(badAnchor, LONG_MANUSCRIPT);
-      expect(badResult.anchor_type).toBe("editorial_diagnosis");
-    });
-  }
-
-  it("full 13-criteria evaluation with evidence-first anchors passes grounding gate", () => {
-    const criteria = CRITERIA_KEYS.map((key) => ({
-      key,
-      recommendations: [{ anchor_snippet: EVIDENCE_SNIPPETS[key] || EVIDENCE_SNIPPETS.concept }],
-    }));
-
-    const report = runEvidenceGroundingGate(criteria, LONG_MANUSCRIPT);
-    expect(report.diagnosis_count).toBe(0);
-    expect(report.fully_grounded).toBe(true);
-  });
-});
-
-// ─── PROOF 6: Density Repair Never Fabricates ─────────────────────────────────
-
-describe("PROOF: Density repair never fabricates anchors", () => {
-  for (const key of CRITERIA_KEYS) {
-    it(`${key}: last-resort rec anchor is a real manuscript substring`, () => {
-      const snippet = EVIDENCE_SNIPPETS[key] || EVIDENCE_SNIPPETS.concept;
-      const mockCriterion = {
-        key,
-        final_score_0_10: 4,
-        final_rationale: `Analysis of the "${snippet}" passage reveals craft issues.`,
-        evidence: [{ snippet }],
-        recommendations: [],
-        gap_summary: "",
-        technical_defects: [],
-      } as any;
-
-      const recs = buildLastResortRecommendations(key, 4, 2, mockCriterion);
-
-      for (const rec of recs) {
-        expect(LONG_MANUSCRIPT).toContain(rec.anchor_snippet);
-        const result = classifyAnchor(rec.anchor_snippet, LONG_MANUSCRIPT);
-        expect(result.anchor_type).not.toBe("editorial_diagnosis");
-      }
-    });
-  }
-});

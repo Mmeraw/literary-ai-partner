@@ -20,8 +20,12 @@ import { buildCompactTemplateBlock, resolveTemplateKey } from "@/lib/evaluation/
 import type { ResolvedExpectationContext } from "@/lib/evaluation/genreExpectationProfiles";
 import { buildDiagnosticSpinePromptBlock } from "@/lib/evaluation/diagnosticSpine";
 import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
+import {
+  buildOpportunityDiscoveryPromptBlock,
+  type EvaluationOpportunityMode,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
-export const PASS3_PROMPT_VERSION = "pass3-synthesis-v21-rec-or-rationale-contract";
+export const PASS3_PROMPT_VERSION = "pass3-synthesis-v22-opportunity-discovery-policy";
 
 export const PASS3_SYSTEM_PROMPT = `You are Pass 3: convergence and arbitration authority.
 Rules:
@@ -71,7 +75,7 @@ Recommendation deduplication:
 - Collapse same strategic_lever duplicates unless evidence is genuinely distinct.
 - Recommendations must vary opening syntax across the same evaluation; do not reuse the same leading phrase across multiple recommendations.
 - Each recommendation must be criterion-native (not sibling advice in different wording).
-- If two recommendations reduce to the same advice, drop one and re-derive a distinct mechanism-level recommendation.
+- If two recommendations reduce to the same advice, drop one and do not invent a replacement to meet a count.
 - Use character names (or "the narrator") rather than abstract role labels like "the protagonist".
 - NEVER use dialogue fragments or common English words as character names. Words like "No", "Yes", "Oh", "Hey", "Well", "So" are NOT character names even if the manuscript text appears to use them. Always use the canonical name from the STORY LEDGER or ENTITY ROSTER instead.
 - NEVER promote ledger/accounting labels, colon headings, prices, product names, or store names into character names. A manuscript line like "Cost: $14.00" is an expense label, not a character named Cost; refer to an unnamed actor as "the narrator" or by the canonical roster name.
@@ -217,23 +221,23 @@ Every criterion MUST include:
 - gap_summary: 2–3 sentences describing what prevents a 10 on this criterion, grounded in specific evidence. This is the "gap" — what the author needs to close.
 
 EVIDENCE-DRIVEN RECOMMENDATION POLICY (ALL SCORES):
-The score measures HOW GOOD the criterion is. Recommendations surface WHERE THE AUTHOR CAN STILL IMPROVE — backed by manuscript evidence. These are INDEPENDENT. A high score does NOT suppress evidence discovery. Every passage in the manuscript that contains a concrete, evidence-backed revision opportunity MUST be surfaced regardless of score.
+The score measures HOW GOOD the criterion is. Recommendations surface WHERE THE AUTHOR CAN STILL IMPROVE — backed by manuscript evidence. These are INDEPENDENT in principle: a high score does not suppress a genuine evidence-backed opportunity, and a weak score does not justify inventing one.
 
-Fit-gap framing rules:
-- Score 10/10: fit_summary required (2–3 sentences). gap_summary: 1 sentence identifying the single most impactful craft-elevation opportunity even in near-perfect work, OR "" only if genuinely no evidence-backed improvement exists anywhere in the manuscript for this criterion.
-- Score 9/10: fit_summary required (2–3 sentences). gap_summary required (1–2 sentences) — what separates this from perfection.
-- Score ≤8/10: fit_summary and gap_summary both required (2–3 sentences each).
+However, opportunity count is a DISCOVERY CEILING AND GUIDANCE, never a quota. The canonical Opportunity Discovery Policy (ODP) block appended in the user prompt below lists the mode-specific product ceiling (50 for Short Form, 100 for Long-Form Multi-Layer), allowed sources, and score guidance. You MUST use that block as your only authority for counts. Do not consult any other table, heuristic, or legacy target.
 
-Recommendation density (EVIDENCE-DRIVEN — surface what the manuscript supports):
-- Score ≤5/10: 5–8 recommendations per criterion (severity: recommended). These criteria need the most intervention — surface every evidence-backed opportunity.
-- Score 6–7/10: 3–5 recommendations per criterion (severity: recommended or optional). Real revision targets with concrete passage anchors.
-- Score 8/10: 2–4 recommendations per criterion (severity: optional or consider). The craft is solid but specific passages can be elevated.
-- Score 9/10: 2–3 recommendations per criterion (severity: consider). Near-perfect work still has growth areas — find them. These are craft-elevation opportunities, not corrections. Frame as "strengthen" or "deepen" rather than "fix."
-- Score 10/10: 1–2 recommendations per criterion (severity: consider). Even exceptional work has passages where the author could push further. Find the single strongest craft-elevation opportunity supported by manuscript evidence. Frame as mastery-level refinement.
-- NEVER suppress a genuine evidence-backed recommendation because of a high score. The author paid for a COMPLETE editorial assessment of their manuscript. Surface the evidence.
+Core ODP rules:
+- Opportunities are discoveries, not quotas. Counts are ceilings/expected ranges, not floors or targets.
+- NEVER split one genuine defect into multiple recommendations to meet a count.
+- NEVER duplicate the same recommendation under different wording to inflate density.
+- For 9/10 and 10/10 criteria, a single genuine opportunity is sufficient; zero opportunities is acceptable when no evidence-backed improvement exists. Prefer recommendation_status = "no_recommendation_warranted" over invented craft-elevation advice.
+- For weak criteria (typically ≤6/10), provide evidence-backed opportunities where they exist. If the manuscript truly offers no safe, evidence-backed recommendation, set recommendation_status to "insufficient_evidence" or "gate_suppressed_no_safe_recommendation" with a concrete rationale. Do not fabricate.
 - Each recommendation MUST target a unique anchor_snippet (no duplicate passage citations within the same criterion).
 - Spread recommendations across different sections/zones of the text — do not cluster all recommendations in the opening paragraphs. For long-form manuscripts, ensure coverage spans the full manuscript arc (beginning, middle, end).
-- TOTAL TARGET: Long-form manuscripts (≥25,000 words) should produce 50–100 total recommendations across all 13 criteria. Short-form manuscripts (<25,000 words) should produce 25–50. These are TARGETS, not caps — if the evidence supports more, surface more (hard cap: 100 for long-form, 50 for short-form). If you are producing fewer than the target, you are suppressing evidence. Go back through the manuscript and find more.
+
+Fit-gap framing rules:
+- Score 10/10: fit_summary required (2–3 sentences). gap_summary: 1 sentence identifying the single most impactful craft-elevation opportunity only if one is genuinely evidence-backed; otherwise leave empty.
+- Score 9/10: fit_summary required (2–3 sentences). gap_summary required (1–2 sentences) — what separates this from perfection.
+- Score ≤8/10: fit_summary and gap_summary both required (2–3 sentences each).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PRIORITY HIERARCHY (Dream Template Standard — LEVERAGE-FIRST RANKING)
@@ -322,18 +326,23 @@ ANTI-PATTERN: "Insert one concrete stakes beat" is GENERIC and REJECTED.
 CORRECT: "At the sentence beginning 'He had to accept the color as is,' insert one sentence showing the social consequence of arriving late to dinner with damaged hair — this grounds the vanity theme in real interpersonal stakes. Preserve the resigned tone of the original line."
 
 RECOMMENDATION CONTRACT (ALL SCORES):
-Every criterion MUST include recommendations backed by manuscript evidence:
+Every criterion MUST include recommendations backed by manuscript evidence OR explicit governed status metadata:
 1. fit_summary — 2–3 sentences (REQUIRED, non-empty)
 2. gap_summary — required for all scores ≤9; 1 sentence minimum for score 10 (see fit-gap framing rules above)
-3. recommendations[] — REQUIRED for every criterion. Density targets per the EVIDENCE-DRIVEN RECOMMENDATION POLICY above. A criterion with zero recommendations means the evaluator failed to find evidence — this is a pipeline defect, not a valid state.
+3. recommendations[] — each entry must be a genuine, evidence-backed opportunity. A criterion MAY return an empty array when:
+   - the score is 9–10 and no evidence-backed improvement exists (set recommendation_status = "no_recommendation_warranted");
+   - the criterion is genuinely not applicable (set recommendation_status = "criterion_not_applicable");
+   - the manuscript is too short or the evidence is insufficient to support a safe recommendation (set recommendation_status = "insufficient_evidence");
+   - a safe recommendation cannot be formulated without damaging a protected strength (set recommendation_status = "gate_suppressed_no_safe_recommendation").
+   In all empty cases, recommendation_status_rationale MUST be present (≥20 chars, concrete, tied to evidence or length).
 4. Each recommendation must include the full seven-part contract (priority, action, expected_impact, anchor_snippet, issue_family, strategic_lever, revision_granularity) PLUS candidate_text_a/b/c
-5. recommendation_status = "recommendations_provided" (always, for all scores — the evidence-driven policy requires every criterion to surface opportunities).
+5. recommendation_status MUST be one of the exact allowed values. Use "recommendation_provided" when the recommendations array is non-empty. Never use "recommendations_provided" (plural).
 
-IMPORTANT: A score of 8, 9, or 10 with zero recommendations is a PIPELINE DEFECT. A 109,000-word novel ALWAYS has evidence-backed revision opportunities on every criterion — the evaluator's job is to FIND them. Higher scores change the SEVERITY (consider vs. recommended) and FRAMING (craft-elevation vs. correction), NOT whether recommendations exist. For score ≤7 with fewer recommendations than the density target, this indicates the evaluator did not sufficiently engage with the manuscript text.
+IMPORTANT: A high score (8–10) with zero recommendations is NOT a pipeline defect when governed by no_recommendation_warranted or when the manuscript truly offers no evidence-backed improvement. A weak criterion (typically ≤6/10) with zero recommendations AND no status rationale IS a defect. Do not invent craft-elevation advice to pad a high-scoring criterion, and do not leave a weak criterion silent.
 
 Return ONLY JSON with keys:
 - criteria MUST be a flat array (not grouped by state).
-- Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[]; hard_divergence adds disputed=true.
+- Per-criterion fields: key, final_score_0_10, fit_summary, gap_summary, final_rationale, recommendations[], recommendation_status, recommendation_status_rationale; hard_divergence adds disputed=true.
 - Each recommendation: priority, action, expected_impact, anchor_snippet, source_pass, issue_family, strategic_lever, revision_granularity, mechanism, specific_fix, reader_effect, symptom, mistake_proofing, potential_damage, candidate_text_a, candidate_text_b, candidate_text_c, revision_operation, manuscript_coordinates.
 - Each recommendation.action must be specific, actionable editorial guidance, 50–1500 characters. It may span two sentences when needed to name the mechanism and the expected craft outcome.
 - candidate_text_a: The primary recommended prose repair. This MUST be verbatim manuscript-ready text the author can COPY AND PASTE directly into their manuscript file. Write it in the author's voice using their characters' names, their world's vocabulary, and their prose rhythm. It must read as a seamless continuation or replacement of the anchor_snippet.
@@ -664,6 +673,14 @@ export function buildPass3UserPrompt(params: {
 }): string {
   const executionMode = params.executionMode ?? "TRUSTED_PATH";
   const synthesisBudget = getDefaultSynthesisReferenceCharBudget();
+  const manuscriptWordCount = params.manuscriptText
+    ? params.manuscriptText.trim().split(/\s+/).filter(Boolean).length
+    : undefined;
+  const opportunityMode: EvaluationOpportunityMode =
+    manuscriptWordCount !== undefined && manuscriptWordCount < 25_000
+      ? "short_form"
+      : "long_form_multi_layer";
+  const opportunityPolicyBlock = buildOpportunityDiscoveryPromptBlock(opportunityMode);
   // DEPRECATED-PATH (2026-05-13): buildPromptInputWindow performs the
   // 40,000-char silent truncation that produces PASS{1,2,3}_TIMEOUT on
   // long manuscripts. Will be replaced by chunk-scoped map-reduce in
@@ -793,6 +810,9 @@ ${(() => {
 })()}
 ${params.ledgerWarning ? `\n\n## CHARACTER LEDGER STATUS\n${params.ledgerWarning}\n` : ""}
 ${buildPreflightDraftBlock(params.compactPreflightSummary)}
+
+${opportunityPolicyBlock}
+
 ## PASS2A_STRUCTURED_CONTEXT (Hard Input)
 ${structuredContextJson}${entityRosterBlock}
 

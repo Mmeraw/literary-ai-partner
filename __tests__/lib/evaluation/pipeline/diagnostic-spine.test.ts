@@ -337,11 +337,9 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
 
     const pacing = result.criteria.find((c) => c.key === "pacing");
     expect(pacing).toBeDefined();
-    // Governance suppression removes the unsafe LLM rec, but density repair
-    // injects a safe deterministic fallback (score=7 requires 1 meaningful rec).
-    expect(pacing?.recommendations).toHaveLength(1);
-    // The original unsafe rec ("increase momentum") must NOT survive:
-    expect(pacing?.recommendations?.some((r) => /increase momentum/i.test(r.action))).toBe(false);
+    // Governance suppression removes the unsafe LLM rec. Under ODP no synthetic
+    // backfill is added, so the criterion carries a technical defect instead.
+    expect(pacing?.recommendations).toHaveLength(0);
     expect(pacing?.technical_defects?.some((d) => d.code === "DIAGNOSTIC_SPINE_PROMISE_MISMATCH")).toBe(true);
   });
 
@@ -419,11 +417,9 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
 
     const pacing = result.criteria.find((c) => c.key === "pacing");
     expect(pacing).toBeDefined();
-    // Governance suppression removes the unsafe LLM rec, but density repair
-    // injects a safe deterministic fallback (score=7 requires 1 meaningful rec).
-    expect(pacing?.recommendations).toHaveLength(1);
-    // The original unsafe rec ("increase momentum") must NOT survive:
-    expect(pacing?.recommendations?.some((r) => /increase momentum/i.test(r.action))).toBe(false);
+    // Governance suppression removes the unsafe LLM rec. Under ODP no synthetic
+    // backfill is added, so the criterion carries a technical defect instead.
+    expect(pacing?.recommendations).toHaveLength(0);
     expect(
       pacing?.technical_defects?.some((d) => d.code === "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH"),
     ).toBe(true);

@@ -371,14 +371,18 @@ No renderer, template section, synthesis layer, readiness surface, review surfac
 
 ### Opportunity Volume Authority
 
-Opportunity density and opportunity volume are governed by this template.
+Opportunity density and opportunity volume are governed by the canonical `OPPORTUNITY_DISCOVERY_POLICY` (`docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md`). The numbers below are **ceilings and expected ranges, not floors or quotas**.
 
-The authoritative limits remain:
+The long-form multi-layer authoritative guidance is:
 
-- Score 5/10 or lower: 5–10 recommendations
-- Score 6–7/10: 4–8 recommendations
-- Score 8/10: 2–5 recommendations
-- Score 9–10/10: fit statement only
+- Score 10/10: expected 0–1, hard minimum 0
+- Score 9/10: expected 0–2, hard minimum 0
+- Score 8/10: expected 1–4, hard minimum 0
+- Score 7/10: expected 3–5, hard minimum 0
+- Score 6/10: expected 3–6, hard minimum 0
+- Score 5/10 or lower: expected 5–8, hard minimum 0
+
+A criterion may return zero recommendations when a governed `recommendation_status` is present and `recommendation_status_rationale` is concrete (≥20 chars). Allowed statuses are defined in `OPPORTUNITY_DISCOVERY_POLICY.governedStatuses`.
 
 Total report cap:
 
@@ -386,7 +390,7 @@ Total report cap:
 100 revision opportunities
 ```
 
-No downstream surface may create opportunities beyond these limits.
+No downstream surface may create opportunities beyond the product ceiling or fabricate recommendations absent from the canonical ledger.
 
 ### Revision Surface Ownership
 
@@ -765,16 +769,20 @@ Do not invent opportunities for criteria that are already performing well. For s
 
 ## Recommendation Density & Total Cap
 
-Recommendation density floors for criteria scoring 8/10 or lower:
+Recommendation counts are governed by the canonical `OPPORTUNITY_DISCOVERY_POLICY`. They are **ceilings and expected ranges, not floors**. A valid single recommendation at 9/10 is acceptable; a high-scoring criterion with zero recommendations is acceptable when governed by a valid `recommendation_status`.
 
-- Score 5/10 or lower: 5-10 recommendations per criterion
-- Score 6-7/10: 4-8 recommendations per criterion
-- Score 8/10: 2-5 recommendations per criterion
-- Score 9-10/10: no recommendations; fit statement only
+Long-form multi-layer score guidance (expected range / hard minimum):
+
+- Score 10/10: expected 0–1 / hard minimum 0
+- Score 9/10: expected 0–2 / hard minimum 0
+- Score 8/10: expected 1–4 / hard minimum 0
+- Score 7/10: expected 3–5 / hard minimum 0
+- Score 6/10: expected 3–6 / hard minimum 0
+- Score 5/10 or lower: expected 5–8 / hard minimum 0
 
 **Total cap:** 100 revision opportunities across all criteria combined for long-form multi-layer evaluations.
 
-Recommendation density should reflect manuscript need, not mechanical quota filling. Do not flood a strong manuscript with low-value recommendations merely to fill a cap.
+Recommendation density should reflect manuscript need, not mechanical quota filling. Do not split one defect into multiple recommendations, duplicate the same recommendation under different wording, or flood a strong manuscript with low-value recommendations merely to approach a cap.
 
 ---
 

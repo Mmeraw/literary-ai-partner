@@ -14,11 +14,9 @@ import {
 } from "@/lib/evaluation/pipeline/runPipeline";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
 import { runQualityGateV2 } from "@/lib/evaluation/pipeline/qualityGate";
-import { getEvalPassTimeoutMs } from "@/lib/evaluation/config";
 import type {
   SinglePassOutput,
   SynthesisOutput,
-  QualityGateResult,
   PipelineResult,
   ManuscriptChunkEvidence,
 } from "@/lib/evaluation/pipeline/types";
@@ -611,12 +609,10 @@ describe("runPipeline (e2e with injected runners)", () => {
       const recs0 = result.synthesis.criteria[0].recommendations;
       const recs1 = result.synthesis.criteria[1].recommendations;
       expect(recs0).toHaveLength(1);
-      // Dedupe removes the duplicate action from criteria[1], but post-dedupe
-      // density enforcement injects a last-resort fallback (score=7 requires 1 rec).
-      // The original duplicate must NOT survive:
+      // Dedupe removes the duplicate action from criteria[1]. Under ODP no
+      // synthetic backfill is added, so recs1 is empty and the duplicate is gone.
       expect(recs1.some((r) => r.action === recs0[0].action)).toBe(false);
-      // Density floor ensures at least 1 meaningful rec:
-      expect(recs1.length).toBeGreaterThanOrEqual(1);
+      expect(recs1).toHaveLength(0);
     }
   });
 
@@ -1053,7 +1049,7 @@ function makeLongformDreamDocument(): LongformDreamDocument {
         risk: "Worldbuilding density may overwhelm before the governing story spine is clear.",
       },
       middle: {
-        reader_question: "Who will survive the collision between Hyla\'s rule and Zimeon\'s knowledge?",
+        reader_question: "Who will survive the collision between Hyla's rule and Zimeon's knowledge?",
         emotional_state: "Invested in Zimeon and Newton but uncertain where the pressure line runs.",
         risk: "Reform arc can feel like a second book if not tied to the shard crisis.",
       },
@@ -1078,7 +1074,7 @@ function makeLongformDreamDocument(): LongformDreamDocument {
         priority: 2,
         title: "Clarify the collision spine",
         goal: "Make the shard / toadstone / human predation line the unambiguous primary pressure.",
-        actions: ["Seed the shard\'s rules in chapter 1.", "Ensure every council scene changes state."],
+        actions: ["Seed the shard's rules in chapter 1.", "Ensure every council scene changes state."],
         acceptance_check: "Reader can articulate the central conflict by the end of chapter 3.",
       },
       {

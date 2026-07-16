@@ -74,8 +74,8 @@ function makeSynthesis(overrides: Partial<Record<CriterionKey, Partial<Synthesiz
 
 // ── Prompt version ────────────────────────────────────────────────────────────
 
-it("PASS3_PROMPT_VERSION reflects the recommendation-or-rationale contract prompt", () => {
-  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v21-rec-or-rationale-contract");
+it("PASS3_PROMPT_VERSION reflects the opportunity-discovery-policy contract prompt", () => {
+  expect(PASS3_PROMPT_VERSION).toBe("pass3-synthesis-v22-opportunity-discovery-policy");
   expect(PASS3_PROMPT_VERSION).not.toContain("min-rec-floor");
 });
 

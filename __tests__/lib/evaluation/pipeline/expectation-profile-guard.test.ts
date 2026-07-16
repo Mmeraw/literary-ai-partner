@@ -118,10 +118,9 @@ describe("expectation profile recommendation guard", () => {
 
     const pacing = parsed.criteria.find((c) => c.key === "pacing");
     expect(pacing).toBeDefined();
-    // Expectation-profile guard suppresses the unsafe propulsion rec, but
-    // density repair injects a safe deterministic fallback (score=7 → 1 rec).
-    expect(pacing?.recommendations).toHaveLength(1);
-    // The original propulsion directive must NOT survive:
+    // Expectation-profile guard suppresses the unsafe propulsion rec. Under ODP
+    // no synthetic backfill is added, so the recommendation list is empty.
+    expect(pacing?.recommendations).toHaveLength(0);
     expect(pacing?.recommendations?.some((r) => /increase momentum/i.test(r.action))).toBe(false);
   });
 

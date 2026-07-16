@@ -49,7 +49,7 @@ export type InsufficientSignalReason = {
 export type TechnicalDefectCode =
   | "PROSE_CONTROL_ANCHOR_EXTRACTION_FAILED"
   | "RECOMMENDATION_TRUNCATED"
-  | "SCORE_LE8_EMPTY_RECOMMENDATIONS"
+  | "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED"
   | "DIAGNOSTIC_SPINE_PROMISE_MISMATCH"
   | "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH"
   | "DIAGNOSTIC_SPINE_WEAK_OR_ABSENT"
@@ -115,6 +115,16 @@ type CriterionBase = {
     revision_granularity?: string;
   }>;
   technical_defects?: CriterionTechnicalDefect[];
+  /** ODP-governed status when a criterion produces no recommendations. */
+  recommendation_status?:
+    | "recommendation_provided"
+    | "no_recommendation_warranted"
+    | "genre_appropriate_no_revision_warranted"
+    | "criterion_not_applicable"
+    | "insufficient_evidence"
+    | "gate_suppressed_no_safe_recommendation";
+  /** Concrete rationale for recommendation_status, required when status is set. */
+  recommendation_status_rationale?: string;
 };
 
 export type ScorableCriterionV2 = CriterionBase & {

@@ -19,8 +19,12 @@ import {
   summarizePromptCoverage,
 } from "../promptInput";
 import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
+import {
+  buildOpportunityDiscoveryPromptBlock,
+  type EvaluationOpportunityMode,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v10-candidate-prose";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v11-opportunity-discovery-policy";
 
 export const PASS2_SYSTEM_PROMPT = `You are an editorial-literary analyst, independent from the craft-execution axis.
 
@@ -35,13 +39,7 @@ Required per criterion fields:
 - score_0_10 (integer 0-10)
 - rationale (exactly 1 sentence, <= 180 chars)
 - evidence (0-2 items max, snippet <= 200 chars with offsets when possible)
-- recommendations (evidence-driven density; include anchor_snippet):
-    score ≤5 → 2–3 recommendations required (severity: recommended)
-    score 6–7 → 1–2 recommendations required (severity: recommended or optional)
-    score 8 → 1–2 recommendations required (severity: optional or consider)
-    score 9 → 1 recommendation required (severity: consider — craft-elevation opportunity)
-    score 10 → 1 recommendation required (severity: consider — mastery-level refinement)
-    NEVER suppress evidence-backed recommendations because of a high score.
+- recommendations (evidence-driven; include anchor_snippet). The exact count guidance, product ceiling, and allowed opportunity sources for this manuscript are given by the canonical Opportunity Discovery Policy block appended below. Treat those numbers as ceilings and expected ranges, never as quotas or floors. Do not invent recommendations to meet a count, and do not split one defect into multiple recommendations. For high-scoring criteria, prefer no_recommendation_warranted with a concrete rationale over invented craft-elevation advice.
 
 Rules:
 1) Stay independent; do not reference any other analysis axis.
@@ -305,6 +303,9 @@ export function buildPass2UserPrompt(params: {
     ? `\n${params.authorCorrectionsBlock}\n`
     : "";
   const englishVariantBlock = buildEnglishVariantPromptBlock(params.englishVariant);
+  const opportunityMode: EvaluationOpportunityMode =
+    wordCount < 25_000 ? "short_form" : "long_form_multi_layer";
+  const opportunityPolicyBlock = buildOpportunityDiscoveryPromptBlock(opportunityMode);
   return `Evaluate this ${params.workType || "manuscript"} excerpt titled "${params.title}" on the EDITORIAL/LITERARY INSIGHT axis.
 
 Execution mode: ${executionMode}
@@ -315,13 +316,13 @@ ${params.scopeProfile ? `Submission scope: ${params.scopeProfile.inputScale} (${
 Manuscript text:
 ${promptWindow}
 
+${opportunityPolicyBlock}
+
 Return the JSON evaluation object as specified.
 Mandatory behavior:
 - Cover all 13 criteria.
 - Stay fully independent from any prior analysis.
 - Rationale must be exactly 1 sentence per criterion.
 - Evidence array max 2 entries per criterion and target 2 anchors whenever source support is available.
-- Recommendations array max 1 entry per criterion.
-- For chapter-mode or smaller inputs, do not judge narrativeClosure as full-arc resolution and treat marketability as provisional.
 - Do not add sections beyond the specified schema.`;
 }
