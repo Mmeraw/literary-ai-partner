@@ -227,6 +227,11 @@ describe("endsMidSentence", () => {
   it("passes a complete sentence", () => {
     expect(endsMidSentence("The stakes arrive late.")).toBe(false);
   });
+
+  it("does not misclassify hyphenated compounds as dangling connectives", () => {
+    expect(endsMidSentence("weakening reader buy-in.")).toBe(false);
+    expect(endsMidSentence("weakening reader buy-in")).toBe(true);
+  });
 });
 
 describe("endsWithDanglingConnective", () => {
@@ -235,6 +240,12 @@ describe("endsWithDanglingConnective", () => {
     expect(endsWithDanglingConnective("The stakes arrive late,")).toBe(true);
     // Strong-signal subset: no terminal punctuation alone is NOT flagged.
     expect(endsWithDanglingConnective("Fix direction")).toBe(false);
+  });
+
+  it("does not flag hyphenated compounds that end with a dangling-word token", () => {
+    expect(endsWithDanglingConnective("weakening reader buy-in")).toBe(false);
+    expect(endsWithDanglingConnective("The reader buys in")).toBe(true);
+    expect(endsWithDanglingConnective("a for-profit choice")).toBe(false);
   });
 });
 

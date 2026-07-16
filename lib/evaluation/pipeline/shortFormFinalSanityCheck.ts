@@ -82,20 +82,28 @@ const OPPORTUNITY_PROSE_FIELDS = [
  * sentence — so the copy-integrity checks run PER SEGMENT rather than on a
  * joined blob (which would mask a mid-sentence end inside the text).
  */
-function collectDiagnosticSegments(result: EvaluationResultV2): string[] {
-  const segments: string[] = [];
+type DiagnosticSegment = {
+  field: string;
+  text: string;
+};
+
+function* collectDiagnosticSegments(result: EvaluationResultV2): Generator<DiagnosticSegment> {
   const criteria = Array.isArray(result.criteria) ? result.criteria : [];
-  for (const criterion of criteria) {
-    if (typeof criterion.rationale === 'string') segments.push(criterion.rationale);
+  for (let i = 0; i < criteria.length; i++) {
+    const criterion = criteria[i];
+    if (typeof criterion.rationale === 'string') {
+      yield { field: `criteria[${i}].rationale`, text: criterion.rationale };
+    }
     const recs = Array.isArray(criterion.recommendations) ? criterion.recommendations : [];
-    for (const rec of recs) {
+    for (let j = 0; j < recs.length; j++) {
       for (const field of OPPORTUNITY_PROSE_FIELDS) {
-        const value = (rec as Record<string, unknown>)[field];
-        if (typeof value === 'string' && value.trim().length > 0) segments.push(value);
+        const value = (recs[j] as Record<string, unknown>)[field];
+        if (typeof value === 'string' && value.trim().length > 0) {
+          yield { field: `criteria[${i}].recommendations[${j}].${field}`, text: value };
+        }
       }
     }
   }
-  return segments;
 }
 
 export function runShortFormFinalSanityCheck(input: {
@@ -163,20 +171,22 @@ export function runShortFormFinalSanityCheck(input: {
   // normalizeArtifact pre-stage. This referee blocks anything that survived to
   // persist-time: prose ending mid-sentence (dangling connective/comma/colon/
   // open paren), a lowercase opening, or an accidental adjacent-duplicate word.
-  const diagnosticSegments = collectDiagnosticSegments(input.evaluationResult);
-  let sawMidSentence = false;
-  let sawCopyDefect = false;
-  for (const segment of diagnosticSegments) {
-    const trimmed = segment.trim();
+  for (const { field, text } of collectDiagnosticSegments(input.evaluationResult)) {
+    const trimmed = text.trim();
     if (!trimmed) continue;
-    if (endsWithDanglingConnective(trimmed)) sawMidSentence = true;
+    const sample = trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
+    if (endsWithDanglingConnective(trimmed)) {
+      addViolation('SHORT_FORM_MIDSENTENCE_TERMINATION', field, sample);
+    }
     // Lowercase opening (first alpha char is lowercase).
-    if (capitalizeFirstAlpha(trimmed) !== trimmed) sawCopyDefect = true;
+    if (capitalizeFirstAlpha(trimmed) !== trimmed) {
+      addViolation('SHORT_FORM_COPY_DEFECT', field, sample);
+    }
     // Accidental adjacent-duplicate word ("passage reflective passage").
-    if (collapseAdjacentDuplicateWords(trimmed) !== trimmed) sawCopyDefect = true;
+    if (collapseAdjacentDuplicateWords(trimmed) !== trimmed) {
+      addViolation('SHORT_FORM_COPY_DEFECT', field, sample);
+    }
   }
-  if (sawMidSentence) codes.push('SHORT_FORM_MIDSENTENCE_TERMINATION');
-  if (sawCopyDefect) codes.push('SHORT_FORM_COPY_DEFECT');
 
   const blockingCodes = new Set([
     'SHORT_FORM_INTERNAL_PROCESS_LEAK',
