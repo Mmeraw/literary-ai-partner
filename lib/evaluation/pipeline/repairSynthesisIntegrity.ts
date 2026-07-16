@@ -40,7 +40,7 @@ import {
   assertOnlyRequestedPathsChanged,
   regenerateRequiredProse,
 } from '@/lib/evaluation/pipeline/requiredProseRegeneration';
-import type { Pass3PreflightDraft, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import {
   AuthorFacingIntegrityError,
   type AuthorFacingIntegrityViolation,
@@ -52,8 +52,6 @@ export interface RepairSynthesisIntegrityOptions {
   openaiApiKey?: string;
   title?: string;
   manuscriptText?: string;
-  /** Authoritative Pass 3A preflight draft carrying Pass 1/2 findings. */
-  pass3PreflightDraft?: Pass3PreflightDraft | null;
   maxRequiredAttempts?: number;
   maxCandidateAttempts?: number;
 }
@@ -236,7 +234,6 @@ export async function repairSynthesisIntegrity(
       openaiApiKey: options.openaiApiKey,
       title: options.title,
       manuscriptText: options.manuscriptText,
-      pass3PreflightDraft: options.pass3PreflightDraft,
     });
     telemetry.requiredAttemptsTelemetry = [
       ...(telemetry.requiredAttemptsTelemetry as Record<string, unknown>[]),

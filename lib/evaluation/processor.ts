@@ -11062,7 +11062,6 @@ export async function processEvaluationJob(
         openaiApiKey: process.env.OPENAI_API_KEY,
         title: manuscript.title ?? undefined,
         manuscriptText: manuscriptWithContent.content || '',
-        pass3PreflightDraft: pipelineResult.pass3PreflightDraft,
       });
     } catch (repairError) {
       const repairMessage =
