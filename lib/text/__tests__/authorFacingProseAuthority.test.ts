@@ -62,10 +62,10 @@ describe('authorFacingProseAuthority', () => {
 
     const result = inspectRegisteredAuthorFacingArtifact(artifact);
 
-    expect(result.violations.length).toBeGreaterThan(0);
-    expect(result.unregisteredPaths).toContain(
+    expect(result.unregisteredPaths).toEqual([
       'evaluation_result_v2.criteria[0].market_summary',
-    );
+    ]);
+    expect(result.violations).toEqual([]);
   });
 
   it('returns no violations for a registered complete projection', () => {

@@ -54,6 +54,7 @@
 import { describe, it, expect } from "@jest/globals";
 import {
   runEvaluationCertificationGate,
+  checkAuthorFacingProse,
   buildECGInput,
   trimAtWordBoundary,
   CERTIFICATION_REGISTRY,
@@ -958,6 +959,99 @@ describe("Copy-Polish defect fixtures", () => {
       "A distinct story synopsis was not generated.";
     const result = runWarn(input);
     expect(result.violations.map(v => v.code)).toContain("ECG_ART_MISSING_PARAGRAPH_PITCH");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stage 2 prose-authority adapter telemetry
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("checkAuthorFacingProse (Stage 2 adapter)", () => {
+  it("reports no unregistered paths, no unexpected violations, and one owner per legacy prose field for a clean artifact", () => {
+    const { dispositions, telemetry } = checkAuthorFacingProse(makeCleanInput());
+
+    expect(telemetry.unregisteredPaths).toEqual([]);
+    expect(telemetry.unexpectedAuthorityViolations).toEqual([]);
+    expect(telemetry.legacyLocalPaths).toEqual([
+      "evaluation_result_v2.enrichment.premise",
+    ]);
+
+    const centralMapped = new Set(telemetry.centralMappedPaths);
+    const legacyLocal = new Set(telemetry.legacyLocalPaths);
+
+    const allLegacyProsePaths = [
+      "evaluation_result_v2.overview.one_paragraph_summary",
+      "evaluation_result_v2.overview.one_sentence_pitch",
+      "evaluation_result_v2.overview.one_paragraph_pitch",
+      "evaluation_result_v2.overview.top_3_strengths[0]",
+      "evaluation_result_v2.overview.top_3_strengths[1]",
+      "evaluation_result_v2.overview.top_3_strengths[2]",
+      "evaluation_result_v2.overview.top_3_risks[0]",
+      "evaluation_result_v2.overview.top_3_risks[1]",
+      "evaluation_result_v2.overview.top_3_risks[2]",
+      "evaluation_result_v2.criteria[0].final_rationale",
+      "evaluation_result_v2.criteria[1].final_rationale",
+      "evaluation_result_v2.recommendations.quick_wins[0].action",
+      "evaluation_result_v2.recommendations.strategic_revisions[0].action",
+      "evaluation_result_v2.enrichment.premise",
+    ];
+
+    for (const path of allLegacyProsePaths) {
+      const central = centralMapped.has(path) ? 1 : 0;
+      const local = legacyLocal.has(path) ? 1 : 0;
+      expect(central + local).toBe(1);
+    }
+
+    // Legacy-not-enforced dispositions are expected when the old ECG surface did
+    // not enforce a structural finding; mapped/local dispositions produce ECG
+    // violations. No disposition should be unexpected.
+    const unexpected = dispositions.filter((d) => d.kind === "unexpected");
+    expect(unexpected).toEqual([]);
+  });
+
+  it("maps premise mid-sentence as legacy-local", () => {
+    const input = makeCleanInput();
+    input.enrichment!.premise =
+      "A burned-out Antwerp diamond trader lures his cautious Canadian friend into a lavish evening,";
+    const { dispositions, violations } = checkAuthorFacingProse(input);
+
+    expect(
+      dispositions.some(
+        (d) =>
+          d.kind === "legacy-local" &&
+          d.violation.code === "ECG_TEXT_MIDSENTENCE_TERMINATION",
+      ),
+    ).toBe(true);
+    expect(
+      violations.map((v) => v.code),
+    ).toContain("ECG_TEXT_MIDSENTENCE_TERMINATION");
+  });
+
+  it("keeps recommendation terminal-punctuation and lowercase-start as central-mapped", () => {
+    const input = makeCleanInput();
+    input.recommendations!.quick_wins = [
+      {
+        action:
+          "compress the most repetitive sentences in the mid-chapter exposition " +
+          "so the narrative reaches the GeoCam offer a page sooner",
+      },
+    ];
+    const { dispositions } = checkAuthorFacingProse(input);
+
+    expect(
+      dispositions.some(
+        (d) =>
+          d.kind === "mapped" &&
+          d.violation.code === "ECG_REC_MISSING_TERMINAL_PUNCT",
+      ),
+    ).toBe(true);
+    expect(
+      dispositions.some(
+        (d) =>
+          d.kind === "mapped" &&
+          d.violation.code === "ECG_REC_LOWERCASE_START",
+      ),
+    ).toBe(true);
   });
 });
 

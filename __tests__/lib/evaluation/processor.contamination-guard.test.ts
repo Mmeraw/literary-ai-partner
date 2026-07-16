@@ -449,8 +449,8 @@ describe("processEvaluationJob contamination guard enforcement", () => {
           overall_score_0_100: 75,
           verdict: "pass",
           one_paragraph_summary: "Cliff navigates Carpenter Lake with confidence.",
-          top_3_strengths: ["Voice"],
-          top_3_risks: [],
+          top_3_strengths: ["Voice is used effectively to anchor the lake-crossing scene."],
+          top_3_risks: ["The middle section could slow the chapter's momentum."],
         },
         metadata: {
           pass1_model: "gpt-4o",

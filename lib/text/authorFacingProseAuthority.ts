@@ -1,7 +1,11 @@
 import {
-  inspectAuthorFacingIntegrity,
+  inspectString,
+  isAuthorTextPath,
+  isExcludedPath,
   type AuthorFacingIntegrityViolation,
 } from './authorFacingIntegrity';
+
+export type { AuthorFacingIntegrityViolation };
 
 export type AuthorFacingFieldKind =
   | 'sentence'
@@ -86,9 +90,17 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
     ownership: 'canonical',
   },
   {
-    name: 'canonical recommendation prose',
-    pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.(?:action|why|symptom|cause|mechanism|fix_direction|specific_fix|reader_effect|expected_impact|mistake_proofing)$/u,
+    name: 'canonical recommendation prose - sentence',
+    pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.(?:action|symptom|cause|fix_direction|expected_impact|why)$/u,
     kind: 'sentence',
+    required: true,
+    repairPolicy: 'regenerate',
+    ownership: 'canonical',
+  },
+  {
+    name: 'canonical recommendation prose - phrase',
+    pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.(?:mechanism|specific_fix|reader_effect|mistake_proofing)$/u,
+    kind: 'phrase',
     required: true,
     repairPolicy: 'regenerate',
     ownership: 'canonical',
@@ -102,9 +114,17 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
     ownership: 'canonical',
   },
   {
-    name: 'derived quick-win and strategic-revision prose',
-    pattern: /(?:^|\.)recommendations\.(?:quick_wins|strategic_revisions)\[\d+\]\.(?:action|why|mechanism|reader_effect|candidate_text_[abc])$/u,
+    name: 'derived quick-win and strategic-revision prose - sentence',
+    pattern: /(?:^|\.)recommendations\.(?:quick_wins|strategic_revisions)\[\d+\]\.(?:action|why|candidate_text_[abc])$/u,
     kind: 'sentence',
+    required: true,
+    repairPolicy: 'regenerate',
+    ownership: 'derived',
+  },
+  {
+    name: 'derived quick-win and strategic-revision prose - phrase',
+    pattern: /(?:^|\.)recommendations\.(?:quick_wins|strategic_revisions)\[\d+\]\.(?:mechanism|reader_effect)$/u,
+    kind: 'phrase',
     required: true,
     repairPolicy: 'regenerate',
     ownership: 'derived',
@@ -131,22 +151,31 @@ export interface InspectAuthorFacingProseInput {
   fieldKind?: AuthorFacingFieldKind;
 }
 
+function fieldKindRequiresTerminalPunctuation(
+  kind?: AuthorFacingFieldKind,
+): boolean {
+  if (!kind) return false;
+  return ['sentence', 'paragraph', 'sentence_array', 'candidate'].includes(kind);
+}
+
 /**
  * Single public entry point for inspecting one author-facing prose field.
  *
- * Stage 1 delegates to the proven recursive integrity inspector so existing
- * violation codes and behavior remain stable while callers migrate to one API.
+ * Uses the central integrity primitives while allowing the registry contract
+ * (fieldKind) to override path-derived heuristics. This keeps the registry
+ * as the source of truth for whether a field must end with terminal punctuation.
  */
 export function inspectAuthorFacingProse({
   text,
   fieldPath,
+  fieldKind,
 }: InspectAuthorFacingProseInput): AuthorFacingIntegrityViolation[] {
-  const leaf = fieldPath.split('.').pop() ?? 'value';
-  const parent = fieldPath.slice(0, Math.max(0, fieldPath.length - leaf.length - 1));
-  return inspectAuthorFacingIntegrity(
-    { [leaf]: text },
-    { rootPath: parent || '$' },
-  );
+  if (!fieldKind && resolveAuthorFacingFieldContract(fieldPath) === null) {
+    throw new UnregisteredAuthorFacingPathError([fieldPath]);
+  }
+  return inspectString(fieldPath, text, {
+    forceCompleteSentence: fieldKindRequiresTerminalPunctuation(fieldKind),
+  });
 }
 
 export interface RegisteredArtifactInspection {
@@ -158,18 +187,81 @@ export interface RegisteredArtifactInspection {
  * Inspect a complete projected artifact and surface any prose paths not covered
  * by the path-pattern registry. Unknown paths are explicit migration failures,
  * not silently inferred from leaf names.
+ *
+ * The walker delegates each string to `inspectAuthorFacingProse` with the
+ * registry contract's `fieldKind`, so the registry (not the legacy leaf-key
+ * heuristic) decides whether a field must end with terminal punctuation.
  */
 export function inspectRegisteredAuthorFacingArtifact(
   artifact: unknown,
   rootPath = 'evaluation_result_v2',
 ): RegisteredArtifactInspection {
-  const violations = inspectAuthorFacingIntegrity(artifact, { rootPath });
-  const unregisteredPaths = [
-    ...new Set(
-      violations
-        .map(({ path }) => path)
-        .filter((path) => resolveAuthorFacingFieldContract(path) === null),
-    ),
-  ];
-  return { violations, unregisteredPaths };
+  const violations: AuthorFacingIntegrityViolation[] = [];
+  const unregisteredPaths: string[] = [];
+  const seen = new WeakSet<object>();
+
+  function visit(value: unknown, path: string): void {
+    if (value === null || value === undefined) return;
+
+    if (typeof value === 'string') {
+      if (!value.trim()) return;
+      if (isExcludedPath(path)) return;
+
+      const contract = resolveAuthorFacingFieldContract(path);
+      if (contract === null) {
+        if (isAuthorTextPath(path)) {
+          unregisteredPaths.push(path);
+        }
+        return;
+      }
+
+      if (contract.kind === 'excluded' || contract.ownership === 'excluded') {
+        return;
+      }
+
+      const fieldViolations = inspectAuthorFacingProse({
+        text: value,
+        fieldPath: path,
+        fieldKind: contract.kind,
+      });
+
+      violations.push(...fieldViolations);
+      return;
+    }
+
+    if (typeof value !== 'object') return;
+    if (seen.has(value as object)) return;
+    seen.add(value as object);
+
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`));
+      return;
+    }
+
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      visit(child, `${path}.${key}`);
+    }
+  }
+
+  visit(artifact, rootPath);
+
+  return {
+    violations,
+    unregisteredPaths: [...new Set(unregisteredPaths)],
+  };
+}
+
+/**
+ * Thrown when an artifact inspection projection contains an author-facing path
+ * that is not covered by the central registry. Unknown paths are architecture
+ * defects, not silently-inferred prose fields.
+ */
+export class UnregisteredAuthorFacingPathError extends Error {
+  constructor(readonly paths: readonly string[]) {
+    super(
+      `Unregistered author-facing path(s) encountered during artifact inspection: ${paths.join(', ')}. ` +
+        'Add a contract to AUTHOR_FACING_PATH_CONTRACTS before certifying this field.',
+    );
+    this.name = 'UnregisteredAuthorFacingPathError';
+  }
 }

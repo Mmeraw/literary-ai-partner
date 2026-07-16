@@ -43,9 +43,9 @@ import {
 import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import {
   AuthorFacingIntegrityError,
-  inspectAuthorFacingIntegrity,
   type AuthorFacingIntegrityViolation,
 } from '@/lib/text/authorFacingIntegrity';
+import { inspectRegisteredAuthorFacingArtifact } from '@/lib/text/authorFacingProseAuthority';
 import { ArtifactTextContractError } from '@/lib/evaluation/pipeline/normalizeArtifact';
 
 export interface RepairSynthesisIntegrityOptions {
@@ -102,15 +102,16 @@ function collectViolations(
   quickWins: EnrichedActionItem[],
   strategicRevisions: EnrichedActionItem[],
   rootPath = 'evaluation_result_v2',
-): AuthorFacingIntegrityViolation[] {
-  return inspectAuthorFacingIntegrity(
+): { violations: AuthorFacingIntegrityViolation[]; unregisteredPaths: string[] } {
+  const { violations, unregisteredPaths } = inspectRegisteredAuthorFacingArtifact(
     buildAuthorEnvelope(
       synthesis,
       quickWins.map(toPublicActionItem),
       strategicRevisions.map(toPublicActionItem),
     ),
-    { rootPath },
+    rootPath,
   );
+  return { violations, unregisteredPaths };
 }
 
 function contractErrorToViolation(err: ArtifactTextContractError): AuthorFacingIntegrityViolation {
@@ -176,7 +177,11 @@ function normalizeAndInspectProjection(
     assertDerivedRecommendationParity(synthesis, quickWins, strategicRevisions);
   }
 
-  const collected = collectViolations(synthesis, quickWins, strategicRevisions);
+  const { violations: collected, unregisteredPaths } = collectViolations(synthesis, quickWins, strategicRevisions);
+  if (unregisteredPaths.length > 0) {
+    throw new UnownedAuthorFacingFieldError(unregisteredPaths);
+  }
+
   const seen = new Set<string>();
   const out: AuthorFacingIntegrityViolation[] = [];
   for (const v of [...preViolations, ...collected]) {

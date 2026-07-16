@@ -114,7 +114,7 @@ function hasLowercaseAfterSentence(text: string): boolean {
 
 const DUPLICATE_WORD = /\b([A-Za-z]{2,})\s+\1\b/iu;
 
-function isExcludedPath(path: string, options: AuthorFacingIntegrityOptions): boolean {
+export function isExcludedPath(path: string, options: AuthorFacingIntegrityOptions = {}): boolean {
   const fragments = [...DEFAULT_EXCLUDED_PATH_FRAGMENTS, ...(options.excludePathFragments ?? [])];
   if (fragments.some((fragment) => path.includes(fragment))) return true;
   if (!options.inspectSourceQuotations && SOURCE_QUOTATION_FRAGMENTS.some((fragment) => path.includes(fragment))) return true;
@@ -125,7 +125,7 @@ function leafKey(path: string): string {
   return path.replace(/\[\d+\]$/u, '').split('.').pop() ?? path;
 }
 
-function isAuthorTextPath(path: string): boolean {
+export function isAuthorTextPath(path: string): boolean {
   return AUTHOR_TEXT_KEY_PATTERN.test(leafKey(path));
 }
 
@@ -182,7 +182,16 @@ function containsUnquotedEllipsis(value: string): boolean {
   return TRUNCATION_ELLIPSIS.test(withoutBalancedQuotes);
 }
 
-function inspectString(path: string, rawValue: string): AuthorFacingIntegrityViolation[] {
+export interface InspectStringOptions {
+  /** Override the path-derived decision about whether this field must end with terminal punctuation. */
+  forceCompleteSentence?: boolean;
+}
+
+export function inspectString(
+  path: string,
+  rawValue: string,
+  options?: InspectStringOptions,
+): AuthorFacingIntegrityViolation[] {
   const value = rawValue.trim();
   if (!value) return [];
 
@@ -232,7 +241,9 @@ function inspectString(path: string, rawValue: string): AuthorFacingIntegrityVio
     push('AUTHOR_TEXT_LOWERCASE_SENTENCE_START', `${path} contains a sentence that begins with a lowercase letter.`);
   }
 
-  if (requiresCompleteSentence(path)) {
+  const mustEndWithTerminalPunctuation =
+    options?.forceCompleteSentence ?? requiresCompleteSentence(path);
+  if (mustEndWithTerminalPunctuation) {
     if (endsMidSentence(value)) {
       push('AUTHOR_TEXT_MIDSENTENCE_TERMINATION', `${path} ends mid-sentence or with a dangling connective/punctuation mark.`);
     }
