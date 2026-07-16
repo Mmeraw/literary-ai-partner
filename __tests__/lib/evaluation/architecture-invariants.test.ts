@@ -417,4 +417,55 @@ describe("evaluation architecture invariants", () => {
     // QUALITY_GATE15_FAILED must not exist anywhere in processor.ts
     expect(processorCode).not.toContain("QUALITY_GATE15_FAILED");
   });
+
+  test("author-facing generation paths declare canonical normalizer boundary", () => {
+    type PathContract = {
+      mode: "canonical" | "surface" | "delegate";
+      mustContain: string[];
+      mustNotContain?: string[];
+    };
+
+    // Contract:
+    // - canonical: must use normalizeArtifact (and not sanitizeCMOS directly)
+    // - surface: must use sanitizeCMOS as the declared surface-specific sanitizer
+    // - delegate: entrypoint delegates to canonical pipeline and must not sanitize directly
+    const authorFacingPathContracts: Record<string, PathContract> = {
+      "lib/evaluation/pipeline/runPipeline.ts": {
+        mode: "canonical",
+        mustContain: ["normalizeArtifact("],
+        mustNotContain: ["sanitizeCMOS("],
+      },
+      "lib/evaluation/pipeline/repairSynthesisIntegrity.ts": {
+        mode: "canonical",
+        mustContain: ["normalizeArtifact("],
+        mustNotContain: ["sanitizeCMOS("],
+      },
+      "lib/evaluation/processor.ts": {
+        mode: "delegate",
+        mustContain: ["runPipeline("],
+        mustNotContain: ["sanitizeCMOS("],
+      },
+      "lib/evaluation/reportRenderSafety.ts": {
+        mode: "surface",
+        mustContain: ["sanitizeCMOS("],
+      },
+      "lib/revision/workbenchQueue.ts": {
+        mode: "surface",
+        mustContain: ["sanitizeCMOS("],
+      },
+    };
+
+    for (const [relativePath, contract] of Object.entries(authorFacingPathContracts)) {
+      const filePath = path.join(repoRoot, relativePath);
+      const code = fs.readFileSync(filePath, "utf8");
+
+      for (const token of contract.mustContain) {
+        expect(code).toContain(token);
+      }
+
+      for (const forbidden of contract.mustNotContain ?? []) {
+        expect(code).not.toContain(forbidden);
+      }
+    }
+  });
 });

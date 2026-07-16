@@ -166,6 +166,23 @@ export function ensureSingleSpaceAfterColon(text: string): string {
   return text.replace(/([^\s\d]):(?=\S)(?!\d)\s*/g, "$1: ").replace(/([^\s\d]):[ \t]{2,}/g, "$1: ");
 }
 
+/**
+ * Normalize punctuation spacing in author-facing prose.
+ * - Removes spaces before , : ; . ! ? (except ellipsis "...")
+ * - Ensures one space after comma/semicolon/colon when followed by a letter
+ *
+ * Safe + idempotent: does not alter numeric ratios/times like 10:30 and does
+ * not touch ellipses.
+ */
+export function normalizePunctuationSpacing(text: string): string {
+  if (!text) return text;
+
+  return text
+    .replace(/\s+([,:;.!?])(?!\.)/gu, '$1')
+    .replace(/([,;:])(?=[\p{L}])/gu, '$1 ')
+    .replace(/([,;:])[ \t]{2,}(?=[\p{L}])/gu, '$1 ');
+}
+
 // Function words whose IMMEDIATE doubling ("the the") is essentially always an
 // accidental copy artifact. Deliberately excludes words that legitimately double
 // in English ("had had", "that that", "is is" as a stammer, etc.).

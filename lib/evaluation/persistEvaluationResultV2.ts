@@ -306,79 +306,6 @@ function deriveBoundaryConfidence(validation: ArtifactValidationSummary, gate: B
   });
 }
 
-const TRUNCATED_RECOMMENDATION_TAIL_RE =
-  /(?<![-\u2013\u2014\w])(?<!\b(?:it|him|her|them|me|us|you)\s)\b(with|and|or|to|of|in|on|for|the|a|an)\.?$/i;
-
-function looksTruncatedRecommendationAction(action: string): boolean {
-  const normalized = action.trim();
-  if (!normalized) return false;
-  return TRUNCATED_RECOMMENDATION_TAIL_RE.test(normalized);
-}
-
-function repairTruncatedRecommendationAction(action: string): string {
-  const normalized = action.replace(/\s+/g, " ").trim();
-  if (!normalized || !looksTruncatedRecommendationAction(normalized)) {
-    return normalized;
-  }
-
-  let repaired = normalized;
-  for (let i = 0; i < 4 && looksTruncatedRecommendationAction(repaired); i += 1) {
-    repaired = repaired
-      .replace(/[.!?]+$/g, "")
-      .replace(/\b(with|and|or|to|of|in|on|for|the|a|an)\s*$/i, "")
-      .trim();
-  }
-
-  if (!repaired) {
-    return normalized;
-  }
-
-  return /[.!?]$/.test(repaired) ? repaired : `${repaired}.`;
-}
-
-function repairTruncatedRecommendationActions(
-  evaluationResult: EvaluationResultV2,
-): { result: EvaluationResultV2; repairedCount: number } {
-  let repairedCount = 0;
-
-  const repairedCriteria = evaluationResult.criteria.map((criterion) => {
-    if (!Array.isArray(criterion.recommendations) || criterion.recommendations.length === 0) {
-      return criterion;
-    }
-
-    const repairedRecommendations = criterion.recommendations.map((recommendation) => {
-      const originalAction = recommendation.action;
-      if (typeof originalAction !== "string") {
-        return recommendation;
-      }
-
-      const repairedAction = repairTruncatedRecommendationAction(originalAction);
-      if (!repairedAction || repairedAction === originalAction) {
-        return recommendation;
-      }
-
-      repairedCount += 1;
-      return {
-        ...recommendation,
-        action: repairedAction,
-      };
-    });
-
-    return {
-      ...criterion,
-      recommendations: repairedRecommendations,
-    };
-  });
-
-  return {
-    result: {
-      ...evaluationResult,
-      criteria: repairedCriteria,
-    },
-    repairedCount,
-  };
-}
-
 type PersistenceSanitizerMetrics = {
   replacements_total: number;
   touched_fields: number;
@@ -738,44 +665,7 @@ export async function persistEvaluationResultV2(params: {
 
   params.onHeartbeat?.();
 
-  let structuralValidation = validateStructuralArtifact(evaluationResult);
-  let boundaryRepairMetadata: {
-    code: "CRITERION_RECOMMENDATION_TRUNCATED";
-    repaired_count: number;
-    repaired_at: string;
-    strategy: "trim_truncated_tail_once";
-  } | null = null;
-
-  if (!structuralValidation.ok) {
-    const failedIssues: import("@/lib/evaluation/validateEvaluationArtifact").ArtifactValidationIssue[] = structuralValidation.issues;
-    const truncatedOnlyIssues = failedIssues.filter(
-      (issue) => issue.code === "CRITERION_RECOMMENDATION_TRUNCATED",
-    );
-    const onlyTruncatedFailures =
-      truncatedOnlyIssues.length > 0 &&
-      truncatedOnlyIssues.length === failedIssues.length;
-
-    if (onlyTruncatedFailures) {
-      const repaired = repairTruncatedRecommendationActions(evaluationResult);
-      if (repaired.repairedCount > 0) {
-        const repairedValidation = validateStructuralArtifact(repaired.result);
-        if (repairedValidation.ok) {
-          evaluationResult = repaired.result;
-          structuralValidation = repairedValidation;
-          boundaryRepairMetadata = {
-            code: "CRITERION_RECOMMENDATION_TRUNCATED",
-            repaired_count: repaired.repairedCount,
-            repaired_at: new Date().toISOString(),
-            strategy: "trim_truncated_tail_once",
-          };
-          console.warn("[Eval2BoundaryValidation] auto-repaired truncated recommendation actions before persistence", {
-            job_id: params.jobId,
-            repaired_count: repaired.repairedCount,
-          });
-        }
-      }
-    }
-  }
+  const structuralValidation = validateStructuralArtifact(evaluationResult);
 
   if (!structuralValidation.ok) {
     const rejectedAt = new Date().toISOString();
@@ -1082,7 +972,6 @@ export async function persistEvaluationResultV2(params: {
     propagation: readPropagationSummary(evaluationResult),
     backward_relook: buildBackwardRelookTrace(backwardRelook),
     persistence_sanitizer: persistenceSanitizer.metrics,
-    ...(boundaryRepairMetadata ? { boundary_auto_repair: boundaryRepairMetadata } : {}),
   };
 
   const completionPayloadBase = {
@@ -1103,15 +992,6 @@ export async function persistEvaluationResultV2(params: {
       message: "Evaluation completed",
       finished_at: completionTime,
       gate_enforcement: gateTrace,
-      ...(boundaryRepairMetadata ? { boundary_auto_repair: boundaryRepairMetadata } : {}),
-      ...(boundaryRepairMetadata
-        ? {
-            recoverable_repair_applied: true,
-            recoverable_repair_code: "CRITERION_RECOMMENDATION_TRUNCATED",
-            recoverable_repair_at: boundaryRepairMetadata.repaired_at,
-            recoverable_repair_result: "passed_after_revalidation",
-          }
-        : {}),
     },
     evaluation_result: persistedEvaluationResult,
     evaluation_result_version: "evaluation_result_v2",

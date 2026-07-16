@@ -178,6 +178,7 @@ export function EvaluationPoller({
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshedRef = useRef(false);
+  const popIntoViewTriggeredRef = useRef(false);
   const completionRefreshArmedRef = useRef(false);
   const fetchJobRef = useRef<(() => Promise<void>) | null>(null);
   const unchangedCountRef = useRef(0);
@@ -218,6 +219,86 @@ export function EvaluationPoller({
 
     return () => clearInterval(interval);
   }, [displayProgress, job?.status, job?.pass3_completed_at, job?.manuscript_word_count]);
+
+  // UX polish: when progress reaches 100%, bring the evaluation shell into view
+  // and give it a brief "pop" animation so completion feels intentional.
+  useEffect(() => {
+    if (!job) return;
+    if (popIntoViewTriggeredRef.current) return;
+    if (job.status === 'failed') return;
+
+    const isCompletingAnimation =
+      job.status === 'complete' &&
+      job.dream_ready !== false &&
+      displayProgress < 100;
+
+    const pd = getProgressDisplay({
+      status: isCompletingAnimation ? 'running' : job.status,
+      phase: job.phase ?? null,
+      phase_status: job.phase_status ?? null,
+      cross_check_status: job.cross_check_status ?? null,
+      phase_unit_fraction: (() => {
+        const total = typeof job.total_units === 'number' ? job.total_units : null;
+        const done = typeof job.completed_units === 'number' ? job.completed_units : null;
+        if (total && total > 0 && done !== null) return done / total;
+        return null;
+      })(),
+      hard_fail_present: job.hard_fail_present ?? undefined,
+      phase1_started_at: job.phase1_started_at ?? null,
+      phase2_started_at: job.phase2_started_at ?? null,
+      phase3_started_at: job.pass3_started_at ?? null,
+      pass3_completed_at: job.pass3_completed_at ?? null,
+      manuscript_word_count: job.manuscript_word_count ?? null,
+      phase_message: job.phase_message ?? null,
+      heartbeat_age_seconds: job.heartbeat_age_seconds ?? null,
+      retry_count: job.retry_count ?? null,
+      is_stalled: job.is_stalled ?? false,
+      stalled_reason: job.stalled_reason ?? null,
+      failure_code: job.failure_code ?? null,
+      block_code: job.block_code ?? null,
+      progress_high_water: job.progress_high_water ?? null,
+    });
+
+    if (!pd) return;
+
+    const safeAnimated = Math.max(0, Math.min(100, displayProgress));
+    const rawBarWidth = pd.indeterminate
+      ? 100
+      : isCompletingAnimation
+      ? safeAnimated
+      : Math.max(safeAnimated, pd.percentage ?? 0) + refreshBump;
+    const displayedPercent = Math.max(
+      0,
+      Math.min(100, Math.round(Math.max(rawBarWidth, highWaterMarkRef.current))),
+    );
+
+    if (displayedPercent < 100) return;
+
+    popIntoViewTriggeredRef.current = true;
+
+    const target =
+      document.getElementById('evaluation-overview-card') ??
+      document.getElementById('evaluation-report-shell');
+    if (!target) return;
+
+    const rect = target.getBoundingClientRect();
+    const offscreen = rect.top < 0 || rect.top > window.innerHeight * 0.4;
+    if (offscreen) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    target.animate(
+      [
+        { transform: 'scale(0.988)', filter: 'brightness(1)' },
+        { transform: 'scale(1.012)', filter: 'brightness(1.04)' },
+        { transform: 'scale(1)', filter: 'brightness(1)' },
+      ],
+      {
+        duration: 560,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
+    );
+  }, [displayProgress, job, refreshBump]);
 
   // For report pages that need a server refresh after completion, wait until the
   // client-side animation has reached 100. Otherwise the page refresh can replace
@@ -505,6 +586,7 @@ export function EvaluationPoller({
     networkErrorCountRef.current = 0;
     redirectedRef.current = false;
     refreshedRef.current = false;
+    popIntoViewTriggeredRef.current = false;
   }, [initialJob, jobId, userId, refreshInterval]);
 
   const formatUserSafeError = (value: string) =>
@@ -585,6 +667,20 @@ export function EvaluationPoller({
                 <span className={isRefreshing ? 'animate-spin inline-block' : ''}>↻</span>
                 {isRefreshing ? 'Checking...' : 'Check now'}
               </button>
+              <button
+                type="button"
+                disabled={resumeLoading || resumed}
+                onClick={() => {
+                  void handleResume();
+                }}
+                className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors ${
+                  resumeLoading || resumed
+                    ? 'cursor-not-allowed border-amber-300 bg-amber-100 text-amber-500'
+                    : 'border-amber-500 bg-amber-600 text-white hover:bg-amber-700'
+                }`}
+              >
+                {resumeLoading ? 'Re-kicking…' : resumed ? 'Kick sent' : 'Continue Evaluation'}
+              </button>
               {showCancelAction && (
                 <CancelEvaluationButton
                   jobId={jobId}
@@ -661,7 +757,8 @@ export function EvaluationPoller({
             highWaterMarkRef.current = rawBarWidth;
           }
           const barWidth = Math.max(rawBarWidth, highWaterMarkRef.current);
-          const displayedPercent = Math.max(0, Math.min(100, Math.round(barWidth)));
+          const nonTerminalCap = job.status === 'complete' ? 100 : 99;
+          const displayedPercent = Math.max(0, Math.min(nonTerminalCap, Math.round(barWidth)));
           return (
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
@@ -673,7 +770,7 @@ export function EvaluationPoller({
               <div className="w-full rounded-full h-2.5" style={{ backgroundColor: '#E8E4DD' }}>
                 <div
                   className={`h-2.5 rounded-full transition-all duration-500 ease-out ${barColorClass}`}
-                  style={{ width: `${barWidth}%` }}
+                  style={{ width: `${Math.min(barWidth, nonTerminalCap)}%` }}
                 />
               </div>
               <p className="text-xs text-stone-500">{effectivePd.helperText}</p>

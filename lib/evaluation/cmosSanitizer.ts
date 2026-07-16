@@ -1,3 +1,5 @@
+import { normalizePunctuationSpacing } from '@/lib/text/authorFacingProse';
+
 /**
  * CMOS (Chicago Manual of Style, 17th Edition) Deterministic Sanitizer
  *
@@ -10,6 +12,7 @@
  * - Quotation mark punctuation placement (periods/commas inside quotes)
  * - Latin abbreviation expansion in prose context
  * - Straight quotes → curly (typographer's) quotes
+ * - Punctuation spacing normalization (no space before punctuation)
  * - Repeated words ("the the") removal
  * - Double spaces → single space
  * - Common LLM grammar/spelling errors
@@ -259,6 +262,7 @@ export function sanitizeCMOS(text: string): string {
   result = fixEmDashes(result);
   result = fixDoubleHyphens(result);
   result = fixQuotePunctuation(result);
+  result = normalizePunctuationSpacing(result);
   result = expandLatinAbbreviations(result);
   result = fixStraightQuotes(result);
   result = fixUnbalancedQuotes(result);

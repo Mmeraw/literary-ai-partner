@@ -294,10 +294,11 @@ describe("normalizeArtifact()", () => {
     expect(quickWins[0].action).toMatch(/^Compress/);
   });
 
-  it("rejects a recommendation action that lacks terminal punctuation", () => {
+  it("repairs a complete recommendation action that lacks terminal punctuation", () => {
     const synthesis = makeSynthesis();
     const quickWins = [{ action: "Compress the mid-chapter exposition for better pacing" }];
-    expect(() => normalizeArtifact(synthesis, quickWins, [])).toThrow(AuthorFacingIntegrityError);
+    normalizeArtifact(synthesis, quickWins, []);
+    expect(quickWins[0].action).toBe("Compress the mid-chapter exposition for better pacing.");
   });
 
   it("collapses multiple whitespace in a recommendation action", () => {
@@ -353,8 +354,9 @@ describe("normalizeArtifact()", () => {
 
   it("rejects an incomplete recommendation action and does not fabricate terminal punctuation", () => {
     const synthesis = makeSynthesis();
-    const quickWins = [{ action: "compress the exposition" }]; // lowercase, no punct
+    const quickWins = [{ action: "compress the exposition because" }]; // dangling connective
     expect(() => normalizeArtifact(synthesis, quickWins, [])).toThrow(AuthorFacingIntegrityError);
+    expect(quickWins[0].action).toBe("Compress the exposition because");
   });
 
   it("does not sentence-trim a summary that is within the technical ceiling", () => {

@@ -107,11 +107,17 @@ export function getProgressDisplay(
   // Monotonic ratchet: if a high-water mark is stored, the displayed percentage
   // never drops below it. Kicks and retries are invisible to the user.
   const highWater = typeof job.progress_high_water === "number" ? job.progress_high_water : 0;
-  if (highWater > 0 && result.percentage < highWater) {
+  // Hard truth guard: 100% is only legal for genuinely complete jobs.
+  // Running/queued/finalizing states are capped at 99 even if stale telemetry
+  // carries a 100 high-water mark.
+  const ratchetCap = job.status === "complete" ? 100 : 99;
+  const clampedHighWater = Math.min(highWater, ratchetCap);
+
+  if (clampedHighWater > 0 && result.percentage < clampedHighWater) {
     return {
       ...result,
-      percentage: highWater,
-      valueLabel: `${highWater}%`,
+      percentage: clampedHighWater,
+      valueLabel: `${clampedHighWater}%`,
     };
   }
   return result;

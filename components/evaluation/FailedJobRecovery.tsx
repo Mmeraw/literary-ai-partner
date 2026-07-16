@@ -39,6 +39,8 @@ export const CHECKPOINT_UNCHECKED: CheckpointInfo = {
   checked: false,
 };
 
+const RESUME_REQUEST_TIMEOUT_MS = 20_000;
+
 /**
  * Derive checkpoint info from a job's progress JSONB when raw progress is
  * available. Some status API responses expose only percentage progress; in that
@@ -117,10 +119,14 @@ export function useFailedJobRecovery(
   const handleResume = useCallback(async () => {
     setResumeLoading(true);
     setResumeError(null);
+    let timeout: ReturnType<typeof window.setTimeout> | null = null;
     try {
+      const controller = new AbortController();
+      timeout = window.setTimeout(() => controller.abort(), RESUME_REQUEST_TIMEOUT_MS);
       const res = await fetch(`/api/jobs/${jobId}/resume`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
       });
       const data = (await res.json()) as {
         success?: boolean;
@@ -142,8 +148,15 @@ export function useFailedJobRecovery(
       }
     } catch (err) {
       console.error("[FailedJobRecovery] Continue failed:", err);
-      setResumeError("An unexpected error occurred. Please try again or start a new evaluation.");
+      setResumeError(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "Recovery timed out while contacting the server. Please try Continue Evaluation again."
+          : "An unexpected error occurred. Please try again or start a new evaluation.",
+      );
     } finally {
+      if (timeout !== null) {
+        window.clearTimeout(timeout);
+      }
       setResumeLoading(false);
     }
   }, [jobId, onResumed]);

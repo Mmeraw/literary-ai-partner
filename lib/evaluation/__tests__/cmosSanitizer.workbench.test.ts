@@ -87,4 +87,14 @@ describe("sanitizeCMOS — quotes & em-dashes (pre-existing guards)", () => {
     expect(out).not.toContain(" \u2014 ");
     expect(out).toContain("\u2014");
   });
+
+  test("normalizes spaces before punctuation", () => {
+    const out = sanitizeCMOS("Tighten pacing , improve transitions .");
+    expect(out).toBe("Tighten pacing, improve transitions.");
+  });
+
+  test("normalizes missing space after comma and colon", () => {
+    const out = sanitizeCMOS("Fix this,now:today");
+    expect(out).toBe("Fix this, now: today");
+  });
 });

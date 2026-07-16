@@ -297,13 +297,14 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     expect(response.status).toBe(202);
     expect(json.success).toBe(true);
     expect(json.message).toBe('Evaluation recovery has been restarted.');
+    expect((json as unknown as { worker_kickoff_attempts?: number }).worker_kickoff_attempts).toBe(1);
     expect(mockTriggerEvaluationWorker).toHaveBeenCalledWith(expect.objectContaining({
       jobId: 'job-resume-1',
       source: 'api.jobs.resume.active_queued',
     }));
   });
 
-  test('keeps resumed job queued when worker does not claim exact job immediately', async () => {
+  test('retries kickoff once when worker does not claim exact resumed job immediately', async () => {
     const admin = makeAdminMock(makeJob());
     mockCreateAdminClient.mockReturnValue(admin as never);
     mockTriggerEvaluationWorker.mockResolvedValueOnce({
@@ -314,14 +315,35 @@ describe('POST /api/jobs/[jobId]/resume', () => {
       targetClaimed: false,
       body: { success: true },
     });
+    mockTriggerEvaluationWorker.mockResolvedValueOnce({
+      ok: true,
+      workerStatus: 200,
+      claimed: 1,
+      processed: 1,
+      targetClaimed: false,
+      body: { success: true },
+    });
 
-    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
-    const json = (await response.json()) as { success: boolean; worker_kickoff_warning: string; message: string };
+    const response = await POST(makeRequest() as never, {
+      params: Promise.resolve({ jobId: 'job-resume-1' }),
+    });
+    const json = (await response.json()) as {
+      success: boolean;
+      worker_kickoff_warning: string;
+      worker_kickoff_attempts: number;
+      message: string;
+    };
 
     expect(response.status).toBe(202);
     expect(json.success).toBe(true);
     expect(json.worker_kickoff_warning).toBe('worker_did_not_claim_resumed_job');
+    expect(json.worker_kickoff_attempts).toBe(2);
     expect(json.message).toContain('queued job remains recoverable');
+    expect(mockTriggerEvaluationWorker).toHaveBeenCalledTimes(2);
+    expect(mockTriggerEvaluationWorker).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      jobId: 'job-resume-1',
+      source: 'api.jobs.resume.retry1',
+    }));
 
     const updatePayload = firstUpdatePayload(admin);
     expect(updatePayload).toEqual(expect.objectContaining({

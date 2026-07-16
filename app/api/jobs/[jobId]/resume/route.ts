@@ -19,6 +19,50 @@ function workerKickoffWarningReason(result: TriggerWorkerResult): string | null 
   return null;
 }
 
+function isRetryableKickoffWarning(reason: string | null): boolean {
+  if (!reason) return false;
+  return (
+    reason === 'network_or_timeout' ||
+    reason === 'non_ok_response' ||
+    reason === 'worker_did_not_claim_resumed_job' ||
+    reason === 'worker_returned_zero_claims'
+  );
+}
+
+async function triggerResumeWorkerKickoffWithRetry(args: {
+  request: NextRequest;
+  jobId: string;
+  source: string;
+  traceId: string;
+}): Promise<{ result: TriggerWorkerResult; warning: string | null; attempts: number }> {
+  const firstAttempt = await triggerEvaluationWorker({
+    req: args.request,
+    jobId: args.jobId,
+    trace_id: args.traceId,
+    request_id: args.traceId,
+    source: args.source,
+  });
+
+  const firstWarning = workerKickoffWarningReason(firstAttempt);
+  if (!isRetryableKickoffWarning(firstWarning)) {
+    return { result: firstAttempt, warning: firstWarning, attempts: 1 };
+  }
+
+  const retryAttempt = await triggerEvaluationWorker({
+    req: args.request,
+    jobId: args.jobId,
+    trace_id: args.traceId,
+    request_id: `${args.traceId}:retry1`,
+    source: `${args.source}.retry1`,
+  });
+
+  return {
+    result: retryAttempt,
+    warning: workerKickoffWarningReason(retryAttempt),
+    attempts: 2,
+  };
+}
+
 function includesShortFormInternalProcessLeak(value: unknown): boolean {
   if (typeof value === 'string') return value.includes('SHORT_FORM_INTERNAL_PROCESS_LEAK');
   if (!value || typeof value !== 'object') return false;
@@ -195,24 +239,23 @@ export async function POST(
     }
 
     if (job.status === 'queued') {
-      const activeKickoff = await triggerEvaluationWorker({
-        req: request,
+      const activeKickoff = await triggerResumeWorkerKickoffWithRetry({
+        request,
         jobId,
-        trace_id: RESUME_DEPLOYED_SHA,
-        request_id: RESUME_DEPLOYED_SHA,
+        traceId: RESUME_DEPLOYED_SHA,
         source: 'api.jobs.resume.active_queued',
       });
-      const kickoffWarning = workerKickoffWarningReason(activeKickoff);
 
       return NextResponse.json(
         {
           success: true,
           job_id: jobId,
           current_status: job.status,
-          message: kickoffWarning
+          message: activeKickoff.warning
             ? 'Evaluation recovery is queued. The worker did not claim it immediately, but the queued job remains recoverable and will be picked up by the worker/cron fallback.'
             : 'Evaluation recovery has been restarted.',
-          worker_kickoff_warning: kickoffWarning,
+          worker_kickoff_warning: activeKickoff.warning,
+          worker_kickoff_attempts: activeKickoff.attempts,
         },
         { status: 202 },
       );
@@ -322,16 +365,12 @@ export async function POST(
       );
     }
 
-    const kickoffResult = await triggerEvaluationWorker({
-      req: request,
+    const kickoffResult = await triggerResumeWorkerKickoffWithRetry({
+      request,
       jobId,
-      trace_id: RESUME_DEPLOYED_SHA,
-      request_id: RESUME_DEPLOYED_SHA,
+      traceId: RESUME_DEPLOYED_SHA,
       source: 'api.jobs.resume',
-      kickoffDispatchStartedAt: now,
     });
-
-    const kickoffWarning = workerKickoffWarningReason(kickoffResult);
 
     return NextResponse.json(
       {
@@ -346,8 +385,9 @@ export async function POST(
         target_phase: targetPhase,
         checkpoint_artifact_type: checkpointDecision.checkpoint_artifact_type ?? null,
         checkpoint_artifact_id: checkpointDecision.checkpoint_artifact_id ?? null,
-        worker_kickoff_warning: kickoffWarning,
-        message: kickoffWarning
+        worker_kickoff_warning: kickoffResult.warning,
+        worker_kickoff_attempts: kickoffResult.attempts,
+        message: kickoffResult.warning
           ? 'Evaluation recovery is queued. The worker did not claim it immediately, but the queued job remains recoverable and will be picked up by the worker/cron fallback.'
           : 'Evaluation recovery has been restarted.',
       },

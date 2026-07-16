@@ -3,6 +3,7 @@ import {
   normalizeArtifact,
   ArtifactTextContractError,
 } from '@/lib/evaluation/pipeline/normalizeArtifact';
+import { AuthorFacingIntegrityError } from '@/lib/text/authorFacingIntegrity';
 
 function makeSynthesis(overrides: {
   one_paragraph_summary?: string;
@@ -102,9 +103,9 @@ describe('normalizeArtifact — canonical evaluation prose', () => {
 });
 
 describe('normalizeArtifact — recommendation normalization', () => {
-  it('capitalizes and normalizes whitespace without appending punctuation', () => {
+  it('capitalizes, normalizes whitespace, and appends terminal punctuation for complete prose', () => {
     const synthesis = makeSynthesis();
-    const quickWins = [{ action: '  compress  the exposition.  ' }];
+    const quickWins = [{ action: '  compress  the exposition  ' }];
     normalizeArtifact(synthesis, quickWins, []);
     expect(quickWins[0].action).toBe('Compress the exposition.');
   });
@@ -127,5 +128,77 @@ describe('normalizeArtifact — recommendation normalization', () => {
     });
     normalizeArtifact(synthesis, [], []);
     expect(synthesis.overall.one_paragraph_summary).toContain('80/100');
+  });
+
+  it('repairs punctuation spacing in author-facing prose', () => {
+    const synthesis = makeSynthesis({
+      criteriaRecs: [{ action: 'tighten pacing,improve transitions .' }],
+    });
+    normalizeArtifact(synthesis, [], []);
+    expect(synthesis.criteria[0].recommendations![0].action).toBe('Tighten pacing, improve transitions.');
+  });
+
+  it('is idempotent on normalized output', () => {
+    const synthesis = makeSynthesis({
+      criteriaRecs: [{ action: 'compress the exposition' }],
+    });
+    const quickWins = [{ action: '  compress  the exposition  ' }];
+    const strategic = [{ action: 'introduce physical beats in the scene' }];
+
+    normalizeArtifact(synthesis, quickWins, strategic);
+    const snapshot = JSON.parse(JSON.stringify({ synthesis, quickWins, strategic }));
+
+    normalizeArtifact(synthesis, quickWins, strategic);
+    expect({ synthesis, quickWins, strategic }).toEqual(snapshot);
+  });
+
+  it('does not mutate evidence snippets or anchor quotations', () => {
+    const synthesis = {
+      overall: {
+        one_paragraph_summary:
+          'The manuscript earns a 74/100 on its concept. The principal blocker is pacing.',
+        one_sentence_pitch:
+          'A sardonic Antwerp diamond dealer confronts friendship and cobalt money.',
+        one_paragraph_pitch:
+          'Calvin joins Monty in Antwerp for a farewell evening that becomes an ultimatum.',
+      },
+      criteria: [
+        {
+          recommendations: [
+            {
+              action: 'compress the exposition',
+              anchor_snippet: 'Monty decided to wait before he shared his news with Calvin',
+            },
+          ],
+          evidence: [
+            { snippet: 'The stakes signal arrives too late in the passage' },
+          ],
+        },
+      ],
+    };
+
+    const quickWins = [
+      {
+        action: 'compress the exposition',
+        anchor_snippet: 'Anchor quote text should remain verbatim',
+      },
+    ];
+
+    const evidenceBefore = synthesis.criteria[0].evidence[0].snippet;
+    const anchorBefore = synthesis.criteria[0].recommendations[0].anchor_snippet;
+    const quickWinAnchorBefore = quickWins[0].anchor_snippet;
+
+    normalizeArtifact(synthesis, quickWins, []);
+
+    expect(synthesis.criteria[0].evidence[0].snippet).toBe(evidenceBefore);
+    expect(synthesis.criteria[0].recommendations[0].anchor_snippet).toBe(anchorBefore);
+    expect(quickWins[0].anchor_snippet).toBe(quickWinAnchorBefore);
+  });
+
+  it('rejects genuinely incomplete prose and does not conceal truncation', () => {
+    const synthesis = makeSynthesis();
+    const quickWins = [{ action: 'compress the exposition because' }];
+    expect(() => normalizeArtifact(synthesis, quickWins, [])).toThrow(AuthorFacingIntegrityError);
+    expect(quickWins[0].action).toBe('Compress the exposition because');
   });
 });

@@ -11,7 +11,10 @@
 import {
   capitalizeFirstAlpha,
   collapseAdjacentDuplicateWords,
+  ensureTerminalPunctuation,
   endsMidSentence,
+  endsWithDanglingConnective,
+  normalizePunctuationSpacing,
   normalizeDuplicateCloseQuotes,
 } from '@/lib/text/authorFacingProse';
 import { assertAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
@@ -192,6 +195,25 @@ const STRING_ARRAY_FIELD_KEYS = new Set([
   'decision_points',
 ]);
 
+const PHRASE_ALLOWED_FIELD_KEYS = new Set([
+  'top_3_strengths',
+  'top_3_risks',
+  'pressure_points',
+  'decision_points',
+  'title',
+  'heading',
+  'header',
+  'label',
+  'mechanism',
+  'specific_fix',
+  'reader_effect',
+]);
+
+function shouldEnsureTerminalPunctuation(fieldPath: string): boolean {
+  const key = fieldPath.replace(/\[\d+\]$/u, '').split('.').pop() ?? fieldPath;
+  return isAuthorFacingFieldKey(key) && !PHRASE_ALLOWED_FIELD_KEYS.has(key);
+}
+
 function isAuthorFacingFieldKey(key: string): boolean {
   return AUTHOR_FACING_FIELD_KEYS.has(key);
 }
@@ -254,6 +276,23 @@ export function normalizeArtifact(
     if (dedupedQuotes !== value) {
       normalizations.push({ field, before: value, after: dedupedQuotes, operation: 'punctuation' });
       value = dedupedQuotes;
+    }
+
+    const punctuationSpaced = normalizePunctuationSpacing(value);
+    if (punctuationSpaced !== value) {
+      normalizations.push({ field, before: value, after: punctuationSpaced, operation: 'punctuation' });
+      value = punctuationSpaced;
+    }
+
+    // Deterministic punctuation-only mistake-proofing for complete sentence
+    // fields. If a field ends with a dangling connective, we do NOT patch it;
+    // integrity validation must fail closed and force regeneration.
+    if (shouldEnsureTerminalPunctuation(field) && !endsWithDanglingConnective(value)) {
+      const punctuated = ensureTerminalPunctuation(value);
+      if (punctuated !== value) {
+        normalizations.push({ field, before: value, after: punctuated, operation: 'punctuation' });
+        value = punctuated;
+      }
     }
 
     return value;

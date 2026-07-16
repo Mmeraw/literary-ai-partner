@@ -301,7 +301,8 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
     // 6e2) Monotonic progress ratchet — bar never goes backward from user's perspective
     const rawHighWater = rawProgress?.progress_high_water;
     if (typeof rawHighWater === 'number' && rawHighWater > 0) {
-      response.job.progress_high_water = rawHighWater;
+      const highWaterCap = job.status === 'complete' ? 100 : 99;
+      response.job.progress_high_water = Math.min(rawHighWater, highWaterCap);
     }
 
     // 6e3) Self-healing: if job is complete, long-form, and pass3_completed_at

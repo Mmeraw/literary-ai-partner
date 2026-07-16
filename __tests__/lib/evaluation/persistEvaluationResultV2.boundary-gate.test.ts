@@ -481,7 +481,7 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
     expect(decision.reasonCodes).toContain("FALLBACK_GENERATOR_USED");
   });
 
-  test("auto-repairs truncated recommendation actions and persists instead of hard-failing", async () => {
+  test("fails closed for truncated recommendation actions and does not persist", async () => {
     const supabase = makeSupabaseStub();
     const resultWithTruncatedRec = makeValidEvaluationResultV2();
 
@@ -495,31 +495,31 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
 
     const persistResult = await persistEvaluationResultV2({
       supabase: supabase as unknown as SupabaseClient,
-      jobId: "job-step1-truncated-auto-repair",
+      jobId: "job-step1-truncated-fail-closed",
       manuscriptId: 109,
       evaluationResult: resultWithTruncatedRec,
-      sourceHash: "sha256:truncated-auto-repair",
+      sourceHash: "sha256:truncated-fail-closed",
       progressSnapshot: { phase: "phase_2", phase_status: "running" },
       totalUnits: 5,
       completedUnits: 5,
     });
 
-    expect(persistResult.persisted).toBe(true);
-    expect(supabase.rpcCalls).toHaveLength(1);
+    expect(persistResult.persisted).toBe(false);
+    expect(persistResult.gateDecision).toBe("FAIL");
+    expect(supabase.rpcCalls).toHaveLength(0);
 
-    const persistedArtifact = supabase.rpcCalls[0].payload.p_artifact_content as EvaluationResultV2;
-    const persistedProgress = supabase.rpcCalls[0].payload.p_progress as Record<string, unknown>;
-    const repairedAction = persistedArtifact.criteria[0].recommendations[0]?.action;
+    const failedWrite = supabase.evaluationJobUpdates.find((p) => p.status === "failed");
+    expect(failedWrite).toBeDefined();
+    expect(failedWrite?.failure_code).toBe("EVALUATION_ARTIFACT_VALIDATION_FAILED");
 
-    expect(typeof repairedAction).toBe("string");
-    expect(repairedAction).not.toBe("Merge this recommendation with the.");
-    const structuralValidation = validateStructuralArtifact(persistedArtifact);
-    expect(structuralValidation.ok).toBe(true);
+    const gateEnforcement = readGateEnforcement(failedWrite);
+    expect(gateEnforcement).toBeDefined();
+    expect(gateEnforcement?.reason_codes).toEqual(
+      expect.arrayContaining(["CRITERION_RECOMMENDATION_TRUNCATED"]),
+    );
 
-    expect(persistedProgress.recoverable_repair_applied).toBe(true);
-    expect(persistedProgress.recoverable_repair_code).toBe("CRITERION_RECOMMENDATION_TRUNCATED");
-    expect(persistedProgress.recoverable_repair_result).toBe("passed_after_revalidation");
-    expect(isIsoTimestamp(persistedProgress.recoverable_repair_at)).toBe(true);
+    const structuralValidation = validateStructuralArtifact(resultWithTruncatedRec);
+    expect(structuralValidation.ok).toBe(false);
   });
 
   test("sanitizes malformed/off-topic contamination before persistence so downloads remain available", async () => {

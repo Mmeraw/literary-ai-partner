@@ -127,6 +127,32 @@ describe('Progress bar — synthesis-aware display', () => {
       expect(pd!.color).toBe('red');
       expect(pd!.label).toContain('Blocked');
     });
+
+    it('never renders 100% for running/finalizing even with stale 100 high-water mark', () => {
+      const pd = getProgressDisplay({
+        status: 'running',
+        phase: 'phase_3',
+        phase_status: 'running',
+        progress_high_water: 100,
+      });
+      expect(pd).not.toBeNull();
+      expect(pd!.label).toContain('Finalizing your report');
+      expect(pd!.percentage).toBe(99);
+      expect(pd!.valueLabel).toBe('99%');
+    });
+
+    it('never renders 100% for queued/finalizing even with stale 100 high-water mark', () => {
+      const pd = getProgressDisplay({
+        status: 'queued',
+        phase: 'phase_3',
+        phase_status: 'queued',
+        progress_high_water: 100,
+      });
+      expect(pd).not.toBeNull();
+      expect(pd!.label).toContain('Finalizing your report');
+      expect(pd!.percentage).toBe(99);
+      expect(pd!.valueLabel).toBe('99%');
+    });
   });
 
   describe('hardStop flag', () => {

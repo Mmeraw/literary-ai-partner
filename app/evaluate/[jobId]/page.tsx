@@ -157,7 +157,7 @@ export default async function EvaluationReportPage({ params }: PageProps) {
         </section>
       )}
 
-      <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
+      <section id="evaluation-overview-card" className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8">
         {/* Top bar: title left, back button right */}
         <div className="flex items-start justify-between gap-4">
           <div>
