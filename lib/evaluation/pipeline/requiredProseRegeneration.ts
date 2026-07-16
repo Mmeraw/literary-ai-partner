@@ -33,6 +33,14 @@ export class RegenerationMutationError extends Error {
   }
 }
 
+export class RepairRegenerationError extends Error {
+  readonly code = 'REPAIR_REGENERATION_ERROR';
+  constructor(message: string, readonly cause?: unknown) {
+    super(message);
+    this.name = 'RepairRegenerationError';
+  }
+}
+
 export interface RequiredProseRegenerationOptions {
   /** OpenAI API key. Falls back to process.env.OPENAI_API_KEY. */
   openaiApiKey?: string;
@@ -345,25 +353,38 @@ async function callRegenerationLLM(
       ? 900
       : 500;
 
-  const response = await openai.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: 'system',
-        content:
-          'You are a senior developmental editor regenerating a single required field for a manuscript evaluation report. ' +
-          'Return ONLY a JSON object with one key: the exact FIELD PATH the user provides. ' +
-          'The value must be complete, publication-ready prose: capitalized first letter, terminal punctuation, no ellipses, no mid-sentence cuts.',
-      },
-      { role: 'user', content: prompt },
-    ],
-    response_format: { type: 'json_object' },
-    ...buildOpenAITemperatureParam(model, 0.3),
-    ...buildOpenAIOutputTokenParam(model, maxTokens),
-  });
+  let response: Awaited<ReturnType<OpenAI['chat']['completions']['create']>>;
+  try {
+    response = await openai.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a senior developmental editor regenerating a single required field for a manuscript evaluation report. ' +
+            'Return ONLY a JSON object with one key: the exact FIELD PATH the user provides. ' +
+            'The value must be complete, publication-ready prose: capitalized first letter, terminal punctuation, no ellipses, no mid-sentence cuts.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+      ...buildOpenAITemperatureParam(model, 0.3),
+      ...buildOpenAIOutputTokenParam(model, maxTokens),
+    });
+  } catch (error) {
+    throw new RepairRegenerationError(
+      `Repair model request failed for ${fieldPath}`,
+      error,
+    );
+  }
 
-  const raw = response.choices[0]?.message?.content?.trim();
-  if (!raw) return null;
+  const raw = response?.choices?.[0]?.message?.content?.trim();
+
+  if (!raw) {
+    throw new RepairRegenerationError(
+      `Repair model returned no completion content for ${fieldPath}`,
+    );
+  }
 
   try {
     const parsed = JSON.parse(raw);
@@ -492,6 +513,21 @@ export async function regenerateRequiredProse(
   violations: AuthorFacingIntegrityViolation[],
   options: RequiredProseRegenerationOptions = {},
 ): Promise<RequiredProseRegenerationResult> {
+  if (violations.length === 0) {
+    return {
+      ok: true,
+      synthesis,
+      regeneratedFields: [],
+      failedFields: [],
+      telemetry: {
+        attempts: 0,
+        regeneratedFields: [],
+        failedFields: [],
+        model: options.model?.trim() || getCanonicalPass3Model(),
+      },
+    };
+  }
+
   const apiKey =
     (options.openaiApiKey?.trim() || process.env.OPENAI_API_KEY)?.trim() || '';
   const model = options.model?.trim() || getCanonicalPass3Model();

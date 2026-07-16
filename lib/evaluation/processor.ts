@@ -11041,11 +11041,34 @@ export async function processEvaluationJob(
     // Mistake-proofed author-facing integrity repair: Tier-1 normalization,
     // fresh whole-envelope validation, bounded required/candidate regeneration,
     // then final validation before certification.
-    const repairResult = await repairSynthesisIntegrity(pipelineResult.synthesis, {
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      title: manuscript.title ?? undefined,
-      manuscriptText: manuscriptWithContent.content || '',
-    });
+    let repairResult: Awaited<ReturnType<typeof repairSynthesisIntegrity>>;
+    try {
+      repairResult = await repairSynthesisIntegrity(pipelineResult.synthesis, {
+        openaiApiKey: process.env.OPENAI_API_KEY,
+        title: manuscript.title ?? undefined,
+        manuscriptText: manuscriptWithContent.content || '',
+      });
+    } catch (repairError) {
+      const repairMessage =
+        repairError instanceof Error ? repairError.message : String(repairError);
+      await markFailed(
+        `[QualityGateV2] Author-facing integrity repair failed: ${repairMessage}`,
+        'AUTHOR_FACING_TEXT_INTEGRITY_FAILED',
+        {
+          pipelineStage: 'phase_3',
+          reasonCodes: ['AUTHOR_FACING_TEXT_INTEGRITY_FAILED'],
+          diagnostics: {
+            repair_error: repairMessage,
+            regeneration_required: true,
+          },
+        },
+      );
+
+      return {
+        success: false,
+        error: `[QualityGateV2] Author-facing integrity repair failed: ${repairMessage}`,
+      };
+    }
     integrityRepairTelemetry = repairResult.telemetry;
 
     if (!repairResult.ok) {
@@ -11053,7 +11076,7 @@ export async function processEvaluationJob(
         (v) => `${v.path}:${v.code}`,
       );
       await markFailed(
-        `Author-facing integrity repair failed: ${subPaths.join(', ')}`,
+        `[QualityGateV2] Author-facing integrity repair failed: ${subPaths.join(', ')}`,
         'AUTHOR_FACING_TEXT_INTEGRITY_FAILED',
         {
           pipelineStage: 'phase_3',
@@ -11066,7 +11089,7 @@ export async function processEvaluationJob(
         },
       );
 
-      return { success: false, error: `Author-facing integrity repair failed: ${subPaths.join(', ')}` };
+      return { success: false, error: `[QualityGateV2] Author-facing integrity repair failed: ${subPaths.join(', ')}` };
     }
 
     try {
