@@ -1,6 +1,6 @@
 # Held Recovery Contract — Design Proposal
 
-**Status:** design proposal awaiting review  
+**Status:** contract design approved for type and contract-test implementation
 **Scope:** recovery-contract schema and authority boundaries only. No executor, dispatcher, runtime wiring, persistence changes, queue mutations, or UI controls are included in this proposal.
 
 This document builds on the approved `docs/held-recovery-producer-inventory.md` and the existing contract modules in `lib/revision/heldRecoverySources.ts`, `lib/revision/heldRecoveryReasons.ts`, `lib/revision/heldRecoveryState.ts`, and `lib/revision/heldRecoveryPlan.ts`.
@@ -211,7 +211,7 @@ The link to `HeldReasonInfo`:
 - `HeldReasonInfo.automaticRecoveryAllowed` still gates whether the executor may run automatically.
 - `HeldReasonInfo.allowedAuthorActions` still lists the dispositions available to the author.
 - `HeldReasonInfo.recoverable`, `allowedTerminalOutcomes`, and `isHardBlocker` still define the policy outcome.
-- `HeldReasonRecoveryContract` describes only the `executionMode` (`deterministic`, `llm_assisted`, `author_assisted`, `none`) and the `recoveryAction`, if any.
+- `HeldReasonRecoveryContract` describes only executable behavior through `executionMode` (`deterministic`, `llm_assisted`, `none`) and the `recoveryAction`, if any. Author-assisted handling remains exclusively in `HeldReasonInfo.allowedAuthorActions` and `RequiredAuthorDisposition`.
 
 ## 6. Allowed terminal outcomes
 
@@ -262,8 +262,8 @@ export type RecoveryAttempt = {
 
 Identity authority is layered:
 
-- `opportunityVersion` is the canonical source hash of the revision opportunity ledger build. The contract implementation must expose and reuse the existing `sourceHashFor` helper from `lib/revision/opportunityLedger.ts` (lines 258 and 2751–2772) or, if a per-opportunity version is required, a new tested helper `revisionOpportunityVersionFor(opportunity, ledgerSourceHash)` that combines the ledger source hash with a stable opportunity identifier. The recovery executor must not define its own opportunity identity.
-- `candidateSetVersion` does not yet have a public canonical helper. The contract implementation must introduce a small shared helper `candidateSetVersionFor(candidates: { a: string; b: string; c: string })` that hashes the ordered, normalized candidate texts (A, B, C) using the same `stableStringify` + SHA-256 approach as `opportunityLedger.ts`. This helper must be tested before it is used for recovery identity.
+- `opportunityVersion` is produced only by a new shared helper `revisionOpportunityVersionFor(opportunityId, ledgerSourceHash)`. The helper must call the existing `sourceHashFor` implementation from `lib/revision/opportunityLedger.ts` over the canonical ordered payload `{ opportunityId, ledgerSourceHash }`. The raw ledger `source_hash` alone is not sufficient because it identifies the ledger build rather than one opportunity. All recovery code must call this helper; the executor must not construct opportunity identity independently.
+- `candidateSetVersion` is produced only by a new shared helper `candidateSetVersionFor(candidates: { a: string; b: string; c: string })`. It hashes the ordered canonical payload `{ a: normalizeCandidateText(a), b: normalizeCandidateText(b), c: normalizeCandidateText(c) }` through the same `sourceHashFor`/`stableStringify` + SHA-256 implementation. The helper must reject incomplete sets and must be tested before recovery identity uses it.
 - `recoveryInputFingerprint` is action-specific and belongs to a single `RecoveryAttempt`. It is used only to detect whether the inputs consumed by this particular action have changed since the prior attempt **within the same series**. It is not a canonical opportunity or candidate identity.
 
 Action-specific fingerprints include:
@@ -382,7 +382,7 @@ The following invariants must hold for any implementation derived from this cont
 1. **Single policy authority.** `HeldReasonInfo` is the only source for `recoverable`, `automaticRecoveryAllowed`, `allowedAuthorActions`, `allowedTerminalOutcomes`, and `isHardBlocker`.
 2. **Origin-producer authority.** A `RecoveryExecutionAction` is selected only by an origin `HeldReasonProducer`. Decision-projection and annotation sources inform audit and routing but do not initiate independent recovery.
 3. **No decision-summary repair.** `copy_paste_admission_failed`, `strategy_admission_failed`, and `passage_too_long` do not select their own repair action; they either decompose into origin reasons or remain in strategy/withheld until an upstream input changes.
-4. **Canonical identity reuse.** `opportunityVersion` reuses the existing `sourceHashFor` helper in `lib/revision/opportunityLedger.ts`; `candidateSetVersion` requires a new tested helper `candidateSetVersionFor(a, b, c)` using the same `stableStringify` + SHA-256 approach. `recoveryInputFingerprint` is action-specific and subordinate.
+4. **Canonical identity reuse.** `opportunityVersion` is produced exclusively by `revisionOpportunityVersionFor(opportunityId, ledgerSourceHash)`, which delegates to the existing `sourceHashFor` implementation. `candidateSetVersion` is produced exclusively by the tested `candidateSetVersionFor(a, b, c)` helper over a complete normalized ordered set. `recoveryInputFingerprint` is action-specific and subordinate.
 5. **Versioned candidates.** `create_versioned_candidate_set` always creates a new complete A/B/C version; it never mutates the persisted set or fills in missing B/C.
 6. **Missing B/C does not authorize regeneration.** Regeneration requires a material input change or an explicitly authorized origin reason.
 7. **Fail-closed unknowns.** An unknown `producer:code` remains held with `UNKNOWN_RECOVERY_CONTRACT`; no generic fallback is permitted.
@@ -403,14 +403,33 @@ The following are intentionally out of scope until the contract is approved:
 
 ## 15. Resolved recommendations
 
-- `candidateSetVersion` is the stable hash of the ordered, normalized `candidate_text_a`, `candidate_text_b`, `candidate_text_c` strings produced by a new `candidateSetVersionFor(a, b, c)` helper using `stableStringify` + SHA-256.
-- `opportunityVersion` is the existing `source_hash` from the `revision_opportunity_ledger_v1` build, or a per-opportunity value derived from that hash plus a stable opportunity identifier using the same `sourceHashFor` helper in `lib/revision/opportunityLedger.ts`.
-- `passage_too_long` remains a non-recoverative strategy-routing decision in this contract. A future targeting/scope repair action may be added if a real implementation is designed.
+- `candidateSetVersion` is produced by `candidateSetVersionFor({ a, b, c })` from the complete ordered and normalized persisted `candidate_text_a`, `candidate_text_b`, and `candidate_text_c` values. Incomplete sets have no `candidateSetVersion` and are represented as `null`.
+- `opportunityVersion` is produced by `revisionOpportunityVersionFor(opportunityId, ledgerSourceHash)`. The helper uses the existing `sourceHashFor` implementation over the canonical ordered payload `{ opportunityId, ledgerSourceHash }`. The raw ledger `source_hash` is never used alone as a per-opportunity identity.
+- `passage_too_long` remains a non-recoverative strategy-routing decision in this contract. A future targeting/scope repair action may be added only through a separately reviewed contract extension.
 
 ## 16. Deferred design considerations
 
 1. Is `create_versioned_candidate_set` the right action name, or should it be `regenerate_candidates` with explicit version semantics in the contract?
 2. Should the executor emit `action_failed` once per `RecoveryAttempt` or once per `RecoverySeriesKey`?
 3. Should `passage_too_long` eventually map to a real `RecoveryExecutionAction` such as `split_passage_or_reduce_scope` once targeting repair is implemented?
-4. Should `candidateSetVersionFor` accept `WorkbenchOption[]` and normalize `text`/`candidateText` internally, or require callers to pass `{ a, b, c }`?
-5. Should `RecoveryAttemptSnapshot` include the full `classification` object or only the canonical reason-derived fields?
+4. Should `RecoveryAttemptSnapshot` include the full `classification` object or only the canonical reason-derived fields?
+
+## 17. Approval boundary
+
+This contract design is approved for:
+
+- contract type definitions;
+- canonical producer and authority-role registries;
+- `revisionOpportunityVersionFor` and `candidateSetVersionFor` identity helpers;
+- invariant tests and contract-level mapping tests.
+
+This approval does **not** authorize:
+
+- recovery executor or dispatcher implementation;
+- LLM recovery calls;
+- persistence or database writes;
+- Workbench queue mutation;
+- API or UI recovery wiring;
+- production invocation from queue-building or classification paths.
+
+After contract types, helpers, and tests are implemented, pause for review before any runtime recovery behavior is added.

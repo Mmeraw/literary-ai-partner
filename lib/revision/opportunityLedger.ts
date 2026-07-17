@@ -255,7 +255,7 @@ function capRevisionOpportunities(
     .slice(0, maxOpportunities);
 }
 
-function sourceHashFor(payload: unknown): string {
+export function sourceHashFor(payload: unknown): string {
   return createHash('sha256').update(stableStringify(payload)).digest('hex');
 }
 
