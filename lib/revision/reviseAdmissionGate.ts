@@ -1,10 +1,16 @@
-import { evaluateCardCandidateQuality, type CandidateQualityInput } from './candidateQuality';
-import { runCanonGate } from './canonGate';
-import { runVoiceGate } from './voiceGate';
+import {
+  ADMISSION_CANDIDATE_QUALITY_REASON_CODES,
+  evaluateCardCandidateQuality,
+  type CandidateQualityInput,
+} from './candidateQuality';
+import { CANON_GATE_REASON, CANON_GATE_REASON_CODES, runCanonGate } from './canonGate';
+import { runVoiceGate, VOICE_GATE_REASON_CODES } from './voiceGate';
 import {
   checkRecommendationIntegrity,
+  INTEGRITY_VIOLATION_CODES,
   meetsMinimumTier,
   type IntegrityResult,
+  type IntegrityViolationCode,
 } from '@/lib/evaluation/pipeline/recommendationIntegrityGate';
 
 export interface ReviseAdmissionOpportunity {
@@ -69,6 +75,72 @@ export interface AdmissionGateResult {
   localOperationPassed: boolean;
 }
 
+export const DIAGNOSTIC_CONTRACT_REASON = {
+  MISSING_SYMPTOM: 'DIAGNOSTIC_MISSING_SYMPTOM',
+  MISSING_CAUSE: 'DIAGNOSTIC_MISSING_CAUSE',
+  MISSING_FIX_DIRECTION: 'DIAGNOSTIC_MISSING_FIX_DIRECTION',
+  MISSING_READER_EFFECT: 'DIAGNOSTIC_MISSING_READER_EFFECT',
+} as const;
+
+export type DiagnosticContractReasonCode =
+  (typeof DIAGNOSTIC_CONTRACT_REASON)[keyof typeof DIAGNOSTIC_CONTRACT_REASON];
+
+export const DIAGNOSTIC_CONTRACT_REASON_CODES: DiagnosticContractReasonCode[] = Object.values(DIAGNOSTIC_CONTRACT_REASON);
+
+export const ADMISSION_REASON = {
+  UNSUPPORTED_REVISION: 'UNSUPPORTED_REVISION',
+  INSUFFICIENT_BEFORE_AFTER_CONTEXT: 'insufficient_before_after_context',
+  NOT_LOCAL_OPERATION: 'not_local_operation',
+  EVIDENCE_MISSING: 'EVIDENCE_MISSING',
+  HARD_CONTEXT_BLOCK: 'HARD_CONTEXT_BLOCK',
+  HARD_CANON_CONFLICT: 'HARD_CANON_CONFLICT',
+  MISSING_CONCRETE_ACTION: 'MISSING_CONCRETE_ACTION',
+  CONTEXT_INSUFFICIENT: 'CONTEXT_INSUFFICIENT',
+  PREFLIGHT_NOT_PASSED: 'PREFLIGHT_NOT_PASSED',
+  NOT_READY_FOR_REVISE: 'NOT_READY_FOR_REVISE',
+  INTEGRITY_BELOW_PASS_STRONG: 'INTEGRITY_BELOW_PASS_STRONG',
+} as const;
+
+export type AdmissionReasonCode =
+  (typeof ADMISSION_REASON)[keyof typeof ADMISSION_REASON];
+
+export type IntegrityAdmissionReasonCode = `INTEGRITY_${IntegrityViolationCode}`;
+
+export function integrityAdmissionReasonCode(code: IntegrityViolationCode): IntegrityAdmissionReasonCode {
+  return `INTEGRITY_${code}`;
+}
+
+/** Exact admission reason codes emitted by runCopyPasteAdmissionGate. */
+export const COPY_PASTE_ADMISSION_REASON_CODES: string[] = [
+  ADMISSION_REASON.UNSUPPORTED_REVISION,
+  ...DIAGNOSTIC_CONTRACT_REASON_CODES,
+  ADMISSION_REASON.INTEGRITY_BELOW_PASS_STRONG,
+  ...INTEGRITY_VIOLATION_CODES.map(integrityAdmissionReasonCode),
+  ADMISSION_REASON.INSUFFICIENT_BEFORE_AFTER_CONTEXT,
+  ADMISSION_REASON.NOT_LOCAL_OPERATION,
+  ...ADMISSION_CANDIDATE_QUALITY_REASON_CODES,
+  ...VOICE_GATE_REASON_CODES,
+  ...CANON_GATE_REASON_CODES,
+];
+
+/** Exact admission reason codes emitted by runStrategyAdmissionGate. */
+export const STRATEGY_ADMISSION_REASON_CODES: string[] = [
+  ADMISSION_REASON.EVIDENCE_MISSING,
+  ADMISSION_REASON.HARD_CONTEXT_BLOCK,
+  ADMISSION_REASON.HARD_CANON_CONFLICT,
+  ADMISSION_REASON.UNSUPPORTED_REVISION,
+  ...DIAGNOSTIC_CONTRACT_REASON_CODES,
+  ADMISSION_REASON.INTEGRITY_BELOW_PASS_STRONG,
+  ...INTEGRITY_VIOLATION_CODES.map(integrityAdmissionReasonCode),
+  ADMISSION_REASON.MISSING_CONCRETE_ACTION,
+  ...ADMISSION_CANDIDATE_QUALITY_REASON_CODES,
+  ...VOICE_GATE_REASON_CODES,
+  ...CANON_GATE_REASON_CODES,
+  ADMISSION_REASON.PREFLIGHT_NOT_PASSED,
+  ADMISSION_REASON.NOT_READY_FOR_REVISE,
+  ADMISSION_REASON.CONTEXT_INSUFFICIENT,
+];
+
 function optionText(
   opportunity: WorkbenchAdmissionInput,
   key: 'A' | 'B' | 'C',
@@ -99,31 +171,26 @@ export function toReviseAdmissionOpportunity(
 /** Minimum chars for a diagnostic field to count as populated. */
 const DIAGNOSTIC_MIN_LENGTH = 10;
 
-const HARD_CANDIDATE_REASONS = new Set([
-  'GENERIC_PROSE',
-  'NON_EXECUTABLE_PROSE',
-  'NOT_EXECUTABLE',
-  'UNSUPPORTED_FACT',
-  'CONTEXT_MISMATCH',
-  'CANON_DRIFT',
-  'VOICE_DRIFT_POV',
-  'VOICE_DRIFT_TENSE',
-  'VOICE_DRIFT_FORBIDDEN_PATTERN',
+const HARD_CANDIDATE_REASONS = new Set<string>([
+  ...ADMISSION_CANDIDATE_QUALITY_REASON_CODES.filter((code) =>
+    ['GENERIC_PROSE', 'NON_EXECUTABLE_PROSE', 'NOT_EXECUTABLE', 'UNSUPPORTED_FACT', 'CONTEXT_MISMATCH'].includes(code),
+  ),
+  CANON_GATE_REASON.CANON_DRIFT,
 ]);
 
 function diagnosticContractReasons(input: WorkbenchAdmissionInput): string[] {
   const reasons: string[] = [];
   if (!input.symptom || input.symptom.trim().length < DIAGNOSTIC_MIN_LENGTH) {
-    reasons.push('DIAGNOSTIC_MISSING_SYMPTOM');
+    reasons.push(DIAGNOSTIC_CONTRACT_REASON.MISSING_SYMPTOM);
   }
   if (!input.cause || input.cause.trim().length < DIAGNOSTIC_MIN_LENGTH) {
-    reasons.push('DIAGNOSTIC_MISSING_CAUSE');
+    reasons.push(DIAGNOSTIC_CONTRACT_REASON.MISSING_CAUSE);
   }
   if (!input.fixDirection || input.fixDirection.trim().length < DIAGNOSTIC_MIN_LENGTH) {
-    reasons.push('DIAGNOSTIC_MISSING_FIX_DIRECTION');
+    reasons.push(DIAGNOSTIC_CONTRACT_REASON.MISSING_FIX_DIRECTION);
   }
   if (!input.readerEffect || input.readerEffect.trim().length < DIAGNOSTIC_MIN_LENGTH) {
-    reasons.push('DIAGNOSTIC_MISSING_READER_EFFECT');
+    reasons.push(DIAGNOSTIC_CONTRACT_REASON.MISSING_READER_EFFECT);
   }
   return reasons;
 }
@@ -143,9 +210,9 @@ function integrityReasons(input: WorkbenchAdmissionInput): string[] {
   }
 
   const codes = result.violations.map((v) => v.code);
-  const reasons: string[] = ['INTEGRITY_BELOW_PASS_STRONG'];
+  const reasons: string[] = [ADMISSION_REASON.INTEGRITY_BELOW_PASS_STRONG];
   if (codes.length > 0) {
-    reasons.push(...codes.map((code) => `INTEGRITY_${code}`));
+    reasons.push(...codes.map(integrityAdmissionReasonCode));
   }
   return reasons;
 }
@@ -241,11 +308,11 @@ export function runCopyPasteAdmissionGate(
     opportunity.mode === 'direct-rewrite' &&
     opportunity.revisionOperation !== 'needs_targeting';
 
-  if (!groundingPassed) reasons.push('UNSUPPORTED_REVISION');
+  if (!groundingPassed) reasons.push(ADMISSION_REASON.UNSUPPORTED_REVISION);
   if (diagnostic.length > 0) reasons.push(...diagnostic);
   if (integrity.length > 0) reasons.push(...integrity);
-  if (!contextPassed) reasons.push('insufficient_before_after_context');
-  if (!localOperationPassed) reasons.push('not_local_operation');
+  if (!contextPassed) reasons.push(ADMISSION_REASON.INSUFFICIENT_BEFORE_AFTER_CONTEXT);
+  if (!localOperationPassed) reasons.push(ADMISSION_REASON.NOT_LOCAL_OPERATION);
   if (!quality.passed) reasons.push(...quality.reasons);
   if (!noHardReasons) reasons.push(...hardReasons);
   if (voiceCanon.length > 0) reasons.push(...voiceCanon);
@@ -298,13 +365,13 @@ export function runStrategyAdmissionGate(
   const { noHardReasons, hardReasons } = candidateQualityResult(quality);
   const voiceCanon = voiceAndCanonReasons(opportunity);
 
-  if (!needsTargeting && !hasEvidence) reasons.push('EVIDENCE_MISSING');
-  if (!noHardContextBlock) reasons.push('HARD_CONTEXT_BLOCK');
-  if (!noHardCanonConflict) reasons.push('HARD_CANON_CONFLICT');
-  if (!groundingPassed) reasons.push('UNSUPPORTED_REVISION');
+  if (!needsTargeting && !hasEvidence) reasons.push(ADMISSION_REASON.EVIDENCE_MISSING);
+  if (!noHardContextBlock) reasons.push(ADMISSION_REASON.HARD_CONTEXT_BLOCK);
+  if (!noHardCanonConflict) reasons.push(ADMISSION_REASON.HARD_CANON_CONFLICT);
+  if (!groundingPassed) reasons.push(ADMISSION_REASON.UNSUPPORTED_REVISION);
   if (diagnostic.length > 0) reasons.push(...diagnostic);
   if (!needsTargeting && integrity.length > 0) reasons.push(...integrity);
-  if (!hasConcreteAction(opportunity)) reasons.push('MISSING_CONCRETE_ACTION');
+  if (!hasConcreteAction(opportunity)) reasons.push(ADMISSION_REASON.MISSING_CONCRETE_ACTION);
   if (!noHardReasons) reasons.push(...hardReasons);
   if (!needsTargeting && !quality.passed) reasons.push(...quality.reasons);
   if (voiceCanon.length > 0) reasons.push(...voiceCanon);
@@ -333,13 +400,13 @@ export function runWorkbenchAdmissionGate(
   const legacyReasons: string[] = [];
 
   if (opportunity.readiness !== 'ready_for_revise') {
-    legacyReasons.push('NOT_READY_FOR_REVISE');
+    legacyReasons.push(ADMISSION_REASON.NOT_READY_FOR_REVISE);
   }
   if (
     opportunity.preflightStatus !== 'passed' &&
     opportunity.preflightStatus !== 'limited_context'
   ) {
-    legacyReasons.push('PREFLIGHT_NOT_PASSED');
+    legacyReasons.push(ADMISSION_REASON.PREFLIGHT_NOT_PASSED);
   }
 
   const defaultedOpportunity = {
@@ -352,7 +419,7 @@ export function runWorkbenchAdmissionGate(
   const allReasons = Array.from(new Set([...legacyReasons, ...result.reasons]));
 
   if (!result.contextPassed) {
-    allReasons.push('CONTEXT_INSUFFICIENT');
+    allReasons.push(ADMISSION_REASON.CONTEXT_INSUFFICIENT);
   }
 
   return {
@@ -367,15 +434,15 @@ export function runReviseAdmissionGate(
 ): ReviseAdmissionResult {
   const reasons: string[] = [];
 
-  if (opportunity.grounding_status !== 'supported') reasons.push('UNSUPPORTED_REVISION');
+  if (opportunity.grounding_status !== 'supported') reasons.push(ADMISSION_REASON.UNSUPPORTED_REVISION);
   if (
     opportunity.preflight_status !== 'passed' &&
     opportunity.preflight_status !== 'limited_context'
   ) {
-    reasons.push('PREFLIGHT_NOT_PASSED');
+    reasons.push(ADMISSION_REASON.PREFLIGHT_NOT_PASSED);
   }
   if (opportunity.context_quality !== 'clean' && opportunity.context_quality !== 'limited') {
-    reasons.push('CONTEXT_INSUFFICIENT');
+    reasons.push(ADMISSION_REASON.CONTEXT_INSUFFICIENT);
   }
 
   const base = {
