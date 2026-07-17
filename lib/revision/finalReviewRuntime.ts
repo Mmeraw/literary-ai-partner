@@ -333,7 +333,7 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
 
     const occurrences = countOccurrences(text, source);
     if (occurrences === 0) {
-      blocked.push(`${decision.opportunity_title}: source excerpt no longer matches source manuscript version.`);
+      blocked.push(`${decision.opportunity_title}: source excerpt anchor was not found in the current manuscript text.`);
       continue;
     }
     if (occurrences > 1) {

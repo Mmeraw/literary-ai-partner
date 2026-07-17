@@ -313,7 +313,7 @@ describe('final review runtime governance', () => {
 
       const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
       expect(result.ok).toBe(false);
-      expect(result.error).toMatch(/source excerpt no longer matches/i);
+      expect(result.error).toMatch(/source excerpt anchor was not found/i);
     });
 
     it('blocks apply when a source excerpt is not unique', async () => {
