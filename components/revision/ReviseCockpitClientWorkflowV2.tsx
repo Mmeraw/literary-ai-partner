@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
+import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
 import WorkbenchCardSurface from "./WorkbenchCardSurface";
 import { adaptWorkbenchOpportunityToCard } from "./workbenchCardAdapter";
 import type { CopyPasteCandidateKey } from "./workbenchCardModels";
@@ -152,7 +153,9 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
   });
 
   const active = filteredItems.find((item) => item.id === activeId) ?? filteredItems[0] ?? openItems[0] ?? null;
-  const activeCard = active ? adaptWorkbenchOpportunityToCard(active) : null;
+  const activeCard = active
+    ? adaptWorkbenchOpportunityToCard(active as ClassifiedWorkbenchOpportunity)
+    : null;
   const failedEntries = ledger.filter((entry) => entry.syncStatus === "failed");
   const totalInteractive = interactiveItems.length;
   const completedCount = ledger.length;
@@ -443,7 +446,10 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
                 {heldItems.length ? (
                   heldItems.map((item) => (
                     <div key={item.id} className="rounded-xl border border-[var(--rg-workbench-border)] bg-[var(--rg-workbench-surface)] p-5">
-                      <WorkbenchCardSurface viewModel={adaptWorkbenchOpportunityToCard(item)} actions={{ onRequestReanalysis: () => requestReanalysis(item) }} />
+                      <WorkbenchCardSurface
+                        viewModel={adaptWorkbenchOpportunityToCard(item as ClassifiedWorkbenchOpportunity)}
+                        actions={{ onRequestReanalysis: () => requestReanalysis(item) }}
+                      />
                     </div>
                   ))
                 ) : (

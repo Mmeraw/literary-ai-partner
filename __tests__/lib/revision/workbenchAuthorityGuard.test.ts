@@ -40,7 +40,8 @@ describe('Workbench authority source guard', () => {
     expect(adapterSource).not.toContain('evaluateRecommendationExecutability');
     expect(adapterSource).not.toContain('needs_targeting');
     expect(adapterSource).not.toContain('readiness ===');
-    expect(adapterSource).not.toContain('finalDecision');
+    expect(adapterSource).toContain('finalDecision.cardType');
+    expect(adapterSource).not.toContain('switch (item.cardType)');
     expect(adapterSource).not.toContain('partitionWorkbenchQueue');
     expect(adapterSource).not.toContain('partitionClassifiedWorkbenchQueue');
   });

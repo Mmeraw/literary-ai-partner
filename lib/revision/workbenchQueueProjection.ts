@@ -248,14 +248,14 @@ function isLocalContextVerified(opportunity: WorkbenchOpportunity): boolean {
 export type WorkbenchExecutabilityClassification = {
   cardType: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld'
   trustedPathStatus: 'eligible' | 'unavailable_author_review_required' | 'impossible'
-  reasons: string[]
+  reasons: readonly string[]
   strategyCardViewModel: StrategyCardViewModel | null
   copyPasteAdmissionPassed: boolean
   copyPasteAdmissionReasons: string[]
   strategyAdmissionPassed: boolean
   strategyAdmissionReasons: string[]
-  baseDecision: RecommendationExecutabilityDecision
-  finalDecision: RecommendationExecutabilityDecision
+  baseDecision: Readonly<RecommendationExecutabilityDecision>
+  finalDecision: Readonly<RecommendationExecutabilityDecision>
   needsTargetingPromotionApplied: boolean
   promotionTransitionReason: string | null
   gates: {
@@ -267,8 +267,8 @@ export type WorkbenchExecutabilityClassification = {
 
 export type ClassifiedWorkbenchOpportunity = WorkbenchOpportunity & {
   classification: WorkbenchExecutabilityClassification
-  baseDecision: RecommendationExecutabilityDecision
-  finalDecision: RecommendationExecutabilityDecision
+  baseDecision: Readonly<RecommendationExecutabilityDecision>
+  finalDecision: Readonly<RecommendationExecutabilityDecision>
 }
 
 function buildRecommendationExecutabilityDecision(
@@ -279,7 +279,7 @@ function buildRecommendationExecutabilityDecision(
   return {
     cardType: executability.cardType,
     trustedPathStatus: executability.trustedPathStatus,
-    reasons: executability.reasons,
+    reasons: [...executability.reasons],
   }
 }
 
@@ -474,7 +474,7 @@ export function buildClassifiedWorkbenchOpportunity(
     ...opportunity,
     cardType: classification.finalDecision.cardType,
     trustedPathStatus: classification.finalDecision.trustedPathStatus,
-    executabilityReasons: classification.finalDecision.reasons,
+    executabilityReasons: [...classification.finalDecision.reasons],
     strategyCardViewModel: classification.strategyCardViewModel,
     classification,
     baseDecision: classification.baseDecision,
@@ -601,9 +601,9 @@ export function isSupportedForUserQueue(opportunity: WorkbenchOpportunity): bool
 export function partitionClassifiedWorkbenchQueue(
   opportunities: ClassifiedWorkbenchOpportunity[],
 ): {
-  opportunities: WorkbenchOpportunity[]
-  needsTargeting: WorkbenchOpportunity[]
-  withheldUnsupported: WorkbenchOpportunity[]
+  opportunities: ClassifiedWorkbenchOpportunity[]
+  needsTargeting: ClassifiedWorkbenchOpportunity[]
+  withheldUnsupported: ClassifiedWorkbenchOpportunity[]
   readinessTotals: { ready_for_revise: number; needs_targeting: number; withheld_unsupported: number }
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
@@ -660,9 +660,9 @@ export function partitionClassifiedWorkbenchQueue(
 }
 
 export function partitionWorkbenchQueue(opportunities: WorkbenchOpportunity[]): {
-  opportunities: WorkbenchOpportunity[]
-  needsTargeting: WorkbenchOpportunity[]
-  withheldUnsupported: WorkbenchOpportunity[]
+  opportunities: ClassifiedWorkbenchOpportunity[]
+  needsTargeting: ClassifiedWorkbenchOpportunity[]
+  withheldUnsupported: ClassifiedWorkbenchOpportunity[]
   readinessTotals: { ready_for_revise: number; needs_targeting: number; withheld_unsupported: number }
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
