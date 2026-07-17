@@ -1,5 +1,6 @@
 import { adaptWorkbenchOpportunityToCard } from '@/components/revision/workbenchCardAdapter';
 import type { WorkbenchOpportunity } from '@/lib/revision/workbenchQueue';
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from '@/lib/revision/workbenchQueueProjection';
 
 function makeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): WorkbenchOpportunity {
   return {
@@ -73,6 +74,26 @@ describe('adaptWorkbenchOpportunityToCard', () => {
     expect(result.cardType).toBe('withheld');
     if (result.cardType !== 'withheld') throw new Error('wrong card type');
     expect(result.holdReason).toMatch(/canon_unclear/);
+    expect('candidates' in result).toBe(false);
+  });
+
+  it('preserves the classified final decision through the adapter without rereading stale raw cardType', () => {
+    const opportunity = makeOpportunity({
+      cardType: 'withheld',
+      trustedPathStatus: 'impossible',
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    });
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+    const classified = buildClassifiedWorkbenchOpportunity(opportunity, classification);
+
+    const result = adaptWorkbenchOpportunityToCard(classified);
+
+    expect(result.cardType).toBe(classification.finalDecision.cardType);
+    expect(result.trustedPathStatus).toBe(classification.finalDecision.trustedPathStatus);
+    expect('holdReason' in result).toBe(false);
     expect('candidates' in result).toBe(false);
   });
 });

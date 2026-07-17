@@ -260,6 +260,28 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
     expect(telemetry.presentationDiagnostics.withheldAdapterOutput).toEqual([])
   })
 
+  it('preserves unknown routing labels in audit telemetry without altering provenance', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'unknown' as any)
+
+    expect(telemetry.routing.queueBucket).toBe('unknown')
+    expect(telemetry.classification.finalDecision.cardType).toBe(classification.finalDecision.cardType)
+    expect(telemetry.rawDiagnostics.preflightReasons).toEqual(opportunity.preflightReasons ?? [])
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput).toEqual(
+      telemetry.presentationDiagnostics.strategyUnsafeReasonsInput,
+    )
+  })
+
   it('uses scaffold reason text as strategy presentation input provenance when provided', () => {
     const opportunity = makeOpportunity({
       readiness: 'needs_targeting',
