@@ -26,6 +26,8 @@ type LedgerEntry = {
   syncStatus: "pending" | "synced" | "failed";
 };
 
+type LedgerSyncError = Error & { status?: number };
+
 function toLocalLedgerEntry(row: SyncedRevisionLedgerRow): LedgerEntry {
   const selectedOption = row.selected_option === "A" || row.selected_option === "B" || row.selected_option === "C"
     ? row.selected_option
@@ -44,9 +46,11 @@ function toLocalLedgerEntry(row: SyncedRevisionLedgerRow): LedgerEntry {
 function latestRowsByOpportunity(rows: SyncedRevisionLedgerRow[]): SyncedRevisionLedgerRow[] {
   const latestByOpportunity = new Map<string, SyncedRevisionLedgerRow>();
   const ordered = [...rows].sort((left, right) => {
-    const leftIso = left.created_at || left.updated_at || "";
-    const rightIso = right.created_at || right.updated_at || "";
-    return rightIso.localeCompare(leftIso);
+    const createdOrder = right.created_at.localeCompare(left.created_at);
+    if (createdOrder !== 0) return createdOrder;
+    const updatedOrder = right.updated_at.localeCompare(left.updated_at);
+    if (updatedOrder !== 0) return updatedOrder;
+    return right.id.localeCompare(left.id);
   });
 
   for (const row of ordered) {
@@ -57,9 +61,11 @@ function latestRowsByOpportunity(rows: SyncedRevisionLedgerRow[]): SyncedRevisio
   }
 
   return [...latestByOpportunity.values()].sort((left, right) => {
-    const leftIso = left.created_at || left.updated_at || "";
-    const rightIso = right.created_at || right.updated_at || "";
-    return rightIso.localeCompare(leftIso);
+    const createdOrder = right.created_at.localeCompare(left.created_at);
+    if (createdOrder !== 0) return createdOrder;
+    const updatedOrder = right.updated_at.localeCompare(left.updated_at);
+    if (updatedOrder !== 0) return updatedOrder;
+    return right.id.localeCompare(left.id);
   });
 }
 
@@ -85,6 +91,16 @@ function formatCriterion(value: string): string {
 
 function decisionFor(key: CopyPasteCandidateKey): Decision {
   return key === "A" ? "accepted_a" : key === "B" ? "accepted_b" : "accepted_c";
+}
+
+function decisionLabel(decision: Decision, selectedOption: CopyPasteCandidateKey | null): string {
+  if (decision === "accepted_a" || decision === "accepted_b" || decision === "accepted_c") {
+    return `Accepted ${selectedOption ?? decision.slice(-1).toUpperCase()}`;
+  }
+  if (decision === "custom") return "Custom rewrite";
+  if (decision === "keep_original") return "Kept original";
+  if (decision === "reject") return "Rejected";
+  return "Deferred";
 }
 
 function cardLabel(item: WorkbenchOpportunity): string {
@@ -217,13 +233,15 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
   const [activeId, setActiveId] = useState(interactiveItems[0]?.id ?? "");
   const [selectedKey, setSelectedKey] = useState<CopyPasteCandidateKey>("A");
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [failedEntries, setFailedEntries] = useState<LedgerEntry[]>([]);
   const [latestLocalIdByOpportunity, setLatestLocalIdByOpportunity] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState<"all" | WorkbenchOpportunity["severity"]>("all");
   const [showHeld, setShowHeld] = useState(interactiveItems.length === 0 && heldItems.length > 0);
 
-  const decidedIds = useMemo(() => new Set(ledger.map((entry) => entry.opportunityId)), [ledger]);
+  const authoritativeLedger = useMemo(() => ledger.filter((entry) => entry.syncStatus === "synced"), [ledger]);
+  const decidedIds = useMemo(() => new Set(authoritativeLedger.map((entry) => entry.opportunityId)), [authoritativeLedger]);
   const openItems = interactiveItems.filter((item) => !decidedIds.has(item.id));
   const filteredItems = openItems.filter((item) => {
     if (priority !== "all" && item.severity !== priority) return false;
@@ -236,36 +254,47 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
   const activeCard = active
     ? adaptWorkbenchOpportunityToCard(asClassifiedOpportunity(active))
     : null;
-  const failedEntries = ledger.filter((entry) => entry.syncStatus === "failed");
   const totalInteractive = interactiveItems.length;
-  const completedCount = ledger.length;
+  const completedCount = authoritativeLedger.length;
+
+  async function loadLedgerFromAuthority() {
+    const params = new URLSearchParams({
+      manuscriptId: payload.manuscriptId ?? "",
+      evaluationJobId: payload.evaluationJobId ?? "",
+    });
+    const response = await fetch(`/api/revision-ledger?${params.toString()}`);
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.ok || !Array.isArray(json?.entries)) {
+      throw new Error(json?.error ?? "Ledger reload failed");
+    }
+
+    const latestRows = latestRowsByOpportunity(json.entries as SyncedRevisionLedgerRow[]);
+    return {
+      entries: latestRows.map(toLocalLedgerEntry),
+      latestLocalByOpportunity: Object.fromEntries(
+        latestRows.map((row) => [row.opportunity_id, row.local_id]),
+      ) as Record<string, string>,
+    };
+  }
+
+  async function hydrateLedgerFromAuthority() {
+    const authority = await loadLedgerFromAuthority();
+    setLedger(authority.entries);
+    setLatestLocalIdByOpportunity(authority.latestLocalByOpportunity);
+    return authority;
+  }
 
   useEffect(() => {
     if (!payload.manuscriptId || !payload.evaluationJobId) return;
 
     let cancelled = false;
 
-    async function hydrateLedgerFromAuthority() {
+    async function hydrateOnMount() {
       try {
-        const params = new URLSearchParams({
-          manuscriptId: payload.manuscriptId,
-          evaluationJobId: payload.evaluationJobId,
-        });
-        const response = await fetch(`/api/revision-ledger?${params.toString()}`);
-        const json = await response.json().catch(() => null);
-        if (!response.ok || !json?.ok || !Array.isArray(json?.entries)) {
-          throw new Error(json?.error ?? "Ledger reload failed");
-        }
+        const authority = await loadLedgerFromAuthority();
         if (cancelled) return;
-
-        const latestRows = latestRowsByOpportunity(json.entries as SyncedRevisionLedgerRow[]);
-        const rehydratedEntries = latestRows.map(toLocalLedgerEntry);
-        const latestLocalByOpportunity = Object.fromEntries(
-          latestRows.map((row) => [row.opportunity_id, row.local_id]),
-        );
-
-        setLedger(rehydratedEntries);
-        setLatestLocalIdByOpportunity(latestLocalByOpportunity);
+        setLedger(authority.entries);
+        setLatestLocalIdByOpportunity(authority.latestLocalByOpportunity);
       } catch {
         if (!cancelled) {
           setMessage("Reload failed: using local queue state");
@@ -273,7 +302,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
       }
     }
 
-    void hydrateLedgerFromAuthority();
+    void hydrateOnMount();
 
     return () => {
       cancelled = true;
@@ -323,12 +352,32 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
         }),
       });
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.ok) throw new Error(json?.error ?? "Ledger sync failed");
-      setLedger((rows) => rows.map((row) => (row.localId === entry.localId ? { ...row, syncStatus: "synced" } : row)));
-      setLatestLocalIdByOpportunity((existing) => ({ ...existing, [item.id]: entry.localId }));
+      if (!response.ok || !json?.ok) {
+        const error = new Error(json?.error ?? "Ledger sync failed") as LedgerSyncError;
+        error.status = response.status;
+        throw error;
+      }
+
+      const syncedRow = Array.isArray(json.entries) ? (json.entries as SyncedRevisionLedgerRow[])[0] : null;
+      const syncedEntry = syncedRow ? toLocalLedgerEntry(syncedRow) : { ...entry, syncStatus: "synced" as const };
+      setLedger((rows) => [syncedEntry, ...rows.filter((row) => row.opportunityId !== item.id)]);
+      setFailedEntries((rows) => rows.filter((row) => row.opportunityId !== item.id));
+      setLatestLocalIdByOpportunity((existing) => ({ ...existing, [item.id]: syncedEntry.localId }));
       setMessage(`Saved: ${entry.opportunityTitle}`);
-    } catch {
-      setLedger((rows) => rows.map((row) => (row.localId === entry.localId ? { ...row, syncStatus: "failed" } : row)));
+    } catch (error) {
+      const syncError = error as LedgerSyncError;
+      const failed = { ...entry, syncStatus: "failed" as const };
+      setLedger((rows) => rows.filter((row) => row.localId !== entry.localId));
+      setFailedEntries((rows) => [failed, ...rows.filter((row) => row.localId !== entry.localId)]);
+      if (syncError.status === 409) {
+        try {
+          await hydrateLedgerFromAuthority();
+          setMessage(`Save failed: ${entry.opportunityTitle}; reloaded latest ledger state`);
+        } catch {
+          setMessage(`Save failed: ${entry.opportunityTitle}; reload failed`);
+        }
+        return;
+      }
       setMessage(`Save failed: ${entry.opportunityTitle}`);
     }
   }
@@ -340,7 +389,8 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
       return;
     }
     const pending = { ...entry, syncStatus: "pending" as const };
-    setLedger((rows) => rows.map((row) => (row.localId === entry.localId ? pending : row)));
+    setFailedEntries((rows) => rows.filter((row) => row.localId !== entry.localId));
+    setLedger((rows) => [pending, ...rows.filter((row) => row.localId !== entry.localId)]);
     setMessage(`Retrying: ${entry.opportunityTitle}`);
     void sync(pending, item);
   }
@@ -418,6 +468,16 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
                   {heldItems.length} held
                 </button>
                 {message && <span className={cn("h-10 rounded-md border px-3 py-2 text-xs flex items-center", messageClasses(message))} role="status" aria-live="polite">{message}</span>}
+                {failedEntries.map((entry) => (
+                  <button
+                    key={entry.localId}
+                    type="button"
+                    onClick={() => retry(entry)}
+                    className={cn("h-10 rounded-md border border-[#8f4141] bg-[#2a1010] px-3 py-2 text-xs font-semibold text-[var(--rg-workbench-danger)]", focusRing)}
+                  >
+                    Retry: {entry.opportunityTitle}
+                  </button>
+                ))}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -600,12 +660,20 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
                   }}
                 />
               </div>
-            ) : ledger.length ? (
+            ) : authoritativeLedger.length ? (
               <div className="flex h-full items-center justify-center">
                 <div className="max-w-lg rounded-xl border border-[#2a5a3f] bg-[#132a1e] p-8 text-center">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--rg-workbench-success)]">Queue complete</p>
                   <h2 className="mt-2 text-lg font-semibold text-[var(--rg-workbench-text-primary)]">All active opportunities are in the ledger</h2>
                   <p className="mt-3 text-sm leading-6 text-[var(--rg-workbench-text-secondary)]">Open Final Review to apply accepted changes or inspect your deferred and rejected decisions.</p>
+                  <ul className="mt-4 space-y-2 text-left" aria-label="Authoritative ledger decisions">
+                    {authoritativeLedger.map((entry) => (
+                      <li key={entry.localId} className="rounded-md border border-[var(--rg-workbench-border)] bg-[var(--rg-workbench-bg)] px-3 py-2 text-sm text-[var(--rg-workbench-text-secondary)]">
+                        <span className="font-semibold text-[var(--rg-workbench-text-primary)]">{entry.opportunityTitle}</span>
+                        <span> — {decisionLabel(entry.decision, entry.selectedOption)}</span>
+                      </li>
+                    ))}
+                  </ul>
                   {failedEntries.length > 0 && (
                     <div className="mt-4 rounded-md border border-[#8f4141] bg-[#2a1010] p-3 text-left">
                       <p className="text-sm text-[var(--rg-workbench-danger)]">

@@ -75,7 +75,53 @@ function buildSupabaseMock(options?: { otherOwnerId?: string; readBackOverride?:
     return query;
   }
 
-  const upsertSpy = jest.fn(async (rows: unknown[]) => {
+  function latestRowFor(row: Record<string, unknown>) {
+    return [...persistedRows]
+      .filter(
+        (candidate) =>
+          candidate.user_id === row.user_id &&
+          candidate.manuscript_id === row.manuscript_id &&
+          candidate.evaluation_job_id === row.evaluation_job_id &&
+          candidate.opportunity_id === row.opportunity_id &&
+          candidate.is_undo === false,
+      )
+      .sort((left, right) => {
+        const created = String(right.created_at ?? '').localeCompare(String(left.created_at ?? ''));
+        if (created !== 0) return created;
+        const updated = String(right.updated_at ?? '').localeCompare(String(left.updated_at ?? ''));
+        if (updated !== 0) return updated;
+        return String(right.id ?? '').localeCompare(String(left.id ?? ''));
+      })[0];
+  }
+
+  async function persistRowsAtomically(name: string, payload: { p_rows?: unknown[] }) {
+    if (name !== 'sync_revision_ledger_decisions_atomic') {
+      return { data: null, error: { message: `Unexpected rpc: ${name}` } };
+    }
+
+    const rows = payload.p_rows ?? [];
+    for (const row of rows as Record<string, unknown>[]) {
+      if (row.is_undo === true) continue;
+      const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+      if (!Object.prototype.hasOwnProperty.call(metadata, 'expectedCurrentLocalId')) continue;
+
+      const expected = typeof metadata.expectedCurrentLocalId === 'string'
+        ? metadata.expectedCurrentLocalId.trim() || null
+        : metadata.expectedCurrentLocalId === null
+          ? null
+          : metadata.expectedCurrentLocalId;
+      const actual = (latestRowFor(row)?.local_id as string | undefined) ?? null;
+      if (expected !== actual) {
+        return {
+          data: null,
+          error: {
+            message: `Ledger stale write blocked: expected current localId ${expected ?? 'null'} but found ${actual ?? 'null'} for opportunity ${String(row.opportunity_id)}.`,
+          },
+        };
+      }
+    }
+
+    const syncedRows: Record<string, unknown>[] = [];
     for (const row of rows as Record<string, unknown>[]) {
       const existingIndex = persistedRows.findIndex(
         (candidate) =>
@@ -93,21 +139,32 @@ function buildSupabaseMock(options?: { otherOwnerId?: string; readBackOverride?:
           created_at: existing.created_at,
           updated_at: row.updated_at ?? new Date().toISOString(),
         };
+        syncedRows.push(persistedRows[existingIndex]);
       } else {
-        persistedRows.push({
+        const inserted = {
           id: `row-${persistedRows.length + 1}`,
           created_at: row.client_created_at ?? new Date().toISOString(),
           updated_at: row.updated_at ?? new Date().toISOString(),
           ...row,
-        });
+        };
+        persistedRows.push(inserted);
+        syncedRows.push(inserted);
       }
     }
-    return { error: null };
+    return { data: syncedRows, error: null };
+  }
+
+  let rpcChain = Promise.resolve<unknown>(undefined);
+  const upsertSpy = jest.fn((name: string, payload: { p_rows?: unknown[] }) => {
+    const run = rpcChain.then(() => persistRowsAtomically(name, payload));
+    rpcChain = run.catch(() => undefined);
+    return run;
   });
 
   return {
     upsertSpy,
     client: {
+      rpc: upsertSpy,
       from: jest.fn((table: string) => {
         if (table === 'manuscripts') {
           return singleQuery({ id: 6074, title: 'Sister', user_id: manuscriptsOwnerId });
@@ -119,7 +176,6 @@ function buildSupabaseMock(options?: { otherOwnerId?: string; readBackOverride?:
 
         if (table === 'revision_ledger_decisions') {
           return {
-            upsert: upsertSpy,
             select: () => buildLedgerQuery(),
           };
         }
@@ -243,8 +299,8 @@ describe('revision ledger quality drift metrics', () => {
     expect(mockGetWorkbenchQueue).toHaveBeenCalledTimes(1);
     expect(mockGetWorkbenchQueue).toHaveBeenCalledWith({ user: { id: 'user-1' }, manuscriptId: '6074', evaluationJobId: 'job-1' });
     expect(upsertSpy).toHaveBeenCalledTimes(1);
-    const [persistedRows] = upsertSpy.mock.calls[0];
-    const [persisted] = persistedRows as Array<{ metadata: Record<string, unknown> }>;
+    const [, rpcPayload] = upsertSpy.mock.calls[0];
+    const [persisted] = (rpcPayload as { p_rows: Array<{ metadata: Record<string, unknown> }> }).p_rows;
     expect(persisted.metadata.source).toBe('unit-test');
     expect(persisted.metadata.revision_quality).toMatchObject({
       measurement_version: 'revision_quality_drift_v1',
@@ -466,8 +522,8 @@ describe('revision ledger quality drift metrics', () => {
       ],
     });
 
-    const [persistedRows] = upsertSpy.mock.calls[0];
-    expect((persistedRows as any[])[0].user_id).toBe(OWNER_ID);
+    const [, rpcPayload] = upsertSpy.mock.calls[0];
+    expect((rpcPayload as { p_rows: any[] }).p_rows[0].user_id).toBe(OWNER_ID);
   });
 
   it('returns deferred/kept/rejected decisions from listRevisionLedgerDecisions', async () => {
@@ -762,5 +818,70 @@ describe('revision ledger quality drift metrics', () => {
     const latest = [...rows].sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
     expect(latest.local_id).toBe('local-v4');
     expect(latest.decision).toBe('keep_original');
+  });
+
+  it('atomically rejects one of two concurrent successors based on the same expected ledger head', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-v3',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'deferred',
+          clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          metadata: { expectedCurrentLocalId: null },
+        },
+      ],
+    });
+
+    const tabB = syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-v4',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'keep_original',
+          clientCreatedAt: '2026-06-06T00:00:01.000Z',
+          metadata: { expectedCurrentLocalId: 'local-v3' },
+        },
+      ],
+    });
+
+    const tabAStale = syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-v5-stale',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'reject',
+          clientCreatedAt: '2026-06-06T00:00:02.000Z',
+          metadata: { expectedCurrentLocalId: 'local-v3' },
+        },
+      ],
+    });
+
+    const results = await Promise.allSettled([tabB, tabAStale]);
+
+    expect(results[0].status).toBe('fulfilled');
+    expect(results[1].status).toBe('rejected');
+    if (results[1].status === 'rejected') {
+      expect(results[1].reason.message).toContain('Ledger stale write blocked');
+    }
+
+    const rows = await listRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1' });
+    const latest = [...rows].sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+    expect(latest.local_id).toBe('local-v4');
+    expect(latest.decision).toBe('keep_original');
+    expect(rows.some((row) => row.local_id === 'local-v5-stale')).toBe(false);
   });
 });

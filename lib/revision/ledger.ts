@@ -29,17 +29,6 @@ export type SyncRevisionLedgerEntryInput = {
   metadata?: Record<string, unknown> | null;
 };
 
-type ExistingDecisionRow = {
-  id: string;
-  opportunity_id: string;
-  local_id: string;
-  decision: RevisionLedgerDecision;
-  selected_option: "A" | "B" | "C" | null;
-  selected_text: string | null;
-  custom_text: string | null;
-  created_at: string;
-};
-
 export type SyncRevisionLedgerInput = {
   manuscriptId: string | number;
   evaluationJobId: string;
@@ -498,42 +487,9 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
 
   assertBatchUniqueness(entries);
 
-  const opportunityIds = [...new Set(entries.filter((entry) => !entry.isUndo).map((entry) => entry.opportunityId.trim()).filter(Boolean))];
-  const latestDecisionByOpportunity = new Map<string, ExistingDecisionRow>();
-
-  if (opportunityIds.length > 0) {
-    const { data: existingRows, error: existingRowsError } = await supabase
-      .from('revision_ledger_decisions')
-      .select('id, opportunity_id, local_id, decision, selected_option, selected_text, custom_text, created_at')
-      .eq('user_id', targetUserId)
-      .eq('manuscript_id', manuscriptId)
-      .eq('evaluation_job_id', input.evaluationJobId)
-      .eq('is_undo', false)
-      .in('opportunity_id', opportunityIds)
-      .order('created_at', { ascending: false });
-
-    if (existingRowsError) throw new Error(existingRowsError.message);
-
-    for (const row of (existingRows ?? []) as ExistingDecisionRow[]) {
-      if (!latestDecisionByOpportunity.has(row.opportunity_id)) {
-        latestDecisionByOpportunity.set(row.opportunity_id, row);
-      }
-    }
-  }
-
   for (const entry of entries) {
     if (entry.isUndo) continue;
-
-    const staleExpectation = extractExpectedCurrentLocalId(entry.metadata ?? null);
-    if (!staleExpectation.provided) continue;
-
-    const latest = latestDecisionByOpportunity.get(entry.opportunityId);
-    const actualCurrentLocalId = latest?.local_id?.trim() || null;
-    if (staleExpectation.value !== actualCurrentLocalId) {
-      throw new Error(
-        `Ledger stale write blocked: expected current localId ${staleExpectation.value ?? 'null'} but found ${actualCurrentLocalId ?? 'null'} for opportunity ${entry.opportunityId}.`,
-      );
-    }
+    extractExpectedCurrentLocalId(entry.metadata ?? null);
   }
 
   const rows = entries.map((entry) => ({
@@ -560,11 +516,11 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
 
   const localIds = rows.map((row) => row.local_id);
 
-  const { error: upsertError } = await supabase
-    .from("revision_ledger_decisions")
-    .upsert(rows, { onConflict: "user_id,evaluation_job_id,local_id" });
+  const { error: syncError } = await supabase.rpc("sync_revision_ledger_decisions_atomic", {
+    p_rows: rows,
+  });
 
-  if (upsertError) throw new Error(upsertError.message);
+  if (syncError) throw new Error(syncError.message);
 
   // Canonical read-back: do not return synced until the durable rows have been
   // re-read and identity-checked. This is the source of truth the client will

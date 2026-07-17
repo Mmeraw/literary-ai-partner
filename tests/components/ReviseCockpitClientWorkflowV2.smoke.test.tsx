@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), refresh: jest.fn(), back: jest.fn(), forward: jest.fn(), prefetch: jest.fn() }),
@@ -319,5 +319,57 @@ describe('ReviseCockpitClientWorkflowV2', () => {
     expect(screen.queryByRole('button', { name: 'Accept A' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Accept B' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Accept C' })).toBeNull();
+  });
+
+  it('reloads persisted authority after a 409 stale write and does not let the failed attempt decide the card', async () => {
+    const serverLatest = asLedgerRow({
+      localId: 'server-local-v4',
+      opportunityId: 'ready-1',
+      opportunityTitle: 'Bridge abrupt transition',
+      decision: 'reject',
+      selectedOption: null,
+      selectedText: 'Rejected recommendation',
+    });
+    let getCount = 0;
+
+    fetchMock = jest.fn(async (_input: unknown, init?: { method?: string; body?: unknown }) => {
+      if (!init?.method || init.method === 'GET') {
+        getCount += 1;
+        return {
+          ok: true,
+          json: async () => ({ ok: true, entries: getCount === 1 ? [] : [serverLatest] }),
+        };
+      }
+
+      if (init.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        expect(body.entries[0].decision).toBe('accepted_a');
+        return {
+          ok: false,
+          status: 409,
+          json: async () => ({
+            ok: false,
+            error: 'Ledger stale write blocked: expected current localId null but found server-local-v4 for opportunity ready-1.',
+          }),
+        };
+      }
+
+      return { ok: false, status: 405, json: async () => ({ ok: false, error: 'Unexpected method' }) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
+    await waitFor(() => expect(getCount).toBe(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept A' }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('reloaded latest ledger state'));
+    expect(screen.getByText(/1 of 1 active decisions recorded/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Active \(0\)/i })).toBeTruthy();
+    const authoritativeDecisions = screen.getByLabelText('Authoritative ledger decisions');
+    expect(within(authoritativeDecisions).getByText(/Bridge abrupt transition/).textContent).toContain('Bridge abrupt transition');
+    expect(authoritativeDecisions.textContent).toContain('Rejected');
+    expect(authoritativeDecisions.textContent).not.toContain('Accepted A');
+    expect(screen.getAllByRole('button', { name: /Retry: Bridge abrupt transition/i }).length).toBeGreaterThan(0);
   });
 });
