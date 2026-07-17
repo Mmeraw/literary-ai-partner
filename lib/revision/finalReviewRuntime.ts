@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { upsertEvaluationArtifact } from "@/lib/evaluation/artifactPersistence";
 import { resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
+import { countOccurrences } from "@/lib/revision/finalReviewPresentation";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import {
   buildReviseCompletionCertification,
@@ -51,13 +52,6 @@ type RuntimeDecision = {
 };
 
 const APPLICABLE = new Set(["accepted_a", "accepted_b", "accepted_c", "custom"]);
-
-const EMPTY_QUEUE_SUMMARY: RuntimeQueueSummary = {
-  copyPasteOpportunityIds: new Set(),
-  copyPasteCount: 0,
-  strategyCount: 0,
-  withheldBlockedCount: 0,
-};
 
 function normalizedEmailList(value: string | undefined): string[] {
   return (value ?? "")
@@ -290,14 +284,33 @@ function buildMarkedText(ctx: RuntimeContext): string {
   ].join("\n");
 }
 
+type AnchoredSnapshot = {
+  decision: RuntimeDecision;
+  start: number;
+  end: number;
+  replacement: string;
+};
+
 function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: RuntimeDecision[]; blocked: string[] } {
-  let text = scrubInternalReportLeakage(ctx.sourceText);
+  const text = scrubInternalReportLeakage(ctx.sourceText);
   const applied: RuntimeDecision[] = [];
   const blocked: string[] = [];
 
-  if (!text.trim()) return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
+  if (!text.trim()) {
+    return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
+  }
 
-  for (const decision of applicableDecisions(ctx)) {
+  const decisions = applicableDecisions(ctx);
+  const seenIds = new Set<string>();
+  const snapshots: AnchoredSnapshot[] = [];
+
+  for (const decision of decisions) {
+    if (seenIds.has(decision.id)) {
+      blocked.push(`${decision.opportunity_title}: duplicate decision id ${decision.id}`);
+      continue;
+    }
+    seenIds.add(decision.id);
+
     const replacement = scrubInternalReportLeakage(decision.decision === "custom" ? decision.custom_text ?? "" : decision.selected_text ?? "");
     const source = scrubInternalReportLeakage(decision.source_excerpt ?? "");
 
@@ -305,16 +318,48 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
       blocked.push(`${decision.opportunity_title}: missing source excerpt or selected replacement text.`);
       continue;
     }
-    if (!text.includes(source)) {
+
+    const occurrences = countOccurrences(text, source);
+    if (occurrences === 0) {
       blocked.push(`${decision.opportunity_title}: source excerpt no longer matches source manuscript version.`);
       continue;
     }
+    if (occurrences > 1) {
+      blocked.push(`${decision.opportunity_title}: source excerpt is not unique in the manuscript.`);
+      continue;
+    }
 
-    text = text.replace(source, replacement);
-    applied.push(decision);
+    const start = text.indexOf(source);
+    snapshots.push({ decision, start, end: start + source.length, replacement });
   }
 
-  return { text, applied, blocked };
+  if (blocked.length > 0) {
+    return { text, applied, blocked };
+  }
+
+  const sorted = [...snapshots].sort((a, b) => a.start - b.start);
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    if (curr.start === prev.start && curr.end === prev.end) {
+      blocked.push(`Duplicate edit region detected at offset ${curr.start}`);
+    } else if (curr.start < prev.end) {
+      blocked.push(`Overlapping edit regions detected at offsets ${prev.start} and ${curr.start}`);
+    }
+  }
+
+  if (blocked.length > 0) {
+    return { text, applied, blocked };
+  }
+
+  const byDesc = [...snapshots].sort((a, b) => b.start - a.start);
+  let result = text;
+  for (const snapshot of byDesc) {
+    result = result.slice(0, snapshot.start) + snapshot.replacement + result.slice(snapshot.end);
+    applied.push(snapshot.decision);
+  }
+
+  return { text: result, applied, blocked };
 }
 
 async function recordRun(

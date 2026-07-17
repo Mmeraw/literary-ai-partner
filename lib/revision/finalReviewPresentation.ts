@@ -22,7 +22,7 @@ function clean(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
-function countOccurrences(text: string, search: string): number {
+export function countOccurrences(text: string, search: string): number {
   if (!search) return 0;
   let count = 0;
   let cursor = 0;
