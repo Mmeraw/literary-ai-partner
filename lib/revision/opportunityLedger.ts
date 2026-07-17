@@ -1946,6 +1946,8 @@ function canonicalUedOpportunityToRevisionOpportunity(
     confidence: confidenceFromCanonicalOpportunity(item.severity),
     decision_state: 'open',
     candidate_text_a: normalizeOptionalText(item.candidate_text_a),
+    candidate_text_b: normalizeOptionalText(item.candidate_text_b),
+    candidate_text_c: normalizeOptionalText(item.candidate_text_c),
     symptom: normalizeOptionalText(item.symptom),
     cause: normalizeOptionalText(item.cause),
     fix_direction: normalizeOptionalText(item.fix_direction),
@@ -2687,9 +2689,9 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   // candidate prose, stale preflight outcomes, or old admission rules from being
   // reused after governance changes.
 
-  if (evaluationResultError || !evaluationPayload) {
+  if (evaluationResultError) {
     throw new Error(
-      `Failed to build revision opportunity ledger: evaluation result artifact missing (${evaluationResultError?.message ?? 'no evaluation result'})`,
+      `Failed to build revision opportunity ledger: evaluation result artifact read failed (${evaluationResultError.message})`,
     );
   }
 
@@ -2735,7 +2737,60 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       : jobWordCount;
 
   const uedProjection = await loadCertifiedUedOpportunityProjection(supabase, jobId);
-  if (!uedProjection?.opportunities.length && !options?.allowLegacyEvaluationProjection) {
+
+  const hasRebuildableSource =
+    Boolean(uedProjection?.opportunities.length) ||
+    (Boolean(options?.allowLegacyEvaluationProjection) && Boolean(evaluationPayload));
+
+  const opportunitySourceAuthority = uedProjection?.opportunities.length
+    ? uedProjection.sourceMode === 'legacy_rendered_degraded'
+      ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities_legacy_degraded'
+      : 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
+    : 'legacy_evaluation_result_projection_explicit_backfill_only';
+
+  const inputSourceHash = sourceHashFor({
+    job_id: jobId,
+    evaluation_source_hash: evaluationResultRow?.source_hash ?? null,
+    source_ued_hash: uedProjection?.sourceUedHash ?? null,
+    mode_contract: modeContractForMetadata(modeContract),
+    genre_expectation_context: genreExpectationContext,
+    english_variant: selectedEnglishVariant,
+    word_count: wordCount,
+    revise_queue_preflight: {
+      version: REVISE_QUEUE_PREFLIGHT_GATE_VERSION,
+      context_quality: contextQualityDecision.status,
+      context_quality_source: contextQualityDecision.source,
+      gate_ready_status: contextQualityDecision.gate_ready_status,
+      blocking_reasons: contextQualityDecision.blocking_reasons,
+      degraded_layers: contextQualityDecision.degraded_layers,
+    },
+    opportunity_source_authority: opportunitySourceAuthority,
+    ued_canonical_opportunity_count: uedProjection?.canonicalOpportunityCount ?? null,
+    ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
+    revise_source_mode: uedProjection?.sourceMode ?? null,
+    allow_legacy_evaluation_projection: options?.allowLegacyEvaluationProjection ?? false,
+  });
+
+  // revision_opportunity_ledger_v1 is the authoritative artifact after a successful
+  // build. When source inputs are unavailable, reload the persisted ledger rather
+  // than fail. When source inputs are available, rebuild only if they changed.
+  if (
+    !options?.forceRebuild &&
+    existingOpportunities &&
+    existingOpportunities.length > 0
+  ) {
+    if (
+      !hasRebuildableSource ||
+      existingLedgerRow?.content?.source_hash === inputSourceHash
+    ) {
+      return {
+        artifactId: typeof existingLedgerRow?.id === 'string' ? existingLedgerRow.id : null,
+        opportunities: existingOpportunities,
+      };
+    }
+  }
+
+  if (!hasRebuildableSource) {
     throw new Error(
       'Certified UED canonicalOpportunityLedger.opportunities is required for revision_opportunity_ledger_v1. Legacy evaluation_result recommendation projection is disabled for author-facing Revise packages.',
     );
@@ -2746,11 +2801,6 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     : buildRevisionOpportunitiesFromEvaluationPayload(
         evaluationPayload, chunkCachePayload, longformPayload, { wordCount },
       );
-  const opportunitySourceAuthority = uedProjection?.opportunities.length
-    ? uedProjection.sourceMode === 'legacy_rendered_degraded'
-      ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities_legacy_degraded'
-      : 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
-    : 'legacy_evaluation_result_projection_explicit_backfill_only';
 
   const preflightedOpportunities = applyReviseQueuePreflight(opportunities, {
     contextQuality: contextQualityDecision.status,
@@ -2844,12 +2894,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       const blockedOpps: HydrationOpportunity[] = [];
 
       for (const o of opportunities) {
-        const needsCandidates = !o.candidate_text_a || !o.candidate_text_b || !o.candidate_text_c;
+        const needsCandidates = !o.candidate_text_a;
         const preflightAllowsHydration = o.preflight_status === 'passed' || o.preflight_status === 'limited_context';
-        // KICKBACK FIX: hydrate whenever B or C are empty, regardless of grounding_status.
-        // The old condition (grounding_status !== 'supported') meant items that PASSED
-        // grounding but had empty B/C from the LLM never triggered hydration — silent gap.
-        // Now: any item with preflight passed AND missing any candidate fires hydration.
+        // Candidate B/C are authoritative projection fields. Missing B/C must not
+        // trigger LLM regeneration: hydrate only when the primary candidate A is
+        // missing and preflight passed.
         const needsHydration = preflightAllowsHydration && needsCandidates;
         if (!needsHydration) continue;
 
@@ -3107,30 +3156,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     });
   }
 
-  const sourceHash = sourceHashFor({
-    job_id: jobId,
-    evaluation_source_hash: evaluationResultRow.source_hash ?? null,
-    mode_contract: modeContractForMetadata(modeContract),
-    genre_expectation_context: genreExpectationContext,
-    revise_queue_preflight: {
-      version: REVISE_QUEUE_PREFLIGHT_GATE_VERSION,
-      context_quality: contextQualityDecision.status,
-      ledger_quality_report_source: contextQualityDecision.source,
-      gate_ready_status: contextQualityDecision.gate_ready_status,
-      degraded_layers: contextQualityDecision.degraded_layers,
-      blocking_reasons: contextQualityDecision.blocking_reasons,
-      summary: preflightSummary,
-      diagnostics: preflightDiagnostics,
-      hydration_anchor_lookup_diagnostics: Object.fromEntries(hydrationAnchorLookupDiagnosticsByOpportunityId),
-    },
-    quality_manifest: qualityManifest,
-    opportunity_source_authority: opportunitySourceAuthority,
-    source_ued_hash: uedProjection?.sourceUedHash ?? null,
-    ued_rendered_opportunity_count: uedProjection?.renderedOpportunityCount ?? null,
-    ued_canonical_opportunity_count: uedProjection?.canonicalOpportunityCount ?? null,
-    revise_source_mode: uedProjection?.sourceMode ?? null,
-    opportunities,
-  });
+  const sourceHash = inputSourceHash;
 
   const payload = {
     job_id: jobId,

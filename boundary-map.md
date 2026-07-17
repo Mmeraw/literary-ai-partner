@@ -1,45 +1,50 @@
 # A/B/C Candidate Persistence Boundary Map
 
 Fixture: one `evaluation_result_v2` recommendation with distinct sentinel values
-- `candidate_text_a` = `AAA_SENTINEL: Mara paused at the threshold until the room understood her choice.`
-- `candidate_text_b` = `BBB_SENTINEL: For the moment, Mara held the door open and let the silence settle before she answered.`
-- `candidate_text_c` = `CCC_SENTINEL: The answer stayed in Mara's hand before it reached her voice, quiet and deliberate.`
+- `candidate_text_a` = `AAA_SENTINEL_ALPHA: Mara paused at the threshold until the room understood her choice.`
+- `candidate_text_b` = `BBB_SENTINEL_BRAVO: For the moment, Mara held the door open and let the silence settle before she answered.`
+- `candidate_text_c` = `CCC_SENTINEL_CHARLIE: The answer stayed in Maras hand before it reached her voice, quiet and deliberate.`
 
 | Boundary | A | B | C | Notes |
 |---|---|---|---|---|
-| Source `evaluation_result_v2` | written | written | written | Recommendation row may contain all three. |
-| `buildRevisionOpportunitiesFromEvaluationPayload` | preserved | preserved | preserved | `extractCriteriaRecommendations` passes all three to `ensureOpportunityCandidates` (if source row has them). |
-| `buildCanonicalOpportunityLedger` | preserved | **lost** | **lost** | `RawOpportunity`/`CanonicalOpportunityLedgerItem` only store `candidate_text_a`; `mergeCluster` only emits `candidate_text_a`. |
-| UED `canonicalOpportunityLedger.opportunities` | stored | not stored | not stored | Because `buildCanonicalOpportunityLedger` drops B/C before UED serialization. |
-| `extractCanonicalRevisionOpportunities` | returned | absent | absent | Reads UED items; B/C absent from source. |
-| `canonicalUedOpportunityToRevisionOpportunity` | passed | not read | not read | Only reads `candidate_text_a` from item; does not pass B/C to `ensureOpportunityCandidates`. |
-| `ensureRevisionOpportunityLedgerArtifact` (UED path) | preserved | **lost** | **lost** | B/C never enter `opportunities` array. |
-| Persisted `revision_opportunity_ledger_v1` payload | stored | **lost** | **lost** | `opportunities` array in JSONB content reflects the in-memory array. |
-| `getWorkbenchQueue` final `WorkbenchOption` | visible | **lost/empty** | **lost/empty** | If UED path used, `opportunity.candidate_text_b/c` undefined/empty. |
+| Source `evaluation_result_v2` | preserved | preserved | preserved | Recommendation row contains all three. |
+| `buildRevisionOpportunitiesFromEvaluationPayload` | preserved | preserved | preserved | `extractCriteriaRecommendations` passes all three to `ensureOpportunityCandidates`. |
+| `buildCanonicalOpportunityLedger` | preserved | preserved | preserved | `RawOpportunity`/`CanonicalOpportunityLedgerItem` now carry `candidate_text_b/c`; `mergeCluster` preserves them. |
+| UED `canonicalOpportunityLedger.opportunities` | stored | stored | stored | All three survive canonical ledger serialization. |
+| `extractCanonicalRevisionOpportunities` | returned | returned | returned | Reads UED items and returns the full objects. |
+| `canonicalUedOpportunityToRevisionOpportunity` | passed | passed | passed | Now maps `candidate_text_a/b/c` into the `RevisionOpportunity`. |
+| `ensureRevisionOpportunityLedgerArtifact` (UED path) | persisted | persisted | persisted | Writes `revision_opportunity_ledger_v1` JSONB with A/B/C. |
+| Persisted `revision_opportunity_ledger_v1` payload | stored | stored | stored | `opportunities` array in JSONB content reflects A/B/C. |
+| Reload persisted ledger | returned | returned | returned | `ensureRevisionOpportunityLedgerArtifact` treats the persisted artifact as authoritative when the input source hash matches. |
+| `getWorkbenchQueue` final `WorkbenchOption` | visible | visible | visible | `WorkbenchOption` options expose A/B/C in `candidateText`/`text`. |
 
-## Key authority questions
+## Authority contract
 
-1. `buildCanonicalOpportunityLedger` is the first loss point: it does not carry `candidate_text_b/c` into the canonical ledger item.
-2. `canonicalUedOpportunityToRevisionOpportunity` is the second loss point: even if the UED item contained B/C, it would not pass them on.
-3. `ensureRevisionOpportunityLedgerArtifact` currently rebuilds from the UED / `evaluation_result_v2` and does not treat the persisted `revision_opportunity_ledger_v1` artifact as an authority. A genuine "persisted reload" would require either:
-   - `ensureRevisionOpportunityLedgerArtifact` to return an existing persisted ledger when the source hash is unchanged (or when `forceRebuild` is false), or
-   - `getWorkbenchQueue` to read `revision_opportunity_ledger_v1` directly.
-4. Legacy A-only data: if a persisted `revision_opportunity_ledger_v1` (or legacy UED) contains only `candidate_text_a`, the current `ensureOpportunityCandidates` sets B/C to `''` and marks `grounding_status` as `unsupported_blocked`. With no `OPENAI_API_KEY` present the LLM hydration block is skipped, so no auto-regeneration occurs. However, the `needsCandidates` check currently tests `!candidate_text_b || !candidate_text_c`; if an API key were present and preflight passed, it would trigger `hydrateLedgerCandidates` for A-only data.
+1. `revision_opportunity_ledger_v1` is the canonical persisted artifact produced by `ensureRevisionOpportunityLedgerArtifact`.
+2. After successful persistence, the ledger is authoritative. A second call with the same `inputSourceHash` and no `forceRebuild` returns the persisted `opportunities` without rebuilding from UED/evaluation payload.
+3. If the source inputs change (hash mismatch) and rebuildable source exists, the ledger is rebuilt and persisted; stale projections are discarded.
+4. Legacy A-only persisted artifacts continue to load safely: `candidate_text_b` and `candidate_text_c` remain `undefined`, and the Workbench card renders as a strategy or withheld card without LLM regeneration.
+5. Candidate text is never regenerated, copied, or inferred during projection. Every downstream surface displays exactly the values from the persisted ledger.
 
-## Proposed smallest corrections
+## Implementation corrections made
 
-- Add `candidate_text_b` and `candidate_text_c` to `RawOpportunity` and `CanonicalOpportunityLedgerItem` in `lib/evaluation/canonicalOpportunityLedger.ts`.
-- Populate them in `collectRawOpportunities` and `mergeCluster`.
-- Update `canonicalUedOpportunityToRevisionOpportunity` in `lib/revision/opportunityLedger.ts` to read and pass `candidate_text_b/c`.
-- Update `opportunityToCriterionRecommendation` and `opportunityToActionItem` for completeness (report display uses A only, but harmless to include B/C).
-- For legacy A-only: ensure the hydration trigger does not fire solely because B/C are missing. Tying this to provenance/source mode is preferable to a global condition.
+- `lib/evaluation/canonicalOpportunityLedger.ts`
+  - Extended `RawCriterionRecommendation` with optional `cause` and `fix_direction`.
+  - Extended `RawOpportunity` and `CanonicalOpportunityLedgerItem` with `candidate_text_b` and `candidate_text_c`.
+  - `collectRawOpportunities` now copies A/B/C and falls back to `cause`/`fix_direction` when `mechanism`/`specific_fix` are absent.
+  - `mergeCluster` preserves A/B/C using `candidateTextFromCluster`.
+- `lib/evaluation/shortFormReportDocument.ts`
+  - Extended `ShortFormCriterionRecommendation` with optional `candidate_text_a/b/c` so report conversions do not drop them.
+- `lib/revision/opportunityLedger.ts`
+  - `canonicalUedOpportunityToRevisionOpportunity` now passes B/C into `ensureOpportunityCandidates`.
+  - `ensureOpportunityCandidates` hydration trigger now fires only when `candidate_text_a` is missing, so legacy A-only data does not auto-regenerate B/C.
+  - `ensureRevisionOpportunityLedgerArtifact` computes an input-only `inputSourceHash` and treats a matching persisted ledger as authoritative, returning existing opportunities without rebuilding.
+- `__tests__/lib/revision/candidateABCAuthority.test.ts`
+  - Added 7 characterization tests covering extraction, ledger construction, ledger persistence, reload authority, Workbench projection, and legacy A-only compatibility.
 
-## Characterization tests needed
+## Test results
 
-- `buildRevisionOpportunitiesFromEvaluationPayload` preserves A/B/C sentinels.
-- `buildCanonicalOpportunityLedger` preserves A/B/C sentinels.
-- `extractCanonicalRevisionOpportunities` preserves A/B/C sentinels from a hand-constructed UED.
-- `ensureRevisionOpportunityLedgerArtifact` persists and returns A/B/C sentinels when given a UED containing them.
-- A genuine reload: after first call, mutate/delete the UED, second call reads persisted `revision_opportunity_ledger_v1` and returns the same A/B/C sentinels (requires a reload authority decision).
-- `getWorkbenchQueue` returns `WorkbenchOption` `candidateText` values matching A/B/C sentinels.
-- Legacy A-only UED: no LLM `hydrateLedgerCandidates` call, returned opportunities have empty/missing B/C and safe `grounding_status`.
+- `npx tsc --noEmit` passes.
+- `npx eslint <changed files>` passes (no errors; pre-existing warnings only).
+- `git diff --check` passes.
+- `npx jest --runInBand lib/revision/__tests__ __tests__/lib/revision` passes.

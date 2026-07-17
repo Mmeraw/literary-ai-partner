@@ -20,6 +20,8 @@ export type CanonicalOpportunityLedgerItem = {
   action: string;
   expected_impact: string;
   candidate_text_a?: string;
+  candidate_text_b?: string;
+  candidate_text_c?: string;
   mistake_proofing?: string;
   potential_damage?: string[];
   anchor_type?: string;
@@ -54,11 +56,15 @@ type RawCriterionRecommendation = {
   anchor_type?: string;
   symptom?: string;
   mechanism?: string;
+  cause?: string;
   specific_fix?: string;
+  fix_direction?: string;
   reader_effect?: string;
   mistake_proofing?: string;
   potential_damage?: string[];
   candidate_text_a?: string;
+  candidate_text_b?: string;
+  candidate_text_c?: string;
   manuscript_coordinates?: string;
   issue_family?: string;
   strategic_lever?: string;
@@ -87,6 +93,8 @@ type RawOpportunity = {
   action: string;
   expected_impact: string;
   candidate_text_a?: string;
+  candidate_text_b?: string;
+  candidate_text_c?: string;
   mistake_proofing?: string;
   potential_damage?: string[];
   anchor_type?: string;
@@ -346,8 +354,8 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
       if (!action && !symptom) return;
       if (!evidenceLooksLikeQuote(evidence, action, symptom)) return;
 
-      const cause = cleanOptional(rec.mechanism);
-      const fix = cleanOptional(rec.specific_fix) || action;
+      const cause = cleanOptional(rec.mechanism) || cleanOptional(rec.cause);
+      const fix = cleanOptional(rec.specific_fix) || cleanOptional(rec.fix_direction) || action;
       const readerEffect = cleanOptional(rec.reader_effect) || cleanOptional(rec.expected_impact);
       const issueType = classifyIssueType({
         action,
@@ -372,6 +380,8 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
         action,
         expected_impact: cleanOptional(rec.expected_impact),
         candidate_text_a: cleanOptional(rec.candidate_text_a) || undefined,
+        candidate_text_b: cleanOptional(rec.candidate_text_b) || undefined,
+        candidate_text_c: cleanOptional(rec.candidate_text_c) || undefined,
         mistake_proofing: cleanOptional(rec.mistake_proofing) || undefined,
         potential_damage: Array.isArray(rec.potential_damage)
           ? rec.potential_damage.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
@@ -384,6 +394,17 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
   }
 
   return raw;
+}
+
+function candidateTextFromCluster(
+  primary: RawOpportunity | undefined,
+  cluster: RawOpportunity[],
+  key: 'candidate_text_a' | 'candidate_text_b' | 'candidate_text_c',
+): string | undefined {
+  const primaryValue = primary?.[key];
+  if (primaryValue) return primaryValue;
+  const chosen = chooseMostSpecific(cluster.map((item) => item[key] ?? ''));
+  return chosen || undefined;
 }
 
 function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpportunityLedgerItem {
@@ -423,7 +444,9 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
     issue_type: issueType,
     action: action || fix,
     expected_impact: chooseMostSpecific(cluster.map((item) => item.expected_impact || item.reader_effect)),
-    candidate_text_a: chooseMostSpecific(cluster.map((item) => item.candidate_text_a ?? '')) || undefined,
+    candidate_text_a: candidateTextFromCluster(primary, cluster, 'candidate_text_a'),
+    candidate_text_b: candidateTextFromCluster(primary, cluster, 'candidate_text_b'),
+    candidate_text_c: candidateTextFromCluster(primary, cluster, 'candidate_text_c'),
     mistake_proofing: chooseMostSpecific(cluster.map((item) => item.mistake_proofing ?? '')) || undefined,
     potential_damage: unique(cluster.flatMap((item) => item.potential_damage ?? [])).filter((item) => item.trim().length > 0),
     anchor_type: anchorType,
@@ -555,6 +578,8 @@ export function opportunityToCriterionRecommendation(item: CanonicalOpportunityL
     mistake_proofing: item.mistake_proofing,
     potential_damage: item.potential_damage,
     candidate_text_a: item.candidate_text_a,
+    candidate_text_b: item.candidate_text_b,
+    candidate_text_c: item.candidate_text_c,
     manuscript_coordinates: item.location,
     collapsed_from_criteria: item.related_criteria.filter((criterion) => criterion !== item.primary_criterion),
   };
@@ -571,6 +596,8 @@ export function opportunityToActionItem(item: CanonicalOpportunityLedgerItem): {
   reader_effect?: string;
   mistake_proofing?: string;
   candidate_text_a?: string;
+  candidate_text_b?: string;
+  candidate_text_c?: string;
   criterion_key?: string;
   opportunity_id: string;
 } {
@@ -586,6 +613,8 @@ export function opportunityToActionItem(item: CanonicalOpportunityLedgerItem): {
     reader_effect: item.reader_effect,
     mistake_proofing: item.mistake_proofing,
     candidate_text_a: item.candidate_text_a,
+    candidate_text_b: item.candidate_text_b,
+    candidate_text_c: item.candidate_text_c,
     criterion_key: item.primary_criterion,
   };
 }
