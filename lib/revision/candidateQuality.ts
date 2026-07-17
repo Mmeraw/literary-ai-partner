@@ -478,21 +478,29 @@ function lacksContextFit(candidate: string, anchor: string, rationale: string): 
   return anchorOverlap < LEDGER_MIN_CONTEXT_JACCARD && rationaleOverlap < LEDGER_MIN_CONTEXT_JACCARD;
 }
 
+export const LEDGER_CANDIDATE_QUALITY_REASON = {
+  NOT_COPY_READY: 'candidate_quality_not_copy_ready',
+  TOO_SHORT: 'candidate_quality_too_short',
+  GENERIC: 'candidate_quality_generic',
+  SUMMARY: 'candidate_quality_summary',
+  STILTED: 'candidate_quality_stilted',
+  REPETITIVE: 'candidate_quality_repetitive',
+  ANCHOR_OVERLAP: 'candidate_quality_anchor_overlap',
+  GENERIC_FILLER: 'candidate_quality_generic_filler',
+  UNSUPPORTED_FACTS: 'candidate_quality_unsupported_facts',
+  VOICE_MISMATCH: 'candidate_quality_voice_mismatch',
+  CONTEXT_MISMATCH: 'candidate_quality_context_mismatch',
+  DUPLICATE_OPTIONS: 'candidate_quality_duplicate_options',
+  EMPTY_SHAPE: 'candidate_quality_empty_shape',
+  NOT_EVIDENCE_GROUNDED: 'candidate_quality_not_evidence_grounded',
+} as const;
+
 export type CandidateQualityReasonCode =
-  | 'candidate_quality_not_copy_ready'
-  | 'candidate_quality_too_short'
-  | 'candidate_quality_generic'
-  | 'candidate_quality_summary'
-  | 'candidate_quality_stilted'
-  | 'candidate_quality_repetitive'
-  | 'candidate_quality_anchor_overlap'
-  | 'candidate_quality_generic_filler'
-  | 'candidate_quality_unsupported_facts'
-  | 'candidate_quality_voice_mismatch'
-  | 'candidate_quality_context_mismatch'
-  | 'candidate_quality_duplicate_options'
-  | 'candidate_quality_empty_shape'
-  | 'candidate_quality_not_evidence_grounded';
+  (typeof LEDGER_CANDIDATE_QUALITY_REASON)[keyof typeof LEDGER_CANDIDATE_QUALITY_REASON];
+
+export const LEDGER_CANDIDATE_QUALITY_REASON_CODES: CandidateQualityReasonCode[] = Object.values(LEDGER_CANDIDATE_QUALITY_REASON);
+
+export const LEDGER_CARD_QUALITY_FAILED = 'candidate_quality_failed' as const;
 
 /**
  * Minimum jaccard overlap between a candidate option and the manuscript
@@ -544,19 +552,19 @@ function evaluateLedgerCandidateQuality(
 ): CandidateQualityReasonCode[] {
   const reasons: CandidateQualityReasonCode[] = [];
 
-  if (lacksOptionShape(candidate)) reasons.push('candidate_quality_empty_shape');
-  if (isNotCopyReady(candidate)) reasons.push('candidate_quality_not_copy_ready');
-  if (isTooShort(candidate)) reasons.push('candidate_quality_too_short');
-  if (isGenericAdvice(candidate)) reasons.push('candidate_quality_generic');
-  if (isSummaryNotProse(candidate)) reasons.push('candidate_quality_summary');
-  if (isStilted(candidate)) reasons.push('candidate_quality_stilted');
-  if (isRepetitive(candidate)) reasons.push('candidate_quality_repetitive');
-  if (hasHighAnchorOverlap(candidate, anchor)) reasons.push('candidate_quality_anchor_overlap');
-  if (isGenericLiteraryFiller(candidate)) reasons.push('candidate_quality_generic_filler');
-  if (introducesUnsupportedFacts(candidate, anchor)) reasons.push('candidate_quality_unsupported_facts');
-  if (isVoiceMismatch(candidate)) reasons.push('candidate_quality_voice_mismatch');
-  if (lacksContextFit(candidate, anchor, rationale)) reasons.push('candidate_quality_context_mismatch');
-  if (lacksEvidenceGrounding(candidate, anchor, rationale)) reasons.push('candidate_quality_not_evidence_grounded');
+  if (lacksOptionShape(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.EMPTY_SHAPE);
+  if (isNotCopyReady(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.NOT_COPY_READY);
+  if (isTooShort(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.TOO_SHORT);
+  if (isGenericAdvice(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.GENERIC);
+  if (isSummaryNotProse(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.SUMMARY);
+  if (isStilted(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.STILTED);
+  if (isRepetitive(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.REPETITIVE);
+  if (hasHighAnchorOverlap(candidate, anchor)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.ANCHOR_OVERLAP);
+  if (isGenericLiteraryFiller(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.GENERIC_FILLER);
+  if (introducesUnsupportedFacts(candidate, anchor)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.UNSUPPORTED_FACTS);
+  if (isVoiceMismatch(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.VOICE_MISMATCH);
+  if (lacksContextFit(candidate, anchor, rationale)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.CONTEXT_MISMATCH);
+  if (lacksEvidenceGrounding(candidate, anchor, rationale)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.NOT_EVIDENCE_GROUNDED);
 
   return [...new Set(reasons)];
 }
@@ -589,7 +597,7 @@ export function evaluateCardQuality(
   rationale: string,
 ): LedgerCardQualityResult {
   if (!candidateA || !candidateB || !candidateC) {
-    return { pass: false, passingCount: 0, reasons: ['candidate_quality_not_copy_ready'] };
+    return { pass: false, passingCount: 0, reasons: [LEDGER_CANDIDATE_QUALITY_REASON.NOT_COPY_READY] };
   }
 
   // SHAPE hard failure: every option must carry real revised prose. A blank or
@@ -602,7 +610,7 @@ export function evaluateCardQuality(
     lacksOptionShape(candidateB) ||
     lacksOptionShape(candidateC)
   ) {
-    return { pass: false, passingCount: 0, reasons: ['candidate_quality_empty_shape'] };
+    return { pass: false, passingCount: 0, reasons: [LEDGER_CANDIDATE_QUALITY_REASON.EMPTY_SHAPE] };
   }
 
   const resultsPerCandidate = [
@@ -612,7 +620,7 @@ export function evaluateCardQuality(
   ];
 
   const hasHardFillerFailure = resultsPerCandidate.some((reasons) =>
-    reasons.includes('candidate_quality_generic_filler'),
+    reasons.includes(LEDGER_CANDIDATE_QUALITY_REASON.GENERIC_FILLER),
   );
 
   if (hasHardFillerFailure) {
@@ -627,7 +635,7 @@ export function evaluateCardQuality(
   const duplicatePairs = findDuplicateOptionPairs(candidateA, candidateB, candidateC);
   if (duplicatePairs.length > 0) {
     const mergedReasons = [
-      ...new Set([...resultsPerCandidate.flat(), 'candidate_quality_duplicate_options' as const]),
+      ...new Set([...resultsPerCandidate.flat(), LEDGER_CANDIDATE_QUALITY_REASON.DUPLICATE_OPTIONS]),
     ] as CandidateQualityReasonCode[];
     return { pass: false, passingCount: 0, reasons: mergedReasons };
   }

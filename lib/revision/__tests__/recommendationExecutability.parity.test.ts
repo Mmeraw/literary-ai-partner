@@ -29,9 +29,6 @@ const safeInput: RecommendationExecutabilityInput = {
   candidateProseNarrativeSafe: true,
 };
 
-const observed = (input: RecommendationExecutabilityInput) =>
-  new Set(evaluateRecommendationExecutability(input).reasons);
-
 describe('recommendationExecutability parity', () => {
   it('emits every base-decision local reason code from at least one fixture', () => {
     const cases: { diff: Partial<RecommendationExecutabilityInput>; expected: string }[] = [
@@ -98,7 +95,7 @@ describe('recommendationExecutability parity', () => {
       ...STRATEGY_ADMISSION_REASON_CODES,
     ]);
 
-    const exhaustive = [
+    const exhaustive: Partial<RecommendationExecutabilityInput>[] = [
       { copyPasteAdmissionPassed: false, copyPasteAdmissionReasons: COPY_PASTE_ADMISSION_REASON_CODES },
       { strategyAdmissionPassed: false, strategyAdmissionReasons: STRATEGY_ADMISSION_REASON_CODES },
       { evidencePresent: false, contextPresent: false, canonClear: false, diagnosisSupported: false },
