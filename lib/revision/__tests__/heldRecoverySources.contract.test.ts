@@ -271,7 +271,7 @@ describe('Held Recovery source-contract tests', () => {
 
   it('canonicalPlanningSources is always a subset of possibleProvenanceSources and never contains non-authoritative annotation sources', () => {
     const forbidden = new Set(['executability', 'grounding_note', 'admin_annotation']);
-    for (const [code, info] of Object.entries(HELD_REASON_INVENTORY)) {
+    for (const info of Object.values(HELD_REASON_INVENTORY)) {
       const canon = new Set(info.canonicalPlanningSources);
       const provenance = new Set(info.possibleProvenanceSources);
       for (const source of canon) {
