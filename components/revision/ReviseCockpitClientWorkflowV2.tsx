@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
 import WorkbenchCardSurface from "./WorkbenchCardSurface";
 import { adaptWorkbenchOpportunityToCard } from "./workbenchCardAdapter";
 import type { CopyPasteCandidateKey } from "./workbenchCardModels";
@@ -113,6 +114,46 @@ function getHeldReason(item: WorkbenchOpportunity): string {
   return item.groundingNote ?? item.adminRepairReason ?? item.readinessReason ?? "This revision requires re-analysis before it can be used safely.";
 }
 
+function asClassifiedOpportunity(item: WorkbenchOpportunity): ClassifiedWorkbenchOpportunity {
+  const fallbackClassification = classifyWorkbenchExecutabilityDetailed(item);
+  const finalCardType =
+    item.cardType === "copy_paste_rewrite" || item.cardType === "revision_strategy" || item.cardType === "withheld"
+      ? item.cardType
+      : fallbackClassification.finalDecision.cardType;
+  const finalTrustedPathStatus =
+    item.trustedPathStatus === "eligible" || item.trustedPathStatus === "unavailable_author_review_required" || item.trustedPathStatus === "impossible"
+      ? item.trustedPathStatus
+      : finalCardType === "copy_paste_rewrite"
+        ? "eligible"
+        : finalCardType === "revision_strategy"
+          ? "unavailable_author_review_required"
+          : "impossible";
+  const finalReasons = item.executabilityReasons?.length
+    ? [...item.executabilityReasons]
+    : [...fallbackClassification.finalDecision.reasons];
+
+  const classification = {
+    ...fallbackClassification,
+    cardType: finalCardType,
+    trustedPathStatus: finalTrustedPathStatus,
+    reasons: finalReasons,
+    baseDecision: {
+      ...fallbackClassification.baseDecision,
+      cardType: finalCardType,
+      trustedPathStatus: finalTrustedPathStatus,
+      reasons: finalReasons,
+    },
+    finalDecision: {
+      ...fallbackClassification.finalDecision,
+      cardType: finalCardType,
+      trustedPathStatus: finalTrustedPathStatus,
+      reasons: finalReasons,
+    },
+  };
+
+  return buildClassifiedWorkbenchOpportunity(item, classification);
+}
+
 export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: WorkbenchQueuePayload }) {
   const interactiveItems = useMemo(() => {
     const seen = new Set<string>();
@@ -154,7 +195,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
 
   const active = filteredItems.find((item) => item.id === activeId) ?? filteredItems[0] ?? openItems[0] ?? null;
   const activeCard = active
-    ? adaptWorkbenchOpportunityToCard(active as ClassifiedWorkbenchOpportunity)
+    ? adaptWorkbenchOpportunityToCard(asClassifiedOpportunity(active))
     : null;
   const failedEntries = ledger.filter((entry) => entry.syncStatus === "failed");
   const totalInteractive = interactiveItems.length;
@@ -447,7 +488,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
                   heldItems.map((item) => (
                     <div key={item.id} className="rounded-xl border border-[var(--rg-workbench-border)] bg-[var(--rg-workbench-surface)] p-5">
                       <WorkbenchCardSurface
-                        viewModel={adaptWorkbenchOpportunityToCard(item as ClassifiedWorkbenchOpportunity)}
+                        viewModel={adaptWorkbenchOpportunityToCard(asClassifiedOpportunity(item))}
                         actions={{ onRequestReanalysis: () => requestReanalysis(item) }}
                       />
                     </div>
