@@ -14,6 +14,7 @@ import {
 } from './workbenchQueueProjection'
 import type { RecommendationExecutabilityDecision } from './recommendationExecutability'
 import type { AdmissionGateResult } from './reviseAdmissionGate'
+import { adaptWorkbenchOpportunityToCard } from '@/components/revision/workbenchCardAdapter'
 
 export type WorkbenchAdmissionDetails = {
   copyPasteAdmissionPassed: boolean
@@ -198,7 +199,9 @@ export type WorkbenchOpportunityTelemetry = {
   }
   presentationDiagnostics: {
     withheldAdapterInput: string[]
+    withheldAdapterOutput: string[]
     strategyUnsafeReasonsInput: string[]
+    strategyUnsafeReasonsOutput: string[]
   }
   deduplicationAnalysis: DiagnosticDuplicationAnalysis
   routing: {
@@ -327,6 +330,113 @@ function parseRenderedDiagnosticCodes(value: string | null | undefined): string[
     .filter((part) => part.length > 0)
 }
 
+function collectClassificationInputCollections(
+  classification: WorkbenchExecutabilityClassification,
+): Array<{ collection: 'copy_paste_admission' | 'strategy_admission'; reasons: string[] }> {
+  if (classification.needsTargetingOverrideApplied) {
+    return [
+      { collection: 'copy_paste_admission', reasons: classification.gates.copyPaste.reasons },
+      { collection: 'strategy_admission', reasons: classification.gates.strategy.reasons },
+    ]
+  }
+
+  if (classification.finalDecision.cardType === 'revision_strategy') {
+    return [
+      { collection: 'copy_paste_admission', reasons: classification.gates.copyPaste.reasons },
+    ]
+  }
+
+  if (classification.finalDecision.cardType === 'withheld') {
+    const normalizedFinalReasons = new Set(
+      classification.finalDecision.reasons.map((reason) => normalizeDiagnosticCode(reason)),
+    )
+
+    const consumesCopyPasteReasons =
+      normalizedFinalReasons.has('copy_paste_admission_failed') ||
+      classification.gates.copyPaste.reasons.some((reason) =>
+        normalizedFinalReasons.has(normalizeDiagnosticCode(reason)),
+      )
+
+    const consumesStrategyReasons =
+      normalizedFinalReasons.has('strategy_admission_failed') ||
+      classification.gates.strategy.reasons.some((reason) =>
+        normalizedFinalReasons.has(normalizeDiagnosticCode(reason)),
+      )
+
+    const consumedCollections: Array<{
+      collection: 'copy_paste_admission' | 'strategy_admission'
+      reasons: string[]
+    }> = []
+
+    if (consumesCopyPasteReasons) {
+      consumedCollections.push({
+        collection: 'copy_paste_admission',
+        reasons: classification.gates.copyPaste.reasons,
+      })
+    }
+
+    if (consumesStrategyReasons) {
+      consumedCollections.push({
+        collection: 'strategy_admission',
+        reasons: classification.gates.strategy.reasons,
+      })
+    }
+
+    return consumedCollections
+  }
+
+  return []
+}
+
+function collectPresentationBoundary(
+  opportunity: WorkbenchOpportunity,
+): {
+  withheldAdapterInput: string[]
+  withheldAdapterOutput: string[]
+  strategyUnsafeReasonsInput: string[]
+  strategyUnsafeReasonsOutput: string[]
+} {
+  const card = adaptWorkbenchOpportunityToCard(opportunity)
+
+  if (card.cardType === 'withheld') {
+    const withheldAdapterInput = [
+      ...(opportunity.executabilityReasons ?? []),
+      ...(opportunity.preflightReasons ?? []),
+      ...(opportunity.resBlockerReasons ?? []),
+    ]
+      .map((s) => s?.trim())
+      .filter((s): s is string => Boolean(s))
+
+    return {
+      withheldAdapterInput,
+      withheldAdapterOutput: parseRenderedDiagnosticCodes(card.holdReason),
+      strategyUnsafeReasonsInput: [],
+      strategyUnsafeReasonsOutput: [],
+    }
+  }
+
+  if (card.cardType === 'revision_strategy') {
+    const scaffoldReason = opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe
+    const strategyUnsafeReasonsInput = scaffoldReason?.trim()
+      ? parseRenderedDiagnosticCodes(scaffoldReason)
+      : parseRenderedDiagnosticCodes((opportunity.executabilityReasons ?? []).join('; '))
+
+    return {
+      withheldAdapterInput: [],
+      withheldAdapterOutput: [],
+      strategyUnsafeReasonsInput,
+      strategyUnsafeReasonsOutput: parseRenderedDiagnosticCodes(card.whyDirectCopyPasteUnsafe),
+    }
+  }
+
+  return {
+    withheldAdapterInput: [],
+    withheldAdapterOutput: [],
+    strategyUnsafeReasonsInput: [],
+    strategyUnsafeReasonsOutput: [],
+  }
+}
+
 export function classifyDiagnosticBoundary(
   counts: DiagnosticBoundaryCounts,
 ): DiagnosticBoundaryClassification {
@@ -374,21 +484,14 @@ export function analyzeDiagnosticDuplication(
     ...collectOccurrences(opportunity.resBlockerReasons ?? [], 'res_blocker', 'authoritative_source'),
   )
 
-  // Classification boundary: exact classifier input and output occurrences.
-  occurrences.push(
-    ...collectOccurrences(
-      classification.gates.copyPaste.reasons,
-      'copy_paste_admission',
-      'classification_input',
-    ),
-  )
-  occurrences.push(
-    ...collectOccurrences(
-      classification.gates.strategy.reasons,
-      'strategy_admission',
-      'classification_input',
-    ),
-  )
+  // Classification boundary: only reason collections actually consumed by the
+  // selected decision path.
+  const consumedClassificationInputs = collectClassificationInputCollections(classification)
+  for (const consumed of consumedClassificationInputs) {
+    occurrences.push(
+      ...collectOccurrences(consumed.reasons, consumed.collection, 'classification_input'),
+    )
+  }
   occurrences.push(
     ...collectOccurrences(
       classification.finalDecision.reasons,
@@ -397,46 +500,33 @@ export function analyzeDiagnosticDuplication(
     ),
   )
 
-  // Presentation boundary: adapter input arrays and rendered output content.
-  const withheldAdapterInput = [
-    ...(opportunity.executabilityReasons ?? []),
-    ...(opportunity.preflightReasons ?? []),
-    ...(opportunity.resBlockerReasons ?? []),
-  ]
-    .map((s) => s?.trim())
-    .filter((s): s is string => Boolean(s))
-
-  const strategyUnsafeReasonsInput = opportunity.executabilityReasons ?? []
-
-  const withheldAdapterOutput = parseRenderedDiagnosticCodes(withheldAdapterInput.join('; '))
-  const strategyUnsafeReasonsOutput = parseRenderedDiagnosticCodes(
-    opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe,
-  )
+  // Presentation boundary: exact real adapter inputs and real adapter outputs.
+  const presentationBoundary = collectPresentationBoundary(opportunity)
 
   occurrences.push(
     ...collectOccurrences(
-      withheldAdapterInput,
+      presentationBoundary.withheldAdapterInput,
       'withheld_adapter_input',
       'presentation_input',
     ),
   )
   occurrences.push(
     ...collectOccurrences(
-      strategyUnsafeReasonsInput,
+      presentationBoundary.strategyUnsafeReasonsInput,
       'strategy_unsafe_reasons_input',
       'presentation_input',
     ),
   )
   occurrences.push(
     ...collectOccurrences(
-      withheldAdapterOutput,
+      presentationBoundary.withheldAdapterOutput,
       'withheld_adapter_output',
       'presentation_output',
     ),
   )
   occurrences.push(
     ...collectOccurrences(
-      strategyUnsafeReasonsOutput,
+      presentationBoundary.strategyUnsafeReasonsOutput,
       'strategy_unsafe_reasons_output',
       'presentation_output',
     ),
@@ -567,19 +657,7 @@ export function buildWorkbenchOpportunityTelemetry(
 ): WorkbenchOpportunityTelemetry {
   const classificationWithEffect = classifyNeedsTargetingEffect(opportunity, classification)
   const executabilityReasons = classification.finalDecision.reasons
-
-  const withheldAdapterInput = [
-    ...(opportunity.executabilityReasons ?? []),
-    ...(opportunity.preflightReasons ?? []),
-    ...(opportunity.resBlockerReasons ?? []),
-  ]
-    .map((s) => s?.trim())
-    .filter((s): s is string => Boolean(s))
-
-  const strategyUnsafeReasonsInput =
-    opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe?.trim()
-      ? []
-      : (opportunity.executabilityReasons ?? [])
+  const presentationBoundary = collectPresentationBoundary(opportunity)
 
   return {
     opportunityId: opportunity.id,
@@ -618,8 +696,10 @@ export function buildWorkbenchOpportunityTelemetry(
       executabilityReasons,
     },
     presentationDiagnostics: {
-      withheldAdapterInput,
-      strategyUnsafeReasonsInput,
+      withheldAdapterInput: presentationBoundary.withheldAdapterInput,
+      withheldAdapterOutput: presentationBoundary.withheldAdapterOutput,
+      strategyUnsafeReasonsInput: presentationBoundary.strategyUnsafeReasonsInput,
+      strategyUnsafeReasonsOutput: presentationBoundary.strategyUnsafeReasonsOutput,
     },
     deduplicationAnalysis: analyzeDiagnosticDuplication(opportunity, classification),
     routing: {

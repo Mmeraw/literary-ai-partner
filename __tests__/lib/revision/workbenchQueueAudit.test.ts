@@ -57,6 +57,48 @@ function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQ
   }
 }
 
+function normalizedCounts(items: string[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const item of items) {
+    const key = item.trim().toLowerCase()
+    if (!key) continue
+    counts[key] = (counts[key] ?? 0) + 1
+  }
+  return counts
+}
+
+function strategyReadyOptions() {
+  return [
+    {
+      key: 'A' as const,
+      mechanism: 'Recommended repair',
+      candidateText:
+        'The river moved under the pilings while Cliff tracked the wake and counted each hazard aloud before they committed to the crossing.',
+      text:
+        'The river moved under the pilings while Cliff tracked the wake and counted each hazard aloud before they committed to the crossing.',
+      rationale: 'A',
+    },
+    {
+      key: 'B' as const,
+      mechanism: 'Rhythm variant',
+      candidateText:
+        'Mike held the rail, listened to Cliff list the risks, and chose the crossing only after naming the cost of waiting.',
+      text:
+        'Mike held the rail, listened to Cliff list the risks, and chose the crossing only after naming the cost of waiting.',
+      rationale: 'B',
+    },
+    {
+      key: 'C' as const,
+      mechanism: 'Bolder rendering shift',
+      candidateText:
+        'They watched the current break around the supports, then Cliff marked a line and Mike answered with the decision to move now.',
+      text:
+        'They watched the current break around the supports, then Cliff marked a line and Mike answered with the decision to move now.',
+      rationale: 'C',
+    },
+  ]
+}
+
 describe('workbenchQueueAudit', () => {
   it('is disabled by default', () => {
     delete process.env.REVISION_WORKBENCH_AUDIT_LOG
@@ -170,11 +212,154 @@ describe('workbenchQueueAudit', () => {
 })
 
 describe('workbenchQueueAudit telemetry and duplication', () => {
+  it('uses actual withheld adapter output and preserves healthy propagation counts', () => {
+    const opportunity = makeOpportunity({
+      preflightReasons: ['context_missing'],
+      groundingStatus: 'unsupported_blocked',
+      contextQuality: 'blocked',
+      preflightStatus: 'blocked',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'withheldUnsupported')
+
+    expect(opportunity.cardType).toBe('withheld')
+    expect(telemetry.presentationDiagnostics.withheldAdapterInput.length).toBeGreaterThan(0)
+    expect(normalizedCounts(telemetry.presentationDiagnostics.withheldAdapterOutput)).toEqual(
+      normalizedCounts(telemetry.presentationDiagnostics.withheldAdapterInput),
+    )
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput).toEqual([])
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput).toEqual([])
+  })
+
+  it('uses actual strategy adapter output and preserves healthy propagation counts', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: strategyReadyOptions(),
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+    opportunity.strategyCardViewModel = classification.strategyCardViewModel
+
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+
+    expect(opportunity.cardType).toBe('revision_strategy')
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput.length).toBeGreaterThan(0)
+    expect(normalizedCounts(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput)).toEqual(
+      normalizedCounts(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput),
+    )
+    expect(telemetry.presentationDiagnostics.withheldAdapterInput).toEqual([])
+    expect(telemetry.presentationDiagnostics.withheldAdapterOutput).toEqual([])
+  })
+
+  it('uses scaffold reason text as strategy presentation input provenance when provided', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: strategyReadyOptions(),
+      executabilityReasons: ['EXEC_ONLY_REASON'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = 'revision_strategy'
+    opportunity.trustedPathStatus = 'unavailable_author_review_required'
+    opportunity.strategyCardViewModel = {
+      ...(classification.strategyCardViewModel as NonNullable<typeof classification.strategyCardViewModel>),
+      scaffold: {
+        ...classification.strategyCardViewModel!.scaffold,
+        reasonCopyPasteIsUnsafe: 'SCAFFOLD_ONLY_REASON; SCAFFOLD_ONLY_REASON',
+      },
+    }
+
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput).toEqual([
+      'SCAFFOLD_ONLY_REASON',
+      'SCAFFOLD_ONLY_REASON',
+    ])
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput).toEqual([
+      'SCAFFOLD_ONLY_REASON',
+      'SCAFFOLD_ONLY_REASON',
+    ])
+    expect(
+      telemetry.presentationDiagnostics.strategyUnsafeReasonsInput.some(
+        (reason) => reason.toLowerCase() === 'exec_only_reason',
+      ),
+    ).toBe(false)
+  })
+
+  it('does not inflate classification boundary with unrelated gate reasons', () => {
+    const opportunity = makeOpportunity({
+      contextQuality: 'clean',
+      preflightStatus: 'passed',
+      groundingStatus: 'supported',
+      quoteHighlight: 'The quick brown fox jumped over the lazy dog.',
+      symptom:
+        'In the quoted passage “The quick brown fox jumped over the lazy dog,” the moment resolves as summary instead of action.',
+      cause:
+        'This happens because Mara summarizes the action instead of rendering the physical beat.',
+      fixDirection:
+        'Replace the quoted passage “The quick brown fox jumped over the lazy dog” so Mara chooses a visible physical response, dramatizing the consequence before the emotion is named.',
+      readerEffect:
+        'This lets readers track Mara’s action through the body, so the theme of momentum keeps the revelation from flattening into summary.',
+      options: [
+        {
+          key: 'A',
+          mechanism: 'Recommended repair',
+          candidateText:
+            'The quick brown fox jumps over the lazy dog while the sun stays low behind the hills.',
+          text:
+            'The quick brown fox jumps over the lazy dog while the sun stays low behind the hills.',
+          rationale: 'A',
+        },
+        {
+          key: 'B',
+          mechanism: 'Rhythm variant',
+          candidateText:
+            'A slow river carries the boat past the willows where the heron waits without moving.',
+          text:
+            'A slow river carries the boat past the willows where the heron waits without moving.',
+          rationale: 'B',
+        },
+        {
+          key: 'C',
+          mechanism: 'Bolder rendering shift',
+          candidateText:
+            'She pressed her palm against the cool glass and watched the rain dissolve the lights below.',
+          text:
+            'She pressed her palm against the cool glass and watched the rain dissolve the lights below.',
+          rationale: 'C',
+        },
+      ],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const baseline = analyzeDiagnosticDuplication(opportunity, classification)
+    expect(baseline.stageTotals.classificationInput).toBe(0)
+
+    classification.gates.strategy.reasons = [
+      ...classification.gates.strategy.reasons,
+      'UNRELATED_GATE_REASON_SHOULD_NOT_COUNT',
+    ]
+
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+    expect(analysis.stageTotals.classificationInput).toBe(0)
+  })
+
   it('detects duplicate_within_source with propagated downstream copies only', () => {
     const opportunity = makeOpportunity({
       hydrationFailureReasons: ['insufficient_anchor_grounding', 'insufficient_anchor_grounding'],
     })
     const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
     opportunity.executabilityReasons = classification.finalDecision.reasons
     const analysis = analyzeDiagnosticDuplication(opportunity, classification)
 
@@ -208,6 +393,8 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
       resBlockerReasons: ['canon_unclear'],
     })
     const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
     opportunity.executabilityReasons = classification.finalDecision.reasons
     const analysis = analyzeDiagnosticDuplication(opportunity, classification)
 
@@ -240,6 +427,8 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
       adminActions: ['annotation_only_duplicate', 'annotation_only_duplicate'],
     })
     const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
     opportunity.executabilityReasons = classification.finalDecision.reasons
     const analysis = analyzeDiagnosticDuplication(opportunity, classification)
     expect(
@@ -252,6 +441,8 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
       preflightReasons: ['context_missing', 'context_missing'],
     })
     const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
     opportunity.executabilityReasons = classification.finalDecision.reasons
     const analysis = analyzeDiagnosticDuplication(opportunity, classification)
 
