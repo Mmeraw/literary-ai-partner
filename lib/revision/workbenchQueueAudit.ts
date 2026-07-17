@@ -8,6 +8,13 @@
  */
 
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope } from './workbenchQueue'
+import {
+  classifyWorkbenchExecutabilityDetailedWithoutNeedsTargeting,
+  type WorkbenchExecutabilityClassification,
+} from './workbenchQueueProjection'
+import type { RecommendationExecutabilityDecision } from './recommendationExecutability'
+import type { AdmissionGateResult } from './reviseAdmissionGate'
+import { adaptWorkbenchOpportunityToCard } from '@/components/revision/workbenchCardAdapter'
 
 export type WorkbenchAdmissionDetails = {
   copyPasteAdmissionPassed: boolean
@@ -56,6 +63,150 @@ export type WorkbenchQueueAuditReport = {
   type: 'workbench-queue-audit'
   load: WorkbenchQueueLoadAudit
   opportunities: WorkbenchQueueOpportunityAudit[]
+  opportunityTelemetry?: WorkbenchOpportunityTelemetry[]
+}
+
+export type DiagnosticCollection =
+  | 'preflight'
+  | 'hydration'
+  | 'res_blocker'
+  | 'copy_paste_admission'
+  | 'strategy_admission'
+  | 'executability_output'
+  | 'withheld_adapter_input'
+  | 'strategy_unsafe_reasons_input'
+  | 'withheld_adapter_output'
+  | 'strategy_unsafe_reasons_output'
+
+export type DiagnosticOccurrence = {
+  rawCode: string
+  normalizedCode: string
+  collection: DiagnosticCollection
+  rawIndex: number
+  stage:
+    | 'authoritative_source'
+    | 'classification_input'
+    | 'classification_output'
+    | 'presentation_input'
+    | 'presentation_output'
+}
+
+export type DiagnosticBoundaryCounts = {
+  sourceCountsByCollection: {
+    preflight: number
+    hydration: number
+    resBlocker: number
+  }
+  classificationInputCount: number
+  classificationOutputCount: number
+  presentationInputCount: number
+  presentationOutputCount: number
+}
+
+export type DiagnosticBoundaryConditions = {
+  withinSourceDuplicate: boolean
+  repeatedAcrossSources: boolean
+  classificationMergeDuplicate: boolean
+  presentationMergeDuplicate: boolean
+}
+
+export type DiagnosticBoundaryDuplicationType =
+  | 'none'
+  | 'duplicate_within_source'
+  | 'repeated_across_sources'
+  | 'classification_merge_duplicate'
+  | 'presentation_merge_duplicate'
+  | 'mixed'
+
+export type DiagnosticBoundaryClassification = {
+  counts: DiagnosticBoundaryCounts
+  conditions: DiagnosticBoundaryConditions
+  duplicationType: DiagnosticBoundaryDuplicationType
+}
+
+export type DuplicateDiagnostic = {
+  normalizedCode: string
+  rawVariants: string[]
+  authoritativeSourceOccurrences: DiagnosticOccurrence[]
+  classificationInputOccurrences: DiagnosticOccurrence[]
+  classificationOutputOccurrences: DiagnosticOccurrence[]
+  presentationInputOccurrences: DiagnosticOccurrence[]
+  presentationOutputOccurrences: DiagnosticOccurrence[]
+  boundary: DiagnosticBoundaryClassification
+}
+
+export type DiagnosticDuplicationAnalysis = {
+  duplicateDiagnostics: DuplicateDiagnostic[]
+  allAuthoritativeSourceCodes: string[]
+  authoritativeSourceCountByCode: Record<string, number>
+  stageTotals: {
+    authoritativeSource: number
+    classificationInput: number
+    classificationOutput: number
+    presentationInput: number
+    presentationOutput: number
+  }
+}
+
+export type WorkbenchOpportunityTelemetry = {
+  opportunityId: string
+  sourceOpportunityId: string | undefined
+  sourceCriterion: string | undefined
+  criterion: string
+  readiness: string | null | undefined
+  sourceState: {
+    groundingStatus: string | null | undefined
+    groundingNote: string | null | undefined
+    contextQuality: string | null | undefined
+    preflightStatus: string | null | undefined
+    readinessReason: string | null
+    preflightNote: string | null
+  }
+  rawDiagnostics: {
+    preflightReasons: string[]
+    hydrationFailureReasons: string[]
+    resBlockerReasons: string[]
+    adminRepairReason: string | null
+    adminActions: string[]
+  }
+  annotations: {
+    readinessReason: string | null
+    groundingNote: string | null
+    preflightNote: string | null
+    adminRepairReason: string | null
+    adminActions: string[]
+  }
+  gates: {
+    copyPaste: AdmissionGateResult
+    strategy: AdmissionGateResult
+  }
+  classification: {
+    baseDecision: RecommendationExecutabilityDecision
+    needsTargetingPromotionApplied: boolean
+    needsTargetingOverrideApplied: boolean
+    transitionReason: string | null
+    finalDecision: RecommendationExecutabilityDecision
+    counterfactualWithoutNeedsTargeting: RecommendationExecutabilityDecision | null
+    needsTargetingEffect:
+      | 'none'
+      | 'reason_merged'
+      | 'promoted_from_withheld'
+      | 'downgrade_prevented'
+      | 'indeterminate'
+  }
+  projectionDiagnostics: {
+    executabilityReasons: string[]
+  }
+  presentationDiagnostics: {
+    withheldAdapterInput: string[]
+    withheldAdapterOutput: string[]
+    strategyUnsafeReasonsInput: string[]
+    strategyUnsafeReasonsOutput: string[]
+  }
+  deduplicationAnalysis: DiagnosticDuplicationAnalysis
+  routing: {
+    queueBucket: 'opportunities' | 'needsTargeting' | 'withheldUnsupported' | 'unknown'
+  }
 }
 
 export const REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION = 'workbench-queue-projection:2026-07-13'
@@ -88,6 +239,473 @@ function hashProjection(entries: unknown[]): string {
  */
 function normalizedAdmissionReasons(reasons: string[] | undefined): string[] {
   return Array.from(new Set((reasons ?? []).map((reason) => reason.trim()).filter(Boolean))).sort()
+}
+
+function normalizeDiagnosticCode(code: string): string {
+  return code.trim().toLowerCase()
+}
+
+function decisionsEqual(
+  a: RecommendationExecutabilityDecision,
+  b: RecommendationExecutabilityDecision,
+): boolean {
+  return (
+    a.cardType === b.cardType &&
+    a.trustedPathStatus === b.trustedPathStatus &&
+    JSON.stringify(a.reasons) === JSON.stringify(b.reasons)
+  )
+}
+
+function asDiagnosticCode(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+  return null
+}
+
+function collectOccurrences(
+  items: string[],
+  collection: DiagnosticCollection,
+  stage: DiagnosticOccurrence['stage'],
+): DiagnosticOccurrence[] {
+  return items
+    .map((raw, rawIndex) => {
+      const rawCode = asDiagnosticCode(raw)
+      if (!rawCode) return null
+      return {
+        rawCode,
+        normalizedCode: normalizeDiagnosticCode(rawCode),
+        collection,
+        rawIndex,
+        stage,
+      }
+    })
+    .filter((o): o is DiagnosticOccurrence => o !== null)
+}
+
+function countByCollection(occurrences: DiagnosticOccurrence[]): Map<DiagnosticCollection, number> {
+  const counts = new Map<DiagnosticCollection, number>()
+  for (const o of occurrences) {
+    counts.set(o.collection, (counts.get(o.collection) ?? 0) + 1)
+  }
+  return counts
+}
+
+function computeStageTotals(
+  occurrences: DiagnosticOccurrence[],
+): DiagnosticDuplicationAnalysis['stageTotals'] {
+  return {
+    authoritativeSource: occurrences.filter((o) => o.stage === 'authoritative_source').length,
+    classificationInput: occurrences.filter((o) => o.stage === 'classification_input').length,
+    classificationOutput: occurrences.filter((o) => o.stage === 'classification_output').length,
+    presentationInput: occurrences.filter((o) => o.stage === 'presentation_input').length,
+    presentationOutput: occurrences.filter((o) => o.stage === 'presentation_output').length,
+  }
+}
+
+function deriveDuplicationType(
+  conditions: DiagnosticBoundaryConditions,
+): DiagnosticBoundaryDuplicationType {
+  const activeConditions = [
+    conditions.withinSourceDuplicate,
+    conditions.repeatedAcrossSources,
+    conditions.classificationMergeDuplicate,
+    conditions.presentationMergeDuplicate,
+  ].filter(Boolean).length
+
+  if (activeConditions === 0) return 'none'
+  if (activeConditions > 1) return 'mixed'
+  if (conditions.withinSourceDuplicate) return 'duplicate_within_source'
+  if (conditions.repeatedAcrossSources) return 'repeated_across_sources'
+  if (conditions.classificationMergeDuplicate) return 'classification_merge_duplicate'
+  return 'presentation_merge_duplicate'
+}
+
+function parseRenderedDiagnosticCodes(value: string | null | undefined): string[] {
+  if (!value) return []
+  return value
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+}
+
+function collectClassificationInputCollections(
+  classification: WorkbenchExecutabilityClassification,
+): Array<{ collection: 'copy_paste_admission' | 'strategy_admission'; reasons: string[] }> {
+  if (classification.needsTargetingOverrideApplied) {
+    return [
+      { collection: 'copy_paste_admission', reasons: classification.gates.copyPaste.reasons },
+      { collection: 'strategy_admission', reasons: classification.gates.strategy.reasons },
+    ]
+  }
+
+  if (classification.finalDecision.cardType === 'revision_strategy') {
+    return [
+      { collection: 'copy_paste_admission', reasons: classification.gates.copyPaste.reasons },
+    ]
+  }
+
+  if (classification.finalDecision.cardType === 'withheld') {
+    const normalizedFinalReasons = new Set(
+      classification.finalDecision.reasons.map((reason) => normalizeDiagnosticCode(reason)),
+    )
+
+    const consumesCopyPasteReasons =
+      normalizedFinalReasons.has('copy_paste_admission_failed') ||
+      classification.gates.copyPaste.reasons.some((reason) =>
+        normalizedFinalReasons.has(normalizeDiagnosticCode(reason)),
+      )
+
+    const consumesStrategyReasons =
+      normalizedFinalReasons.has('strategy_admission_failed') ||
+      classification.gates.strategy.reasons.some((reason) =>
+        normalizedFinalReasons.has(normalizeDiagnosticCode(reason)),
+      )
+
+    const consumedCollections: Array<{
+      collection: 'copy_paste_admission' | 'strategy_admission'
+      reasons: string[]
+    }> = []
+
+    if (consumesCopyPasteReasons) {
+      consumedCollections.push({
+        collection: 'copy_paste_admission',
+        reasons: classification.gates.copyPaste.reasons,
+      })
+    }
+
+    if (consumesStrategyReasons) {
+      consumedCollections.push({
+        collection: 'strategy_admission',
+        reasons: classification.gates.strategy.reasons,
+      })
+    }
+
+    return consumedCollections
+  }
+
+  return []
+}
+
+function collectPresentationBoundary(
+  opportunity: WorkbenchOpportunity,
+): {
+  withheldAdapterInput: string[]
+  withheldAdapterOutput: string[]
+  strategyUnsafeReasonsInput: string[]
+  strategyUnsafeReasonsOutput: string[]
+} {
+  const card = adaptWorkbenchOpportunityToCard(opportunity)
+
+  if (card.cardType === 'withheld') {
+    const withheldAdapterInput = [
+      ...(opportunity.executabilityReasons ?? []),
+      ...(opportunity.preflightReasons ?? []),
+      ...(opportunity.resBlockerReasons ?? []),
+    ]
+      .map((s) => s?.trim())
+      .filter((s): s is string => Boolean(s))
+
+    return {
+      withheldAdapterInput,
+      withheldAdapterOutput: parseRenderedDiagnosticCodes(card.holdReason),
+      strategyUnsafeReasonsInput: [],
+      strategyUnsafeReasonsOutput: [],
+    }
+  }
+
+  if (card.cardType === 'revision_strategy') {
+    const scaffoldReason = opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe
+    const strategyUnsafeReasonsInput = scaffoldReason?.trim()
+      ? parseRenderedDiagnosticCodes(scaffoldReason)
+      : parseRenderedDiagnosticCodes((opportunity.executabilityReasons ?? []).join('; '))
+
+    return {
+      withheldAdapterInput: [],
+      withheldAdapterOutput: [],
+      strategyUnsafeReasonsInput,
+      strategyUnsafeReasonsOutput: parseRenderedDiagnosticCodes(card.whyDirectCopyPasteUnsafe),
+    }
+  }
+
+  return {
+    withheldAdapterInput: [],
+    withheldAdapterOutput: [],
+    strategyUnsafeReasonsInput: [],
+    strategyUnsafeReasonsOutput: [],
+  }
+}
+
+export function classifyDiagnosticBoundary(
+  counts: DiagnosticBoundaryCounts,
+): DiagnosticBoundaryClassification {
+  const sourceCounts = counts.sourceCountsByCollection
+  const distinctAuthoritativeSourceCollections = [
+    sourceCounts.preflight,
+    sourceCounts.hydration,
+    sourceCounts.resBlocker,
+  ].filter((count) => count > 0).length
+
+  const conditions: DiagnosticBoundaryConditions = {
+    withinSourceDuplicate: Object.values(sourceCounts).some((count) => count > 1),
+    repeatedAcrossSources: distinctAuthoritativeSourceCollections > 1,
+    classificationMergeDuplicate:
+      counts.classificationOutputCount > counts.classificationInputCount,
+    presentationMergeDuplicate:
+      counts.presentationOutputCount > counts.presentationInputCount,
+  }
+
+  return {
+    counts,
+    conditions,
+    duplicationType: deriveDuplicationType(conditions),
+  }
+}
+
+export function analyzeDiagnosticDuplication(
+  opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification,
+): DiagnosticDuplicationAnalysis {
+  const occurrences: DiagnosticOccurrence[] = []
+
+  // Authoritative source diagnostics only (annotations are intentionally excluded).
+  occurrences.push(
+    ...collectOccurrences(opportunity.preflightReasons ?? [], 'preflight', 'authoritative_source'),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      opportunity.hydrationFailureReasons ?? [],
+      'hydration',
+      'authoritative_source',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(opportunity.resBlockerReasons ?? [], 'res_blocker', 'authoritative_source'),
+  )
+
+  // Classification boundary: only reason collections actually consumed by the
+  // selected decision path.
+  const consumedClassificationInputs = collectClassificationInputCollections(classification)
+  for (const consumed of consumedClassificationInputs) {
+    occurrences.push(
+      ...collectOccurrences(consumed.reasons, consumed.collection, 'classification_input'),
+    )
+  }
+  occurrences.push(
+    ...collectOccurrences(
+      classification.finalDecision.reasons,
+      'executability_output',
+      'classification_output',
+    ),
+  )
+
+  // Presentation boundary: exact real adapter inputs and real adapter outputs.
+  const presentationBoundary = collectPresentationBoundary(opportunity)
+
+  occurrences.push(
+    ...collectOccurrences(
+      presentationBoundary.withheldAdapterInput,
+      'withheld_adapter_input',
+      'presentation_input',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      presentationBoundary.strategyUnsafeReasonsInput,
+      'strategy_unsafe_reasons_input',
+      'presentation_input',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      presentationBoundary.withheldAdapterOutput,
+      'withheld_adapter_output',
+      'presentation_output',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      presentationBoundary.strategyUnsafeReasonsOutput,
+      'strategy_unsafe_reasons_output',
+      'presentation_output',
+    ),
+  )
+
+  const byCode = new Map<string, DiagnosticOccurrence[]>()
+  for (const occurrence of occurrences) {
+    const list = byCode.get(occurrence.normalizedCode) ?? []
+    list.push(occurrence)
+    byCode.set(occurrence.normalizedCode, list)
+  }
+
+  const duplicateDiagnostics: DuplicateDiagnostic[] = []
+  for (const [normalizedCode, list] of byCode) {
+    const authoritativeSourceOccurrences = list.filter((o) => o.stage === 'authoritative_source')
+    const classificationInputOccurrences = list.filter((o) => o.stage === 'classification_input')
+    const classificationOutputOccurrences = list.filter((o) => o.stage === 'classification_output')
+    const presentationInputOccurrences = list.filter((o) => o.stage === 'presentation_input')
+    const presentationOutputOccurrences = list.filter((o) => o.stage === 'presentation_output')
+
+    const sourceCounts = countByCollection(authoritativeSourceOccurrences)
+    const boundary = classifyDiagnosticBoundary({
+      sourceCountsByCollection: {
+        preflight: sourceCounts.get('preflight') ?? 0,
+        hydration: sourceCounts.get('hydration') ?? 0,
+        resBlocker: sourceCounts.get('res_blocker') ?? 0,
+      },
+      classificationInputCount: classificationInputOccurrences.length,
+      classificationOutputCount: classificationOutputOccurrences.length,
+      presentationInputCount: presentationInputOccurrences.length,
+      presentationOutputCount: presentationOutputOccurrences.length,
+    })
+
+    if (boundary.duplicationType === 'none') {
+      continue
+    }
+
+    duplicateDiagnostics.push({
+      normalizedCode,
+      rawVariants: Array.from(new Set(list.map((o) => o.rawCode))),
+      authoritativeSourceOccurrences,
+      classificationInputOccurrences,
+      classificationOutputOccurrences,
+      presentationInputOccurrences,
+      presentationOutputOccurrences,
+      boundary,
+    })
+  }
+
+  duplicateDiagnostics.sort((a, b) => a.normalizedCode.localeCompare(b.normalizedCode))
+
+  const authoritativeSourceOccurrences = occurrences.filter(
+    (o) => o.stage === 'authoritative_source',
+  )
+  const allAuthoritativeSourceCodes = Array.from(
+    new Set(authoritativeSourceOccurrences.map((o) => o.rawCode)),
+  )
+  const authoritativeSourceCountByCode: Record<string, number> = {}
+  for (const occurrence of occurrences) {
+    if (occurrence.stage === 'authoritative_source') {
+      authoritativeSourceCountByCode[occurrence.normalizedCode] =
+        (authoritativeSourceCountByCode[occurrence.normalizedCode] ?? 0) + 1
+    }
+  }
+
+  return {
+    duplicateDiagnostics,
+    allAuthoritativeSourceCodes,
+    authoritativeSourceCountByCode,
+    stageTotals: computeStageTotals(occurrences),
+  }
+}
+
+function classifyNeedsTargetingEffect(
+  opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification,
+): WorkbenchOpportunityTelemetry['classification'] {
+  const counterfactual = classifyWorkbenchExecutabilityDetailedWithoutNeedsTargeting(opportunity)
+
+  const actualFinal = classification.finalDecision
+  const counterfactualFinal = counterfactual.finalDecision
+  const reasonsEqual = decisionsEqual(
+    { ...actualFinal, reasons: actualFinal.reasons },
+    { ...counterfactualFinal, reasons: counterfactualFinal.reasons },
+  )
+
+  let effect: WorkbenchOpportunityTelemetry['classification']['needsTargetingEffect'] = 'indeterminate'
+
+  if (opportunity.readiness !== 'needs_targeting') {
+    effect = 'none'
+  } else if (
+    classification.needsTargetingPromotionApplied &&
+    classification.baseDecision.cardType === 'withheld' &&
+    actualFinal.cardType === 'revision_strategy'
+  ) {
+    effect = 'promoted_from_withheld'
+  } else if (
+    counterfactualFinal.cardType === 'withheld' &&
+    actualFinal.cardType === 'revision_strategy'
+  ) {
+    effect = 'downgrade_prevented'
+  } else if (
+    counterfactualFinal.cardType === actualFinal.cardType &&
+    !reasonsEqual
+  ) {
+    effect = 'reason_merged'
+  } else if (counterfactualFinal.cardType === actualFinal.cardType && reasonsEqual) {
+    effect = 'none'
+  } else {
+    effect = 'indeterminate'
+  }
+
+  return {
+    baseDecision: classification.baseDecision,
+    needsTargetingPromotionApplied: classification.needsTargetingPromotionApplied,
+    needsTargetingOverrideApplied: classification.needsTargetingOverrideApplied,
+    transitionReason: classification.promotionTransitionReason,
+    finalDecision: actualFinal,
+    counterfactualWithoutNeedsTargeting: counterfactualFinal,
+    needsTargetingEffect: effect,
+  }
+}
+
+export function buildWorkbenchOpportunityTelemetry(
+  opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification,
+  queueBucket: WorkbenchOpportunityTelemetry['routing']['queueBucket'],
+): WorkbenchOpportunityTelemetry {
+  const classificationWithEffect = classifyNeedsTargetingEffect(opportunity, classification)
+  const executabilityReasons = classification.finalDecision.reasons
+  const presentationBoundary = collectPresentationBoundary(opportunity)
+
+  return {
+    opportunityId: opportunity.id,
+    sourceOpportunityId: (opportunity as any).sourceOpportunityId,
+    sourceCriterion: (opportunity as any).sourceCriterion,
+    criterion: opportunity.criterion,
+    readiness: opportunity.readiness,
+    sourceState: {
+      groundingStatus: opportunity.groundingStatus,
+      groundingNote: opportunity.groundingNote ?? null,
+      contextQuality: opportunity.contextQuality,
+      preflightStatus: opportunity.preflightStatus,
+      readinessReason: opportunity.readinessReason ?? null,
+      preflightNote: opportunity.preflightNote ?? null,
+    },
+    rawDiagnostics: {
+      preflightReasons: opportunity.preflightReasons ?? [],
+      hydrationFailureReasons: opportunity.hydrationFailureReasons ?? [],
+      resBlockerReasons: opportunity.resBlockerReasons ?? [],
+      adminRepairReason: opportunity.adminRepairReason ?? null,
+      adminActions: opportunity.adminActions ?? [],
+    },
+    annotations: {
+      readinessReason: opportunity.readinessReason ?? null,
+      groundingNote: opportunity.groundingNote ?? null,
+      preflightNote: opportunity.preflightNote ?? null,
+      adminRepairReason: opportunity.adminRepairReason ?? null,
+      adminActions: opportunity.adminActions ?? [],
+    },
+    gates: {
+      copyPaste: classification.gates.copyPaste,
+      strategy: classification.gates.strategy,
+    },
+    classification: classificationWithEffect,
+    projectionDiagnostics: {
+      executabilityReasons,
+    },
+    presentationDiagnostics: {
+      withheldAdapterInput: presentationBoundary.withheldAdapterInput,
+      withheldAdapterOutput: presentationBoundary.withheldAdapterOutput,
+      strategyUnsafeReasonsInput: presentationBoundary.strategyUnsafeReasonsInput,
+      strategyUnsafeReasonsOutput: presentationBoundary.strategyUnsafeReasonsOutput,
+    },
+    deduplicationAnalysis: analyzeDiagnosticDuplication(opportunity, classification),
+    routing: {
+      queueBucket,
+    },
+  }
 }
 
 export function isAuditLogEnabled(): boolean {
@@ -124,6 +742,7 @@ export function buildWorkbenchQueueAudit(
   context?: {
     ledgerArtifactId?: string | null
     admissionsById?: Map<string, WorkbenchAdmissionDetails>
+    classificationsById?: Map<string, WorkbenchExecutabilityClassification>
   },
 ): WorkbenchQueueAuditReport {
   const opportunityIds = new Map<string, WorkbenchOpportunity>()
@@ -219,6 +838,21 @@ export function buildWorkbenchQueueAudit(
     }
   })
 
+  const opportunityTelemetry: WorkbenchOpportunityTelemetry[] = []
+  if (context?.classificationsById) {
+    for (const id of orderedOpportunityIds) {
+      const opportunity = opportunityIds.get(id)
+      const classification = context.classificationsById.get(id)
+      if (!opportunity || !classification) continue
+      const queueBucket = opportunity
+        ? bucketForOpportunity(opportunity, bucketById)
+        : 'unknown'
+      opportunityTelemetry.push(
+        buildWorkbenchOpportunityTelemetry(opportunity, classification, queueBucket),
+      )
+    }
+  }
+
   return {
     type: 'workbench-queue-audit',
     load: {
@@ -238,6 +872,7 @@ export function buildWorkbenchQueueAudit(
       timestamp: new Date().toISOString(),
     },
     opportunities,
+    opportunityTelemetry,
   }
 }
 

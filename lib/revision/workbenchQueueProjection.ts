@@ -26,6 +26,7 @@ import {
 import {
   runCopyPasteAdmissionGate,
   runStrategyAdmissionGate,
+  type AdmissionGateResult,
 } from './reviseAdmissionGate'
 import { operationLabels, type RevisionOperation } from './reviseCardContract'
 
@@ -244,18 +245,42 @@ function isLocalContextVerified(opportunity: WorkbenchOpportunity): boolean {
   return clean || targeted
 }
 
-export function classifyWorkbenchExecutability(
-  opportunity: WorkbenchOpportunity,
-): {
+export type WorkbenchExecutabilityClassification = {
   cardType: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld'
   trustedPathStatus: 'eligible' | 'unavailable_author_review_required' | 'impossible'
   reasons: string[]
-  strategyCardViewModel?: StrategyCardViewModel | null
+  strategyCardViewModel: StrategyCardViewModel | null
   copyPasteAdmissionPassed: boolean
   copyPasteAdmissionReasons: string[]
   strategyAdmissionPassed: boolean
   strategyAdmissionReasons: string[]
-} {
+  baseDecision: RecommendationExecutabilityDecision
+  finalDecision: RecommendationExecutabilityDecision
+  needsTargetingPromotionApplied: boolean
+  promotionTransitionReason: string | null
+  gates: {
+    copyPaste: AdmissionGateResult
+    strategy: AdmissionGateResult
+  }
+  needsTargetingOverrideApplied: boolean
+}
+
+function buildRecommendationExecutabilityDecision(
+  executability: ReturnType<typeof evaluateRecommendationExecutability>,
+  copyPasteAdmission: AdmissionGateResult,
+  strategyAdmission: AdmissionGateResult,
+): RecommendationExecutabilityDecision {
+  return {
+    cardType: executability.cardType,
+    trustedPathStatus: executability.trustedPathStatus,
+    reasons: executability.reasons,
+  }
+}
+
+function classifyWorkbenchExecutabilityDetailedCore(
+  opportunity: WorkbenchOpportunity,
+  options: { needsTargetingExceptionEnabled: boolean },
+): WorkbenchExecutabilityClassification {
   const sourceText = sourceTextOf(opportunity)
   const preflightReasons = opportunity.preflightReasons ?? []
 
@@ -275,7 +300,16 @@ export function classifyWorkbenchExecutability(
   const localContextVerified = isLocalContextVerified(opportunity)
 
   const copyPasteAdmission = runCopyPasteAdmissionGate(opportunity)
-  const strategyAdmission = runStrategyAdmissionGate(opportunity)
+
+  // The needs_targeting exception is implemented inside runStrategyAdmissionGate:
+  // it relaxes grounding/evidence/integrity/quality checks when readiness is
+  // 'needs_targeting'. This core can evaluate the same opportunity with that
+  // exception enabled or disabled by temporarily overriding readiness for the
+  // gate while leaving all other fields intact.
+  const strategyGateInput = options.needsTargetingExceptionEnabled
+    ? opportunity
+    : ({ ...opportunity, readiness: 'ready_for_revise' } as WorkbenchOpportunity)
+  const strategyAdmission = runStrategyAdmissionGate(strategyGateInput)
 
   const executability = evaluateRecommendationExecutability({
     evidencePresent: hasEvidence,
@@ -313,14 +347,37 @@ export function classifyWorkbenchExecutability(
     strategyAdmissionReasons: strategyAdmission.reasons,
   })
 
+  const baseDecision = buildRecommendationExecutabilityDecision(
+    executability,
+    copyPasteAdmission,
+    strategyAdmission,
+  )
+
   // Needs-targeting strategy cards have passed the strategy admission gate but may
   // have failed the copy-paste or executability gates because evidence/context is
   // still provisional. Surface them as revision_strategy so the author can triage.
+  let needsTargetingPromotionApplied = false
+  let promotionTransitionReason: string | null = null
+  let needsTargetingOverrideApplied = false
   if (
+    options.needsTargetingExceptionEnabled &&
     opportunity.readiness === 'needs_targeting' &&
     strategyAdmission.passed &&
     executability.cardType !== 'copy_paste_rewrite'
   ) {
+    needsTargetingOverrideApplied = true
+    needsTargetingPromotionApplied =
+      baseDecision.cardType === 'withheld' && executability.cardType !== 'revision_strategy'
+    if (needsTargetingPromotionApplied) {
+      promotionTransitionReason =
+        "readiness === 'needs_targeting' and strategy admission passed; base executability was withheld and has been promoted to revision_strategy"
+    } else if (executability.cardType === 'revision_strategy') {
+      promotionTransitionReason =
+        "readiness === 'needs_targeting' and strategy admission passed; base executability was already revision_strategy, so the override merged gate reasons"
+    } else {
+      promotionTransitionReason =
+        "readiness === 'needs_targeting' and strategy admission passed; base executability was not copy_paste_rewrite, override applied"
+    }
     executability.cardType = 'revision_strategy'
     executability.trustedPathStatus = 'unavailable_author_review_required'
     executability.reasons = Array.from(
@@ -330,6 +387,17 @@ export function classifyWorkbenchExecutability(
       ]),
     )
   }
+
+  const finalDecision = buildRecommendationExecutabilityDecision(
+    executability,
+    copyPasteAdmission,
+    strategyAdmission,
+  )
+
+  // A genuine base -> withheld -> final -> revision_strategy promotion can only be
+  // confirmed when the override actually changed the card type.
+  needsTargetingPromotionApplied =
+    baseDecision.cardType === 'withheld' && finalDecision.cardType === 'revision_strategy'
 
   let strategyCardViewModel: StrategyCardViewModel | null = null
   if (executability.cardType === 'revision_strategy') {
@@ -345,6 +413,46 @@ export function classifyWorkbenchExecutability(
     copyPasteAdmissionReasons: copyPasteAdmission.reasons,
     strategyAdmissionPassed: strategyAdmission.passed,
     strategyAdmissionReasons: strategyAdmission.reasons,
+    baseDecision,
+    finalDecision,
+    needsTargetingPromotionApplied,
+    promotionTransitionReason,
+    needsTargetingOverrideApplied,
+    gates: { copyPaste: copyPasteAdmission, strategy: strategyAdmission },
+  }
+}
+
+export function classifyWorkbenchExecutabilityDetailed(
+  opportunity: WorkbenchOpportunity,
+): WorkbenchExecutabilityClassification {
+  return classifyWorkbenchExecutabilityDetailedCore(opportunity, {
+    needsTargetingExceptionEnabled: true,
+  })
+}
+
+export function classifyWorkbenchExecutabilityDetailedWithoutNeedsTargeting(
+  opportunity: WorkbenchOpportunity,
+): WorkbenchExecutabilityClassification {
+  return classifyWorkbenchExecutabilityDetailedCore(opportunity, {
+    needsTargetingExceptionEnabled: false,
+  })
+}
+
+export function classifyWorkbenchExecutability(
+  opportunity: WorkbenchOpportunity,
+): Omit<WorkbenchExecutabilityClassification, 'baseDecision' | 'finalDecision' | 'needsTargetingPromotionApplied' | 'promotionTransitionReason' | 'gates' | 'needsTargetingOverrideApplied'> & {
+  strategyCardViewModel?: StrategyCardViewModel | null
+} {
+  const detailed = classifyWorkbenchExecutabilityDetailed(opportunity)
+  return {
+    cardType: detailed.cardType,
+    trustedPathStatus: detailed.trustedPathStatus,
+    reasons: detailed.reasons,
+    strategyCardViewModel: detailed.strategyCardViewModel,
+    copyPasteAdmissionPassed: detailed.copyPasteAdmissionPassed,
+    copyPasteAdmissionReasons: detailed.copyPasteAdmissionReasons,
+    strategyAdmissionPassed: detailed.strategyAdmissionPassed,
+    strategyAdmissionReasons: detailed.strategyAdmissionReasons,
   }
 }
 

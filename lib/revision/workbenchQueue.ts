@@ -30,13 +30,14 @@ import {
   type StrategyCardViewModel,
 } from './recommendationExecutability'
 import {
-  classifyWorkbenchExecutability,
+  classifyWorkbenchExecutabilityDetailed,
   resolveEvidenceLocationScope,
   resolveRepairScope,
   modeForScope,
   hasPlaceholderCoordinates,
   isSupportedForUserQueue,
   partitionWorkbenchQueue,
+  type WorkbenchExecutabilityClassification,
 } from './workbenchQueueProjection'
 import { buildWorkbenchQueueAudit, isAuditLogEnabled, logWorkbenchQueueAudit, type WorkbenchAdmissionDetails } from './workbenchQueueAudit'
 
@@ -1163,6 +1164,7 @@ export async function getWorkbenchQueue(input: {
       : null
 
   const admissionsById = new Map<string, WorkbenchAdmissionDetails>()
+  const classificationsById = new Map<string, WorkbenchExecutabilityClassification>()
 
   const opportunities = revisionLedgerOpportunities.map((opportunity) => {
     const criterion = criterionLabel(opportunity.criterion)
@@ -1318,7 +1320,8 @@ export async function getWorkbenchQueue(input: {
       evidenceLocationScope,
       repairScope,
     }
-    const executability = classifyWorkbenchExecutability(baseOpportunity)
+    const executability = classifyWorkbenchExecutabilityDetailed(baseOpportunity)
+    classificationsById.set(baseOpportunity.id, executability)
 
     admissionsById.set(baseOpportunity.id, {
       copyPasteAdmissionPassed: executability.copyPasteAdmissionPassed,
@@ -1382,7 +1385,7 @@ export async function getWorkbenchQueue(input: {
   }
 
   if (isAuditLogEnabled()) {
-    logWorkbenchQueueAudit(buildWorkbenchQueueAudit(payload, { ledgerArtifactId: revisionLedgerArtifactId, admissionsById }))
+    logWorkbenchQueueAudit(buildWorkbenchQueueAudit(payload, { ledgerArtifactId: revisionLedgerArtifactId, admissionsById, classificationsById }))
   }
 
   return payload

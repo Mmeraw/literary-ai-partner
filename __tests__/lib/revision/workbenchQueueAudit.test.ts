@@ -1,4 +1,12 @@
-import { buildWorkbenchQueueAudit, isAuditLogEnabled, REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION } from '@/lib/revision/workbenchQueueAudit'
+import {
+  buildWorkbenchQueueAudit,
+  isAuditLogEnabled,
+  REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION,
+  analyzeDiagnosticDuplication,
+  buildWorkbenchOpportunityTelemetry,
+  classifyDiagnosticBoundary,
+} from '@/lib/revision/workbenchQueueAudit'
+import { classifyWorkbenchExecutabilityDetailed } from '@/lib/revision/workbenchQueueProjection'
 import type { WorkbenchQueuePayload, WorkbenchOpportunity } from '@/lib/revision/workbenchQueue'
 
 function makeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): WorkbenchOpportunity {
@@ -47,6 +55,48 @@ function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQ
     criteria: { TONE: 1 }, synthesis: { admitted: 1, clustered: 0, held: 3, suppressed: 0 },
     ...overrides,
   }
+}
+
+function normalizedCounts(items: string[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const item of items) {
+    const key = item.trim().toLowerCase()
+    if (!key) continue
+    counts[key] = (counts[key] ?? 0) + 1
+  }
+  return counts
+}
+
+function strategyReadyOptions() {
+  return [
+    {
+      key: 'A' as const,
+      mechanism: 'Recommended repair',
+      candidateText:
+        'The river moved under the pilings while Cliff tracked the wake and counted each hazard aloud before they committed to the crossing.',
+      text:
+        'The river moved under the pilings while Cliff tracked the wake and counted each hazard aloud before they committed to the crossing.',
+      rationale: 'A',
+    },
+    {
+      key: 'B' as const,
+      mechanism: 'Rhythm variant',
+      candidateText:
+        'Mike held the rail, listened to Cliff list the risks, and chose the crossing only after naming the cost of waiting.',
+      text:
+        'Mike held the rail, listened to Cliff list the risks, and chose the crossing only after naming the cost of waiting.',
+      rationale: 'B',
+    },
+    {
+      key: 'C' as const,
+      mechanism: 'Bolder rendering shift',
+      candidateText:
+        'They watched the current break around the supports, then Cliff marked a line and Mike answered with the decision to move now.',
+      text:
+        'They watched the current break around the supports, then Cliff marked a line and Mike answered with the decision to move now.',
+      rationale: 'C',
+    },
+  ]
 }
 
 describe('workbenchQueueAudit', () => {
@@ -158,5 +208,367 @@ describe('workbenchQueueAudit', () => {
     expect(reportReordered.load.projectionHash).toBe(reportFirst.load.projectionHash)
     expect(reportChanged.load.identityHash).toBe(reportFirst.load.identityHash)
     expect(reportChanged.load.projectionHash).not.toBe(reportFirst.load.projectionHash)
+  })
+})
+
+describe('workbenchQueueAudit telemetry and duplication', () => {
+  it('uses actual withheld adapter output and preserves healthy propagation counts', () => {
+    const opportunity = makeOpportunity({
+      preflightReasons: ['context_missing'],
+      groundingStatus: 'unsupported_blocked',
+      contextQuality: 'blocked',
+      preflightStatus: 'blocked',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'withheldUnsupported')
+
+    expect(opportunity.cardType).toBe('withheld')
+    expect(telemetry.presentationDiagnostics.withheldAdapterInput.length).toBeGreaterThan(0)
+    expect(normalizedCounts(telemetry.presentationDiagnostics.withheldAdapterOutput)).toEqual(
+      normalizedCounts(telemetry.presentationDiagnostics.withheldAdapterInput),
+    )
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput).toEqual([])
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput).toEqual([])
+  })
+
+  it('uses actual strategy adapter output and preserves healthy propagation counts', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: strategyReadyOptions(),
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+    opportunity.strategyCardViewModel = classification.strategyCardViewModel
+
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+
+    expect(opportunity.cardType).toBe('revision_strategy')
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput.length).toBeGreaterThan(0)
+    expect(normalizedCounts(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput)).toEqual(
+      normalizedCounts(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput),
+    )
+    expect(telemetry.presentationDiagnostics.withheldAdapterInput).toEqual([])
+    expect(telemetry.presentationDiagnostics.withheldAdapterOutput).toEqual([])
+  })
+
+  it('uses scaffold reason text as strategy presentation input provenance when provided', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: strategyReadyOptions(),
+      executabilityReasons: ['EXEC_ONLY_REASON'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = 'revision_strategy'
+    opportunity.trustedPathStatus = 'unavailable_author_review_required'
+    opportunity.strategyCardViewModel = {
+      ...(classification.strategyCardViewModel as NonNullable<typeof classification.strategyCardViewModel>),
+      scaffold: {
+        ...classification.strategyCardViewModel!.scaffold,
+        reasonCopyPasteIsUnsafe: 'SCAFFOLD_ONLY_REASON; SCAFFOLD_ONLY_REASON',
+      },
+    }
+
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput).toEqual([
+      'SCAFFOLD_ONLY_REASON',
+      'SCAFFOLD_ONLY_REASON',
+    ])
+    expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput).toEqual([
+      'SCAFFOLD_ONLY_REASON',
+      'SCAFFOLD_ONLY_REASON',
+    ])
+    expect(
+      telemetry.presentationDiagnostics.strategyUnsafeReasonsInput.some(
+        (reason) => reason.toLowerCase() === 'exec_only_reason',
+      ),
+    ).toBe(false)
+  })
+
+  it('does not inflate classification boundary with unrelated gate reasons', () => {
+    const opportunity = makeOpportunity({
+      contextQuality: 'clean',
+      preflightStatus: 'passed',
+      groundingStatus: 'supported',
+      quoteHighlight: 'The quick brown fox jumped over the lazy dog.',
+      symptom:
+        'In the quoted passage “The quick brown fox jumped over the lazy dog,” the moment resolves as summary instead of action.',
+      cause:
+        'This happens because Mara summarizes the action instead of rendering the physical beat.',
+      fixDirection:
+        'Replace the quoted passage “The quick brown fox jumped over the lazy dog” so Mara chooses a visible physical response, dramatizing the consequence before the emotion is named.',
+      readerEffect:
+        'This lets readers track Mara’s action through the body, so the theme of momentum keeps the revelation from flattening into summary.',
+      options: [
+        {
+          key: 'A',
+          mechanism: 'Recommended repair',
+          candidateText:
+            'The quick brown fox jumps over the lazy dog while the sun stays low behind the hills.',
+          text:
+            'The quick brown fox jumps over the lazy dog while the sun stays low behind the hills.',
+          rationale: 'A',
+        },
+        {
+          key: 'B',
+          mechanism: 'Rhythm variant',
+          candidateText:
+            'A slow river carries the boat past the willows where the heron waits without moving.',
+          text:
+            'A slow river carries the boat past the willows where the heron waits without moving.',
+          rationale: 'B',
+        },
+        {
+          key: 'C',
+          mechanism: 'Bolder rendering shift',
+          candidateText:
+            'She pressed her palm against the cool glass and watched the rain dissolve the lights below.',
+          text:
+            'She pressed her palm against the cool glass and watched the rain dissolve the lights below.',
+          rationale: 'C',
+        },
+      ],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const baseline = analyzeDiagnosticDuplication(opportunity, classification)
+    expect(baseline.stageTotals.classificationInput).toBe(0)
+
+    classification.gates.strategy.reasons = [
+      ...classification.gates.strategy.reasons,
+      'UNRELATED_GATE_REASON_SHOULD_NOT_COUNT',
+    ]
+
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+    expect(analysis.stageTotals.classificationInput).toBe(0)
+  })
+
+  it('detects duplicate_within_source with propagated downstream copies only', () => {
+    const opportunity = makeOpportunity({
+      hydrationFailureReasons: ['insufficient_anchor_grounding', 'insufficient_anchor_grounding'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+
+    const duplicate = analysis.duplicateDiagnostics.find(
+      (d) => d.normalizedCode === 'insufficient_anchor_grounding',
+    )
+    expect(duplicate).toBeTruthy()
+    expect(duplicate!.boundary.counts).toEqual({
+      sourceCountsByCollection: {
+        preflight: 0,
+        hydration: 2,
+        resBlocker: 0,
+      },
+      classificationInputCount: 0,
+      classificationOutputCount: 0,
+      presentationInputCount: 0,
+      presentationOutputCount: 0,
+    })
+    expect(duplicate!.boundary.conditions).toEqual({
+      withinSourceDuplicate: true,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: false,
+    })
+    expect(duplicate!.boundary.duplicationType).toBe('duplicate_within_source')
+  })
+
+  it('detects repeated_across_sources and does not mislabel propagation as stage growth', () => {
+    const opportunity = makeOpportunity({
+      hydrationFailureReasons: ['canon_unclear'],
+      resBlockerReasons: ['canon_unclear'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+
+    const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'canon_unclear')
+    expect(duplicate).toBeTruthy()
+    expect(duplicate!.boundary.counts).toEqual({
+      sourceCountsByCollection: {
+        preflight: 0,
+        hydration: 1,
+        resBlocker: 1,
+      },
+      classificationInputCount: 0,
+      classificationOutputCount: 0,
+      presentationInputCount: 1,
+      presentationOutputCount: 1,
+    })
+    expect(duplicate!.boundary.conditions).toEqual({
+      withinSourceDuplicate: false,
+      repeatedAcrossSources: true,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: false,
+    })
+    expect(duplicate!.boundary.duplicationType).toBe('repeated_across_sources')
+  })
+
+  it('does not let annotation fields participate in duplication classification', () => {
+    const opportunity = makeOpportunity({
+      readinessReason: 'annotation_only_duplicate',
+      adminRepairReason: 'annotation_only_duplicate',
+      adminActions: ['annotation_only_duplicate', 'annotation_only_duplicate'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+    expect(
+      analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'annotation_only_duplicate'),
+    ).toBeUndefined()
+  })
+
+  it('captures raw boundary counts for a production-path duplicate and derives booleans before label', () => {
+    const opportunity = makeOpportunity({
+      preflightReasons: ['context_missing', 'context_missing'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+
+    const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'context_missing')
+    expect(duplicate).toBeTruthy()
+    expect(duplicate!.boundary.counts).toEqual({
+      sourceCountsByCollection: {
+        preflight: 2,
+        hydration: 0,
+        resBlocker: 0,
+      },
+      classificationInputCount: 0,
+      classificationOutputCount: 0,
+      presentationInputCount: 2,
+      presentationOutputCount: 2,
+    })
+    expect(duplicate!.boundary.conditions).toEqual({
+      withinSourceDuplicate: true,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: false,
+    })
+    expect(duplicate!.boundary.duplicationType).toBe('duplicate_within_source')
+  })
+
+  it('uses pure boundary helper for synthetic classification_merge_duplicate invariants', () => {
+    const result = classifyDiagnosticBoundary({
+      sourceCountsByCollection: {
+        preflight: 1,
+        hydration: 0,
+        resBlocker: 0,
+      },
+      classificationInputCount: 1,
+      classificationOutputCount: 2,
+      presentationInputCount: 2,
+      presentationOutputCount: 2,
+    })
+
+    expect(result.conditions).toEqual({
+      withinSourceDuplicate: false,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: true,
+      presentationMergeDuplicate: false,
+    })
+    expect(result.duplicationType).toBe('classification_merge_duplicate')
+  })
+
+  it('uses pure boundary helper for synthetic presentation_merge_duplicate invariants', () => {
+    const result = classifyDiagnosticBoundary({
+      sourceCountsByCollection: {
+        preflight: 1,
+        hydration: 0,
+        resBlocker: 0,
+      },
+      classificationInputCount: 1,
+      classificationOutputCount: 1,
+      presentationInputCount: 1,
+      presentationOutputCount: 2,
+    })
+
+    expect(result.conditions).toEqual({
+      withinSourceDuplicate: false,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: true,
+    })
+    expect(result.duplicationType).toBe('presentation_merge_duplicate')
+  })
+
+  it('reports downgrade_prevented when needs_targeting exception turns withheld into strategy', () => {
+    const opportunity = makeOpportunity({
+      id: 'opp-downgrade',
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+
+    expect(telemetry.classification.finalDecision.cardType).toBe('revision_strategy')
+    expect(telemetry.classification.counterfactualWithoutNeedsTargeting?.cardType).toBe('withheld')
+    expect(telemetry.classification.needsTargetingEffect).toBe('downgrade_prevented')
+  })
+
+  it('builds complete opportunity telemetry and includes routing and classification', () => {
+    const opportunity = makeOpportunity({
+      id: 'opp-telemetry',
+      cardType: 'revision_strategy',
+      trustedPathStatus: 'unavailable_author_review_required',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+
+    expect(telemetry.opportunityId).toBe('opp-telemetry')
+    expect(telemetry.criterion).toBe('TONE')
+    expect(telemetry.routing.queueBucket).toBe('needsTargeting')
+    expect(telemetry.gates.copyPaste).toEqual(classification.gates.copyPaste)
+    expect(telemetry.gates.strategy).toEqual(classification.gates.strategy)
+    expect(telemetry.classification.finalDecision).toEqual(classification.finalDecision)
+    expect(telemetry.deduplicationAnalysis).toBeDefined()
+    expect(telemetry.deduplicationAnalysis.stageTotals).toBeDefined()
+  })
+
+  it('produces identical identity and projection hashes with or without classifications', () => {
+    const payload = makePayload()
+    const opportunity = payload.opportunities[0]
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const classificationsById = new Map([['opp-copy', classification]])
+    const admissionsById = new Map([
+      ['opp-copy', {
+        copyPasteAdmissionPassed: classification.copyPasteAdmissionPassed,
+        copyPasteAdmissionReasons: classification.copyPasteAdmissionReasons,
+        strategyAdmissionPassed: classification.strategyAdmissionPassed,
+        strategyAdmissionReasons: classification.strategyAdmissionReasons,
+      }],
+    ])
+
+    const without = buildWorkbenchQueueAudit(payload, { admissionsById })
+    const withClassifications = buildWorkbenchQueueAudit(payload, { admissionsById, classificationsById })
+
+    expect(withClassifications.opportunityTelemetry).toHaveLength(1)
+    expect(without.load.identityHash).toBe(withClassifications.load.identityHash)
+    expect(without.load.projectionHash).toBe(withClassifications.load.projectionHash)
   })
 })
