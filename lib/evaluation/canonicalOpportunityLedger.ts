@@ -396,15 +396,31 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
   return raw;
 }
 
-function candidateTextFromCluster(
+function hasAnyCandidate(item: RawOpportunity | undefined): boolean {
+  return Boolean(item?.candidate_text_a || item?.candidate_text_b || item?.candidate_text_c);
+}
+
+function candidateSetSpecificity(item: RawOpportunity): number {
+  const a = item.candidate_text_a ?? '';
+  const b = item.candidate_text_b ?? '';
+  const c = item.candidate_text_c ?? '';
+  const presentCount = Number(a.length > 0) + Number(b.length > 0) + Number(c.length > 0);
+  return presentCount * 1000 + specificityScore(`${a} ${b} ${c}`);
+}
+
+function selectCandidateSource(
   primary: RawOpportunity | undefined,
   cluster: RawOpportunity[],
-  key: 'candidate_text_a' | 'candidate_text_b' | 'candidate_text_c',
-): string | undefined {
-  const primaryValue = primary?.[key];
-  if (primaryValue) return primaryValue;
-  const chosen = chooseMostSpecific(cluster.map((item) => item[key] ?? ''));
-  return chosen || undefined;
+): RawOpportunity | undefined {
+  // Authority rule: candidate A/B/C must come from a single source recommendation.
+  // Use the primary cluster representative when it carries any candidate; otherwise
+  // choose the cluster member with the most complete and specific candidate set.
+  // Never assemble A from one recommendation and B/C from others.
+  if (hasAnyCandidate(primary)) return primary;
+  const ranked = cluster
+    .filter((item) => hasAnyCandidate(item))
+    .sort((a, b) => candidateSetSpecificity(b) - candidateSetSpecificity(a));
+  return ranked[0];
 }
 
 function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpportunityLedgerItem {
@@ -427,6 +443,7 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
   const action = chooseMostSpecific(cluster.map((item) => item.action));
   const fix = chooseMostSpecific(cluster.map((item) => item.fix_direction || item.action));
   const readerEffect = chooseMostSpecific(cluster.map((item) => item.reader_effect || item.expected_impact));
+  const candidateSource = selectCandidateSource(primary, cluster);
 
   return {
     id: `OPP-${String(index + 1).padStart(3, '0')}`,
@@ -444,9 +461,9 @@ function mergeCluster(cluster: RawOpportunity[], index: number): CanonicalOpport
     issue_type: issueType,
     action: action || fix,
     expected_impact: chooseMostSpecific(cluster.map((item) => item.expected_impact || item.reader_effect)),
-    candidate_text_a: candidateTextFromCluster(primary, cluster, 'candidate_text_a'),
-    candidate_text_b: candidateTextFromCluster(primary, cluster, 'candidate_text_b'),
-    candidate_text_c: candidateTextFromCluster(primary, cluster, 'candidate_text_c'),
+    candidate_text_a: candidateSource?.candidate_text_a,
+    candidate_text_b: candidateSource?.candidate_text_b,
+    candidate_text_c: candidateSource?.candidate_text_c,
     mistake_proofing: chooseMostSpecific(cluster.map((item) => item.mistake_proofing ?? '')) || undefined,
     potential_damage: unique(cluster.flatMap((item) => item.potential_damage ?? [])).filter((item) => item.trim().length > 0),
     anchor_type: anchorType,

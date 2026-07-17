@@ -48,6 +48,7 @@ function makeRecommendation(overrides: { candidate_text_a?: string; candidate_te
 }
 
 function makeEvaluationResult(recommendation: any) {
+  const recommendations = Array.isArray(recommendation) ? recommendation : [recommendation];
   return {
     schema_version: 'evaluation_result_v2',
     ids: { evaluation_run_id: 'run-abc', job_id: 'job-abc', manuscript_id: 9001, user_id: 'user-abc' },
@@ -72,7 +73,7 @@ function makeEvaluationResult(recommendation: any) {
       scorability_status: 'scorable_confident',
       rationale: 'The first passage reports action abstractly.',
       evidence: [{ snippet: ANCHOR }],
-      recommendations: [recommendation],
+      recommendations,
     }],
     recommendations: { quick_wins: [], strategic_revisions: [] },
     metrics: { manuscript: { word_count: 5000, title: 'ABC Test' }, processing: {} },
@@ -359,5 +360,35 @@ describe('Candidate A/B/C authority boundaries', () => {
     expect(result.opportunities[0].candidate_text_a).toBe(SENTINEL_A);
     expect(result.opportunities[0].candidate_text_b).toBeFalsy();
     expect(result.opportunities[0].candidate_text_c).toBeFalsy();
+  });
+
+  it('8. canonical deduplication preserves one authoritative candidate set and never assembles A/B/C across recommendations', () => {
+    const A_FROM_ONE = 'A_FROM_ONE: Mara set the letter down and waited for the room to settle before she spoke.';
+    const C_FROM_ONE = 'C_FROM_ONE: The letter stayed in her hand, its weight unanswered, while she chose her next words.';
+    const A_FROM_TWO = 'A_FROM_TWO: Mara placed the letter on the table and kept her eyes on the door.';
+    const B_FROM_TWO = 'B_FROM_TWO: She held the letter a moment longer, then laid it beside the lamp.';
+    const C_FROM_TWO = 'C_FROM_TWO: The envelope remained untouched as Mara turned to the window.';
+
+    const rec1 = makeRecommendation({ candidate_text_a: A_FROM_ONE, candidate_text_b: '', candidate_text_c: C_FROM_ONE });
+    const rec2 = makeRecommendation({ candidate_text_a: A_FROM_TWO, candidate_text_b: B_FROM_TWO, candidate_text_c: C_FROM_TWO });
+
+    const evaluation = makeEvaluationResult([rec1, rec2]);
+    const ledger = buildCanonicalOpportunityLedger(evaluation);
+
+    expect(ledger.opportunities).toHaveLength(1);
+    const candidates = ledger.opportunities[0];
+
+    // The forbidden outcome is a mixed trio (e.g. A from rec1, B from rec2, C from rec1).
+    // The canonical item must be one intact set: either rec1's set or rec2's set.
+    const isRec1Set =
+      candidates.candidate_text_a === A_FROM_ONE &&
+      !candidates.candidate_text_b &&
+      candidates.candidate_text_c === C_FROM_ONE;
+    const isRec2Set =
+      candidates.candidate_text_a === A_FROM_TWO &&
+      candidates.candidate_text_b === B_FROM_TWO &&
+      candidates.candidate_text_c === C_FROM_TWO;
+
+    expect(isRec1Set || isRec2Set).toBe(true);
   });
 });
