@@ -20,7 +20,11 @@ import {
   HYDRATION_PROMPT_VERSION,
   type HydrationOpportunity,
 } from './candidateHydration';
-import { evaluateCardQuality } from './candidateQuality';
+import {
+  evaluateCardQuality,
+  LEDGER_CANDIDATE_QUALITY_REASON,
+  LEDGER_CARD_QUALITY_FAILED,
+} from './candidateQuality';
 import { regenerateCandidatesForQualityFailed } from './candidateRegeneration';
 import { enrichDiagnosticFields, needsDiagnosticEnrichment, type EnrichmentOpportunity } from './diagnosticEnrichment';
 import { logRevisionEvent } from './logRevisionEvent';
@@ -34,6 +38,63 @@ type ReviseContextQuality = 'clean' | 'limited' | 'blocked';
 type RecommendationPreflightStatus = 'passed' | 'limited_context' | 'blocked';
 
 const REVISE_QUEUE_PREFLIGHT_GATE_VERSION = 'revise_queue_preflight_gate_v1' as const;
+
+export const LEDGER_CANDIDATE_COMPLIANCE_REASON = {
+  NONCOMPLIANT: 'candidate_noncompliant' as const,
+  LOW_DIVERSITY: 'candidate_low_diversity' as const,
+  TESTIMONY_FABRICATION_RISK: 'testimony_fabrication_risk' as const,
+} as const;
+
+export const LEDGER_DIAGNOSTIC_REASON = {
+  MISSING_SYMPTOM: 'diagnostic_missing_symptom' as const,
+  MISSING_CAUSE: 'diagnostic_missing_cause' as const,
+  MISSING_FIX_DIRECTION: 'diagnostic_missing_fix_direction' as const,
+  MISSING_READER_EFFECT: 'diagnostic_missing_reader_effect' as const,
+  MISSING_EVIDENCE: 'diagnostic_missing_evidence' as const,
+  MISSING_OPERATION: 'diagnostic_missing_operation' as const,
+} as const;
+
+export const LEDGER_PREFLIGHT_REASON = {
+  CANON_AUTHORITY_BLOCKED: 'canon_authority_blocked' as const,
+  TRUNCATED_ANCHOR: 'truncated_anchor' as const,
+  RECOMMENDATION_REQUIRES_REWRITE: 'recommendation_requires_rewrite' as const,
+  INSUFFICIENT_ANCHOR_GROUNDING: 'insufficient_anchor_grounding' as const,
+  RATIONALE_CONTAMINATED: 'rationale_contaminated' as const,
+  LIMITED_CONTEXT_DEGRADED_CANON: 'limited_context_due_to_degraded_canon' as const,
+  HYDRATION_CANDIDATE_REJECTED_OVERLAP: 'hydration_candidate_rejected_overlap' as const,
+  CANDIDATE_QUALITY_FAILED_AFTER_REGEN: 'candidate_quality_failed_after_regen' as const,
+} as const;
+
+export const LEDGER_HYDRATION_REASON = {
+  CONTEXT_NOT_FOUND: 'hydration_context_not_found' as const,
+  ANCHOR_TRUNCATED: 'hydration_anchor_truncated' as const,
+  INPUT_CONTAMINATED: 'hydration_input_contaminated' as const,
+  PLACEHOLDER_COORDINATES: 'hydration_placeholder_coordinates' as const,
+  INPUT_INCOMPLETE: 'hydration_input_incomplete' as const,
+} as const;
+
+export const LEDGER_TELEMETRY_REASON = {
+  BLOCKED_PREFLIGHT: 'blocked_preflight' as const,
+  GROUNDING_UNSUPPORTED: 'grounding_unsupported' as const,
+} as const;
+
+export type LedgerCandidateComplianceReasonCode =
+  (typeof LEDGER_CANDIDATE_COMPLIANCE_REASON)[keyof typeof LEDGER_CANDIDATE_COMPLIANCE_REASON];
+export type LedgerDiagnosticReasonCode =
+  (typeof LEDGER_DIAGNOSTIC_REASON)[keyof typeof LEDGER_DIAGNOSTIC_REASON];
+export type LedgerPreflightReasonCode =
+  (typeof LEDGER_PREFLIGHT_REASON)[keyof typeof LEDGER_PREFLIGHT_REASON];
+export type LedgerHydrationReasonCode =
+  (typeof LEDGER_HYDRATION_REASON)[keyof typeof LEDGER_HYDRATION_REASON];
+export type LedgerTelemetryReasonCode =
+  (typeof LEDGER_TELEMETRY_REASON)[keyof typeof LEDGER_TELEMETRY_REASON];
+
+export const LEDGER_CANDIDATE_COMPLIANCE_REASON_CODES: LedgerCandidateComplianceReasonCode[] =
+  Object.values(LEDGER_CANDIDATE_COMPLIANCE_REASON);
+export const LEDGER_DIAGNOSTIC_REASON_CODES: LedgerDiagnosticReasonCode[] = Object.values(LEDGER_DIAGNOSTIC_REASON);
+export const LEDGER_PREFLIGHT_REASON_CODES: LedgerPreflightReasonCode[] = Object.values(LEDGER_PREFLIGHT_REASON);
+export const LEDGER_HYDRATION_REASON_CODES: LedgerHydrationReasonCode[] = Object.values(LEDGER_HYDRATION_REASON);
+export const LEDGER_TELEMETRY_REASON_CODES: LedgerTelemetryReasonCode[] = Object.values(LEDGER_TELEMETRY_REASON);
 
 const BLOCKED_CARD_ADMIN_ACTIONS = [
   'Regenerate recommendation',
@@ -336,7 +397,7 @@ function inferLedgerRevisionOperation(input: CandidateBuildInput): RevisionOpera
 
 function extractSpeech(raw: string): { setup: string; speaker: string; verb: string; speech: string } | null {
   const clean = stripEvidenceWrapper(raw);
-  const match = clean.match(/^(.*?)([A-Z][A-Za-z\u2019'\-]+)\s+(said|asked|whispered|muttered|shouted|called|cried),\s*[\u201c"](.+?)[\u201d"]\.?$/u);
+  const match = clean.match(/^(.*?)([A-Z][A-Za-z\u2019'-]+)\s+(said|asked|whispered|muttered|shouted|called|cried),\s*[\u201c"](.+?)[\u201d"]\.?$/u);
   if (!match) return null;
   return {
     setup: (match[1] ?? '').replace(/,\s*$/, '').trim(),
@@ -750,10 +811,10 @@ function hasContaminatedRationale(opportunity: RevisionOpportunity): boolean {
 
 function blockedAdminActions(reasons: string[]): string[] {
   const actions = new Set<string>(BLOCKED_CARD_ADMIN_ACTIONS);
-  if (reasons.some((reason) => reason.startsWith('hydration_') || reason === 'rationale_contaminated')) {
+  if (reasons.some((reason) => reason.startsWith('hydration_') || reason === LEDGER_PREFLIGHT_REASON.RATIONALE_CONTAMINATED)) {
     actions.add(HYDRATION_INPUT_INCOMPLETE_ADMIN_ACTION);
   }
-  if (reasons.includes('candidate_quality_failed')) {
+  if (reasons.includes(LEDGER_CARD_QUALITY_FAILED)) {
     actions.add(REGENERATE_CANDIDATE_PROSE_ADMIN_ACTION);
   }
   return [...actions];
@@ -987,29 +1048,33 @@ function candidateFitsContext(candidate: string, anchor: string, rationale: stri
   return overlapAnchor >= 0.05 || overlapRationale >= 0.05;
 }
 
+const CANDIDATE_QUALITY_FAILURE_REASON = {
+  WEAK_IMPROVEMENT: 'candidate_quality_weak_improvement' as const,
+};
+
 function candidateQualityFailureCodes(opportunity: RevisionOpportunity, candidate: string): string[] {
   const reasons: string[] = [];
-  if (!candidateTextIsCopyPasteReady(candidate)) reasons.push('candidate_quality_not_copy_ready');
+  if (!candidateTextIsCopyPasteReady(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.NOT_COPY_READY);
 
   const words = tokenArray(candidate);
-  if (words.length < 8) reasons.push('candidate_quality_too_short');
+  if (words.length < 8) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.TOO_SHORT);
 
-  if (candidateLooksGenericAdvice(candidate)) reasons.push('candidate_quality_generic');
-  if (candidateLooksSummaryNotProse(candidate)) reasons.push('candidate_quality_summary');
-  if (candidateLooksStilted(candidate)) reasons.push('candidate_quality_stilted');
-  if (candidateLooksRepetitive(candidate)) reasons.push('candidate_quality_repetitive');
+  if (candidateLooksGenericAdvice(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.GENERIC);
+  if (candidateLooksSummaryNotProse(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.SUMMARY);
+  if (candidateLooksStilted(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.STILTED);
+  if (candidateLooksRepetitive(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.REPETITIVE);
 
   const overlap = overlapScoreWithAnchor(candidate, opportunity.evidence_anchor);
-  if (overlap >= 0.82) reasons.push('candidate_quality_anchor_overlap');
-  if (overlap >= 0.92) reasons.push('candidate_quality_weak_improvement');
+  if (overlap >= 0.82) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.ANCHOR_OVERLAP);
+  if (overlap >= 0.92) reasons.push(CANDIDATE_QUALITY_FAILURE_REASON.WEAK_IMPROVEMENT);
 
   if (candidateIntroducesUnsupportedFacts(candidate, opportunity.evidence_anchor)) {
-    reasons.push('candidate_quality_unsupported_facts');
+    reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.UNSUPPORTED_FACTS);
   }
 
-  if (candidateVoiceMismatch(candidate)) reasons.push('candidate_quality_voice_mismatch');
+  if (candidateVoiceMismatch(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.VOICE_MISMATCH);
   if (!candidateFitsContext(candidate, opportunity.evidence_anchor, opportunity.rationale)) {
-    reasons.push('candidate_quality_context_mismatch');
+    reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.CONTEXT_MISMATCH);
   }
 
   return [...new Set(reasons)];
@@ -1035,7 +1100,7 @@ function candidateQualityReasons(opportunity: RevisionOpportunity): string[] {
   );
   if (result.pass) return [];
 
-  return ['candidate_quality_failed', ...('reasons' in result ? result.reasons : [])];
+  return [LEDGER_CARD_QUALITY_FAILED, ...('reasons' in result ? result.reasons : [])];
 }
 
 function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluationMode?: string): string[] {
@@ -1044,10 +1109,10 @@ function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluation
 
   const reasons: string[] = [];
   if (candidates.some((candidate) => !candidateTextIsCopyPasteReady(candidate))) {
-    reasons.push('candidate_noncompliant');
+    reasons.push(LEDGER_CANDIDATE_COMPLIANCE_REASON.NONCOMPLIANT);
   }
   if (candidateSetHasLowDiversity(opportunity)) {
-    reasons.push('candidate_low_diversity');
+    reasons.push(LEDGER_CANDIDATE_COMPLIANCE_REASON.LOW_DIVERSITY);
   }
   const qualityReasons = candidateQualityReasons(opportunity);
   if (qualityReasons.length > 0) {
@@ -1059,7 +1124,7 @@ function candidateComplianceReasons(opportunity: RevisionOpportunity, evaluation
     !hasDirectSpeech(opportunity.evidence_anchor) &&
     candidates.some((candidate) => typeof candidate === 'string' && hasDirectSpeech(candidate))
   ) {
-    reasons.push('testimony_fabrication_risk');
+    reasons.push(LEDGER_CANDIDATE_COMPLIANCE_REASON.TESTIMONY_FABRICATION_RISK);
   }
   return [...new Set(reasons)];
 }
@@ -1093,32 +1158,32 @@ function diagnosticCompletenessReasons(opportunity: RevisionOpportunity): string
 
   // Layer 1: Symptom — the visible problem on the page
   if (!opportunity.symptom || opportunity.symptom.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push('diagnostic_missing_symptom');
+    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_SYMPTOM);
   }
 
   // Layer 2: Cause — craft mechanism creating the problem
   if (!opportunity.cause || opportunity.cause.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push('diagnostic_missing_cause');
+    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_CAUSE);
   }
 
   // Layer 3: Fix Strategy — repair approach
   if (!opportunity.fix_direction || opportunity.fix_direction.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push('diagnostic_missing_fix_direction');
+    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_FIX_DIRECTION);
   }
 
   // Layer 4: Reader Impact — what the reader gains or loses
   if (!opportunity.reader_effect || opportunity.reader_effect.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push('diagnostic_missing_reader_effect');
+    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_READER_EFFECT);
   }
 
   // Layer 5: Evidence — manuscript text (already required by evidence_anchor field)
   if (!opportunity.evidence_anchor || opportunity.evidence_anchor.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push('diagnostic_missing_evidence');
+    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_EVIDENCE);
   }
 
   // Layer 6: Operation / Targeting — what action applied where
   if (!opportunity.revision_operation) {
-    reasons.push('diagnostic_missing_operation');
+    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_OPERATION);
   }
 
   return reasons;
@@ -1131,26 +1196,28 @@ function preflightReasonsForOpportunity(
 ): string[] {
   const reasons: string[] = [];
   const preservedReasons = (opportunity.preflight_reasons ?? []).filter(
-    (reason) => reason === 'hydration_candidate_rejected_overlap' || reason === 'candidate_quality_failed_after_regen',
+    (reason) =>
+      reason === LEDGER_PREFLIGHT_REASON.HYDRATION_CANDIDATE_REJECTED_OVERLAP ||
+      reason === LEDGER_PREFLIGHT_REASON.CANDIDATE_QUALITY_FAILED_AFTER_REGEN,
   );
   reasons.push(...preservedReasons);
-  if (contextQuality === 'blocked') reasons.push('canon_authority_blocked');
-  if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push('truncated_anchor');
-  if (!hasConcreteAction(opportunity)) reasons.push('recommendation_requires_rewrite');
+  if (contextQuality === 'blocked') reasons.push(LEDGER_PREFLIGHT_REASON.CANON_AUTHORITY_BLOCKED);
+  if (anchorLooksTruncated(opportunity.evidence_anchor)) reasons.push(LEDGER_PREFLIGHT_REASON.TRUNCATED_ANCHOR);
+  if (!hasConcreteAction(opportunity)) reasons.push(LEDGER_PREFLIGHT_REASON.RECOMMENDATION_REQUIRES_REWRITE);
   // Evidence-based anchor coherence. Diagnostics are collected in preflight metadata
   // rather than persisted onto the source opportunity shape.
   const coherenceDiagnostic = buildAnchorCoherenceDiagnostic(opportunity);
-  if (coherenceDiagnostic.decision === 'blocked') reasons.push('insufficient_anchor_grounding');
+  if (coherenceDiagnostic.decision === 'blocked') reasons.push(LEDGER_PREFLIGHT_REASON.INSUFFICIENT_ANCHOR_GROUNDING);
   if (opportunity.hydration_eligible === false) {
     reasons.push(...(opportunity.hydration_ineligibility_reasons ?? []));
   }
   if (evaluationMode === 'TESTIMONY' && hasDialogueIntent(opportunity) && !hasDirectSpeech(opportunity.evidence_anchor)) {
-    reasons.push('testimony_fabrication_risk');
+    reasons.push(LEDGER_CANDIDATE_COMPLIANCE_REASON.TESTIMONY_FABRICATION_RISK);
   }
 
   // Rationale quality gate — the WHY must be real editorial reasoning, not template text
   if (hasContaminatedRationale(opportunity)) {
-    reasons.push('rationale_contaminated');
+    reasons.push(LEDGER_PREFLIGHT_REASON.RATIONALE_CONTAMINATED);
   }
 
   return [...new Set(reasons)];
@@ -1185,7 +1252,7 @@ function applyReviseQueuePreflight(
         ? capLedgerConfidence(opportunity.confidence, 'medium')
         : opportunity.confidence,
       preflight_status: contextQuality === 'limited' ? 'limited_context' : 'passed',
-      preflight_reasons: contextQuality === 'limited' ? ['limited_context_due_to_degraded_canon'] : [],
+      preflight_reasons: contextQuality === 'limited' ? [LEDGER_PREFLIGHT_REASON.LIMITED_CONTEXT_DEGRADED_CANON] : [],
       preflight_note: contextQuality === 'limited'
         ? 'Generated under limited context because ledger_quality_report_v1 did not certify clean story canon.'
         : undefined,
@@ -1243,40 +1310,40 @@ function overlapScoreWithAnchor(candidate: string | undefined, anchor: string): 
 function deriveTelemetryRejectionReasons(opportunity: RevisionOpportunity): string[] {
   const base = [...new Set(opportunity.preflight_reasons ?? [])];
   const hydrationInputReasons = [
-    'hydration_context_not_found',
-    'hydration_anchor_truncated',
-    'hydration_placeholder_coordinates',
-    'hydration_input_contaminated',
+    LEDGER_HYDRATION_REASON.CONTEXT_NOT_FOUND,
+    LEDGER_HYDRATION_REASON.ANCHOR_TRUNCATED,
+    LEDGER_HYDRATION_REASON.PLACEHOLDER_COORDINATES,
+    LEDGER_HYDRATION_REASON.INPUT_CONTAMINATED,
   ];
-  if (base.some((reason) => hydrationInputReasons.includes(reason))) {
-    base.push('hydration_input_incomplete');
+  if (base.some((reason) => hydrationInputReasons.some((code) => reason === code))) {
+    base.push(LEDGER_HYDRATION_REASON.INPUT_INCOMPLETE);
   }
   if (base.length === 0 && opportunity.preflight_status === 'blocked') {
-    base.push('blocked_preflight');
+    base.push(LEDGER_TELEMETRY_REASON.BLOCKED_PREFLIGHT);
   }
   if (base.length === 0 && opportunity.grounding_status !== 'supported') {
-    base.push('grounding_unsupported');
+    base.push(LEDGER_TELEMETRY_REASON.GROUNDING_UNSUPPORTED);
   }
   return [...new Set(base)];
 }
 
 function selectPrimaryRejectionReason(reasons: string[]): string {
   const priority = [
-    'canon_authority_blocked',
-    'candidate_quality_failed',
-    'insufficient_anchor_grounding',
-    'truncated_anchor',
-    'testimony_fabrication_risk',
-    'hydration_input_incomplete',
-    'hydration_context_not_found',
-    'hydration_placeholder_coordinates',
-    'hydration_input_contaminated',
-    'hydration_candidate_rejected_overlap',
+    LEDGER_PREFLIGHT_REASON.CANON_AUTHORITY_BLOCKED,
+    LEDGER_CARD_QUALITY_FAILED,
+    LEDGER_PREFLIGHT_REASON.INSUFFICIENT_ANCHOR_GROUNDING,
+    LEDGER_PREFLIGHT_REASON.TRUNCATED_ANCHOR,
+    LEDGER_CANDIDATE_COMPLIANCE_REASON.TESTIMONY_FABRICATION_RISK,
+    LEDGER_HYDRATION_REASON.INPUT_INCOMPLETE,
+    LEDGER_HYDRATION_REASON.CONTEXT_NOT_FOUND,
+    LEDGER_HYDRATION_REASON.PLACEHOLDER_COORDINATES,
+    LEDGER_HYDRATION_REASON.INPUT_CONTAMINATED,
+    LEDGER_PREFLIGHT_REASON.HYDRATION_CANDIDATE_REJECTED_OVERLAP,
   ];
   for (const key of priority) {
     if (reasons.includes(key)) return key;
   }
-  return reasons[0] ?? 'blocked_preflight';
+  return reasons[0] ?? LEDGER_TELEMETRY_REASON.BLOCKED_PREFLIGHT;
 }
 
 function hydrationResultForTelemetry(input: {
@@ -1285,8 +1352,8 @@ function hydrationResultForTelemetry(input: {
   hydrationAttempted: boolean;
 }): string {
   if (input.opportunity.grounding_status === 'supported') return 'supported';
-  if (input.reasons.includes('hydration_candidate_rejected_overlap')) return 'rejected_overlap';
-  if (input.reasons.includes('hydration_input_incomplete')) return 'input_incomplete';
+  if (input.reasons.includes(LEDGER_PREFLIGHT_REASON.HYDRATION_CANDIDATE_REJECTED_OVERLAP)) return 'rejected_overlap';
+  if (input.reasons.includes(LEDGER_HYDRATION_REASON.INPUT_INCOMPLETE)) return 'input_incomplete';
   if (input.hydrationAttempted) return 'attempted_rejected_or_unresolved';
   if (input.opportunity.preflight_status === 'blocked') return 'blocked_preflight';
   return 'not_attempted';
@@ -2796,14 +2863,14 @@ export async function ensureRevisionOpportunityLedgerArtifact(
         const placeholderCoordinates = hasPlaceholderCoordinates(o);
         const inputContaminated = hasContaminatedRationale(o);
 
-        if (contextNotFound) eligibilityReasons.push('hydration_context_not_found');
-        if (anchorTruncated) eligibilityReasons.push('hydration_anchor_truncated');
-        if (inputContaminated) eligibilityReasons.push('hydration_input_contaminated');
+        if (contextNotFound) eligibilityReasons.push(LEDGER_HYDRATION_REASON.CONTEXT_NOT_FOUND);
+        if (anchorTruncated) eligibilityReasons.push(LEDGER_HYDRATION_REASON.ANCHOR_TRUNCATED);
+        if (inputContaminated) eligibilityReasons.push(LEDGER_HYDRATION_REASON.INPUT_CONTAMINATED);
         // Placeholder coordinates are a hydration blocker only when paired with
         // unrecoverable context contamination/missing context. Placeholder labels
         // alone can still be safely hydrated when anchor+context are strong.
         if (placeholderCoordinates && (contextNotFound || inputContaminated)) {
-          eligibilityReasons.push('hydration_placeholder_coordinates');
+          eligibilityReasons.push(LEDGER_HYDRATION_REASON.PLACEHOLDER_COORDINATES);
         }
 
         if (eligibilityReasons.length > 0) {
@@ -2858,7 +2925,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
               }
 
               const rejectionReason = hydration.rejectionReasons?.get(opp.opportunity_id);
-              if (rejectionReason === 'hydration_candidate_rejected_overlap') {
+              if (rejectionReason === LEDGER_PREFLIGHT_REASON.HYDRATION_CANDIDATE_REJECTED_OVERLAP) {
                 const mergedReasons = [...new Set([...(opp.preflight_reasons ?? []), rejectionReason])];
                 opp.preflight_status = 'blocked';
                 opp.preflight_reasons = mergedReasons;
@@ -2907,7 +2974,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
               (o) =>
                 hydrationAttemptedByOpportunityId.has(o.opportunity_id) &&
                 o.preflight_status === 'blocked' &&
-                (o.preflight_reasons ?? []).includes('candidate_quality_failed'),
+                (o.preflight_reasons ?? []).includes(LEDGER_CARD_QUALITY_FAILED),
             );
             if (qualityBlockedForRegen.length > 0) {
               const regenInput = qualityBlockedForRegen.map((o) => ({
@@ -3026,7 +3093,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
       opportunity,
       jobId,
       hydrationAttempted: hydrationAttemptedByOpportunityId.has(opportunity.opportunity_id),
-      contextFound: hydrationContextFoundByOpportunityId.get(opportunity.opportunity_id) ?? !deriveTelemetryRejectionReasons(opportunity).includes('hydration_context_not_found'),
+      contextFound: hydrationContextFoundByOpportunityId.get(opportunity.opportunity_id) ?? !deriveTelemetryRejectionReasons(opportunity).includes(LEDGER_HYDRATION_REASON.CONTEXT_NOT_FOUND),
       candidateGenerationStatus,
     });
 
