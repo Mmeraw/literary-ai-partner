@@ -8,6 +8,12 @@
  */
 
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope } from './workbenchQueue'
+import {
+  classifyWorkbenchExecutabilityDetailedWithoutNeedsTargeting,
+  type WorkbenchExecutabilityClassification,
+} from './workbenchQueueProjection'
+import type { RecommendationExecutabilityDecision } from './recommendationExecutability'
+import type { AdmissionGateResult } from './reviseAdmissionGate'
 
 export type WorkbenchAdmissionDetails = {
   copyPasteAdmissionPassed: boolean
@@ -56,6 +62,116 @@ export type WorkbenchQueueAuditReport = {
   type: 'workbench-queue-audit'
   load: WorkbenchQueueLoadAudit
   opportunities: WorkbenchQueueOpportunityAudit[]
+  opportunityTelemetry?: WorkbenchOpportunityTelemetry[]
+}
+
+export type DiagnosticSource =
+  | 'readiness'
+  | 'preflight'
+  | 'hydration'
+  | 'res_blocker'
+  | 'executability'
+  | 'strategy_admission'
+  | 'copy_paste_admission'
+  | 'admin_repair'
+  | 'presentation_merge'
+
+export type DiagnosticOccurrence = {
+  rawCode: string
+  normalizedCode: string
+  source: DiagnosticSource
+  rawIndex: number
+  stage: 'source' | 'gate' | 'classification' | 'presentation'
+}
+
+export type DuplicateDiagnostic = {
+  normalizedCode: string
+  rawVariants: string[]
+  occurrences: DiagnosticOccurrence[]
+  duplicationType:
+    | 'duplicate_within_source'
+    | 'repeated_across_sources'
+    | 'classification_merge_duplicate'
+    | 'presentation_merge_duplicate'
+    | 'mixed'
+  stageCounts: {
+    source: number
+    gate: number
+    classification: number
+    presentation: number
+  }
+  distinctSourceCount: number
+}
+
+export type DiagnosticDuplicationAnalysis = {
+  duplicateDiagnostics: DuplicateDiagnostic[]
+  allSourceCodes: string[]
+  sourceCountByCode: Record<string, number>
+  stageTotals: {
+    source: number
+    gate: number
+    classification: number
+    presentation: number
+  }
+}
+
+export type WorkbenchOpportunityTelemetry = {
+  opportunityId: string
+  sourceOpportunityId: string | undefined
+  sourceCriterion: string | undefined
+  criterion: string
+  readiness: string | null | undefined
+  sourceState: {
+    groundingStatus: string | null | undefined
+    groundingNote: string | null | undefined
+    contextQuality: string | null | undefined
+    preflightStatus: string | null | undefined
+    readinessReason: string | null
+    preflightNote: string | null
+  }
+  rawDiagnostics: {
+    preflightReasons: string[]
+    hydrationFailureReasons: string[]
+    resBlockerReasons: string[]
+    adminRepairReason: string | null
+    adminActions: string[]
+  }
+  annotations: {
+    readinessReason: string | null
+    groundingNote: string | null
+    preflightNote: string | null
+    adminRepairReason: string | null
+    adminActions: string[]
+  }
+  gates: {
+    copyPaste: AdmissionGateResult
+    strategy: AdmissionGateResult
+  }
+  classification: {
+    baseDecision: RecommendationExecutabilityDecision
+    needsTargetingPromotionApplied: boolean
+    needsTargetingOverrideApplied: boolean
+    transitionReason: string | null
+    finalDecision: RecommendationExecutabilityDecision
+    counterfactualWithoutNeedsTargeting: RecommendationExecutabilityDecision | null
+    needsTargetingEffect:
+      | 'none'
+      | 'reason_merged'
+      | 'promoted_from_withheld'
+      | 'downgrade_prevented'
+      | 'indeterminate'
+  }
+  projectionDiagnostics: {
+    executabilityReasons: string[]
+  }
+  presentationDiagnostics: {
+    withheldAdapterInput: string[]
+    strategyUnsafeReasonsInput: string[]
+  }
+  deduplicationAnalysis: DiagnosticDuplicationAnalysis
+  routing: {
+    queueBucket: 'opportunities' | 'needsTargeting' | 'withheldUnsupported' | 'unknown'
+  }
 }
 
 export const REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION = 'workbench-queue-projection:2026-07-13'
@@ -88,6 +204,339 @@ function hashProjection(entries: unknown[]): string {
  */
 function normalizedAdmissionReasons(reasons: string[] | undefined): string[] {
   return Array.from(new Set((reasons ?? []).map((reason) => reason.trim()).filter(Boolean))).sort()
+}
+
+function normalizeDiagnosticCode(code: string): string {
+  return code.trim().toLowerCase()
+}
+
+function decisionsEqual(
+  a: RecommendationExecutabilityDecision,
+  b: RecommendationExecutabilityDecision,
+): boolean {
+  return (
+    a.cardType === b.cardType &&
+    a.trustedPathStatus === b.trustedPathStatus &&
+    JSON.stringify(a.reasons) === JSON.stringify(b.reasons)
+  )
+}
+
+function asDiagnosticCode(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+  return null
+}
+
+function collectOccurrences(
+  items: string[],
+  source: DiagnosticSource,
+  stage: DiagnosticOccurrence['stage'],
+): DiagnosticOccurrence[] {
+  return items
+    .map((raw, rawIndex) => {
+      const rawCode = asDiagnosticCode(raw)
+      if (!rawCode) return null
+      return {
+        rawCode,
+        normalizedCode: normalizeDiagnosticCode(rawCode),
+        source,
+        rawIndex,
+        stage,
+      }
+    })
+    .filter((o): o is DiagnosticOccurrence => o !== null)
+}
+
+function countBySource(occurrences: DiagnosticOccurrence[]): Map<DiagnosticSource, number> {
+  const counts = new Map<DiagnosticSource, number>()
+  for (const o of occurrences) {
+    counts.set(o.source, (counts.get(o.source) ?? 0) + 1)
+  }
+  return counts
+}
+
+function stageCounts(
+  occurrences: DiagnosticOccurrence[],
+): { source: number; gate: number; classification: number; presentation: number } {
+  return {
+    source: occurrences.filter((o) => o.stage === 'source').length,
+    gate: occurrences.filter((o) => o.stage === 'gate').length,
+    classification: occurrences.filter((o) => o.stage === 'classification').length,
+    presentation: occurrences.filter((o) => o.stage === 'presentation').length,
+  }
+}
+
+function stageHasDuplicate(count: number): boolean {
+  return count > 1
+}
+
+function classifyDuplication(occurrences: DiagnosticOccurrence[]): DuplicateDiagnostic['duplicationType'] {
+  const counts = stageCounts(occurrences)
+  const sourceOccurrences = occurrences.filter((o) => o.stage === 'source')
+  const sourceCounts = countBySource(sourceOccurrences)
+
+  const hasSourceDuplicate = stageHasDuplicate(counts.source)
+  const hasGateDuplicate = stageHasDuplicate(counts.gate)
+  const hasClassificationDuplicate = stageHasDuplicate(counts.classification)
+  const hasPresentationDuplicate = stageHasDuplicate(counts.presentation)
+
+  const sourceStagesWithDuplicates = [
+    hasSourceDuplicate,
+    hasGateDuplicate,
+    hasClassificationDuplicate,
+    hasPresentationDuplicate,
+  ].filter(Boolean).length
+
+  if (sourceStagesWithDuplicates === 1) {
+    if (hasSourceDuplicate) {
+      const hasDuplicateWithinSource = Array.from(sourceCounts.values()).some((count) => count > 1)
+      return hasDuplicateWithinSource ? 'duplicate_within_source' : 'repeated_across_sources'
+    }
+
+    if (hasGateDuplicate) {
+      return 'repeated_across_sources'
+    }
+
+    if (hasClassificationDuplicate) {
+      return 'classification_merge_duplicate'
+    }
+
+    if (hasPresentationDuplicate) {
+      return 'presentation_merge_duplicate'
+    }
+  }
+
+  return 'mixed'
+}
+
+export function analyzeDiagnosticDuplication(
+  opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification,
+): DiagnosticDuplicationAnalysis {
+  const occurrences: DiagnosticOccurrence[] = []
+
+  // Source-stage diagnostics
+  occurrences.push(...collectOccurrences(opportunity.preflightReasons ?? [], 'preflight', 'source'))
+  occurrences.push(...collectOccurrences(opportunity.hydrationFailureReasons ?? [], 'hydration', 'source'))
+  occurrences.push(...collectOccurrences(opportunity.resBlockerReasons ?? [], 'res_blocker', 'source'))
+
+  const adminRepairReason = asDiagnosticCode(opportunity.adminRepairReason)
+  if (adminRepairReason) {
+    occurrences.push({
+      rawCode: adminRepairReason,
+      normalizedCode: normalizeDiagnosticCode(adminRepairReason),
+      source: 'admin_repair',
+      rawIndex: 0,
+      stage: 'source',
+    })
+  }
+
+  occurrences.push(...collectOccurrences(opportunity.adminActions ?? [], 'admin_repair', 'source'))
+
+  const readinessReason = asDiagnosticCode(opportunity.readinessReason)
+  if (readinessReason) {
+    occurrences.push({
+      rawCode: readinessReason,
+      normalizedCode: normalizeDiagnosticCode(readinessReason),
+      source: 'readiness',
+      rawIndex: 0,
+      stage: 'source',
+    })
+  }
+
+  // Gate-stage diagnostics
+  occurrences.push(
+    ...collectOccurrences(classification.gates.copyPaste.reasons, 'copy_paste_admission', 'gate'),
+  )
+  occurrences.push(
+    ...collectOccurrences(classification.gates.strategy.reasons, 'strategy_admission', 'gate'),
+  )
+
+  // Classification-stage diagnostics
+  occurrences.push(
+    ...collectOccurrences(classification.finalDecision.reasons, 'executability', 'classification'),
+  )
+
+  // Presentation-stage diagnostics
+  const withheldAdapterInput = [
+    ...(opportunity.executabilityReasons ?? []),
+    ...(opportunity.preflightReasons ?? []),
+    ...(opportunity.resBlockerReasons ?? []),
+  ]
+    .map((s) => s?.trim())
+    .filter((s): s is string => Boolean(s))
+
+  const strategyUnsafeReasonsInput =
+    opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe?.trim()
+      ? []
+      : (opportunity.executabilityReasons ?? [])
+
+  occurrences.push(
+    ...collectOccurrences(withheldAdapterInput, 'presentation_merge', 'presentation'),
+  )
+  occurrences.push(
+    ...collectOccurrences(strategyUnsafeReasonsInput, 'presentation_merge', 'presentation'),
+  )
+
+  const byCode = new Map<string, DiagnosticOccurrence[]>()
+  for (const occurrence of occurrences) {
+    const list = byCode.get(occurrence.normalizedCode) ?? []
+    list.push(occurrence)
+    byCode.set(occurrence.normalizedCode, list)
+  }
+
+  const duplicateDiagnostics: DuplicateDiagnostic[] = []
+  for (const [normalizedCode, list] of byCode) {
+    if (list.length > 1) {
+      const sourceOccurrences = list.filter((o) => o.stage === 'source')
+      const sourceSourceCounts = countBySource(sourceOccurrences)
+      duplicateDiagnostics.push({
+        normalizedCode,
+        rawVariants: Array.from(new Set(list.map((o) => o.rawCode))),
+        occurrences: list,
+        duplicationType: classifyDuplication(list),
+        stageCounts: stageCounts(list),
+        distinctSourceCount: sourceSourceCounts.size,
+      })
+    }
+  }
+
+  duplicateDiagnostics.sort((a, b) => a.normalizedCode.localeCompare(b.normalizedCode))
+
+  const allSourceCodes = Array.from(new Set(occurrences.filter((o) => o.stage === 'source').map((o) => o.rawCode)))
+  const sourceCountByCode: Record<string, number> = {}
+  for (const occurrence of occurrences) {
+    if (occurrence.stage === 'source') {
+      sourceCountByCode[occurrence.normalizedCode] = (sourceCountByCode[occurrence.normalizedCode] ?? 0) + 1
+    }
+  }
+
+  return {
+    duplicateDiagnostics,
+    allSourceCodes,
+    sourceCountByCode,
+    stageTotals: stageCounts(occurrences),
+  }
+}
+
+function classifyNeedsTargetingEffect(
+  opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification,
+): WorkbenchOpportunityTelemetry['classification'] {
+  const counterfactual = classifyWorkbenchExecutabilityDetailedWithoutNeedsTargeting(opportunity)
+
+  const actualFinal = classification.finalDecision
+  const counterfactualFinal = counterfactual.finalDecision
+  const reasonsEqual = decisionsEqual(
+    { ...actualFinal, reasons: actualFinal.reasons },
+    { ...counterfactualFinal, reasons: counterfactualFinal.reasons },
+  )
+
+  let effect: WorkbenchOpportunityTelemetry['classification']['needsTargetingEffect'] = 'indeterminate'
+
+  if (opportunity.readiness !== 'needs_targeting') {
+    effect = 'none'
+  } else if (
+    classification.needsTargetingPromotionApplied &&
+    classification.baseDecision.cardType === 'withheld' &&
+    actualFinal.cardType === 'revision_strategy'
+  ) {
+    effect = 'promoted_from_withheld'
+  } else if (
+    counterfactualFinal.cardType === 'withheld' &&
+    actualFinal.cardType === 'revision_strategy'
+  ) {
+    effect = 'downgrade_prevented'
+  } else if (
+    counterfactualFinal.cardType === actualFinal.cardType &&
+    !reasonsEqual
+  ) {
+    effect = 'reason_merged'
+  } else if (counterfactualFinal.cardType === actualFinal.cardType && reasonsEqual) {
+    effect = 'none'
+  } else {
+    effect = 'indeterminate'
+  }
+
+  return {
+    baseDecision: classification.baseDecision,
+    needsTargetingPromotionApplied: classification.needsTargetingPromotionApplied,
+    needsTargetingOverrideApplied: classification.needsTargetingOverrideApplied,
+    transitionReason: classification.promotionTransitionReason,
+    finalDecision: actualFinal,
+    counterfactualWithoutNeedsTargeting: counterfactualFinal,
+    needsTargetingEffect: effect,
+  }
+}
+
+export function buildWorkbenchOpportunityTelemetry(
+  opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification,
+  queueBucket: WorkbenchOpportunityTelemetry['routing']['queueBucket'],
+): WorkbenchOpportunityTelemetry {
+  const classificationWithEffect = classifyNeedsTargetingEffect(opportunity, classification)
+  const executabilityReasons = classification.finalDecision.reasons
+
+  const withheldAdapterInput = [
+    ...(opportunity.executabilityReasons ?? []),
+    ...(opportunity.preflightReasons ?? []),
+    ...(opportunity.resBlockerReasons ?? []),
+  ]
+    .map((s) => s?.trim())
+    .filter((s): s is string => Boolean(s))
+
+  const strategyUnsafeReasonsInput =
+    opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe?.trim()
+      ? []
+      : (opportunity.executabilityReasons ?? [])
+
+  return {
+    opportunityId: opportunity.id,
+    sourceOpportunityId: (opportunity as any).sourceOpportunityId,
+    sourceCriterion: (opportunity as any).sourceCriterion,
+    criterion: opportunity.criterion,
+    readiness: opportunity.readiness,
+    sourceState: {
+      groundingStatus: opportunity.groundingStatus,
+      groundingNote: opportunity.groundingNote ?? null,
+      contextQuality: opportunity.contextQuality,
+      preflightStatus: opportunity.preflightStatus,
+      readinessReason: opportunity.readinessReason ?? null,
+      preflightNote: opportunity.preflightNote ?? null,
+    },
+    rawDiagnostics: {
+      preflightReasons: opportunity.preflightReasons ?? [],
+      hydrationFailureReasons: opportunity.hydrationFailureReasons ?? [],
+      resBlockerReasons: opportunity.resBlockerReasons ?? [],
+      adminRepairReason: opportunity.adminRepairReason ?? null,
+      adminActions: opportunity.adminActions ?? [],
+    },
+    annotations: {
+      readinessReason: opportunity.readinessReason ?? null,
+      groundingNote: opportunity.groundingNote ?? null,
+      preflightNote: opportunity.preflightNote ?? null,
+      adminRepairReason: opportunity.adminRepairReason ?? null,
+      adminActions: opportunity.adminActions ?? [],
+    },
+    gates: {
+      copyPaste: classification.gates.copyPaste,
+      strategy: classification.gates.strategy,
+    },
+    classification: classificationWithEffect,
+    projectionDiagnostics: {
+      executabilityReasons,
+    },
+    presentationDiagnostics: {
+      withheldAdapterInput,
+      strategyUnsafeReasonsInput,
+    },
+    deduplicationAnalysis: analyzeDiagnosticDuplication(opportunity, classification),
+    routing: {
+      queueBucket,
+    },
+  }
 }
 
 export function isAuditLogEnabled(): boolean {
@@ -124,6 +573,7 @@ export function buildWorkbenchQueueAudit(
   context?: {
     ledgerArtifactId?: string | null
     admissionsById?: Map<string, WorkbenchAdmissionDetails>
+    classificationsById?: Map<string, WorkbenchExecutabilityClassification>
   },
 ): WorkbenchQueueAuditReport {
   const opportunityIds = new Map<string, WorkbenchOpportunity>()
@@ -219,6 +669,21 @@ export function buildWorkbenchQueueAudit(
     }
   })
 
+  const opportunityTelemetry: WorkbenchOpportunityTelemetry[] = []
+  if (context?.classificationsById) {
+    for (const id of orderedOpportunityIds) {
+      const opportunity = opportunityIds.get(id)
+      const classification = context.classificationsById.get(id)
+      if (!opportunity || !classification) continue
+      const queueBucket = opportunity
+        ? bucketForOpportunity(opportunity, bucketById)
+        : 'unknown'
+      opportunityTelemetry.push(
+        buildWorkbenchOpportunityTelemetry(opportunity, classification, queueBucket),
+      )
+    }
+  }
+
   return {
     type: 'workbench-queue-audit',
     load: {
@@ -238,6 +703,7 @@ export function buildWorkbenchQueueAudit(
       timestamp: new Date().toISOString(),
     },
     opportunities,
+    opportunityTelemetry,
   }
 }
 

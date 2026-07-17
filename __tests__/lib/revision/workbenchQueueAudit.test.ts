@@ -1,4 +1,11 @@
-import { buildWorkbenchQueueAudit, isAuditLogEnabled, REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION } from '@/lib/revision/workbenchQueueAudit'
+import {
+  buildWorkbenchQueueAudit,
+  isAuditLogEnabled,
+  REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION,
+  analyzeDiagnosticDuplication,
+  buildWorkbenchOpportunityTelemetry,
+} from '@/lib/revision/workbenchQueueAudit'
+import { classifyWorkbenchExecutabilityDetailed } from '@/lib/revision/workbenchQueueProjection'
 import type { WorkbenchQueuePayload, WorkbenchOpportunity } from '@/lib/revision/workbenchQueue'
 
 function makeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): WorkbenchOpportunity {
@@ -158,5 +165,131 @@ describe('workbenchQueueAudit', () => {
     expect(reportReordered.load.projectionHash).toBe(reportFirst.load.projectionHash)
     expect(reportChanged.load.identityHash).toBe(reportFirst.load.identityHash)
     expect(reportChanged.load.projectionHash).not.toBe(reportFirst.load.projectionHash)
+  })
+})
+
+describe('workbenchQueueAudit telemetry and duplication', () => {
+  it('detects a duplicate within a single source array', () => {
+    const opportunity = makeOpportunity({
+      hydrationFailureReasons: ['insufficient_anchor_grounding', 'insufficient_anchor_grounding'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+
+    const duplicate = analysis.duplicateDiagnostics.find(
+      (d) => d.normalizedCode === 'insufficient_anchor_grounding',
+    )
+    expect(duplicate).toBeTruthy()
+    expect(duplicate!.duplicationType).toBe('duplicate_within_source')
+    expect(duplicate!.stageCounts.source).toBe(2)
+    const sourceOccurrences = duplicate!.occurrences.filter((o) => o.stage === 'source')
+    expect(sourceOccurrences.every((o) => o.source === 'hydration')).toBe(true)
+    expect(sourceOccurrences).toHaveLength(2)
+  })
+
+  it('detects a diagnostic repeated across independent source arrays', () => {
+    const opportunity = makeOpportunity({
+      hydrationFailureReasons: ['canon_unclear'],
+      resBlockerReasons: ['canon_unclear'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+
+    const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'canon_unclear')
+    expect(duplicate).toBeTruthy()
+    expect(duplicate!.duplicationType).toBe('repeated_across_sources')
+    const sourceOccurrences = duplicate!.occurrences.filter((o) => o.stage === 'source')
+    expect(sourceOccurrences.map((o) => o.source).sort()).toEqual(['hydration', 'res_blocker'])
+    expect(duplicate!.stageCounts.source).toBe(2)
+    expect(duplicate!.stageCounts.presentation).toBe(1)
+  })
+
+  it('classifies a preflight duplicate as mixed because the withheld adapter mirrors it', () => {
+    const opportunity = makeOpportunity({
+      preflightReasons: ['context_missing', 'context_missing'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+
+    const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'context_missing')
+    expect(duplicate).toBeTruthy()
+    expect(duplicate!.duplicationType).toBe('mixed')
+    expect(duplicate!.stageCounts.source).toBeGreaterThanOrEqual(1)
+    expect(duplicate!.stageCounts.presentation).toBeGreaterThanOrEqual(1)
+  })
+
+  it('detects a presentation-only merge duplicate from executability and preflight inputs', () => {
+    const opportunity = makeOpportunity({
+      preflightReasons: ['presentation_only_duplicate'],
+      executabilityReasons: ['presentation_only_duplicate'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+
+    const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'presentation_only_duplicate')
+    expect(duplicate).toBeTruthy()
+    expect(duplicate!.duplicationType).toBe('presentation_merge_duplicate')
+    expect(duplicate!.stageCounts.source).toBe(1)
+    expect(duplicate!.stageCounts.presentation).toBeGreaterThanOrEqual(2)
+  })
+
+  it('reports downgrade_prevented when needs_targeting exception turns withheld into strategy', () => {
+    const opportunity = makeOpportunity({
+      id: 'opp-downgrade',
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+
+    expect(telemetry.classification.finalDecision.cardType).toBe('revision_strategy')
+    expect(telemetry.classification.counterfactualWithoutNeedsTargeting?.cardType).toBe('withheld')
+    expect(telemetry.classification.needsTargetingEffect).toBe('downgrade_prevented')
+  })
+
+  it('builds complete opportunity telemetry and includes routing and classification', () => {
+    const opportunity = makeOpportunity({
+      id: 'opp-telemetry',
+      cardType: 'revision_strategy',
+      trustedPathStatus: 'unavailable_author_review_required',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'needsTargeting')
+
+    expect(telemetry.opportunityId).toBe('opp-telemetry')
+    expect(telemetry.criterion).toBe('TONE')
+    expect(telemetry.routing.queueBucket).toBe('needsTargeting')
+    expect(telemetry.gates.copyPaste).toEqual(classification.gates.copyPaste)
+    expect(telemetry.gates.strategy).toEqual(classification.gates.strategy)
+    expect(telemetry.classification.finalDecision).toEqual(classification.finalDecision)
+    expect(telemetry.deduplicationAnalysis).toBeDefined()
+    expect(telemetry.deduplicationAnalysis.stageTotals).toBeDefined()
+  })
+
+  it('produces identical identity and projection hashes with or without classifications', () => {
+    const payload = makePayload()
+    const opportunity = payload.opportunities[0]
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const classificationsById = new Map([['opp-copy', classification]])
+    const admissionsById = new Map([
+      ['opp-copy', {
+        copyPasteAdmissionPassed: classification.copyPasteAdmissionPassed,
+        copyPasteAdmissionReasons: classification.copyPasteAdmissionReasons,
+        strategyAdmissionPassed: classification.strategyAdmissionPassed,
+        strategyAdmissionReasons: classification.strategyAdmissionReasons,
+      }],
+    ])
+
+    const without = buildWorkbenchQueueAudit(payload, { admissionsById })
+    const withClassifications = buildWorkbenchQueueAudit(payload, { admissionsById, classificationsById })
+
+    expect(withClassifications.opportunityTelemetry).toHaveLength(1)
+    expect(without.load.identityHash).toBe(withClassifications.load.identityHash)
+    expect(without.load.projectionHash).toBe(withClassifications.load.projectionHash)
   })
 })
