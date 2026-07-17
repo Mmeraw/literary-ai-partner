@@ -11062,6 +11062,9 @@ export async function processEvaluationJob(
         openaiApiKey: process.env.OPENAI_API_KEY,
         title: manuscript.title ?? undefined,
         manuscriptText: manuscriptWithContent.content || '',
+        pass3PreflightDraft: pipelineResult.pass3PreflightDraft,
+        pass1Output: pipelineResult.pass1Output,
+        pass2Output: pipelineResult.pass2Output,
       });
     } catch (repairError) {
       const repairMessage =

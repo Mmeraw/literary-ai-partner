@@ -1,53 +1,45 @@
-import { attemptCandidateIntegrityRepair } from '@/lib/evaluation/pipeline/candidateIntegrityRepair';
-import { AuthorFacingIntegrityError } from '@/lib/text/authorFacingIntegrity';
+import { isCandidateTextViolationPath } from '@/lib/evaluation/pipeline/candidateIntegrityRepair';
+import { quarantineCandidateFields } from '@/lib/evaluation/pipeline/requiredProseRegeneration';
 
-function makeSynthesis(overrides?: {
-  candidateText?: string;
-  specific_fix?: string;
-  action?: string;
-  mechanism?: string;
-  reader_effect?: string;
-  symptom?: string;
-}) {
-  const candidateText = overrides?.candidateText ?? 'MJ reached toward the pack and';
+function makeSynthesis() {
   return {
     criteria: [
       {
-        key: 'sceneConstruction' as const,
+        key: 'sceneConstruction',
         final_score_0_10: 6,
+        fit_summary: 'The scene construction earns the score through concrete action.',
+        gap_summary: 'The scene sometimes summarizes instead of dramatizing.',
         final_rationale: 'The scene construction is summary-heavy.',
         evidence: [{ snippet: 'The desert sun was a respite.', char_start: 0, char_end: 30 }],
         recommendations: [
           {
-            priority: 'medium' as const,
-            action: overrides?.action ?? 'Dramatize the bus-station beat by showing MJ checking his pack and noticing the customs officer.',
-            expected_impact: 'Reader feels the momentary clench of risk before MJ boards.',
+            priority: 'medium',
+            action: 'Dramatize the bus-station beat.',
+            expected_impact: 'Reader feels risk.',
             anchor_snippet: 'MJ waited at the bus station.',
-            issue_family: 'scene_construction' as const,
-            strategic_lever: 'concrete_rendering' as const,
-            revision_granularity: 'paragraph' as const,
-            mechanism: overrides?.mechanism ?? 'Because the scene is told rather than shown, the reader cannot yet occupy MJ’s body.',
-            specific_fix: overrides?.specific_fix ?? 'Show MJ adjusting the pack, his hand brushing the seam where the drugs are hidden.',
-            reader_effect: overrides?.reader_effect ?? 'Reader shares MJ’s bodily awareness of the risk.',
-            symptom: overrides?.symptom ?? 'The bus-station moment reads as summary, so the smuggling stakes feel abstract.',
-            candidate_text_a: candidateText,
-            candidate_text_b: candidateText,
-            candidate_text_c: candidateText,
+            issue_family: 'scene_construction',
+            strategic_lever: 'concrete_rendering',
+            revision_granularity: 'paragraph',
+            mechanism: 'The scene is told rather than shown.',
+            specific_fix: 'Show MJ adjusting the pack.',
+            reader_effect: 'Reader shares MJ’s bodily awareness.',
+            symptom: 'The bus-station moment reads as summary.',
+            candidate_text_a: 'MJ reached toward the pack and...',
+            candidate_text_b: 'MJ reached toward the pack and...',
+            candidate_text_c: 'MJ reached toward the pack and...',
           },
         ],
       },
     ],
     overall: {
       overall_score_0_100: 70,
-      verdict: 'revise' as const,
-      one_paragraph_summary:
-        'The manuscript demonstrates craft with scene-level revision opportunities, especially in dramatizing summary-heavy beats.',
-      one_sentence_pitch: 'A would-be smuggler waits at a bus station, his hidden cargo turning every glance into risk.',
-      one_paragraph_pitch:
-        'MJ has hidden the drugs in the seam of his pack. At the bus station he notices the customs officer and feels the first cold edge of consequence.',
+      verdict: 'revise',
+      one_paragraph_summary: 'The manuscript demonstrates craft.',
+      one_sentence_pitch: 'A would-be smuggler waits at a bus station.',
+      one_paragraph_pitch: 'MJ has hidden the drugs in the seam of his pack.',
       top_3_strengths: ['Voice', 'Theme', 'Character'],
       top_3_risks: ['Pacing', 'Scene construction', 'Closure'],
-      submission_readiness: 'nearly_ready' as const,
+      submission_readiness: 'nearly_ready',
     },
     metadata: {
       pass1_model: 'test',
@@ -59,112 +51,58 @@ function makeSynthesis(overrides?: {
   };
 }
 
-describe('candidateIntegrityRepair', () => {
-  it('repairs candidate fields that contain ellipses by rebuilding from grounded recommendation data', () => {
-    const synthesis = makeSynthesis({ candidateText: 'MJ reached toward the pack and...' });
-
-    const error = new AuthorFacingIntegrityError([
-      {
-        code: 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS',
-        path: 'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a',
-        value: 'MJ reached toward the pack and...',
-        message: 'contains an ellipsis',
-      },
-      {
-        code: 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS',
-        path: 'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_b',
-        value: 'MJ reached toward the pack and...',
-        message: 'contains an ellipsis',
-      },
-      {
-        code: 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS',
-        path: 'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_c',
-        value: 'MJ reached toward the pack and...',
-        message: 'contains an ellipsis',
-      },
-    ]);
-
-    const result = attemptCandidateIntegrityRepair(synthesis, error);
-
-    expect(result.status).toBe('repaired');
-    expect(result.remainingViolations).toHaveLength(0);
-
-    const rec = synthesis.criteria[0].recommendations[0];
-    for (const field of ['candidate_text_a', 'candidate_text_b', 'candidate_text_c'] as const) {
-      const fixed = rec[field] ?? '';
-      expect(fixed).not.toMatch(/\.{3}|…/);
-      expect(fixed).toMatch(/[.!?]$/);
-      expect(fixed.split(/\s+/).length).toBeGreaterThanOrEqual(5);
-    }
+describe('isCandidateTextViolationPath', () => {
+  it('recognizes canonical criteria recommendation candidate paths', () => {
+    expect(
+      isCandidateTextViolationPath('evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a'),
+    ).toBe(true);
   });
 
-  it('repairs an incomplete candidate ending with a dangling conjunction', () => {
-    const synthesis = makeSynthesis({ candidateText: 'MJ reached toward the pack and' });
-
-    const error = new AuthorFacingIntegrityError([
-      {
-        code: 'AUTHOR_TEXT_MIDSENTENCE_TERMINATION',
-        path: 'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a',
-        value: 'MJ reached toward the pack and',
-        message: 'ends mid-sentence',
-      },
-    ]);
-
-    const result = attemptCandidateIntegrityRepair(synthesis, error);
-
-    expect(result.status).toBe('repaired');
-    const fixed = synthesis.criteria[0].recommendations[0].candidate_text_a ?? '';
-    expect(fixed).not.toMatch(/\.{3}|…/);
-    expect(fixed).toMatch(/[.!?]$/);
-    expect(fixed.split(/\s+/).length).toBeGreaterThanOrEqual(5);
-    expect(result.remainingViolations).toHaveLength(0);
+  it('recognizes derived quick_wins candidate paths', () => {
+    expect(
+      isCandidateTextViolationPath('evaluation_result_v2.recommendations.quick_wins[0].candidate_text_b'),
+    ).toBe(true);
   });
 
-  it('quarantines candidate fields when the grounded recommendation data is still unsafe', () => {
-    const synthesis = makeSynthesis({
-      candidateText: 'MJ reached toward the pack and...',
-      // specific_fix has an unbalanced delimiter that will survive naive rebuilding,
-      // so repair should exhaust and fall back to quarantine.
-      specific_fix: 'Show MJ adjusting the pack (and stopping.',
-      action: 'Dramatize the bus-station beat (incomplete',
-      mechanism: 'Because the scene is told (rather than shown.',
-      reader_effect: 'Reader shares MJ’s bodily awareness (incomplete',
-      symptom: 'The bus-station moment reads as summary (incomplete',
-    });
+  it('rejects non-candidate recommendation paths', () => {
+    expect(
+      isCandidateTextViolationPath('evaluation_result_v2.criteria[0].recommendations[0].action'),
+    ).toBe(false);
+  });
 
-    const error = new AuthorFacingIntegrityError([
-      {
-        code: 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS',
-        path: 'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a',
-        value: 'MJ reached toward the pack and...',
-        message: 'contains an ellipsis',
-      },
+  it('rejects required prose paths', () => {
+    expect(isCandidateTextViolationPath('evaluation_result_v2.criteria[0].fit_summary')).toBe(false);
+  });
+});
+
+describe('quarantineCandidateFields', () => {
+  it('removes only the specified candidate fields and leaves required prose untouched', () => {
+    const synthesis = makeSynthesis() as any;
+    const originalRationale = synthesis.criteria[0].final_rationale;
+    const originalAction = synthesis.criteria[0].recommendations[0].action;
+
+    const quarantined = quarantineCandidateFields(synthesis, [
+      'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a',
+      'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_c',
     ]);
 
-    const result = attemptCandidateIntegrityRepair(synthesis, error);
-
-    expect(result.status).toBe('quarantined');
+    expect(quarantined).toContain('evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a');
+    expect(quarantined).toContain('evaluation_result_v2.criteria[0].recommendations[0].candidate_text_c');
     expect(synthesis.criteria[0].recommendations[0].candidate_text_a).toBeUndefined();
-    expect(synthesis.criteria[0].recommendations[0].candidate_text_b).toBeUndefined();
     expect(synthesis.criteria[0].recommendations[0].candidate_text_c).toBeUndefined();
-    expect(result.remainingViolations).toHaveLength(0);
+    expect(synthesis.criteria[0].recommendations[0].candidate_text_b).toBeDefined();
+    expect(synthesis.criteria[0].final_rationale).toBe(originalRationale);
+    expect(synthesis.criteria[0].recommendations[0].action).toBe(originalAction);
   });
 
-  it('fails closed when a non-candidate author-facing field fails integrity', () => {
-    const synthesis = makeSynthesis({ candidateText: 'MJ reached toward the pack.' });
-
-    const error = new AuthorFacingIntegrityError([
-      {
-        code: 'AUTHOR_TEXT_TRUNCATION_ELLIPSIS',
-        path: 'evaluation_result_v2.overview.one_paragraph_summary',
-        value: 'The manuscript...',
-        message: 'contains an ellipsis',
-      },
+  it('ignores paths that are not candidate fields', () => {
+    const synthesis = makeSynthesis() as any;
+    const quarantined = quarantineCandidateFields(synthesis, [
+      'evaluation_result_v2.criteria[0].fit_summary',
+      'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a',
     ]);
 
-    const result = attemptCandidateIntegrityRepair(synthesis, error);
-
-    expect(result.status).toBe('unrepairable');
-    expect(result.remainingViolations).toHaveLength(1);
+    expect(quarantined).toEqual(['evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a']);
+    expect(synthesis.criteria[0].fit_summary).toBeDefined();
   });
 });

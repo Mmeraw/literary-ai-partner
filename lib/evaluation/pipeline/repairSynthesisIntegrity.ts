@@ -32,15 +32,14 @@ import {
   assertDerivedRecommendationParity,
   UnownedAuthorFacingFieldError,
 } from '@/lib/evaluation/pipeline/derivedFieldResolver';
-import {
-  attemptCandidateIntegrityRepair,
-  isCandidateTextViolationPath,
-} from '@/lib/evaluation/pipeline/candidateIntegrityRepair';
+import { isCandidateTextViolationPath } from '@/lib/evaluation/pipeline/candidateIntegrityRepair';
 import {
   assertOnlyRequestedPathsChanged,
+  quarantineCandidateFields,
+  regenerateCandidateProse,
   regenerateRequiredProse,
 } from '@/lib/evaluation/pipeline/requiredProseRegeneration';
-import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import type { Pass3PreflightDraft, SinglePassOutput, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import {
   AuthorFacingIntegrityError,
   type AuthorFacingIntegrityViolation,
@@ -52,6 +51,12 @@ export interface RepairSynthesisIntegrityOptions {
   openaiApiKey?: string;
   title?: string;
   manuscriptText?: string;
+  /** Pass 3A preflight draft carrying synthesized strength/weakness context. */
+  pass3PreflightDraft?: Pass3PreflightDraft | null;
+  /** Authoritative Pass 1 craft output for provenanced regeneration context. */
+  pass1Output?: SinglePassOutput | null;
+  /** Authoritative Pass 2 editorial output for provenanced regeneration context. */
+  pass2Output?: SinglePassOutput | null;
   maxRequiredAttempts?: number;
   maxCandidateAttempts?: number;
 }
@@ -63,6 +68,7 @@ export interface RepairSynthesisIntegrityResult {
   candidateAttempts: number;
   regeneratedFields: string[];
   quarantinedFields: string[];
+  mutationBoundaryViolations: string[];
   remainingViolations: AuthorFacingIntegrityViolation[];
   telemetry: Record<string, unknown>;
 }
@@ -212,6 +218,7 @@ export async function repairSynthesisIntegrity(
   let candidateAttempts = 0;
   let regeneratedFields: string[] = [];
   let quarantinedFields: string[] = [];
+  let mutationBoundaryViolations: string[] = [];
 
   // Required-prose repair loop.
   for (let i = 0; i < maxRequiredAttempts; i++) {
@@ -234,6 +241,9 @@ export async function repairSynthesisIntegrity(
       openaiApiKey: options.openaiApiKey,
       title: options.title,
       manuscriptText: options.manuscriptText,
+      pass3PreflightDraft: options.pass3PreflightDraft,
+      pass1Output: options.pass1Output,
+      pass2Output: options.pass2Output,
     });
     telemetry.requiredAttemptsTelemetry = [
       ...(telemetry.requiredAttemptsTelemetry as Record<string, unknown>[]),
@@ -248,6 +258,7 @@ export async function repairSynthesisIntegrity(
     );
     if (illegalMutations.length > 0) {
       Object.assign(synthesis, beforeSnapshot);
+      mutationBoundaryViolations = illegalMutations;
       return {
         ok: false,
         synthesis,
@@ -255,6 +266,7 @@ export async function repairSynthesisIntegrity(
         candidateAttempts,
         regeneratedFields,
         quarantinedFields,
+        mutationBoundaryViolations,
         remainingViolations: resolved,
         telemetry: {
           ...telemetry,
@@ -264,22 +276,61 @@ export async function repairSynthesisIntegrity(
     }
   }
 
-  // Candidate-prose repair loop.
-  for (let i = 0; i < maxCandidateAttempts; i++) {
-    const { quickWins, strategicRevisions } = buildProjection(synthesis);
-    const violations = normalizeAndInspectProjection(synthesis, quickWins, strategicRevisions, false);
+  // Candidate-prose repair: resolve canonical source paths, attempt bounded
+  // targeted LLM regeneration, then quarantine only the unresolved candidates.
+  const candidateProjection = buildProjection(synthesis);
+  const candidateViolations = normalizeViolations(
+    normalizeAndInspectProjection(
+      synthesis,
+      candidateProjection.quickWins,
+      candidateProjection.strategicRevisions,
+      false,
+    ).filter((v) => isCandidateTextViolationPath(v.path)),
+  );
+  if (candidateViolations.length > 0) {
+    const { resolved: resolvedCandidates, unowned: unownedCandidates } =
+      resolveRequiredCanonicalPaths(candidateViolations, candidateProjection.resolver);
+    if (unownedCandidates.length > 0) {
+      throw new UnownedAuthorFacingFieldError(unownedCandidates);
+    }
 
-    const candidates = normalizeViolations(violations.filter((v) => isCandidateTextViolationPath(v.path)));
-    if (candidates.length === 0) break;
+    const candidateResult = await regenerateCandidateProse(synthesis, resolvedCandidates, {
+      openaiApiKey: options.openaiApiKey,
+      title: options.title,
+      manuscriptText: options.manuscriptText,
+      pass3PreflightDraft: options.pass3PreflightDraft,
+      pass1Output: options.pass1Output,
+      pass2Output: options.pass2Output,
+      maxAttempts: maxCandidateAttempts,
+    });
+    telemetry.candidateAttemptsTelemetry = [candidateResult.telemetry];
+    candidateAttempts = (candidateResult.telemetry.attempts as number) ?? 0;
+    regeneratedFields = [...new Set([...regeneratedFields, ...candidateResult.regeneratedFields])];
 
-    candidateAttempts++;
-    const candidateError = new AuthorFacingIntegrityError(candidates);
-    const result = attemptCandidateIntegrityRepair(synthesis, candidateError);
-    telemetry.candidateAttemptsTelemetry = [
-      ...(telemetry.candidateAttemptsTelemetry as Record<string, unknown>[]),
-      result.telemetry,
-    ];
-    quarantinedFields = [...new Set([...quarantinedFields, ...result.affectedPaths])];
+    if (candidateResult.mutationBoundaryViolations.length > 0) {
+      // A boundary breach is a regeneration failure, not evidence that the
+      // candidate is unrepairable. Fail closed without quarantine.
+      mutationBoundaryViolations = candidateResult.mutationBoundaryViolations;
+      return {
+        ok: false,
+        synthesis,
+        requiredAttempts,
+        candidateAttempts,
+        regeneratedFields,
+        quarantinedFields,
+        mutationBoundaryViolations,
+        remainingViolations: resolvedCandidates,
+        telemetry: {
+          ...telemetry,
+          mutationBoundaryViolations: candidateResult.mutationBoundaryViolations,
+        },
+      };
+    }
+
+    if (candidateResult.failedFields.length > 0) {
+      const quarantined = quarantineCandidateFields(synthesis, candidateResult.failedFields);
+      quarantinedFields = [...new Set([...quarantinedFields, ...quarantined])];
+    }
   }
 
   // Final validation: derive + inspect + parity check.
@@ -320,6 +371,7 @@ export async function repairSynthesisIntegrity(
     candidateAttempts,
     regeneratedFields,
     quarantinedFields,
+    mutationBoundaryViolations,
     remainingViolations: finalViolations,
     telemetry,
   };

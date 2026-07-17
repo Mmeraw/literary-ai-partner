@@ -12,19 +12,25 @@
 
 export {};
 
-import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import type { Pass3PreflightDraft, SinglePassOutput, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import {
   repairSynthesisIntegrity,
 } from '@/lib/evaluation/pipeline/repairSynthesisIntegrity';
 import * as requiredProseRegeneration from '@/lib/evaluation/pipeline/requiredProseRegeneration';
+import { assertAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
 
 jest.mock('@/lib/evaluation/pipeline/requiredProseRegeneration', () => ({
   ...jest.requireActual('@/lib/evaluation/pipeline/requiredProseRegeneration'),
   regenerateRequiredProse: jest.fn(),
+  regenerateCandidateProse: jest.fn(),
 }));
 
 const mockedRegenerateRequiredProse = jest.mocked(
   requiredProseRegeneration.regenerateRequiredProse,
+);
+
+const mockedRegenerateCandidateProse = jest.mocked(
+  requiredProseRegeneration.regenerateCandidateProse,
 );
 
 function setByPath(obj: unknown, path: string, value: unknown): boolean {
@@ -275,8 +281,17 @@ function defaultMockRegenerator(
         ? 'The middle sequence slows because the clock checks repeat without escalating tension.'
         : field === 'final_rationale'
         ? 'The narrator shows clear wants and the supporting characters each carry distinct values.'
-        : 'Revise the targeted passage so the craft signal lands clearly for the reader.';
+        : 'Add one concrete sentence that grounds the craft signal in a specific image.';
     setByPath(synthesis, v.path, replacement);
+  }
+}
+
+function defaultMockCandidateRegenerator(
+  synthesis: SynthesisOutput,
+  violations: { path: string; code: string }[],
+) {
+  for (const v of violations) {
+    setByPath(synthesis, v.path, 'She adjusted the pack with steady hands before the driver looked up.');
   }
 }
 
@@ -289,6 +304,25 @@ beforeEach(() => {
       synthesis,
       regeneratedFields: violations.map((v) => v.path),
       failedFields: [],
+      mutationBoundaryViolations: [],
+      telemetry: {
+        attempts: violations.length,
+        regeneratedFields: violations.map((v) => v.path),
+        failedFields: [],
+        model: 'mock',
+      },
+    };
+  });
+
+  mockedRegenerateCandidateProse.mockReset();
+  mockedRegenerateCandidateProse.mockImplementation(async (synthesis, violations) => {
+    defaultMockCandidateRegenerator(synthesis, violations);
+    return {
+      ok: true,
+      synthesis,
+      regeneratedFields: violations.map((v) => v.path),
+      failedFields: [],
+      mutationBoundaryViolations: [],
       telemetry: {
         attempts: violations.length,
         regeneratedFields: violations.map((v) => v.path),
@@ -376,6 +410,7 @@ describe('repairSynthesisIntegrity', () => {
         synthesis: synth,
         regeneratedFields: violations.map((v) => v.path),
         failedFields: [],
+        mutationBoundaryViolations: [],
         telemetry: { attempts: 1, regeneratedFields: [], failedFields: [], model: 'mock' },
       };
     });
@@ -465,5 +500,228 @@ describe('repairSynthesisIntegrity', () => {
     expect(result.candidateAttempts).toBeGreaterThan(0);
     expect(result.remainingViolations).toHaveLength(0);
     expect(getByPath(synthesis, 'evaluation_result_v2.criteria[0].fit_summary')).toMatch(/\.$/);
+  });
+
+  it('rejects unchanged invalid required replacements at the orchestration level', async () => {
+    const synthesis = makeValidSynthesis();
+    // A dangling connective cannot be papered over by Tier-1 normalization.
+    synthesis.criteria[0].fit_summary = 'The voice works because';
+
+    mockedRegenerateRequiredProse.mockImplementationOnce(async (_synth, violations) => {
+      // Simulate a degenerate regenerator that claims success but leaves the
+      // invalid prose unchanged.
+      return {
+        ok: true,
+        synthesis: _synth,
+        regeneratedFields: violations.map((v) => v.path),
+        failedFields: [],
+        mutationBoundaryViolations: [],
+        telemetry: { attempts: 1, regeneratedFields: [], failedFields: [], model: 'mock' },
+      };
+    });
+
+    const result = await repairSynthesisIntegrity(synthesis, {
+      openaiApiKey: 'test-key',
+      maxRequiredAttempts: 1,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.remainingViolations.length).toBeGreaterThan(0);
+    expect(
+      result.remainingViolations.some((v) =>
+        v.path.includes('criteria[0].fit_summary'),
+      ),
+    ).toBe(true);
+  });
+
+  it('candidate quarantine cannot remove required prose', async () => {
+    const synthesis = makeValidSynthesis();
+    const originalFitSummary = synthesis.criteria[0].fit_summary;
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front make the want explicit';
+    synthesis.criteria[0].recommendations[0].candidate_text_b = 'restate the first beat sharpen the objective';
+    synthesis.criteria[0].recommendations[0].candidate_text_c = 'reframe the opening around the want';
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(result.candidateAttempts).toBeGreaterThan(0);
+    // Required prose on the criterion must survive candidate quarantine.
+    expect(synthesis.criteria[0].fit_summary).toBe(originalFitSummary);
+    expect(synthesis.criteria[0].gap_summary).toBeDefined();
+    expect(synthesis.criteria[0].final_rationale).toBeDefined();
+  });
+
+  it('produces a final artifact that passes assertAuthorFacingIntegrity', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].fit_summary = 'The voice works because the details…';
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front. make the want explicit.';
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(() =>
+      assertAuthorFacingIntegrity(synthesis, { rootPath: 'evaluation_result_v2' }),
+    ).not.toThrow();
+  });
+
+  it('forwards provenance context to regenerateRequiredProse', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].fit_summary = 'The voice works because the details…';
+
+    const pass3PreflightDraft = {
+      schema_version: 'pass3_preflight_draft_v1',
+      pass: '3A',
+      visibility: 'internal_only',
+      criterionDrafts: [],
+    } as unknown as Pass3PreflightDraft;
+
+    const pass1Output = {
+      pass: 1,
+      axis: 'craft_execution',
+      criteria: [],
+      model: 'gpt-4o',
+      prompt_version: 'v1',
+      temperature: 0,
+      generated_at: new Date().toISOString(),
+    } as unknown as SinglePassOutput;
+
+    const pass2Output = {
+      pass: 2,
+      axis: 'editorial_literary',
+      criteria: [],
+      model: 'o3',
+      prompt_version: 'v1',
+      temperature: 0,
+      generated_at: new Date().toISOString(),
+    } as unknown as SinglePassOutput;
+
+    await repairSynthesisIntegrity(synthesis, {
+      openaiApiKey: 'test-key',
+      pass3PreflightDraft,
+      pass1Output,
+      pass2Output,
+    });
+
+    expect(mockedRegenerateRequiredProse).toHaveBeenCalled();
+    const callOptions = mockedRegenerateRequiredProse.mock.calls[0][2];
+    expect(callOptions.pass3PreflightDraft).toBe(pass3PreflightDraft);
+    expect(callOptions.pass1Output).toBe(pass1Output);
+    expect(callOptions.pass2Output).toBe(pass2Output);
+  });
+
+  it('calls targeted candidate regeneration before quarantine when candidates are invalid', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front';
+    synthesis.criteria[0].recommendations[0].candidate_text_b = 'restate the first beat';
+    synthesis.criteria[0].recommendations[0].candidate_text_c = 'reframe the opening';
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(mockedRegenerateCandidateProse).toHaveBeenCalled();
+    const candidatePaths = mockedRegenerateCandidateProse.mock.calls[0][1].map((v: any) => v.path);
+    expect(candidatePaths).toEqual(
+      expect.arrayContaining([
+        'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a',
+        'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_b',
+        'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_c',
+      ]),
+    );
+    expect(synthesis.criteria[0].recommendations[0].candidate_text_a).toMatch(/[.!?]["'"’)\]]*$/u);
+  });
+
+  it('quarantines unresolved candidate fields after regeneration fails', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front';
+    synthesis.criteria[0].recommendations[0].candidate_text_b = 'restate the first beat';
+
+    mockedRegenerateCandidateProse.mockImplementationOnce(async (_synth, violations) => ({
+      ok: false,
+      synthesis: _synth,
+      regeneratedFields: [],
+      failedFields: violations.map((v: any) => v.path),
+      mutationBoundaryViolations: [],
+      telemetry: { attempts: 2, regeneratedFields: [], failedFields: violations.map((v: any) => v.path), model: 'mock' },
+    }));
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(result.candidateAttempts).toBe(2);
+    expect(result.quarantinedFields).toEqual(
+      expect.arrayContaining([
+        'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a',
+        'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_b',
+      ]),
+    );
+    expect(synthesis.criteria[0].recommendations[0].candidate_text_a).toBeUndefined();
+    expect(synthesis.criteria[0].recommendations[0].candidate_text_b).toBeUndefined();
+    expect(synthesis.criteria[0].recommendations[0].candidate_text_c).toBeDefined();
+  });
+
+  it('required regeneration failure prevents certification and persistence', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].fit_summary = 'The voice works because';
+
+    mockedRegenerateRequiredProse.mockImplementationOnce(async (_synth, violations) => ({
+      ok: false,
+      synthesis: _synth,
+      regeneratedFields: [],
+      failedFields: violations.map((v: any) => v.path),
+      mutationBoundaryViolations: [],
+      telemetry: { attempts: 1, regeneratedFields: [], failedFields: violations.map((v: any) => v.path), model: 'mock' },
+    }));
+
+    const result = await repairSynthesisIntegrity(synthesis, {
+      openaiApiKey: 'test-key',
+      maxRequiredAttempts: 1,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.remainingViolations.length).toBeGreaterThan(0);
+  });
+
+  it('cd6d8266 fixture passes assertAuthorFacingIntegrity after required and candidate repair', async () => {
+    const synthesis = makeCd6d8266Synthesis();
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(() =>
+      assertAuthorFacingIntegrity(synthesis, { rootPath: 'evaluation_result_v2' }),
+    ).not.toThrow();
+  });
+
+  it('fails closed without quarantine when candidate regeneration reports a mutation boundary breach', async () => {
+    const synthesis = makeValidSynthesis();
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'The protagonist reaches for the';
+
+    const originalCandidateA = synthesis.criteria[0].recommendations[0].candidate_text_a;
+    const originalCandidateB = synthesis.criteria[0].recommendations[0].candidate_text_b;
+
+    const candidateAPath = 'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_a';
+    const candidateBPath = 'evaluation_result_v2.criteria[0].recommendations[0].candidate_text_b';
+
+    mockedRegenerateCandidateProse.mockImplementationOnce(async (_synth, violations) => ({
+      ok: false,
+      synthesis: _synth,
+      regeneratedFields: [],
+      failedFields: violations.map((v: any) => v.path),
+      mutationBoundaryViolations: [candidateBPath],
+      telemetry: {
+        attempts: 1,
+        regeneratedFields: [],
+        failedFields: violations.map((v: any) => v.path),
+        model: 'mock',
+      },
+    }));
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(false);
+    expect(result.quarantinedFields).toEqual([]);
+    expect(result.mutationBoundaryViolations).toContain(candidateBPath);
+    expect(synthesis.criteria[0].recommendations[0].candidate_text_a).toBe(originalCandidateA);
+    expect(synthesis.criteria[0].recommendations[0].candidate_text_b).toBe(originalCandidateB);
+    expect('candidate_text_a' in synthesis.criteria[0].recommendations[0]).toBe(true);
   });
 });
