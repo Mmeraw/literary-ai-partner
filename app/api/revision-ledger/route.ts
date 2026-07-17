@@ -9,16 +9,16 @@ function badRequest(error: string) {
   return NextResponse.json({ ok: false, error }, { status: 400 });
 }
 
-function serverError(error: unknown) {
-  return NextResponse.json(
-    { ok: false, error: error instanceof Error ? error.message : String(error) },
-    { status: 500 },
-  );
-}
-
 function statusFromMessage(message: string): number {
   if (message === "Not authenticated") return 401;
-  if (message.includes("not found")) return 404;
+  const normalized = message.toLowerCase();
+  if (normalized.includes("not found")) return 404;
+  if (normalized.includes("stale write blocked")) return 409;
+  if (normalized.includes("sync blocked")) return 409;
+  if (normalized.includes("missing")) return 400;
+  if (normalized.includes("invalid")) return 400;
+  if (normalized.includes("acceptance blocked")) return 400;
+  if (normalized.includes("decision blocked")) return 400;
   return 500;
 }
 

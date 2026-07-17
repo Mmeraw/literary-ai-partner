@@ -29,6 +29,17 @@ export type SyncRevisionLedgerEntryInput = {
   metadata?: Record<string, unknown> | null;
 };
 
+type ExistingDecisionRow = {
+  id: string;
+  opportunity_id: string;
+  local_id: string;
+  decision: RevisionLedgerDecision;
+  selected_option: "A" | "B" | "C" | null;
+  selected_text: string | null;
+  custom_text: string | null;
+  created_at: string;
+};
+
 export type SyncRevisionLedgerInput = {
   manuscriptId: string | number;
   evaluationJobId: string;
@@ -188,7 +199,7 @@ function detectTense(value: string): RevisionQualityDriftMetrics["tense_source"]
 }
 
 function properNouns(value: string): Set<string> {
-  const matches = value.match(/\b[A-Z][A-Za-z’'\-]{2,}\b/g) ?? [];
+  const matches = value.match(/\b[A-Z][A-Za-z’'-]{2,}\b/g) ?? [];
   return new Set(matches.filter((token) => !["The", "This", "That", "And", "But", "Then", "When", "While", "After", "Before"].includes(token)));
 }
 
@@ -250,6 +261,56 @@ function metadataWithRevisionQuality(entry: SyncRevisionLedgerEntryInput): Recor
       selectedText,
     }),
   };
+}
+
+function extractExpectedCurrentLocalId(metadata: Record<string, unknown> | null | undefined): {
+  provided: boolean;
+  value: string | null;
+} {
+  if (!metadata || typeof metadata !== 'object') {
+    return { provided: false, value: null };
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(metadata, 'expectedCurrentLocalId')) {
+    return { provided: false, value: null };
+  }
+
+  const raw = metadata.expectedCurrentLocalId;
+  if (typeof raw === 'string') {
+    const normalized = raw.trim();
+    return { provided: true, value: normalized.length > 0 ? normalized : null };
+  }
+
+  if (raw === null) {
+    return { provided: true, value: null };
+  }
+
+  throw new Error('Ledger sync blocked: metadata.expectedCurrentLocalId must be a string or null');
+}
+
+function assertBatchUniqueness(entries: SyncRevisionLedgerEntryInput[]) {
+  const localIdToOpportunity = new Map<string, string>();
+  const opportunityIds = new Set<string>();
+
+  for (const entry of entries) {
+    const localId = entry.localId.trim();
+    const opportunityId = entry.opportunityId.trim();
+
+    const existingOpportunityForLocalId = localIdToOpportunity.get(localId);
+    if (existingOpportunityForLocalId && existingOpportunityForLocalId !== opportunityId) {
+      throw new Error(
+        `Ledger sync blocked: duplicate localId "${localId}" cannot target multiple opportunities in one sync batch.`,
+      );
+    }
+    localIdToOpportunity.set(localId, opportunityId);
+
+    if (opportunityIds.has(opportunityId)) {
+      throw new Error(
+        `Ledger sync blocked: multiple writes for opportunity "${opportunityId}" in one sync batch are not allowed.`,
+      );
+    }
+    opportunityIds.add(opportunityId);
+  }
 }
 
 async function assertOwnedEvaluation(
@@ -434,6 +495,47 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
   if (entries.length === 0) return [];
 
   const targetUserId = ledgerUserId ?? userId;
+
+  assertBatchUniqueness(entries);
+
+  const opportunityIds = [...new Set(entries.filter((entry) => !entry.isUndo).map((entry) => entry.opportunityId.trim()).filter(Boolean))];
+  const latestDecisionByOpportunity = new Map<string, ExistingDecisionRow>();
+
+  if (opportunityIds.length > 0) {
+    const { data: existingRows, error: existingRowsError } = await supabase
+      .from('revision_ledger_decisions')
+      .select('id, opportunity_id, local_id, decision, selected_option, selected_text, custom_text, created_at')
+      .eq('user_id', targetUserId)
+      .eq('manuscript_id', manuscriptId)
+      .eq('evaluation_job_id', input.evaluationJobId)
+      .eq('is_undo', false)
+      .in('opportunity_id', opportunityIds)
+      .order('created_at', { ascending: false });
+
+    if (existingRowsError) throw new Error(existingRowsError.message);
+
+    for (const row of (existingRows ?? []) as ExistingDecisionRow[]) {
+      if (!latestDecisionByOpportunity.has(row.opportunity_id)) {
+        latestDecisionByOpportunity.set(row.opportunity_id, row);
+      }
+    }
+  }
+
+  for (const entry of entries) {
+    if (entry.isUndo) continue;
+
+    const staleExpectation = extractExpectedCurrentLocalId(entry.metadata ?? null);
+    if (!staleExpectation.provided) continue;
+
+    const latest = latestDecisionByOpportunity.get(entry.opportunityId);
+    const actualCurrentLocalId = latest?.local_id?.trim() || null;
+    if (staleExpectation.value !== actualCurrentLocalId) {
+      throw new Error(
+        `Ledger stale write blocked: expected current localId ${staleExpectation.value ?? 'null'} but found ${actualCurrentLocalId ?? 'null'} for opportunity ${entry.opportunityId}.`,
+      );
+    }
+  }
+
   const rows = entries.map((entry) => ({
     user_id: targetUserId,
     manuscript_id: manuscriptId,

@@ -36,21 +36,71 @@ function buildSupabaseMock(options?: { otherOwnerId?: string; readBackOverride?:
     return query;
   };
 
-  const ledgerQuery = {
-    select: jest.fn(() => ledgerQuery),
-    eq: jest.fn(() => ledgerQuery),
-    in: jest.fn(() => ledgerQuery),
-    order: jest.fn(async () => ({ data: [...persistedRows], error: null })),
-  };
+  function buildLedgerQuery() {
+    const eqFilters: Array<{ column: string; value: unknown }> = [];
+    const inFilters: Array<{ column: string; values: unknown[] }> = [];
+
+    const query = {
+      select: jest.fn(() => query),
+      eq: jest.fn((column: string, value: unknown) => {
+        eqFilters.push({ column, value });
+        return query;
+      }),
+      in: jest.fn((column: string, values: unknown[]) => {
+        inFilters.push({ column, values });
+        return query;
+      }),
+      order: jest.fn(async (column: string, options?: { ascending?: boolean }) => {
+        let rows = [...persistedRows];
+
+        for (const filter of eqFilters) {
+          rows = rows.filter((row) => row[filter.column] === filter.value);
+        }
+
+        for (const filter of inFilters) {
+          rows = rows.filter((row) => filter.values.includes(row[filter.column]));
+        }
+
+        const ascending = options?.ascending ?? true;
+        rows.sort((left, right) => {
+          const leftValue = String(left[column] ?? '');
+          const rightValue = String(right[column] ?? '');
+          return ascending ? leftValue.localeCompare(rightValue) : rightValue.localeCompare(leftValue);
+        });
+
+        return { data: [...rows], error: null };
+      }),
+    };
+
+    return query;
+  }
 
   const upsertSpy = jest.fn(async (rows: unknown[]) => {
-    persistedRows.length = 0;
     for (const row of rows as Record<string, unknown>[]) {
-      persistedRows.push({
-        id: `row-${persistedRows.length + 1}`,
-        created_at: new Date().toISOString(),
-        ...row,
-      });
+      const existingIndex = persistedRows.findIndex(
+        (candidate) =>
+          candidate.user_id === row.user_id &&
+          candidate.evaluation_job_id === row.evaluation_job_id &&
+          candidate.local_id === row.local_id,
+      );
+
+      if (existingIndex >= 0) {
+        const existing = persistedRows[existingIndex];
+        persistedRows[existingIndex] = {
+          ...existing,
+          ...row,
+          id: existing.id,
+          created_at: existing.created_at,
+          updated_at: row.updated_at ?? new Date().toISOString(),
+        };
+      } else {
+        persistedRows.push({
+          id: `row-${persistedRows.length + 1}`,
+          created_at: row.client_created_at ?? new Date().toISOString(),
+          updated_at: row.updated_at ?? new Date().toISOString(),
+          ...row,
+        });
+      }
     }
     return { error: null };
   });
@@ -70,7 +120,7 @@ function buildSupabaseMock(options?: { otherOwnerId?: string; readBackOverride?:
         if (table === 'revision_ledger_decisions') {
           return {
             upsert: upsertSpy,
-            select: () => ledgerQuery,
+            select: () => buildLedgerQuery(),
           };
         }
 
@@ -436,19 +486,35 @@ describe('revision ledger quality drift metrics', () => {
           decision: 'deferred',
           clientCreatedAt: '2026-06-06T00:00:00.000Z',
         },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
         {
           localId: 'local-kept-1',
           opportunityId: 'opp-1',
           opportunityTitle: 'Withheld opportunity',
           decision: 'keep_original',
           clientCreatedAt: '2026-06-06T00:00:01.000Z',
+          metadata: { expectedCurrentLocalId: 'local-deferred-1' },
         },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
         {
           localId: 'local-reject-1',
           opportunityId: 'opp-1',
           opportunityTitle: 'Withheld opportunity',
           decision: 'reject',
           clientCreatedAt: '2026-06-06T00:00:02.000Z',
+          metadata: { expectedCurrentLocalId: 'local-kept-1' },
         },
       ],
     });
@@ -458,7 +524,7 @@ describe('revision ledger quality drift metrics', () => {
   });
 
   it('is idempotent: repeat sync with the same localId updates rather than duplicates', async () => {
-    const { client, upsertSpy } = buildSupabaseMock();
+    const { client } = buildSupabaseMock();
     mockCreateAdminClient.mockReturnValue(client as never);
     mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
 
@@ -481,5 +547,220 @@ describe('revision ledger quality drift metrics', () => {
     const list = await listRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1' });
     expect(list).toHaveLength(1);
     expect(list[0].decision).toBe('keep_original');
+  });
+
+  it('supersedes prior decisions deterministically and reloads one current authoritative decision per opportunity', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(
+      makeCanonicalQueuePayload([
+        {
+          id: 'copy-1',
+          cardType: 'copy_paste_rewrite',
+          trustedPathStatus: 'eligible',
+          options: [
+            { key: 'A', candidateText: 'Candidate A', text: 'Candidate A', rationale: 'A' },
+            { key: 'B', candidateText: 'Candidate B', text: 'Candidate B', rationale: 'B' },
+            { key: 'C', candidateText: 'Candidate C', text: 'Candidate C', rationale: 'C' },
+          ],
+        },
+        {
+          id: 'strategy-1',
+          cardType: 'withheld',
+          trustedPathStatus: 'impossible',
+          options: [
+            { key: 'A', candidateText: 'Strategy A', text: 'Strategy A', rationale: 'A' },
+            { key: 'B', candidateText: 'Strategy B', text: 'Strategy B', rationale: 'B' },
+            { key: 'C', candidateText: 'Strategy C', text: 'Strategy C', rationale: 'C' },
+          ],
+        },
+      ]) as never,
+    );
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-copy-a',
+          opportunityId: 'copy-1',
+          opportunityTitle: 'Copy card',
+          decision: 'accepted_a',
+          selectedOption: 'A',
+          selectedText: 'Candidate A',
+          clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          metadata: { expectedCurrentLocalId: null },
+        },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-copy-b',
+          opportunityId: 'copy-1',
+          opportunityTitle: 'Copy card',
+          decision: 'accepted_b',
+          selectedOption: 'B',
+          selectedText: 'Candidate B',
+          clientCreatedAt: '2026-06-06T00:00:01.000Z',
+          metadata: { expectedCurrentLocalId: 'local-copy-a' },
+        },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-copy-c',
+          opportunityId: 'copy-1',
+          opportunityTitle: 'Copy card',
+          decision: 'accepted_c',
+          selectedOption: 'C',
+          selectedText: 'Candidate C',
+          clientCreatedAt: '2026-06-06T00:00:02.000Z',
+          metadata: { expectedCurrentLocalId: 'local-copy-b' },
+        },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-copy-custom',
+          opportunityId: 'copy-1',
+          opportunityTitle: 'Copy card',
+          decision: 'custom',
+          selectedText: 'Custom rewrite from author.',
+          customText: 'Custom rewrite from author.',
+          clientCreatedAt: '2026-06-06T00:00:03.000Z',
+          metadata: { expectedCurrentLocalId: 'local-copy-c' },
+        },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-strategy-keep',
+          opportunityId: 'strategy-1',
+          opportunityTitle: 'Strategy card',
+          decision: 'keep_original',
+          clientCreatedAt: '2026-06-06T00:00:04.000Z',
+          metadata: { expectedCurrentLocalId: null },
+        },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-strategy-reject',
+          opportunityId: 'strategy-1',
+          opportunityTitle: 'Strategy card',
+          decision: 'reject',
+          clientCreatedAt: '2026-06-06T00:00:05.000Z',
+          metadata: { expectedCurrentLocalId: 'local-strategy-keep' },
+        },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-strategy-deferred',
+          opportunityId: 'strategy-1',
+          opportunityTitle: 'Strategy card',
+          decision: 'deferred',
+          selectedText: 'Deferred for later decision',
+          clientCreatedAt: '2026-06-06T00:00:06.000Z',
+          metadata: { expectedCurrentLocalId: 'local-strategy-reject' },
+        },
+      ],
+    });
+
+    const rows = await listRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1' });
+
+    const latestByOpportunity = new Map<string, (typeof rows)[number]>();
+    for (const row of [...rows].sort((left, right) => right.created_at.localeCompare(left.created_at))) {
+      if (!latestByOpportunity.has(row.opportunity_id)) {
+        latestByOpportunity.set(row.opportunity_id, row);
+      }
+    }
+
+    expect(latestByOpportunity.get('copy-1')?.decision).toBe('custom');
+    expect(latestByOpportunity.get('strategy-1')?.decision).toBe('deferred');
+    expect(latestByOpportunity.get('copy-1')?.local_id).toBe('local-copy-custom');
+    expect(latestByOpportunity.get('strategy-1')?.local_id).toBe('local-strategy-deferred');
+  });
+
+  it('rejects stale writes when the expected current localId is outdated (tab concurrency)', async () => {
+    const { client } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([makeNeedsTargetingOpportunity()]) as never);
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-v3',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'deferred',
+          clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          metadata: { expectedCurrentLocalId: null },
+        },
+      ],
+    });
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-v4',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Withheld opportunity',
+          decision: 'keep_original',
+          clientCreatedAt: '2026-06-06T00:00:01.000Z',
+          metadata: { expectedCurrentLocalId: 'local-v3' },
+        },
+      ],
+    });
+
+    await expect(
+      syncRevisionLedgerDecisions({
+        manuscriptId: '6074',
+        evaluationJobId: 'job-1',
+        entries: [
+          {
+            localId: 'local-v3-stale-submit',
+            opportunityId: 'opp-1',
+            opportunityTitle: 'Withheld opportunity',
+            decision: 'reject',
+            clientCreatedAt: '2026-06-06T00:00:02.000Z',
+            metadata: { expectedCurrentLocalId: 'local-v3' },
+          },
+        ],
+      }),
+    ).rejects.toThrow('Ledger stale write blocked');
+
+    const rows = await listRevisionLedgerDecisions({ manuscriptId: '6074', evaluationJobId: 'job-1' });
+    const latest = [...rows].sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+    expect(latest.local_id).toBe('local-v4');
+    expect(latest.decision).toBe('keep_original');
   });
 });

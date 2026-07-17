@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
 import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
+import type { SyncedRevisionLedgerRow } from "@/lib/revision/ledger";
 import WorkbenchCardSurface from "./WorkbenchCardSurface";
 import { adaptWorkbenchOpportunityToCard } from "./workbenchCardAdapter";
 import type { CopyPasteCandidateKey } from "./workbenchCardModels";
@@ -24,6 +25,43 @@ type LedgerEntry = {
   selectedText: string | null;
   syncStatus: "pending" | "synced" | "failed";
 };
+
+function toLocalLedgerEntry(row: SyncedRevisionLedgerRow): LedgerEntry {
+  const selectedOption = row.selected_option === "A" || row.selected_option === "B" || row.selected_option === "C"
+    ? row.selected_option
+    : null;
+  return {
+    localId: row.local_id,
+    opportunityId: row.opportunity_id,
+    opportunityTitle: row.opportunity_title,
+    decision: row.decision,
+    selectedOption,
+    selectedText: row.selected_text ?? row.custom_text ?? null,
+    syncStatus: "synced",
+  };
+}
+
+function latestRowsByOpportunity(rows: SyncedRevisionLedgerRow[]): SyncedRevisionLedgerRow[] {
+  const latestByOpportunity = new Map<string, SyncedRevisionLedgerRow>();
+  const ordered = [...rows].sort((left, right) => {
+    const leftIso = left.created_at || left.updated_at || "";
+    const rightIso = right.created_at || right.updated_at || "";
+    return rightIso.localeCompare(leftIso);
+  });
+
+  for (const row of ordered) {
+    if (row.is_undo) continue;
+    if (!latestByOpportunity.has(row.opportunity_id)) {
+      latestByOpportunity.set(row.opportunity_id, row);
+    }
+  }
+
+  return [...latestByOpportunity.values()].sort((left, right) => {
+    const leftIso = left.created_at || left.updated_at || "";
+    const rightIso = right.created_at || right.updated_at || "";
+    return rightIso.localeCompare(leftIso);
+  });
+}
 
 const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--rg-workbench-gold)]";
 
@@ -179,6 +217,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
   const [activeId, setActiveId] = useState(interactiveItems[0]?.id ?? "");
   const [selectedKey, setSelectedKey] = useState<CopyPasteCandidateKey>("A");
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [latestLocalIdByOpportunity, setLatestLocalIdByOpportunity] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState<"all" | WorkbenchOpportunity["severity"]>("all");
@@ -200,6 +239,46 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
   const failedEntries = ledger.filter((entry) => entry.syncStatus === "failed");
   const totalInteractive = interactiveItems.length;
   const completedCount = ledger.length;
+
+  useEffect(() => {
+    if (!payload.manuscriptId || !payload.evaluationJobId) return;
+
+    let cancelled = false;
+
+    async function hydrateLedgerFromAuthority() {
+      try {
+        const params = new URLSearchParams({
+          manuscriptId: payload.manuscriptId,
+          evaluationJobId: payload.evaluationJobId,
+        });
+        const response = await fetch(`/api/revision-ledger?${params.toString()}`);
+        const json = await response.json().catch(() => null);
+        if (!response.ok || !json?.ok || !Array.isArray(json?.entries)) {
+          throw new Error(json?.error ?? "Ledger reload failed");
+        }
+        if (cancelled) return;
+
+        const latestRows = latestRowsByOpportunity(json.entries as SyncedRevisionLedgerRow[]);
+        const rehydratedEntries = latestRows.map(toLocalLedgerEntry);
+        const latestLocalByOpportunity = Object.fromEntries(
+          latestRows.map((row) => [row.opportunity_id, row.local_id]),
+        );
+
+        setLedger(rehydratedEntries);
+        setLatestLocalIdByOpportunity(latestLocalByOpportunity);
+      } catch {
+        if (!cancelled) {
+          setMessage("Reload failed: using local queue state");
+        }
+      }
+    }
+
+    void hydrateLedgerFromAuthority();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [payload.evaluationJobId, payload.manuscriptId]);
 
   const finalReviewHref =
     payload.manuscriptId && payload.evaluationJobId
@@ -238,6 +317,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
               repairScope: item.repairScope ?? item.scope,
               cardType: item.cardType,
               trustedPathStatus: item.trustedPathStatus,
+              expectedCurrentLocalId: latestLocalIdByOpportunity[item.id] ?? null,
             },
           }],
         }),
@@ -245,6 +325,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.ok) throw new Error(json?.error ?? "Ledger sync failed");
       setLedger((rows) => rows.map((row) => (row.localId === entry.localId ? { ...row, syncStatus: "synced" } : row)));
+      setLatestLocalIdByOpportunity((existing) => ({ ...existing, [item.id]: entry.localId }));
       setMessage(`Saved: ${entry.opportunityTitle}`);
     } catch {
       setLedger((rows) => rows.map((row) => (row.localId === entry.localId ? { ...row, syncStatus: "failed" } : row)));
