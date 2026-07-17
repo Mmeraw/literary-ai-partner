@@ -127,6 +127,47 @@ function buildSupabaseMock(jobId: string, manuscriptVersionId: string, options: 
   };
 }
 
+function makeLedgerOpportunity(overrides: Record<string, unknown> = {}) {
+  return {
+    opportunity_id: 'opp-full-diag',
+    criterion: 'NARRATIVE_DRIVE',
+    severity: 'must',
+    confidence: 'high',
+    manuscript_coordinates: 'passage:15',
+    evidence_anchor: 'She set the letter down and said nothing for a long time.',
+    rationale: 'The quoted passage resolves the revelation as summary instead of action.',
+    symptom: 'In the quoted passage “She set the letter down and said nothing for a long time,” the revelation resolves as summary instead of action.',
+    cause: 'This occurs when the narrator summarizes Mara’s reaction rather than rendering the physical consequence beat by beat.',
+    fix_direction: 'Replace the quoted passage “She set the letter down and said nothing for a long time” so Mara chooses a visible physical response before the narration names the emotion.',
+    reader_effect: 'This lets readers track Mara’s decision through embodied action, so the revelation keeps narrative momentum instead of flattening into summary.',
+    mistake_proofing: 'Do not introduce new information; the replacement must emerge from what the scene has already established.',
+    candidate_text_a: 'She set the letter down and did not look at it again. Her hands moved to the edge of the table and stayed there.',
+    candidate_text_b: 'After placing the letter flat on the table, Mara reached for her coat before either of them could ask what had changed.',
+    candidate_text_c: 'The letter lay face down near the lamp while Mara kept both hands on the table and refused to pick it up.',
+    revision_operation: 'replace_selected_passage',
+    provenance: 'evaluation_result_v2',
+    grounding_status: 'supported',
+    preflight_status: 'passed',
+    context_quality: 'clean',
+    ...overrides,
+  };
+}
+
+function makeDuplicateTrapOpportunity(opportunityId: string) {
+  return {
+    opportunity_id: opportunityId,
+    get criterion() {
+      throw new Error('classifier should not read criterion after duplicate ledger id detection');
+    },
+    get evidence_anchor() {
+      throw new Error('classifier should not read evidence after duplicate ledger id detection');
+    },
+    get candidate_text_a() {
+      throw new Error('classifier should not read candidates after duplicate ledger id detection');
+    },
+  };
+}
+
 describe('getWorkbenchQueue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -613,6 +654,83 @@ describe('getWorkbenchQueue', () => {
     expect(card.cause).toContain('summarizes Mara’s reaction');
     expect(card.readerEffect).toContain('readers track Mara’s decision');
     expect(card.mistakeProofing).toContain('Do not introduce new information');
+  });
+
+  it('conserves ledger rows through classification and exactly one payload bucket per opportunity', async () => {
+    const supabase = buildSupabaseMock('job-conservation', 'version-conservation');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-conservation',
+      opportunities: [
+        makeLedgerOpportunity({ opportunity_id: 'ledger-copy' }),
+        makeLedgerOpportunity({
+          opportunity_id: 'ledger-strategy',
+          preflight_status: 'limited_context',
+          context_quality: 'limited',
+          preflight_reasons: ['limited_context_due_to_degraded_canon'],
+        }),
+        makeLedgerOpportunity({
+          opportunity_id: 'ledger-held',
+          preflight_status: 'limited_context',
+          context_quality: 'limited',
+          preflight_reasons: ['canon_conflict'],
+        }),
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-conservation' });
+
+    expect(result.ok).toBe(true);
+    expect(result.opportunities.map((item) => item.id)).toEqual(['ledger-copy']);
+    expect(result.needsTargeting.map((item) => item.id)).toEqual(['ledger-strategy']);
+    expect(result.withheldUnsupported.map((item) => item.id)).toEqual(['ledger-held']);
+
+    const payloadItems = [
+      ...result.opportunities,
+      ...result.needsTargeting,
+      ...result.withheldUnsupported,
+    ];
+    const ledgerIds = ['ledger-copy', 'ledger-strategy', 'ledger-held'];
+
+    expect(payloadItems).toHaveLength(ledgerIds.length);
+    expect(new Set(payloadItems.map((item) => item.id))).toEqual(new Set(ledgerIds));
+    for (const ledgerId of ledgerIds) {
+      expect(payloadItems.filter((item) => item.id === ledgerId)).toHaveLength(1);
+    }
+
+    for (const item of payloadItems) {
+      expect(item.classification).toBeDefined();
+      expect(item.baseDecision).toBeDefined();
+      expect(item.finalDecision).toBeDefined();
+      expect(item.cardType).toBe(item.finalDecision.cardType);
+      expect(item.trustedPathStatus).toBe(item.finalDecision.trustedPathStatus);
+    }
+
+    expect(result.opportunities.every((item) => item.finalDecision.cardType === 'copy_paste_rewrite')).toBe(true);
+    expect(result.needsTargeting.every((item) => item.finalDecision.cardType === 'revision_strategy')).toBe(true);
+    expect(result.withheldUnsupported.every((item) => item.finalDecision.cardType === 'withheld')).toBe(true);
+  });
+
+  it('fails closed when the persisted ledger contains duplicate opportunity IDs', async () => {
+    const supabase = buildSupabaseMock('job-duplicate-ledger', 'version-duplicate-ledger');
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    mockEnsureLedger.mockResolvedValueOnce({
+      artifactId: 'ledger-duplicate',
+      opportunities: [
+        makeDuplicateTrapOpportunity('duplicate-opportunity'),
+        makeDuplicateTrapOpportunity('duplicate-opportunity'),
+      ] as never,
+    });
+
+    const result = await getWorkbenchQueue({ manuscriptId: '6074', evaluationJobId: 'job-duplicate-ledger' });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('Revision opportunity ledger contains duplicate opportunity id: duplicate-opportunity.');
+    expect(result.opportunities).toHaveLength(0);
+    expect(result.needsTargeting).toHaveLength(0);
+    expect(result.withheldUnsupported).toHaveLength(0);
   });
 
   it('routes limited_context with supported grounding to needsTargeting as revision_strategy', async () => {
