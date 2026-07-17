@@ -10,49 +10,129 @@ This document builds on the approved `docs/held-recovery-producer-inventory.md` 
 A Held Recovery contract is identified by a stable pair:
 
 ```text
-producer  – the module/phase that owns the diagnostic (e.g. 'lib/revision/anchorContract.ts')
-code      – the normalized reason code from that producer (e.g. 'anchor_not_precise')
+producer  – a stable producer enum value (e.g. 'anchor_grounding')
+code      – the normalized reason code emitted by that producer (e.g. 'anchor_not_precise')
 ```
 
-The existing `HELD_REASON_SOURCE_REGISTRY` already maps each `HeldReasonSource` to its owning module and field. The proposal is to add an explicit `producer` string to `HeldReasonInfo` so the recovery planner can emit a machine-actionable contract object rather than deriving producer ownership at runtime.
+The file or module that emitted a reason is descriptive metadata only. It must not be part of the canonical identity because files can be renamed, split, or consolidated without changing the contract.
 
-Proposed mapping from existing `HeldReasonSource` to producer module:
+### 1.1 Proposed `HeldReasonProducer` enum
 
-| `HeldReasonSource` | Producer module / file |
-|---|---|
-| `grounding` | `lib/revision/workbenchQueue.ts` (SLAE evidence matching) / `lib/revision/opportunityLedger.ts` |
-| `preflight` | `lib/revision/opportunityLedger.ts` |
-| `hydration` | `lib/revision/opportunityLedger.ts` |
-| `res_blocker` | `lib/revision/workbenchQueue.ts` |
-| `copy_paste_admission` | `lib/revision/reviseAdmissionGate.ts` (`runCopyPasteAdmissionGate`) |
-| `strategy_admission` | `lib/revision/reviseAdmissionGate.ts` (`runStrategyAdmissionGate`) |
-| `base_decision` | `lib/revision/recommendationExecutability.ts` (`evaluateRecommendationExecutability`) |
-| `final_decision` | `lib/revision/workbenchQueueProjection.ts` (`classifyWorkbenchExecutabilityDetailedCore`) |
-| `integrity` | `lib/evaluation/pipeline/recommendationIntegrityGate.ts` |
-| `candidate_quality` | `lib/revision/candidateQuality.ts` |
-| `voice_gate` | `lib/revision/voiceGate.ts` |
-| `canon_gate` | `lib/revision/canonGate.ts` |
+```typescript
+export type HeldReasonProducer =
+  | 'grounding'
+  | 'preflight'
+  | 'hydration'
+  | 'res_blocker'
+  | 'copy_paste_admission'
+  | 'strategy_admission'
+  | 'integrity'
+  | 'candidate_quality'
+  | 'voice_gate'
+  | 'canon_gate'
+  | 'base_decision'
+  | 'final_decision'
+```
+
+For provenance, each producer may carry a non-canonical `producerModule` string:
+
+```typescript
+export type HeldReasonContract = {
+  producer: HeldReasonProducer
+  producerModule?: string // e.g. 'lib/revision/anchorContract.ts'
+  code: string
+  // ...
+}
+```
+
+### 1.2 Proposed `RecoveryAuthorityRole`
+
+Each `HeldReasonSource` must be classified by authority role, not by file location:
+
+```typescript
+export type RecoveryAuthorityRole =
+  | 'origin'              // owns the underlying diagnostic and selects the recovery action
+  | 'decision_projection' // summarizes or transforms upstream diagnostics into a routing decision
+  | 'annotation'            // display-only, never drives planning or routing
+```
+
+| `HeldReasonSource` | `RecoveryAuthorityRole` | `producerModule` (descriptive only) |
+|---|---|---|
+| `grounding` | `origin` | `lib/revision/workbenchQueue.ts` / `lib/revision/opportunityLedger.ts` |
+| `preflight` | `origin` | `lib/revision/opportunityLedger.ts` |
+| `hydration` | `origin` | `lib/revision/opportunityLedger.ts` |
+| `res_blocker` | `origin` | `lib/revision/workbenchQueue.ts` |
+| `copy_paste_admission` | `origin` | `lib/revision/reviseAdmissionGate.ts` |
+| `strategy_admission` | `origin` | `lib/revision/reviseAdmissionGate.ts` |
+| `integrity` | `origin` | `lib/evaluation/pipeline/recommendationIntegrityGate.ts` |
+| `candidate_quality` | `origin` | `lib/revision/candidateQuality.ts` |
+| `voice_gate` | `origin` | `lib/revision/voiceGate.ts` |
+| `canon_gate` | `origin` | `lib/revision/canonGate.ts` |
+| `base_decision` | `decision_projection` | `lib/revision/recommendationExecutability.ts` |
+| `final_decision` | `decision_projection` | `lib/revision/workbenchQueueProjection.ts` |
+| `executability` | `annotation` | `lib/revision/workbenchQueueProjection.ts` |
+| `grounding_note` | `annotation` | `lib/revision/opportunityLedger.ts` |
+
+### 1.3 Reason normalization
 
 Reason normalization remains `normalizeHeldReasonCode` (lowercase, collapse non-alphanumerics to `_`, trim underscores). Unknown codes normalize to themselves and are handled by the fail-closed path.
 
 ## 2. Authoritative source for initiating recovery
 
-Recovery must be initiated from the same canonical planning sources that `heldRecoveryPlan.collectCanonicalReasons` already consumes:
+Recovery actions must be selected by **origin producers only**. Decision projections and annotations may inform routing and audit, but they must not introduce independent recovery work when an origin producer already owns the same underlying condition.
+
+For example:
+
+```text
+preflight ──► 'canon_authority_blocked' ──┐
+                                          ▼
+                           copy_paste_admission ──► 'canon_conflict' ──┐
+                                                                        ▼
+                                                         base_decision ──► 'canon_unclear'
+                                                                        ▼
+                                                            final_decision ──► 'withheld'
+```
+
+The recovery planner should bind to the origin producer (`preflight`/`canon_gate`) and code `canon_authority_blocked` rather than creating a new recovery contract for `base_decision:canon_unclear` or `final_decision:withheld`.
+
+### 2.1 Decision-owned reasons
+
+A small set of base/final decision codes represent genuinely decision-owned conditions with no upstream origin code. These are the only decision-projection reasons that may directly initiate a recovery action:
+
+| Decision code | Source of projection | Default `recoveryAction` | Rationale |
+|---|---|---|---|
+| `passage_too_long` | `base_decision` / `final_decision` from `scope` + source-text length | `rerun_admission` | No upstream emits this exact code; it is derived from `passageLengthForExecutability`. |
+| `copy_paste_admission_failed` | `base_decision` / `final_decision` | `rerun_admission` | Summary code emitted only when the copy-paste gate fails; the planner decomposes it into the underlying admission reasons when they are available. |
+| `strategy_admission_failed` | `base_decision` / `final_decision` | `rerun_admission` | Same as above for the strategy gate. |
+
+If a decision-projection code appears alongside an origin code for the same underlying issue, the origin producer wins and the decision-projection code is treated as audit context only.
+
+### 2.2 Fields that may inform recovery planning
+
+Origin reasons can be collected from the same fields `heldRecoveryPlan.collectCanonicalReasons` already consumes:
 
 - `classification.copyPasteAdmissionReasons`
 - `classification.strategyAdmissionReasons`
-- `classification.baseDecision.reasons`
-- `classification.finalDecision.reasons`
-- `hydrationFailureReasons` / `resBlockerReasons` (split from `preflightReasons`)
+- `classification.baseDecision.reasons` (only for decision-owned codes)
+- `classification.finalDecision.reasons` (only for decision-owned codes)
+- `hydrationFailureReasons` / `resBlockerReasons`
 - `preflightReasons`
 
-Display-only fields must **not** drive recovery:
+The following fields are **not** authoritative for recovery planning:
 
-- `executabilityReasons` is a presentation copy of `finalDecision.reasons`.
-- `groundingNote` is an admin/display annotation.
-- `item.cardType` / `item.readiness` on `ClassifiedWorkbenchOpportunity` are stale mirrored fields; routing authority is `classification.finalDecision.cardType`.
+- `executabilityReasons` — presentation copy of `finalDecision.reasons`.
+- `groundingNote` — admin/display annotation.
+- `item.cardType` / `item.readiness` — stale mirrored fields; routing authority is `classification.finalDecision.cardType`.
 
-The recovery contract must also record the `promotionTransitionReason` and the original `baseDecision.reasons` because `finalDecision.reasons` may be replaced (for example, by the `needs_targeting` promotion that currently produces an empty reason array).
+### 2.3 Audit preservation
+
+The recovery contract must record:
+
+- `originalBaseReasons` — `classification.baseDecision.reasons` at initiation.
+- `originalFinalReasons` — `classification.finalDecision.reasons` at initiation.
+- `promotionTransitionReason` — if `needsTargetingOverrideApplied` is true.
+
+This preserves the original diagnostic even when `finalDecision.reasons` is replaced (for example, by the `needs_targeting` promotion that currently produces an empty reason array).
 
 ## 3. Proposed contract schema
 
@@ -82,8 +162,10 @@ export type RecoveryInputKey =
   | 'full_opportunity'
 
 export type HeldReasonContract = {
-  producer: string
+  producer: HeldReasonProducer
+  producerModule?: string
   code: string
+  authorityRole: RecoveryAuthorityRole
   recoveryAction: RecoveryActionName
   requiredInputs: RecoveryInputKey[]
   deterministic: boolean
@@ -99,26 +181,29 @@ export type HeldReasonContract = {
 
 ## 4. Recovery family → action, inputs, and provenance
 
-The existing `REPAIR_FAMILY_TEMPLATES` already defines an ordered repair pipeline per family. The contract layer adds a single canonical `recoveryAction` and `requiredInputs` for each family.
+The existing `REPAIR_FAMILY_TEMPLATES` already defines an ordered repair pipeline per family. The contract layer adds a single canonical `recoveryAction` and `requiredInputs` for each family, sourced from the origin producer.
 
-| Family | Default `recoveryAction` | `requiredInputs` | Provenance |
+| Family | Default `recoveryAction` | `requiredInputs` | Origin producer / provenance |
 |---|---|---|---|
-| `anchor` | `resolve_anchor` | `source_text`, `manuscript_coordinates`, `evidence_anchor` | `opportunityLedger.ts` / `anchorContract.ts` (`anchor`, `quoteHighlight+quoteRest`) |
-| `context` | `retrieve_context` | `source_text`, `evidence_anchor`, `manuscript_chunks` | `opportunityLedger.ts` hydration (`findHydrationChunkForAnchor`) |
-| `diagnosis` | `repair_diagnosis` | `symptom`, `cause`, `fix_direction`, `reader_effect`, `rationale` | `reviseAdmissionGate.ts` / `recommendationIntegrityGate.ts` |
-| `candidates` | `regenerate_candidates` | `existing_candidates_a_b_c`, `source_text`, `evidence_anchor`, `rationale`, `diagnostic_object` | `candidateQuality.ts` / `candidateHydration.ts` |
-| `strategy` | `rerun_admission` | `full_opportunity`, `source_text` | `reviseAdmissionGate.ts` |
+| `anchor` | `resolve_anchor` | `source_text`, `manuscript_coordinates`, `evidence_anchor` | `grounding` / `preflight` / `hydration` / `anchorContract.ts` (`anchor`, `quoteHighlight+quoteRest`) |
+| `context` | `retrieve_context` | `source_text`, `evidence_anchor`, `manuscript_chunks` | `hydration` / `preflight` (`findHydrationChunkForAnchor`) |
+| `diagnosis` | `repair_diagnosis` | `symptom`, `cause`, `fix_direction`, `reader_effect`, `rationale` | `copy_paste_admission` / `strategy_admission` / `integrity` |
+| `candidates` | `regenerate_candidates` | `existing_candidates_a_b_c`, `source_text`, `evidence_anchor`, `rationale`, `diagnostic_object` | `candidate_quality` / `voice_gate` / `canon_gate` |
+| `strategy` | `rerun_admission` | `full_opportunity`, `source_text` | `strategy_admission` |
 | `none` | `none` | `[]` | terminal state; only author actions allowed |
 
-Per-code overrides:
+### 4.1 Per-code overrides
 
-| Reason code | `repairFamily` | Override `recoveryAction` | Why |
-|---|---|---|---|
-| `canon_authority_blocked` | `none` | `author_assisted_canon_review` | Canon/authority conflict may be resolvable by an author but not automatically. |
-| `hard_canon_conflict` | `none` | `author_assisted_canon_review` | Same; terminal if author cannot resolve. |
-| `hard_context_block` | `none` | `none` | Terminal hard blocker. |
-| `testimony_fabrication_risk` | `none` | `dismiss_or_save_as_note` | Intentionally non-recoverable; only author disposition. |
-| `integrity_*` | `none` | `none` | Currently non-recoverable through automatic repair; author-assisted review may be added later per-code. |
+| Reason code | `repairFamily` | `recoveryAction` | Authority role | Why |
+|---|---|---|---|---|
+| `canon_authority_blocked` | `none` | `author_assisted_canon_review` | `origin` (`canon_gate` / `preflight`) | Canon/authority conflict may be resolvable by an author but not automatically. |
+| `hard_canon_conflict` | `none` | `author_assisted_canon_review` | `origin` (`canon_gate` / `preflight`) | Same; terminal if author cannot resolve. |
+| `hard_context_block` | `none` | `none` | `origin` (`preflight`) | Terminal hard blocker. |
+| `testimony_fabrication_risk` | `none` | `dismiss_or_save_as_note` | `origin` (`candidate_quality`) | Intentionally non-recoverable; only author disposition. |
+| `integrity_*` | `none` | `none` (or future `author_assisted_canon_review` per-code) | `origin` (`integrity`) | Currently non-recoverable through automatic repair. |
+| `passage_too_long` | `strategy` | `rerun_admission` | `decision_projection` | Derived from `scope` + text length; no exact upstream code. |
+| `copy_paste_admission_failed` | `candidates` / `diagnosis` | `rerun_admission` | `decision_projection` | Summary code; decompose into underlying admission reasons when present. |
+| `strategy_admission_failed` | `diagnosis` | `rerun_admission` | `decision_projection` | Same as above for strategy gate. |
 
 ## 5. Automatic vs author-assisted recovery
 
@@ -216,9 +301,7 @@ The recovery contract must preserve those original reasons independently of the 
 - `originalBaseReasons` stores `classification.baseDecision.reasons`.
 - `originalFinalReasons` stores `classification.finalDecision.reasons` at the moment recovery is initiated.
 - `promotionTransitionReason` stores the transition text.
-- The recovery planner may still use `canonicalReasons` (from all planning sources) to choose the repair family, so the original cause is not lost.
-
-This means `collectCanonicalReasons` should continue to collect from `baseDecision`, `finalDecision`, `copyPasteAdmissionReasons`, `strategyAdmissionReasons`, `hydration`, `preflight`, and `res_blocker`, while the `RecoveryAttempt` records the full provenance.
+- The recovery planner continues to collect `canonicalReasons` from all origin sources, so the original cause is not lost even when `finalDecision.reasons` is empty.
 
 ## 11. Recovery step order
 
@@ -245,7 +328,7 @@ The following are intentionally out of scope until the contract is approved:
 
 ## 13. Open questions for review
 
-1. Should `producer` be a file path, a stable short name (e.g. `anchor_grounding`), or both?
+1. Should `producer` values be a string enum (`HeldReasonProducer`) or remain as the existing `HeldReasonSource` strings?
 2. Should the `recoveryAction` field live directly on `HeldReasonInfo`, or should it be looked up from `repairFamily` with a per-code override table?
 3. Is `regenerate_candidates` allowed to fall back to a strategy queue if regenerated candidates still fail quality, or must it remain held?
 4. Should `needs_targeting` promotion be allowed to discard `finalDecision.reasons`, or should the promoted `revision_strategy` retain the original base reasons in its `reasons` array?
