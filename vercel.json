@@ -1,5 +1,5 @@
 {
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':!docs' ':!*.md' ':!.github'",
+  "ignoreCommand": "sh scripts/vercel-ignore-build.sh",
   "functions": {
     "app/api/reports/[jobId]/download/route.ts": {
       "maxDuration": 60
