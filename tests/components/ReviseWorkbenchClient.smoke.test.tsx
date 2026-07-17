@@ -6,6 +6,11 @@ import { render, screen } from "@testing-library/react";
 
 import ReviseWorkbenchClient from "@/components/revision/ReviseWorkbenchClient";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
+
+function classify(opp: WorkbenchOpportunity) {
+  return buildClassifiedWorkbenchOpportunity(opp, classifyWorkbenchExecutabilityDetailed(opp));
+}
 
 jest.mock("next/link", () => {
   return ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>;
@@ -97,7 +102,7 @@ describe("ReviseWorkbenchClient smoke", () => {
       manuscriptId: "6074",
       evaluationJobId: "e5ced7ac-117f-4d13-8cd0-3957c15dc189",
       manuscriptTitle: "Test Manuscript",
-      opportunities,
+      opportunities: opportunities.map(classify),
       needsTargeting: [],
       withheldUnsupported: [],
       readinessTotals: {

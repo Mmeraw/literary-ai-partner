@@ -5,7 +5,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
 import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
-import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
 import WorkbenchCardSurface from "./WorkbenchCardSurface";
 import { adaptWorkbenchOpportunityToCard } from "./workbenchCardAdapter";
 import type { CopyPasteCandidateKey } from "./workbenchCardModels";
@@ -49,17 +48,17 @@ function decisionFor(key: CopyPasteCandidateKey): Decision {
   return key === "A" ? "accepted_a" : key === "B" ? "accepted_b" : "accepted_c";
 }
 
-function cardLabel(item: WorkbenchOpportunity): string {
-  if (item.cardType === "copy_paste_rewrite") return "Copy-paste";
-  if (item.cardType === "revision_strategy") return "Strategy";
+function cardLabel(item: ClassifiedWorkbenchOpportunity): string {
+  if (item.finalDecision.cardType === "copy_paste_rewrite") return "Copy-paste";
+  if (item.finalDecision.cardType === "revision_strategy") return "Strategy";
   return "Held";
 }
 
-function cardBadgeClasses(item: WorkbenchOpportunity): string {
-  if (item.cardType === "copy_paste_rewrite") {
+function cardBadgeClasses(item: ClassifiedWorkbenchOpportunity): string {
+  if (item.finalDecision.cardType === "copy_paste_rewrite") {
     return "border-[#2a5a3f] bg-[#132a1e] text-[var(--rg-workbench-success)]";
   }
-  if (item.cardType === "revision_strategy") {
+  if (item.finalDecision.cardType === "revision_strategy") {
     return "border-[#7b4b1f] bg-[#2a1b0b] text-[var(--rg-workbench-gold)]";
   }
   return "border-[#8f4141] bg-[#2a1010] text-[var(--rg-workbench-danger)]";
@@ -114,51 +113,11 @@ function getHeldReason(item: WorkbenchOpportunity): string {
   return item.groundingNote ?? item.adminRepairReason ?? item.readinessReason ?? "This revision requires re-analysis before it can be used safely.";
 }
 
-function asClassifiedOpportunity(item: WorkbenchOpportunity): ClassifiedWorkbenchOpportunity {
-  const fallbackClassification = classifyWorkbenchExecutabilityDetailed(item);
-  const finalCardType =
-    item.cardType === "copy_paste_rewrite" || item.cardType === "revision_strategy" || item.cardType === "withheld"
-      ? item.cardType
-      : fallbackClassification.finalDecision.cardType;
-  const finalTrustedPathStatus =
-    item.trustedPathStatus === "eligible" || item.trustedPathStatus === "unavailable_author_review_required" || item.trustedPathStatus === "impossible"
-      ? item.trustedPathStatus
-      : finalCardType === "copy_paste_rewrite"
-        ? "eligible"
-        : finalCardType === "revision_strategy"
-          ? "unavailable_author_review_required"
-          : "impossible";
-  const finalReasons = item.executabilityReasons?.length
-    ? [...item.executabilityReasons]
-    : [...fallbackClassification.finalDecision.reasons];
-
-  const classification = {
-    ...fallbackClassification,
-    cardType: finalCardType,
-    trustedPathStatus: finalTrustedPathStatus,
-    reasons: finalReasons,
-    baseDecision: {
-      ...fallbackClassification.baseDecision,
-      cardType: finalCardType,
-      trustedPathStatus: finalTrustedPathStatus,
-      reasons: finalReasons,
-    },
-    finalDecision: {
-      ...fallbackClassification.finalDecision,
-      cardType: finalCardType,
-      trustedPathStatus: finalTrustedPathStatus,
-      reasons: finalReasons,
-    },
-  };
-
-  return buildClassifiedWorkbenchOpportunity(item, classification);
-}
-
 export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: WorkbenchQueuePayload }) {
   const interactiveItems = useMemo(() => {
     const seen = new Set<string>();
     return [...payload.opportunities, ...payload.needsTargeting]
-      .filter((item) => item.cardType !== "withheld")
+      .filter((item) => item.finalDecision.cardType !== "withheld")
       .filter((item) => {
         if (seen.has(item.id)) return false;
         seen.add(item.id);
@@ -168,7 +127,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
 
   const heldItems = useMemo(() => {
     const seen = new Set<string>();
-    return [...payload.withheldUnsupported, ...payload.needsTargeting.filter((item) => item.cardType === "withheld")]
+    return [...payload.withheldUnsupported, ...payload.needsTargeting.filter((item) => item.finalDecision.cardType === "withheld")]
       .filter((item) => {
         if (seen.has(item.id)) return false;
         seen.add(item.id);
@@ -195,7 +154,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
 
   const active = filteredItems.find((item) => item.id === activeId) ?? filteredItems[0] ?? openItems[0] ?? null;
   const activeCard = active
-    ? adaptWorkbenchOpportunityToCard(asClassifiedOpportunity(active))
+    ? adaptWorkbenchOpportunityToCard(active)
     : null;
   const failedEntries = ledger.filter((entry) => entry.syncStatus === "failed");
   const totalInteractive = interactiveItems.length;
@@ -206,7 +165,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
       ? `/workbench/final-review?${new URLSearchParams({ manuscriptId: payload.manuscriptId, evaluationJobId: payload.evaluationJobId }).toString()}`
       : "/workbench/final-review";
 
-  async function sync(entry: LedgerEntry, item: WorkbenchOpportunity) {
+  async function sync(entry: LedgerEntry, item: ClassifiedWorkbenchOpportunity) {
     if (!payload.manuscriptId || !payload.evaluationJobId) return;
     try {
       const response = await fetch("/api/revision-ledger", {
@@ -236,8 +195,8 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
               scope: item.evidenceLocationScope ?? item.scope,
               evidenceLocationScope: item.evidenceLocationScope ?? item.scope,
               repairScope: item.repairScope ?? item.scope,
-              cardType: item.cardType,
-              trustedPathStatus: item.trustedPathStatus,
+              cardType: item.finalDecision.cardType,
+              trustedPathStatus: item.finalDecision.trustedPathStatus,
             },
           }],
         }),
@@ -264,15 +223,15 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
     void sync(pending, item);
   }
 
-  function advance(item: WorkbenchOpportunity) {
+  function advance(item: ClassifiedWorkbenchOpportunity) {
     const index = filteredItems.findIndex((candidate) => candidate.id === item.id);
     const next = filteredItems[index + 1] ?? filteredItems.find((candidate) => candidate.id !== item.id) ?? null;
     setActiveId(next?.id ?? "");
     setSelectedKey("A");
   }
 
-  function decide(item: WorkbenchOpportunity, decision: Decision, selectedOption: CopyPasteCandidateKey | null, selectedText: string | null) {
-    if (decision.startsWith("accepted_") && item.cardType !== "copy_paste_rewrite") return;
+  function decide(item: ClassifiedWorkbenchOpportunity, decision: Decision, selectedOption: CopyPasteCandidateKey | null, selectedText: string | null) {
+    if (decision.startsWith("accepted_") && item.finalDecision.cardType !== "copy_paste_rewrite") return;
     const entry: LedgerEntry = {
       localId: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       opportunityId: item.id,
@@ -288,13 +247,13 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
     advance(item);
   }
 
-  function customDecision(item: WorkbenchOpportunity, strategy: boolean) {
+  function customDecision(item: ClassifiedWorkbenchOpportunity, strategy: boolean) {
     const prompt = strategy ? "Add your revision plan or notes:" : "Enter your custom replacement text:";
     const text = window.prompt(prompt, "");
     if (text?.trim()) decide(item, "custom", null, text.trim());
   }
 
-  function requestReanalysis(item: WorkbenchOpportunity) {
+  function requestReanalysis(item: ClassifiedWorkbenchOpportunity) {
     setMessage(`Re-analysis requested for ${item.title}`);
   }
 
@@ -323,10 +282,11 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
             <div className="mt-1 flex flex-col gap-3 xl:mt-0 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={cn("h-10 rounded-md border px-3 py-2 text-xs font-semibold flex items-center", "border-[#2a5a3f] bg-[#132a1e] text-[var(--rg-workbench-success)]")}>
-                  {openItems.filter((item) => item.cardType === "copy_paste_rewrite").length} copy-paste
+                  {openItems.filter((item) => item.finalDecision.cardType === "copy_paste_rewrite").length} copy-paste
                 </span>
-                <span className={cn("h-10 rounded-md border px-3 py-2 text-xs font-semibold flex items-center", "border-[#7b4b1f] bg-[#2a1b0b] text-[var(--rg-workbench-gold)]")}>
-                  {openItems.filter((item) => item.cardType === "revision_strategy").length} strategies
+                <span className={cn("h-10 rounded-md border px-3 py-2 text-xs font-semibold flex items-center", "border-[#7b4b1f] bg-[#2a1b0b] text-[var(--rg-workbench-gold)]")}
+                >
+                  {openItems.filter((item) => item.finalDecision.cardType === "revision_strategy").length} strategies
                 </span>
                 <button
                   type="button"
@@ -488,7 +448,7 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
                   heldItems.map((item) => (
                     <div key={item.id} className="rounded-xl border border-[var(--rg-workbench-border)] bg-[var(--rg-workbench-surface)] p-5">
                       <WorkbenchCardSurface
-                        viewModel={adaptWorkbenchOpportunityToCard(asClassifiedOpportunity(item))}
+                        viewModel={adaptWorkbenchOpportunityToCard(item)}
                         actions={{ onRequestReanalysis: () => requestReanalysis(item) }}
                       />
                     </div>

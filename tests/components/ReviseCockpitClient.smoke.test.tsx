@@ -6,6 +6,12 @@ import { render, screen } from "@testing-library/react";
 
 import ReviseCockpitClient from "@/components/revision/ReviseCockpitClient";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
+import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
+
+function classify(opp: WorkbenchOpportunity): ClassifiedWorkbenchOpportunity {
+  return buildClassifiedWorkbenchOpportunity(opp, classifyWorkbenchExecutabilityDetailed(opp));
+}
 
 function makeNeedsTargetingOpportunity(id: string): WorkbenchOpportunity {
   return {
@@ -79,7 +85,7 @@ describe("ReviseCockpitClient smoke", () => {
       evaluationJobId: "e5ced7ac-117f-4d13-8cd0-3957c15dc189",
       manuscriptTitle: "Cartel Babies",
       opportunities: [],
-      needsTargeting: [makeNeedsTargetingOpportunity("nt-1")],
+      needsTargeting: [classify(makeNeedsTargetingOpportunity("nt-1"))],
       withheldUnsupported: [],
       readinessTotals: {
         ready_for_revise: 0,
@@ -133,7 +139,7 @@ describe("ReviseCockpitClient smoke", () => {
       evaluationJobId: "e5ced7ac-117f-4d13-8cd0-3957c15dc189",
       manuscriptTitle: "Cartel Babies",
       opportunities: [],
-      needsTargeting: [item],
+      needsTargeting: [classify(item)],
       withheldUnsupported: [],
       readinessTotals: {
         ready_for_revise: 0,

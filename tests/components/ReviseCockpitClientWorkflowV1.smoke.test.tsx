@@ -6,6 +6,12 @@ import { render, screen } from '@testing-library/react';
 
 import ReviseCockpitClientWorkflowV1 from '@/components/revision/ReviseCockpitClientWorkflowV1';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from '@/lib/revision/workbenchQueueProjection';
+import type { ClassifiedWorkbenchOpportunity } from '@/lib/revision/workbenchQueueProjection';
+
+function classify(opp: WorkbenchOpportunity): ClassifiedWorkbenchOpportunity {
+  return buildClassifiedWorkbenchOpportunity(opp, classifyWorkbenchExecutabilityDetailed(opp));
+}
 
 function makeReadyOpportunity(): WorkbenchOpportunity {
   return {
@@ -78,7 +84,7 @@ function makePayload(): WorkbenchQueuePayload {
     manuscriptId: '6074',
     evaluationJobId: 'e5ced7ac-117f-4d13-8cd0-3957c15dc189',
     manuscriptTitle: 'Cartel Babies',
-    opportunities: [opportunity],
+    opportunities: [classify(opportunity)],
     needsTargeting: [],
     withheldUnsupported: [],
     readinessTotals: {

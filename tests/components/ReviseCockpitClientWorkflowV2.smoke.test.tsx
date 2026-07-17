@@ -17,6 +17,32 @@ jest.mock('next/link', () => ({
 
 import ReviseCockpitClientWorkflowV2 from '@/components/revision/ReviseCockpitClientWorkflowV2';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from '@/lib/revision/workbenchQueueProjection';
+import type { ClassifiedWorkbenchOpportunity } from '@/lib/revision/workbenchQueueProjection';
+
+function classify(opp: WorkbenchOpportunity): ClassifiedWorkbenchOpportunity {
+  return buildClassifiedWorkbenchOpportunity(opp, classifyWorkbenchExecutabilityDetailed(opp));
+}
+
+// Build a classified opportunity directly with an explicit finalDecision, so
+// smoke tests are independent of the admission-gate internals.
+function makeClassified(
+  overrides: Partial<WorkbenchOpportunity> = {},
+  finalCardType: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld' = 'copy_paste_rewrite',
+): ClassifiedWorkbenchOpportunity {
+  const opp = makeOpportunity(overrides);
+  const decision = {
+    cardType: finalCardType,
+    trustedPathStatus: (finalCardType === 'copy_paste_rewrite'
+      ? 'eligible'
+      : finalCardType === 'revision_strategy'
+        ? 'unavailable_author_review_required'
+        : 'impossible') as 'eligible' | 'unavailable_author_review_required' | 'impossible',
+    reasons: [`smoke_${finalCardType}`] as readonly string[],
+  } as any;
+  const stub = { ...classifyWorkbenchExecutabilityDetailed(makeOpportunity()), finalDecision: decision, baseDecision: decision, cardType: finalCardType, trustedPathStatus: decision.trustedPathStatus, reasons: decision.reasons } as any;
+  return buildClassifiedWorkbenchOpportunity({ ...opp, cardType: finalCardType, trustedPathStatus: decision.trustedPathStatus }, stub);
+}
 
 const CANDIDATE_A = 'Mara stepped back into the room, and everyone waited for her to speak.';
 const CANDIDATE_B = 'The room stilled as everyone turned toward the doorway where Mara stood.';
@@ -79,7 +105,7 @@ function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQ
     manuscriptId: '6074',
     evaluationJobId: 'e5ced7ac-117f-4d13-8cd0-3957c15dc189',
     manuscriptTitle: 'Cartel Babies',
-    opportunities: [makeOpportunity()],
+    opportunities: [makeClassified()],
     needsTargeting: [],
     withheldUnsupported: [],
     readinessTotals: { ready_for_revise: 1, needs_targeting: 0, withheld_unsupported: 0 },
@@ -162,14 +188,10 @@ describe('ReviseCockpitClientWorkflowV2', () => {
   });
 
   it('renders strategy cards without A/B/C or Accept controls', () => {
-    const strategy = makeOpportunity({
+    const strategy = makeClassified({
       id: 'strategy-1',
-      cardType: 'revision_strategy',
-      trustedPathStatus: 'unavailable_author_review_required',
-      contextQuality: 'limited',
-      preflightStatus: 'limited_context',
       options: [],
-    });
+    }, 'revision_strategy');
     render(<ReviseCockpitClientWorkflowV2 payload={makePayload({ opportunities: [], needsTargeting: [strategy] })} />);
 
     expect(screen.getByTestId('revision-strategy-surface')).toBeTruthy();
@@ -179,22 +201,68 @@ describe('ReviseCockpitClientWorkflowV2', () => {
   });
 
   it('keeps withheld cards out of the active queue and shows them in Held Items Summary', () => {
-    const withheld = makeOpportunity({
+    const withheld = makeClassified({
       id: 'withheld-1',
-      cardType: 'withheld',
-      trustedPathStatus: 'impossible',
-      readiness: 'needs_targeting',
-      groundingStatus: 'unsupported_blocked',
-      contextQuality: 'blocked',
-      preflightStatus: 'blocked',
       executabilityReasons: ['canon_unclear'],
       options: [],
-    });
+    }, 'withheld');
     render(<ReviseCockpitClientWorkflowV2 payload={makePayload({ opportunities: [], needsTargeting: [withheld], withheldUnsupported: [] })} />);
 
     expect(screen.getByText(/Held Items Summary/i)).toBeTruthy();
     expect(screen.getByTestId('withheld-summary')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Accept [ABC]/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Generate/i })).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Contradictory-field authority tests
+  // UI must follow finalDecision.cardType, not the mirrored raw cardType field.
+  // -------------------------------------------------------------------------
+
+  it('UI authority: copy_paste item with stale raw cardType=withheld is interactive', () => {
+    const stale = {
+      ...makeClassified({ id: 'stale-cp' }, 'copy_paste_rewrite'),
+      cardType: 'withheld' as const,          // stale mirrored field
+    };
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload({ opportunities: [stale] })} />);
+
+    // The item must appear in the interactive queue, not the held panel.
+    expect(screen.queryByText(/Held Items Summary/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Active \(1\)/i })).toBeTruthy();
+  });
+
+  it('UI authority: withheld item with stale raw cardType=revision_strategy is NOT interactive', () => {
+    const stale = {
+      ...makeClassified({ id: 'stale-wh' }, 'withheld'),
+      cardType: 'revision_strategy' as const,  // stale mirrored field
+    };
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload({ opportunities: [], withheldUnsupported: [stale] })} />);
+
+    // The item must appear in held, not in the active interactive queue.
+    expect(screen.getByText(/Held Items Summary/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Accept A/i })).toBeNull();
+  });
+
+  it('UI authority: ledger metadata records finalDecision.cardType, not mirrored cardType', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    }) as unknown as typeof fetch;
+
+    const stale = {
+      ...makeClassified({ id: 'metadata-test' }, 'copy_paste_rewrite'),
+      cardType: 'revision_strategy' as const,  // stale mirrored field
+    };
+
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload({ opportunities: [stale] })} />);
+    fireEvent.click(screen.getByRole('button', { name: /Accept A/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalled();
+      const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+      expect(body.entries[0].metadata.cardType).toBe('copy_paste_rewrite');
+    });
+
+    (global.fetch as jest.Mock).mockRestore?.();
   });
 });

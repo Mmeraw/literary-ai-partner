@@ -37,6 +37,7 @@ import {
   modeForScope,
   hasPlaceholderCoordinates,
   partitionClassifiedWorkbenchQueue,
+  type ClassifiedWorkbenchOpportunity,
   type WorkbenchExecutabilityClassification,
 } from './workbenchQueueProjection'
 import { buildWorkbenchQueueAudit, isAuditLogEnabled, logWorkbenchQueueAudit, type WorkbenchAdmissionDetails } from './workbenchQueueAudit'
@@ -131,9 +132,9 @@ export type WorkbenchQueuePayload = {
   revisionPackage?: RevisionPackage | null
   modeContract: RevisionModeContract | null
   manuscriptTitle: string
-  opportunities: WorkbenchOpportunity[]
-  needsTargeting: WorkbenchOpportunity[]
-  withheldUnsupported: WorkbenchOpportunity[]
+  opportunities: ClassifiedWorkbenchOpportunity[]
+  needsTargeting: ClassifiedWorkbenchOpportunity[]
+  withheldUnsupported: ClassifiedWorkbenchOpportunity[]
   readinessTotals: {
     ready_for_revise: number
     needs_targeting: number

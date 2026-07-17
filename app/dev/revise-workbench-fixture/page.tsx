@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
+
+function classify(opp: WorkbenchOpportunity) {
+  return buildClassifiedWorkbenchOpportunity(opp, classifyWorkbenchExecutabilityDetailed(opp));
+}
 
 function candidate(key: "A" | "B" | "C", mechanism: string, text: string, rationale: string) {
   return { key, mechanism, candidateText: text, text, rationale };
@@ -154,20 +159,20 @@ const payload: WorkbenchQueuePayload = {
   evaluationJobId: "fixture-eval",
   manuscriptTitle: "The River Remembers Blood — Workbench Visual Fixture",
   opportunities: [
-    copyPasteOpportunity(1, "Bridge the abrupt transition into Mara’s return so the emotional beat lands before the time jump", "Pacing", "must"),
-    copyPasteOpportunity(2, "Soften the repeated clause rhythm in the river description near the ford", "Prose_variety", "should"),
-    strategyOpportunity(3, "Restructure the market argument so reactions precede declarations and stakes are shown rather than told", "Tension", "must"),
-    copyPasteOpportunity(4, "Anchor the metaphor to a concrete sensory image rather than an abstract assertion", "Imagery", "should"),
-    strategyOpportunity(5, "Distribute the villain’s reveal across two beats instead of one so the reversal lands", "Suspense", "should"),
-    copyPasteOpportunity(6, "Remove the filter phrase that weakens the close third in the sheriff’s office scene", "POV_voice", "could"),
-    strategyOpportunity(7, "Make the chapter ending land on implication rather than summary of what just happened", "Pacing", "could"),
-    copyPasteOpportunity(8, "Tighten the dialogue attribution to avoid naming the speaker twice in the same turn", "Dialogue", "could"),
+    classify(copyPasteOpportunity(1, "Bridge the abrupt transition into Mara\'s return so the emotional beat lands before the time jump", "Pacing", "must")),
+    classify(copyPasteOpportunity(2, "Soften the repeated clause rhythm in the river description near the ford", "Prose_variety", "should")),
+    classify(strategyOpportunity(3, "Restructure the market argument so reactions precede declarations and stakes are shown rather than told", "Tension", "must")),
+    classify(copyPasteOpportunity(4, "Anchor the metaphor to a concrete sensory image rather than an abstract assertion", "Imagery", "should")),
+    classify(strategyOpportunity(5, "Distribute the villain\'s reveal across two beats instead of one so the reversal lands", "Suspense", "should")),
+    classify(copyPasteOpportunity(6, "Remove the filter phrase that weakens the close third in the sheriff\'s office scene", "POV_voice", "could")),
+    classify(strategyOpportunity(7, "Make the chapter ending land on implication rather than summary of what just happened", "Pacing", "could")),
+    classify(copyPasteOpportunity(8, "Tighten the dialogue attribution to avoid naming the speaker twice in the same turn", "Dialogue", "could")),
   ],
   needsTargeting: [],
   withheldUnsupported: [
-    heldOpportunity(1, "Evaluate the extended flashback in chapter five for relevance and proportion to present action", "Backfill"),
-    heldOpportunity(2, "Resolve the historical anachronism in the sheriff’s office before allowing world-consistent revision", "World_consistency"),
-    heldOpportunity(3, "Confirm the secondary antagonist’s motivation before revising their entrance scene", "Characterization"),
+    classify(heldOpportunity(1, "Evaluate the extended flashback in chapter five for relevance and proportion to present action", "Backfill")),
+    classify(heldOpportunity(2, "Resolve the historical anachronism in the sheriff\'s office before allowing world-consistent revision", "World_consistency")),
+    classify(heldOpportunity(3, "Confirm the secondary antagonist\'s motivation before revising their entrance scene", "Characterization")),
   ],
   readinessTotals: { ready_for_revise: 5, needs_targeting: 3, withheld_unsupported: 3 },
   totals: { must: 2, should: 4, could: 5 },

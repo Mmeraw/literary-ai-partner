@@ -2,6 +2,12 @@ import React from "react";
 
 import WorkbenchV2Page from "@/app/workbench-v2/page";
 import { getWorkbenchQueue, type WorkbenchOpportunity, type WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
+import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
+import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
+
+function classify(opp: WorkbenchOpportunity): ClassifiedWorkbenchOpportunity {
+  return buildClassifiedWorkbenchOpportunity(opp, classifyWorkbenchExecutabilityDetailed(opp));
+}
 
 jest.mock("@/lib/revision/workbenchQueue", () => ({
   getWorkbenchQueue: jest.fn(),
@@ -36,6 +42,7 @@ function opportunity(id: string, readiness: "ready_for_revise" | "needs_targetin
     severity: "should",
     scope: "Line",
     criterion: "pacing",
+    anchor: "passage:1",
   } as unknown as WorkbenchOpportunity;
 }
 
@@ -65,7 +72,7 @@ describe("/workbench-v2 page", () => {
 
   it("loads queue payload and renders the cockpit client", async () => {
     (getWorkbenchQueue as jest.Mock).mockResolvedValue(
-      basePayload({ opportunities: [opportunity("op-1", "ready_for_revise")] }),
+      basePayload({ opportunities: [classify(opportunity("op-1", "ready_for_revise"))] }),
     );
 
     const element = await WorkbenchV2Page({
@@ -87,8 +94,8 @@ describe("/workbench-v2 page", () => {
     (getWorkbenchQueue as jest.Mock).mockResolvedValue(
       basePayload({
         opportunities: [],
-        needsTargeting: [opportunity("held-1", "needs_targeting"), opportunity("held-2", "needs_targeting")],
-        withheldUnsupported: [opportunity("held-3", "ready_for_revise")],
+        needsTargeting: [classify(opportunity("held-1", "needs_targeting")), classify(opportunity("held-2", "needs_targeting"))],
+        withheldUnsupported: [classify(opportunity("held-3", "ready_for_revise"))],
       }),
     );
 
