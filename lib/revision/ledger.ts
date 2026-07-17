@@ -188,7 +188,7 @@ function detectTense(value: string): RevisionQualityDriftMetrics["tense_source"]
 }
 
 function properNouns(value: string): Set<string> {
-  const matches = value.match(/\b[A-Z][A-Za-z’'\-]{2,}\b/g) ?? [];
+  const matches = value.match(/\b[A-Z][A-Za-z’'-]{2,}\b/g) ?? [];
   return new Set(matches.filter((token) => !["The", "This", "That", "And", "But", "Then", "When", "While", "After", "Before"].includes(token)));
 }
 
@@ -250,6 +250,56 @@ function metadataWithRevisionQuality(entry: SyncRevisionLedgerEntryInput): Recor
       selectedText,
     }),
   };
+}
+
+function extractExpectedCurrentLocalId(metadata: Record<string, unknown> | null | undefined): {
+  provided: boolean;
+  value: string | null;
+} {
+  if (!metadata || typeof metadata !== 'object') {
+    return { provided: false, value: null };
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(metadata, 'expectedCurrentLocalId')) {
+    return { provided: false, value: null };
+  }
+
+  const raw = metadata.expectedCurrentLocalId;
+  if (typeof raw === 'string') {
+    const normalized = raw.trim();
+    return { provided: true, value: normalized.length > 0 ? normalized : null };
+  }
+
+  if (raw === null) {
+    return { provided: true, value: null };
+  }
+
+  throw new Error('Ledger sync blocked: metadata.expectedCurrentLocalId must be a string or null');
+}
+
+function assertBatchUniqueness(entries: SyncRevisionLedgerEntryInput[]) {
+  const localIdToOpportunity = new Map<string, string>();
+  const opportunityIds = new Set<string>();
+
+  for (const entry of entries) {
+    const localId = entry.localId.trim();
+    const opportunityId = entry.opportunityId.trim();
+
+    const existingOpportunityForLocalId = localIdToOpportunity.get(localId);
+    if (existingOpportunityForLocalId && existingOpportunityForLocalId !== opportunityId) {
+      throw new Error(
+        `Ledger sync blocked: duplicate localId "${localId}" cannot target multiple opportunities in one sync batch.`,
+      );
+    }
+    localIdToOpportunity.set(localId, opportunityId);
+
+    if (opportunityIds.has(opportunityId)) {
+      throw new Error(
+        `Ledger sync blocked: multiple writes for opportunity "${opportunityId}" in one sync batch are not allowed.`,
+      );
+    }
+    opportunityIds.add(opportunityId);
+  }
 }
 
 async function assertOwnedEvaluation(
@@ -434,6 +484,14 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
   if (entries.length === 0) return [];
 
   const targetUserId = ledgerUserId ?? userId;
+
+  assertBatchUniqueness(entries);
+
+  for (const entry of entries) {
+    if (entry.isUndo) continue;
+    extractExpectedCurrentLocalId(entry.metadata ?? null);
+  }
+
   const rows = entries.map((entry) => ({
     user_id: targetUserId,
     manuscript_id: manuscriptId,
@@ -458,11 +516,11 @@ export async function syncRevisionLedgerDecisions(input: SyncRevisionLedgerInput
 
   const localIds = rows.map((row) => row.local_id);
 
-  const { error: upsertError } = await supabase
-    .from("revision_ledger_decisions")
-    .upsert(rows, { onConflict: "user_id,evaluation_job_id,local_id" });
+  const { error: syncError } = await supabase.rpc("sync_revision_ledger_decisions_atomic", {
+    p_rows: rows,
+  });
 
-  if (upsertError) throw new Error(upsertError.message);
+  if (syncError) throw new Error(syncError.message);
 
   // Canonical read-back: do not return synced until the durable rows have been
   // re-read and identity-checked. This is the source of truth the client will
