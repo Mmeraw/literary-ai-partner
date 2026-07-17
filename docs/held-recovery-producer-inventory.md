@@ -103,6 +103,13 @@ These fields are accessed inside `classifyWorkbenchExecutabilityDetailedCore` or
 | `readiness === 'needs_targeting'` and strategy admission passed | `revision_strategy` | strategy gate reasons (merged) |
 | All gates pass and candidates are safe | `copy_paste_rewrite` | `safe_local_copy_paste_rewrite` |
 
+**Next-phase design note (not a bug to fix in inventory):** When `readiness === 'needs_targeting'`
+and strategy admission passes, the promotion replaces `finalDecision.reasons` with the union of
+`strategyAdmission.reasons` and `copyPasteAdmission.reasons`. If both gates report no reasons,
+the promoted `revision_strategy` carries an empty reason array, dropping the base
+`evidence_missing`/`context_missing`/`diagnosis_unsupported` explanation. The recovery contract
+must decide whether the original withheld reason should be retained in diagnostics.
+
 ### 2.4 Authority
 
 | Function | File | Inputs consumed | Outputs | Authority |

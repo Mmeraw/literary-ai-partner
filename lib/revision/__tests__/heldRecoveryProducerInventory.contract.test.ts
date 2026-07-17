@@ -137,7 +137,7 @@ function assertOpportunitiesEqualExcept<T extends Record<string, unknown>>(
 ): void {
   const aStripped = withoutFields(a, ...except);
   const bStripped = withoutFields(b, ...except);
-  expect(JSON.stringify(aStripped)).toBe(JSON.stringify(bStripped));
+  expect(aStripped).toEqual(bStripped);
 }
 
 describe('held recovery producer characterization', () => {
@@ -491,7 +491,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'options',
-        category: 'classifier',
+        category: 'admission gates',
         baseOverrides: {},
         variantOverrides: {
           options: [
@@ -572,20 +572,28 @@ describe('held recovery producer characterization', () => {
       expect(baseClassification.finalDecision).toEqual({
         cardType: 'withheld',
         trustedPathStatus: 'impossible',
-        reasons: expect.arrayContaining([
+        reasons: [
           BASE_DECISION_REASON.EVIDENCE_MISSING,
           BASE_DECISION_REASON.CONTEXT_MISSING,
           BASE_DECISION_REASON.DIAGNOSIS_UNSUPPORTED,
-        ]),
+        ],
       });
 
+      // Design note for recovery-contract phase: the promotion replaces
+      // finalDecision.reasons with the union of strategyAdmission.reasons and
+      // copyPasteAdmission.reasons. When both gates report no reasons, the
+      // promoted revision_strategy carries an empty reason array, dropping the
+      // base evidence_missing/context_missing/diagnosis_unsupported explanation.
       expect(variantClassification.finalDecision).toEqual({
         cardType: 'revision_strategy',
         trustedPathStatus: 'unavailable_author_review_required',
         reasons: [],
       });
       expect(variantClassification.needsTargetingOverrideApplied).toBe(true);
-      expect(variantClassification.promotionTransitionReason).toMatch(/readiness === 'needs_targeting'/);
+      expect(variantClassification.needsTargetingPromotionApplied).toBe(true);
+      expect(variantClassification.promotionTransitionReason).toBe(
+        "readiness === 'needs_targeting' and strategy admission passed; base executability was withheld and has been promoted to revision_strategy",
+      );
     });
   });
 
