@@ -55,6 +55,9 @@ export type ShortFormCriterionRecommendation = {
   reader_effect?: string;
   mistake_proofing?: string;
   potential_damage?: string[];
+  candidate_text_a?: string;
+  candidate_text_b?: string;
+  candidate_text_c?: string;
   collapsed_from_criteria?: string[];
 };
 
