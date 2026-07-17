@@ -42,9 +42,13 @@ export type HeldTerminalOutcome =
   | 'revision_strategy'
   | 'withheld'
 
+export type HeldReasonStatus = 'currently_emitted' | 'legacy_supported' | 'reserved_not_emitted' | 'unverified'
+
 export type HeldReasonInfo = {
   reasonCode: string
-  sourceAuthorities: HeldReasonSource[]
+  possibleProvenanceSources: HeldReasonSource[]
+  canonicalPlanningSources: HeldReasonSource[]
+  status: HeldReasonStatus
   repairFamily: HeldRepairFamily
   recoverable: boolean
   automaticRecoveryAllowed: boolean
@@ -97,7 +101,9 @@ export function normalizeHeldReasonCode(value: string): string {
 export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
   // ── Grounding / anchor ────────────────────────────────────────────────────
   truncated_anchor: {
-    sourceAuthorities: ['preflight', 'hydration', 'base_decision'],
+    possibleProvenanceSources: ['preflight', 'hydration', 'base_decision'],
+    canonicalPlanningSources: ['preflight', 'hydration', 'base_decision'],
+    status: 'unverified',
     repairFamily: 'anchor',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -109,7 +115,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   insufficient_anchor_grounding: {
-    sourceAuthorities: ['preflight', 'res_blocker', 'base_decision'],
+    possibleProvenanceSources: ['preflight', 'res_blocker', 'base_decision'],
+    canonicalPlanningSources: ['preflight', 'res_blocker', 'base_decision'],
+    status: 'unverified',
     repairFamily: 'anchor',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -121,7 +129,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   anchor_not_precise: {
-    sourceAuthorities: ['executability', 'base_decision'],
+    possibleProvenanceSources: ['executability', 'base_decision'],
+    canonicalPlanningSources: ['base_decision'],
+    status: 'unverified',
     repairFamily: 'anchor',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -133,7 +143,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   evidence_missing: {
-    sourceAuthorities: ['executability', 'base_decision', 'strategy_admission'],
+    possibleProvenanceSources: ['executability', 'base_decision', 'strategy_admission'],
+    canonicalPlanningSources: ['base_decision', 'strategy_admission'],
+    status: 'unverified',
     repairFamily: 'anchor',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -145,7 +157,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   hydration_anchor_truncated: {
-    sourceAuthorities: ['hydration', 'preflight'],
+    possibleProvenanceSources: ['hydration', 'preflight'],
+    canonicalPlanningSources: ['hydration', 'preflight'],
+    status: 'unverified',
     repairFamily: 'anchor',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -157,7 +171,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   hydration_placeholder_coordinates: {
-    sourceAuthorities: ['hydration', 'preflight'],
+    possibleProvenanceSources: ['hydration', 'preflight'],
+    canonicalPlanningSources: ['hydration', 'preflight'],
+    status: 'unverified',
     repairFamily: 'anchor',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -171,7 +187,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Context / canon ───────────────────────────────────────────────────────
   context_missing: {
-    sourceAuthorities: ['executability', 'base_decision', 'preflight'],
+    possibleProvenanceSources: ['executability', 'base_decision', 'preflight'],
+    canonicalPlanningSources: ['base_decision', 'preflight'],
+    status: 'unverified',
     repairFamily: 'context',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -183,7 +201,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   canon_unclear: {
-    sourceAuthorities: ['executability', 'base_decision', 'preflight'],
+    possibleProvenanceSources: ['executability', 'base_decision', 'preflight'],
+    canonicalPlanningSources: ['base_decision', 'preflight'],
+    status: 'unverified',
     repairFamily: 'context',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -195,7 +215,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   insufficient_before_after_context: {
-    sourceAuthorities: ['executability', 'copy_paste_admission'],
+    possibleProvenanceSources: ['executability', 'copy_paste_admission'],
+    canonicalPlanningSources: ['copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'context',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -207,7 +229,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   limited_context_due_to_degraded_canon: {
-    sourceAuthorities: ['preflight'],
+    possibleProvenanceSources: ['preflight'],
+    canonicalPlanningSources: ['preflight'],
+    status: 'unverified',
     repairFamily: 'context',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -219,7 +243,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   hydration_context_not_found: {
-    sourceAuthorities: ['hydration', 'preflight'],
+    possibleProvenanceSources: ['hydration', 'preflight'],
+    canonicalPlanningSources: ['hydration', 'preflight'],
+    status: 'unverified',
     repairFamily: 'context',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -231,7 +257,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   hydration_input_contaminated: {
-    sourceAuthorities: ['hydration', 'preflight'],
+    possibleProvenanceSources: ['hydration', 'preflight'],
+    canonicalPlanningSources: ['hydration', 'preflight'],
+    status: 'unverified',
     repairFamily: 'context',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -245,7 +273,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Diagnosis ─────────────────────────────────────────────────────────────
   diagnosis_unsupported: {
-    sourceAuthorities: ['executability', 'base_decision', 'preflight'],
+    possibleProvenanceSources: ['executability', 'base_decision', 'preflight'],
+    canonicalPlanningSources: ['base_decision', 'preflight'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -257,7 +287,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   recommendation_requires_rewrite: {
-    sourceAuthorities: ['preflight'],
+    possibleProvenanceSources: ['preflight'],
+    canonicalPlanningSources: ['preflight'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -269,7 +301,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   missing_concrete_action: {
-    sourceAuthorities: ['strategy_admission'],
+    possibleProvenanceSources: ['strategy_admission'],
+    canonicalPlanningSources: ['strategy_admission'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -281,7 +315,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   strategy_admission_failed: {
-    sourceAuthorities: ['executability', 'strategy_admission'],
+    possibleProvenanceSources: ['executability', 'strategy_admission'],
+    canonicalPlanningSources: ['strategy_admission'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -295,7 +331,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Candidate quality ───────────────────────────────────────────────────────
   candidate_quality_failed: {
-    sourceAuthorities: ['preflight', 'candidate_quality'],
+    possibleProvenanceSources: ['preflight', 'candidate_quality'],
+    canonicalPlanningSources: ['preflight', 'candidate_quality'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -307,7 +345,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   candidate_quality_failed_after_regen: {
-    sourceAuthorities: ['preflight', 'candidate_quality'],
+    possibleProvenanceSources: ['preflight', 'candidate_quality'],
+    canonicalPlanningSources: ['preflight', 'candidate_quality'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -319,7 +359,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   candidate_quality_unsupported_facts: {
-    sourceAuthorities: ['preflight', 'candidate_quality', 'canon_gate'],
+    possibleProvenanceSources: ['preflight', 'candidate_quality', 'canon_gate'],
+    canonicalPlanningSources: ['preflight', 'candidate_quality', 'canon_gate'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -331,7 +373,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   candidate_quality_context_mismatch: {
-    sourceAuthorities: ['preflight', 'candidate_quality'],
+    possibleProvenanceSources: ['preflight', 'candidate_quality'],
+    canonicalPlanningSources: ['preflight', 'candidate_quality'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -343,7 +387,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   candidate_quality_not_evidence_grounded: {
-    sourceAuthorities: ['preflight', 'candidate_quality'],
+    possibleProvenanceSources: ['preflight', 'candidate_quality'],
+    canonicalPlanningSources: ['preflight', 'candidate_quality'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -357,7 +403,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Uppercase candidate quality reasons emitted by evaluateCardCandidateQuality ─
   empty_candidate: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -369,7 +417,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   too_short: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -381,7 +431,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   generic_prose: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -393,7 +445,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   non_executable_prose: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -405,7 +459,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   not_executable: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -417,7 +473,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   anchor_echo: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -429,7 +487,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   unsupported_fact: {
-    sourceAuthorities: ['candidate_quality', 'canon_gate', 'copy_paste_admission', 'strategy_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'canon_gate', 'copy_paste_admission', 'strategy_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'canon_gate', 'copy_paste_admission', 'strategy_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -441,7 +501,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   context_mismatch: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -453,7 +515,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   voice_drift: {
-    sourceAuthorities: ['candidate_quality', 'voice_gate', 'copy_paste_admission', 'strategy_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'voice_gate', 'copy_paste_admission', 'strategy_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'voice_gate', 'copy_paste_admission', 'strategy_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -465,7 +529,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   canon_drift: {
-    sourceAuthorities: ['candidate_quality', 'canon_gate', 'copy_paste_admission', 'strategy_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'canon_gate', 'copy_paste_admission', 'strategy_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'canon_gate', 'copy_paste_admission', 'strategy_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -477,7 +543,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   revision_quality_failed: {
-    sourceAuthorities: ['candidate_quality', 'copy_paste_admission'],
+    possibleProvenanceSources: ['candidate_quality', 'copy_paste_admission'],
+    canonicalPlanningSources: ['candidate_quality', 'copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -491,7 +559,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Hard blockers ─────────────────────────────────────────────────────────
   canon_authority_blocked: {
-    sourceAuthorities: ['preflight'],
+    possibleProvenanceSources: ['preflight'],
+    canonicalPlanningSources: ['preflight'],
+    status: 'unverified',
     repairFamily: 'none',
     recoverable: false,
     automaticRecoveryAllowed: false,
@@ -503,7 +573,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: true,
   },
   hard_canon_conflict: {
-    sourceAuthorities: ['strategy_admission'],
+    possibleProvenanceSources: ['strategy_admission'],
+    canonicalPlanningSources: ['strategy_admission'],
+    status: 'unverified',
     repairFamily: 'none',
     recoverable: false,
     automaticRecoveryAllowed: false,
@@ -515,7 +587,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: true,
   },
   hard_context_block: {
-    sourceAuthorities: ['strategy_admission'],
+    possibleProvenanceSources: ['strategy_admission'],
+    canonicalPlanningSources: ['strategy_admission'],
+    status: 'unverified',
     repairFamily: 'none',
     recoverable: false,
     automaticRecoveryAllowed: false,
@@ -527,7 +601,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: true,
   },
   testimony_fabrication_risk: {
-    sourceAuthorities: ['preflight', 'candidate_quality'],
+    possibleProvenanceSources: ['preflight', 'candidate_quality'],
+    canonicalPlanningSources: ['preflight', 'candidate_quality'],
+    status: 'unverified',
     repairFamily: 'none',
     recoverable: false,
     automaticRecoveryAllowed: false,
@@ -539,7 +615,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: true,
   },
   rationale_contaminated: {
-    sourceAuthorities: ['preflight'],
+    possibleProvenanceSources: ['preflight'],
+    canonicalPlanningSources: ['preflight'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -553,7 +631,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Diagnostic completeness (from reviseAdmissionGate) ──────────────────────
   diagnostic_missing_symptom: {
-    sourceAuthorities: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    possibleProvenanceSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    canonicalPlanningSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -565,7 +645,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   diagnostic_missing_cause: {
-    sourceAuthorities: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    possibleProvenanceSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    canonicalPlanningSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -577,7 +659,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   diagnostic_missing_fix_direction: {
-    sourceAuthorities: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    possibleProvenanceSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    canonicalPlanningSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -589,7 +673,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   diagnostic_missing_reader_effect: {
-    sourceAuthorities: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    possibleProvenanceSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    canonicalPlanningSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -603,7 +689,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Executability-level admission failures ────────────────────────────────
   copy_paste_admission_failed: {
-    sourceAuthorities: ['executability', 'copy_paste_admission'],
+    possibleProvenanceSources: ['executability', 'copy_paste_admission'],
+    canonicalPlanningSources: ['copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -615,7 +703,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   fewer_than_two_candidates_passed_quality: {
-    sourceAuthorities: ['executability'],
+    possibleProvenanceSources: ['executability'],
+    canonicalPlanningSources: [],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -627,7 +717,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   candidate_prose_not_narratively_safe: {
-    sourceAuthorities: ['executability'],
+    possibleProvenanceSources: ['executability'],
+    canonicalPlanningSources: [],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -641,7 +733,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Scope / operation reasons ───────────────────────────────────────────────
   not_local_operation: {
-    sourceAuthorities: ['copy_paste_admission'],
+    possibleProvenanceSources: ['copy_paste_admission'],
+    canonicalPlanningSources: ['copy_paste_admission'],
+    status: 'unverified',
     repairFamily: 'strategy',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -653,7 +747,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   scene_architecture_change: {
-    sourceAuthorities: ['executability'],
+    possibleProvenanceSources: ['executability'],
+    canonicalPlanningSources: [],
+    status: 'unverified',
     repairFamily: 'strategy',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -665,7 +761,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   pov_voice_canon_or_metaphor_risk: {
-    sourceAuthorities: ['executability'],
+    possibleProvenanceSources: ['executability'],
+    canonicalPlanningSources: [],
+    status: 'unverified',
     repairFamily: 'candidates',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -677,7 +775,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   downstream_continuity_risk: {
-    sourceAuthorities: ['executability'],
+    possibleProvenanceSources: ['executability'],
+    canonicalPlanningSources: [],
+    status: 'unverified',
     repairFamily: 'strategy',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -689,7 +789,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   passage_too_long: {
-    sourceAuthorities: ['executability'],
+    possibleProvenanceSources: ['executability'],
+    canonicalPlanningSources: [],
+    status: 'unverified',
     repairFamily: 'strategy',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -703,7 +805,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
 
   // ── Legacy / generic ───────────────────────────────────────────────────────
   not_ready_for_revise: {
-    sourceAuthorities: ['preflight'],
+    possibleProvenanceSources: ['preflight'],
+    canonicalPlanningSources: ['preflight'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -715,7 +819,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   preflight_not_passed: {
-    sourceAuthorities: ['preflight', 'executability'],
+    possibleProvenanceSources: ['preflight', 'executability'],
+    canonicalPlanningSources: ['preflight'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -727,7 +833,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   context_insufficient: {
-    sourceAuthorities: ['preflight', 'executability'],
+    possibleProvenanceSources: ['preflight', 'executability'],
+    canonicalPlanningSources: ['preflight'],
+    status: 'unverified',
     repairFamily: 'context',
     recoverable: true,
     automaticRecoveryAllowed: true,
@@ -739,7 +847,9 @@ export const HELD_REASON_INVENTORY: Record<string, PartialHeldReasonInfo> = {
     isHardBlocker: false,
   },
   unsupported_revision: {
-    sourceAuthorities: ['copy_paste_admission', 'strategy_admission', 'executability'],
+    possibleProvenanceSources: ['copy_paste_admission', 'strategy_admission', 'executability'],
+    canonicalPlanningSources: ['copy_paste_admission', 'strategy_admission'],
+    status: 'unverified',
     repairFamily: 'diagnosis',
     recoverable: true,
     automaticRecoveryAllowed: false,
@@ -761,7 +871,9 @@ type PartialHeldReasonInfo = Omit<HeldReasonInfo, 'reasonCode' | 'isUnknown'> & 
 
 const DEFAULT_REASON_INFO: HeldReasonInfo = {
   reasonCode: 'unknown',
-  sourceAuthorities: [],
+  possibleProvenanceSources: [],
+  canonicalPlanningSources: [],
+  status: 'unverified',
   repairFamily: 'none',
   recoverable: false,
   automaticRecoveryAllowed: false,
@@ -782,7 +894,9 @@ const HELD_REASON_PATTERNS: Array<{
   {
     pattern: /^candidate_quality_/,
     info: {
-      sourceAuthorities: ['candidate_quality', 'preflight'],
+      possibleProvenanceSources: ['candidate_quality', 'preflight'],
+      canonicalPlanningSources: ['candidate_quality', 'preflight'],
+      status: 'unverified',
       repairFamily: 'candidates',
       recoverable: true,
       automaticRecoveryAllowed: true,
@@ -797,7 +911,9 @@ const HELD_REASON_PATTERNS: Array<{
   {
     pattern: /^integrity_/,
     info: {
-      sourceAuthorities: ['integrity', 'copy_paste_admission', 'strategy_admission'],
+      possibleProvenanceSources: ['integrity', 'copy_paste_admission', 'strategy_admission'],
+      canonicalPlanningSources: ['integrity', 'copy_paste_admission', 'strategy_admission'],
+      status: 'unverified',
       repairFamily: 'diagnosis',
       recoverable: true,
       automaticRecoveryAllowed: false,
@@ -812,7 +928,9 @@ const HELD_REASON_PATTERNS: Array<{
   {
     pattern: /^voice_drift_/,
     info: {
-      sourceAuthorities: ['voice_gate', 'copy_paste_admission', 'strategy_admission'],
+      possibleProvenanceSources: ['voice_gate', 'copy_paste_admission', 'strategy_admission'],
+      canonicalPlanningSources: ['voice_gate', 'copy_paste_admission', 'strategy_admission'],
+      status: 'unverified',
       repairFamily: 'candidates',
       recoverable: true,
       automaticRecoveryAllowed: true,
@@ -827,7 +945,9 @@ const HELD_REASON_PATTERNS: Array<{
   {
     pattern: /^diagnostic_missing_/,
     info: {
-      sourceAuthorities: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+      possibleProvenanceSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+      canonicalPlanningSources: ['copy_paste_admission', 'strategy_admission', 'integrity'],
+      status: 'unverified',
       repairFamily: 'diagnosis',
       recoverable: true,
       automaticRecoveryAllowed: false,
@@ -842,7 +962,9 @@ const HELD_REASON_PATTERNS: Array<{
   {
     pattern: /^hydration_/,
     info: {
-      sourceAuthorities: ['hydration', 'preflight'],
+      possibleProvenanceSources: ['hydration', 'preflight'],
+      canonicalPlanningSources: ['hydration', 'preflight'],
+      status: 'unverified',
       repairFamily: 'context',
       recoverable: true,
       automaticRecoveryAllowed: true,

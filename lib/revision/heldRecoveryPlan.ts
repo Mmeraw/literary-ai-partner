@@ -3,6 +3,11 @@
  *
  * Pure recovery planning function. Collects canonical reasons from a held
  * opportunity and produces an ordered, dependency-respecting repair plan.
+ *
+ * Governance:
+ * - finalDecision.cardType is the only queue-routing authority.
+ * - groundingNote and executabilityReasons are annotations, not canonical planning
+ *   inputs. Unknown annotations are recorded but do not fail the plan closed.
  */
 
 import type { HeldReasonSource } from './heldRecoverySources'
@@ -18,7 +23,7 @@ import {
 } from './heldRecoveryReasons'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Canonical reason collection
+// Evidence collection
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type HeldOpportunityInput = {
@@ -47,6 +52,7 @@ export type HeldOpportunityInput = {
     cardType: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld'
     reasons: string[]
   } | null
+  executabilityReasons?: string[]
   needsTargetingPromotionApplied?: boolean
   promotionTransitionReason?: string | null
   needsTargetingOverrideApplied?: boolean
@@ -58,16 +64,23 @@ export type CanonicalHeldReasonOccurrence = {
   source: HeldReasonSource
 }
 
-export type CanonicalHeldReasonSet = {
+export type HeldReasonAnnotation = {
+  raw: string
+  source: 'executability' | 'grounding_note'
+  code: string
+}
+
+export type HeldRecoveryEvidence = {
   opportunityId: string
   finalCardType: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld' | null
   groundingStatus: string | null
   contextQuality: string | null
   preflightStatus: string | null
-  occurrences: CanonicalHeldReasonOccurrence[]
+  canonicalReasons: CanonicalHeldReasonOccurrence[]
+  annotations: HeldReasonAnnotation[]
 }
 
-function appendReasons(
+function appendCanonicalReasons(
   target: CanonicalHeldReasonOccurrence[],
   reasons: string[] | undefined,
   source: HeldReasonSource,
@@ -79,8 +92,9 @@ function appendReasons(
   }
 }
 
-export function collectCanonicalReasons(input: HeldOpportunityInput): CanonicalHeldReasonSet {
-  const occurrences: CanonicalHeldReasonOccurrence[] = []
+export function collectCanonicalReasons(input: HeldOpportunityInput): HeldRecoveryEvidence {
+  const canonicalReasons: CanonicalHeldReasonOccurrence[] = []
+  const annotations: HeldReasonAnnotation[] = []
 
   // Hydration and RES blockers are derived from preflightReasons in
   // workbenchQueue.ts splitPreflightReasonsByClass. If the caller has already
@@ -91,12 +105,26 @@ export function collectCanonicalReasons(input: HeldOpportunityInput): CanonicalH
   const hydration = input.hydrationFailureReasons ?? hydrationFromPreflight
   const res = input.resBlockerReasons ?? resFromPreflight
 
-  appendReasons(occurrences, input.copyPasteAdmissionReasons, 'copy_paste_admission')
-  appendReasons(occurrences, input.strategyAdmissionReasons, 'strategy_admission')
-  appendReasons(occurrences, input.baseDecision?.reasons, 'base_decision')
-  appendReasons(occurrences, input.finalDecision?.reasons, 'final_decision')
-  appendReasons(occurrences, hydration, 'hydration')
-  appendReasons(occurrences, res, 'res_blocker')
+  appendCanonicalReasons(canonicalReasons, input.copyPasteAdmissionReasons, 'copy_paste_admission')
+  appendCanonicalReasons(canonicalReasons, input.strategyAdmissionReasons, 'strategy_admission')
+  appendCanonicalReasons(canonicalReasons, input.baseDecision?.reasons, 'base_decision')
+  appendCanonicalReasons(canonicalReasons, input.finalDecision?.reasons, 'final_decision')
+  appendCanonicalReasons(canonicalReasons, hydration, 'hydration')
+  appendCanonicalReasons(canonicalReasons, res, 'res_blocker')
+
+  // executabilityReasons is a presentation copy of finalDecision.reasons.
+  // We collect it only as an annotation; it must never override canonical sources.
+  if (Array.isArray(input.executabilityReasons)) {
+    for (const raw of input.executabilityReasons) {
+      if (typeof raw === 'string' && raw.trim()) {
+        annotations.push({ raw, source: 'executability', code: normalizeHeldReasonCode(raw) })
+      }
+    }
+  }
+
+  if (input.groundingNote && typeof input.groundingNote === 'string' && input.groundingNote.trim()) {
+    annotations.push({ raw: input.groundingNote, source: 'grounding_note', code: input.groundingNote })
+  }
 
   return {
     opportunityId: input.id,
@@ -104,7 +132,8 @@ export function collectCanonicalReasons(input: HeldOpportunityInput): CanonicalH
     groundingStatus: input.groundingStatus ?? null,
     contextQuality: input.contextQuality ?? null,
     preflightStatus: input.preflightStatus ?? null,
-    occurrences,
+    canonicalReasons,
+    annotations,
   }
 }
 
@@ -121,7 +150,9 @@ export type RecoveryPlan = {
   allowedAuthorActions: HeldAuthorAction[]
   expectedTerminalOutcomes: HeldTerminalOutcome[]
   hardBlockers: string[]
-  unknownReasons: string[]
+  unknownCanonicalReasons: string[]
+  unknownAnnotations: string[]
+  groundingNote: string | null
   reasonFamilySet: Set<HeldRepairFamily>
 }
 
@@ -150,21 +181,26 @@ function confidenceFromContextQuality(quality: string | null | undefined): HeldR
   return 'low'
 }
 
-export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
-  const reasons = collectCanonicalReasons(input)
-
-  // Deduplicate occurrences by normalized code before planning so that
-  // duplicated presentation strings do not create duplicate repair steps.
-  const uniqueOccurrences: CanonicalHeldReasonOccurrence[] = []
-  const seenCodes = new Set<string>()
-  for (const occurrence of reasons.occurrences) {
-    if (seenCodes.has(occurrence.code)) continue
-    seenCodes.add(occurrence.code)
-    uniqueOccurrences.push(occurrence)
+function deduplicateReasons<T extends { code: string; raw: string }>(reasons: T[]): T[] {
+  const unique: T[] = []
+  const seen = new Map<string, T>()
+  for (const reason of reasons) {
+    if (seen.has(reason.code)) continue
+    seen.set(reason.code, reason)
+    unique.push(reason)
   }
+  return unique
+}
+
+export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
+  const evidence = collectCanonicalReasons(input)
+
+  const canonical = deduplicateReasons(evidence.canonicalReasons)
+  const annotations = deduplicateReasons(evidence.annotations)
 
   const hardBlockers: string[] = []
-  const unknownReasons: string[] = []
+  const unknownCanonicalReasons: string[] = []
+  const unknownAnnotations: string[] = []
   const familySet = new Set<HeldRepairFamily>()
   let confidence: HeldRecoveryConfidence = minConfidence(
     'high',
@@ -174,7 +210,7 @@ export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
   const authorActions = new Set<HeldAuthorAction>()
   const terminalOutcomes = new Set<HeldTerminalOutcome>()
 
-  for (const occurrence of uniqueOccurrences) {
+  for (const occurrence of canonical) {
     const info = getHeldReasonInfo(occurrence.raw)
 
     if (info.isHardBlocker) {
@@ -182,7 +218,7 @@ export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
     }
 
     if (info.isUnknown) {
-      unknownReasons.push(occurrence.raw)
+      unknownCanonicalReasons.push(occurrence.raw)
     }
 
     if (info.repairFamily !== 'none') {
@@ -203,11 +239,21 @@ export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
     }
   }
 
-  // Hard blockers or unknown reasons fail closed: no automatic repair, and
-  // terminal outcomes are restricted to withheld unless a known recoverable path
-  // also exists.
+  // Annotations are observable but do not drive planning. Unknown reason codes
+  // that appear only in non-canonical annotations are recorded for audit.
+  for (const annotation of annotations) {
+    if (annotation.source === 'executability') {
+      const info = getHeldReasonInfo(annotation.raw)
+      if (info.isUnknown) {
+        unknownAnnotations.push(annotation.raw)
+      }
+    }
+  }
+
+  // Hard blockers or unknown canonical reasons fail closed: no automatic repair,
+  // and terminal outcomes are restricted to withheld.
   const hasHardBlocker = hardBlockers.length > 0
-  const hasUnknownReason = unknownReasons.length > 0
+  const hasUnknownCanonical = unknownCanonicalReasons.length > 0
 
   // If copy-paste is a possible outcome, candidates must be regenerated after
   // upstream repairs even when the original hold reason was not a candidate error.
@@ -215,18 +261,18 @@ export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
     familySet.add('candidates')
   }
 
-  const recoverable = anyRecoverable && !hasHardBlocker && !hasUnknownReason
+  const recoverable = anyRecoverable && !hasHardBlocker && !hasUnknownCanonical
   const contextBlocked = input.contextQuality === 'blocked'
   const automaticRecoveryAllowed =
     recoverable &&
     !contextBlocked &&
-    uniqueOccurrences.every((o) => {
+    canonical.every((o) => {
       const info = getHeldReasonInfo(o.raw)
       return info.automaticRecoveryAllowed || info.isHardBlocker
     }) &&
     !hasHardBlocker
 
-  if (hasHardBlocker || hasUnknownReason) {
+  if (hasHardBlocker || hasUnknownCanonical) {
     terminalOutcomes.clear()
     terminalOutcomes.add('withheld')
   }
@@ -242,7 +288,9 @@ export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
     allowedAuthorActions: [...authorActions],
     expectedTerminalOutcomes: [...terminalOutcomes],
     hardBlockers,
-    unknownReasons,
+    unknownCanonicalReasons,
+    unknownAnnotations,
+    groundingNote: evidence.annotations.find((a) => a.source === 'grounding_note')?.raw ?? null,
     reasonFamilySet: familySet,
   }
 }

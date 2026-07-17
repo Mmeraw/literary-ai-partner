@@ -47,6 +47,7 @@ describe('HELD_REASON_SOURCE_REGISTRY', () => {
   it('documents all canonical held-reason producers', () => {
     const expectedSources = [
       'grounding',
+      'grounding_note',
       'preflight',
       'hydration',
       'res_blocker',
@@ -151,7 +152,7 @@ describe('collectCanonicalReasons', () => {
       finalDecision: { cardType: 'withheld', reasons: ['context_missing'] },
     })
     const set = collectCanonicalReasons(input)
-    const sources = set.occurrences.map((o) => o.source)
+    const sources = set.canonicalReasons.map((o) => o.source)
     expect(sources).toContain('hydration')
     expect(sources).toContain('res_blocker')
     expect(sources).toContain('final_decision')
@@ -162,8 +163,8 @@ describe('collectCanonicalReasons', () => {
       preflightReasons: ['hydration_anchor_truncated', 'insufficient_anchor_grounding'],
     })
     const set = collectCanonicalReasons(input)
-    expect(set.occurrences.some((o) => o.source === 'hydration' && o.code === 'hydration_anchor_truncated')).toBe(true)
-    expect(set.occurrences.some((o) => o.source === 'res_blocker' && o.code === 'insufficient_anchor_grounding')).toBe(true)
+    expect(set.canonicalReasons.some((o) => o.source === 'hydration' && o.code === 'hydration_anchor_truncated')).toBe(true)
+    expect(set.canonicalReasons.some((o) => o.source === 'res_blocker' && o.code === 'insufficient_anchor_grounding')).toBe(true)
   })
 
   it('carries routing and state metadata', () => {
@@ -245,7 +246,7 @@ describe('buildRecoveryPlan contract properties', () => {
     })
     const plan = buildRecoveryPlan(input)
     expect(plan.hardBlockers).toHaveLength(0)
-    expect(plan.unknownReasons).toHaveLength(0)
+    expect(plan.unknownCanonicalReasons).toHaveLength(0)
     const stepSet = new Set(plan.requiredRepairs)
     expect(stepSet.size).toBe(plan.requiredRepairs.length)
     expect(plan.requiredRepairs).toContain('expand_anchor')
@@ -305,13 +306,14 @@ describe('buildRecoveryPlan contract properties', () => {
     expect(plan.recoverable).toBe(false)
     expect(plan.automaticRecoveryAllowed).toBe(false)
     expect(plan.expectedTerminalOutcomes).toEqual(['withheld'])
-    expect(plan.unknownReasons).toContain('totally_unknown_reason_xyz')
+    expect(plan.unknownCanonicalReasons).toContain('totally_unknown_reason_xyz')
   })
 })
 
-describe('seven real held cases (diamonds manuscript acceptance corpus)', () => {
+describe('seven acceptance-corpus reason combinations', () => {
   // Reconstructed from the attachment as structured fixtures with stable IDs.
-  // The prose titles are omitted; only canonical reason families are asserted.
+  // These prove the reason combinations in the acceptance corpus; they do not
+  // yet prove real persisted records emit these exact combinations.
   const fixtures: Array<{ input: HeldOpportunityInput; label: string; expectations: {
     recoverable: boolean
     automaticRecoveryAllowed: boolean

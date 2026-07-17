@@ -26,6 +26,7 @@
 
 export type HeldReasonSource =
   | 'grounding'
+  | 'grounding_note'
   | 'preflight'
   | 'hydration'
   | 'res_blocker'
@@ -54,16 +55,24 @@ export type HeldReasonSourceRegistryEntry = {
  *
  * Only `final_decision` is authoritative for routing. The admission, grounding,
  * preflight, and base_decision sources are authoritative for planning repairs.
- * `executability` is a presentation copy of finalDecision.reasons and is NOT
- * authoritative on its own.
+ * `grounding_note` and `executability` are non-authoritative annotations.
  */
 export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'grounding',
-    canonicalField: 'groundingStatus / groundingNote',
+    canonicalField: 'groundingStatus',
     producer: 'lib/revision/workbenchQueue.ts (SLAE evidence matching) and lib/revision/opportunityLedger.ts (hydration fallback)',
     phase: 'queue_construction',
     authoritativeForRecoveryPlanning: true,
+    authoritativeForRouting: false,
+    mayContainDuplicates: false,
+  },
+  {
+    source: 'grounding_note',
+    canonicalField: 'groundingNote',
+    producer: 'lib/revision/opportunityLedger.ts (preflight block notes and admin annotations)',
+    phase: 'queue_construction',
+    authoritativeForRecoveryPlanning: false,
     authoritativeForRouting: false,
     mayContainDuplicates: false,
   },
