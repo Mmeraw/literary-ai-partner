@@ -2,25 +2,37 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { CancelEvaluationButton } from '@/components/evaluation/CancelEvaluationButton';
-
-const push = jest.fn();
-const refresh = jest.fn();
-
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push, refresh }),
-}));
 
 describe('CancelEvaluationButton', () => {
   const originalFetch = global.fetch;
+  const originalLocation = window.location;
+  const assign = jest.fn();
+
+  beforeAll(() => {
+    delete (window as Window & { location?: Location }).location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, assign },
+    });
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    jest.useRealTimers();
+  });
+
+  afterAll(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    });
   });
 
   test('uses Keep Evaluation before cancellation', () => {
@@ -31,7 +43,7 @@ describe('CancelEvaluationButton', () => {
     expect(screen.getByRole('button', { name: 'Keep Evaluation' })).toBeTruthy();
   });
 
-  test('redirects to evaluations after confirmed cancellation and shows Return to Evaluations copy', async () => {
+  test('forces a fresh evaluations navigation after confirmed cancellation', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ success: true }),
@@ -42,12 +54,16 @@ describe('CancelEvaluationButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel Evaluation' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Cancel Evaluation' })[1]);
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/evaluate'));
-    expect(refresh).toHaveBeenCalled();
     expect(await screen.findByRole('button', { name: 'Return to Evaluations' })).toBeTruthy();
+
+    act(() => {
+      jest.advanceTimersByTime(250);
+    });
+
+    expect(assign).toHaveBeenCalledWith('/evaluate');
   });
 
-  test('error close returns to evaluations instead of staying on stalled page', async () => {
+  test('error return forces a fresh evaluations navigation', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 500,
@@ -62,7 +78,6 @@ describe('CancelEvaluationButton', () => {
     const returnButton = await screen.findByRole('button', { name: 'Return to Evaluations' });
     fireEvent.click(returnButton);
 
-    expect(push).toHaveBeenCalledWith('/evaluate');
-    expect(refresh).toHaveBeenCalled();
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/evaluate'));
   });
 });
