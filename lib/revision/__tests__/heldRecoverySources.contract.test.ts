@@ -111,31 +111,55 @@ describe('Held Recovery source-contract tests', () => {
   });
 
   it('production queue construction populates the fields claimed by the source registry', () => {
-    const workbenchQueueSource = readSource('lib/revision/workbenchQueue.ts');
-    const projectionSource = readSource('lib/revision/workbenchQueueProjection.ts');
+    const opportunity = {
+      id: 'field-provenance',
+      groundingStatus: 'supported',
+      groundingNote: 'Anchor verified.',
+      contextQuality: 'clean',
+      preflightStatus: 'passed',
+      preflightReasons: ['hydration_anchor_truncated', 'insufficient_anchor_grounding'],
+      hydrationFailureReasons: ['hydration_anchor_truncated'],
+      resBlockerReasons: ['insufficient_anchor_grounding'],
+      copyPasteAdmissionReasons: ['anchor_not_precise'],
+      strategyAdmissionReasons: ['MISSING_CONCRETE_ACTION'],
+    } as any;
 
-    const rawFields = [
-      'groundingStatus',
-      'contextQuality',
-      'preflightStatus',
-      'preflightReasons',
-      'hydrationFailureReasons',
-      'resBlockerReasons',
-      'adminRepairLabel',
-    ];
-    for (const field of rawFields) {
-      expect(workbenchQueueSource).toContain(field);
-    }
+    const classification = {
+      cardType: 'withheld' as const,
+      trustedPathStatus: 'impossible' as const,
+      reasons: ['context_missing'],
+      strategyCardViewModel: null,
+      copyPasteAdmissionPassed: false,
+      copyPasteAdmissionReasons: ['anchor_not_precise'] as string[],
+      strategyAdmissionPassed: false,
+      strategyAdmissionReasons: ['MISSING_CONCRETE_ACTION'] as string[],
+      baseDecision: { cardType: 'withheld' as const, trustedPathStatus: 'impossible' as const, reasons: ['context_missing'] as string[] },
+      finalDecision: { cardType: 'withheld' as const, trustedPathStatus: 'impossible' as const, reasons: ['context_missing'] as string[] },
+      needsTargetingPromotionApplied: false,
+      promotionTransitionReason: null,
+      needsTargetingOverrideApplied: false,
+      gates: {
+        copyPaste: { passed: false, reasons: [], passedCandidateCount: 0, candidateQualityPassed: false, diagnosticContractPassed: false, groundingPassed: false, integrityPassed: false, voicePassed: false, canonPassed: false, contextPassed: false, localOperationPassed: false },
+        strategy: { passed: false, reasons: [], passedCandidateCount: 0, candidateQualityPassed: false, diagnosticContractPassed: false, groundingPassed: false, integrityPassed: false, voicePassed: false, canonPassed: false, contextPassed: false, localOperationPassed: false },
+      },
+    } as any;
 
-    const classifiedFields = ['baseDecision', 'finalDecision', 'executabilityReasons'];
-    for (const field of classifiedFields) {
-      expect(projectionSource).toContain(field);
-    }
+    const classified = buildClassifiedWorkbenchOpportunity(opportunity, classification);
 
-    expect(projectionSource).toContain('classification.baseDecision');
-    expect(projectionSource).toContain('classification.finalDecision');
-    expect(projectionSource).toContain('copyPasteAdmissionReasons');
-    expect(projectionSource).toContain('strategyAdmissionReasons');
+    // Raw canonical fields flow through to the classified opportunity.
+    expect(classified.groundingStatus).toBe('supported');
+    expect(classified.groundingNote).toBe('Anchor verified.');
+    expect(classified.contextQuality).toBe('clean');
+    expect(classified.preflightStatus).toBe('passed');
+    expect(classified.preflightReasons).toEqual(['hydration_anchor_truncated', 'insufficient_anchor_grounding']);
+    expect(classified.hydrationFailureReasons).toEqual(['hydration_anchor_truncated']);
+    expect(classified.resBlockerReasons).toEqual(['insufficient_anchor_grounding']);
+    // Classification fields are exposed on the returned object.
+    expect(classified.classification.copyPasteAdmissionReasons).toEqual(['anchor_not_precise']);
+    expect(classified.classification.strategyAdmissionReasons).toEqual(['MISSING_CONCRETE_ACTION']);
+    expect(classified.baseDecision.cardType).toBe('withheld');
+    expect(classified.finalDecision.cardType).toBe('withheld');
+    expect(classified.executabilityReasons).toEqual(classified.finalDecision.reasons);
   });
 
   it('preflight reasons are split into hydration and RES arrays in the production path', () => {
