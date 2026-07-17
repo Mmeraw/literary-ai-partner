@@ -89,13 +89,17 @@ function buildSupabaseMock(
   };
 }
 
-function mockQueue() {
+function mockQueueWithIds(copyPasteIds: string[] = ['copy-1']) {
   mockGetWorkbenchQueue.mockResolvedValue({
     ok: true,
-    opportunities: [{ id: 'copy-1' }],
+    opportunities: copyPasteIds.map((id) => ({ id })),
     needsTargeting: [{ id: 'strategy-1', cardType: 'revision_strategy' }],
     withheldUnsupported: [{ id: 'withheld-1' }],
   } as never);
+}
+
+function mockQueue() {
+  mockQueueWithIds();
 }
 
 describe('final review runtime governance', () => {
@@ -224,5 +228,162 @@ describe('final review runtime governance', () => {
     const queryIndex = (client.from as jest.Mock).mock.calls.findIndex((call) => call[0] === 'revision_ledger_decisions');
     const ledgerQuery = (client.from as jest.Mock).mock.results[queryIndex]?.value;
     expect(ledgerQuery.eq).toHaveBeenCalledWith('user_id', 'owner-1');
+  });
+
+  describe('manuscript determinism and fail-closed application', () => {
+    it('applies accepted copy-paste decisions exactly once and preserves unchanged passages', async () => {
+      const source = 'Alpha original safe. Beta original strategy. Gamma original withheld. Delta unchanged.';
+      mockResolveFinalReviewSourceText.mockResolvedValue(source);
+      mockQueueWithIds(['copy-1', 'copy-2']);
+
+      const acceptedDelta = decision({
+        id: '00000000-0000-0000-0000-000000000004',
+        opportunity_id: 'copy-2',
+        source_excerpt: 'Delta unchanged.',
+        selected_text: 'Delta preserved.',
+      });
+
+      const { client, rpc } = buildSupabaseMock([decision(), acceptedDelta]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(true);
+
+      const rawText = rpc.mock.calls[0][1].p_raw_text as string;
+      expect(rawText).toBe('Alpha repaired safe. Beta original strategy. Gamma original withheld. Delta preserved.');
+      expect(rawText).toContain('Beta original strategy.');
+      expect(rawText).toContain('Gamma original withheld.');
+      expect(rawText.indexOf('Alpha repaired safe.')).toBeLessThan(rawText.indexOf('Delta preserved.'));
+
+      const appliedIds = rpc.mock.calls[0][1].p_applied_decision_ids as string[];
+      expect(appliedIds).toHaveLength(2);
+      expect(new Set(appliedIds).size).toBe(2);
+    });
+
+    it('does not modify the manuscript for rejected, deferred, keep_original, strategy, or withheld decisions', async () => {
+      const source = 'Alpha original safe. Beta original strategy. Gamma original withheld. Delta unchanged.';
+      mockResolveFinalReviewSourceText.mockResolvedValue(source);
+
+      const decisions = [
+        decision(),
+        decision({ id: '00000000-0000-0000-0000-000000000002', opportunity_id: 'copy-1', decision: 'rejected', selected_text: 'REJECTED BETA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000003', opportunity_id: 'copy-1', decision: 'deferred', selected_text: 'DEFERRED BETA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000004', opportunity_id: 'copy-1', decision: 'keep_original', selected_text: 'KEPT BETA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000005', opportunity_id: 'strategy-1', decision: 'accepted_a', selected_text: 'STRATEGY BETA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000006', opportunity_id: 'withheld-1', decision: 'accepted_a', selected_text: 'WITHHELD GAMMA' }),
+      ];
+
+      const { client } = buildSupabaseMock(decisions);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const exported = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'clean' });
+      expect(exported.content).toContain('Alpha repaired safe.');
+      expect(exported.content).toContain('Beta original strategy.');
+      expect(exported.content).toContain('Gamma original withheld.');
+      expect(exported.content).toContain('Delta unchanged.');
+      expect(exported.content).not.toContain('REJECTED BETA');
+      expect(exported.content).not.toContain('STRATEGY BETA');
+      expect(exported.content).not.toContain('WITHHELD GAMMA');
+    });
+
+    it('replays the same decision ledger to an identical raw text and fingerprint', async () => {
+      const { client, rpc } = buildSupabaseMock([decision()], {
+        rpcResults: [
+          { revised_version_id: 'version-2', reused_existing_version: false },
+          { revised_version_id: 'version-2', reused_existing_version: true },
+        ],
+      });
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const first = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      const second = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+
+      expect(first.ok && second.ok).toBe(true);
+      expect(rpc).toHaveBeenCalledTimes(2);
+      expect(rpc.mock.calls[0][1].p_raw_text).toBe(rpc.mock.calls[1][1].p_raw_text);
+      expect(rpc.mock.calls[0][1].p_apply_fingerprint).toBe(rpc.mock.calls[1][1].p_apply_fingerprint);
+    });
+
+    it('blocks apply when a source excerpt is missing (stale manuscript)', async () => {
+      mockResolveFinalReviewSourceText.mockResolvedValue(SOURCE_TEXT);
+      const stale = decision({ selected_text: 'Alpha repaired safe.', source_excerpt: 'Missing excerpt.' });
+
+      const { client } = buildSupabaseMock([stale]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/source excerpt no longer matches/i);
+    });
+
+    it('blocks apply when a source excerpt is not unique', async () => {
+      const duplicated = 'The river moved below them. The river moved below them.';
+      mockResolveFinalReviewSourceText.mockResolvedValue(duplicated);
+      const ambiguous = decision({ source_excerpt: 'The river moved below them.', selected_text: 'X' });
+
+      const { client } = buildSupabaseMock([ambiguous]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/not unique/i);
+    });
+
+    it('blocks apply when accepted decisions have overlapping edit regions', async () => {
+      const source = 'Alpha beta gamma delta.';
+      mockResolveFinalReviewSourceText.mockResolvedValue(source);
+      mockQueueWithIds(['copy-1', 'copy-2']);
+      const first = decision({
+        id: '00000000-0000-0000-0000-000000000002',
+        opportunity_id: 'copy-1',
+        source_excerpt: 'beta gamma',
+        selected_text: 'BETA GAMMA',
+      });
+      const second = decision({
+        id: '00000000-0000-0000-0000-000000000003',
+        opportunity_id: 'copy-2',
+        source_excerpt: 'gamma delta',
+        selected_text: 'GAMMA DELTA',
+      });
+
+      const { client } = buildSupabaseMock([first, second]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/overlapping edit regions/i);
+    });
+
+    it('blocks apply when duplicate decision ids are present', async () => {
+      mockQueueWithIds(['copy-1', 'copy-2']);
+      const duplicate = decision({
+        id: '00000000-0000-0000-0000-000000000001',
+        opportunity_id: 'copy-2',
+        source_excerpt: 'Delta unchanged.',
+        selected_text: 'Other.',
+      });
+
+      const { client } = buildSupabaseMock([decision(), duplicate]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/duplicate decision id/i);
+    });
+
+    it('exports clean, marked, and changelog from the same canonical source and decisions', async () => {
+      const { client } = buildSupabaseMock([decision()]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const clean = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'clean' });
+      const marked = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'marked' });
+      const changelog = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'changelog' });
+
+      expect(clean.content).toBe('Alpha repaired safe. Beta original strategy. Gamma original withheld. Delta unchanged.');
+      expect(marked.content).toContain(SOURCE_TEXT);
+      expect(marked.content).toContain('Alpha repaired safe.');
+      expect(changelog.content).toContain('Safe copy repair');
+      expect(changelog.content).toContain('Accepted A');
+    });
   });
 });
