@@ -114,8 +114,11 @@ export type RecoveryExecutionAction =
   | 'retrieve_context'
   | 'repair_diagnosis'
   | 'create_versioned_candidate_set'
-  | 'rerun_admission'
   | 'none'
+
+export type RecoveryValidationStep =
+  | 'rerun_admission'
+  | 'reclassify'
 
 export type RecoveryExecutionMode =
   | 'deterministic'
@@ -151,6 +154,7 @@ export type HeldReasonRecoveryContract = {
   code: string
   authorityRole: RecoveryAuthorityRole
   recoveryAction: RecoveryExecutionAction
+  validationStep: RecoveryValidationStep | null
   requiredInputs: RecoveryInputRequirement[]
   executionMode: RecoveryExecutionMode
 }
@@ -162,27 +166,27 @@ export type HeldReasonRecoveryContract = {
 
 The existing `REPAIR_FAMILY_TEMPLATES` defines the ordered repair pipeline. The contract layer adds a single `RecoveryExecutionAction` and structured `requiredInputs` for each family.
 
-| Family | Default action | `executionMode` | `requiredInputs` |
-|---|---|---|---|
-| `anchor` | `resolve_anchor` | `deterministic` | `source_text` (`canonical_opportunity`, `non_empty`), `manuscript_coordinates` (`canonical_opportunity`, `valid_anchor`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`) |
-| `context` | `retrieve_context` | `deterministic` | `source_text` (`canonical_opportunity`, `non_empty`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`), `manuscript_chunks` (`manuscript_artifact`, `non_empty`) |
-| `diagnosis` | `repair_diagnosis` | `llm_assisted` | `symptom` (`canonical_opportunity`, `complete_diagnostic`), `cause` (`canonical_opportunity`, `complete_diagnostic`), `fix_direction` (`canonical_opportunity`, `complete_diagnostic`), `reader_effect` (`canonical_opportunity`, `complete_diagnostic`), `rationale` (`canonical_opportunity`, optional) |
-| `candidates` | `create_versioned_candidate_set` | `llm_assisted` | `existing_candidates_a_b_c` (`persisted_ledger`, `complete_candidate_set`), `source_text` (`canonical_opportunity`, `non_empty`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`), `rationale` (`canonical_opportunity`), `diagnostic_object` (`classification`) |
-| `strategy` | `rerun_admission` | `deterministic` | `full_opportunity` (`classification`, `source_hash_match`) |
-| `none` | `none` | `none` | `[]` |
+| Family | Default action | Validation step | `executionMode` | `requiredInputs` |
+|---|---|---|---|---|
+| `anchor` | `resolve_anchor` | `rerun_admission` | `deterministic` | `source_text` (`canonical_opportunity`, `non_empty`), `manuscript_coordinates` (`canonical_opportunity`, `valid_anchor`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`) |
+| `context` | `retrieve_context` | `rerun_admission` | `deterministic` | `source_text` (`canonical_opportunity`, `non_empty`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`), `manuscript_chunks` (`manuscript_artifact`, `non_empty`) |
+| `diagnosis` | `repair_diagnosis` | `rerun_admission` | `llm_assisted` | `symptom` (`canonical_opportunity`, `complete_diagnostic`), `cause` (`canonical_opportunity`, `complete_diagnostic`), `fix_direction` (`canonical_opportunity`, `complete_diagnostic`), `reader_effect` (`canonical_opportunity`, `complete_diagnostic`), `rationale` (`canonical_opportunity`, optional) |
+| `candidates` | `create_versioned_candidate_set` | `rerun_admission` | `llm_assisted` | `existing_candidates_a_b_c` (`persisted_ledger`, `complete_candidate_set`, `required: false`), `source_text` (`canonical_opportunity`, `non_empty`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`), `rationale` (`canonical_opportunity`), `diagnostic_object` (`classification`) |
+| `strategy` | `none` | `rerun_admission` | `none` | `full_opportunity` (`classification`, `source_hash_match`) |
+| `none` | `none` | `reclassify` or `null` | `none` | `[]` |
 
 ### 4.1 Per-code overrides
 
-| Reason code | `repairFamily` | `recoveryAction` | `executionMode` | Why |
-|---|---|---|---|---|
-| `canon_authority_blocked` | `none` | `none` | `author_assisted` | Canon/authority conflict is an author disposition, not an executor action. |
-| `hard_canon_conflict` | `none` | `none` | `author_assisted` | Same; terminal if author cannot resolve. |
-| `hard_context_block` | `none` | `none` | `none` | Terminal hard blocker. |
-| `testimony_fabrication_risk` | `none` | `none` | `none` | Intentionally non-recoverable. |
-| `integrity_*` | `none` | `none` | `author_assisted` | Currently non-recoverable through automatic repair. |
-| `passage_too_long` | `strategy` | `rerun_admission` | `deterministic` | Decision-owned; validation after upstream scope/passage change. |
-| `copy_paste_admission_failed` | `candidates`/`diagnosis` | `rerun_admission` | `deterministic` | Decision-owned summary; validation after upstream repairs. |
-| `strategy_admission_failed` | `diagnosis` | `rerun_admission` | `deterministic` | Same as above. |
+| Reason code | `repairFamily` | `recoveryAction` | `validationStep` | `executionMode` | Why |
+|---|---|---|---|---|---|
+| `canon_authority_blocked` | `none` | `none` | `null` | `author_assisted` | Canon/authority conflict is an author disposition, not an executor action. |
+| `hard_canon_conflict` | `none` | `none` | `null` | `author_assisted` | Same; terminal if author cannot resolve. |
+| `hard_context_block` | `none` | `none` | `null` | `none` | Terminal hard blocker. |
+| `testimony_fabrication_risk` | `none` | `none` | `null` | `none` | Intentionally non-recoverable. |
+| `integrity_*` | `none` | `none` | `null` | `author_assisted` | Currently non-recoverable through automatic repair. |
+| `passage_too_long` | `strategy` | `none` | `rerun_admission` | `none` | Strategy-routing decision with no automated repair; validation after scope/passage change. |
+| `copy_paste_admission_failed` | `candidates` / `diagnosis` | `none` | `rerun_admission` | `deterministic` | Decision-owned summary; decompose into underlying admission reasons. If decomposition is empty, `rerun_admission` validates only after author/LLM-provided context. |
+| `strategy_admission_failed` | `diagnosis` | `none` | `rerun_admission` | `deterministic` | Same as above. |
 
 ## 5. Author dispositions
 
@@ -221,8 +225,10 @@ The action `create_versioned_candidate_set` replaces the loose idea of "regenera
 - **Always creates a new versioned candidate set**; it never mutates an authoritative persisted set.
 - **The previous A/B/C set is retained for audit** and is the default source if regeneration fails.
 - **No partial "fill in B/C" behaviour**: either the full A/B/C set is produced and passes quality, or the attempt fails and the previous set remains authoritative.
-- **Regeneration is allowed at most once per unique source-hash version** of an opportunity.
-- If authoritative inputs (anchor, source text, diagnostic, rationale) have not changed since the last attempt, the executor must not regenerate; it must either reclassify using the existing set or remain held.
+- **`existing_candidates_a_b_c` is an optional input**. If a complete persisted set exists, it is preserved unchanged as the prior version. If none exists, creation of the first complete versioned set is allowed only for reason codes whose approved policy explicitly permits it.
+- **Missing `candidate_text_b` or `candidate_text_c` alone must not authorize regeneration.** Regeneration is triggered only by a material change in authoritative inputs or by an explicitly authorized origin reason, not by absence.
+- **Regeneration is allowed at most once per unique `opportunityVersion` + `candidateSetVersion` + diagnostic/rationale fingerprint.**
+- If authoritative inputs have not changed since the last attempt, the executor must not regenerate; it must either reclassify using the existing set or remain held.
 - New candidates are persisted only with a new source hash and only after passing the same admission gates that produced the held state.
 
 This preserves the candidate A/B/C authority from PR #1323: canonical deduplication uses one authoritative `RawOpportunity`, and downstream projection uses exactly the persisted candidates.
@@ -235,22 +241,30 @@ A recovery attempt is identified by:
 
 ```typescript
 export type RecoveryAttemptKey = {
-  opportunityVersion: string  // source hash of the authoritative inputs at attempt start
+  opportunityVersion: string      // canonical source hash from the repository's opportunity build logic
+  candidateSetVersion: string | null  // canonical hash of the authoritative persisted A/B/C set
   producer: HeldReasonProducer
   code: string
   recoveryAction: RecoveryExecutionAction
+  recoveryInputFingerprint: string // action-specific fingerprint, not a new canonical identity
 }
 ```
 
-The `opportunityVersion` source hash must include the fields that the `recoveryAction` consumes:
+Identity authority is layered:
+
+- `opportunityVersion` is the canonical source hash produced by the existing opportunity-ledger build logic (e.g. `sourceHashFor` in `lib/revision/opportunityLedger.ts`). It must not be redefined by the recovery executor.
+- `candidateSetVersion` is the canonical hash of the authoritative persisted `candidate_text_a/b/c` or `options` trio, computed with the same stable-hash function used elsewhere (e.g. `sourceHashFor` / `stableStringify`). It must not be redefined by the recovery executor.
+- `recoveryInputFingerprint` is action-specific and used only to detect whether the inputs consumed by this particular action have changed since the last attempt. It is not a canonical opportunity or candidate identity.
+
+Action-specific fingerprints include:
 
 - `resolve_anchor`: `anchor` + `quoteHighlight` + `quoteRest`
 - `retrieve_context`: `anchor` + `quoteHighlight` + `quoteRest`
 - `repair_diagnosis`: `symptom` + `cause` + `fixDirection` + `readerEffect` + `rationale`
-- `create_versioned_candidate_set`: `anchor` + `quoteHighlight` + `quoteRest` + `symptom` + `cause` + `fixDirection` + `readerEffect` + `rationale` + `options`
-- `rerun_admission`: full opportunity state
+- `create_versioned_candidate_set`: `opportunityVersion` + `candidateSetVersion` + `diagnostic_object` + `rationale`
+- `rerun_admission`: `opportunityVersion` + `candidateSetVersion`
 
-A new attempt is created when any of those inputs change, **not** when a retry counter increments. This makes retries deterministic and avoids re-running the same action on unchanged inputs.
+A new attempt is created when the canonical `opportunityVersion` or `candidateSetVersion` changes, **not** when a retry counter increments. The action-specific fingerprint decides whether the same action should run again on the same canonical version.
 
 ### 8.2 Retry bounds
 
@@ -336,15 +350,31 @@ The `RecoveryAttemptSnapshot` preserves those original reasons independently of 
 
 ## 12. `rerun_admission` as post-repair validation
 
-`rerun_admission` is not an independent repair action. It is a validation/finalization step that:
+`rerun_admission` is not a `RecoveryExecutionAction`; it is a `RecoveryValidationStep` in `HeldReasonRecoveryContract.validationStep`. It is a validation/finalization step that:
 
-- Runs only after a prior `RecoveryExecutionAction` has materially changed the authoritative inputs.
+- Runs only after a prior `RecoveryExecutionAction` has materially changed the authoritative inputs (or after an author/LLM action such as `provide_context` or `repair_diagnosis`).
 - Does not consume a retry by itself.
 - Re-runs `classifyWorkbenchExecutabilityDetailed` with the repaired inputs.
 - Produces the new terminal classification.
-- If no input has changed since the previous classification, it must not run; the executor must use the existing classification or remain held.
+- If no canonical `opportunityVersion` or `candidateSetVersion` has changed since the previous classification, it must not run; the executor must use the existing classification or remain held.
+- Decision-owned summary codes (`copy_paste_admission_failed`, `strategy_admission_failed`, `passage_too_long`) do not select `rerun_admission` as an independent repair; the validation step fires only after the underlying origin reason has been repaired or after an authorized context change.
 
-## 13. Non-goals for this proposal phase
+## 13. Contract invariants
+
+The following invariants must hold for any implementation derived from this contract:
+
+1. **Single policy authority.** `HeldReasonInfo` is the only source for `recoverable`, `automaticRecoveryAllowed`, `allowedAuthorActions`, `allowedTerminalOutcomes`, and `isHardBlocker`.
+2. **Origin-producer authority.** A `RecoveryExecutionAction` is selected only by an origin `HeldReasonProducer`. Decision-projection and annotation sources inform audit and routing but do not initiate independent recovery.
+3. **No decision-summary repair.** `copy_paste_admission_failed`, `strategy_admission_failed`, and `passage_too_long` do not select their own repair action; they either decompose into origin reasons or remain in strategy/withheld until an upstream input changes.
+4. **Canonical identity reuse.** `opportunityVersion` and `candidateSetVersion` are computed by existing repository helpers, not redefined by the recovery executor. `recoveryInputFingerprint` is action-specific and subordinate.
+5. **Versioned candidates.** `create_versioned_candidate_set` always creates a new complete A/B/C version; it never mutates the persisted set or fills in missing B/C.
+6. **Missing B/C does not authorize regeneration.** Regeneration requires a material input change or an explicitly authorized origin reason.
+7. **Fail-closed unknowns.** An unknown `producer:code` remains held with `UNKNOWN_RECOVERY_CONTRACT`; no generic fallback is permitted.
+8. **Audit before execution.** A `RecoveryAttemptSnapshot` is created before any runnable recovery step, and the audit trail is a structured `RecoveryAuditEvent[]`.
+9. **Promotion provenance preserved.** `originalBaseReasons`, `originalFinalReasons`, and `promotionTransitionReason` are preserved independently of `finalDecision.reasons`.
+10. **Validation does not retry.** `rerun_admission` runs once per changed canonical version and does not consume a retry.
+
+## 14. Non-goals for this proposal phase
 
 The following are intentionally out of scope until the contract is approved:
 
@@ -355,10 +385,10 @@ The following are intentionally out of scope until the contract is approved:
 - Any UI recovery controls or API endpoints.
 - Any wiring that calls the recovery engine from `getWorkbenchQueue`, `partitionClassifiedWorkbenchQueue`, or other production paths.
 
-## 14. Open questions for review
+## 15. Open questions for review
 
-1. Should `producer` values be the same as the existing `HeldReasonSource` strings, or should we rename some for clarity?
-2. Should the canonical source-hash input set for candidates include the full `diagnostic` object or only the top-level diagnostic fields?
-3. Is `create_versioned_candidate_set` the right action name, or should it be `regenerate_candidates` with explicit version semantics in the contract?
-4. Should `rerun_admission` be represented as a `RecoveryExecutionAction` or as a separate `RecoveryValidationStep` type?
-5. Should the executor emit `action_failed` once per attempt or once per retry?
+1. Should the canonical source-hash input set for candidates include the full `diagnostic` object or only the top-level diagnostic fields?
+2. Is `create_versioned_candidate_set` the right action name, or should it be `regenerate_candidates` with explicit version semantics in the contract?
+3. Should the executor emit `action_failed` once per attempt or once per retry?
+4. Should `passage_too_long` eventually map to a real `RecoveryExecutionAction` such as `split_passage_or_reduce_scope`, or remain a non-recoverative strategy-routing decision?
+5. Which existing repository helper should be the canonical source of `opportunityVersion` for recovery attempts?
