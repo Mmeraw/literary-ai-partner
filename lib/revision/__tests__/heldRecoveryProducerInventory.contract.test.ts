@@ -346,11 +346,6 @@ describe('held recovery producer characterization', () => {
   });
 
   describe('C. recovery behavior characterization — current state of the repository', () => {
-    // TODO(held-recovery-executor): delete this test once executeRecovery is implemented.
-    it('(temporary) records that no held recovery executor is implemented yet', () => {
-      expect(() => require('../heldRecoveryExecutor')).toThrow();
-    });
-
     it('records whether a recovery action is encoded, inferred, or absent for representative reasons', () => {
       const rows = [
         { code: 'truncated_anchor', source: 'preflight', repairFamily: 'anchor' },
