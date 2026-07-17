@@ -155,13 +155,9 @@ function makeRawOpportunity(
 }
 
 // ---------------------------------------------------------------------------
-// UI surface derivation — mirrors exact logic in ReviseCockpitClientWorkflowV2
-//
-// Note: the component filters by item.cardType (the mirrored field), not
-// item.finalDecision.cardType. For the UI surface proof we use fixtures where
-// cardType === finalDecision.cardType, matching production output from
-// buildClassifiedWorkbenchOpportunity. Pure routing authority — proven in
-// section 1 — is intentionally separate.
+// UI surface derivation — mirrors exact membership logic in
+// ReviseCockpitClientWorkflowV2: finalDecision.cardType is the authority for
+// interactive/held surfaces; mirrored item.cardType is presentation-only.
 // ---------------------------------------------------------------------------
 
 function deriveUiSurfaces(payload: {
@@ -174,7 +170,7 @@ function deriveUiSurfaces(payload: {
 } {
   const seenInteractive = new Set<string>();
   const interactiveItems = [...payload.opportunities, ...payload.needsTargeting]
-    .filter((item) => item.cardType !== 'withheld')
+    .filter((item) => item.finalDecision.cardType !== 'withheld')
     .filter((item) => {
       if (seenInteractive.has(item.id)) return false;
       seenInteractive.add(item.id);
@@ -184,7 +180,7 @@ function deriveUiSurfaces(payload: {
   const seenHeld = new Set<string>();
   const heldItems = [
     ...payload.withheldUnsupported,
-    ...payload.needsTargeting.filter((item) => item.cardType === 'withheld'),
+    ...payload.needsTargeting.filter((item) => item.finalDecision.cardType === 'withheld'),
   ].filter((item) => {
     if (seenHeld.has(item.id)) return false;
     seenHeld.add(item.id);
@@ -431,8 +427,8 @@ describe('Workbench queue membership proof', () => {
      * Fixtures here have cardType aligned with finalDecision.cardType, matching
      * production output from buildClassifiedWorkbenchOpportunity.
      *
-     * The UI component filters by item.cardType (the mirrored field).
-     * Pure routing authority is proven independently in section 1.
+      * The UI component filters by item.finalDecision.cardType, so these
+      * payload-to-surface assertions share the same authority as partitioning.
      */
     const uiCopyPaste = makeClassifiedOpportunity({
       id: 'ui-copy-paste',
