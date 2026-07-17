@@ -54,7 +54,7 @@ const FRAGMENT_PATTERNS: RegExp[] = [
   /\b(can|would|should|could|might)\s+(nonetheless|nevertheless|however|some)\b/i,
 ];
 
-const TRUNCATION_ENDINGS = /[,—–\-]\s*$/;
+const TRUNCATION_ENDINGS = /[,—–-]\s*$/;
 const TRUNCATION_CONJUNCTION_ENDINGS =
   /\b(and|or|but|so|because|although|however|nonetheless|while|that|which|whether)\s*$/i;
 
@@ -182,6 +182,24 @@ export type IntegrityViolationCode =
   | "MISSING_READER_CONSEQUENCE"
   | "MISSING_MANUSCRIPT_EVIDENCE"
   | "GENERIC_EFFECT_PHRASE";
+
+export const INTEGRITY_VIOLATION_CODES: IntegrityViolationCode[] = [
+  "INCOMPLETE_FIELD",
+  "ORPHAN_CONJUNCTION",
+  "MALFORMED_CONNECTOR",
+  "SENTENCE_FRAGMENT",
+  "NO_LOWERCASE_OPENING",
+  "MISSING_TERMINAL_PUNCTUATION",
+  "REPEATED_CLAUSE",
+  "MID_SENTENCE_TRUNCATION",
+  "GENERIC_WORKSHOP_LANGUAGE",
+  "MISSING_SPECIFIC_ANCHOR",
+  "VAGUE_ANCHOR",
+  "MISSING_CAUSAL_LANGUAGE",
+  "MISSING_READER_CONSEQUENCE",
+  "MISSING_MANUSCRIPT_EVIDENCE",
+  "GENERIC_EFFECT_PHRASE",
+];
 
 export type IntegrityViolation = {
   field: string;

@@ -24,6 +24,24 @@ export type CandidateQualityReason =
   | 'CANON_DRIFT'
   | 'REVISION_QUALITY_FAILED';
 
+export const ADMISSION_CANDIDATE_QUALITY_REASON = {
+  EMPTY_CANDIDATE: 'EMPTY_CANDIDATE',
+  TOO_SHORT: 'TOO_SHORT',
+  GENERIC_PROSE: 'GENERIC_PROSE',
+  NON_EXECUTABLE_PROSE: 'NON_EXECUTABLE_PROSE',
+  NOT_EXECUTABLE: 'NOT_EXECUTABLE',
+  ANCHOR_ECHO: 'ANCHOR_ECHO',
+  UNSUPPORTED_FACT: 'UNSUPPORTED_FACT',
+  CONTEXT_MISMATCH: 'CONTEXT_MISMATCH',
+  REVISION_QUALITY_FAILED: 'REVISION_QUALITY_FAILED',
+} as const;
+
+export type AdmissionCandidateQualityReasonCode =
+  (typeof ADMISSION_CANDIDATE_QUALITY_REASON)[keyof typeof ADMISSION_CANDIDATE_QUALITY_REASON];
+
+export const ADMISSION_CANDIDATE_QUALITY_REASON_CODES: AdmissionCandidateQualityReasonCode[] =
+  Object.values(ADMISSION_CANDIDATE_QUALITY_REASON);
+
 export interface CandidateQualityInput {
   key: CandidateKey;
   text: string | null | undefined;
@@ -121,21 +139,21 @@ function hasUnsupportedEntity(input: CandidateQualityInput, text: string): boole
 
 function evaluateAdmissionCandidateQuality(input: CandidateQualityInput): AdmissionCandidateQualityResult {
   const text = normalize(input.text);
-  const reasons: CandidateQualityReason[] = [];
+  const reasons: AdmissionCandidateQualityReasonCode[] = [];
 
-  if (!text) reasons.push('EMPTY_CANDIDATE');
-  if (text && wordCount(text) < 8) reasons.push('TOO_SHORT');
-  if (candidateLooksGeneric(text)) reasons.push('GENERIC_PROSE');
-  if (candidateLooksLikeCommentary(text)) reasons.push('NON_EXECUTABLE_PROSE');
-  if (/\[[^\]]+\]|\bINSERT\b|\bLOCATION\b|\bTODO\b/i.test(text)) reasons.push('NOT_EXECUTABLE');
-  if (input.anchor && similarityRatio(text, input.anchor) > 0.82) reasons.push('ANCHOR_ECHO');
-  if (hasUnsupportedEntity(input, text)) reasons.push('UNSUPPORTED_FACT');
+  if (!text) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.EMPTY_CANDIDATE);
+  if (text && wordCount(text) < 8) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.TOO_SHORT);
+  if (candidateLooksGeneric(text)) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.GENERIC_PROSE);
+  if (candidateLooksLikeCommentary(text)) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.NON_EXECUTABLE_PROSE);
+  if (/\[[^\]]+\]|\bINSERT\b|\bLOCATION\b|\bTODO\b/i.test(text)) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.NOT_EXECUTABLE);
+  if (input.anchor && similarityRatio(text, input.anchor) > 0.82) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.ANCHOR_ECHO);
+  if (hasUnsupportedEntity(input, text)) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.UNSUPPORTED_FACT);
 
   const before = normalize(input.beforeContext);
   const after = normalize(input.afterContext);
   if ((before || after) && text.length > 0) {
     const contextSimilarity = Math.max(similarityRatio(text, before), similarityRatio(text, after));
-    if (contextSimilarity < 0.03 && wordCount(text) > 25) reasons.push('CONTEXT_MISMATCH');
+    if (contextSimilarity < 0.03 && wordCount(text) > 25) reasons.push(ADMISSION_CANDIDATE_QUALITY_REASON.CONTEXT_MISMATCH);
   }
 
   const score = Math.max(0, 5 - reasons.length);
@@ -151,7 +169,7 @@ export function evaluateCardCandidateQuality(candidates: CandidateQualityInput[]
     passed: passedCandidateCount >= 2,
     passedCandidateCount,
     candidateResults,
-    reasons: passedCandidateCount >= 2 ? [] : [...reasons, 'REVISION_QUALITY_FAILED'],
+    reasons: passedCandidateCount >= 2 ? [] : [...reasons, ADMISSION_CANDIDATE_QUALITY_REASON.REVISION_QUALITY_FAILED],
   };
 }
 
@@ -543,8 +561,11 @@ function evaluateLedgerCandidateQuality(
   return [...new Set(reasons)];
 }
 
+// eslint-disable-next-line no-redeclare
 export function evaluateCandidateQuality(input: CandidateQualityInput): AdmissionCandidateQualityResult;
+// eslint-disable-next-line no-redeclare
 export function evaluateCandidateQuality(candidate: string, anchor: string, rationale: string): CandidateQualityReasonCode[];
+// eslint-disable-next-line no-redeclare
 export function evaluateCandidateQuality(
   inputOrCandidate: CandidateQualityInput | string,
   anchor?: string,
