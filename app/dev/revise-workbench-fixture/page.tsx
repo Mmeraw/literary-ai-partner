@@ -5,25 +5,80 @@
 // behaviour, use __tests__/lib/revision/workbenchQueueMembershipProof.test.ts.
 import { notFound } from "next/navigation";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
-import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
-import { buildClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
+import type { ClassifiedWorkbenchOpportunity, WorkbenchExecutabilityClassification } from "@/lib/revision/workbenchQueueProjection";
+import type { RecommendationExecutabilityDecision } from "@/lib/revision/recommendationExecutability";
+import type { AdmissionGateResult } from "@/lib/revision/reviseAdmissionGate";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
 
+type VisualCardType = "copy_paste_rewrite" | "revision_strategy" | "withheld";
+
+function visualGate(passed: boolean, candidateCount = 0): AdmissionGateResult {
+  return {
+    passed,
+    reasons: passed ? [] : ["visual_fixture_gate_failed"],
+    passedCandidateCount: candidateCount,
+    candidateQualityPassed: passed,
+    diagnosticContractPassed: passed,
+    groundingPassed: passed,
+    integrityPassed: passed,
+    voicePassed: passed,
+    canonPassed: passed,
+    contextPassed: passed,
+    localOperationPassed: passed,
+  };
+}
+
 function asVisualFixture(
-  opp: WorkbenchOpportunity,
-  finalCardType: "copy_paste_rewrite" | "revision_strategy" | "withheld",
+  opportunity: WorkbenchOpportunity,
+  cardType: VisualCardType,
 ): ClassifiedWorkbenchOpportunity {
   const trustedPathStatus =
-    finalCardType === "copy_paste_rewrite"
+    cardType === "copy_paste_rewrite"
       ? ("eligible" as const)
-      : finalCardType === "revision_strategy"
+      : cardType === "revision_strategy"
         ? ("unavailable_author_review_required" as const)
         : ("impossible" as const);
-  const decision = { cardType: finalCardType, trustedPathStatus, reasons: [`visual_fixture_${finalCardType}`] as readonly string[] } as any;
-  return buildClassifiedWorkbenchOpportunity(
-    { ...opp, cardType: finalCardType, trustedPathStatus },
-    { cardType: finalCardType, trustedPathStatus, reasons: decision.reasons, strategyCardViewModel: null, copyPasteAdmissionPassed: finalCardType === "copy_paste_rewrite", copyPasteAdmissionReasons: [], strategyAdmissionPassed: finalCardType !== "copy_paste_rewrite", strategyAdmissionReasons: [], baseDecision: decision, finalDecision: decision, needsTargetingPromotionApplied: false, promotionTransitionReason: null, needsTargetingOverrideApplied: false, gates: { copyPaste: { passed: finalCardType === "copy_paste_rewrite", reasons: [], passedCandidateCount: finalCardType === "copy_paste_rewrite" ? 3 : 0 }, strategy: { passed: finalCardType !== "withheld", reasons: [] } } } as any,
-  );
+
+  const decision: RecommendationExecutabilityDecision = {
+    cardType,
+    trustedPathStatus,
+    reasons: [`visual_fixture_${cardType}`],
+  };
+
+  const isCopyPaste = cardType === "copy_paste_rewrite";
+  const isStrategy  = cardType === "revision_strategy";
+
+  const classification: WorkbenchExecutabilityClassification = {
+    cardType,
+    trustedPathStatus,
+    reasons: decision.reasons,
+    strategyCardViewModel: null,
+    copyPasteAdmissionPassed: isCopyPaste,
+    copyPasteAdmissionReasons: [],
+    strategyAdmissionPassed: isStrategy,
+    strategyAdmissionReasons: [],
+    baseDecision: decision,
+    finalDecision: decision,
+    needsTargetingPromotionApplied: false,
+    promotionTransitionReason: null,
+    needsTargetingOverrideApplied: false,
+    gates: {
+      copyPaste: visualGate(isCopyPaste, isCopyPaste ? 3 : 0),
+      strategy:  visualGate(isStrategy),
+    },
+  };
+
+  const classified: ClassifiedWorkbenchOpportunity = {
+    ...opportunity,
+    cardType,
+    trustedPathStatus,
+    executabilityReasons: decision.reasons,
+    classification,
+    baseDecision: decision,
+    finalDecision: decision,
+  };
+
+  return classified;
 }
 
 function candidate(key: "A" | "B" | "C", mechanism: string, text: string, rationale: string) {

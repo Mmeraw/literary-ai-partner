@@ -67,10 +67,9 @@ describe('Workbench authority source guard', () => {
 
   it('Workflow V2 routes interactive/held membership by finalDecision.cardType', () => {
     expect(workflowV2Source).toContain('finalDecision.cardType');
-    // The mirrored item.cardType must not be used as a routing authority.
-    // The only permitted reference to item.cardType is in the pre-existing
-    // label/badge helpers that are themselves typed on ClassifiedWorkbenchOpportunity,
-    // where cardType is kept in sync by buildClassifiedWorkbenchOpportunity.
+    // No routing, labelling, admission eligibility, or ledger metadata decision
+    // in Workflow V2 should depend on item.cardType (the mirrored field).
+    // The authoritative terminal decision is item.finalDecision.cardType.
     expect(workflowV2Source).not.toContain('item.cardType !== "withheld"');
     expect(workflowV2Source).not.toContain('item.cardType === "withheld"');
     expect(workflowV2Source).not.toContain('item.cardType !== \'withheld\'');
