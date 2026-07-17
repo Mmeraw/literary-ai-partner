@@ -300,6 +300,18 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
     return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
   }
 
+  const allIds = new Set<string>();
+  for (const decision of ctx.decisions) {
+    if (allIds.has(decision.id)) {
+      blocked.push(`Duplicate decision id ${decision.id} in loaded ledger`);
+      break;
+    }
+    allIds.add(decision.id);
+  }
+  if (blocked.length > 0) {
+    return { text, applied, blocked };
+  }
+
   const decisions = applicableDecisions(ctx);
   const seenIds = new Set<string>();
   const snapshots: AnchoredSnapshot[] = [];

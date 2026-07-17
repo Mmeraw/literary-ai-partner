@@ -304,7 +304,7 @@ describe('final review runtime governance', () => {
       expect(rpc.mock.calls[0][1].p_apply_fingerprint).toBe(rpc.mock.calls[1][1].p_apply_fingerprint);
     });
 
-    it('blocks apply when a source excerpt is missing (stale manuscript)', async () => {
+    it('blocks apply when a source excerpt does not match the manuscript (anchor mismatch)', async () => {
       mockResolveFinalReviewSourceText.mockResolvedValue(SOURCE_TEXT);
       const stale = decision({ selected_text: 'Alpha repaired safe.', source_excerpt: 'Missing excerpt.' });
 
@@ -361,6 +361,23 @@ describe('final review runtime governance', () => {
         opportunity_id: 'copy-2',
         source_excerpt: 'Delta unchanged.',
         selected_text: 'Other.',
+      });
+
+      const { client } = buildSupabaseMock([decision(), duplicate]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/duplicate decision id/i);
+    });
+
+    it('blocks apply when a duplicate decision id appears across applicable and non-applicable rows', async () => {
+      const duplicate = decision({
+        id: '00000000-0000-0000-0000-000000000001',
+        opportunity_id: 'strategy-1',
+        decision: 'reject',
+        selected_text: 'REJECTED',
+        source_excerpt: 'Beta original strategy.',
       });
 
       const { client } = buildSupabaseMock([decision(), duplicate]);
