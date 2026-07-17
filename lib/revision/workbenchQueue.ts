@@ -123,6 +123,23 @@ function splitPreflightReasonsByClass(reasons: string[] | undefined): { hydratio
   return { hydration, res }
 }
 
+function duplicateOpportunityIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const duplicates = new Set<string>()
+
+  for (const id of ids) {
+    const normalized = id.trim()
+    if (!normalized) continue
+    if (seen.has(normalized)) {
+      duplicates.add(normalized)
+      continue
+    }
+    seen.add(normalized)
+  }
+
+  return [...duplicates].sort()
+}
+
 export type WorkbenchQueuePayload = {
   ok: boolean
   error: string | null
@@ -1138,6 +1155,18 @@ export async function getWorkbenchQueue(input: {
     evaluationJobId,
   )
 
+  const duplicateLedgerOpportunityIds = duplicateOpportunityIds(
+    revisionLedgerOpportunities
+      .map((opportunity) => String(opportunity.opportunity_id ?? '').trim())
+      .filter(Boolean),
+  )
+
+  if (duplicateLedgerOpportunityIds.length > 0) {
+    return emptyPayload(
+      `Revision opportunity ledger contains duplicate opportunity id${duplicateLedgerOpportunityIds.length === 1 ? '' : 's'}: ${duplicateLedgerOpportunityIds.join(', ')}.`,
+    )
+  }
+
   // Load manuscript text for evidence fidelity verification
   let manuscriptRawText = ''
   try {
@@ -1389,6 +1418,7 @@ export const __testing = {
   synthesizeFindingsForWorkbench,
   scopeFromCoordinates: resolveEvidenceLocationScope,
   hasPlaceholderCoordinates,
+  duplicateOpportunityIds,
   humanizeCoordinateSlug,
   cleanLocationRef,
   cleanAuthorFacingText,
