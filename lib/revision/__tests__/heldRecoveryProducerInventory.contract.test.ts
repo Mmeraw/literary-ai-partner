@@ -33,6 +33,9 @@ import {
   partitionClassifiedWorkbenchQueue,
   buildClassifiedWorkbenchOpportunity,
   classifyWorkbenchExecutabilityDetailed,
+  resolveRepairScope,
+  modeForScope,
+  resolveEvidenceLocationScope,
   type ClassifiedWorkbenchOpportunity,
 } from '@/lib/revision/workbenchQueueProjection';
 import type { WorkbenchOpportunity } from '@/lib/revision/workbenchQueue';
@@ -106,6 +109,27 @@ function buildMinimalOpportunity(overrides: Partial<WorkbenchOpportunity> = {}):
   } as WorkbenchOpportunity;
 }
 
+function buildSafeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): WorkbenchOpportunity {
+  return buildMinimalOpportunity({
+    quoteHighlight: 'The night wind cut through the open window.',
+    quoteRest: '',
+    anchor: 'chapter_1',
+    groundingStatus: 'supported',
+    contextQuality: 'clean',
+    preflightStatus: 'passed',
+    preflightReasons: [],
+    ...overrides,
+  });
+}
+
+function withoutFields<T extends Record<string, unknown>>(obj: T, ...keys: (keyof T)[]): T {
+  const clone = { ...obj };
+  for (const key of keys) {
+    delete clone[key];
+  }
+  return clone;
+}
+
 describe('held recovery producer characterization', () => {
   it('enumerates every code emitted by a held-state producer in the inventory', () => {
     const unmapped: string[] = [];
@@ -158,69 +182,52 @@ describe('held recovery producer characterization', () => {
 
   describe('A. classification characterization — real producer state → finalDecision.cardType', () => {
     it('safe local copy-paste inputs produce copy_paste_rewrite', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        anchor: 'chapter_1',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
-      });
+      const opportunity = buildSafeOpportunity();
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('copy_paste_rewrite');
-      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE);
+      expect(classification.finalDecision.reasons).toEqual([BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE]);
     });
 
     it('missing evidence / unsupported grounding produces withheld with EVIDENCE_MISSING', () => {
-      const opportunity = buildMinimalOpportunity({
+      const opportunity = buildSafeOpportunity({
         quoteHighlight: '',
         quoteRest: '',
-        anchor: 'chapter_1',
         groundingStatus: 'unsupported_blocked',
-        contextQuality: 'blocked',
-        preflightStatus: 'blocked',
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.EVIDENCE_MISSING);
+      expect(new Set(classification.finalDecision.reasons)).toEqual(
+        new Set([
+          BASE_DECISION_REASON.EVIDENCE_MISSING,
+          BASE_DECISION_REASON.CONTEXT_MISSING,
+          BASE_DECISION_REASON.DIAGNOSIS_UNSUPPORTED,
+        ]),
+      );
     });
 
     it('hard context block produces withheld with CONTEXT_MISSING', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        anchor: 'chapter_1',
-        groundingStatus: 'supported',
+      const opportunity = buildSafeOpportunity({
         contextQuality: 'blocked',
         preflightStatus: 'blocked',
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CONTEXT_MISSING);
+      expect(new Set(classification.finalDecision.reasons)).toEqual(
+        new Set([BASE_DECISION_REASON.CONTEXT_MISSING, BASE_DECISION_REASON.CANON_UNCLEAR]),
+      );
     });
 
     it('hard canon conflict produces withheld with CANON_UNCLEAR', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        anchor: 'chapter_1',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'blocked',
+      const opportunity = buildSafeOpportunity({
         preflightReasons: ['canon_authority_blocked'],
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CANON_UNCLEAR);
+      expect(classification.finalDecision.reasons).toEqual([BASE_DECISION_REASON.CANON_UNCLEAR]);
     });
 
-    it('missing diagnostic contract produces withheld with diagnostic missing reasons', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'Mara paused at the threshold.',
-        quoteRest: '',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
+    it('missing diagnostic contract produces withheld with diagnostic and integrity reasons', () => {
+      const opportunity = buildSafeOpportunity({
         symptom: '',
         cause: '',
         fixDirection: '',
@@ -228,18 +235,22 @@ describe('held recovery producer characterization', () => {
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      const reasons = classification.finalDecision.reasons;
-      expect(reasons.some((reason) => /DIAGNOSTIC_MISSING_/i.test(reason))).toBe(true);
+      expect(new Set(classification.finalDecision.reasons)).toEqual(
+        new Set([
+          BASE_DECISION_REASON.COPY_PASTE_ADMISSION_FAILED,
+          'DIAGNOSTIC_MISSING_SYMPTOM',
+          'DIAGNOSTIC_MISSING_CAUSE',
+          'DIAGNOSTIC_MISSING_FIX_DIRECTION',
+          'DIAGNOSTIC_MISSING_READER_EFFECT',
+          ADMISSION_REASON.INTEGRITY_BELOW_PASS_STRONG,
+          'INTEGRITY_INCOMPLETE_FIELD',
+          BASE_DECISION_REASON.STRATEGY_ADMISSION_FAILED,
+        ]),
+      );
     });
 
     it('needs_targeting with strategy admission passed produces revision_strategy', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        anchor: 'chapter_1',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
+      const opportunity = buildSafeOpportunity({
         readiness: 'needs_targeting',
         revisionOperation: 'needs_targeting',
       });
@@ -249,27 +260,16 @@ describe('held recovery producer characterization', () => {
     });
 
     it('chapter scope with safe inputs produces revision_strategy', () => {
-      const opportunity = buildMinimalOpportunity({
+      const opportunity = buildSafeOpportunity({
         scope: 'Chapter',
-        mode: 'repair-brief',
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        anchor: 'chapter_1',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('revision_strategy');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.PASSAGE_TOO_LONG);
     });
 
     it('candidate quality failure produces withheld when strategy admission also fails', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'Mara paused at the threshold.',
-        quoteRest: '',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
+      const opportunity = buildSafeOpportunity({
         options: [
           { key: 'A', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
           { key: 'B', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
@@ -278,33 +278,36 @@ describe('held recovery producer characterization', () => {
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons.some((r) => /EMPTY|TOO_SHORT|REVISION_QUALITY_FAILED/i.test(r))).toBe(true);
+      expect(new Set(classification.finalDecision.reasons)).toEqual(
+        new Set([
+          BASE_DECISION_REASON.COPY_PASTE_ADMISSION_FAILED,
+          'EMPTY_CANDIDATE',
+          'REVISION_QUALITY_FAILED',
+          BASE_DECISION_REASON.STRATEGY_ADMISSION_FAILED,
+        ]),
+      );
     });
   });
 
   describe('B. partition characterization — finalDecision.cardType → Workbench bucket', () => {
-    it('routes classified opportunities by finalDecision.cardType', () => {
-      const make = (cardType: ClassifiedWorkbenchOpportunity['finalDecision']['cardType']): ClassifiedWorkbenchOpportunity =>
-        buildClassifiedWorkbenchOpportunity(buildMinimalOpportunity(), {
-          cardType,
-          trustedPathStatus: cardType === 'copy_paste_rewrite' ? 'eligible' : cardType === 'revision_strategy' ? 'unavailable_author_review_required' : 'impossible',
-          reasons: ['test-reason'],
-          strategyCardViewModel: null,
-          copyPasteAdmissionPassed: false,
-          copyPasteAdmissionReasons: [],
-          strategyAdmissionPassed: false,
-          strategyAdmissionReasons: [],
-          baseDecision: { cardType, trustedPathStatus: 'impossible', reasons: ['test-reason'] },
-          finalDecision: { cardType, trustedPathStatus: 'impossible', reasons: ['test-reason'] },
-          needsTargetingPromotionApplied: false,
-          promotionTransitionReason: null,
-          needsTargetingOverrideApplied: false,
-          gates: { copyPaste: { passed: false, reasons: [], passedCandidateCount: 0 }, strategy: { passed: false, reasons: [], passedCandidateCount: 0 } },
-        } as any);
+    function buildClassificationWithFinal(
+      opportunity: WorkbenchOpportunity,
+      cardType: ClassifiedWorkbenchOpportunity['finalDecision']['cardType'],
+    ): ClassifiedWorkbenchOpportunity {
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      const overridden = {
+        ...classification,
+        finalDecision: { ...classification.finalDecision, cardType },
+        baseDecision: { ...classification.baseDecision, cardType },
+      };
+      return buildClassifiedWorkbenchOpportunity(opportunity, overridden);
+    }
 
-      const copyPaste = make('copy_paste_rewrite');
-      const strategy = make('revision_strategy');
-      const withheld = make('withheld');
+    it('routes classified opportunities by finalDecision.cardType', () => {
+      const opportunity = buildSafeOpportunity();
+      const copyPaste = buildClassificationWithFinal(opportunity, 'copy_paste_rewrite');
+      const strategy = buildClassificationWithFinal(opportunity, 'revision_strategy');
+      const withheld = buildClassificationWithFinal(opportunity, 'withheld');
 
       const partition = partitionClassifiedWorkbenchQueue([copyPaste, strategy, withheld]);
       expect(partition.opportunities.map((o) => o.id)).toContain(copyPaste.id);
@@ -313,23 +316,8 @@ describe('held recovery producer characterization', () => {
     });
 
     it('ignores stale opportunity.cardType when it differs from finalDecision.cardType', () => {
-      const classified = buildClassifiedWorkbenchOpportunity(buildMinimalOpportunity(), {
-        cardType: 'copy_paste_rewrite',
-        trustedPathStatus: 'eligible',
-        reasons: [BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE],
-        strategyCardViewModel: null,
-        copyPasteAdmissionPassed: true,
-        copyPasteAdmissionReasons: [],
-        strategyAdmissionPassed: false,
-        strategyAdmissionReasons: [],
-        baseDecision: { cardType: 'copy_paste_rewrite', trustedPathStatus: 'eligible', reasons: [BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE] },
-        finalDecision: { cardType: 'withheld', trustedPathStatus: 'impossible', reasons: ['stale_override'] },
-        needsTargetingPromotionApplied: false,
-        promotionTransitionReason: null,
-        needsTargetingOverrideApplied: false,
-        gates: { copyPaste: { passed: true, reasons: [], passedCandidateCount: 2 }, strategy: { passed: false, reasons: [], passedCandidateCount: 0 } },
-      } as any);
-
+      const opportunity = buildSafeOpportunity();
+      const classified = buildClassificationWithFinal(opportunity, 'withheld');
       classified.cardType = 'copy_paste_rewrite';
 
       const partition = partitionClassifiedWorkbenchQueue([classified]);
@@ -338,10 +326,9 @@ describe('held recovery producer characterization', () => {
     });
 
     it('ignores stale readiness when finalDecision.cardType is withheld', () => {
-      const classified = buildClassifiedWorkbenchOpportunity(buildMinimalOpportunity(), {
-        readiness: 'ready_for_revise',
-        finalDecision: { cardType: 'withheld', trustedPathStatus: 'impossible', reasons: ['context_missing'] },
-      } as any);
+      const opportunity = buildSafeOpportunity();
+      const classified = buildClassificationWithFinal(opportunity, 'withheld');
+      classified.readiness = 'ready_for_revise';
 
       const partition = partitionClassifiedWorkbenchQueue([classified]);
       expect(partition.withheldUnsupported.map((o) => o.id)).toContain(classified.id);
@@ -349,72 +336,215 @@ describe('held recovery producer characterization', () => {
   });
 
   describe('C. recovery behavior characterization — current state of the repository', () => {
-    it('records that no held recovery executor exists yet', () => {
+    it('(temporary) records that no held recovery executor is implemented yet', () => {
       expect(() => require('../heldRecoveryExecutor')).toThrow();
     });
 
     it('records whether a recovery action is encoded, inferred, or absent for representative reasons', () => {
       const rows = [
-        { code: 'truncated_anchor', source: 'preflight', recoveryAction: 'expand_anchor', encoded: false },
-        { code: 'context_missing', source: 'base_decision', recoveryAction: 'retrieve_context', encoded: false },
-        { code: 'candidate_quality_failed', source: 'candidate_quality', recoveryAction: 'regenerate_candidates', encoded: false },
-        { code: 'diagnostic_missing_symptom', source: 'copy_paste_admission', recoveryAction: 'repair_diagnosis', encoded: false },
-        { code: 'testimony_fabrication_risk', source: 'candidate_quality', recoveryAction: 'none', encoded: false },
+        { code: 'truncated_anchor', source: 'preflight', repairFamily: 'anchor' },
+        { code: 'context_missing', source: 'base_decision', repairFamily: 'context' },
+        { code: 'candidate_quality_failed', source: 'candidate_quality', repairFamily: 'candidates' },
+        { code: 'diagnostic_missing_symptom', source: 'copy_paste_admission', repairFamily: 'diagnosis' },
+        { code: 'testimony_fabrication_risk', source: 'candidate_quality', repairFamily: 'none' },
       ];
 
       for (const row of rows) {
         const info = getHeldReasonInfo(row.code);
         expect(info.isUnknown).toBe(false);
-        if (row.recoveryAction === 'none') {
-          expect(info.repairFamily).toBe('none');
-        }
+        expect(info.repairFamily).toBe(row.repairFamily);
       }
     });
   });
 
   describe('D. classifier field consumption and withheld mapping', () => {
-    it('lists every WorkbenchOpportunity field consumed by classifyWorkbenchExecutabilityDetailedCore', () => {
-      const consumed = [
-        'quoteHighlight',
-        'quoteRest',
-        'groundingStatus',
-        'contextQuality',
-        'preflightStatus',
-        'preflightReasons',
-        'hydrationFailureReasons',
-        'anchor',
-        'scope',
-        'mode',
-        'revisionOperation',
-        'readiness',
-        'fixDirection',
-        'symptom',
-        'readerEffect',
-        'options',
-      ];
-
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        anchor: 'chapter_1',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
-        preflightReasons: [],
-        hydrationFailureReasons: [],
+    it('hydrationFailureReasons is not read by the classifier', () => {
+      const safe = buildSafeOpportunity();
+      const withHydrationFailures = buildSafeOpportunity({
+        hydrationFailureReasons: ['hydration_anchor_truncated'],
       });
-      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
-      expect(classification.finalDecision.cardType).toBe('copy_paste_rewrite');
 
-      for (const field of consumed) {
-        expect(opportunity).toHaveProperty(field);
-      }
+      const safeClassification = classifyWorkbenchExecutabilityDetailed(safe);
+      const withFailuresClassification = classifyWorkbenchExecutabilityDetailed(withHydrationFailures);
+
+      expect(safeClassification.finalDecision).toEqual(withFailuresClassification.finalDecision);
     });
 
+    it('rationale is resolved upstream into scope and mode before classification', () => {
+      const scope = resolveRepairScope({
+        fixDirection: 'Replace the summary.',
+        symptom: 'The scene loses momentum.',
+        readerEffect: 'The reader sees Mara hesitate.',
+        rationale: 'This must be redistributed across the whole manuscript.',
+        revisionOperation: 'replace_selected_passage',
+        scope: 'Passage',
+      });
+      expect(scope).toBe('Manuscript');
+      expect(modeForScope(scope)).toBe('repair-brief');
+    });
+
+    it('anchor is resolved upstream to a scope before classification', () => {
+      expect(resolveEvidenceLocationScope('chapter:1')).toBe('Chapter');
+      expect(resolveEvidenceLocationScope('')).toBe('Passage');
+    });
+
+    const directFieldCases: Array<{
+      name: string;
+      baseOverrides: Partial<WorkbenchOpportunity>;
+      variantOverrides: Partial<WorkbenchOpportunity>;
+      expectedBase: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld';
+      expectedVariant: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld';
+      onlyFieldChanged: keyof WorkbenchOpportunity | [keyof WorkbenchOpportunity, keyof WorkbenchOpportunity];
+    }> = [
+      {
+        name: 'quoteHighlight + quoteRest',
+        baseOverrides: {},
+        variantOverrides: { quoteHighlight: '', quoteRest: '' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: ['quoteHighlight', 'quoteRest'],
+      },
+      {
+        name: 'groundingStatus',
+        baseOverrides: {},
+        variantOverrides: { groundingStatus: 'unsupported_blocked' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'groundingStatus',
+      },
+      {
+        name: 'contextQuality',
+        baseOverrides: {},
+        variantOverrides: { contextQuality: 'blocked' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'contextQuality',
+      },
+      {
+        name: 'preflightStatus',
+        baseOverrides: {},
+        variantOverrides: { preflightStatus: 'blocked' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'preflightStatus',
+      },
+      {
+        name: 'preflightReasons',
+        baseOverrides: {},
+        variantOverrides: { preflightReasons: ['canon_authority_blocked'] },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'preflightReasons',
+      },
+      {
+        name: 'anchor',
+        baseOverrides: {},
+        variantOverrides: { anchor: '' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'revision_strategy',
+        onlyFieldChanged: 'anchor',
+      },
+      {
+        name: 'scope',
+        baseOverrides: {},
+        variantOverrides: { scope: 'Chapter' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'revision_strategy',
+        onlyFieldChanged: 'scope',
+      },
+      {
+        name: 'mode',
+        baseOverrides: {},
+        variantOverrides: { mode: 'repair-brief' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'revision_strategy',
+        onlyFieldChanged: 'mode',
+      },
+      {
+        name: 'revisionOperation',
+        baseOverrides: {},
+        variantOverrides: { revisionOperation: 'needs_targeting' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'revision_strategy',
+        onlyFieldChanged: 'revisionOperation',
+      },
+      {
+        name: 'readiness',
+        baseOverrides: { quoteHighlight: '', quoteRest: '' },
+        variantOverrides: { quoteHighlight: '', quoteRest: '', readiness: 'needs_targeting' },
+        expectedBase: 'withheld',
+        expectedVariant: 'revision_strategy',
+        onlyFieldChanged: 'readiness',
+      },
+      {
+        name: 'options',
+        baseOverrides: {},
+        variantOverrides: {
+          options: [
+            { key: 'A', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
+            { key: 'B', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
+            { key: 'C', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
+          ],
+        },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'options',
+      },
+      {
+        name: 'symptom',
+        baseOverrides: {},
+        variantOverrides: { symptom: '' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'symptom',
+      },
+      {
+        name: 'cause',
+        baseOverrides: {},
+        variantOverrides: { cause: '' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'cause',
+      },
+      {
+        name: 'fixDirection',
+        baseOverrides: {},
+        variantOverrides: { fixDirection: '' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'fixDirection',
+      },
+      {
+        name: 'readerEffect',
+        baseOverrides: {},
+        variantOverrides: { readerEffect: '' },
+        expectedBase: 'copy_paste_rewrite',
+        expectedVariant: 'withheld',
+        onlyFieldChanged: 'readerEffect',
+      },
+    ];
+
+    for (const testCase of directFieldCases) {
+      it(`classifier consumes ${testCase.name}`, () => {
+        const base = buildSafeOpportunity(testCase.baseOverrides);
+        const variant = buildSafeOpportunity(testCase.variantOverrides);
+
+        const baseClassification = classifyWorkbenchExecutabilityDetailed(base);
+        const variantClassification = classifyWorkbenchExecutabilityDetailed(variant);
+
+        expect(baseClassification.finalDecision.cardType).toBe(testCase.expectedBase);
+        expect(variantClassification.finalDecision.cardType).toBe(testCase.expectedVariant);
+        expect(baseClassification.finalDecision.cardType).not.toBe(variantClassification.finalDecision.cardType);
+      });
+    }
+
     it('maps missing evidence to withheld / evidence_missing', () => {
-      const opportunity = buildMinimalOpportunity({
+      const opportunity = buildSafeOpportunity({
         quoteHighlight: '',
         quoteRest: '',
+        groundingStatus: 'unsupported_blocked',
+        contextQuality: 'blocked',
+        preflightStatus: 'blocked',
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('withheld');
@@ -422,7 +552,7 @@ describe('held recovery producer characterization', () => {
     });
 
     it('maps blocked context to withheld / context_missing', () => {
-      const opportunity = buildMinimalOpportunity({
+      const opportunity = buildSafeOpportunity({
         contextQuality: 'blocked',
         preflightStatus: 'blocked',
       });
@@ -432,51 +562,83 @@ describe('held recovery producer characterization', () => {
     });
 
     it('maps canon conflict to withheld / canon_unclear', () => {
-      const opportunity = buildMinimalOpportunity({
+      const opportunity = buildSafeOpportunity({
         preflightReasons: ['canon_authority_blocked'],
       });
       const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CANON_UNCLEAR);
+      expect(classification.finalDecision.reasons).toEqual([BASE_DECISION_REASON.CANON_UNCLEAR]);
+    });
+  });
+
+  describe('E. optional-field representability', () => {
+    it('still classifies when optional fields are absent', () => {
+      const absent = withoutFields(
+        buildSafeOpportunity(),
+        'groundingStatus',
+        'contextQuality',
+        'preflightStatus',
+        'preflightReasons',
+        'hydrationFailureReasons',
+      );
+      const classification = classifyWorkbenchExecutabilityDetailed(absent);
+      expect(classification.finalDecision.cardType).toBe('withheld');
     });
 
-    it('maps missing diagnostic contract to withheld with diagnostic reasons', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
-        symptom: '',
-        cause: '',
-        fixDirection: '',
-        readerEffect: '',
+    it('still classifies when optional fields are explicitly undefined', () => {
+      const undefinedOptional = buildSafeOpportunity({
+        groundingStatus: undefined,
+        contextQuality: undefined,
+        preflightStatus: undefined,
+        preflightReasons: undefined,
+        hydrationFailureReasons: undefined,
       });
-      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      const classification = classifyWorkbenchExecutabilityDetailed(undefinedOptional);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons.some((r) => /diagnostic|integrity|strategy_admission/i.test(r))).toBe(true);
     });
 
-    it('maps failed candidate quality and strategy admission to withheld with candidate-quality reasons', () => {
-      const opportunity = buildMinimalOpportunity({
-        quoteHighlight: 'The night wind cut through the open window.',
-        quoteRest: '',
-        groundingStatus: 'supported',
-        contextQuality: 'clean',
-        preflightStatus: 'passed',
-        options: [
-          { key: 'A', mechanism: 'Bad', candidateText: '', text: '', rationale: '' },
-          { key: 'B', mechanism: 'Bad', candidateText: '', text: '', rationale: '' },
-          { key: 'C', mechanism: 'Bad', candidateText: '', text: '', rationale: '' },
-        ],
+    it('still classifies when optional fields are empty or malformed', () => {
+      const malformed = buildSafeOpportunity({
+        groundingStatus: '' as any,
+        contextQuality: '' as any,
+        preflightStatus: '' as any,
+        preflightReasons: ['', 'not_a_known_reason'] as any,
       });
-      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      const classification = classifyWorkbenchExecutabilityDetailed(malformed);
       expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(
-        classification.finalDecision.reasons.some((r) =>
-          /candidate|quality|strategy_admission|copy_paste_admission/i.test(r),
-        ),
-      ).toBe(true);
+    });
+
+    it('treats contradictory context/preflight states as the strongest block', () => {
+      const contradictory = buildSafeOpportunity({
+        contextQuality: 'clean',
+        preflightStatus: 'blocked',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(contradictory);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CONTEXT_MISSING);
+    });
+
+    it('treats missing source excerpt as withheld regardless of other safe fields', () => {
+      const missingExcerpt = withoutFields(buildSafeOpportunity(), 'quoteHighlight', 'quoteRest');
+      const classification = classifyWorkbenchExecutabilityDetailed(missingExcerpt);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.EVIDENCE_MISSING);
+    });
+
+    it('treats empty options as a candidate-quality failure', () => {
+      const missingOptions = withoutFields(buildSafeOpportunity(), 'options');
+      const classification = classifyWorkbenchExecutabilityDetailed(missingOptions);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.COPY_PASTE_ADMISSION_FAILED);
+    });
+
+    it('treats a placeholder coordinate as imprecise', () => {
+      const placeholderAnchor = buildSafeOpportunity({
+        anchor: 'evaluation_result:recommendation',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(placeholderAnchor);
+      expect(classification.finalDecision.cardType).toBe('revision_strategy');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.ANCHOR_NOT_PRECISE);
     });
   });
 });

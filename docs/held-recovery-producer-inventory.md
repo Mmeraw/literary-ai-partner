@@ -38,22 +38,35 @@ The layers are kept separate:
 
 ## 2. Classification producer
 
-### 2.1 `classifyWorkbenchExecutabilityDetailedCore` consumed fields
+### 2.1 Fields read directly by `classifyWorkbenchExecutabilityDetailedCore` and its helper gates
+
+These fields are accessed inside `classifyWorkbenchExecutabilityDetailedCore` or inside the admission gates it calls (`runCopyPasteAdmissionGate`, `runStrategyAdmissionGate`).
 
 | Workbench field | How it is consumed | Producer that owns the value |
 |---|---|---|
-| `quoteHighlight` + `quoteRest` | Concatenated into `sourceText` for `hasEvidence`, `passageLengthForExecutability`, and `copyPasteAdmission` context | `getWorkbenchQueue` / ledger hydration / recovery inputs |
-| `groundingStatus` | `evidenceAndDiagnosisSupported` is true only for `supported` or `supported_after_relook` | `lib/revision/workbenchQueue.ts` SLAE evidence matching / `opportunityLedger.ts` |
+| `quoteHighlight` + `quoteRest` | Concatenated into `sourceText` for `hasEvidence`, `passageLengthForExecutability`, `beforeAfterContextSufficient`, and `copyPasteAdmission` context (`beforeContext`/`afterContext`) | `getWorkbenchQueue` / ledger hydration / recovery inputs |
+| `groundingStatus` | `evidenceAndDiagnosisSupported` is true only for `supported` or `supported_after_relook`; feeds `contextPresent`, `diagnosisSupported`, `beforeAfterContextSufficient` | `lib/revision/workbenchQueue.ts` SLAE evidence matching / `opportunityLedger.ts` |
 | `contextQuality` | `hardContextBlock` is true when `contextQuality === 'blocked'`; `localContextVerified` requires `contextQuality === 'clean'` and `preflightStatus === 'passed'` | `lib/revision/opportunityLedger.ts` (`resolveReviseContextQuality`) |
 | `preflightStatus` | `hardContextBlock` is true when `preflightStatus === 'blocked'`; `localContextVerified` requires `preflightStatus === 'passed'` | `lib/revision/opportunityLedger.ts` (`applyReviseQueuePreflight`, `blockOpportunityByPreflight`) |
 | `preflightReasons` | Scanned for `canon_authority_blocked\|canon_conflict\|canon_drift\|testimony_fabrication` (`hardCanonConflict`), `voice\|pov\|metaphor\|canon` (`affectsPOVVoiceCanonMetaphor`), `ledger_conflict\|insufficient_anchor_grounding\|context_mismatch\|canon_conflict` (`ledgerConflictPossible`), and `canon_authority_blocked\|canon_conflict\|canon_drift` (`canonConflict`) | `lib/revision/opportunityLedger.ts` / `lib/revision/reviseAdmissionGate.ts` |
-| `anchor` | Passed to `hasPlaceholderCoordinates`; typed/untyped coordinate parsing feeds `resolveEvidenceLocationScope` | `lib/revision/opportunityLedger.ts` / `anchorContract.ts` |
-| `scope` | Used with `passageLengthForExecutability` to determine short/moderate/long; also influences `modeForScope` | `getWorkbenchQueue` / `lib/revision/opportunityLedger.ts` |
+| `anchor` | Passed to `hasPlaceholderCoordinates`; also used by `candidateInputsFromOpportunity` as `evidence_anchor` and by integrity as evidence | `lib/revision/opportunityLedger.ts` / `anchorContract.ts` |
+| `scope` | Used with `passageLengthForExecutability` to determine `short`/`moderate`/`long`; with `mode` drives `affectsSceneArchitecture`/`downstreamContinuityRisk` | `getWorkbenchQueue` / `lib/revision/opportunityLedger.ts` |
 | `mode` | `mode === 'repair-brief'` sets `affectsSceneArchitecture` and `downstreamContinuityRisk` | `resolveRepairScope` / `modeForScope` |
-| `revisionOperation` | `needs_targeting` disables `localOperation`; `replace_selected_passage` etc. are used to derive `localOperation` | `lib/revision/opportunityLedger.ts` / `reviseCardContract.ts` |
+| `revisionOperation` | `needs_targeting` disables `localOperation`; `replace_selected_passage` etc. imply a local operation | `lib/revision/opportunityLedger.ts` / `reviseCardContract.ts` |
 | `readiness` | `runStrategyAdmissionGate` relaxes checks when `readiness === 'needs_targeting'`; `needsTargeting` promotion can override `baseDecision` to `revision_strategy` | `lib/revision/opportunityLedger.ts` / `getWorkbenchQueue` |
-| `fixDirection`, `symptom`, `readerEffect`, `rationale` | Fed to `resolveRepairScope` to infer broader `Structural`/`Manuscript` scope | `getWorkbenchQueue` / `lib/revision/opportunityLedger.ts` |
+| `symptom`, `cause`, `fixDirection`, `readerEffect` | `runCopyPasteAdmissionGate` uses them for `diagnosticContractReasons`, `integrityReasons`, and `hasConcreteAction` | `lib/revision/reviseAdmissionGate.ts` |
 | `options` | `runCopyPasteAdmissionGate` evaluates each `candidateText`/`text` entry for quality, integrity, and voice/canon safety | `lib/revision/reviseAdmissionGate.ts` / `candidateQuality.ts` |
+
+#### 2.1a Fields resolved upstream before classification
+
+`getWorkbenchQueue` resolves these into `scope` and `mode` before calling `classifyWorkbenchExecutabilityDetailed`:
+
+| Workbench field | Resolved by | Output consumed by classifier |
+|---|---|---|
+| `fixDirection`, `symptom`, `readerEffect`, `rationale` | `resolveRepairScope` (alongside `scope` and `revisionOperation`) | `scope` / `mode` |
+| `anchor` / `manuscript_coordinates` | `resolveEvidenceLocationScope` | `scope` (and direct `anchor` check) |
+
+`hydrationFailureReasons` is **not** consumed by the classifier. It is used by the pre-classification support gate `isSupportedForUserQueue` in `lib/revision/workbenchQueueProjection.ts` to drop opportunities before classification.
 
 ### 2.2 `evaluateRecommendationExecutability` boolean inputs
 
@@ -72,6 +85,7 @@ The layers are kept separate:
 | `affectsPOVVoiceCanonMetaphor` | `preflightReasons` pattern match |
 | `downstreamContinuityRisk` | `opportunity.mode === 'repair-brief' \|\| opportunity.scope === 'Scene'` |
 | `voiceFingerprintStable` | `!hasReasonMatching(preflightReasons, /voice\|pov\|testimony_fabrication/)` |
+| `voiceFingerprintStable` | `!hasReasonMatching(preflightReasons, /voice\|pov\|testimony_fabrication/)` |
 | `localOperation` | `opportunity.mode === 'direct-rewrite' && opportunity.revisionOperation !== 'needs_targeting'` |
 | `passingCandidateCount` | `copyPasteAdmission.passedCandidateCount` |
 | `candidateProseNarrativeSafe` | `copyPasteAdmission.passed` |
@@ -83,9 +97,9 @@ The layers are kept separate:
 | `quoteHighlight` + `quoteRest` empty or `No excerpt available` | `withheld` | `evidence_missing` |
 | `contextQuality === 'blocked'` or `preflightStatus === 'blocked'` and no `needs_targeting` exception | `withheld` | `context_missing` |
 | `preflightReasons` contain `canon_authority_blocked\|canon_conflict\|canon_drift` | `withheld` | `canon_unclear` |
-| `diagnosis` fields empty / integrity gate fails strategy admission | `withheld` | `diagnosis_unsupported` / `strategy_admission_failed` + integrity reasons |
-| `options` all fail quality and strategy admission also fails | `withheld` | `copy_paste_admission_failed` / `fewer_than_two_candidates_passed_quality` / `strategy_admission_failed` |
-| `anchor` is a placeholder coordinate and copy-paste admission failed | `revision_strategy` | `anchor_not_precise` + other unsafe copy-paste reasons |
+| `symptom` / `cause` / `fixDirection` / `readerEffect` too short (`DIAGNOSTIC_CONTRACT_REASON` codes) or `INTEGRITY_VIOLATION_CODES` present in copy-paste admission | `withheld` | `diagnosis_unsupported` / `INTEGRITY_*` / `strategy_admission_failed` |
+| `options` all fail quality (`ADMISSION_CANDIDATE_QUALITY_REASON` or `INTEGRITY_VIOLATION_CODES`) and strategy admission also fails | `withheld` | `copy_paste_admission_failed` / `fewer_than_two_candidates_passed_quality` / `strategy_admission_failed` |
+| `anchor` is a placeholder coordinate (`hasPlaceholderCoordinates`) and copy-paste admission failed but strategy admission passes | `revision_strategy` | `anchor_not_precise` + other unsafe copy-paste reasons |
 | `scope` is `Chapter` / `Structural` / `Manuscript` and all safety gates pass | `revision_strategy` | `revision_strategy` (safe strategy scope) |
 | `readiness === 'needs_targeting'` and strategy admission passed | `revision_strategy` | strategy gate reasons (merged) |
 | All gates pass and candidates are safe | `copy_paste_rewrite` | `safe_local_copy_paste_rewrite` |
@@ -132,33 +146,9 @@ projection layer; the partition still re-checks `finalDecision.cardType`.
 | Grounding unsupported | `groundingStatus: 'unsupported_blocked'` | no | no explicit repair unless `adminRepairLabel` | source text + anchor | grounding becomes supported or reportable | sometimes | `isSupportedForUserQueue` |
 | Safe local copy-paste | `BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE` | N/A | terminal success, not a held state | N/A | N/A | N/A | `evaluateRecommendationExecutability` |
 
-## 5. Producer-to-recovery-action mapping (not yet implemented)
+## 5. Authority and safety notes
 
-This is a **draft contract** derived from the inventory above. It is the source of truth
-for the eventual `switch (\`${producer}:${code}\`)` dispatcher. No production code uses
-this mapping yet.
-
-| Producer | Code family | Recovery action | Deterministic? | Required inputs | Current encoding status |
-|---|---|---|---|---|---|
-| `grounding`, `preflight`, `hydration`, `base_decision` | `truncated_anchor`, `insufficient_anchor_grounding`, `evidence_missing`, `hydration_anchor_truncated`, `anchor_not_precise` | `resolve_anchor` / `expand_anchor` | yes, when `source_text` available | `source_text`, `evidence_anchor` | partial (`buildAnchorForSnippet`, `findHydrationChunkForAnchor`) |
-| `grounding`, `preflight`, `hydration`, `base_decision` | `context_missing`, `insufficient_before_after_context`, `hydration_context_not_found`, `limited_context_due_to_degraded_canon` | `retrieve_context` | yes | `source_text`, `manuscript_chunks`, `evidence_anchor` | partial (`findHydrationChunkForAnchor`) |
-| `integrity`, `copy_paste_admission`, `strategy_admission`, `base_decision` | `diagnostic_missing_*`, `integrity_*` | `repair_diagnosis` | no (LLM or author) | `rationale`, `symptom`, `cause`, `fix_direction`, `reader_effect` | absent |
-| `candidate_quality`, `preflight`, `copy_paste_admission`, `voice_gate`, `canon_gate` | `candidate_quality_*`, `candidate_noncompliant`, `candidate_low_diversity`, voice/canon drift | `regenerate_candidates` | no (LLM) | `evidence_anchor`, `rationale`, `manuscript_context`, `english_variant`, **existing `candidate_text_a/b/c`** (preserve authority) | partial (`candidateHydration.ts`, `candidateRegeneration.ts`) |
-| `strategy_admission`, `base_decision` | `strategy_admission_failed`, `unsupported_revision`, `missing_concrete_action` | `rerun_admission` / `reclassify` | mixed | full `WorkbenchOpportunity` / `RevisionOpportunity` | absent |
-| `final_decision` | any | `reclassify` | mixed | result of upstream repairs | absent |
-| any | `testimony_fabrication_risk`, `HARD_CANON_CONFLICT`, `HARD_CONTEXT_BLOCK`, `candidate_quality_failed_after_regen` | `no_action` | — | terminal `withheld` | absent (handled by classification) |
-
-## 6. Authority and safety notes
-
-- **`finalDecision.cardType` is the only partition authority.** No recovery handler may
-  write `cardType` directly. Recovery may only change canonical upstream inputs and
-  then let `classifyWorkbenchExecutabilityDetailed` recompute.
-- **Candidate A/B/C authority:** recovery must not regenerate `candidate_text_b/c`
-  merely because they are absent, and must not overwrite a persisted A/B/C trio.
-  Regeneration is only permitted when the source artifact is genuinely missing or
-  when a quality/canon/voice repair requires a new candidate set, in which case a
-  new source hash must be produced and persisted.
-- **Unknown producer/code pairs fail closed.** The eventual dispatcher must have no
-  generic repair `default` branch. Its `default` must return a terminal `withheld`
-  state with an `UNKNOWN_RECOVERY_CONTRACT` audit code and the original producer/code
-  preserved.
+- **`finalDecision.cardType` is the only partition authority.** `partitionClassifiedWorkbenchQueue` consumes only `finalDecision.cardType`.
+- `executabilityReasons` and `groundingNote` are **display copies** and must not be used for routing or recovery planning (see `HELD_REASON_SOURCE_REGISTRY`).
+- **`hydrationFailureReasons` gates classification, not the classifier.** `isSupportedForUserQueue` drops opportunities before `classifyWorkbenchExecutabilityDetailed` runs.
+- **Candidate A/B/C authority:** recovery must not regenerate `candidate_text_b/c` merely because they are absent, and must not overwrite a persisted A/B/C trio. A new source hash is required when authoritative inputs change.
