@@ -284,7 +284,6 @@ describe('buildRecoveryPlan contract properties', () => {
     expect(plan.unknownCanonicalReasons).toEqual([])
     expect(plan.requiredRepairs).toEqual([
       'expand_anchor',
-      'retrieve_context',
       're_ground',
       'repair_diagnosis',
       'regenerate_candidates',
