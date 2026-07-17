@@ -356,8 +356,9 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
   let result = text;
   for (const snapshot of byDesc) {
     result = result.slice(0, snapshot.start) + snapshot.replacement + result.slice(snapshot.end);
-    applied.push(snapshot.decision);
   }
+
+  applied.push(...snapshots.sort((a, b) => a.start - b.start).map((snapshot) => snapshot.decision));
 
   return { text: result, applied, blocked };
 }
