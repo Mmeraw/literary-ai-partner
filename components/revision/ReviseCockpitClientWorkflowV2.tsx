@@ -338,6 +338,9 @@ export default function ReviseCockpitClientWorkflowV2({ payload }: { payload: Wo
             undoneLocalId: null,
             metadata: {
               source: "workflow-revise-cockpit-v2",
+              sourceUedHash: item.sourceUedHash ?? null,
+              sourceOpportunityId: item.sourceOpportunityId ?? null,
+              sourceCriterion: item.sourceCriterion ?? null,
               revisionOperation: item.revisionOperation,
               criterion: criterionOf(item),
               severity: item.severity,

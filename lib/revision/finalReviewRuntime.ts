@@ -9,6 +9,13 @@ import {
   buildReviseCompletionCertification,
   type ReviseCompletionCertificationResult,
 } from "@/lib/revision/reviseCompletionCertification";
+import {
+  normalizeRevisionAuthorityComparison,
+  normalizeRevisionAuthorityText,
+  revisionCandidateIdentitiesBySlot,
+  revisionOpportunityVersion,
+  type RevisionCandidateSlot,
+} from "@/lib/revision/decisionAuthorityIdentity";
 
 export type FinalReviewExportFormat = "clean" | "marked" | "changelog";
 export type FinalReviewExportFile = "txt" | "pdf" | "docx";
@@ -27,7 +34,9 @@ type RuntimeContext = {
   sourceVersionId: string;
   sourceText: string;
   decisions: RuntimeDecision[];
+  decisionAuthorityConflicts: string[];
   queueSummary: RuntimeQueueSummary;
+  queueByOpportunityId: Map<string, RuntimeQueueOpportunity>;
 };
 
 type RuntimeQueueSummary = {
@@ -35,6 +44,20 @@ type RuntimeQueueSummary = {
   copyPasteCount: number;
   strategyCount: number;
   withheldBlockedCount: number;
+};
+
+type RuntimeQueueOpportunity = {
+  id: string;
+  cardType: string | null;
+  trustedPathStatus: string | null;
+  sourceExcerpt: string;
+  sourceLocation: string | null;
+  sourceUedHash: string | null;
+  sourceOpportunityId: string | null;
+  sourceCriterion: string | null;
+  optionTextByKey: Map<string, string>;
+  candidateHashByKey: Map<RevisionCandidateSlot, string>;
+  opportunityVersion: string;
 };
 
 type RuntimeDecision = {
@@ -75,6 +98,196 @@ function isPrivilegedRevisionViewer(user: { email?: string | null } | null | und
 function safeFilename(title: string, suffix: string, ext: string): string {
   const base = title.replace(/[^a-z0-9]+/gi, "-").toLowerCase().replace(/^-|-$/g, "").slice(0, 50) || "manuscript";
   return `revisiongrade-${base}-${suffix}.${ext}`;
+}
+
+function sourceTextOfQueueOpportunity(opportunity: {
+  quoteHighlight?: string | null;
+  quoteRest?: string | null;
+}): string {
+  return `${opportunity.quoteHighlight ?? ""}${opportunity.quoteRest ?? ""}`.trim();
+}
+
+function buildRuntimeQueueOpportunity(opportunity: {
+  id: string;
+  cardType?: string | null;
+  trustedPathStatus?: string | null;
+  quoteHighlight?: string | null;
+  quoteRest?: string | null;
+  anchor?: string | null;
+  sourceUedHash?: string | null;
+  sourceOpportunityId?: string | null;
+  sourceCriterion?: string | null;
+  options?: Array<{ key?: string | null; candidateText?: string | null; text?: string | null }>;
+}): RuntimeQueueOpportunity {
+  const optionTextByKey = new Map<string, string>();
+  for (const option of opportunity.options ?? []) {
+    const key = (option.key ?? "").trim().toUpperCase();
+    if (!key) continue;
+    const candidate = (option.candidateText ?? option.text ?? "").trim();
+    optionTextByKey.set(key, candidate);
+  }
+
+  const sourceExcerpt = sourceTextOfQueueOpportunity(opportunity);
+  const sourceLocation = typeof opportunity.anchor === "string" ? opportunity.anchor : null;
+  const sourceUedHash = typeof opportunity.sourceUedHash === "string" ? opportunity.sourceUedHash : null;
+  const sourceOpportunityId = typeof opportunity.sourceOpportunityId === "string" ? opportunity.sourceOpportunityId : null;
+  const sourceCriterion = typeof opportunity.sourceCriterion === "string" ? opportunity.sourceCriterion : null;
+  const cardType = typeof opportunity.cardType === "string" ? opportunity.cardType : null;
+  const trustedPathStatus = typeof opportunity.trustedPathStatus === "string" ? opportunity.trustedPathStatus : null;
+  const identityInput = {
+    id: opportunity.id,
+    sourceUedHash,
+    sourceOpportunityId,
+    sourceCriterion,
+    sourceExcerpt,
+    sourceLocation,
+    cardType,
+    trustedPathStatus,
+    options: opportunity.options,
+  };
+
+  return {
+    id: opportunity.id,
+    cardType,
+    trustedPathStatus,
+    sourceExcerpt,
+    sourceLocation,
+    sourceUedHash,
+    sourceOpportunityId,
+    sourceCriterion,
+    optionTextByKey,
+    candidateHashByKey: revisionCandidateIdentitiesBySlot(identityInput),
+    opportunityVersion: revisionOpportunityVersion(identityInput),
+  };
+}
+
+function detectDecisionAuthorityConflicts(rows: RuntimeDecision[]): string[] {
+  const conflicts: string[] = [];
+  const byOpportunity = new Map<string, RuntimeDecision[]>();
+
+  for (const row of rows) {
+    const bucket = byOpportunity.get(row.opportunity_id) ?? [];
+    bucket.push(row);
+    byOpportunity.set(row.opportunity_id, bucket);
+  }
+
+  for (const [opportunityId, entries] of byOpportunity) {
+    if (entries.length < 2) continue;
+    const maxCreatedAt = entries.reduce((latest, entry) => (entry.created_at > latest ? entry.created_at : latest), entries[0]?.created_at ?? "");
+    const latestRows = entries.filter((entry) => entry.created_at === maxCreatedAt);
+    if (latestRows.length > 1) {
+      conflicts.push(
+        `Opportunity ${opportunityId} has ${latestRows.length} concurrent latest decisions at ${maxCreatedAt}; manual ledger reconciliation required before Final Review.`,
+      );
+    }
+  }
+
+  return conflicts;
+}
+
+function metadataValueAsString(metadata: Record<string, unknown> | null | undefined, key: string): string | null {
+  const raw = metadata?.[key];
+  return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
+}
+
+function metadataCandidateSlot(metadata: Record<string, unknown> | null | undefined): RevisionCandidateSlot | null {
+  const slot = metadataValueAsString(metadata, "candidateSlot")?.toUpperCase();
+  return slot === "A" || slot === "B" || slot === "C" ? slot : null;
+}
+
+function validateDecisionAgainstAuthority(ctx: RuntimeContext, decision: RuntimeDecision): string | null {
+  const queueOpportunity = ctx.queueByOpportunityId.get(decision.opportunity_id);
+  if (!queueOpportunity) {
+    return `${decision.opportunity_title}: opportunity missing from authoritative copy-paste queue.`;
+  }
+
+  if (queueOpportunity.cardType !== "copy_paste_rewrite" || queueOpportunity.trustedPathStatus !== "eligible") {
+    return `${decision.opportunity_title}: opportunity is no longer TrustedPath-eligible for copy-paste apply.`;
+  }
+
+  const decisionOpportunityVersion = metadataValueAsString(decision.metadata, "opportunityVersion");
+  if (!decisionOpportunityVersion) {
+    return `${decision.opportunity_title}: decision is missing authoritative opportunityVersion; Final Review cannot prove opportunity-version identity.`;
+  }
+  if (decisionOpportunityVersion !== queueOpportunity.opportunityVersion) {
+    return `${decision.opportunity_title}: opportunity version mismatch; decision was saved against a stale persisted opportunity version.`;
+  }
+
+  if (decision.decision === "accepted_a" || decision.decision === "accepted_b" || decision.decision === "accepted_c") {
+    const selectedOption = (decision.selected_option ?? "").trim().toUpperCase();
+    if (selectedOption !== "A" && selectedOption !== "B" && selectedOption !== "C") {
+      return `${decision.opportunity_title}: accepted decision is missing selected option.`;
+    }
+
+    const candidateSlot = metadataCandidateSlot(decision.metadata);
+    if (!candidateSlot) {
+      return `${decision.opportunity_title}: accepted decision is missing authoritative candidateSlot.`;
+    }
+    if (candidateSlot !== selectedOption) {
+      return `${decision.opportunity_title}: candidateSlot ${candidateSlot} does not match selected option ${selectedOption}.`;
+    }
+
+    const authoritativeCandidate = queueOpportunity.optionTextByKey.get(selectedOption) ?? "";
+    if (!authoritativeCandidate.trim()) {
+      return `${decision.opportunity_title}: authoritative candidate ${selectedOption} is missing in the current persisted opportunity.`;
+    }
+
+    const decisionCandidateHash = metadataValueAsString(decision.metadata, "candidateHash");
+    if (!decisionCandidateHash) {
+      return `${decision.opportunity_title}: accepted decision is missing authoritative candidateHash.`;
+    }
+    const authoritativeCandidateHash = queueOpportunity.candidateHashByKey.get(selectedOption);
+    if (!authoritativeCandidateHash) {
+      return `${decision.opportunity_title}: authoritative candidateHash for slot ${selectedOption} is missing in the current persisted opportunity.`;
+    }
+    if (decisionCandidateHash !== authoritativeCandidateHash) {
+      return `${decision.opportunity_title}: candidate identity mismatch for slot ${selectedOption}; decision was saved against a stale candidate set.`;
+    }
+
+    if (normalizeRevisionAuthorityComparison(decision.selected_text) !== normalizeRevisionAuthorityComparison(authoritativeCandidate)) {
+      return `${decision.opportunity_title}: selected text diagnostic mismatch for authoritative candidate ${selectedOption}; candidate identity matched but persisted replacement text differs.`;
+    }
+  }
+
+  const authoritativeExcerpt = queueOpportunity.sourceExcerpt;
+  if (!authoritativeExcerpt) {
+    return `${decision.opportunity_title}: authoritative source excerpt is missing for apply identity validation.`;
+  }
+
+  if (normalizeRevisionAuthorityComparison(decision.source_excerpt) !== normalizeRevisionAuthorityComparison(authoritativeExcerpt)) {
+    return `${decision.opportunity_title}: source identity mismatch (decision excerpt no longer matches authoritative opportunity excerpt).`;
+  }
+
+  if (normalizeRevisionAuthorityComparison(decision.source_location) !== normalizeRevisionAuthorityComparison(queueOpportunity.sourceLocation)) {
+    return `${decision.opportunity_title}: source identity mismatch (decision location no longer matches authoritative opportunity location).`;
+  }
+
+  const decisionSourceUedHash = metadataValueAsString(decision.metadata, "sourceUedHash");
+  if (decisionSourceUedHash && queueOpportunity.sourceUedHash && decisionSourceUedHash !== queueOpportunity.sourceUedHash) {
+    return `${decision.opportunity_title}: source identity mismatch (decision sourceUedHash differs from authoritative persisted opportunity).`;
+  }
+
+  const decisionSourceOpportunityId = metadataValueAsString(decision.metadata, "sourceOpportunityId");
+  if (decisionSourceOpportunityId && queueOpportunity.sourceOpportunityId && decisionSourceOpportunityId !== queueOpportunity.sourceOpportunityId) {
+    return `${decision.opportunity_title}: source identity mismatch (decision sourceOpportunityId differs from authoritative persisted opportunity).`;
+  }
+
+  const decisionSourceCriterion = metadataValueAsString(decision.metadata, "sourceCriterion");
+  if (decisionSourceCriterion && queueOpportunity.sourceCriterion && normalizeRevisionAuthorityComparison(decisionSourceCriterion) !== normalizeRevisionAuthorityComparison(queueOpportunity.sourceCriterion)) {
+    return `${decision.opportunity_title}: source identity mismatch (decision sourceCriterion differs from authoritative persisted opportunity).`;
+  }
+
+  const decisionCardType = metadataValueAsString(decision.metadata, "cardType");
+  if (decisionCardType && queueOpportunity.cardType && decisionCardType !== queueOpportunity.cardType) {
+    return `${decision.opportunity_title}: stale decision metadata (cardType changed since decision sync).`;
+  }
+
+  const decisionTrustedPathStatus = metadataValueAsString(decision.metadata, "trustedPathStatus");
+  if (decisionTrustedPathStatus && queueOpportunity.trustedPathStatus && decisionTrustedPathStatus !== queueOpportunity.trustedPathStatus) {
+    return `${decision.opportunity_title}: stale decision metadata (trustedPathStatus changed since decision sync).`;
+  }
+
+  return null;
 }
 
 async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<RuntimeContext> {
@@ -134,6 +347,8 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
 
   if (ledgerError) throw new Error(ledgerError.message);
 
+  const decisionAuthorityConflicts = detectDecisionAuthorityConflicts((rows ?? []) as RuntimeDecision[]);
+
   const latestByOpportunity = new Map<string, RuntimeDecision>();
   for (const row of (rows ?? []) as RuntimeDecision[]) {
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
@@ -154,6 +369,12 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
   if (!queuePayload.ok) throw new Error(queuePayload.error ?? "Revise Queue unavailable for completion certification.");
 
   const copyPasteOpportunityIds = new Set(queuePayload.opportunities.map((opportunity) => opportunity.id));
+  const queueByOpportunityId = new Map(
+    queuePayload.opportunities.map((opportunity) => [
+      opportunity.id,
+      buildRuntimeQueueOpportunity(opportunity),
+    ]),
+  );
   const strategyCount = queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType === "revision_strategy").length;
   const withheldBlockedCount = queuePayload.withheldUnsupported.length + queuePayload.needsTargeting.filter((opportunity) => opportunity.cardType !== "revision_strategy").length;
 
@@ -166,12 +387,14 @@ async function loadRuntimeContext(input: FinalReviewRuntimeInput): Promise<Runti
     sourceVersionId: job.manuscript_version_id,
     sourceText,
     decisions: [...latestByOpportunity.values()],
+    decisionAuthorityConflicts,
     queueSummary: {
       copyPasteOpportunityIds,
       copyPasteCount: copyPasteOpportunityIds.size,
       strategyCount,
       withheldBlockedCount,
     },
+    queueByOpportunityId,
   };
 }
 
@@ -294,7 +517,7 @@ type AnchoredSnapshot = {
 function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: RuntimeDecision[]; blocked: string[] } {
   const text = scrubInternalReportLeakage(ctx.sourceText);
   const applied: RuntimeDecision[] = [];
-  const blocked: string[] = [];
+  const blocked: string[] = [...ctx.decisionAuthorityConflicts];
 
   if (!text.trim()) {
     return { text: "", applied, blocked: ["Full manuscript source text is unavailable for this legacy evaluation."] };
@@ -317,6 +540,12 @@ function applyTextSnapshots(ctx: RuntimeContext): { text: string; applied: Runti
   const snapshots: AnchoredSnapshot[] = [];
 
   for (const decision of decisions) {
+    const authorityViolation = validateDecisionAgainstAuthority(ctx, decision);
+    if (authorityViolation) {
+      blocked.push(authorityViolation);
+      continue;
+    }
+
     if (seenIds.has(decision.id)) {
       blocked.push(`${decision.opportunity_title}: duplicate decision id ${decision.id}`);
       continue;
