@@ -220,6 +220,80 @@ describe('buildRecoveryPlan contract properties', () => {
     expect(JSON.stringify(input)).toBe(before)
   })
 
+  it('does not mutate a deeply frozen nested input and preserves nested references', () => {
+    function deepFreeze<T>(obj: T): T {
+      if (obj === null || typeof obj !== 'object') return obj
+      if (Object.isFrozen(obj)) return obj
+      Object.freeze(obj)
+      if (Array.isArray(obj)) {
+        obj.forEach(deepFreeze)
+      } else {
+        Object.values(obj as Record<string, unknown>).forEach(deepFreeze)
+      }
+      return obj
+    }
+
+    const input = deepFreeze<HeldOpportunityInput>({
+      id: 'deep-frozen-1',
+      groundingStatus: 'uncertain_after_relook_reportable',
+      contextQuality: 'limited',
+      preflightStatus: 'blocked',
+      preflightReasons: ['truncated_anchor', 'hydration_context_not_found'],
+      hydrationFailureReasons: ['hydration_anchor_truncated'],
+      resBlockerReasons: ['insufficient_anchor_grounding'],
+      copyPasteAdmissionReasons: ['TOO_SHORT'],
+      strategyAdmissionReasons: ['EVIDENCE_MISSING'],
+      baseDecision: { cardType: 'copy_paste_rewrite', reasons: ['ledger_conflict_possible'] },
+      finalDecision: { cardType: 'copy_paste_rewrite', reasons: ['safe_local_copy_paste_rewrite'] },
+      executabilityReasons: ['context_missing'],
+      groundingNote: 'Grounding annotation',
+    })
+
+    const beforeJson = JSON.stringify(input)
+    const originalFinalDecision = input.finalDecision
+    const originalBaseDecision = input.baseDecision
+    const originalArrays = {
+      preflight: input.preflightReasons,
+      hydration: input.hydrationFailureReasons,
+      res: input.resBlockerReasons,
+      copyPaste: input.copyPasteAdmissionReasons,
+      strategy: input.strategyAdmissionReasons,
+      baseReasons: input.baseDecision?.reasons,
+      finalReasons: input.finalDecision?.reasons,
+      executability: input.executabilityReasons,
+    }
+
+    const plan = buildRecoveryPlan(input)
+
+    expect(input.finalDecision).toBe(originalFinalDecision)
+    expect(input.baseDecision).toBe(originalBaseDecision)
+    expect(input.preflightReasons).toBe(originalArrays.preflight)
+    expect(input.hydrationFailureReasons).toBe(originalArrays.hydration)
+    expect(input.resBlockerReasons).toBe(originalArrays.res)
+    expect(input.copyPasteAdmissionReasons).toBe(originalArrays.copyPaste)
+    expect(input.strategyAdmissionReasons).toBe(originalArrays.strategy)
+    expect(input.baseDecision?.reasons).toBe(originalArrays.baseReasons)
+    expect(input.finalDecision?.reasons).toBe(originalArrays.finalReasons)
+    expect(input.executabilityReasons).toBe(originalArrays.executability)
+    expect(JSON.stringify(input)).toBe(beforeJson)
+
+    expect(plan.opportunityId).toBe('deep-frozen-1')
+    expect(plan.recoverable).toBe(true)
+    expect(plan.automaticRecoveryAllowed).toBe(true)
+    expect(plan.hardBlockers).toEqual([])
+    expect(plan.unknownCanonicalReasons).toEqual([])
+    expect(plan.requiredRepairs).toEqual([
+      'expand_anchor',
+      'retrieve_context',
+      're_ground',
+      'repair_diagnosis',
+      'regenerate_candidates',
+      'rerun_admission',
+      'reclassify',
+    ])
+    expect(plan.expectedTerminalOutcomes).toContain('copy_paste_rewrite')
+  })
+
   it('returns an identical plan for identical input (deterministic)', () => {
     const input = heldFixture('idempotent-test', {
       finalDecision: {
