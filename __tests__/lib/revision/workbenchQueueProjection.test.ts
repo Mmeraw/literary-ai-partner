@@ -2,16 +2,15 @@ import {
   resolveEvidenceLocationScope,
   resolveRepairScope,
   modeForScope,
-  hasPlaceholderCoordinates,
   passageLengthForExecutability,
   classifyWorkbenchExecutability,
   classifyWorkbenchExecutabilityDetailed,
+  buildClassifiedWorkbenchOpportunity,
+  partitionClassifiedWorkbenchQueue,
   partitionWorkbenchQueue,
   buildStrategyCardViewModel,
 } from '@/lib/revision/workbenchQueueProjection';
-import type { WorkbenchOpportunity, WorkbenchScope, WorkbenchMode } from '@/lib/revision/workbenchQueue';
-
-type MinimalOpportunity = Omit<WorkbenchOpportunity, 'id' | 'severity' | 'scope' | 'mode' | 'source' | 'criterion' | 'leverage' | 'crumb' | 'title' | 'issueStatement' | 'meta' | 'confidence' | 'anchor' | 'quoteHighlight' | 'quoteRest' | 'symptom' | 'cause' | 'fixDirection' | 'readerEffect' | 'mistakeProofing' | 'diagnostic' | 'revisionOperation' | 'readiness' | 'readinessReason' | 'options'> & Partial<WorkbenchOpportunity>;
+import type { WorkbenchOpportunity } from '@/lib/revision/workbenchQueue';
 
 function makeOpportunity(overrides: Partial<WorkbenchOpportunity> = {}): WorkbenchOpportunity {
   return {
@@ -331,6 +330,25 @@ describe('workbenchQueueProjection classifyWorkbenchExecutability', () => {
     expect(result.needsTargetingOverrideApplied).toBe(true);
   });
 
+  it('builds a classified projection that preserves finalDecision through downstream card shaping', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    });
+
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+    const classified = buildClassifiedWorkbenchOpportunity(opportunity, classification);
+
+    expect(classified.classification).toBe(classification);
+    expect(classified.baseDecision).toBe(classification.baseDecision);
+    expect(classified.finalDecision).toBe(classification.finalDecision);
+    expect(classified.cardType).toBe(classification.finalDecision.cardType);
+    expect(classified.trustedPathStatus).toBe(classification.finalDecision.trustedPathStatus);
+    expect(classified.executabilityReasons).toEqual(classification.finalDecision.reasons);
+  });
+
   it('records downgrade_prevented when strategy admission would fail without the needs_targeting relaxation', () => {
     const opportunity = makeOpportunity({
       readiness: 'needs_targeting',
@@ -348,41 +366,47 @@ describe('workbenchQueueProjection classifyWorkbenchExecutability', () => {
 });
 
 describe('workbenchQueueProjection partitionWorkbenchQueue', () => {
-  it('uses cardType as terminal queue authority', () => {
-    const copyPaste = makeOpportunity({
-      id: 'copy',
-      cardType: 'copy_paste_rewrite',
-      trustedPathStatus: 'eligible',
-      contextQuality: 'clean',
-      preflightStatus: 'passed',
-      groundingStatus: 'supported',
-      options: [candidate('A'), candidate('B'), candidate('C')],
-    });
-    const strategy = makeOpportunity({
-      id: 'strategy',
-      cardType: 'revision_strategy',
-      trustedPathStatus: 'unavailable_author_review_required',
-      readiness: 'ready_for_revise',
-      contextQuality: 'limited',
-      preflightStatus: 'limited_context',
-      groundingStatus: 'supported',
-      options: [candidate('A'), candidate('B'), candidate('C')],
-    });
-    const withheldNeedsTargeting = makeOpportunity({
-      id: 'withheld-needs',
+  it('routes by finalDecision.cardType even when the raw cardType is stale', () => {
+    const opportunity = makeOpportunity({
+      id: 'stale-card-type',
       cardType: 'withheld',
       trustedPathStatus: 'impossible',
       readiness: 'needs_targeting',
-      contextQuality: 'clean',
-      preflightStatus: 'passed',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
       groundingStatus: 'supported',
-      options: [candidate('A'), candidate('B'), candidate('C')],
-    });
+    }) as WorkbenchOpportunity & {
+      finalDecision: { cardType: 'revision_strategy'; trustedPathStatus: 'unavailable_author_review_required'; reasons: string[] }
+    }
 
-    const result = partitionWorkbenchQueue([copyPaste, strategy, withheldNeedsTargeting]);
-    expect(result.opportunities.map((o) => o.id)).toEqual(['copy']);
-    expect(result.needsTargeting.map((o) => o.id)).toEqual(['strategy']);
-    expect(result.withheldUnsupported.map((o) => o.id)).toEqual(['withheld-needs']);
+    opportunity.finalDecision = {
+      cardType: 'revision_strategy',
+      trustedPathStatus: 'unavailable_author_review_required',
+      reasons: ['stale_card_type_override'],
+    }
+
+    const result = partitionClassifiedWorkbenchQueue([opportunity])
+    expect(result.opportunities).toHaveLength(0)
+    expect(result.needsTargeting.map((o) => o.id)).toEqual(['stale-card-type'])
+    expect(result.withheldUnsupported).toHaveLength(0)
+  });
+
+  it('keeps the legacy wrapper available for unclassified compatibility inputs', () => {
+    const rawOpportunity = makeOpportunity({
+      id: 'legacy-wrapper',
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: [
+        candidate('The river moved under the pilings while Cliff counted each hazard aloud before they crossed.', 'A'),
+        candidate('Mike gripped the rail and waited for Cliff to name the cost of waiting.', 'B'),
+        candidate('They watched the current break around the supports before choosing to move now.', 'C'),
+      ],
+    })
+    const classified = buildClassifiedWorkbenchOpportunity(rawOpportunity, classifyWorkbenchExecutabilityDetailed(rawOpportunity))
+
+    expect(partitionWorkbenchQueue([rawOpportunity])).toEqual(partitionClassifiedWorkbenchQueue([classified]))
   });
 
   it('never places one opportunity in more than one terminal bucket', () => {

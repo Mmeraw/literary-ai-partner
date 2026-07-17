@@ -9,6 +9,7 @@
 
 import type { WorkbenchOpportunity, WorkbenchQueuePayload, WorkbenchScope } from './workbenchQueue'
 import {
+  buildClassifiedWorkbenchOpportunity,
   classifyWorkbenchExecutabilityDetailedWithoutNeedsTargeting,
   type WorkbenchExecutabilityClassification,
 } from './workbenchQueueProjection'
@@ -390,13 +391,19 @@ function collectClassificationInputCollections(
 
 function collectPresentationBoundary(
   opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification,
 ): {
   withheldAdapterInput: string[]
   withheldAdapterOutput: string[]
   strategyUnsafeReasonsInput: string[]
   strategyUnsafeReasonsOutput: string[]
 } {
-  const card = adaptWorkbenchOpportunityToCard(opportunity)
+  const classified = buildClassifiedWorkbenchOpportunity(opportunity, classification)
+  const card = adaptWorkbenchOpportunityToCard({
+    ...classified,
+    strategyCardViewModel:
+      opportunity.strategyCardViewModel ?? classified.strategyCardViewModel,
+  })
 
   if (card.cardType === 'withheld') {
     const withheldAdapterInput = [
@@ -501,7 +508,7 @@ export function analyzeDiagnosticDuplication(
   )
 
   // Presentation boundary: exact real adapter inputs and real adapter outputs.
-  const presentationBoundary = collectPresentationBoundary(opportunity)
+  const presentationBoundary = collectPresentationBoundary(opportunity, classification)
 
   occurrences.push(
     ...collectOccurrences(
@@ -657,7 +664,7 @@ export function buildWorkbenchOpportunityTelemetry(
 ): WorkbenchOpportunityTelemetry {
   const classificationWithEffect = classifyNeedsTargetingEffect(opportunity, classification)
   const executabilityReasons = classification.finalDecision.reasons
-  const presentationBoundary = collectPresentationBoundary(opportunity)
+  const presentationBoundary = collectPresentationBoundary(opportunity, classification)
 
   return {
     opportunityId: opportunity.id,

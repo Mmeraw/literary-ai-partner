@@ -163,7 +163,7 @@ function inferBroadRepairScope(haystack: string): 'Structural' | 'Manuscript' | 
   }
 
   const broadNouns =
-    '(?:scenes?|chapters?|subplot|arcs?|thread|threads|sequence|sequences|multiple\s+scenes|multiple\s+chapters|whole\s+(?:book|manuscript|chapter|scene)|later\s+scenes?|later\s+chapters?|later\s+passages?)'
+    '(?:scenes?|chapters?|subplot|arcs?|thread|threads|sequence|sequences|multiple\\s+scenes|multiple\\s+chapters|whole\\s+(?:book|manuscript|chapter|scene)|later\\s+scenes?|later\\s+chapters?|later\\s+passages?)'
 
   if (new RegExp(`\\b(?:move|shift|spread|transfer)\\s+(?:across|throughout|later|into|between|to\\s+(?:the\\s+)?(?:later|other)|to\\s+later\\s+(?:scenes?|chapters?))`, 'i').test(h)) {
     return 'Structural'
@@ -248,14 +248,14 @@ function isLocalContextVerified(opportunity: WorkbenchOpportunity): boolean {
 export type WorkbenchExecutabilityClassification = {
   cardType: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld'
   trustedPathStatus: 'eligible' | 'unavailable_author_review_required' | 'impossible'
-  reasons: string[]
+  reasons: readonly string[]
   strategyCardViewModel: StrategyCardViewModel | null
   copyPasteAdmissionPassed: boolean
   copyPasteAdmissionReasons: string[]
   strategyAdmissionPassed: boolean
   strategyAdmissionReasons: string[]
-  baseDecision: RecommendationExecutabilityDecision
-  finalDecision: RecommendationExecutabilityDecision
+  baseDecision: Readonly<RecommendationExecutabilityDecision>
+  finalDecision: Readonly<RecommendationExecutabilityDecision>
   needsTargetingPromotionApplied: boolean
   promotionTransitionReason: string | null
   gates: {
@@ -265,15 +265,21 @@ export type WorkbenchExecutabilityClassification = {
   needsTargetingOverrideApplied: boolean
 }
 
+export type ClassifiedWorkbenchOpportunity = WorkbenchOpportunity & {
+  classification: WorkbenchExecutabilityClassification
+  baseDecision: Readonly<RecommendationExecutabilityDecision>
+  finalDecision: Readonly<RecommendationExecutabilityDecision>
+}
+
 function buildRecommendationExecutabilityDecision(
   executability: ReturnType<typeof evaluateRecommendationExecutability>,
-  copyPasteAdmission: AdmissionGateResult,
-  strategyAdmission: AdmissionGateResult,
+  _copyPasteAdmission: AdmissionGateResult,
+  _strategyAdmission: AdmissionGateResult,
 ): RecommendationExecutabilityDecision {
   return {
     cardType: executability.cardType,
     trustedPathStatus: executability.trustedPathStatus,
-    reasons: executability.reasons,
+    reasons: [...executability.reasons],
   }
 }
 
@@ -359,6 +365,7 @@ function classifyWorkbenchExecutabilityDetailedCore(
   let needsTargetingPromotionApplied = false
   let promotionTransitionReason: string | null = null
   let needsTargetingOverrideApplied = false
+  let finalExecutability = executability
   if (
     options.needsTargetingExceptionEnabled &&
     opportunity.readiness === 'needs_targeting' &&
@@ -378,18 +385,21 @@ function classifyWorkbenchExecutabilityDetailedCore(
       promotionTransitionReason =
         "readiness === 'needs_targeting' and strategy admission passed; base executability was not copy_paste_rewrite, override applied"
     }
-    executability.cardType = 'revision_strategy'
-    executability.trustedPathStatus = 'unavailable_author_review_required'
-    executability.reasons = Array.from(
-      new Set([
-        ...strategyAdmission.reasons,
-        ...copyPasteAdmission.reasons,
-      ]),
-    )
+    finalExecutability = {
+      ...executability,
+      cardType: 'revision_strategy',
+      trustedPathStatus: 'unavailable_author_review_required',
+      reasons: Array.from(
+        new Set([
+          ...strategyAdmission.reasons,
+          ...copyPasteAdmission.reasons,
+        ]),
+      ),
+    }
   }
 
   const finalDecision = buildRecommendationExecutabilityDecision(
-    executability,
+    finalExecutability,
     copyPasteAdmission,
     strategyAdmission,
   )
@@ -400,14 +410,14 @@ function classifyWorkbenchExecutabilityDetailedCore(
     baseDecision.cardType === 'withheld' && finalDecision.cardType === 'revision_strategy'
 
   let strategyCardViewModel: StrategyCardViewModel | null = null
-  if (executability.cardType === 'revision_strategy') {
-    strategyCardViewModel = buildStrategyCardViewModel(opportunity, executability)
+  if (finalDecision.cardType === 'revision_strategy') {
+    strategyCardViewModel = buildStrategyCardViewModel(opportunity, finalDecision)
   }
 
   return {
-    cardType: executability.cardType,
-    trustedPathStatus: executability.trustedPathStatus,
-    reasons: executability.reasons,
+    cardType: finalDecision.cardType,
+    trustedPathStatus: finalDecision.trustedPathStatus,
+    reasons: finalDecision.reasons,
     strategyCardViewModel,
     copyPasteAdmissionPassed: copyPasteAdmission.passed,
     copyPasteAdmissionReasons: copyPasteAdmission.reasons,
@@ -453,6 +463,22 @@ export function classifyWorkbenchExecutability(
     copyPasteAdmissionReasons: detailed.copyPasteAdmissionReasons,
     strategyAdmissionPassed: detailed.strategyAdmissionPassed,
     strategyAdmissionReasons: detailed.strategyAdmissionReasons,
+  }
+}
+
+export function buildClassifiedWorkbenchOpportunity(
+  opportunity: WorkbenchOpportunity,
+  classification: WorkbenchExecutabilityClassification = classifyWorkbenchExecutabilityDetailed(opportunity),
+): ClassifiedWorkbenchOpportunity {
+  return {
+    ...opportunity,
+    cardType: classification.finalDecision.cardType,
+    trustedPathStatus: classification.finalDecision.trustedPathStatus,
+    executabilityReasons: [...classification.finalDecision.reasons],
+    strategyCardViewModel: classification.strategyCardViewModel,
+    classification,
+    baseDecision: classification.baseDecision,
+    finalDecision: classification.finalDecision,
   }
 }
 
@@ -572,27 +598,25 @@ export function isSupportedForUserQueue(opportunity: WorkbenchOpportunity): bool
   return true
 }
 
-export function partitionWorkbenchQueue(opportunities: WorkbenchOpportunity[]): {
-  opportunities: WorkbenchOpportunity[]
-  needsTargeting: WorkbenchOpportunity[]
-  withheldUnsupported: WorkbenchOpportunity[]
+export function partitionClassifiedWorkbenchQueue(
+  opportunities: ClassifiedWorkbenchOpportunity[],
+): {
+  opportunities: ClassifiedWorkbenchOpportunity[]
+  needsTargeting: ClassifiedWorkbenchOpportunity[]
+  withheldUnsupported: ClassifiedWorkbenchOpportunity[]
   readinessTotals: { ready_for_revise: number; needs_targeting: number; withheld_unsupported: number }
   totals: Record<WorkbenchSeverity, number>
   scopes: Record<WorkbenchScope, number>
   criteria: Record<string, number>
 } {
-  // cardType is the terminal queue authority. Readiness may participate in
-  // classification, but it must never override the final card contract.
-  const supportedCopyPaste = opportunities.filter(
-    (o) =>
-      o.cardType === 'copy_paste_rewrite' &&
-      isSupportedForUserQueue(o) &&
-      o.trustedPathStatus === 'eligible',
-  )
+  // finalDecision.cardType is the terminal queue authority. Readiness may
+  // participate in classification, but it must never override the final card
+  // contract once classification has occurred.
+  const terminalCardType = (opportunity: ClassifiedWorkbenchOpportunity) => opportunity.finalDecision.cardType
 
-  const supportedStrategies = opportunities.filter(
-    (o) => o.cardType === 'revision_strategy' && isSupportedForUserQueue(o),
-  )
+  const supportedCopyPaste = opportunities.filter((o) => terminalCardType(o) === 'copy_paste_rewrite')
+
+  const supportedStrategies = opportunities.filter((o) => terminalCardType(o) === 'revision_strategy')
 
   const activeIds = new Set([
     ...supportedCopyPaste.map((o) => o.id),
@@ -600,7 +624,7 @@ export function partitionWorkbenchQueue(opportunities: WorkbenchOpportunity[]): 
   ])
 
   const withheldUnsupported = opportunities.filter(
-    (o) => o.cardType === 'withheld' || !activeIds.has(o.id),
+    (o) => terminalCardType(o) === 'withheld' || !activeIds.has(o.id),
   )
 
   const totals: Record<WorkbenchSeverity, number> = { must: 0, should: 0, could: 0 }
@@ -633,4 +657,18 @@ export function partitionWorkbenchQueue(opportunities: WorkbenchOpportunity[]): 
     scopes,
     criteria,
   }
+}
+
+export function partitionWorkbenchQueue(opportunities: WorkbenchOpportunity[]): {
+  opportunities: ClassifiedWorkbenchOpportunity[]
+  needsTargeting: ClassifiedWorkbenchOpportunity[]
+  withheldUnsupported: ClassifiedWorkbenchOpportunity[]
+  readinessTotals: { ready_for_revise: number; needs_targeting: number; withheld_unsupported: number }
+  totals: Record<WorkbenchSeverity, number>
+  scopes: Record<WorkbenchScope, number>
+  criteria: Record<string, number>
+} {
+  return partitionClassifiedWorkbenchQueue(
+    opportunities.map((opportunity) => buildClassifiedWorkbenchOpportunity(opportunity)),
+  )
 }

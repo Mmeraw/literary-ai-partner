@@ -1,4 +1,4 @@
-import type { WorkbenchOpportunity } from '@/lib/revision/workbenchQueue';
+import type { ClassifiedWorkbenchOpportunity } from '@/lib/revision/workbenchQueueProjection';
 import type {
   CopyPasteCandidate,
   CopyPasteCardViewModel,
@@ -13,17 +13,17 @@ function normalize(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim();
 }
 
-function sourceTextOf(item: WorkbenchOpportunity): string {
+function sourceTextOf(item: ClassifiedWorkbenchOpportunity): string {
   const text = `${item.quoteHighlight ?? ''}${item.quoteRest ?? ''}`.trim();
   return /no excerpt available/i.test(text) ? '' : text;
 }
 
-function optionText(item: WorkbenchOpportunity, key: 'A' | 'B' | 'C'): string {
+function optionText(item: ClassifiedWorkbenchOpportunity, key: 'A' | 'B' | 'C'): string {
   const option = item.options.find((candidate) => candidate.key === key);
   return normalize(option?.candidateText ?? option?.text);
 }
 
-function copyPasteCandidate(item: WorkbenchOpportunity, key: 'A' | 'B' | 'C'): CopyPasteCandidate {
+function copyPasteCandidate(item: ClassifiedWorkbenchOpportunity, key: 'A' | 'B' | 'C'): CopyPasteCandidate {
   const option = item.options.find((candidate) => candidate.key === key);
   const defaultLabel = key === 'A' ? 'Recommended repair' : key === 'B' ? 'Rhythm variant' : 'Bolder rendering shift';
   return {
@@ -34,7 +34,7 @@ function copyPasteCandidate(item: WorkbenchOpportunity, key: 'A' | 'B' | 'C'): C
   };
 }
 
-function toCopyPasteCard(item: WorkbenchOpportunity): CopyPasteCardViewModel {
+function toCopyPasteCard(item: ClassifiedWorkbenchOpportunity): CopyPasteCardViewModel {
   return {
     opportunityId: item.id,
     cardType: 'copy_paste_rewrite',
@@ -51,7 +51,7 @@ function unique(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.map(normalize).filter(Boolean)));
 }
 
-function toStrategyCard(item: WorkbenchOpportunity): StrategyCardUiViewModel {
+function toStrategyCard(item: ClassifiedWorkbenchOpportunity): StrategyCardUiViewModel {
   const scaffold = item.strategyCardViewModel?.scaffold;
   const recommendedStrategy = normalize(
     item.fixDirection || item.diagnostic?.fixStrategy || scaffold?.moderateApproach || item.issueStatement,
@@ -92,7 +92,7 @@ function toStrategyCard(item: WorkbenchOpportunity): StrategyCardUiViewModel {
   };
 }
 
-function toWithheldCard(item: WorkbenchOpportunity): WithheldCardViewModel {
+function toWithheldCard(item: ClassifiedWorkbenchOpportunity): WithheldCardViewModel {
   const reasons = [
     ...(item.executabilityReasons ?? []),
     ...(item.preflightReasons ?? []),
@@ -113,8 +113,8 @@ function toWithheldCard(item: WorkbenchOpportunity): WithheldCardViewModel {
   };
 }
 
-export function adaptWorkbenchOpportunityToCard(item: WorkbenchOpportunity): WorkbenchCardViewModel {
-  switch (item.cardType) {
+export function adaptWorkbenchOpportunityToCard(item: ClassifiedWorkbenchOpportunity): WorkbenchCardViewModel {
+  switch (item.finalDecision.cardType) {
     case 'copy_paste_rewrite':
       return toCopyPasteCard(item);
     case 'revision_strategy':

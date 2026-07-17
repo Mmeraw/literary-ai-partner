@@ -31,12 +31,12 @@ import {
 } from './recommendationExecutability'
 import {
   classifyWorkbenchExecutabilityDetailed,
+  buildClassifiedWorkbenchOpportunity,
   resolveEvidenceLocationScope,
   resolveRepairScope,
   modeForScope,
   hasPlaceholderCoordinates,
-  isSupportedForUserQueue,
-  partitionWorkbenchQueue,
+  partitionClassifiedWorkbenchQueue,
   type WorkbenchExecutabilityClassification,
 } from './workbenchQueueProjection'
 import { buildWorkbenchQueueAudit, isAuditLogEnabled, logWorkbenchQueueAudit, type WorkbenchAdmissionDetails } from './workbenchQueueAudit'
@@ -195,7 +195,6 @@ function evidenceMatchesManuscript(evidence: string, manuscriptText: string): bo
 function findClosestManuscriptPassage(evidence: string, manuscriptText: string): string | null {
   if (!evidence || !manuscriptText) return null
   const normEvidence = normalizeForFidelity(evidence)
-  const normManuscript = normalizeForFidelity(manuscriptText)
   // Extract key content words from the evidence (skip short/common words)
   const evidenceWords = normEvidence.split(/\s+/).filter(w => w.length > 4)
   if (evidenceWords.length < 3) return null
@@ -1020,7 +1019,7 @@ function applyReviseCardContract(
 // ---------------------------------------------------------------------------
 // Load raw evaluation artifact to extract rich recommendation fields
 // ---------------------------------------------------------------------------
-async function loadEvaluationArtifactPayload(
+async function _loadEvaluationArtifactPayload(
   supabase: ReturnType<typeof createAdminClient>,
   evaluationJobId: string,
 ): Promise<RichLookup> {
@@ -1330,16 +1329,10 @@ export async function getWorkbenchQueue(input: {
       strategyAdmissionReasons: executability.strategyAdmissionReasons,
     })
 
-    return {
-      ...baseOpportunity,
-      cardType: executability.cardType,
-      trustedPathStatus: executability.trustedPathStatus,
-      executabilityReasons: executability.reasons,
-      strategyCardViewModel: executability.strategyCardViewModel,
-    }
+    return buildClassifiedWorkbenchOpportunity(baseOpportunity, executability)
   })
 
-  const partition = partitionWorkbenchQueue(opportunities)
+  const partition = partitionClassifiedWorkbenchQueue(opportunities)
 
   const synthesisResult = {
     admitted: partition.opportunities.length,
