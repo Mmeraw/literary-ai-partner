@@ -65,53 +65,85 @@ export type WorkbenchQueueAuditReport = {
   opportunityTelemetry?: WorkbenchOpportunityTelemetry[]
 }
 
-export type DiagnosticSource =
-  | 'readiness'
+export type DiagnosticCollection =
   | 'preflight'
   | 'hydration'
   | 'res_blocker'
-  | 'executability'
-  | 'strategy_admission'
   | 'copy_paste_admission'
-  | 'admin_repair'
-  | 'presentation_merge'
+  | 'strategy_admission'
+  | 'executability_output'
+  | 'withheld_adapter_input'
+  | 'strategy_unsafe_reasons_input'
+  | 'withheld_adapter_output'
+  | 'strategy_unsafe_reasons_output'
 
 export type DiagnosticOccurrence = {
   rawCode: string
   normalizedCode: string
-  source: DiagnosticSource
+  collection: DiagnosticCollection
   rawIndex: number
-  stage: 'source' | 'gate' | 'classification' | 'presentation'
+  stage:
+    | 'authoritative_source'
+    | 'classification_input'
+    | 'classification_output'
+    | 'presentation_input'
+    | 'presentation_output'
+}
+
+export type DiagnosticBoundaryCounts = {
+  sourceCountsByCollection: {
+    preflight: number
+    hydration: number
+    resBlocker: number
+  }
+  classificationInputCount: number
+  classificationOutputCount: number
+  presentationInputCount: number
+  presentationOutputCount: number
+}
+
+export type DiagnosticBoundaryConditions = {
+  withinSourceDuplicate: boolean
+  repeatedAcrossSources: boolean
+  classificationMergeDuplicate: boolean
+  presentationMergeDuplicate: boolean
+}
+
+export type DiagnosticBoundaryDuplicationType =
+  | 'none'
+  | 'duplicate_within_source'
+  | 'repeated_across_sources'
+  | 'classification_merge_duplicate'
+  | 'presentation_merge_duplicate'
+  | 'mixed'
+
+export type DiagnosticBoundaryClassification = {
+  counts: DiagnosticBoundaryCounts
+  conditions: DiagnosticBoundaryConditions
+  duplicationType: DiagnosticBoundaryDuplicationType
 }
 
 export type DuplicateDiagnostic = {
   normalizedCode: string
   rawVariants: string[]
-  occurrences: DiagnosticOccurrence[]
-  duplicationType:
-    | 'duplicate_within_source'
-    | 'repeated_across_sources'
-    | 'classification_merge_duplicate'
-    | 'presentation_merge_duplicate'
-    | 'mixed'
-  stageCounts: {
-    source: number
-    gate: number
-    classification: number
-    presentation: number
-  }
-  distinctSourceCount: number
+  authoritativeSourceOccurrences: DiagnosticOccurrence[]
+  classificationInputOccurrences: DiagnosticOccurrence[]
+  classificationOutputOccurrences: DiagnosticOccurrence[]
+  presentationInputOccurrences: DiagnosticOccurrence[]
+  presentationOutputOccurrences: DiagnosticOccurrence[]
+  boundary: DiagnosticBoundaryClassification
 }
 
 export type DiagnosticDuplicationAnalysis = {
   duplicateDiagnostics: DuplicateDiagnostic[]
-  allSourceCodes: string[]
-  sourceCountByCode: Record<string, number>
+  allAuthoritativeSourceCodes: string[]
+  authoritativeSourceCountByCode: Record<string, number>
   stageTotals: {
-    source: number
-    gate: number
-    classification: number
-    presentation: number
+    authoritativeSource: number
+    classificationInput: number
+    classificationOutput: number
+    presentationInput: number
+    presentationOutput: number
   }
 }
 
@@ -231,7 +263,7 @@ function asDiagnosticCode(value: unknown): string | null {
 
 function collectOccurrences(
   items: string[],
-  source: DiagnosticSource,
+  collection: DiagnosticCollection,
   stage: DiagnosticOccurrence['stage'],
 ): DiagnosticOccurrence[] {
   return items
@@ -241,7 +273,7 @@ function collectOccurrences(
       return {
         rawCode,
         normalizedCode: normalizeDiagnosticCode(rawCode),
-        source,
+        collection,
         rawIndex,
         stage,
       }
@@ -249,66 +281,76 @@ function collectOccurrences(
     .filter((o): o is DiagnosticOccurrence => o !== null)
 }
 
-function countBySource(occurrences: DiagnosticOccurrence[]): Map<DiagnosticSource, number> {
-  const counts = new Map<DiagnosticSource, number>()
+function countByCollection(occurrences: DiagnosticOccurrence[]): Map<DiagnosticCollection, number> {
+  const counts = new Map<DiagnosticCollection, number>()
   for (const o of occurrences) {
-    counts.set(o.source, (counts.get(o.source) ?? 0) + 1)
+    counts.set(o.collection, (counts.get(o.collection) ?? 0) + 1)
   }
   return counts
 }
 
-function stageCounts(
+function computeStageTotals(
   occurrences: DiagnosticOccurrence[],
-): { source: number; gate: number; classification: number; presentation: number } {
+): DiagnosticDuplicationAnalysis['stageTotals'] {
   return {
-    source: occurrences.filter((o) => o.stage === 'source').length,
-    gate: occurrences.filter((o) => o.stage === 'gate').length,
-    classification: occurrences.filter((o) => o.stage === 'classification').length,
-    presentation: occurrences.filter((o) => o.stage === 'presentation').length,
+    authoritativeSource: occurrences.filter((o) => o.stage === 'authoritative_source').length,
+    classificationInput: occurrences.filter((o) => o.stage === 'classification_input').length,
+    classificationOutput: occurrences.filter((o) => o.stage === 'classification_output').length,
+    presentationInput: occurrences.filter((o) => o.stage === 'presentation_input').length,
+    presentationOutput: occurrences.filter((o) => o.stage === 'presentation_output').length,
   }
 }
 
-function stageHasDuplicate(count: number): boolean {
-  return count > 1
-}
-
-function classifyDuplication(occurrences: DiagnosticOccurrence[]): DuplicateDiagnostic['duplicationType'] {
-  const counts = stageCounts(occurrences)
-  const sourceOccurrences = occurrences.filter((o) => o.stage === 'source')
-  const sourceCounts = countBySource(sourceOccurrences)
-
-  const hasSourceDuplicate = stageHasDuplicate(counts.source)
-  const hasGateDuplicate = stageHasDuplicate(counts.gate)
-  const hasClassificationDuplicate = stageHasDuplicate(counts.classification)
-  const hasPresentationDuplicate = stageHasDuplicate(counts.presentation)
-
-  const sourceStagesWithDuplicates = [
-    hasSourceDuplicate,
-    hasGateDuplicate,
-    hasClassificationDuplicate,
-    hasPresentationDuplicate,
+function deriveDuplicationType(
+  conditions: DiagnosticBoundaryConditions,
+): DiagnosticBoundaryDuplicationType {
+  const activeConditions = [
+    conditions.withinSourceDuplicate,
+    conditions.repeatedAcrossSources,
+    conditions.classificationMergeDuplicate,
+    conditions.presentationMergeDuplicate,
   ].filter(Boolean).length
 
-  if (sourceStagesWithDuplicates === 1) {
-    if (hasSourceDuplicate) {
-      const hasDuplicateWithinSource = Array.from(sourceCounts.values()).some((count) => count > 1)
-      return hasDuplicateWithinSource ? 'duplicate_within_source' : 'repeated_across_sources'
-    }
+  if (activeConditions === 0) return 'none'
+  if (activeConditions > 1) return 'mixed'
+  if (conditions.withinSourceDuplicate) return 'duplicate_within_source'
+  if (conditions.repeatedAcrossSources) return 'repeated_across_sources'
+  if (conditions.classificationMergeDuplicate) return 'classification_merge_duplicate'
+  return 'presentation_merge_duplicate'
+}
 
-    if (hasGateDuplicate) {
-      return 'repeated_across_sources'
-    }
+function parseRenderedDiagnosticCodes(value: string | null | undefined): string[] {
+  if (!value) return []
+  return value
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+}
 
-    if (hasClassificationDuplicate) {
-      return 'classification_merge_duplicate'
-    }
+export function classifyDiagnosticBoundary(
+  counts: DiagnosticBoundaryCounts,
+): DiagnosticBoundaryClassification {
+  const sourceCounts = counts.sourceCountsByCollection
+  const distinctAuthoritativeSourceCollections = [
+    sourceCounts.preflight,
+    sourceCounts.hydration,
+    sourceCounts.resBlocker,
+  ].filter((count) => count > 0).length
 
-    if (hasPresentationDuplicate) {
-      return 'presentation_merge_duplicate'
-    }
+  const conditions: DiagnosticBoundaryConditions = {
+    withinSourceDuplicate: Object.values(sourceCounts).some((count) => count > 1),
+    repeatedAcrossSources: distinctAuthoritativeSourceCollections > 1,
+    classificationMergeDuplicate:
+      counts.classificationOutputCount > counts.classificationInputCount,
+    presentationMergeDuplicate:
+      counts.presentationOutputCount > counts.presentationInputCount,
   }
 
-  return 'mixed'
+  return {
+    counts,
+    conditions,
+    duplicationType: deriveDuplicationType(conditions),
+  }
 }
 
 export function analyzeDiagnosticDuplication(
@@ -317,49 +359,45 @@ export function analyzeDiagnosticDuplication(
 ): DiagnosticDuplicationAnalysis {
   const occurrences: DiagnosticOccurrence[] = []
 
-  // Source-stage diagnostics
-  occurrences.push(...collectOccurrences(opportunity.preflightReasons ?? [], 'preflight', 'source'))
-  occurrences.push(...collectOccurrences(opportunity.hydrationFailureReasons ?? [], 'hydration', 'source'))
-  occurrences.push(...collectOccurrences(opportunity.resBlockerReasons ?? [], 'res_blocker', 'source'))
-
-  const adminRepairReason = asDiagnosticCode(opportunity.adminRepairReason)
-  if (adminRepairReason) {
-    occurrences.push({
-      rawCode: adminRepairReason,
-      normalizedCode: normalizeDiagnosticCode(adminRepairReason),
-      source: 'admin_repair',
-      rawIndex: 0,
-      stage: 'source',
-    })
-  }
-
-  occurrences.push(...collectOccurrences(opportunity.adminActions ?? [], 'admin_repair', 'source'))
-
-  const readinessReason = asDiagnosticCode(opportunity.readinessReason)
-  if (readinessReason) {
-    occurrences.push({
-      rawCode: readinessReason,
-      normalizedCode: normalizeDiagnosticCode(readinessReason),
-      source: 'readiness',
-      rawIndex: 0,
-      stage: 'source',
-    })
-  }
-
-  // Gate-stage diagnostics
+  // Authoritative source diagnostics only (annotations are intentionally excluded).
   occurrences.push(
-    ...collectOccurrences(classification.gates.copyPaste.reasons, 'copy_paste_admission', 'gate'),
+    ...collectOccurrences(opportunity.preflightReasons ?? [], 'preflight', 'authoritative_source'),
   )
   occurrences.push(
-    ...collectOccurrences(classification.gates.strategy.reasons, 'strategy_admission', 'gate'),
+    ...collectOccurrences(
+      opportunity.hydrationFailureReasons ?? [],
+      'hydration',
+      'authoritative_source',
+    ),
   )
-
-  // Classification-stage diagnostics
   occurrences.push(
-    ...collectOccurrences(classification.finalDecision.reasons, 'executability', 'classification'),
+    ...collectOccurrences(opportunity.resBlockerReasons ?? [], 'res_blocker', 'authoritative_source'),
   )
 
-  // Presentation-stage diagnostics
+  // Classification boundary: exact classifier input and output occurrences.
+  occurrences.push(
+    ...collectOccurrences(
+      classification.gates.copyPaste.reasons,
+      'copy_paste_admission',
+      'classification_input',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      classification.gates.strategy.reasons,
+      'strategy_admission',
+      'classification_input',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      classification.finalDecision.reasons,
+      'executability_output',
+      'classification_output',
+    ),
+  )
+
+  // Presentation boundary: adapter input arrays and rendered output content.
   const withheldAdapterInput = [
     ...(opportunity.executabilityReasons ?? []),
     ...(opportunity.preflightReasons ?? []),
@@ -368,16 +406,40 @@ export function analyzeDiagnosticDuplication(
     .map((s) => s?.trim())
     .filter((s): s is string => Boolean(s))
 
-  const strategyUnsafeReasonsInput =
-    opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe?.trim()
-      ? []
-      : (opportunity.executabilityReasons ?? [])
+  const strategyUnsafeReasonsInput = opportunity.executabilityReasons ?? []
+
+  const withheldAdapterOutput = parseRenderedDiagnosticCodes(withheldAdapterInput.join('; '))
+  const strategyUnsafeReasonsOutput = parseRenderedDiagnosticCodes(
+    opportunity.strategyCardViewModel?.scaffold?.reasonCopyPasteIsUnsafe,
+  )
 
   occurrences.push(
-    ...collectOccurrences(withheldAdapterInput, 'presentation_merge', 'presentation'),
+    ...collectOccurrences(
+      withheldAdapterInput,
+      'withheld_adapter_input',
+      'presentation_input',
+    ),
   )
   occurrences.push(
-    ...collectOccurrences(strategyUnsafeReasonsInput, 'presentation_merge', 'presentation'),
+    ...collectOccurrences(
+      strategyUnsafeReasonsInput,
+      'strategy_unsafe_reasons_input',
+      'presentation_input',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      withheldAdapterOutput,
+      'withheld_adapter_output',
+      'presentation_output',
+    ),
+  )
+  occurrences.push(
+    ...collectOccurrences(
+      strategyUnsafeReasonsOutput,
+      'strategy_unsafe_reasons_output',
+      'presentation_output',
+    ),
   )
 
   const byCode = new Map<string, DiagnosticOccurrence[]>()
@@ -389,35 +451,62 @@ export function analyzeDiagnosticDuplication(
 
   const duplicateDiagnostics: DuplicateDiagnostic[] = []
   for (const [normalizedCode, list] of byCode) {
-    if (list.length > 1) {
-      const sourceOccurrences = list.filter((o) => o.stage === 'source')
-      const sourceSourceCounts = countBySource(sourceOccurrences)
-      duplicateDiagnostics.push({
-        normalizedCode,
-        rawVariants: Array.from(new Set(list.map((o) => o.rawCode))),
-        occurrences: list,
-        duplicationType: classifyDuplication(list),
-        stageCounts: stageCounts(list),
-        distinctSourceCount: sourceSourceCounts.size,
-      })
+    const authoritativeSourceOccurrences = list.filter((o) => o.stage === 'authoritative_source')
+    const classificationInputOccurrences = list.filter((o) => o.stage === 'classification_input')
+    const classificationOutputOccurrences = list.filter((o) => o.stage === 'classification_output')
+    const presentationInputOccurrences = list.filter((o) => o.stage === 'presentation_input')
+    const presentationOutputOccurrences = list.filter((o) => o.stage === 'presentation_output')
+
+    const sourceCounts = countByCollection(authoritativeSourceOccurrences)
+    const boundary = classifyDiagnosticBoundary({
+      sourceCountsByCollection: {
+        preflight: sourceCounts.get('preflight') ?? 0,
+        hydration: sourceCounts.get('hydration') ?? 0,
+        resBlocker: sourceCounts.get('res_blocker') ?? 0,
+      },
+      classificationInputCount: classificationInputOccurrences.length,
+      classificationOutputCount: classificationOutputOccurrences.length,
+      presentationInputCount: presentationInputOccurrences.length,
+      presentationOutputCount: presentationOutputOccurrences.length,
+    })
+
+    if (boundary.duplicationType === 'none') {
+      continue
     }
+
+    duplicateDiagnostics.push({
+      normalizedCode,
+      rawVariants: Array.from(new Set(list.map((o) => o.rawCode))),
+      authoritativeSourceOccurrences,
+      classificationInputOccurrences,
+      classificationOutputOccurrences,
+      presentationInputOccurrences,
+      presentationOutputOccurrences,
+      boundary,
+    })
   }
 
   duplicateDiagnostics.sort((a, b) => a.normalizedCode.localeCompare(b.normalizedCode))
 
-  const allSourceCodes = Array.from(new Set(occurrences.filter((o) => o.stage === 'source').map((o) => o.rawCode)))
-  const sourceCountByCode: Record<string, number> = {}
+  const authoritativeSourceOccurrences = occurrences.filter(
+    (o) => o.stage === 'authoritative_source',
+  )
+  const allAuthoritativeSourceCodes = Array.from(
+    new Set(authoritativeSourceOccurrences.map((o) => o.rawCode)),
+  )
+  const authoritativeSourceCountByCode: Record<string, number> = {}
   for (const occurrence of occurrences) {
-    if (occurrence.stage === 'source') {
-      sourceCountByCode[occurrence.normalizedCode] = (sourceCountByCode[occurrence.normalizedCode] ?? 0) + 1
+    if (occurrence.stage === 'authoritative_source') {
+      authoritativeSourceCountByCode[occurrence.normalizedCode] =
+        (authoritativeSourceCountByCode[occurrence.normalizedCode] ?? 0) + 1
     }
   }
 
   return {
     duplicateDiagnostics,
-    allSourceCodes,
-    sourceCountByCode,
-    stageTotals: stageCounts(occurrences),
+    allAuthoritativeSourceCodes,
+    authoritativeSourceCountByCode,
+    stageTotals: computeStageTotals(occurrences),
   }
 }
 

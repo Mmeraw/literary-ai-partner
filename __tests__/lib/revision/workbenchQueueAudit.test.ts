@@ -4,6 +4,7 @@ import {
   REVISION_WORKBENCH_QUEUE_CLASSIFIER_VERSION,
   analyzeDiagnosticDuplication,
   buildWorkbenchOpportunityTelemetry,
+  classifyDiagnosticBoundary,
 } from '@/lib/revision/workbenchQueueAudit'
 import { classifyWorkbenchExecutabilityDetailed } from '@/lib/revision/workbenchQueueProjection'
 import type { WorkbenchQueuePayload, WorkbenchOpportunity } from '@/lib/revision/workbenchQueue'
@@ -169,68 +170,155 @@ describe('workbenchQueueAudit', () => {
 })
 
 describe('workbenchQueueAudit telemetry and duplication', () => {
-  it('detects a duplicate within a single source array', () => {
+  it('detects duplicate_within_source with propagated downstream copies only', () => {
     const opportunity = makeOpportunity({
       hydrationFailureReasons: ['insufficient_anchor_grounding', 'insufficient_anchor_grounding'],
     })
     const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.executabilityReasons = classification.finalDecision.reasons
     const analysis = analyzeDiagnosticDuplication(opportunity, classification)
 
     const duplicate = analysis.duplicateDiagnostics.find(
       (d) => d.normalizedCode === 'insufficient_anchor_grounding',
     )
     expect(duplicate).toBeTruthy()
-    expect(duplicate!.duplicationType).toBe('duplicate_within_source')
-    expect(duplicate!.stageCounts.source).toBe(2)
-    const sourceOccurrences = duplicate!.occurrences.filter((o) => o.stage === 'source')
-    expect(sourceOccurrences.every((o) => o.source === 'hydration')).toBe(true)
-    expect(sourceOccurrences).toHaveLength(2)
+    expect(duplicate!.boundary.counts).toEqual({
+      sourceCountsByCollection: {
+        preflight: 0,
+        hydration: 2,
+        resBlocker: 0,
+      },
+      classificationInputCount: 0,
+      classificationOutputCount: 0,
+      presentationInputCount: 0,
+      presentationOutputCount: 0,
+    })
+    expect(duplicate!.boundary.conditions).toEqual({
+      withinSourceDuplicate: true,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: false,
+    })
+    expect(duplicate!.boundary.duplicationType).toBe('duplicate_within_source')
   })
 
-  it('detects a diagnostic repeated across independent source arrays', () => {
+  it('detects repeated_across_sources and does not mislabel propagation as stage growth', () => {
     const opportunity = makeOpportunity({
       hydrationFailureReasons: ['canon_unclear'],
       resBlockerReasons: ['canon_unclear'],
     })
     const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.executabilityReasons = classification.finalDecision.reasons
     const analysis = analyzeDiagnosticDuplication(opportunity, classification)
 
     const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'canon_unclear')
     expect(duplicate).toBeTruthy()
-    expect(duplicate!.duplicationType).toBe('repeated_across_sources')
-    const sourceOccurrences = duplicate!.occurrences.filter((o) => o.stage === 'source')
-    expect(sourceOccurrences.map((o) => o.source).sort()).toEqual(['hydration', 'res_blocker'])
-    expect(duplicate!.stageCounts.source).toBe(2)
-    expect(duplicate!.stageCounts.presentation).toBe(1)
+    expect(duplicate!.boundary.counts).toEqual({
+      sourceCountsByCollection: {
+        preflight: 0,
+        hydration: 1,
+        resBlocker: 1,
+      },
+      classificationInputCount: 0,
+      classificationOutputCount: 0,
+      presentationInputCount: 1,
+      presentationOutputCount: 1,
+    })
+    expect(duplicate!.boundary.conditions).toEqual({
+      withinSourceDuplicate: false,
+      repeatedAcrossSources: true,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: false,
+    })
+    expect(duplicate!.boundary.duplicationType).toBe('repeated_across_sources')
   })
 
-  it('classifies a preflight duplicate as mixed because the withheld adapter mirrors it', () => {
+  it('does not let annotation fields participate in duplication classification', () => {
+    const opportunity = makeOpportunity({
+      readinessReason: 'annotation_only_duplicate',
+      adminRepairReason: 'annotation_only_duplicate',
+      adminActions: ['annotation_only_duplicate', 'annotation_only_duplicate'],
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
+    expect(
+      analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'annotation_only_duplicate'),
+    ).toBeUndefined()
+  })
+
+  it('captures raw boundary counts for a production-path duplicate and derives booleans before label', () => {
     const opportunity = makeOpportunity({
       preflightReasons: ['context_missing', 'context_missing'],
     })
     const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.executabilityReasons = classification.finalDecision.reasons
     const analysis = analyzeDiagnosticDuplication(opportunity, classification)
 
     const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'context_missing')
     expect(duplicate).toBeTruthy()
-    expect(duplicate!.duplicationType).toBe('mixed')
-    expect(duplicate!.stageCounts.source).toBeGreaterThanOrEqual(1)
-    expect(duplicate!.stageCounts.presentation).toBeGreaterThanOrEqual(1)
+    expect(duplicate!.boundary.counts).toEqual({
+      sourceCountsByCollection: {
+        preflight: 2,
+        hydration: 0,
+        resBlocker: 0,
+      },
+      classificationInputCount: 0,
+      classificationOutputCount: 0,
+      presentationInputCount: 2,
+      presentationOutputCount: 2,
+    })
+    expect(duplicate!.boundary.conditions).toEqual({
+      withinSourceDuplicate: true,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: false,
+    })
+    expect(duplicate!.boundary.duplicationType).toBe('duplicate_within_source')
   })
 
-  it('detects a presentation-only merge duplicate from executability and preflight inputs', () => {
-    const opportunity = makeOpportunity({
-      preflightReasons: ['presentation_only_duplicate'],
-      executabilityReasons: ['presentation_only_duplicate'],
+  it('uses pure boundary helper for synthetic classification_merge_duplicate invariants', () => {
+    const result = classifyDiagnosticBoundary({
+      sourceCountsByCollection: {
+        preflight: 1,
+        hydration: 0,
+        resBlocker: 0,
+      },
+      classificationInputCount: 1,
+      classificationOutputCount: 2,
+      presentationInputCount: 2,
+      presentationOutputCount: 2,
     })
-    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
-    const analysis = analyzeDiagnosticDuplication(opportunity, classification)
 
-    const duplicate = analysis.duplicateDiagnostics.find((d) => d.normalizedCode === 'presentation_only_duplicate')
-    expect(duplicate).toBeTruthy()
-    expect(duplicate!.duplicationType).toBe('presentation_merge_duplicate')
-    expect(duplicate!.stageCounts.source).toBe(1)
-    expect(duplicate!.stageCounts.presentation).toBeGreaterThanOrEqual(2)
+    expect(result.conditions).toEqual({
+      withinSourceDuplicate: false,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: true,
+      presentationMergeDuplicate: false,
+    })
+    expect(result.duplicationType).toBe('classification_merge_duplicate')
+  })
+
+  it('uses pure boundary helper for synthetic presentation_merge_duplicate invariants', () => {
+    const result = classifyDiagnosticBoundary({
+      sourceCountsByCollection: {
+        preflight: 1,
+        hydration: 0,
+        resBlocker: 0,
+      },
+      classificationInputCount: 1,
+      classificationOutputCount: 1,
+      presentationInputCount: 1,
+      presentationOutputCount: 2,
+    })
+
+    expect(result.conditions).toEqual({
+      withinSourceDuplicate: false,
+      repeatedAcrossSources: false,
+      classificationMergeDuplicate: false,
+      presentationMergeDuplicate: true,
+    })
+    expect(result.duplicationType).toBe('presentation_merge_duplicate')
   })
 
   it('reports downgrade_prevented when needs_targeting exception turns withheld into strategy', () => {

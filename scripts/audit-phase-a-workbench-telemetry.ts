@@ -115,8 +115,13 @@ async function main() {
       criterion: t.criterion,
       normalizedCode: dup.normalizedCode,
       rawVariants: dup.rawVariants,
-      duplicationType: dup.duplicationType,
-      occurrences: dup.occurrences,
+      duplicationType: dup.boundary.duplicationType,
+      boundary: dup.boundary,
+      authoritativeSourceOccurrences: dup.authoritativeSourceOccurrences,
+      classificationInputOccurrences: dup.classificationInputOccurrences,
+      classificationOutputOccurrences: dup.classificationOutputOccurrences,
+      presentationInputOccurrences: dup.presentationInputOccurrences,
+      presentationOutputOccurrences: dup.presentationOutputOccurrences,
     })),
   )
 
