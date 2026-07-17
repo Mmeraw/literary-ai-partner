@@ -5,7 +5,12 @@
  * shape used to audit recovery work.
  */
 
-import type { HeldRecoveryStep } from './heldRecoveryReasons'
+import type {
+  HeldAuthorAction,
+  RecoveryExecutionAction,
+} from './heldRecoveryReasons'
+import type { HeldReasonProducer } from './heldRecoverySources'
+import type { CanonicalHeldReasonOccurrence } from './heldRecoveryPlan'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Recovery state machine
@@ -39,19 +44,66 @@ export const HELD_RECOVERY_STATE_TRANSITIONS: Record<HeldRecoveryState, HeldReco
 
 export const HELD_RECOVERY_MAX_RETRIES = 3
 
-export type RecoveryAttempt = {
+// ─────────────────────────────────────────────────────────────────────────────
+// Recovery identity
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RecoverySeriesKey = {
+  opportunityVersion: string
+  candidateSetVersion: string | null
+  producer: HeldReasonProducer
+  code: string
+  recoveryAction: RecoveryExecutionAction
+}
+
+export type RecoveryAttemptSnapshot = {
   idempotencyKey: string
   manuscriptVersionSha: string
   opportunityId: string
-  trigger: 'request_reanalysis' | 'provide_more_context' | 'system'
-  repairPlan: HeldRecoveryStep[]
+  trigger: 'request_reanalysis' | 'provide_more_context' | 'system' | 'author'
+  canonicalReasons: CanonicalHeldReasonOccurrence[]
+  originalBaseReasons: string[]
+  originalFinalReasons: string[]
+  promotionTransitionReason: string | null
+  opportunityVersionBefore: string
+  candidateSetVersionBefore: string | null
+  recoveryInputFingerprintBefore: string
+}
+
+export type RecoveryAuditEvent = {
+  at: string
+  event:
+    | 'snapshot_created'
+    | 'action_started'
+    | 'action_succeeded'
+    | 'action_failed'
+    | 'reclassified'
+    | 'remained_held'
+    | 'dismissed'
+  action?: RecoveryExecutionAction
+  disposition?: HeldAuthorAction
+  producer?: HeldReasonProducer
+  code?: string
+  opportunityVersionBefore?: string
+  candidateSetVersionBefore?: string | null
+  recoveryInputFingerprintBefore?: string
+  opportunityVersionAfter?: string
+  candidateSetVersionAfter?: string | null
+  recoveryInputFingerprintAfter?: string
+  details?: Record<string, unknown>
+}
+
+export type RecoveryAttempt = {
+  seriesKey: RecoverySeriesKey
+  recoveryInputFingerprint: string
   attemptNumber: number
   maxAttempts: number
   status: HeldRecoveryState
   outcome: 'pending' | 'succeeded' | 'failed_retryable' | 'failed_terminal' | 'dismissed'
   terminalCardType: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld' | null
   terminalTrustedPathStatus: 'eligible' | 'unavailable_author_review_required' | 'impossible' | null
-  auditTrail: string[]
+  snapshot: RecoveryAttemptSnapshot
+  events: RecoveryAuditEvent[]
   createdAt: string
   updatedAt: string
 }

@@ -10,9 +10,10 @@
  *   inputs. Unknown annotations are recorded but do not fail the plan closed.
  */
 
-import type { HeldReasonSource } from './heldRecoverySources'
+import type { HeldReasonSource, RecoveryAuthorityRole } from './heldRecoverySources'
 import {
   getHeldReasonInfo,
+  getRecoveryContractForReason,
   normalizeHeldReasonCode,
   REPAIR_STEP_ORDER,
   type HeldAuthorAction,
@@ -20,6 +21,7 @@ import {
   type HeldRepairFamily,
   type HeldRecoveryStep,
   type HeldTerminalOutcome,
+  type HeldReasonRecoveryContract,
 } from './heldRecoveryReasons'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +64,8 @@ export type CanonicalHeldReasonOccurrence = {
   code: string
   raw: string
   source: HeldReasonSource
+  authorityRole: RecoveryAuthorityRole
+  recoveryContract?: HeldReasonRecoveryContract
 }
 
 export type HeldReasonAnnotation = {
@@ -80,6 +84,18 @@ export type HeldRecoveryEvidence = {
   annotations: HeldReasonAnnotation[]
 }
 
+function occurrenceFor(raw: string, source: HeldReasonSource): CanonicalHeldReasonOccurrence {
+  const code = normalizeHeldReasonCode(raw)
+  const contract = getRecoveryContractForReason({ code, source, raw })
+  return {
+    code,
+    raw,
+    source,
+    authorityRole: contract?.authorityRole ?? 'annotation',
+    recoveryContract: contract,
+  }
+}
+
 function appendCanonicalReasons(
   target: CanonicalHeldReasonOccurrence[],
   reasons: string[] | undefined,
@@ -88,7 +104,7 @@ function appendCanonicalReasons(
   if (!Array.isArray(reasons)) return
   for (const raw of reasons) {
     if (typeof raw !== 'string' || !raw.trim()) continue
-    target.push({ code: normalizeHeldReasonCode(raw), raw, source })
+    target.push(occurrenceFor(raw, source))
   }
 }
 
@@ -181,7 +197,30 @@ function confidenceFromContextQuality(quality: string | null | undefined): HeldR
   return 'low'
 }
 
-function deduplicateReasons<T extends { code: string; raw: string }>(reasons: T[]): T[] {
+const DECISION_OWNED_SUMMARY_CODES = new Set([
+  'copy_paste_admission_failed',
+  'strategy_admission_failed',
+  'passage_too_long',
+])
+
+function decomposeDecisionProjection(
+  occurrence: CanonicalHeldReasonOccurrence,
+  info: ReturnType<typeof getHeldReasonInfo>,
+): HeldReasonRecoveryContract | undefined {
+  // Decision-owned summary codes do not decompose into a single upstream action;
+  // they require the actual upstream origin reasons to be present.
+  if (DECISION_OWNED_SUMMARY_CODES.has(occurrence.code)) return undefined
+
+  for (const source of info.canonicalPlanningSources) {
+    const contract = getRecoveryContractForReason({ code: occurrence.code, source })
+    if (contract && contract.authorityRole === 'origin') {
+      return contract
+    }
+  }
+  return undefined
+}
+
+function deduplicateAnnotations<T extends { code: string; raw: string }>(reasons: T[]): T[] {
   const unique: T[] = []
   const seen = new Map<string, T>()
   for (const reason of reasons) {
@@ -192,11 +231,32 @@ function deduplicateReasons<T extends { code: string; raw: string }>(reasons: T[
   return unique
 }
 
+function deduplicateCanonicalReasons(
+  reasons: CanonicalHeldReasonOccurrence[],
+): CanonicalHeldReasonOccurrence[] {
+  const precedence: Record<RecoveryAuthorityRole, number> = {
+    origin: 0,
+    decision_projection: 1,
+    annotation: 2,
+  }
+  const ordered = [...reasons].sort(
+    (a, b) => precedence[a.authorityRole] - precedence[b.authorityRole],
+  )
+  const unique: CanonicalHeldReasonOccurrence[] = []
+  const seen = new Set<string>()
+  for (const reason of ordered) {
+    if (seen.has(reason.code)) continue
+    seen.add(reason.code)
+    unique.push(reason)
+  }
+  return unique
+}
+
 export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
   const evidence = collectCanonicalReasons(input)
 
-  const canonical = deduplicateReasons(evidence.canonicalReasons)
-  const annotations = deduplicateReasons(evidence.annotations)
+  const canonical = deduplicateCanonicalReasons(evidence.canonicalReasons)
+  const annotations = deduplicateAnnotations(evidence.annotations)
 
   const hardBlockers: string[] = []
   const unknownCanonicalReasons: string[] = []
@@ -212,6 +272,12 @@ export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
 
   for (const occurrence of canonical) {
     const info = getHeldReasonInfo(occurrence.raw)
+    // Decision projections decompose into their upstream origin producer when one
+    // exists; otherwise they remain non-recoverative audit context.
+    const contract =
+      occurrence.recoveryContract?.authorityRole === 'decision_projection'
+        ? decomposeDecisionProjection(occurrence, info) ?? occurrence.recoveryContract
+        : occurrence.recoveryContract
 
     if (info.isHardBlocker) {
       hardBlockers.push(occurrence.raw)
@@ -221,11 +287,19 @@ export function buildRecoveryPlan(input: HeldOpportunityInput): RecoveryPlan {
       unknownCanonicalReasons.push(occurrence.raw)
     }
 
-    if (info.repairFamily !== 'none') {
+    // Recovery planning is driven only by origin producers. Decision projections
+    // (base_decision / final_decision) and annotations contribute policy and
+    // audit context but do not select independent repair actions.
+    const isOriginActionable =
+      contract?.authorityRole === 'origin' &&
+      contract.recoveryAction !== 'none' &&
+      info.recoverable
+
+    if (isOriginActionable && info.repairFamily !== 'none') {
       familySet.add(info.repairFamily)
     }
 
-    if (info.recoverable && info.repairFamily !== 'none') {
+    if (isOriginActionable) {
       anyRecoverable = true
     }
 
