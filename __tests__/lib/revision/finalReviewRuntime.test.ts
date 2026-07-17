@@ -402,5 +402,40 @@ describe('final review runtime governance', () => {
       expect(changelog.content).toContain('Safe copy repair');
       expect(changelog.content).toContain('Accepted A');
     });
+    it('uses the latest persisted decision state (not stale prior choices) for apply authority', async () => {
+      const staleAccepted = decision({
+        id: '00000000-0000-0000-0000-000000000010',
+        local_id: 'local-v3',
+        decision: 'accepted_a',
+        selected_option: 'A',
+        selected_text: 'Alpha repaired safe.',
+        created_at: '2026-06-08T00:00:00.000Z',
+      });
+
+      const latestRejected = decision({
+        id: '00000000-0000-0000-0000-000000000011',
+        local_id: 'local-v4',
+        decision: 'reject',
+        selected_option: null,
+        selected_text: 'Rejected recommendation',
+        created_at: '2026-06-08T00:01:00.000Z',
+      });
+
+      const { client, rpc, insertSpy } = buildSupabaseMock([latestRejected, staleAccepted]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+
+      expect(result).toEqual({
+        ok: false,
+        error: 'No applicable accepted/custom decisions with persisted text snapshots.',
+      });
+      expect(rpc).not.toHaveBeenCalled();
+      expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'blocked',
+        mode: 'apply',
+        blocked_reason: expect.stringContaining('No applicable accepted/custom decisions'),
+      }));
+    });
   });
 });

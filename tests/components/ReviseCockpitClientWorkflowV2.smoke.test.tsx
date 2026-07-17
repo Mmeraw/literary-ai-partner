@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), refresh: jest.fn(), back: jest.fn(), forward: jest.fn(), prefetch: jest.fn() }),
@@ -17,6 +17,7 @@ jest.mock('next/link', () => ({
 
 import ReviseCockpitClientWorkflowV2 from '@/components/revision/ReviseCockpitClientWorkflowV2';
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from '@/lib/revision/workbenchQueue';
+import type { SyncedRevisionLedgerRow } from '@/lib/revision/ledger';
 
 const CANDIDATE_A = 'Mara stepped back into the room, and everyone waited for her to speak.';
 const CANDIDATE_B = 'The room stilled as everyone turned toward the doorway where Mara stood.';
@@ -92,11 +93,50 @@ function makePayload(overrides: Partial<WorkbenchQueuePayload> = {}): WorkbenchQ
   };
 }
 
+function asLedgerRow(entry: {
+  localId: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  decision: SyncedRevisionLedgerRow['decision'];
+  selectedOption?: 'A' | 'B' | 'C' | null;
+  selectedText?: string | null;
+  customText?: string | null;
+}): SyncedRevisionLedgerRow {
+  const now = new Date().toISOString();
+  return {
+    id: `server-${entry.localId}`,
+    user_id: 'user-1',
+    manuscript_id: 6074,
+    evaluation_job_id: 'e5ced7ac-117f-4d13-8cd0-3957c15dc189',
+    local_id: entry.localId,
+    opportunity_id: entry.opportunityId,
+    opportunity_title: entry.opportunityTitle,
+    decision: entry.decision,
+    selected_option: entry.selectedOption ?? null,
+    custom_text: entry.customText ?? null,
+    selected_text: entry.selectedText ?? entry.customText ?? null,
+    source_excerpt: 'source excerpt',
+    source_location: 'chapter:3',
+    client_created_at: now,
+    client_synced_at: now,
+    metadata: {},
+    created_at: now,
+    updated_at: now,
+    is_undo: false,
+    undone_local_id: null,
+  };
+}
+
 describe('ReviseCockpitClientWorkflowV2', () => {
   let fetchMock: jest.Mock;
 
   beforeEach(() => {
-    fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    fetchMock = jest.fn(async (_input: unknown, init?: { method?: string }) => {
+      if (!init?.method || init.method === 'GET') {
+        return { ok: true, json: async () => ({ ok: true, entries: [] }) };
+      }
+      return { ok: true, json: async () => ({ ok: true, entries: [] }) };
+    });
     global.fetch = fetchMock as unknown as typeof fetch;
     window.prompt = jest.fn().mockReturnValue('Author-authored revision plan.');
   });
@@ -119,8 +159,9 @@ describe('ReviseCockpitClientWorkflowV2', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Accept A' }));
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/revision-ledger', expect.objectContaining({ method: 'POST' }));
-    const [, init] = fetchMock.mock.calls[0];
+    const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(postCall).toBeDefined();
+    const [, init] = postCall as [unknown, { body: string }];
     expect(init.body).toContain('accepted_a');
     expect(init.body).toContain(CANDIDATE_A);
     expect(init.body).toContain('workflow-revise-cockpit-v2');
@@ -128,18 +169,38 @@ describe('ReviseCockpitClientWorkflowV2', () => {
   });
 
   it('offers a retry action when ledger sync fails and clears it after success', async () => {
-    fetchMock
-      .mockRejectedValueOnce(new Error('network unavailable'))
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) });
+    let postAttempt = 0;
+    fetchMock = jest.fn(async (_input: unknown, init?: { method?: string }) => {
+      if (!init?.method || init.method === 'GET') {
+        return { ok: true, json: async () => ({ ok: true, entries: [] }) };
+      }
+      if (init.method === 'POST') {
+        postAttempt += 1;
+        if (postAttempt === 1) {
+          throw new Error('network unavailable');
+        }
+        return { ok: true, json: async () => ({ ok: true, entries: [] }) };
+      }
+      return { ok: false, json: async () => ({ ok: false, error: 'Unexpected method' }) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([, requestInit]) => !requestInit?.method || requestInit.method === 'GET'),
+      ).toBe(true);
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Accept A' }));
 
     const retry = await screen.findByRole('button', { name: /Retry: Bridge abrupt transition/i });
     expect(screen.getByRole('status').textContent).toContain('Save failed:');
     fireEvent.click(retry);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      const postCalls = fetchMock.mock.calls.filter(([, requestInit]) => requestInit?.method === 'POST');
+      expect(postCalls).toHaveLength(2);
+    });
     await waitFor(() => expect(screen.queryByRole('button', { name: /Retry:/i })).toBeNull());
     expect(screen.getByRole('status').textContent).toContain('Saved:');
   });
@@ -196,5 +257,119 @@ describe('ReviseCockpitClientWorkflowV2', () => {
     expect(screen.getByTestId('withheld-summary')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Accept [ABC]/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Generate/i })).toBeNull();
+  });
+
+  it('persists mixed decisions, destroys client state, reloads from backend, and keeps the same authoritative decision state', async () => {
+    const first = makeOpportunity({ id: 'ready-1', title: 'Bridge abrupt transition' });
+    const second = makeOpportunity({ id: 'ready-2', title: 'Resolve cadence drift', anchor: 'chapter:5' });
+    const payload = makePayload({ opportunities: [first, second], readinessTotals: { ready_for_revise: 2, needs_targeting: 0, withheld_unsupported: 0 } });
+
+    const persistedRows: SyncedRevisionLedgerRow[] = [];
+    fetchMock = jest.fn(async (input: unknown, init?: { method?: string; body?: unknown }) => {
+      const url = String(input);
+      if (!init?.method || init.method === 'GET') {
+        expect(url).toContain('/api/revision-ledger?');
+        return { ok: true, json: async () => ({ ok: true, entries: persistedRows }) };
+      }
+
+      if (init.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        const entry = body.entries[0] as {
+          localId: string;
+          opportunityId: string;
+          opportunityTitle: string;
+          decision: SyncedRevisionLedgerRow['decision'];
+          selectedOption?: 'A' | 'B' | 'C' | null;
+          selectedText?: string | null;
+          customText?: string | null;
+        };
+        persistedRows.push(asLedgerRow({
+          localId: entry.localId,
+          opportunityId: entry.opportunityId,
+          opportunityTitle: entry.opportunityTitle,
+          decision: entry.decision,
+          selectedOption: entry.selectedOption ?? null,
+          selectedText: entry.selectedText ?? null,
+          customText: entry.customText ?? null,
+        }));
+        return { ok: true, json: async () => ({ ok: true, entries: [persistedRows[persistedRows.length - 1]] }) };
+      }
+
+      return { ok: false, json: async () => ({ ok: false, error: 'Unexpected method' }) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const firstRender = render(<ReviseCockpitClientWorkflowV2 payload={payload} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept B' }));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved: Bridge abrupt transition'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject All' }));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved: Resolve cadence drift'));
+
+    expect(persistedRows).toHaveLength(2);
+    expect(persistedRows.map((row) => row.decision)).toEqual(['accepted_b', 'reject']);
+
+    firstRender.unmount();
+
+    render(<ReviseCockpitClientWorkflowV2 payload={payload} />);
+
+    await waitFor(() => expect(screen.getByText(/Queue complete/i)).toBeTruthy());
+    expect(screen.getByRole('button', { name: /Active \(0\)/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Accept A' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Accept B' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Accept C' })).toBeNull();
+  });
+
+  it('reloads persisted authority after a 409 stale write and does not let the failed attempt decide the card', async () => {
+    const serverLatest = asLedgerRow({
+      localId: 'server-local-v4',
+      opportunityId: 'ready-1',
+      opportunityTitle: 'Bridge abrupt transition',
+      decision: 'reject',
+      selectedOption: null,
+      selectedText: 'Rejected recommendation',
+    });
+    let getCount = 0;
+
+    fetchMock = jest.fn(async (_input: unknown, init?: { method?: string; body?: unknown }) => {
+      if (!init?.method || init.method === 'GET') {
+        getCount += 1;
+        return {
+          ok: true,
+          json: async () => ({ ok: true, entries: getCount === 1 ? [] : [serverLatest] }),
+        };
+      }
+
+      if (init.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        expect(body.entries[0].decision).toBe('accepted_a');
+        return {
+          ok: false,
+          status: 409,
+          json: async () => ({
+            ok: false,
+            error: 'Ledger stale write blocked: expected current localId null but found server-local-v4 for opportunity ready-1.',
+          }),
+        };
+      }
+
+      return { ok: false, status: 405, json: async () => ({ ok: false, error: 'Unexpected method' }) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<ReviseCockpitClientWorkflowV2 payload={makePayload()} />);
+    await waitFor(() => expect(getCount).toBe(1));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept A' }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('reloaded latest ledger state'));
+    expect(screen.getByText(/1 of 1 active decisions recorded/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Active \(0\)/i })).toBeTruthy();
+    const authoritativeDecisions = screen.getByLabelText('Authoritative ledger decisions');
+    expect(within(authoritativeDecisions).getByText(/Bridge abrupt transition/).textContent).toContain('Bridge abrupt transition');
+    expect(authoritativeDecisions.textContent).toContain('Rejected');
+    expect(authoritativeDecisions.textContent).not.toContain('Accepted A');
+    expect(screen.getAllByRole('button', { name: /Retry: Bridge abrupt transition/i }).length).toBeGreaterThan(0);
   });
 });
