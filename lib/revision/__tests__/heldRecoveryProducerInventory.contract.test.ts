@@ -5,9 +5,7 @@ import {
   normalizeHeldReasonCode,
 } from '@/lib/revision/heldRecoveryReasons';
 import { HELD_REASON_SOURCE_REGISTRY } from '@/lib/revision/heldRecoverySources';
-import {
-  VOICE_GATE_REASON_CODES,
-} from '@/lib/revision/voiceGate';
+import { VOICE_GATE_REASON_CODES } from '@/lib/revision/voiceGate';
 import { CANON_GATE_REASON_CODES } from '@/lib/revision/canonGate';
 import {
   ADMISSION_CANDIDATE_QUALITY_REASON_CODES,
@@ -22,7 +20,6 @@ import {
 import {
   BASE_DECISION_LOCAL_REASON_CODES,
   BASE_DECISION_REASON,
-  evaluateRecommendationExecutability,
 } from '@/lib/revision/recommendationExecutability';
 import { INTEGRITY_VIOLATION_CODES } from '@/lib/evaluation/pipeline/recommendationIntegrityGate';
 import {
@@ -83,27 +80,27 @@ function buildMinimalOpportunity(overrides: Partial<WorkbenchOpportunity> = {}):
     anchor: '',
     quoteHighlight: '',
     quoteRest: '',
-    symptom: 'The moment feels rushed.',
-    cause: 'Summary replaces observable action.',
-    fixDirection: 'Add one concrete physical action.',
-    readerEffect: 'Reader witnesses the decision.',
-    mistakeProofing: 'Keep names and events unchanged.',
+    symptom: 'The scene loses physical momentum because the action is summarized rather than shown in the passage.',
+    cause: 'The summary flattens the beat because it reports action instead of dramatizing it, with the result that the scene loses momentum.',
+    fixDirection: 'Replace the summary with one concrete physical action Mara performs in the scene so the reader can decide how she acts.',
+    readerEffect: 'The reader sees Mara hesitate and the emotional weight of the moment lands with clarity.',
+    mistakeProofing: 'Keep Mara, the letter, and the surrounding scene unchanged.',
     diagnostic: {
-      symptom: 'The moment feels rushed.',
-      cause: 'Summary replaces observable action.',
-      fixStrategy: 'Add one concrete physical action.',
-      readerImpact: 'Reader witnesses the decision.',
+      symptom: 'The scene loses physical momentum because the action is summarized rather than shown in the passage.',
+      cause: 'The summary flattens the beat because it reports action instead of dramatizing it, with the result that the scene loses momentum.',
+      fixStrategy: 'Replace the summary with one concrete physical action Mara performs in the scene so the reader can decide how she acts.',
+      readerImpact: 'The reader sees Mara hesitate and the emotional weight of the moment lands with clarity.',
       evidence: { quotedExcerpt: '', locationLabel: '' },
       operationTargeting: '',
-      mistakeProofing: 'Keep names and events unchanged.',
+      mistakeProofing: 'Keep Mara, the letter, and the surrounding scene unchanged.',
     },
     revisionOperation: 'replace_selected_passage',
     readiness: 'ready_for_revise',
     readinessReason: null,
     options: [
-      { key: 'A', mechanism: 'Primary', candidateText: 'Mara set the letter down.', text: 'Mara set the letter down.', rationale: 'Direct action.' },
-      { key: 'B', mechanism: 'Rhythm', candidateText: 'Mara laid the letter aside.', text: 'Mara laid the letter aside.', rationale: 'Softer rhythm.' },
-      { key: 'C', mechanism: 'Bold', candidateText: 'Mara kept the letter in her hand.', text: 'Mara kept the letter in her hand.', rationale: 'Hesitation.' },
+      { key: 'A', mechanism: 'Primary', candidateText: 'Mara set the letter down and waited for the sound to fade.', text: 'Mara set the letter down and waited for the sound to fade.', rationale: 'Direct action.' },
+      { key: 'B', mechanism: 'Rhythm', candidateText: 'Mara laid the letter aside, her fingers still resting on its edge.', text: 'Mara laid the letter aside, her fingers still resting on its edge.', rationale: 'Softer rhythm.' },
+      { key: 'C', mechanism: 'Bold', candidateText: 'Mara kept the letter in her hand and did not look away.', text: 'Mara kept the letter in her hand and did not look away.', rationale: 'Hesitation.' },
     ],
     ...overrides,
   } as WorkbenchOpportunity;
@@ -159,114 +156,219 @@ describe('held recovery producer characterization', () => {
     });
   });
 
-  it('characterizes base-decision executability: missing evidence yields withheld', () => {
-    const result = evaluateRecommendationExecutability({
-      evidencePresent: false,
-      contextPresent: false,
-      canonClear: false,
-      diagnosisSupported: false,
-      anchorPrecise: false,
-      passageLength: 'short',
-      beforeAfterContextSufficient: false,
-      ledgerConflictPossible: false,
-      canonConflict: false,
-      affectsSceneArchitecture: false,
-      affectsPOVVoiceCanonMetaphor: false,
-      downstreamContinuityRisk: false,
-      voiceFingerprintStable: false,
-      localOperation: false,
-      passingCandidateCount: 0,
-      candidateProseNarrativeSafe: false,
+  describe('A. classification characterization — real producer state → finalDecision.cardType', () => {
+    it('safe local copy-paste inputs produce copy_paste_rewrite', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        anchor: 'chapter_1',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('copy_paste_rewrite');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE);
     });
-    expect(result.cardType).toBe('withheld');
-    expect(result.reasons).toContain(BASE_DECISION_REASON.EVIDENCE_MISSING);
+
+    it('missing evidence / unsupported grounding produces withheld with EVIDENCE_MISSING', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: '',
+        quoteRest: '',
+        anchor: 'chapter_1',
+        groundingStatus: 'unsupported_blocked',
+        contextQuality: 'blocked',
+        preflightStatus: 'blocked',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.EVIDENCE_MISSING);
+    });
+
+    it('hard context block produces withheld with CONTEXT_MISSING', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        anchor: 'chapter_1',
+        groundingStatus: 'supported',
+        contextQuality: 'blocked',
+        preflightStatus: 'blocked',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CONTEXT_MISSING);
+    });
+
+    it('hard canon conflict produces withheld with CANON_UNCLEAR', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        anchor: 'chapter_1',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'blocked',
+        preflightReasons: ['canon_authority_blocked'],
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CANON_UNCLEAR);
+    });
+
+    it('missing diagnostic contract produces withheld with diagnostic missing reasons', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'Mara paused at the threshold.',
+        quoteRest: '',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+        symptom: '',
+        cause: '',
+        fixDirection: '',
+        readerEffect: '',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      const reasons = classification.finalDecision.reasons;
+      expect(reasons.some((reason) => /DIAGNOSTIC_MISSING_/i.test(reason))).toBe(true);
+    });
+
+    it('needs_targeting with strategy admission passed produces revision_strategy', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        anchor: 'chapter_1',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+        readiness: 'needs_targeting',
+        revisionOperation: 'needs_targeting',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('revision_strategy');
+      expect(classification.needsTargetingOverrideApplied).toBe(true);
+    });
+
+    it('chapter scope with safe inputs produces revision_strategy', () => {
+      const opportunity = buildMinimalOpportunity({
+        scope: 'Chapter',
+        mode: 'repair-brief',
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        anchor: 'chapter_1',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('revision_strategy');
+    });
+
+    it('candidate quality failure produces withheld when strategy admission also fails', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'Mara paused at the threshold.',
+        quoteRest: '',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+        options: [
+          { key: 'A', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
+          { key: 'B', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
+          { key: 'C', mechanism: 'Empty', candidateText: '', text: '', rationale: '' },
+        ],
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons.some((r) => /EMPTY|TOO_SHORT|REVISION_QUALITY_FAILED/i.test(r))).toBe(true);
+    });
   });
 
-  it('characterizes base-decision executability: safe inputs yield copy_paste_rewrite', () => {
-    const result = evaluateRecommendationExecutability({
-      evidencePresent: true,
-      contextPresent: true,
-      canonClear: true,
-      diagnosisSupported: true,
-      anchorPrecise: true,
-      passageLength: 'short',
-      beforeAfterContextSufficient: true,
-      ledgerConflictPossible: false,
-      canonConflict: false,
-      affectsSceneArchitecture: false,
-      affectsPOVVoiceCanonMetaphor: false,
-      downstreamContinuityRisk: false,
-      voiceFingerprintStable: true,
-      localOperation: true,
-      passingCandidateCount: 2,
-      candidateProseNarrativeSafe: true,
+  describe('B. partition characterization — finalDecision.cardType → Workbench bucket', () => {
+    it('routes classified opportunities by finalDecision.cardType', () => {
+      const make = (cardType: ClassifiedWorkbenchOpportunity['finalDecision']['cardType']): ClassifiedWorkbenchOpportunity =>
+        buildClassifiedWorkbenchOpportunity(buildMinimalOpportunity(), {
+          cardType,
+          trustedPathStatus: cardType === 'copy_paste_rewrite' ? 'eligible' : cardType === 'revision_strategy' ? 'unavailable_author_review_required' : 'impossible',
+          reasons: ['test-reason'],
+          strategyCardViewModel: null,
+          copyPasteAdmissionPassed: false,
+          copyPasteAdmissionReasons: [],
+          strategyAdmissionPassed: false,
+          strategyAdmissionReasons: [],
+          baseDecision: { cardType, trustedPathStatus: 'impossible', reasons: ['test-reason'] },
+          finalDecision: { cardType, trustedPathStatus: 'impossible', reasons: ['test-reason'] },
+          needsTargetingPromotionApplied: false,
+          promotionTransitionReason: null,
+          needsTargetingOverrideApplied: false,
+          gates: { copyPaste: { passed: false, reasons: [], passedCandidateCount: 0 }, strategy: { passed: false, reasons: [], passedCandidateCount: 0 } },
+        } as any);
+
+      const copyPaste = make('copy_paste_rewrite');
+      const strategy = make('revision_strategy');
+      const withheld = make('withheld');
+
+      const partition = partitionClassifiedWorkbenchQueue([copyPaste, strategy, withheld]);
+      expect(partition.opportunities.map((o) => o.id)).toContain(copyPaste.id);
+      expect(partition.needsTargeting.map((o) => o.id)).toContain(strategy.id);
+      expect(partition.withheldUnsupported.map((o) => o.id)).toContain(withheld.id);
     });
-    expect(result.cardType).toBe('copy_paste_rewrite');
-    expect(result.reasons).toContain(BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE);
-  });
 
-  it('classification produces a finalDecision.cardType and copies it to the opportunity', () => {
-    const opportunity = buildMinimalOpportunity({
-      quoteHighlight: 'Mara paused at the threshold.',
-      quoteRest: '',
-      groundingStatus: 'supported',
-      contextQuality: 'clean',
-      preflightStatus: 'passed',
-    });
-    const classified = classifyWorkbenchExecutabilityDetailed(opportunity);
-    expect(classified.finalDecision.cardType).toBeDefined();
-    expect(classified.finalDecision.reasons.length).toBeGreaterThan(0);
-
-    const built = buildClassifiedWorkbenchOpportunity(opportunity, classified);
-    expect(built.cardType).toBe(classified.finalDecision.cardType);
-    expect(built.finalDecision.cardType).toBe(classified.finalDecision.cardType);
-    expect(built.executabilityReasons).toEqual(classified.finalDecision.reasons);
-  });
-
-  it('partitionClassifiedWorkbenchQueue routes by finalDecision.cardType, not by display reasons', () => {
-    const make = (cardType: ClassifiedWorkbenchOpportunity['finalDecision']['cardType']): ClassifiedWorkbenchOpportunity =>
-      buildClassifiedWorkbenchOpportunity(buildMinimalOpportunity(), {
-        cardType,
-        trustedPathStatus: cardType === 'copy_paste_rewrite' ? 'eligible' : cardType === 'revision_strategy' ? 'unavailable_author_review_required' : 'impossible',
-        reasons: ['test-reason'],
+    it('ignores stale opportunity.cardType when it differs from finalDecision.cardType', () => {
+      const classified = buildClassifiedWorkbenchOpportunity(buildMinimalOpportunity(), {
+        cardType: 'copy_paste_rewrite',
+        trustedPathStatus: 'eligible',
+        reasons: [BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE],
         strategyCardViewModel: null,
-        copyPasteAdmissionPassed: false,
+        copyPasteAdmissionPassed: true,
         copyPasteAdmissionReasons: [],
         strategyAdmissionPassed: false,
         strategyAdmissionReasons: [],
-        baseDecision: { cardType, trustedPathStatus: 'impossible', reasons: ['test-reason'] },
-        finalDecision: { cardType, trustedPathStatus: 'impossible', reasons: ['test-reason'] },
+        baseDecision: { cardType: 'copy_paste_rewrite', trustedPathStatus: 'eligible', reasons: [BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE] },
+        finalDecision: { cardType: 'withheld', trustedPathStatus: 'impossible', reasons: ['stale_override'] },
         needsTargetingPromotionApplied: false,
         promotionTransitionReason: null,
         needsTargetingOverrideApplied: false,
-        gates: { copyPaste: { passed: false, reasons: [], passedCandidateCount: 0 }, strategy: { passed: false, reasons: [], passedCandidateCount: 0 } },
+        gates: { copyPaste: { passed: true, reasons: [], passedCandidateCount: 2 }, strategy: { passed: false, reasons: [], passedCandidateCount: 0 } },
       } as any);
 
-    const copyPaste = make('copy_paste_rewrite');
-    const strategy = make('revision_strategy');
-    const withheld = make('withheld');
+      classified.cardType = 'copy_paste_rewrite';
 
-    const partition = partitionClassifiedWorkbenchQueue([copyPaste, strategy, withheld]);
-    expect(partition.opportunities.map((o) => o.id)).toContain(copyPaste.id);
-    expect(partition.needsTargeting.map((o) => o.id)).toContain(strategy.id);
-    expect(partition.withheldUnsupported.map((o) => o.id)).toContain(withheld.id);
+      const partition = partitionClassifiedWorkbenchQueue([classified]);
+      expect(partition.withheldUnsupported.map((o) => o.id)).toContain(classified.id);
+      expect(partition.opportunities).toHaveLength(0);
+    });
+
+    it('ignores stale readiness when finalDecision.cardType is withheld', () => {
+      const classified = buildClassifiedWorkbenchOpportunity(buildMinimalOpportunity(), {
+        readiness: 'ready_for_revise',
+        finalDecision: { cardType: 'withheld', trustedPathStatus: 'impossible', reasons: ['context_missing'] },
+      } as any);
+
+      const partition = partitionClassifiedWorkbenchQueue([classified]);
+      expect(partition.withheldUnsupported.map((o) => o.id)).toContain(classified.id);
+    });
   });
 
-  it('records whether a recovery action is encoded, inferred, or absent for representative reasons', () => {
-    const rows = [
-      { code: 'truncated_anchor', source: 'preflight', recoveryAction: 'expand_anchor', encoded: false },
-      { code: 'context_missing', source: 'base_decision', recoveryAction: 'retrieve_context', encoded: false },
-      { code: 'candidate_quality_failed', source: 'candidate_quality', recoveryAction: 'regenerate_candidates', encoded: false },
-      { code: 'diagnostic_missing_symptom', source: 'copy_paste_admission', recoveryAction: 'repair_diagnosis', encoded: false },
-      { code: 'testimony_fabrication_risk', source: 'candidate_quality', recoveryAction: 'none', encoded: false },
-    ];
+  describe('C. recovery behavior characterization — current state of the repository', () => {
+    it('records that the repository has no held recovery executor yet', () => {
+      expect(() => require('../heldRecoveryExecutor')).toThrow();
+    });
 
-    for (const row of rows) {
-      const info = getHeldReasonInfo(row.code);
-      expect(info.isUnknown).toBe(false);
-      if (row.recoveryAction === 'none') {
-        expect(info.repairFamily).toBe('none');
+    it('records whether a recovery action is encoded, inferred, or absent for representative reasons', () => {
+      const rows = [
+        { code: 'truncated_anchor', source: 'preflight', recoveryAction: 'expand_anchor', encoded: false },
+        { code: 'context_missing', source: 'base_decision', recoveryAction: 'retrieve_context', encoded: false },
+        { code: 'candidate_quality_failed', source: 'candidate_quality', recoveryAction: 'regenerate_candidates', encoded: false },
+        { code: 'diagnostic_missing_symptom', source: 'copy_paste_admission', recoveryAction: 'repair_diagnosis', encoded: false },
+        { code: 'testimony_fabrication_risk', source: 'candidate_quality', recoveryAction: 'none', encoded: false },
+      ];
+
+      for (const row of rows) {
+        const info = getHeldReasonInfo(row.code);
+        expect(info.isUnknown).toBe(false);
+        if (row.recoveryAction === 'none') {
+          expect(info.repairFamily).toBe('none');
+        }
       }
-    }
+    });
   });
 });
