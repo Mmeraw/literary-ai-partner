@@ -12,10 +12,9 @@ import type {
   HeldReasonRecoveryContract,
   RecoveryExecutionAction,
 } from './heldRecoveryReasons'
-import type { HeldReasonProducer } from './heldRecoverySources'
+import { getRecoveryContractForReason } from './heldRecoveryReasons'
+import type { HeldReasonProducer, HeldReasonSource } from './heldRecoverySources'
 import {
-  candidateSetVersionFor,
-  revisionOpportunityVersionFor,
   sourceHashFor,
 } from './heldRecoveryVersioning'
 
@@ -23,15 +22,49 @@ import {
 // Input and result types
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Trusted canonical values provided by the orchestration layer. These values
+ * are derived from authoritative ledger / recovery-attempt state before the
+ * pure executor runs; the executor must not derive both sides of freshness
+ * comparisons from the request.
+ *
+ * `canonicalRecoveryInputFingerprint` is the fingerprint of the current
+ * authoritative recovery-bearing inputs. It is not the persisted prior-attempt
+ * fingerprint, which belongs in retry orchestration rather than this bounded
+ * execution step.
+ */
+export type RecoveryAuthoritySnapshot = {
+  readonly canonicalLedgerSourceHash: string
+  readonly canonicalOpportunityVersion: string
+  readonly canonicalCandidateSetVersion: string | null
+  readonly canonicalRecoveryInputFingerprint: string
+}
+
+export type RecoveryReasonIdentity = {
+  readonly code: string
+  readonly source: HeldReasonSource
+}
+
 export type RecoveryExecutorInput = {
-  contract: HeldReasonRecoveryContract
-  opportunityId: string
-  manuscriptVersionSha: string
-  ledgerSourceHash: string
-  opportunityVersion: string
-  candidateSetVersion: string | null
-  recoveryInputFingerprint: string
-  inputs: Record<string, unknown>
+  readonly reason: RecoveryReasonIdentity
+  /**
+   * Optional inert metadata retained for upstream audit transport. This pure
+   * executor does not compare, hash, persist, or emit it, and it must never
+   * drive dispatch, validation, result identity, or execution mode.
+   */
+  readonly callerContractSnapshot?: HeldReasonRecoveryContract
+  readonly opportunityId: string
+  readonly manuscriptVersionSha: string
+  readonly ledgerSourceHash: string
+  readonly opportunityVersion: string
+  readonly candidateSetVersion: string | null
+  readonly recoveryInputFingerprint: string
+  readonly authority?: RecoveryAuthoritySnapshot
+  readonly inputs: Record<string, unknown>
+}
+
+type ResolvedRecoveryExecutorInput = RecoveryExecutorInput & {
+  readonly contract: HeldReasonRecoveryContract
 }
 
 export type RecoveryExecutionOutcome =
@@ -39,6 +72,12 @@ export type RecoveryExecutionOutcome =
   | 'no_op'
   | 'retryable_failure'
   | 'terminal_failure'
+  /**
+   * The action is validated and work is fully specified, but execution requires
+   * an LLM-assisted phase not yet authorized in this bounded deterministic
+   * phase. The held item is NOT permanently unrecoverable.
+   */
+  | 'deferred_work'
 
 export type RecoveryExecutionResult = {
   outcome: RecoveryExecutionOutcome
@@ -110,19 +149,21 @@ function passesValidation(value: unknown, validation: string): boolean {
       return isCompleteDiagnostic(value)
     case 'complete_candidate_set':
       return isCompleteCandidateSet(value)
-    case 'source_hash_match':
-      return isNonEmptyObject(value)
+    case 'non_empty_source_hash':
+      return isNonEmptyString(value)
     default:
       return false
   }
 }
 
-function validateRequiredInputs(input: RecoveryExecutorInput): {
+function validateRequiredInputs(input: ResolvedRecoveryExecutorInput): {
   missing: string[]
-  invalid: string[]
+  invalidRetryable: string[]
+  invalidTerminal: string[]
 } {
   const missing: string[] = []
-  const invalid: string[] = []
+  const invalidRetryable: string[] = []
+  const invalidTerminal: string[] = []
 
   for (const requirement of input.contract.requiredInputs) {
     const value = input.inputs[requirement.key]
@@ -132,15 +173,19 @@ function validateRequiredInputs(input: RecoveryExecutorInput): {
       continue
     }
     if (present && !passesValidation(value, requirement.validation)) {
-      invalid.push(requirement.key)
+      if (requirement.validation === 'non_empty_source_hash') {
+        invalidTerminal.push(requirement.key)
+      } else {
+        invalidRetryable.push(requirement.key)
+      }
     }
   }
 
-  return { missing, invalid }
+  return { missing, invalidRetryable, invalidTerminal }
 }
 
 function makeResult(
-  input: RecoveryExecutorInput,
+  input: ResolvedRecoveryExecutorInput,
   outcome: RecoveryExecutionOutcome,
   options: {
     output?: Record<string, unknown>
@@ -161,10 +206,13 @@ function makeResult(
 }
 
 /**
- * Computes an action-specific recovery-input fingerprint. This fingerprint is
- * used only to detect whether the inputs consumed by this action have changed
- * within a single recovery series; it is not a canonical opportunity or
- * candidate-set identity.
+ * Computes an action-specific recovery-input fingerprint.
+ *
+ * This fingerprint is used ONLY to detect whether the inputs consumed by this
+ * action have changed within a single recovery series. It is NOT a canonical
+ * opportunity version or candidate-set identity. Identity metadata
+ * (opportunityVersion, candidateSetVersion) is excluded from this fingerprint
+ * because those values already have independent identity checks.
  */
 export function computeRecoveryInputFingerprint(
   action: RecoveryExecutionAction,
@@ -187,9 +235,11 @@ export function computeRecoveryInputFingerprint(
         rationale: inputs.rationale,
       })
     case 'create_versioned_candidate_set':
+      // Identity metadata (opportunityVersion, candidateSetVersion) is
+      // intentionally excluded; those have independent identity checks.
       return sourceHashFor({
-        opportunityVersion: inputs.opportunityVersion,
-        candidateSetVersion: inputs.candidateSetVersion,
+        source_text: inputs.source_text,
+        evidence_anchor: inputs.evidence_anchor,
         diagnostic_object: inputs.diagnostic_object,
         rationale: inputs.rationale,
       })
@@ -203,7 +253,7 @@ export function computeRecoveryInputFingerprint(
 // Pure executor functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function executeResolveAnchor(input: RecoveryExecutorInput): RecoveryExecutionResult {
+export function executeResolveAnchor(input: ResolvedRecoveryExecutorInput): RecoveryExecutionResult {
   const { source_text, evidence_anchor, manuscript_coordinates } = input.inputs
 
   if (!isNonEmptyString(source_text) || !isNonEmptyString(evidence_anchor) || !isNonEmptyString(manuscript_coordinates)) {
@@ -215,24 +265,29 @@ export function executeResolveAnchor(input: RecoveryExecutorInput): RecoveryExec
 
   const source = (source_text as string).trim()
   const anchor = (evidence_anchor as string).trim()
+  const startOffset = source.indexOf(anchor)
 
-  if (!source.includes(anchor)) {
+  if (startOffset === -1) {
     return makeResult(input, 'retryable_failure', {
       error: 'ANCHOR_NOT_FOUND_IN_SOURCE_TEXT',
-      details: { source, anchor, manuscript_coordinates },
+      details: { manuscript_coordinates, anchorLength: anchor.length },
     })
   }
 
-  return makeResult(input, 'success', {
-    output: {
-      resolvedAnchor: anchor,
-      sourceText: source,
-      manuscriptCoordinates: manuscript_coordinates,
+  return makeResult(input, 'deferred_work', {
+    error: 'ANCHOR_RECONSTRUCTION_REQUIRED',
+    details: {
+      locatedAnchor: anchor,
+      sourceStartOffset: startOffset,
+      sourceEndOffset: startOffset + anchor.length,
+      manuscriptCoordinates: manuscript_coordinates as string,
+      sourceHash: sourceHashFor({ source_text: source }),
+      recoveryMethod: 'source_text_location_only' as const,
     },
   })
 }
 
-export function executeRetrieveContext(input: RecoveryExecutorInput): RecoveryExecutionResult {
+export function executeRetrieveContext(input: ResolvedRecoveryExecutorInput): RecoveryExecutionResult {
   const { source_text, evidence_anchor, manuscript_chunks } = input.inputs
 
   if (!isNonEmptyString(source_text) || !isNonEmptyString(evidence_anchor) || !isNonEmptyArray(manuscript_chunks)) {
@@ -248,31 +303,36 @@ export function executeRetrieveContext(input: RecoveryExecutorInput): RecoveryEx
   if (!source.includes(anchor)) {
     return makeResult(input, 'retryable_failure', {
       error: 'ANCHOR_NOT_FOUND_IN_SOURCE_TEXT',
-      details: { source, anchor },
+      details: { anchorLength: anchor.length },
     })
   }
 
-  const chunks = (manuscript_chunks as unknown[]).filter((chunk): chunk is string => typeof chunk === 'string')
-  const matchingChunks = chunks.filter((chunk) => chunk.includes(anchor))
+  const chunks = (manuscript_chunks as unknown[]).filter((c): c is string => typeof c === 'string')
+  const selectedChunks = chunks
+    .map((text, index) => ({ index, text, anchorOffset: text.indexOf(anchor) }))
+    .filter((chunk) => chunk.anchorOffset !== -1)
 
-  if (matchingChunks.length === 0) {
+  if (selectedChunks.length === 0) {
     return makeResult(input, 'retryable_failure', {
       error: 'ANCHOR_NOT_FOUND_IN_CHUNKS',
-      details: { chunks },
+      details: { chunkCount: chunks.length },
     })
   }
 
   return makeResult(input, 'success', {
     output: {
-      retrievedContext: matchingChunks.join('\n'),
-      matchingChunkCount: matchingChunks.length,
+      selectedChunks,
+      matchingChunkCount: selectedChunks.length,
+      anchor,
+      selectionRule: 'anchor_substring_match' as const,
     },
   })
 }
 
-export function executeRepairDiagnosis(input: RecoveryExecutorInput): RecoveryExecutionResult {
-  // Deterministic validation only. The actual rewrite is LLM-assisted and is not
-  // authorized in this bounded executor phase.
+export function executeRepairDiagnosis(input: ResolvedRecoveryExecutorInput): RecoveryExecutionResult {
+  // Deterministic validation only. The actual rewrite is LLM-assisted and is
+  // not authorized in this bounded executor phase. deferred_work signals that
+  // the held item is recoverable once an LLM phase is authorized.
   const { symptom, cause, fix_direction, reader_effect, diagnostic_object } = input.inputs
 
   const diagnostic = diagnostic_object ?? { symptom, cause, fix_direction, reader_effect }
@@ -283,13 +343,13 @@ export function executeRepairDiagnosis(input: RecoveryExecutorInput): RecoveryEx
     })
   }
 
-  return makeResult(input, 'terminal_failure', {
+  return makeResult(input, 'deferred_work', {
     error: 'LLM_ASSISTED_NOT_AUTHORIZED',
-    details: { action: 'repair_diagnosis' },
+    details: { action: 'repair_diagnosis', phase: 'deterministic_only' },
   })
 }
 
-export function executeCreateVersionedCandidateSet(input: RecoveryExecutorInput): RecoveryExecutionResult {
+export function executeCreateVersionedCandidateSet(input: ResolvedRecoveryExecutorInput): RecoveryExecutionResult {
   const { source_text, evidence_anchor, diagnostic_object, existing_candidates_a_b_c } = input.inputs
 
   if (!isNonEmptyString(source_text) || !isNonEmptyString(evidence_anchor) || !isCompleteDiagnostic(diagnostic_object)) {
@@ -306,14 +366,6 @@ export function executeCreateVersionedCandidateSet(input: RecoveryExecutorInput)
         details: { existing_candidates_a_b_c },
       })
     }
-
-    const expectedVersion = candidateSetVersionFor(existing_candidates_a_b_c as { a: string; b: string; c: string })
-    if (input.candidateSetVersion !== expectedVersion) {
-      return makeResult(input, 'retryable_failure', {
-        error: 'STALE_CANDIDATE_SET_VERSION',
-        details: { expectedVersion, candidateSetVersion: input.candidateSetVersion },
-      })
-    }
   } else if (input.candidateSetVersion !== null) {
     return makeResult(input, 'terminal_failure', {
       error: 'STALE_CANDIDATE_SET_VERSION',
@@ -321,11 +373,12 @@ export function executeCreateVersionedCandidateSet(input: RecoveryExecutorInput)
     })
   }
 
-  // Deterministic validation only. New candidate generation is LLM-assisted and
-  // is not authorized in this bounded executor phase.
-  return makeResult(input, 'terminal_failure', {
+  // Inputs validated. New candidate generation is LLM-assisted and not
+  // authorized in this bounded executor phase. deferred_work signals that
+  // the held item is recoverable once an LLM phase is authorized.
+  return makeResult(input, 'deferred_work', {
     error: 'LLM_ASSISTED_NOT_AUTHORIZED',
-    details: { action: 'create_versioned_candidate_set' },
+    details: { action: 'create_versioned_candidate_set', phase: 'deterministic_only' },
   })
 }
 
@@ -335,7 +388,7 @@ export function executeCreateVersionedCandidateSet(input: RecoveryExecutorInput)
 
 const EXECUTORS: Record<
   Exclude<RecoveryExecutionAction, 'none'>,
-  (input: RecoveryExecutorInput) => RecoveryExecutionResult
+  (input: ResolvedRecoveryExecutorInput) => RecoveryExecutionResult
 > = {
   resolve_anchor: executeResolveAnchor,
   retrieve_context: executeRetrieveContext,
@@ -343,62 +396,64 @@ const EXECUTORS: Record<
   create_versioned_candidate_set: executeCreateVersionedCandidateSet,
 }
 
-function validateOpportunityVersion(input: RecoveryExecutorInput): RecoveryExecutionResult | null {
-  const expected = revisionOpportunityVersionFor(input.opportunityId, input.ledgerSourceHash)
-  if (input.opportunityVersion !== expected) {
+function validateAuthoritySnapshot(input: ResolvedRecoveryExecutorInput): RecoveryExecutionResult | null {
+  if (!input.authority) {
+    return makeResult(input, 'terminal_failure', {
+      error: 'MISSING_CANONICAL_AUTHORITY_SNAPSHOT',
+      details: { reason: 'Executable recovery requires independently derived canonical authority.' },
+    })
+  }
+
+  if (input.ledgerSourceHash !== input.authority.canonicalLedgerSourceHash) {
+    return makeResult(input, 'terminal_failure', {
+      error: 'STALE_LEDGER_SOURCE_HASH',
+      details: {
+        ledgerSourceHash: input.ledgerSourceHash,
+        canonicalLedgerSourceHash: input.authority.canonicalLedgerSourceHash,
+      },
+    })
+  }
+
+  if (input.opportunityVersion !== input.authority.canonicalOpportunityVersion) {
     return makeResult(input, 'terminal_failure', {
       error: 'STALE_OPPORTUNITY_VERSION',
-      details: { expected, opportunityVersion: input.opportunityVersion },
+      details: {
+        opportunityVersion: input.opportunityVersion,
+        canonicalOpportunityVersion: input.authority.canonicalOpportunityVersion,
+      },
     })
   }
-  return null
-}
 
-function validateCandidateSetVersion(input: RecoveryExecutorInput): RecoveryExecutionResult | null {
-  if (input.contract.recoveryAction !== 'create_versioned_candidate_set') return null
-
-  const existing = input.inputs.existing_candidates_a_b_c
-  if (existing !== undefined && existing !== null) {
-    if (!isCompleteCandidateSet(existing)) {
-      return makeResult(input, 'retryable_failure', {
-        error: 'INCOMPLETE_CANDIDATE_SET',
-        details: { existing_candidates_a_b_c: existing },
-      })
-    }
-    const expected = candidateSetVersionFor(existing as { a: string; b: string; c: string })
-    if (input.candidateSetVersion !== expected) {
-      return makeResult(input, 'terminal_failure', {
-        error: 'STALE_CANDIDATE_SET_VERSION',
-        details: { expected, candidateSetVersion: input.candidateSetVersion },
-      })
-    }
-  } else if (input.candidateSetVersion !== null) {
+  if (input.candidateSetVersion !== input.authority.canonicalCandidateSetVersion) {
     return makeResult(input, 'terminal_failure', {
       error: 'STALE_CANDIDATE_SET_VERSION',
-      details: { reason: 'candidateSetVersion provided but no existing_candidates_a_b_c' },
+      details: {
+        candidateSetVersion: input.candidateSetVersion,
+        canonicalCandidateSetVersion: input.authority.canonicalCandidateSetVersion,
+      },
     })
   }
-  return null
-}
 
-function validateFingerprint(input: RecoveryExecutorInput): RecoveryExecutionResult | null {
-  const fingerprintInputs = {
-    ...input.inputs,
-    opportunityVersion: input.opportunityVersion,
-    candidateSetVersion: input.candidateSetVersion,
-  }
-  const expected = computeRecoveryInputFingerprint(input.contract.recoveryAction, fingerprintInputs)
-  if (input.recoveryInputFingerprint !== expected) {
+  const recomputedFingerprint = computeRecoveryInputFingerprint(input.contract.recoveryAction, input.inputs)
+  if (
+    input.recoveryInputFingerprint !== input.authority.canonicalRecoveryInputFingerprint ||
+    recomputedFingerprint !== input.authority.canonicalRecoveryInputFingerprint
+  ) {
     return makeResult(input, 'retryable_failure', {
       error: 'STALE_RECOVERY_INPUT_FINGERPRINT',
-      details: { expected, recoveryInputFingerprint: input.recoveryInputFingerprint },
+      details: {
+        recoveryInputFingerprint: input.recoveryInputFingerprint,
+        recomputedFingerprint,
+        canonicalRecoveryInputFingerprint: input.authority.canonicalRecoveryInputFingerprint,
+      },
     })
   }
+
   return null
 }
 
 export function executeRecoveryAction(input: RecoveryExecutorInput): RecoveryExecutionResult {
-  if (!input || typeof input !== 'object' || !input.contract) {
+  if (!input || typeof input !== 'object' || !input.reason) {
     return {
       outcome: 'terminal_failure',
       action: 'none',
@@ -408,17 +463,29 @@ export function executeRecoveryAction(input: RecoveryExecutorInput): RecoveryExe
     }
   }
 
-  const { contract } = input
+  const contract = getRecoveryContractForReason(input.reason)
+  if (!contract) {
+    return {
+      outcome: 'terminal_failure',
+      action: 'none',
+      producer: '' as HeldReasonProducer,
+      code: input.reason.code,
+      error: 'UNKNOWN_RECOVERY_CONTRACT',
+      details: { reason: input.reason },
+    }
+  }
+
+  const resolvedInput: ResolvedRecoveryExecutorInput = { ...input, contract }
 
   if (contract.authorityRole !== 'origin') {
-    return makeResult(input, 'terminal_failure', {
+    return makeResult(resolvedInput, 'terminal_failure', {
       error: 'NOT_AN_ORIGIN_PRODUCER',
       details: { authorityRole: contract.authorityRole, producer: contract.producer, code: contract.code },
     })
   }
 
   if (contract.recoveryAction === 'none') {
-    return makeResult(input, 'no_op', {
+    return makeResult(resolvedInput, 'no_op', {
       error: 'TERMINAL_CONTRACT_NO_ACTION',
       details: { producer: contract.producer, code: contract.code },
     })
@@ -426,28 +493,34 @@ export function executeRecoveryAction(input: RecoveryExecutorInput): RecoveryExe
 
   const action = contract.recoveryAction
   if (!Object.prototype.hasOwnProperty.call(EXECUTORS, action)) {
-    return makeResult(input, 'terminal_failure', {
+    return makeResult(resolvedInput, 'terminal_failure', {
       error: 'UNKNOWN_RECOVERY_ACTION',
       details: { recoveryAction: action },
     })
   }
 
-  const opportunityVersionError = validateOpportunityVersion(input)
-  if (opportunityVersionError) return opportunityVersionError
+  const authorityError = validateAuthoritySnapshot(resolvedInput)
+  if (authorityError) return authorityError
 
-  const candidateSetVersionError = validateCandidateSetVersion(input)
-  if (candidateSetVersionError) return candidateSetVersionError
-
-  const { missing, invalid } = validateRequiredInputs(input)
-  if (missing.length > 0 || invalid.length > 0) {
-    return makeResult(input, 'retryable_failure', {
+  const { missing, invalidRetryable, invalidTerminal } = validateRequiredInputs(resolvedInput)
+  if (missing.length > 0) {
+    return makeResult(resolvedInput, 'retryable_failure', {
       error: 'MISSING_REQUIRED_INPUTS',
-      details: { missing, invalid },
+      details: { missing },
+    })
+  }
+  if (invalidRetryable.length > 0) {
+    return makeResult(resolvedInput, 'retryable_failure', {
+      error: 'INVALID_RECOVERABLE_INPUTS',
+      details: { invalid: invalidRetryable },
+    })
+  }
+  if (invalidTerminal.length > 0) {
+    return makeResult(resolvedInput, 'terminal_failure', {
+      error: 'INVALID_REQUIRED_INPUTS',
+      details: { invalid: invalidTerminal },
     })
   }
 
-  const fingerprintError = validateFingerprint(input)
-  if (fingerprintError) return fingerprintError
-
-  return EXECUTORS[contract.recoveryAction as keyof typeof EXECUTORS](input)
+  return EXECUTORS[contract.recoveryAction as keyof typeof EXECUTORS](resolvedInput)
 }

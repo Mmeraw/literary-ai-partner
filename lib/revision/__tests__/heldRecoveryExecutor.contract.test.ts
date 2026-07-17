@@ -1,11 +1,15 @@
 import { describe, it, expect } from '@jest/globals';
+import { readFileSync } from 'fs';
 import {
   getRecoveryContractForReason,
+  type HeldReasonRecoveryContract,
   type RecoveryExecutionAction,
 } from '@/lib/revision/heldRecoveryReasons';
+import type { HeldReasonSource } from '@/lib/revision/heldRecoverySources';
 import {
   computeRecoveryInputFingerprint,
   executeRecoveryAction,
+  type RecoveryAuthoritySnapshot,
   type RecoveryExecutorInput,
 } from '@/lib/revision/heldRecoveryExecutor';
 import { revisionOpportunityVersionFor, candidateSetVersionFor } from '@/lib/revision/heldRecoveryVersioning';
@@ -25,30 +29,92 @@ function deepFreeze<T>(obj: T): T {
 function baseInput(
   action: RecoveryExecutionAction,
   code: string,
-  source: any,
+  source: HeldReasonSource,
   inputs: Record<string, unknown>,
   candidateSetVersion: string | null = null,
 ): RecoveryExecutorInput {
-  const contract = getRecoveryContractForReason({ code, source })!;
   const opportunityId = 'op-1';
   const ledgerSourceHash = 'ledger-sha';
   const opportunityVersion = revisionOpportunityVersionFor(opportunityId, ledgerSourceHash);
-  const recoveryInputFingerprint = computeRecoveryInputFingerprint(action, {
-    ...inputs,
-    opportunityVersion,
-    candidateSetVersion,
-  });
+  const recoveryInputFingerprint = computeRecoveryInputFingerprint(action, inputs);
   return deepFreeze({
-    contract,
+    reason: { code, source },
     opportunityId,
     manuscriptVersionSha: 'manuscript-sha',
     ledgerSourceHash,
     opportunityVersion,
     candidateSetVersion,
     recoveryInputFingerprint,
+    authority: {
+      canonicalLedgerSourceHash: ledgerSourceHash,
+      canonicalOpportunityVersion: opportunityVersion,
+      canonicalCandidateSetVersion: candidateSetVersion,
+      canonicalRecoveryInputFingerprint: recoveryInputFingerprint,
+    } satisfies RecoveryAuthoritySnapshot,
     inputs,
   }) as RecoveryExecutorInput;
 }
+
+describe('held recovery executor authority boundaries', () => {
+  it.each([
+    ['producerModule', (contract: HeldReasonRecoveryContract) => ({ ...contract, producerModule: 'forged/module.ts' })],
+    ['validationStep', (contract: HeldReasonRecoveryContract) => ({ ...contract, validationStep: null })],
+    ['validationPrecondition', (contract: HeldReasonRecoveryContract) => ({ ...contract, validationPrecondition: null })],
+    ['requiredInputs', (contract: HeldReasonRecoveryContract) => ({ ...contract, requiredInputs: [] })],
+    ['requiredInput.key', (contract: HeldReasonRecoveryContract) => ({ ...contract, requiredInputs: contract.requiredInputs.map((requirement, index) => index === 0 ? { ...requirement, key: 'forged_key' } : requirement) })],
+    ['requiredInput.source', (contract: HeldReasonRecoveryContract) => ({ ...contract, requiredInputs: contract.requiredInputs.map((requirement, index) => index === 0 ? { ...requirement, source: 'author_submission' as const } : requirement) })],
+    ['requiredInput.validation', (contract: HeldReasonRecoveryContract) => ({ ...contract, requiredInputs: contract.requiredInputs.map((requirement, index) => index === 0 ? { ...requirement, validation: 'complete_diagnostic' as const } : requirement) })],
+    ['requiredInput.required', (contract: HeldReasonRecoveryContract) => ({ ...contract, requiredInputs: contract.requiredInputs.map((requirement, index) => index === 0 ? { ...requirement, required: false } : requirement) })],
+  ])('ignores forged caller contract field %s and uses canonical authority', (_field, forge) => {
+    const canonical = getRecoveryContractForReason({ code: 'truncated_anchor', source: 'preflight' })!;
+    const forged = forge(canonical);
+    const input = {
+      ...baseInput('resolve_anchor', 'truncated_anchor', 'preflight', {
+        source_text: 'The quick brown fox jumps over the lazy dog.',
+        manuscript_coordinates: 'ch1.p3',
+        evidence_anchor: 'quick brown fox',
+      }),
+      contract: forged,
+    };
+
+    const result = executeRecoveryAction(input);
+
+    expect(result.outcome).toBe('deferred_work');
+    expect(result.error).toBe('ANCHOR_RECONSTRUCTION_REQUIRED');
+    expect(result.action).toBe(canonical.recoveryAction);
+    expect(result.producer).toBe(canonical.producer);
+    expect(result.code).toBe(canonical.code);
+  });
+
+  it('requires a canonical authority snapshot for executable actions', () => {
+    const { authority: _authority, ...withoutAuthority } = baseInput('resolve_anchor', 'truncated_anchor', 'preflight', {
+      source_text: 'The quick brown fox jumps over the lazy dog.',
+      manuscript_coordinates: 'ch1.p3',
+      evidence_anchor: 'quick brown fox',
+    });
+    const result = executeRecoveryAction(withoutAuthority);
+
+    expect(result.outcome).toBe('terminal_failure');
+    expect(result.error).toBe('MISSING_CANONICAL_AUTHORITY_SNAPSHOT');
+  });
+
+  it('does not report unchanged anchor lookup as successful anchor recovery', () => {
+    const result = executeRecoveryAction(baseInput('resolve_anchor', 'truncated_anchor', 'preflight', {
+      source_text: 'The quick brown fox jumps over the lazy dog.',
+      manuscript_coordinates: 'ch1.p3',
+      evidence_anchor: 'quick brown fox',
+    }));
+
+    expect(result.outcome).not.toBe('success');
+  });
+
+  it('uses non_empty_source_hash vocabulary instead of the retired source hash match name', () => {
+    const reasonsSource = readFileSync('lib/revision/heldRecoveryReasons.ts', 'utf8');
+    const retiredValidationName = ['source', 'hash', 'match'].join('_');
+    expect(reasonsSource).toContain('non_empty_source_hash');
+    expect(reasonsSource).not.toContain(retiredValidationName);
+  });
+});
 
 describe('held recovery executor characterization', () => {
   it('dispatches an origin resolve_anchor contract to the anchor executor', () => {
@@ -59,19 +125,19 @@ describe('held recovery executor characterization', () => {
     });
     const result = executeRecoveryAction(input);
     expect(result.action).toBe('resolve_anchor');
-    expect(result.outcome).toBe('success');
+    expect(result.outcome).toBe('deferred_work');
+    expect(result.error).toBe('ANCHOR_RECONSTRUCTION_REQUIRED');
   });
 
   it('refuses to execute a decision-projection contract directly', () => {
-    const contract = getRecoveryContractForReason({ code: 'context_missing', source: 'final_decision' })!;
     const input: RecoveryExecutorInput = deepFreeze({
-      contract,
+      reason: { code: 'context_missing', source: 'final_decision' },
       opportunityId: 'op-1',
       manuscriptVersionSha: 'm',
       ledgerSourceHash: 'l',
       opportunityVersion: revisionOpportunityVersionFor('op-1', 'l'),
       candidateSetVersion: null,
-      recoveryInputFingerprint: 'fp',
+      recoveryInputFingerprint: computeRecoveryInputFingerprint('none', {}),
       inputs: {},
     });
     const result = executeRecoveryAction(input);
@@ -83,13 +149,13 @@ describe('held recovery executor characterization', () => {
     const contract = getRecoveryContractForReason({ code: 'canon_authority_blocked', source: 'preflight' })!;
     expect(contract.recoveryAction).toBe('none');
     const input: RecoveryExecutorInput = deepFreeze({
-      contract,
+      reason: { code: 'canon_authority_blocked', source: 'preflight' },
       opportunityId: 'op-1',
       manuscriptVersionSha: 'm',
       ledgerSourceHash: 'l',
       opportunityVersion: revisionOpportunityVersionFor('op-1', 'l'),
       candidateSetVersion: null,
-      recoveryInputFingerprint: 'fp',
+      recoveryInputFingerprint: computeRecoveryInputFingerprint('none', {}),
       inputs: {},
     });
     const result = executeRecoveryAction(input);
@@ -130,7 +196,7 @@ describe('held recovery executor characterization', () => {
     const result = executeRecoveryAction(input);
     expect(result.action).toBe('create_versioned_candidate_set');
     expect(result.outcome).toBe('retryable_failure');
-    expect(result.error).toMatch(/candidate|incomplete|a_b_c/i);
+    expect(result.error).toMatch(/invalid.*recoverable|candidate|incomplete|a_b_c/i);
   });
 
   it('computes deterministic and distinct recovery input fingerprints', () => {
@@ -176,27 +242,43 @@ describe('held recovery executor characterization', () => {
       evidence_anchor: 'quick brown fox',
       manuscript_chunks: ['The quick brown fox', 'jumps over the lazy dog.'],
     });
-    expect(input.contract.recoveryAction).toBe('retrieve_context');
     const result = executeRecoveryAction(input);
     expect(result.outcome).toBe('success');
   });
 
-  it('fails closed for an unknown recoveryAction on a forged contract', () => {
+  it('ignores an injected caller contract snapshot when dispatching', () => {
     const contract = getRecoveryContractForReason({ code: 'truncated_anchor', source: 'preflight' })!;
     const forged = { ...contract, recoveryAction: 'unknown_action' as any };
+    const input = deepFreeze({
+      ...baseInput('resolve_anchor', 'truncated_anchor', 'preflight', {
+        source_text: 'The quick brown fox jumps over the lazy dog.',
+        manuscript_coordinates: 'ch1.p3',
+        evidence_anchor: 'quick brown fox',
+      }),
+      callerContractSnapshot: forged,
+    });
+    const result = executeRecoveryAction(input);
+    expect(result.action).toBe('resolve_anchor');
+    expect(result.error).toBe('ANCHOR_RECONSTRUCTION_REQUIRED');
+    expect(result.outcome).toBe('deferred_work');
+  });
+
+  it('distinguishes unknown canonical reason identity from known terminal no-op', () => {
     const input: RecoveryExecutorInput = deepFreeze({
-      contract: forged,
+      reason: { code: 'not_a_known_reason', source: 'grounding' },
       opportunityId: 'op-1',
       manuscriptVersionSha: 'm',
       ledgerSourceHash: 'l',
       opportunityVersion: revisionOpportunityVersionFor('op-1', 'l'),
       candidateSetVersion: null,
-      recoveryInputFingerprint: 'fp',
+      recoveryInputFingerprint: computeRecoveryInputFingerprint('none', {}),
       inputs: {},
     });
     const result = executeRecoveryAction(input);
     expect(result.outcome).toBe('terminal_failure');
-    expect(result.error).toMatch(/unknown|not.*authorized/i);
+    expect(result.error).toBe('UNKNOWN_RECOVERY_CONTRACT');
+    expect(result.action).toBe('none');
+    expect(result.code).toBe('not_a_known_reason');
   });
 
   it('rejects a stale candidate-set version before any candidate transformation', () => {
@@ -216,7 +298,13 @@ describe('held recovery executor characterization', () => {
       },
       'wrong-version',
     );
-    const staleResult = executeRecoveryAction(stale);
+    const staleResult = executeRecoveryAction({
+      ...stale,
+      authority: {
+        ...stale.authority!,
+        canonicalCandidateSetVersion: correctVersion,
+      },
+    });
     expect(staleResult.action).toBe('create_versioned_candidate_set');
     expect(staleResult.outcome).toBe('terminal_failure');
     expect(staleResult.error).toMatch(/stale|candidate/i);
@@ -237,12 +325,14 @@ describe('held recovery executor characterization', () => {
     );
     const retry = executeRecoveryAction(valid);
     expect(retry.action).toBe('create_versioned_candidate_set');
-    expect(retry.outcome).toBe('terminal_failure');
+    // LLM-assisted actions now return deferred_work, not terminal_failure,
+    // because the held item is recoverable once an LLM phase is authorized.
+    expect(retry.outcome).toBe('deferred_work');
     expect(retry.error).toMatch(/llm|not.*authorized/i);
   });
 
   it('dispatches every registered executable origin contract to exactly one executor', () => {
-    const cases: { code: string; source: any; inputs: Record<string, unknown>; expectedAction: RecoveryExecutionAction }[] = [
+    const cases: { code: string; source: HeldReasonSource; inputs: Record<string, unknown>; expectedAction: RecoveryExecutionAction }[] = [
       { code: 'truncated_anchor', source: 'preflight', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', manuscript_coordinates: 'ch1.p3', evidence_anchor: 'quick brown fox' }, expectedAction: 'resolve_anchor' },
       { code: 'hydration_anchor_truncated', source: 'hydration', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', manuscript_coordinates: 'ch1.p3', evidence_anchor: 'quick brown fox' }, expectedAction: 'resolve_anchor' },
       { code: 'insufficient_anchor_grounding', source: 'res_blocker', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', manuscript_coordinates: 'ch1.p3', evidence_anchor: 'quick brown fox' }, expectedAction: 'resolve_anchor' },
@@ -274,13 +364,13 @@ describe('held recovery executor characterization', () => {
     const terminalContract = getRecoveryContractForReason({ code: 'canon_authority_blocked', source: 'preflight' })!;
     expect(terminalContract.recoveryAction).toBe('none');
     const terminalInput: RecoveryExecutorInput = deepFreeze({
-      contract: terminalContract,
+      reason: { code: 'canon_authority_blocked', source: 'preflight' },
       opportunityId: 'op-1',
       manuscriptVersionSha: 'm',
       ledgerSourceHash: 'l',
       opportunityVersion: revisionOpportunityVersionFor('op-1', 'l'),
       candidateSetVersion: null,
-      recoveryInputFingerprint: 'fp',
+      recoveryInputFingerprint: computeRecoveryInputFingerprint('none', {}),
       inputs: {},
     });
     const terminalResult = executeRecoveryAction(terminalInput);
@@ -315,7 +405,7 @@ describe('held recovery executor characterization', () => {
       manuscript_coordinates: 'ch1.p3',
       evidence_anchor: 'quick brown fox',
     }));
-    expect(result.outcome).toBe('success');
-    expect(result.output).toBeDefined();
+    expect(result.outcome).toBe('deferred_work');
+    expect(result.error).toBe('ANCHOR_RECONSTRUCTION_REQUIRED');
   });
 });

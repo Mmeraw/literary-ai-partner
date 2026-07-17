@@ -114,11 +114,7 @@ describe('Held recovery contract invariants', () => {
 
   it('fails closed on unknown reason codes', () => {
     const contract = contractFor('totally_unknown_reason_xyz', 'preflight');
-    expect(contract).toBeDefined();
-    expect(contract!.recoveryAction).toBe('none');
-    expect(contract!.executionMode).toBe('none');
-    expect(contract!.validationStep).toBeNull();
-    expect(contract!.requiredInputs).toEqual([]);
+    expect(contract).toBeUndefined();
   });
 
   it('does not include rerun_admission in RecoveryExecutionAction', () => {

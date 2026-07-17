@@ -86,7 +86,7 @@ export type RecoveryInputValidation =
   | 'valid_anchor'
   | 'complete_diagnostic'
   | 'complete_candidate_set'
-  | 'source_hash_match'
+  | 'non_empty_source_hash'
 
 export type RecoveryInputRequirement = {
   key: string
@@ -1510,9 +1510,8 @@ const FAMILY_CONTRACT_DEFAULTS: Record<HeldRepairFamily, RecoveryContractShell> 
     validationStep: null,
     validationPrecondition: null,
     executionMode: 'none',
-    requiredInputs: [
-      { key: 'full_opportunity', source: 'classification', required: true, validation: 'source_hash_match' },
-    ],
+    // recoveryAction is 'none'; no inputs are consumed by an executor.
+    requiredInputs: [],
   },
   none: {
     recoveryAction: 'none',
@@ -1596,6 +1595,10 @@ export function getRecoveryContractForReason(
   const base = FAMILY_CONTRACT_DEFAULTS[info.repairFamily]
 
   if (entry.authorityRole === 'annotation') {
+    return undefined
+  }
+
+  if (info.isUnknown) {
     return undefined
   }
 

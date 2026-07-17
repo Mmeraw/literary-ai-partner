@@ -1,7 +1,11 @@
 # Held Recovery Contract — Design Proposal
 
 **Status:** contract design approved for type and contract-test implementation
-**Scope:** recovery-contract schema and authority boundaries only. No executor, dispatcher, runtime wiring, persistence changes, queue mutations, or UI controls are included in this proposal.
+**Scope:** recovery-contract schema and authority boundaries only. Runtime wiring, persistence changes, queue mutations, and UI controls are not included in this proposal.
+
+The bounded pure executor/dispatcher may validate these contracts, but it does not establish end-to-end runtime authority by itself. Runtime authority is established only when an orchestration adapter independently reads canonical ledger, opportunity, candidate-set, and recovery-input state, constructs `RecoveryAuthoritySnapshot` from those reads, and passes it to the pure executor. Until that adapter exists and is tested, authority provenance remains a contract boundary, not an end-to-end runtime guarantee.
+
+`retrieve_context` remains provisional in this phase. It must not be runtime-wired until manuscript chunks carry canonical chunk identity, source hash, manuscript start/end offsets, manuscript-version binding, coordinate provenance, and malformed-chunk rejection. Per-requirement invalid-input dispositions (`onMissing` / `onInvalid`) are also a follow-on contract extension; the current executor keeps deterministic failure behavior bounded and unwired.
 
 This document builds on the approved `docs/held-recovery-producer-inventory.md` and the existing contract modules in `lib/revision/heldRecoverySources.ts`, `lib/revision/heldRecoveryReasons.ts`, `lib/revision/heldRecoveryState.ts`, and `lib/revision/heldRecoveryPlan.ts`.
 
@@ -64,7 +68,7 @@ export type RecoveryAuthorityRole =
 
 ### 1.3 Reason normalization
 
-Reason normalization remains `normalizeHeldReasonCode` (lowercase, collapse non-alphanumerics to `_`, trim underscores). Unknown codes normalize to themselves and are handled by the fail-closed path.
+Reason normalization remains `normalizeHeldReasonCode` (lowercase, collapse non-alphanumerics to `_`, trim underscores). Unknown codes normalize to themselves and are handled by the fail-closed path. Unknown origin reasons do not receive executable contracts and must remain distinguishable from known policy-terminal `recoveryAction: 'none'` contracts.
 
 ## 2. Authoritative source for initiating recovery
 
@@ -142,7 +146,7 @@ export type RecoveryInputValidation =
   | 'valid_anchor'
   | 'complete_diagnostic'
   | 'complete_candidate_set'
-  | 'source_hash_match'
+  | 'non_empty_source_hash'
 
 export type RecoveryInputRequirement = {
   key: string
@@ -177,7 +181,7 @@ The existing `REPAIR_FAMILY_TEMPLATES` defines the ordered repair pipeline. The 
 | `context` | `retrieve_context` | `rerun_admission` | `execution_action_changed_inputs` | `deterministic` | `source_text` (`canonical_opportunity`, `non_empty`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`), `manuscript_chunks` (`manuscript_artifact`, `non_empty`) |
 | `diagnosis` | `repair_diagnosis` | `rerun_admission` | `execution_action_changed_inputs` | `llm_assisted` | `symptom` (`canonical_opportunity`, `complete_diagnostic`), `cause` (`canonical_opportunity`, `complete_diagnostic`), `fix_direction` (`canonical_opportunity`, `complete_diagnostic`), `reader_effect` (`canonical_opportunity`, `complete_diagnostic`), `rationale` (`canonical_opportunity`, optional) |
 | `candidates` | `create_versioned_candidate_set` | `rerun_admission` | `execution_action_changed_inputs` | `llm_assisted` | `existing_candidates_a_b_c` (`persisted_ledger`, `complete_candidate_set`, `required: false`), `source_text` (`canonical_opportunity`, `non_empty`), `evidence_anchor` (`manuscript_artifact`, `valid_anchor`), `rationale` (`canonical_opportunity`), `diagnostic_object` (`classification`) |
-| `strategy` | `none` | `null` | `null` | `none` | `full_opportunity` (`classification`, `source_hash_match`) |
+| `strategy` | `none` | `null` | `null` | `none` | `[]` — no executor inputs are consumed when `recoveryAction` is `none` |
 | `none` | `none` | `null` | `null` | `none` | `[]` |
 
 ### 4.1 Per-code overrides
