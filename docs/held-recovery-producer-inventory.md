@@ -85,7 +85,6 @@ These fields are accessed inside `classifyWorkbenchExecutabilityDetailedCore` or
 | `affectsPOVVoiceCanonMetaphor` | `preflightReasons` pattern match |
 | `downstreamContinuityRisk` | `opportunity.mode === 'repair-brief' \|\| opportunity.scope === 'Scene'` |
 | `voiceFingerprintStable` | `!hasReasonMatching(preflightReasons, /voice\|pov\|testimony_fabrication/)` |
-| `voiceFingerprintStable` | `!hasReasonMatching(preflightReasons, /voice\|pov\|testimony_fabrication/)` |
 | `localOperation` | `opportunity.mode === 'direct-rewrite' && opportunity.revisionOperation !== 'needs_targeting'` |
 | `passingCandidateCount` | `copyPasteAdmission.passedCandidateCount` |
 | `candidateProseNarrativeSafe` | `copyPasteAdmission.passed` |
@@ -128,7 +127,12 @@ projection layer; the partition still re-checks `finalDecision.cardType`.
 
 ## 4. Current recovery behavior matrix
 
-| Held/withheld trigger | Upstream code / status | Recovery action currently encoded? | Current behavior | Required inputs (if recovery existed) | Success condition | Recoverable? | Evidence / test |
+The columns **Current behavior** and **Evidence / test** are grounded in the existing
+implementation. The columns marked **(hypothesis)** record plausible recovery contracts
+for the next phase; they are **not** approved implementation requirements and must not
+be treated as a source of truth for recovery design.
+
+| Held/withheld trigger | Upstream code / status | Recovery action currently encoded? | Current behavior | Required inputs (hypothesis) | Success condition (hypothesis) | Recoverable? (hypothesis) | Evidence / test |
 |---|---|---|---|---|---|---|---|
 | Missing / truncated / ambiguous anchor | `LEDGER_PREFLIGHT_REASON.TRUNCATED_ANCHOR`, `LEDGER_HYDRATION_REASON.ANCHOR_TRUNCATED`, `BASE_DECISION_REASON.EVIDENCE_MISSING`, `BASE_DECISION_REASON.ANCHOR_NOT_PRECISE` | partly — `anchorContract.ts` can resolve a snippet to offsets, `findHydrationChunkForAnchor` can locate a chunk | no unified recovery; hydration may re-try on next ledger build, and `adminRepairLabel` may allow manual triage | `source_text`, `evidence_anchor`, `manuscript_coordinates` | anchor uniquely found and validated against source text | yes | `anchorContract.ts` tests, `opportunityLedger.ts` hydration loop |
 | Insufficient context | `BASE_DECISION_REASON.CONTEXT_MISSING`, `BASE_DECISION_REASON.INSUFFICIENT_BEFORE_AFTER_CONTEXT`, `LEDGER_HYDRATION_REASON.CONTEXT_NOT_FOUND` | no | no explicit recovery; hydration context lookup fails closed | `source_text`, `manuscript_chunks`, `evidence_anchor` | chunk with surrounding context located and passes SLAE context checks | yes | `findHydrationChunkForAnchor` diagnostics |
@@ -146,9 +150,8 @@ projection layer; the partition still re-checks `finalDecision.cardType`.
 | Grounding unsupported | `groundingStatus: 'unsupported_blocked'` | no | no explicit repair unless `adminRepairLabel` | source text + anchor | grounding becomes supported or reportable | sometimes | `isSupportedForUserQueue` |
 | Safe local copy-paste | `BASE_DECISION_REASON.SAFE_LOCAL_COPY_PASTE_REWRITE` | N/A | terminal success, not a held state | N/A | N/A | N/A | `evaluateRecommendationExecutability` |
 
-## 5. Authority and safety notes
+## 5. Authority notes
 
 - **`finalDecision.cardType` is the only partition authority.** `partitionClassifiedWorkbenchQueue` consumes only `finalDecision.cardType`.
 - `executabilityReasons` and `groundingNote` are **display copies** and must not be used for routing or recovery planning (see `HELD_REASON_SOURCE_REGISTRY`).
 - **`hydrationFailureReasons` gates classification, not the classifier.** `isSupportedForUserQueue` drops opportunities before `classifyWorkbenchExecutabilityDetailed` runs.
-- **Candidate A/B/C authority:** recovery must not regenerate `candidate_text_b/c` merely because they are absent, and must not overwrite a persisted A/B/C trio. A new source hash is required when authoritative inputs change.

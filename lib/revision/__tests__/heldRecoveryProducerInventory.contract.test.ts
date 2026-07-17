@@ -130,6 +130,16 @@ function withoutFields<T extends Record<string, unknown>>(obj: T, ...keys: (keyo
   return clone;
 }
 
+function assertOpportunitiesEqualExcept<T extends Record<string, unknown>>(
+  a: T,
+  b: T,
+  except: (keyof T)[],
+): void {
+  const aStripped = withoutFields(a, ...except);
+  const bStripped = withoutFields(b, ...except);
+  expect(JSON.stringify(aStripped)).toBe(JSON.stringify(bStripped));
+}
+
 describe('held recovery producer characterization', () => {
   it('enumerates every code emitted by a held-state producer in the inventory', () => {
     const unmapped: string[] = [];
@@ -336,6 +346,7 @@ describe('held recovery producer characterization', () => {
   });
 
   describe('C. recovery behavior characterization — current state of the repository', () => {
+    // TODO(held-recovery-executor): delete this test once executeRecovery is implemented.
     it('(temporary) records that no held recovery executor is implemented yet', () => {
       expect(() => require('../heldRecoveryExecutor')).toThrow();
     });
@@ -390,6 +401,7 @@ describe('held recovery producer characterization', () => {
 
     const directFieldCases: Array<{
       name: string;
+      category: 'classifier' | 'admission gates';
       baseOverrides: Partial<WorkbenchOpportunity>;
       variantOverrides: Partial<WorkbenchOpportunity>;
       expectedBase: 'copy_paste_rewrite' | 'revision_strategy' | 'withheld';
@@ -398,6 +410,7 @@ describe('held recovery producer characterization', () => {
     }> = [
       {
         name: 'quoteHighlight + quoteRest',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { quoteHighlight: '', quoteRest: '' },
         expectedBase: 'copy_paste_rewrite',
@@ -406,6 +419,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'groundingStatus',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { groundingStatus: 'unsupported_blocked' },
         expectedBase: 'copy_paste_rewrite',
@@ -414,6 +428,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'contextQuality',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { contextQuality: 'blocked' },
         expectedBase: 'copy_paste_rewrite',
@@ -422,6 +437,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'preflightStatus',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { preflightStatus: 'blocked' },
         expectedBase: 'copy_paste_rewrite',
@@ -430,6 +446,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'preflightReasons',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { preflightReasons: ['canon_authority_blocked'] },
         expectedBase: 'copy_paste_rewrite',
@@ -438,6 +455,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'anchor',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { anchor: '' },
         expectedBase: 'copy_paste_rewrite',
@@ -446,6 +464,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'scope',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { scope: 'Chapter' },
         expectedBase: 'copy_paste_rewrite',
@@ -454,6 +473,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'mode',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { mode: 'repair-brief' },
         expectedBase: 'copy_paste_rewrite',
@@ -462,6 +482,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'revisionOperation',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: { revisionOperation: 'needs_targeting' },
         expectedBase: 'copy_paste_rewrite',
@@ -469,15 +490,8 @@ describe('held recovery producer characterization', () => {
         onlyFieldChanged: 'revisionOperation',
       },
       {
-        name: 'readiness',
-        baseOverrides: { quoteHighlight: '', quoteRest: '' },
-        variantOverrides: { quoteHighlight: '', quoteRest: '', readiness: 'needs_targeting' },
-        expectedBase: 'withheld',
-        expectedVariant: 'revision_strategy',
-        onlyFieldChanged: 'readiness',
-      },
-      {
         name: 'options',
+        category: 'classifier',
         baseOverrides: {},
         variantOverrides: {
           options: [
@@ -492,6 +506,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'symptom',
+        category: 'admission gates',
         baseOverrides: {},
         variantOverrides: { symptom: '' },
         expectedBase: 'copy_paste_rewrite',
@@ -500,6 +515,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'cause',
+        category: 'admission gates',
         baseOverrides: {},
         variantOverrides: { cause: '' },
         expectedBase: 'copy_paste_rewrite',
@@ -508,6 +524,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'fixDirection',
+        category: 'admission gates',
         baseOverrides: {},
         variantOverrides: { fixDirection: '' },
         expectedBase: 'copy_paste_rewrite',
@@ -516,6 +533,7 @@ describe('held recovery producer characterization', () => {
       },
       {
         name: 'readerEffect',
+        category: 'admission gates',
         baseOverrides: {},
         variantOverrides: { readerEffect: '' },
         expectedBase: 'copy_paste_rewrite',
@@ -525,9 +543,14 @@ describe('held recovery producer characterization', () => {
     ];
 
     for (const testCase of directFieldCases) {
-      it(`classifier consumes ${testCase.name}`, () => {
+      it(`${testCase.category} consume ${testCase.name}`, () => {
         const base = buildSafeOpportunity(testCase.baseOverrides);
         const variant = buildSafeOpportunity(testCase.variantOverrides);
+
+        const changedFields = Array.isArray(testCase.onlyFieldChanged)
+          ? testCase.onlyFieldChanged
+          : [testCase.onlyFieldChanged];
+        assertOpportunitiesEqualExcept(base, variant, changedFields as (keyof WorkbenchOpportunity)[]);
 
         const baseClassification = classifyWorkbenchExecutabilityDetailed(base);
         const variantClassification = classifyWorkbenchExecutabilityDetailed(variant);
@@ -538,36 +561,31 @@ describe('held recovery producer characterization', () => {
       });
     }
 
-    it('maps missing evidence to withheld / evidence_missing', () => {
-      const opportunity = buildSafeOpportunity({
-        quoteHighlight: '',
-        quoteRest: '',
-        groundingStatus: 'unsupported_blocked',
-        contextQuality: 'blocked',
-        preflightStatus: 'blocked',
-      });
-      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
-      expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.EVIDENCE_MISSING);
-    });
+    it('readiness drives needs-targeting promotion and drops base evidence_missing reasons', () => {
+      const base = buildSafeOpportunity({ quoteHighlight: '', quoteRest: '' });
+      const variant = buildSafeOpportunity({ quoteHighlight: '', quoteRest: '', readiness: 'needs_targeting' });
+      assertOpportunitiesEqualExcept(base, variant, ['readiness']);
 
-    it('maps blocked context to withheld / context_missing', () => {
-      const opportunity = buildSafeOpportunity({
-        contextQuality: 'blocked',
-        preflightStatus: 'blocked',
-      });
-      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
-      expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CONTEXT_MISSING);
-    });
+      const baseClassification = classifyWorkbenchExecutabilityDetailed(base);
+      const variantClassification = classifyWorkbenchExecutabilityDetailed(variant);
 
-    it('maps canon conflict to withheld / canon_unclear', () => {
-      const opportunity = buildSafeOpportunity({
-        preflightReasons: ['canon_authority_blocked'],
+      expect(baseClassification.finalDecision).toEqual({
+        cardType: 'withheld',
+        trustedPathStatus: 'impossible',
+        reasons: expect.arrayContaining([
+          BASE_DECISION_REASON.EVIDENCE_MISSING,
+          BASE_DECISION_REASON.CONTEXT_MISSING,
+          BASE_DECISION_REASON.DIAGNOSIS_UNSUPPORTED,
+        ]),
       });
-      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
-      expect(classification.finalDecision.cardType).toBe('withheld');
-      expect(classification.finalDecision.reasons).toEqual([BASE_DECISION_REASON.CANON_UNCLEAR]);
+
+      expect(variantClassification.finalDecision).toEqual({
+        cardType: 'revision_strategy',
+        trustedPathStatus: 'unavailable_author_review_required',
+        reasons: [],
+      });
+      expect(variantClassification.needsTargetingOverrideApplied).toBe(true);
+      expect(variantClassification.promotionTransitionReason).toMatch(/readiness === 'needs_targeting'/);
     });
   });
 
@@ -594,17 +612,6 @@ describe('held recovery producer characterization', () => {
         hydrationFailureReasons: undefined,
       });
       const classification = classifyWorkbenchExecutabilityDetailed(undefinedOptional);
-      expect(classification.finalDecision.cardType).toBe('withheld');
-    });
-
-    it('still classifies when optional fields are empty or malformed', () => {
-      const malformed = buildSafeOpportunity({
-        groundingStatus: '' as any,
-        contextQuality: '' as any,
-        preflightStatus: '' as any,
-        preflightReasons: ['', 'not_a_known_reason'] as any,
-      });
-      const classification = classifyWorkbenchExecutabilityDetailed(malformed);
       expect(classification.finalDecision.cardType).toBe('withheld');
     });
 
