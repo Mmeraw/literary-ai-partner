@@ -370,6 +370,19 @@ function createStatefulSupabaseClient(initialState: any) {
   }
 
   const rpc = jest.fn(async (_name: string, args: any) => {
+    if (_name === 'sync_revision_ledger_decisions_atomic') {
+      upsertRows('revision_ledger_decisions', args.p_rows ?? []);
+      const localIds = new Set((args.p_rows ?? []).map((row: any) => row.local_id));
+      return {
+        data: state.revision_ledger_decisions.filter((row: any) => localIds.has(row.local_id)),
+        error: null,
+      };
+    }
+
+    if (_name !== 'apply_final_review_once') {
+      return { data: null, error: { message: `Unexpected rpc: ${_name}` } };
+    }
+
     const fingerprint = args.p_apply_fingerprint;
     if (state.versionsByFingerprint[fingerprint]) {
       return {
@@ -554,7 +567,8 @@ describe('Evaluate → Revise → Revised Manuscript end-to-end', () => {
     expect(firstApply.reusedExistingVersion).toBe(false);
 
     const expectedRevisedText = `${acceptedOption.candidateText}\n\n${UNTOUCHED}\n\n${CUSTOM_TEXT}\n\n${STRATEGY_EVIDENCE}`;
-    const rpcArgs = (supabase.rpc as jest.Mock).mock.calls[0][1];
+    const applyRpcCalls = (supabase.rpc as jest.Mock).mock.calls.filter(([name]) => name === 'apply_final_review_once');
+    const rpcArgs = applyRpcCalls[0][1];
     expect(rpcArgs.p_raw_text).toBe(expectedRevisedText);
     expect(rpcArgs.p_applied_decision_ids).toEqual([synced[0].id, synced[1].id]);
 
@@ -563,7 +577,8 @@ describe('Evaluate → Revise → Revised Manuscript end-to-end', () => {
     expect(secondApply.ok).toBe(true);
     expect(secondApply.reusedExistingVersion).toBe(true);
     expect(secondApply.revisedVersionId).toBe(firstApply.revisedVersionId);
-    expect((supabase.rpc as jest.Mock).mock.calls[1][1].p_apply_fingerprint).toBe(rpcArgs.p_apply_fingerprint);
+    const replayApplyRpcCalls = (supabase.rpc as jest.Mock).mock.calls.filter(([name]) => name === 'apply_final_review_once');
+    expect(replayApplyRpcCalls[1][1].p_apply_fingerprint).toBe(rpcArgs.p_apply_fingerprint);
 
     // 5. Export determinism: clean, marked, and changelog derive from the same canonical source.
     const cleanExport = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-e2e', format: 'clean', file: 'txt' });
@@ -649,7 +664,7 @@ describe('Evaluate → Revise → Revised Manuscript end-to-end', () => {
     expect(result.ok).toBe(false);
 
     // No revised version should be persisted and no partial apply RPC called.
-    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect((supabase.rpc as jest.Mock).mock.calls.some(([name]) => name === 'apply_final_review_once')).toBe(false);
     expect(Object.keys(state.versionsByFingerprint)).toHaveLength(0);
 
     // Author decisions remain intact; no partial edit appears anywhere.
