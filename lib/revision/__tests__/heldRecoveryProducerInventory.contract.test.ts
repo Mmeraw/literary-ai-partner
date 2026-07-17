@@ -349,7 +349,7 @@ describe('held recovery producer characterization', () => {
   });
 
   describe('C. recovery behavior characterization — current state of the repository', () => {
-    it('records that the repository has no held recovery executor yet', () => {
+    it('records that no held recovery executor exists yet', () => {
       expect(() => require('../heldRecoveryExecutor')).toThrow();
     });
 
@@ -369,6 +369,114 @@ describe('held recovery producer characterization', () => {
           expect(info.repairFamily).toBe('none');
         }
       }
+    });
+  });
+
+  describe('D. classifier field consumption and withheld mapping', () => {
+    it('lists every WorkbenchOpportunity field consumed by classifyWorkbenchExecutabilityDetailedCore', () => {
+      const consumed = [
+        'quoteHighlight',
+        'quoteRest',
+        'groundingStatus',
+        'contextQuality',
+        'preflightStatus',
+        'preflightReasons',
+        'hydrationFailureReasons',
+        'anchor',
+        'scope',
+        'mode',
+        'revisionOperation',
+        'readiness',
+        'fixDirection',
+        'symptom',
+        'readerEffect',
+        'options',
+      ];
+
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        anchor: 'chapter_1',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+        preflightReasons: [],
+        hydrationFailureReasons: [],
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('copy_paste_rewrite');
+
+      for (const field of consumed) {
+        expect(opportunity).toHaveProperty(field);
+      }
+    });
+
+    it('maps missing evidence to withheld / evidence_missing', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: '',
+        quoteRest: '',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.EVIDENCE_MISSING);
+    });
+
+    it('maps blocked context to withheld / context_missing', () => {
+      const opportunity = buildMinimalOpportunity({
+        contextQuality: 'blocked',
+        preflightStatus: 'blocked',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CONTEXT_MISSING);
+    });
+
+    it('maps canon conflict to withheld / canon_unclear', () => {
+      const opportunity = buildMinimalOpportunity({
+        preflightReasons: ['canon_authority_blocked'],
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons).toContain(BASE_DECISION_REASON.CANON_UNCLEAR);
+    });
+
+    it('maps missing diagnostic contract to withheld with diagnostic reasons', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+        symptom: '',
+        cause: '',
+        fixDirection: '',
+        readerEffect: '',
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(classification.finalDecision.reasons.some((r) => /diagnostic|integrity|strategy_admission/i.test(r))).toBe(true);
+    });
+
+    it('maps failed candidate quality and strategy admission to withheld with candidate-quality reasons', () => {
+      const opportunity = buildMinimalOpportunity({
+        quoteHighlight: 'The night wind cut through the open window.',
+        quoteRest: '',
+        groundingStatus: 'supported',
+        contextQuality: 'clean',
+        preflightStatus: 'passed',
+        options: [
+          { key: 'A', mechanism: 'Bad', candidateText: '', text: '', rationale: '' },
+          { key: 'B', mechanism: 'Bad', candidateText: '', text: '', rationale: '' },
+          { key: 'C', mechanism: 'Bad', candidateText: '', text: '', rationale: '' },
+        ],
+      });
+      const classification = classifyWorkbenchExecutabilityDetailed(opportunity);
+      expect(classification.finalDecision.cardType).toBe('withheld');
+      expect(
+        classification.finalDecision.reasons.some((r) =>
+          /candidate|quality|strategy_admission|copy_paste_admission/i.test(r),
+        ),
+      ).toBe(true);
     });
   });
 });

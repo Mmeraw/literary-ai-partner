@@ -38,9 +38,63 @@ The layers are kept separate:
 
 ## 2. Classification producer
 
+### 2.1 `classifyWorkbenchExecutabilityDetailedCore` consumed fields
+
+| Workbench field | How it is consumed | Producer that owns the value |
+|---|---|---|
+| `quoteHighlight` + `quoteRest` | Concatenated into `sourceText` for `hasEvidence`, `passageLengthForExecutability`, and `copyPasteAdmission` context | `getWorkbenchQueue` / ledger hydration / recovery inputs |
+| `groundingStatus` | `evidenceAndDiagnosisSupported` is true only for `supported` or `supported_after_relook` | `lib/revision/workbenchQueue.ts` SLAE evidence matching / `opportunityLedger.ts` |
+| `contextQuality` | `hardContextBlock` is true when `contextQuality === 'blocked'`; `localContextVerified` requires `contextQuality === 'clean'` and `preflightStatus === 'passed'` | `lib/revision/opportunityLedger.ts` (`resolveReviseContextQuality`) |
+| `preflightStatus` | `hardContextBlock` is true when `preflightStatus === 'blocked'`; `localContextVerified` requires `preflightStatus === 'passed'` | `lib/revision/opportunityLedger.ts` (`applyReviseQueuePreflight`, `blockOpportunityByPreflight`) |
+| `preflightReasons` | Scanned for `canon_authority_blocked\|canon_conflict\|canon_drift\|testimony_fabrication` (`hardCanonConflict`), `voice\|pov\|metaphor\|canon` (`affectsPOVVoiceCanonMetaphor`), `ledger_conflict\|insufficient_anchor_grounding\|context_mismatch\|canon_conflict` (`ledgerConflictPossible`), and `canon_authority_blocked\|canon_conflict\|canon_drift` (`canonConflict`) | `lib/revision/opportunityLedger.ts` / `lib/revision/reviseAdmissionGate.ts` |
+| `anchor` | Passed to `hasPlaceholderCoordinates`; typed/untyped coordinate parsing feeds `resolveEvidenceLocationScope` | `lib/revision/opportunityLedger.ts` / `anchorContract.ts` |
+| `scope` | Used with `passageLengthForExecutability` to determine short/moderate/long; also influences `modeForScope` | `getWorkbenchQueue` / `lib/revision/opportunityLedger.ts` |
+| `mode` | `mode === 'repair-brief'` sets `affectsSceneArchitecture` and `downstreamContinuityRisk` | `resolveRepairScope` / `modeForScope` |
+| `revisionOperation` | `needs_targeting` disables `localOperation`; `replace_selected_passage` etc. are used to derive `localOperation` | `lib/revision/opportunityLedger.ts` / `reviseCardContract.ts` |
+| `readiness` | `runStrategyAdmissionGate` relaxes checks when `readiness === 'needs_targeting'`; `needsTargeting` promotion can override `baseDecision` to `revision_strategy` | `lib/revision/opportunityLedger.ts` / `getWorkbenchQueue` |
+| `fixDirection`, `symptom`, `readerEffect`, `rationale` | Fed to `resolveRepairScope` to infer broader `Structural`/`Manuscript` scope | `getWorkbenchQueue` / `lib/revision/opportunityLedger.ts` |
+| `options` | `runCopyPasteAdmissionGate` evaluates each `candidateText`/`text` entry for quality, integrity, and voice/canon safety | `lib/revision/reviseAdmissionGate.ts` / `candidateQuality.ts` |
+
+### 2.2 `evaluateRecommendationExecutability` boolean inputs
+
+| Boolean input | Derived from |
+|---|---|
+| `evidencePresent` | `hasEvidence` = `sourceTextOf(opportunity).length > 0` |
+| `contextPresent` | `!hardContextBlock && evidenceAndDiagnosisSupported` |
+| `canonClear` | `!hardContextBlock && !hardCanonConflict` |
+| `diagnosisSupported` | `evidenceAndDiagnosisSupported` |
+| `anchorPrecise` | `!hasPlaceholderCoordinates(opportunity.anchor)` |
+| `passageLength` | `passageLengthForExecutability(opportunity.scope, sourceText)` |
+| `beforeAfterContextSufficient` | `evidenceAndDiagnosisSupported && localContextVerified` |
+| `ledgerConflictPossible` | `preflightReasons` pattern match |
+| `canonConflict` | `preflightReasons` pattern match |
+| `affectsSceneArchitecture` | `opportunity.mode === 'repair-brief'` |
+| `affectsPOVVoiceCanonMetaphor` | `preflightReasons` pattern match |
+| `downstreamContinuityRisk` | `opportunity.mode === 'repair-brief' \|\| opportunity.scope === 'Scene'` |
+| `voiceFingerprintStable` | `!hasReasonMatching(preflightReasons, /voice\|pov\|testimony_fabrication/)` |
+| `localOperation` | `opportunity.mode === 'direct-rewrite' && opportunity.revisionOperation !== 'needs_targeting'` |
+| `passingCandidateCount` | `copyPasteAdmission.passedCandidateCount` |
+| `candidateProseNarrativeSafe` | `copyPasteAdmission.passed` |
+
+### 2.3 `finalDecision.cardType` outcomes
+
+| Triggering producer state | Final `cardType` | Emitted `finalDecision.reasons` (representative) |
+|---|---|---|
+| `quoteHighlight` + `quoteRest` empty or `No excerpt available` | `withheld` | `evidence_missing` |
+| `contextQuality === 'blocked'` or `preflightStatus === 'blocked'` and no `needs_targeting` exception | `withheld` | `context_missing` |
+| `preflightReasons` contain `canon_authority_blocked\|canon_conflict\|canon_drift` | `withheld` | `canon_unclear` |
+| `diagnosis` fields empty / integrity gate fails strategy admission | `withheld` | `diagnosis_unsupported` / `strategy_admission_failed` + integrity reasons |
+| `options` all fail quality and strategy admission also fails | `withheld` | `copy_paste_admission_failed` / `fewer_than_two_candidates_passed_quality` / `strategy_admission_failed` |
+| `anchor` is a placeholder coordinate and copy-paste admission failed | `revision_strategy` | `anchor_not_precise` + other unsafe copy-paste reasons |
+| `scope` is `Chapter` / `Structural` / `Manuscript` and all safety gates pass | `revision_strategy` | `revision_strategy` (safe strategy scope) |
+| `readiness === 'needs_targeting'` and strategy admission passed | `revision_strategy` | strategy gate reasons (merged) |
+| All gates pass and candidates are safe | `copy_paste_rewrite` | `safe_local_copy_paste_rewrite` |
+
+### 2.4 Authority
+
 | Function | File | Inputs consumed | Outputs | Authority |
 |---|---|---|---|---|
-| `classifyWorkbenchExecutabilityDetailed` | `lib/revision/workbenchQueueProjection.ts` | `WorkbenchOpportunity` fields: `quoteHighlight`, `quoteRest`, `groundingStatus`, `contextQuality`, `preflightStatus`, `preflightReasons`, `hydrationFailureReasons`, `anchor`, `scope`, `mode`, `revisionOperation`, `options` | `WorkbenchExecutabilityClassification` with `finalDecision.cardType`, `finalDecision.trustedPathStatus`, `finalDecision.reasons`, plus `baseDecision`, admission gate results, and `executabilityReasons` | **Sole routing authority** for partition |
+| `classifyWorkbenchExecutabilityDetailed` | `lib/revision/workbenchQueueProjection.ts` | `WorkbenchOpportunity` fields (see 2.1) | `WorkbenchExecutabilityClassification` with `finalDecision.cardType`, `finalDecision.trustedPathStatus`, `finalDecision.reasons`, plus `baseDecision`, admission gate results, and `executabilityReasons` | **Sole routing authority** for partition |
 | `evaluateRecommendationExecutability` | `lib/revision/recommendationExecutability.ts` | Boolean inputs derived from `classifyWorkbenchExecutabilityDetailed` | `RecommendationExecutabilityDecision` (`cardType`, `trustedPathStatus`, `reasons` using `BASE_DECISION_REASON` codes) | Used to compute `baseDecision` and `finalDecision` but is not itself the partition authority |
 
 `finalDecision.cardType` may be `copy_paste_rewrite`, `revision_strategy`, or `withheld`.
