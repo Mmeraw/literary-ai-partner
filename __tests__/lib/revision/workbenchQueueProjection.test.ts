@@ -5,6 +5,7 @@ import {
   hasPlaceholderCoordinates,
   passageLengthForExecutability,
   classifyWorkbenchExecutability,
+  classifyWorkbenchExecutabilityDetailed,
   partitionWorkbenchQueue,
   buildStrategyCardViewModel,
 } from '@/lib/revision/workbenchQueueProjection';
@@ -217,6 +218,132 @@ describe('workbenchQueueProjection classifyWorkbenchExecutability', () => {
     expect(result.strategyCardViewModel).toBeTruthy();
     expect(result.strategyCardViewModel?.scaffold.reasonCopyPasteIsUnsafe).toBeTruthy();
     expect(result.strategyCardViewModel?.illustrativeExamples).toHaveLength(3);
+  });
+
+  it('exposes identical public fields through the backward-compatible wrapper', () => {
+    const opportunity = makeOpportunity({
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: [candidate('A'), candidate('B'), candidate('C')],
+    });
+    const detailed = classifyWorkbenchExecutabilityDetailed(opportunity);
+    const compat = classifyWorkbenchExecutability(opportunity);
+
+    expect(compat.cardType).toBe(detailed.cardType);
+    expect(compat.trustedPathStatus).toBe(detailed.trustedPathStatus);
+    expect(compat.reasons).toEqual(detailed.reasons);
+    expect(compat.copyPasteAdmissionPassed).toBe(detailed.copyPasteAdmissionPassed);
+    expect(compat.copyPasteAdmissionReasons).toEqual(detailed.copyPasteAdmissionReasons);
+    expect(compat.strategyAdmissionPassed).toBe(detailed.strategyAdmissionPassed);
+    expect(compat.strategyAdmissionReasons).toEqual(detailed.strategyAdmissionReasons);
+    expect(compat.strategyCardViewModel).toEqual(detailed.strategyCardViewModel);
+  });
+
+  it('records the needs_targeting override and merged gate reasons as final decision', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: [candidate('A'), candidate('B'), candidate('C')],
+    });
+    const result = classifyWorkbenchExecutabilityDetailed(opportunity);
+
+    expect(result.baseDecision.cardType).toBe('revision_strategy');
+    expect(result.finalDecision.cardType).toBe('revision_strategy');
+    expect(result.needsTargetingOverrideApplied).toBe(true);
+    expect(result.needsTargetingPromotionApplied).toBe(false);
+    expect(result.promotionTransitionReason).toContain('needs_targeting');
+  });
+
+  it('does not mutate the base decision when the needs_targeting override is applied', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: [candidate('A'), candidate('B'), candidate('C')],
+    });
+    const result = classifyWorkbenchExecutabilityDetailed(opportunity);
+
+    expect(result.baseDecision.cardType).toBe(result.finalDecision.cardType);
+    expect(result.baseDecision.trustedPathStatus).toBe(result.finalDecision.trustedPathStatus);
+    expect(result.baseDecision).not.toBe(result.finalDecision);
+  });
+
+  it('keeps base and final decisions identical when no override applies', () => {
+    const opportunity = makeOpportunity({
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: [candidate('A'), candidate('B'), candidate('C')],
+    });
+    const result = classifyWorkbenchExecutabilityDetailed(opportunity);
+
+    expect(result.needsTargetingOverrideApplied).toBe(false);
+    expect(result.needsTargetingPromotionApplied).toBe(false);
+    expect(result.promotionTransitionReason).toBeNull();
+    expect(result.baseDecision).toEqual(result.finalDecision);
+  });
+
+  it('does not produce a strategy when strategy admission fails for needs_targeting', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'blocked',
+      preflightStatus: 'blocked',
+      groundingStatus: 'unsupported_blocked',
+      options: [candidate('A'), candidate('B'), candidate('C')],
+    });
+    const result = classifyWorkbenchExecutabilityDetailed(opportunity);
+
+    expect(result.needsTargetingOverrideApplied).toBe(false);
+    expect(result.needsTargetingPromotionApplied).toBe(false);
+    expect(result.finalDecision.cardType).toBe('withheld');
+  });
+
+  it('preserves admission reasons and final reasons in the detailed result', () => {
+    const opportunity = makeOpportunity({
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+      options: [candidate('A'), candidate('B'), candidate('C')],
+    });
+    const result = classifyWorkbenchExecutabilityDetailed(opportunity);
+
+    expect(result.reasons).toEqual(result.finalDecision.reasons);
+    expect(result.copyPasteAdmissionReasons).toEqual(result.gates.copyPaste.reasons);
+    expect(result.strategyAdmissionReasons).toEqual(result.gates.strategy.reasons);
+  });
+
+  it('records a true promoted_from_withheld when base executability is withheld and needs_targeting overrides it', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'unsupported_blocked',
+    });
+    const result = classifyWorkbenchExecutabilityDetailed(opportunity);
+
+    expect(result.baseDecision.cardType).toBe('withheld');
+    expect(result.finalDecision.cardType).toBe('revision_strategy');
+    expect(result.needsTargetingPromotionApplied).toBe(true);
+    expect(result.needsTargetingOverrideApplied).toBe(true);
+  });
+
+  it('records downgrade_prevented when strategy admission would fail without the needs_targeting relaxation', () => {
+    const opportunity = makeOpportunity({
+      readiness: 'needs_targeting',
+      contextQuality: 'limited',
+      preflightStatus: 'limited_context',
+      groundingStatus: 'supported',
+    });
+    const result = classifyWorkbenchExecutabilityDetailed(opportunity);
+
+    expect(result.baseDecision.cardType).toBe('revision_strategy');
+    expect(result.finalDecision.cardType).toBe('revision_strategy');
+    expect(result.needsTargetingPromotionApplied).toBe(false);
+    expect(result.needsTargetingOverrideApplied).toBe(true);
   });
 });
 
