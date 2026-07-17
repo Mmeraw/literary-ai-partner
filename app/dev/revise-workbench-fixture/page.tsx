@@ -1,10 +1,29 @@
+// Visual fixture page — displays fixed, known UI states for Workbench development.
+// Opportunities are constructed with explicit finalDecision values so the visual
+// output is stable and independent of admission-gate rule changes.
+// This is NOT a classifier integration fixture. If you need to verify classifier
+// behaviour, use __tests__/lib/revision/workbenchQueueMembershipProof.test.ts.
 import { notFound } from "next/navigation";
 import type { WorkbenchOpportunity, WorkbenchQueuePayload } from "@/lib/revision/workbenchQueue";
-import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from "@/lib/revision/workbenchQueueProjection";
+import type { ClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
+import { buildClassifiedWorkbenchOpportunity } from "@/lib/revision/workbenchQueueProjection";
 import ReviseCockpitClientWorkflowV2 from "@/components/revision/ReviseCockpitClientWorkflowV2";
 
-function classify(opp: WorkbenchOpportunity) {
-  return buildClassifiedWorkbenchOpportunity(opp, classifyWorkbenchExecutabilityDetailed(opp));
+function asVisualFixture(
+  opp: WorkbenchOpportunity,
+  finalCardType: "copy_paste_rewrite" | "revision_strategy" | "withheld",
+): ClassifiedWorkbenchOpportunity {
+  const trustedPathStatus =
+    finalCardType === "copy_paste_rewrite"
+      ? ("eligible" as const)
+      : finalCardType === "revision_strategy"
+        ? ("unavailable_author_review_required" as const)
+        : ("impossible" as const);
+  const decision = { cardType: finalCardType, trustedPathStatus, reasons: [`visual_fixture_${finalCardType}`] as readonly string[] } as any;
+  return buildClassifiedWorkbenchOpportunity(
+    { ...opp, cardType: finalCardType, trustedPathStatus },
+    { cardType: finalCardType, trustedPathStatus, reasons: decision.reasons, strategyCardViewModel: null, copyPasteAdmissionPassed: finalCardType === "copy_paste_rewrite", copyPasteAdmissionReasons: [], strategyAdmissionPassed: finalCardType !== "copy_paste_rewrite", strategyAdmissionReasons: [], baseDecision: decision, finalDecision: decision, needsTargetingPromotionApplied: false, promotionTransitionReason: null, needsTargetingOverrideApplied: false, gates: { copyPaste: { passed: finalCardType === "copy_paste_rewrite", reasons: [], passedCandidateCount: finalCardType === "copy_paste_rewrite" ? 3 : 0 }, strategy: { passed: finalCardType !== "withheld", reasons: [] } } } as any,
+  );
 }
 
 function candidate(key: "A" | "B" | "C", mechanism: string, text: string, rationale: string) {
@@ -159,20 +178,20 @@ const payload: WorkbenchQueuePayload = {
   evaluationJobId: "fixture-eval",
   manuscriptTitle: "The River Remembers Blood — Workbench Visual Fixture",
   opportunities: [
-    classify(copyPasteOpportunity(1, "Bridge the abrupt transition into Mara\'s return so the emotional beat lands before the time jump", "Pacing", "must")),
-    classify(copyPasteOpportunity(2, "Soften the repeated clause rhythm in the river description near the ford", "Prose_variety", "should")),
-    classify(strategyOpportunity(3, "Restructure the market argument so reactions precede declarations and stakes are shown rather than told", "Tension", "must")),
-    classify(copyPasteOpportunity(4, "Anchor the metaphor to a concrete sensory image rather than an abstract assertion", "Imagery", "should")),
-    classify(strategyOpportunity(5, "Distribute the villain\'s reveal across two beats instead of one so the reversal lands", "Suspense", "should")),
-    classify(copyPasteOpportunity(6, "Remove the filter phrase that weakens the close third in the sheriff\'s office scene", "POV_voice", "could")),
-    classify(strategyOpportunity(7, "Make the chapter ending land on implication rather than summary of what just happened", "Pacing", "could")),
-    classify(copyPasteOpportunity(8, "Tighten the dialogue attribution to avoid naming the speaker twice in the same turn", "Dialogue", "could")),
+    asVisualFixture(copyPasteOpportunity(1, "Bridge the abrupt transition into Mara\'s return so the emotional beat lands before the time jump", "Pacing", "must"), "copy_paste_rewrite"),
+    asVisualFixture(copyPasteOpportunity(2, "Soften the repeated clause rhythm in the river description near the ford", "Prose_variety", "should"), "copy_paste_rewrite"),
+    asVisualFixture(strategyOpportunity(3, "Restructure the market argument so reactions precede declarations and stakes are shown rather than told", "Tension", "must"), "revision_strategy"),
+    asVisualFixture(copyPasteOpportunity(4, "Anchor the metaphor to a concrete sensory image rather than an abstract assertion", "Imagery", "should"), "copy_paste_rewrite"),
+    asVisualFixture(strategyOpportunity(5, "Distribute the villain\'s reveal across two beats instead of one so the reversal lands", "Suspense", "should"), "revision_strategy"),
+    asVisualFixture(copyPasteOpportunity(6, "Remove the filter phrase that weakens the close third in the sheriff\'s office scene", "POV_voice", "could"), "copy_paste_rewrite"),
+    asVisualFixture(strategyOpportunity(7, "Make the chapter ending land on implication rather than summary of what just happened", "Pacing", "could"), "revision_strategy"),
+    asVisualFixture(copyPasteOpportunity(8, "Tighten the dialogue attribution to avoid naming the speaker twice in the same turn", "Dialogue", "could"), "copy_paste_rewrite"),
   ],
   needsTargeting: [],
   withheldUnsupported: [
-    classify(heldOpportunity(1, "Evaluate the extended flashback in chapter five for relevance and proportion to present action", "Backfill")),
-    classify(heldOpportunity(2, "Resolve the historical anachronism in the sheriff\'s office before allowing world-consistent revision", "World_consistency")),
-    classify(heldOpportunity(3, "Confirm the secondary antagonist\'s motivation before revising their entrance scene", "Characterization")),
+    asVisualFixture(heldOpportunity(1, "Evaluate the extended flashback in chapter five for relevance and proportion to present action", "Backfill"), "withheld"),
+    asVisualFixture(heldOpportunity(2, "Resolve the historical anachronism in the sheriff\'s office before allowing world-consistent revision", "World_consistency"), "withheld"),
+    asVisualFixture(heldOpportunity(3, "Confirm the secondary antagonist\'s motivation before revising their entrance scene", "Characterization"), "withheld"),
   ],
   readinessTotals: { ready_for_revise: 5, needs_targeting: 3, withheld_unsupported: 3 },
   totals: { must: 2, should: 4, could: 5 },

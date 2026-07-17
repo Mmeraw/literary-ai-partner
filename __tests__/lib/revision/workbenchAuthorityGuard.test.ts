@@ -6,6 +6,7 @@ describe('Workbench authority source guard', () => {
   const projectionSource = readFileSync(join(root, 'lib', 'revision', 'workbenchQueueProjection.ts'), 'utf8');
   const queueSource = readFileSync(join(root, 'lib', 'revision', 'workbenchQueue.ts'), 'utf8');
   const adapterSource = readFileSync(join(root, 'components', 'revision', 'workbenchCardAdapter.ts'), 'utf8');
+  const workflowV2Source = readFileSync(join(root, 'components', 'revision', 'ReviseCockpitClientWorkflowV2.tsx'), 'utf8');
 
   it('routes production queueing through the exclusive classified partition function', () => {
     expect(queueSource).toContain('partitionClassifiedWorkbenchQueue(opportunities)');
@@ -44,5 +45,35 @@ describe('Workbench authority source guard', () => {
     expect(adapterSource).not.toContain('switch (item.cardType)');
     expect(adapterSource).not.toContain('partitionWorkbenchQueue');
     expect(adapterSource).not.toContain('partitionClassifiedWorkbenchQueue');
+  });
+
+  // -------------------------------------------------------------------------
+  // Workflow V2 authority boundary guard
+  // After the classified-payload authority cleanup, Workflow V2 must not
+  // import the classifier or reconstruct classified decisions from mirrored
+  // fields. This guard prevents that drift from returning.
+  // -------------------------------------------------------------------------
+
+  it('Workflow V2 does not invoke the live classifier', () => {
+    expect(workflowV2Source).not.toContain('classifyWorkbenchExecutabilityDetailed');
+    expect(workflowV2Source).not.toContain('classifyWorkbenchExecutabilityDetailedWithoutNeedsTargeting');
+    expect(workflowV2Source).not.toContain('classifyWorkbenchExecutability(');
+  });
+
+  it('Workflow V2 does not reconstruct classified objects from mirrored fields', () => {
+    expect(workflowV2Source).not.toContain('buildClassifiedWorkbenchOpportunity');
+    expect(workflowV2Source).not.toContain('asClassifiedOpportunity');
+  });
+
+  it('Workflow V2 routes interactive/held membership by finalDecision.cardType', () => {
+    expect(workflowV2Source).toContain('finalDecision.cardType');
+    // The mirrored item.cardType must not be used as a routing authority.
+    // The only permitted reference to item.cardType is in the pre-existing
+    // label/badge helpers that are themselves typed on ClassifiedWorkbenchOpportunity,
+    // where cardType is kept in sync by buildClassifiedWorkbenchOpportunity.
+    expect(workflowV2Source).not.toContain('item.cardType !== "withheld"');
+    expect(workflowV2Source).not.toContain('item.cardType === "withheld"');
+    expect(workflowV2Source).not.toContain('item.cardType !== \'withheld\'');
+    expect(workflowV2Source).not.toContain('item.cardType === \'withheld\'');
   });
 });
