@@ -1,0 +1,210 @@
+/* Dashboard-only repair: keep the evaluation ledger aligned with the readable
+   table treatment used on /evaluate, without leaking styles into report pages. */
+.rg-dash-page {
+  width: min(1480px, 100%);
+}
+
+/* Primary report action follows the RevisionGrade oxblood action palette. */
+.rg-dash-page .space-y-6 > section:first-child [class~="min-w-56"] > a:first-child {
+  background: #7a2b1a !important;
+  border: 1px solid #5c1f12 !important;
+  color: #ffffff !important;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  line-height: 1.25;
+  box-shadow: 0 6px 14px rgba(122, 43, 26, 0.2);
+}
+
+.rg-dash-page .space-y-6 > section:first-child [class~="min-w-56"] > a:first-child:hover,
+.rg-dash-page .space-y-6 > section:first-child [class~="min-w-56"] > a:first-child:focus-visible {
+  background: #5c1f12 !important;
+  border-color: #4a1810 !important;
+  color: #ffffff !important;
+}
+
+.rg-history-card {
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  background: #ffffff;
+  border: 1px solid #d4d1ca;
+  border-radius: 20px;
+  color: #222222;
+}
+
+.rg-history-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 1rem;
+}
+
+.rg-history-title {
+  margin: 0;
+  color: #222222;
+  font-family: Georgia, "Iowan Old Style", "Source Serif Pro", serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.rg-history-copy {
+  margin: 0.35rem 0 0;
+  color: #5f5c56;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.rg-history-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  padding: 0 1.5rem 1.5rem;
+}
+
+.rg-history-table {
+  width: 100%;
+  min-width: 980px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid #d8d4cc;
+  border-radius: 12px;
+  background: #ffffff;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.rg-history-table th,
+.rg-history-table td {
+  padding: 0.85rem 0.9rem;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid #e5e1da;
+  overflow-wrap: anywhere;
+}
+
+.rg-history-table th {
+  background: #f3f0e8;
+  color: #3a352d;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.rg-history-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.rg-history-table tbody tr:hover td {
+  background: #faf8f3;
+}
+
+.rg-history-table th:nth-child(1),
+.rg-history-table td:nth-child(1) { width: 13%; }
+.rg-history-table th:nth-child(2),
+.rg-history-table td:nth-child(2) { width: 25%; }
+.rg-history-table th:nth-child(3),
+.rg-history-table td:nth-child(3) { width: 13%; }
+.rg-history-table th:nth-child(4),
+.rg-history-table td:nth-child(4),
+.rg-history-table th:nth-child(5),
+.rg-history-table td:nth-child(5) { width: 8%; text-align: center; }
+.rg-history-table th:nth-child(6),
+.rg-history-table td:nth-child(6) { width: 17%; }
+.rg-history-table th:nth-child(7),
+.rg-history-table td:nth-child(7) { width: 16%; }
+
+.rg-history-title-cell {
+  display: inline-block;
+  color: #222222;
+  font-family: Georgia, "Iowan Old Style", "Source Serif Pro", serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.rg-history-title-link:hover,
+.rg-history-title-link:focus-visible,
+.rg-history-open:hover,
+.rg-history-open:focus-visible {
+  color: #6f1d1b;
+  text-decoration-thickness: 2px;
+}
+
+.rg-history-subtitle-cell {
+  margin-top: 0.2rem;
+  color: #6a6a6a;
+  font-size: 0.78rem;
+}
+
+.rg-history-open {
+  display: inline-block;
+  color: #365b37;
+  font-size: 0.84rem;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.rg-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #cfcac0;
+  border-radius: 999px;
+  background: #f7f5ef;
+  color: #3f3b34;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.rg-status--ready,
+.rg-status--improving {
+  border-color: #b9ddbd;
+  background: #eef7ef;
+  color: #285d2d;
+}
+
+.rg-status--near,
+.rg-status--running,
+.rg-status--queued {
+  border-color: #ead2a5;
+  background: #fff6e8;
+  color: #744a0d;
+}
+
+.rg-status--failed,
+.rg-status--stale,
+.rg-status--cancelled,
+.rg-status--not-ready {
+  border-color: #dfc1c1;
+  background: #f8eeee;
+  color: #7a2b1a;
+}
+
+.rg-status--calibration,
+.rg-status--reference {
+  border-color: #c7d6e4;
+  background: #eef3f8;
+  color: #334f6a;
+}
+
+@media (max-width: 900px) {
+  .rg-history-head {
+    padding: 1.25rem 1.1rem 0.85rem;
+  }
+
+  .rg-history-table-wrap {
+    padding: 0 1.1rem 1.1rem;
+  }
+}

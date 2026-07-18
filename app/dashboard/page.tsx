@@ -1,3 +1,4 @@
+import './dashboard.css'
 import EmptyState from '@/components/dashboard/EmptyState'
 import AuthorProgressLedger from '@/components/dashboard/AuthorProgressLedger'
 import DashboardAnalyticsSection from '@/components/dashboard/charts/DashboardAnalyticsSection'
