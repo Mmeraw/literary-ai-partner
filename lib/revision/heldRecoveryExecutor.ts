@@ -8,6 +8,7 @@
  * `recoveryAction`.
  */
 
+import { createHash } from 'crypto'
 import type {
   HeldReasonRecoveryContract,
   RecoveryExecutionAction,
@@ -116,6 +117,54 @@ function isNonEmpty(value: unknown): boolean {
   return false
 }
 
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+function canonicalChunkFingerprint(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const chunk = value as Record<string, unknown>
+  return {
+    chunkId: chunk.chunkId,
+    manuscriptVersionSha: chunk.manuscriptVersionSha,
+    chunkIndex: chunk.chunkIndex,
+    sourceStartOffset: chunk.sourceStartOffset,
+    sourceEndOffset: chunk.sourceEndOffset,
+    contentHash: chunk.contentHash,
+    provenance: chunk.provenance,
+  }
+}
+
+function isCanonicalChunkReference(value: unknown): value is {
+  chunkId: string
+  manuscriptId: number
+  manuscriptVersionSha: string
+  chunkIndex: number
+  sourceStartOffset: number
+  sourceEndOffset: number
+  content: string
+  contentHash: string
+  provenance: { source: 'manuscript_chunks'; rowId: string }
+} {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const chunk = value as Record<string, unknown>
+  const provenance = chunk.provenance as Record<string, unknown> | undefined
+  if (!isNonEmptyString(chunk.content)) return false
+  const content = chunk.content as string
+  if (!isNonEmptyString(chunk.contentHash)) return false
+  const contentHash = chunk.contentHash as string
+  return isNonEmptyString(chunk.chunkId) &&
+    typeof chunk.manuscriptId === 'number' && Number.isInteger(chunk.manuscriptId) &&
+    isNonEmptyString(chunk.manuscriptVersionSha) &&
+    typeof chunk.chunkIndex === 'number' && Number.isInteger(chunk.chunkIndex) &&
+    typeof chunk.sourceStartOffset === 'number' && Number.isInteger(chunk.sourceStartOffset) &&
+    typeof chunk.sourceEndOffset === 'number' && Number.isInteger(chunk.sourceEndOffset) &&
+    chunk.sourceEndOffset > chunk.sourceStartOffset &&
+    contentHash === sha256Hex(content) &&
+    provenance?.source === 'manuscript_chunks' &&
+    provenance.rowId === chunk.chunkId
+}
+
 function isValidAnchor(value: unknown): boolean {
   return isNonEmptyString(value)
 }
@@ -220,11 +269,18 @@ export function computeRecoveryInputFingerprint(
 ): string {
   switch (action) {
     case 'resolve_anchor':
-    case 'retrieve_context':
       return sourceHashFor({
         evidence_anchor: inputs.evidence_anchor,
         source_text: inputs.source_text,
         manuscript_coordinates: inputs.manuscript_coordinates,
+      })
+    case 'retrieve_context':
+      return sourceHashFor({
+        evidence_anchor: inputs.evidence_anchor,
+        source_text: inputs.source_text,
+        manuscript_chunks: Array.isArray(inputs.manuscript_chunks)
+          ? inputs.manuscript_chunks.map(canonicalChunkFingerprint)
+          : inputs.manuscript_chunks,
       })
     case 'repair_diagnosis':
       return sourceHashFor({
@@ -297,6 +353,26 @@ export function executeRetrieveContext(input: ResolvedRecoveryExecutorInput): Re
     })
   }
 
+  const chunks = manuscript_chunks as unknown[]
+  if (!chunks.every(isCanonicalChunkReference)) {
+    return makeResult(input, 'terminal_failure', {
+      error: 'INVALID_CANONICAL_CHUNK_REFERENCES',
+      details: { reason: 'retrieve_context requires canonical manuscript chunk references, not caller text.' },
+    })
+  }
+
+  const mismatchedVersion = chunks.find((chunk) => chunk.manuscriptVersionSha !== input.manuscriptVersionSha)
+  if (mismatchedVersion) {
+    return makeResult(input, 'terminal_failure', {
+      error: 'STALE_MANUSCRIPT_CHUNK_VERSION',
+      details: {
+        chunkId: mismatchedVersion.chunkId,
+        chunkManuscriptVersionSha: mismatchedVersion.manuscriptVersionSha,
+        manuscriptVersionSha: input.manuscriptVersionSha,
+      },
+    })
+  }
+
   const source = (source_text as string).trim()
   const anchor = (evidence_anchor as string).trim()
 
@@ -307,9 +383,18 @@ export function executeRetrieveContext(input: ResolvedRecoveryExecutorInput): Re
     })
   }
 
-  const chunks = (manuscript_chunks as unknown[]).filter((c): c is string => typeof c === 'string')
-  const selectedChunks = chunks
-    .map((text, index) => ({ index, text, anchorOffset: text.indexOf(anchor) }))
+  const selectedChunks = [...chunks]
+    .sort((a, b) => a.chunkIndex - b.chunkIndex)
+    .map((chunk) => ({
+      chunkId: chunk.chunkId,
+      chunkIndex: chunk.chunkIndex,
+      sourceStartOffset: chunk.sourceStartOffset,
+      sourceEndOffset: chunk.sourceEndOffset,
+      contentHash: chunk.contentHash,
+      text: chunk.content,
+      anchorOffset: chunk.content.indexOf(anchor),
+      provenance: chunk.provenance,
+    }))
     .filter((chunk) => chunk.anchorOffset !== -1)
 
   if (selectedChunks.length === 0) {
