@@ -1,7 +1,7 @@
 # RevisionGrade Final Architecture Roadmap
 
-- **Status date:** 2026-07-12
-- **Current baseline:** `cd473ac9`
+- **Status date:** 2026-07-18
+- **Current baseline:** `666d48e2`
 - **Authority:** This file is the single canonical roadmap for the repository.
 
 All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summaries, archived planning artifacts, and stale branch audits are non-authoritative. They must not be used to determine current execution order.
@@ -45,7 +45,7 @@ Semantic Golden Masters
 
 ────────────────────────────
 
-Presentation Governance   ← active phase
+Presentation Governance   ← active architectural phase
 
 ↓
 
@@ -63,6 +63,141 @@ Production Readiness
 
 Launch
 ```
+
+---
+
+## Current Repository Execution — 2026-07-18
+
+This section records the current implementation tracks on `main`. It is subordinate to the architectural phases below and does not create a competing roadmap authority.
+
+### Recently Completed — Held Recovery
+
+The repository now contains the durable Held Recovery chain through retry schedule persistence:
+
+```text
+Recovery executor
+↓
+Durable attempt record
+↓
+Queue transition policy
+↓
+Queue transition writer
+↓
+Retry policy decision
+↓
+Retry schedule writer
+↓
+Durable retry schedule record
+```
+
+Completed boundaries include:
+
+- Recovery executor and dispatcher contract.
+- Runtime input construction and orchestration boundary.
+- Durable attempt recorder.
+- Queue transition policy.
+- Queue transition writer.
+- Retry policy.
+- Retry schedule writer and durable schedule persistence — PR #1333, merged on `main`.
+
+### Active Highest-Priority Proof Lane — Issue #1260
+
+**Owner:** Devin
+
+**Goal:** Prove that author decisions made in the Revise Workbench survive every authority and persistence boundary and determine the final revised manuscript.
+
+```text
+Evaluation artifact
+↓
+Persisted revision opportunity ledger
+↓
+Workbench queue classification
+↓
+Rendered card
+↓
+Author decision persistence
+↓
+Reload / rehydration
+↓
+Final Review
+↓
+Revised manuscript apply / export
+```
+
+The three paths must be traced independently:
+
+1. `copy_paste_rewrite`
+2. `revision_strategy`
+3. `withheld`
+
+Required proof questions:
+
+- Do candidates B and C survive persistence and reload?
+- Does `finalDecision.cardType` remain authoritative over stale mirrored fields?
+- Does a persisted author selection of candidate A, B, or C reach Final Review unchanged?
+- Does revised-manuscript generation apply the selected candidate rather than defaulting to A?
+- Is accepted text applied exactly once at the authoritative anchor?
+- Are `revision_strategy` and `withheld` cards prevented from directly mutating the manuscript?
+- Do reload and rehydration read the authoritative persisted decision rather than reconstructing or inferring it from stale payload data?
+
+Required first deliverables:
+
+- Repository-grounded boundary map.
+- Production file and symbol inventory for every boundary.
+- Authoritative input, persisted record, reload source, and derived/mirrored fields for every boundary.
+- Existing-test inventory.
+- Characterization tests for confirmed and suspected loss points.
+- Exact changed-file proposal.
+- Smallest correction plan.
+
+Execution rule:
+
+> No production fix may begin until characterization tests establish the failing authority boundary and the smallest correction scope has been reported.
+
+Explicitly out of scope for issue #1260:
+
+- Held Recovery retry policy.
+- Retry schedule writer, table, or RPC.
+- Retry workers, polling, claiming, or dispatch.
+- Queue transition policy or writer.
+- Evaluation scoring, prompts, or Quality Gate thresholds.
+- Broad Workbench UI styling.
+
+### Next Held Recovery Infrastructure Lane — Not Yet Approved for Implementation
+
+The next possible isolated lane is:
+
+```text
+Durable retry schedule
+↓
+Due-schedule eligibility
+↓
+Atomic claim / lease
+↓
+Dispatcher invocation
+```
+
+Before implementation, this lane requires a read-only boundary audit covering:
+
+- Existing workers, cron jobs, watchdogs, routes, and queue pollers that could own schedule consumption.
+- Authoritative definition of `due`.
+- Stale or superseded checks at claim time.
+- Lease, expiry, reclaim, and crash-recovery semantics.
+- Deterministic claim outcomes.
+- Idempotency boundaries.
+- Crash windows between claim, dispatch, attempt recording, and queue transition.
+- Expected migrations and changed-file scope.
+- Collision analysis against issue #1260.
+
+Do not wire a due-schedule consumer into production until this audit is complete and implementation is explicitly approved.
+
+### Current Execution Priority
+
+1. Complete the #1260 Workbench-to-manuscript authority proof.
+2. Fix only confirmed loss points with the smallest test-backed correction.
+3. Prove author selections survive persistence, reload, Final Review, and manuscript export.
+4. Keep strategy and withheld paths outside direct manuscript mutation.
+5. Only then decide whether the due-schedule claim/dispatcher lane is the next implementation priority.
 
 ---
 
@@ -93,7 +228,7 @@ Phase 0 is complete. All Phase 0 issues are closed.
 
 - **Issue:** #1225 — ✅ closed / complete
 - **Goal:** Prove there is one canonical evaluation rendered four different ways.
-- **Status:** Complete. The claim below is unlocked; Presentation Governance (Phase 2) is the active phase.
+- **Status:** Complete. The claim below is unlocked; Presentation Governance (Phase 2) is the active architectural phase.
 
 ```text
 UED
@@ -232,6 +367,12 @@ The presentation layer is considered frozen only after this phase passes.
 6. **No New Authority**
    Remaining work strengthens proof and presentation only; it does not introduce competing sources of truth.
 
+7. **Characterization Before Correction**
+   Cross-boundary authority defects must be proven by tests before production fixes are introduced.
+
+8. **Exact-Head Merge Discipline**
+   Repository changes merge only after the intended head is fully green and clean.
+
 ---
 
 ## Non-Goals
@@ -243,6 +384,7 @@ The presentation layer is considered frozen only after this phase passes.
 - Do not introduce renderer-owned semantic authority.
 - Do not start presentation polish before semantic parity proof is complete.
 - Do not treat Golden Spine, benchmark authority, or DREAM references as roadmap state.
+- Do not treat the current execution tracks as permission to bypass the architectural phases or governance rules.
 
 ---
 
