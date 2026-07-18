@@ -3,6 +3,11 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 import type { WorkbenchOpportunity } from "@/lib/revision/workbenchQueue";
 import { logRevisionLedgerAudit } from "@/lib/revision/workbenchQueueAudit";
+import {
+  revisionCandidateHash,
+  revisionOpportunityVersion,
+  type RevisionCandidateSlot,
+} from "@/lib/revision/decisionAuthorityIdentity";
 
 export type RevisionLedgerDecision =
   | "accepted_a"
@@ -376,6 +381,64 @@ function canonicalTextMatches(selected: string, canonical: string): boolean {
   return normalizeWhitespace(selected).toLowerCase() === normalizeWhitespace(canonical).toLowerCase();
 }
 
+function sourceExcerptOfOpportunity(opportunity: WorkbenchOpportunity): string {
+  return `${opportunity.quoteHighlight ?? ""}${opportunity.quoteRest ?? ""}`.trim();
+}
+
+function authorityMetadataForEntry(input: {
+  entry: SyncRevisionLedgerEntryInput;
+  canonical: WorkbenchOpportunity;
+  selectedOption: "A" | "B" | "C" | null;
+}): Record<string, unknown> {
+  const base = input.entry.metadata ?? {};
+  const sourceExcerpt = sourceExcerptOfOpportunity(input.canonical);
+  const sourceLocation = input.canonical.anchor || input.canonical.meta || null;
+  const sourceUedHash = input.canonical.sourceUedHash ?? null;
+  const sourceOpportunityId = input.canonical.sourceOpportunityId ?? null;
+  const sourceCriterion = input.canonical.sourceCriterion ?? null;
+  const opportunityVersion = revisionOpportunityVersion({
+    id: input.canonical.id,
+    sourceUedHash,
+    sourceOpportunityId,
+    sourceCriterion,
+    sourceExcerpt,
+    sourceLocation,
+    cardType: input.canonical.cardType ?? null,
+    trustedPathStatus: input.canonical.trustedPathStatus ?? null,
+    options: input.canonical.options,
+  });
+
+  if (input.selectedOption) {
+    const candidateSlot = input.selectedOption as RevisionCandidateSlot;
+    const option = input.canonical.options.find((candidate) => candidate.key === candidateSlot);
+    const candidateText = option?.candidateText || option?.text || "";
+    return {
+      ...base,
+      sourceUedHash,
+      sourceOpportunityId,
+      sourceCriterion,
+      opportunityVersion,
+      candidateSlot,
+      candidateHash: revisionCandidateHash({
+        opportunityId: input.canonical.id,
+        candidateSlot,
+        candidateText,
+        sourceUedHash,
+        sourceOpportunityId,
+        sourceCriterion,
+      }),
+    };
+  }
+
+  return {
+    ...base,
+    sourceUedHash,
+    sourceOpportunityId,
+    sourceCriterion,
+    opportunityVersion,
+  };
+}
+
 function validateEntry(
   entry: SyncRevisionLedgerEntryInput,
   canonicalOpportunityById: Map<string, WorkbenchOpportunity>,
@@ -394,6 +457,7 @@ function validateEntry(
   if (!decision) throw new Error(`Invalid ledger decision: ${String(entry.decision)}`);
 
   const canonical = canonicalOpportunityById.get(entry.opportunityId);
+  let selectedOptionForAuthority: "A" | "B" | "C" | null = null;
 
   // Every non-undo, non-accepted decision must reference an opportunity in the
   // canonical queue projection. Accepted decisions are validated below so the
@@ -413,8 +477,8 @@ function validateEntry(
     if (expectedOption && clientOption && clientOption !== expectedOption) {
       throw new Error("Ledger acceptance blocked: decision and selected option are inconsistent");
     }
-    const selectedOption = expectedOption ?? clientOption;
-    if (!selectedOption) {
+    selectedOptionForAuthority = expectedOption ?? clientOption;
+    if (!selectedOptionForAuthority) {
       throw new Error("Ledger acceptance blocked: missing selected option");
     }
 
@@ -429,7 +493,7 @@ function validateEntry(
     if (!selectedText) {
       throw new Error("Ledger acceptance blocked: accepted decision must include selected text");
     }
-    const canonicalOption = canonical.options.find((option) => option.key === selectedOption);
+    const canonicalOption = canonical.options.find((option) => option.key === selectedOptionForAuthority);
     if (!canonicalOption) {
       throw new Error("Ledger acceptance blocked: selected option not found in canonical opportunity");
     }
@@ -442,11 +506,18 @@ function validateEntry(
   return {
     ...entry,
     decision,
-    selectedOption: decisionToOption(decision) ?? normalizeOption(entry.selectedOption),
+    selectedOption: selectedOptionForAuthority ?? decisionToOption(decision) ?? normalizeOption(entry.selectedOption),
     customText: normalizeText(entry.customText),
     selectedText: normalizeText(entry.selectedText),
     sourceExcerpt: normalizeText(entry.sourceExcerpt),
     sourceLocation: normalizeText(entry.sourceLocation),
+    metadata: canonical
+      ? authorityMetadataForEntry({
+          entry,
+          canonical,
+          selectedOption: selectedOptionForAuthority,
+        })
+      : entry.metadata,
   };
 }
 
