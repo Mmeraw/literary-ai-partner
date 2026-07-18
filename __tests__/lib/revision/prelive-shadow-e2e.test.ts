@@ -1,7 +1,49 @@
 import type { Mock } from 'jest-mock';
+import {
+  revisionCandidateHash,
+  revisionOpportunityVersion,
+} from '@/lib/revision/decisionAuthorityIdentity';
 
 const sourceText = 'Alpha original sentence. Untouched middle paragraph. Untouched final paragraph.';
 const replacementText = 'Alpha revised sentence with a grounded, author-approved improvement.';
+
+const canonicalOpportunity = {
+  id: 'opp-1',
+  cardType: 'copy_paste_rewrite',
+  trustedPathStatus: 'eligible',
+  quoteHighlight: 'Alpha original sentence.',
+  quoteRest: '',
+  anchor: 'Opening paragraph',
+  sourceUedHash: 'ued-shadow-1',
+  sourceOpportunityId: 'source-opp-1',
+  sourceCriterion: 'Opening clarity',
+  options: [
+    { key: 'A', candidateText: replacementText },
+    { key: 'B', candidateText: 'Alternate grounded opening sentence.' },
+    { key: 'C', candidateText: 'Second alternate grounded opening sentence.' },
+  ],
+};
+
+const opportunityVersion = revisionOpportunityVersion({
+  id: canonicalOpportunity.id,
+  sourceUedHash: canonicalOpportunity.sourceUedHash,
+  sourceOpportunityId: canonicalOpportunity.sourceOpportunityId,
+  sourceCriterion: canonicalOpportunity.sourceCriterion,
+  sourceExcerpt: canonicalOpportunity.quoteHighlight,
+  sourceLocation: canonicalOpportunity.anchor,
+  cardType: canonicalOpportunity.cardType,
+  trustedPathStatus: canonicalOpportunity.trustedPathStatus,
+  options: canonicalOpportunity.options,
+});
+
+const candidateHash = revisionCandidateHash({
+  opportunityId: canonicalOpportunity.id,
+  candidateSlot: 'A',
+  candidateText: replacementText,
+  sourceUedHash: canonicalOpportunity.sourceUedHash,
+  sourceOpportunityId: canonicalOpportunity.sourceOpportunityId,
+  sourceCriterion: canonicalOpportunity.sourceCriterion,
+});
 
 const decision = {
   id: 'decision-1',
@@ -13,7 +55,16 @@ const decision = {
   selected_text: replacementText,
   source_excerpt: 'Alpha original sentence.',
   source_location: 'Opening paragraph',
-  metadata: {},
+  metadata: {
+    opportunityVersion,
+    candidateSlot: 'A',
+    candidateHash,
+    sourceUedHash: canonicalOpportunity.sourceUedHash,
+    sourceOpportunityId: canonicalOpportunity.sourceOpportunityId,
+    sourceCriterion: canonicalOpportunity.sourceCriterion,
+    cardType: canonicalOpportunity.cardType,
+    trustedPathStatus: canonicalOpportunity.trustedPathStatus,
+  },
   created_at: '2026-07-14T00:00:00.000Z',
 };
 
@@ -89,7 +140,7 @@ jest.mock('@/lib/revision/finalReviewSourceText', () => ({
 jest.mock('@/lib/revision/workbenchQueue', () => ({
   getWorkbenchQueue: jest.fn(async () => ({
     ok: true,
-    opportunities: [{ id: 'opp-1' }],
+    opportunities: [canonicalOpportunity],
     needsTargeting: [],
     withheldUnsupported: [],
   })),

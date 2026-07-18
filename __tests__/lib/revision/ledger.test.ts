@@ -3,6 +3,10 @@ import {
   syncRevisionLedgerDecisions,
   listRevisionLedgerDecisions,
 } from '@/lib/revision/ledger';
+import {
+  revisionCandidateHash,
+  revisionOpportunityVersion,
+} from '@/lib/revision/decisionAuthorityIdentity';
 import { getWorkbenchQueue } from '@/lib/revision/workbenchQueue';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
@@ -223,14 +227,21 @@ function makeCanonicalQueuePayload(opportunities: any[]) {
   };
 }
 
-function makeCopyPasteOpportunity(candidateText: string) {
+function makeCopyPasteOpportunity(candidateText: string, overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'opp-1',
     cardType: 'copy_paste_rewrite',
     trustedPathStatus: 'eligible',
+    quoteHighlight: 'I held the chapel door because Mara had not answered.',
+    quoteRest: '',
+    anchor: 'chapter 1',
+    sourceUedHash: 'ued-hash-1',
+    sourceOpportunityId: 'source-opp-1',
+    sourceCriterion: 'PACING',
     options: [
       { key: 'A', candidateText, text: candidateText, rationale: 'Primary repair path' },
     ],
+    ...overrides,
   };
 }
 
@@ -312,6 +323,72 @@ describe('revision ledger quality drift metrics', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].opportunity_id).toBe('opp-1');
     expect(rows[0].local_id).toBe('local-accepted-a');
+  });
+
+  it('overwrites browser-forged authority metadata with server-derived candidate and opportunity identity', async () => {
+    const { client, upsertSpy } = buildSupabaseMock();
+    mockCreateAdminClient.mockReturnValue(client as never);
+    const candidateText = 'Elias holds the chapel door because she does not answer.';
+    const canonicalOpportunity = makeCopyPasteOpportunity(candidateText);
+    mockGetWorkbenchQueue.mockResolvedValue(makeCanonicalQueuePayload([canonicalOpportunity]) as never);
+
+    await syncRevisionLedgerDecisions({
+      manuscriptId: '6074',
+      evaluationJobId: 'job-1',
+      entries: [
+        {
+          localId: 'local-accepted-a',
+          opportunityId: 'opp-1',
+          opportunityTitle: 'Preserve close POV',
+          decision: 'accepted_a',
+          selectedOption: 'A',
+          sourceExcerpt: 'I held the chapel door because Mara had not answered.',
+          selectedText: candidateText,
+          clientCreatedAt: '2026-06-06T00:00:00.000Z',
+          metadata: {
+            source: 'unit-test',
+            sourceUedHash: 'forged-ued-hash',
+            sourceOpportunityId: 'forged-source-opportunity',
+            sourceCriterion: 'FORGED_CRITERION',
+            opportunityVersion: 'forged-opportunity-version',
+            candidateSlot: 'C',
+            candidateHash: 'forged-candidate-hash',
+          },
+        },
+      ],
+    });
+
+    const [, rpcPayload] = upsertSpy.mock.calls[0];
+    const [persisted] = (rpcPayload as { p_rows: Array<{ metadata: Record<string, unknown> }> }).p_rows;
+    const expectedOpportunityVersion = revisionOpportunityVersion({
+      id: 'opp-1',
+      sourceUedHash: 'ued-hash-1',
+      sourceOpportunityId: 'source-opp-1',
+      sourceCriterion: 'PACING',
+      sourceExcerpt: 'I held the chapel door because Mara had not answered.',
+      sourceLocation: 'chapter 1',
+      cardType: 'copy_paste_rewrite',
+      trustedPathStatus: 'eligible',
+      options: canonicalOpportunity.options,
+    });
+    const expectedCandidateHash = revisionCandidateHash({
+      opportunityId: 'opp-1',
+      candidateSlot: 'A',
+      candidateText,
+      sourceUedHash: 'ued-hash-1',
+      sourceOpportunityId: 'source-opp-1',
+      sourceCriterion: 'PACING',
+    });
+
+    expect(persisted.metadata.source).toBe('unit-test');
+    expect(persisted.metadata.sourceUedHash).toBe('ued-hash-1');
+    expect(persisted.metadata.sourceOpportunityId).toBe('source-opp-1');
+    expect(persisted.metadata.sourceCriterion).toBe('PACING');
+    expect(persisted.metadata.candidateSlot).toBe('A');
+    expect(persisted.metadata.opportunityVersion).toBe(expectedOpportunityVersion);
+    expect(persisted.metadata.candidateHash).toBe(expectedCandidateHash);
+    expect(persisted.metadata.opportunityVersion).not.toBe('forged-opportunity-version');
+    expect(persisted.metadata.candidateHash).not.toBe('forged-candidate-hash');
   });
 
   it('rejects acceptance when the canonical queue classifies the card as a strategy card', async () => {

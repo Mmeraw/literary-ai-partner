@@ -3,6 +3,11 @@ import { getWorkbenchQueue } from '@/lib/revision/workbenchQueue';
 import { resolveFinalReviewSourceText } from '@/lib/revision/finalReviewSourceText';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthenticatedUser } from '@/lib/supabase/server';
+import {
+  revisionCandidateHash,
+  revisionOpportunityVersion,
+  type RevisionCandidateSlot,
+} from '@/lib/revision/decisionAuthorityIdentity';
 
 jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: jest.fn() }));
 jest.mock('@/lib/supabase/server', () => ({ getAuthenticatedUser: jest.fn() }));
@@ -18,6 +23,101 @@ const mockGetWorkbenchQueue = getWorkbenchQueue as jest.MockedFunction<typeof ge
 const mockResolveFinalReviewSourceText = resolveFinalReviewSourceText as jest.MockedFunction<typeof resolveFinalReviewSourceText>;
 
 const SOURCE_TEXT = 'Alpha original safe. Beta original strategy. Gamma original withheld. Delta unchanged.';
+let decisionCounter = 0;
+
+function makeCopyPasteOpportunity(input: {
+  id: string;
+  title?: string;
+  anchor?: string;
+  sourceExcerpt?: string;
+  candidateA?: string;
+  candidateB?: string;
+  candidateC?: string;
+  sourceUedHash?: string;
+  sourceOpportunityId?: string;
+  sourceCriterion?: string;
+}) {
+  const candidateA = input.candidateA !== undefined ? input.candidateA : 'Alpha repaired safe.';
+  const candidateB = input.candidateB !== undefined ? input.candidateB : 'Alpha repaired variant B.';
+  const candidateC = input.candidateC !== undefined ? input.candidateC : 'Alpha repaired variant C.';
+  return {
+    id: input.id,
+    title: input.title ?? `Opportunity ${input.id}`,
+    cardType: 'copy_paste_rewrite',
+    trustedPathStatus: 'eligible',
+    anchor: input.anchor ?? 'chapter 1',
+    quoteHighlight: input.sourceExcerpt ?? 'Alpha original safe.',
+    quoteRest: '',
+    sourceUedHash: input.sourceUedHash ?? 'ued-hash-1',
+    sourceOpportunityId: input.sourceOpportunityId ?? `${input.id}-source`,
+    sourceCriterion: input.sourceCriterion ?? 'PACING',
+    options: [
+      { key: 'A', candidateText: candidateA, text: candidateA },
+      { key: 'B', candidateText: candidateB, text: candidateB },
+      { key: 'C', candidateText: candidateC, text: candidateC },
+    ],
+  };
+}
+
+function authorityMetadata(input: {
+  id?: string;
+  anchor?: string;
+  sourceExcerpt?: string;
+  candidateA?: string;
+  candidateB?: string;
+  candidateC?: string;
+  sourceUedHash?: string;
+  sourceOpportunityId?: string;
+  sourceCriterion?: string;
+  selectedOption?: RevisionCandidateSlot | null;
+} = {}) {
+  const opportunity = makeCopyPasteOpportunity({
+    id: input.id ?? 'copy-1',
+    anchor: input.anchor,
+    sourceExcerpt: input.sourceExcerpt,
+    candidateA: input.candidateA,
+    candidateB: input.candidateB,
+    candidateC: input.candidateC,
+    sourceUedHash: input.sourceUedHash,
+    sourceOpportunityId: input.sourceOpportunityId,
+    sourceCriterion: input.sourceCriterion,
+  });
+  const sourceExcerpt = `${opportunity.quoteHighlight}${opportunity.quoteRest}`.trim();
+  const sourceLocation = opportunity.anchor;
+  const base = {
+    sourceUedHash: opportunity.sourceUedHash,
+    sourceOpportunityId: opportunity.sourceOpportunityId,
+    sourceCriterion: opportunity.sourceCriterion,
+    opportunityVersion: revisionOpportunityVersion({
+      id: opportunity.id,
+      sourceUedHash: opportunity.sourceUedHash,
+      sourceOpportunityId: opportunity.sourceOpportunityId,
+      sourceCriterion: opportunity.sourceCriterion,
+      sourceExcerpt,
+      sourceLocation,
+      cardType: opportunity.cardType,
+      trustedPathStatus: opportunity.trustedPathStatus,
+      options: opportunity.options,
+    }),
+  };
+
+  const selectedOption = input.selectedOption === undefined ? 'A' : input.selectedOption;
+  if (!selectedOption) return base;
+
+  const option = opportunity.options.find((candidate) => candidate.key === selectedOption);
+  return {
+    ...base,
+    candidateSlot: selectedOption,
+    candidateHash: revisionCandidateHash({
+      opportunityId: opportunity.id,
+      candidateSlot: selectedOption,
+      candidateText: option?.candidateText ?? option?.text ?? '',
+      sourceUedHash: opportunity.sourceUedHash,
+      sourceOpportunityId: opportunity.sourceOpportunityId,
+      sourceCriterion: opportunity.sourceCriterion,
+    }),
+  };
+}
 
 type MockQueryInput = { single?: unknown; list?: unknown[]; insertSpy?: jest.Mock; upsertSpy?: jest.Mock };
 
@@ -35,6 +135,8 @@ function makeQuery(input: MockQueryInput = {}) {
 }
 
 function decision(overrides: Partial<Record<string, unknown>> = {}) {
+  decisionCounter += 1;
+  const createdAt = new Date(Date.UTC(2026, 5, 8, 0, 0, decisionCounter)).toISOString();
   return {
     id: '00000000-0000-0000-0000-000000000001',
     opportunity_id: 'copy-1',
@@ -45,8 +147,8 @@ function decision(overrides: Partial<Record<string, unknown>> = {}) {
     selected_text: 'Alpha repaired safe.',
     source_excerpt: 'Alpha original safe.',
     source_location: 'chapter 1',
-    metadata: {},
-    created_at: '2026-06-08T00:00:00.000Z',
+    metadata: authorityMetadata(),
+    created_at: createdAt,
     ...overrides,
   };
 }
@@ -90,9 +192,31 @@ function buildSupabaseMock(
 }
 
 function mockQueueWithIds(copyPasteIds: string[] = ['copy-1']) {
+  const opportunities = copyPasteIds.map((id) => {
+    if (id === 'copy-1') {
+      return makeCopyPasteOpportunity({
+        id,
+        title: 'Safe copy repair',
+        anchor: 'chapter 1',
+        sourceExcerpt: 'Alpha original safe.',
+        candidateA: 'Alpha repaired safe.',
+      });
+    }
+    if (id === 'copy-2') {
+      return makeCopyPasteOpportunity({
+        id,
+        title: 'Delta copy repair',
+        anchor: 'chapter 4',
+        sourceExcerpt: 'Delta unchanged.',
+        candidateA: 'Delta preserved.',
+      });
+    }
+    return makeCopyPasteOpportunity({ id });
+  });
+
   mockGetWorkbenchQueue.mockResolvedValue({
     ok: true,
-    opportunities: copyPasteIds.map((id) => ({ id })),
+    opportunities,
     needsTargeting: [{ id: 'strategy-1', cardType: 'revision_strategy' }],
     withheldUnsupported: [{ id: 'withheld-1' }],
   } as never);
@@ -108,6 +232,7 @@ describe('final review runtime governance', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    decisionCounter = 0;
     mockGetAuthenticatedUser.mockResolvedValue({ id: 'user-1' } as never);
     mockResolveFinalReviewSourceText.mockResolvedValue(SOURCE_TEXT);
     mockQueue();
@@ -240,7 +365,9 @@ describe('final review runtime governance', () => {
         id: '00000000-0000-0000-0000-000000000004',
         opportunity_id: 'copy-2',
         source_excerpt: 'Delta unchanged.',
+        source_location: 'chapter 4',
         selected_text: 'Delta preserved.',
+        metadata: authorityMetadata({ id: 'copy-2', anchor: 'chapter 4', sourceExcerpt: 'Delta unchanged.', candidateA: 'Delta preserved.' }),
       });
 
       const { client, rpc } = buildSupabaseMock([decision(), acceptedDelta]);
@@ -313,13 +440,21 @@ describe('final review runtime governance', () => {
 
       const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
       expect(result.ok).toBe(false);
-      expect(result.error).toMatch(/source excerpt anchor was not found/i);
+      expect(result.error).toMatch(/source identity mismatch/i);
     });
 
     it('blocks apply when a source excerpt is not unique', async () => {
       const duplicated = 'The river moved below them. The river moved below them.';
       mockResolveFinalReviewSourceText.mockResolvedValue(duplicated);
-      const ambiguous = decision({ source_excerpt: 'The river moved below them.', selected_text: 'X' });
+      const ambiguous = decision({ source_excerpt: 'The river moved below them.', selected_text: 'Alpha repaired safe.' });
+      ambiguous.metadata = authorityMetadata({ sourceExcerpt: 'The river moved below them.', candidateA: 'Alpha repaired safe.' });
+
+      mockGetWorkbenchQueue.mockResolvedValue({
+        ok: true,
+        opportunities: [makeCopyPasteOpportunity({ id: 'copy-1', sourceExcerpt: 'The river moved below them.', candidateA: 'Alpha repaired safe.' })],
+        needsTargeting: [{ id: 'strategy-1', cardType: 'revision_strategy' }],
+        withheldUnsupported: [],
+      } as never);
 
       const { client } = buildSupabaseMock([ambiguous]);
       mockCreateAdminClient.mockReturnValue(client as never);
@@ -338,13 +473,25 @@ describe('final review runtime governance', () => {
         opportunity_id: 'copy-1',
         source_excerpt: 'beta gamma',
         selected_text: 'BETA GAMMA',
+        metadata: authorityMetadata({ sourceExcerpt: 'beta gamma', candidateA: 'BETA GAMMA' }),
       });
       const second = decision({
         id: '00000000-0000-0000-0000-000000000003',
         opportunity_id: 'copy-2',
         source_excerpt: 'gamma delta',
         selected_text: 'GAMMA DELTA',
+        metadata: authorityMetadata({ id: 'copy-2', sourceExcerpt: 'gamma delta', candidateA: 'GAMMA DELTA' }),
       });
+
+      mockGetWorkbenchQueue.mockResolvedValue({
+        ok: true,
+        opportunities: [
+          makeCopyPasteOpportunity({ id: 'copy-1', sourceExcerpt: 'beta gamma', candidateA: 'BETA GAMMA' }),
+          makeCopyPasteOpportunity({ id: 'copy-2', sourceExcerpt: 'gamma delta', candidateA: 'GAMMA DELTA' }),
+        ],
+        needsTargeting: [{ id: 'strategy-1', cardType: 'revision_strategy' }],
+        withheldUnsupported: [],
+      } as never);
 
       const { client } = buildSupabaseMock([first, second]);
       mockCreateAdminClient.mockReturnValue(client as never);
@@ -361,6 +508,7 @@ describe('final review runtime governance', () => {
         opportunity_id: 'copy-2',
         source_excerpt: 'Delta unchanged.',
         selected_text: 'Other.',
+        metadata: authorityMetadata({ id: 'copy-2', anchor: 'chapter 4', sourceExcerpt: 'Delta unchanged.', candidateA: 'Delta preserved.' }),
       });
 
       const { client } = buildSupabaseMock([decision(), duplicate]);
@@ -436,6 +584,124 @@ describe('final review runtime governance', () => {
         mode: 'apply',
         blocked_reason: expect.stringContaining('No applicable accepted/custom decisions'),
       }));
+    });
+
+    it('blocks apply when accepted selected text fails the secondary integrity diagnostic', async () => {
+      const staleAccepted = decision({
+        selected_option: 'A',
+        selected_text: 'Alpha repaired OLD version.',
+      });
+
+      const { client } = buildSupabaseMock([staleAccepted]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/selected text diagnostic mismatch/i);
+    });
+
+    it('blocks apply when an opportunity is rebuilt with the same id but a different candidate set', async () => {
+      const savedAgainstOldCandidateSet = decision({
+        selected_option: 'A',
+        selected_text: 'Alpha repaired safe.',
+        metadata: authorityMetadata({ candidateA: 'Alpha repaired safe.' }),
+      });
+
+      mockGetWorkbenchQueue.mockResolvedValue({
+        ok: true,
+        opportunities: [makeCopyPasteOpportunity({ id: 'copy-1', candidateA: 'Alpha rebuilt candidate from a newer opportunity version.' })],
+        needsTargeting: [{ id: 'strategy-1', cardType: 'revision_strategy' }],
+        withheldUnsupported: [],
+      } as never);
+
+      const { client, rpc } = buildSupabaseMock([savedAgainstOldCandidateSet]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/opportunity version mismatch/i);
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('uses candidate slot and hash identity so equal candidate text in another slot is not accepted as membership proof', async () => {
+      const sameText = 'Alpha repaired safe.';
+      const savedAsSlotB = decision({
+        selected_option: 'A',
+        selected_text: sameText,
+        metadata: authorityMetadata({ candidateA: sameText, candidateB: sameText, selectedOption: 'B' }),
+      });
+
+      mockGetWorkbenchQueue.mockResolvedValue({
+        ok: true,
+        opportunities: [makeCopyPasteOpportunity({ id: 'copy-1', candidateA: sameText, candidateB: sameText })],
+        needsTargeting: [{ id: 'strategy-1', cardType: 'revision_strategy' }],
+        withheldUnsupported: [],
+      } as never);
+
+      const { client, rpc } = buildSupabaseMock([savedAsSlotB]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/candidateSlot B does not match selected option A/i);
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('blocks apply when authoritative candidate text is missing for an accepted option', async () => {
+      mockGetWorkbenchQueue.mockResolvedValue({
+        ok: true,
+        opportunities: [makeCopyPasteOpportunity({ id: 'copy-1', candidateA: '' })],
+        needsTargeting: [{ id: 'strategy-1', cardType: 'revision_strategy' }],
+        withheldUnsupported: [],
+      } as never);
+
+      const { client } = buildSupabaseMock([decision({ metadata: authorityMetadata({ candidateA: '' }) })]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/authoritative candidate A is missing/i);
+    });
+
+    it('blocks apply on source identity mismatch between persisted decision and authoritative opportunity', async () => {
+      const mismatchedDecision = decision({
+        source_excerpt: 'Alpha original safe.',
+        source_location: 'chapter 9',
+      });
+
+      const { client } = buildSupabaseMock([mismatchedDecision]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/source identity mismatch/i);
+      expect(result.error).toMatch(/location/i);
+    });
+
+    it('blocks apply when multiple concurrent latest decisions exist for one opportunity', async () => {
+      const conflictedA = decision({
+        id: '00000000-0000-0000-0000-000000000101',
+        decision: 'accepted_a',
+        selected_option: 'A',
+        selected_text: 'Alpha repaired safe.',
+        created_at: '2026-06-08T00:00:00.000Z',
+      });
+      const conflictedB = decision({
+        id: '00000000-0000-0000-0000-000000000102',
+        decision: 'custom',
+        selected_option: null,
+        custom_text: 'Custom replacement text.',
+        selected_text: 'Custom replacement text.',
+        created_at: '2026-06-08T00:00:00.000Z',
+      });
+
+      const { client, rpc } = buildSupabaseMock([conflictedA, conflictedB]);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/concurrent latest decisions/i);
+      expect(rpc).not.toHaveBeenCalled();
     });
   });
 });

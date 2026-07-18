@@ -9,6 +9,10 @@ import {
   applyPatchFromPreview,
   sha256,
 } from '@/lib/revision/revisePatchLifecycle';
+import {
+  revisionCandidateHash,
+  revisionOpportunityVersion,
+} from '@/lib/revision/decisionAuthorityIdentity';
 
 const mockGetAuthenticatedUser = jest.fn();
 const mockCreateAdminClient = jest.fn();
@@ -223,18 +227,94 @@ describe('Unified Revise shadow E2E', () => {
     });
     expect(customApply.ok).toBe(true);
 
+    const acceptedQueueOpportunity = {
+      id: acceptedOpportunity.opportunity_id,
+      cardType: 'copy_paste_rewrite',
+      trustedPathStatus: 'eligible',
+      quoteHighlight: SOURCE_A,
+      quoteRest: '',
+      anchor: 'Chapter 1, paragraph 1',
+      sourceUedHash: acceptedOpportunity.source_ued_hash ?? 'shadow-ued-hash',
+      sourceOpportunityId: acceptedOpportunity.source_opportunity_id ?? acceptedOpportunity.opportunity_id,
+      sourceCriterion: acceptedOpportunity.source_criterion ?? acceptedOpportunity.criterion,
+      options: CANDIDATES_A.map((candidateText, index) => ({
+        key: ['A', 'B', 'C'][index] as 'A' | 'B' | 'C',
+        candidateText,
+        text: candidateText,
+      })),
+    };
+    const customQueueOpportunity = {
+      id: customOpportunity.opportunity_id,
+      cardType: 'copy_paste_rewrite',
+      trustedPathStatus: 'eligible',
+      quoteHighlight: SOURCE_B,
+      quoteRest: '',
+      anchor: 'Chapter 1, paragraph 3',
+      sourceUedHash: customOpportunity.source_ued_hash ?? 'shadow-ued-hash',
+      sourceOpportunityId: customOpportunity.source_opportunity_id ?? customOpportunity.opportunity_id,
+      sourceCriterion: customOpportunity.source_criterion ?? customOpportunity.criterion,
+      options: CANDIDATES_B.map((candidateText, index) => ({
+        key: ['A', 'B', 'C'][index] as 'A' | 'B' | 'C',
+        candidateText,
+        text: candidateText,
+      })),
+    };
+    const acceptedOpportunityVersion = revisionOpportunityVersion({
+      id: acceptedQueueOpportunity.id,
+      sourceUedHash: acceptedQueueOpportunity.sourceUedHash,
+      sourceOpportunityId: acceptedQueueOpportunity.sourceOpportunityId,
+      sourceCriterion: acceptedQueueOpportunity.sourceCriterion,
+      sourceExcerpt: SOURCE_A,
+      sourceLocation: acceptedQueueOpportunity.anchor,
+      cardType: acceptedQueueOpportunity.cardType,
+      trustedPathStatus: acceptedQueueOpportunity.trustedPathStatus,
+      options: acceptedQueueOpportunity.options,
+    });
+    const customOpportunityVersion = revisionOpportunityVersion({
+      id: customQueueOpportunity.id,
+      sourceUedHash: customQueueOpportunity.sourceUedHash,
+      sourceOpportunityId: customQueueOpportunity.sourceOpportunityId,
+      sourceCriterion: customQueueOpportunity.sourceCriterion,
+      sourceExcerpt: SOURCE_B,
+      sourceLocation: customQueueOpportunity.anchor,
+      cardType: customQueueOpportunity.cardType,
+      trustedPathStatus: customQueueOpportunity.trustedPathStatus,
+      options: customQueueOpportunity.options,
+    });
+
     const decisions = [
       {
         id: 'decision-accepted-b', opportunity_id: acceptedOpportunity.opportunity_id,
         opportunity_title: acceptedOpportunity.title ?? 'Accepted opportunity', decision: 'accepted_b', selected_option: 'B',
         custom_text: null, selected_text: CANDIDATES_A[1], source_excerpt: SOURCE_A, source_location: 'Chapter 1, paragraph 1',
-        metadata: { source: 'author_choice' }, created_at: '2026-07-14T00:06:00.000Z',
+        metadata: {
+          source: 'author_choice',
+          sourceUedHash: acceptedQueueOpportunity.sourceUedHash,
+          sourceOpportunityId: acceptedQueueOpportunity.sourceOpportunityId,
+          sourceCriterion: acceptedQueueOpportunity.sourceCriterion,
+          opportunityVersion: acceptedOpportunityVersion,
+          candidateSlot: 'B',
+          candidateHash: revisionCandidateHash({
+            opportunityId: acceptedQueueOpportunity.id,
+            candidateSlot: 'B',
+            candidateText: CANDIDATES_A[1],
+            sourceUedHash: acceptedQueueOpportunity.sourceUedHash,
+            sourceOpportunityId: acceptedQueueOpportunity.sourceOpportunityId,
+            sourceCriterion: acceptedQueueOpportunity.sourceCriterion,
+          }),
+        }, created_at: '2026-07-14T00:06:00.000Z',
       },
       {
         id: 'decision-custom', opportunity_id: customOpportunity.opportunity_id,
         opportunity_title: customOpportunity.title ?? 'Custom opportunity', decision: 'custom', selected_option: null,
         custom_text: customText, selected_text: null, source_excerpt: SOURCE_B, source_location: 'Chapter 1, paragraph 3',
-        metadata: { source: 'author_choice' }, created_at: '2026-07-14T00:07:00.000Z',
+        metadata: {
+          source: 'author_choice',
+          sourceUedHash: customQueueOpportunity.sourceUedHash,
+          sourceOpportunityId: customQueueOpportunity.sourceOpportunityId,
+          sourceCriterion: customQueueOpportunity.sourceCriterion,
+          opportunityVersion: customOpportunityVersion,
+        }, created_at: '2026-07-14T00:07:00.000Z',
       },
     ];
 
@@ -258,7 +338,7 @@ describe('Unified Revise shadow E2E', () => {
     mockUpsertEvaluationArtifact.mockResolvedValue('artifact-completion-shadow');
     mockGetWorkbenchQueue.mockResolvedValue({
       ok: true,
-      opportunities: [{ id: acceptedOpportunity.opportunity_id }, { id: customOpportunity.opportunity_id }],
+      opportunities: [acceptedQueueOpportunity, customQueueOpportunity],
       needsTargeting: [],
       withheldUnsupported: [],
     });
