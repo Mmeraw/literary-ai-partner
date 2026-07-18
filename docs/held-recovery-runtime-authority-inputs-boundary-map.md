@@ -15,6 +15,26 @@ This proof lane establishes trusted runtime inputs for the pure Held Recovery ex
 | Revision opportunity ledger opportunity shape in `lib/revision/opportunityLedger.ts` | Canonical opportunity id, evidence anchor, manuscript coordinates, diagnostic fields, candidate A/B/C, ledger source hash | Does not own manuscript chunk text; chunk content must come from persisted `manuscript_chunks` authority | Use as canonical opportunity input source and join with typed chunk references |
 | `heldRecoveryVersioning.ts` helpers | Canonical opportunity and candidate-set version derivation using the opportunity-ledger hash helper | Does not construct runtime snapshots independently | Reuse for adapter-built authority snapshot |
 
+## Authority object layers
+
+Held Recovery runtime-readiness depends on keeping three object layers distinct. They must not be collapsed into one another.
+
+| Layer | Object examples | Authority role | Lifetime | Mutation rule |
+|---|---|---|---|---|
+| Authoritative persisted object | `manuscript_chunks` row / `ChunkRow`; canonical revision opportunity ledger row; persisted candidate A/B/C fields | Source of truth for manuscript text, chunk identity, opportunity identity, diagnostics, and candidate-set identity | Durable persisted state owned by existing storage/ledger paths | This PR does not create, update, or replace these objects |
+| Derived runtime object | `CanonicalManuscriptChunkReference`; `CanonicalRecoveryState`; `RecoveryAuthoritySnapshot` | Typed, in-memory proof that persisted authorities have been read and bound to the current manuscript/opportunity/candidate identities | Disposable per recovery attempt / adapter invocation | Derived only from authoritative persisted objects; never from request identity |
+| Disposable execution object | `RecoveryExecutorInput.inputs`; `RecoveryExecutorInput`; `RecoveryExecutionResult` | Pure executor input/output payload for deterministic validation and dispatch | Single pure executor call | May be constructed and discarded; must not become a persisted authority or mutate persisted state |
+
+The direction of authority is one-way:
+
+```text
+authoritative persisted object
+→ derived runtime object
+→ disposable execution object
+```
+
+The reverse direction is forbidden. Executor results, request fields, caller-supplied hashes, and disposable execution payloads must not update canonical chunk identity, opportunity identity, candidate-set identity, or manuscript-version authority in this proof PR.
+
 ## Input source map
 
 | Executor input | Canonical source | Notes |
