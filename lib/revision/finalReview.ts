@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { buildDecisionOnlyPreview, resolveFinalReviewSourceText, scrubInternalReportLeakage } from "@/lib/revision/finalReviewSourceText";
+import { applyValidatedFinalReviewDecisions, toMaterializableOpportunity } from "@/lib/revision/finalReviewTextApplication";
+import type { MaterializableDecision } from "@/lib/revision/finalReviewTextApplication";
 import { getWorkbenchQueue } from "@/lib/revision/workbenchQueue";
 
 function normalizedEmailList(value: string | undefined): string[] {
@@ -153,6 +155,22 @@ function toRuntimeDecision(decision: FinalReviewDecision) {
   };
 }
 
+function toMaterializableDecision(row: any): MaterializableDecision {
+  return {
+    id: row.id,
+    opportunity_id: row.opportunity_id,
+    opportunity_title: row.opportunity_title,
+    decision: row.decision,
+    selected_option: row.selected_option,
+    custom_text: row.custom_text,
+    selected_text: row.selected_text,
+    source_excerpt: row.source_excerpt,
+    source_location: row.source_location,
+    metadata: row.metadata,
+    created_at: row.created_at,
+  };
+}
+
 export async function getFinalReviewPayload(input: {
   manuscriptId?: string;
   evaluationJobId?: string;
@@ -235,19 +253,25 @@ export async function getFinalReviewPayload(input: {
     if (!latestByOpportunity.has(row.opportunity_id)) latestByOpportunity.set(row.opportunity_id, row);
   }
 
-  let decisions: FinalReviewDecision[] = [...latestByOpportunity.values()].map(rowToDecision);
+  const latestRows = [...latestByOpportunity.values()];
+  let decisions: FinalReviewDecision[] = latestRows.map(rowToDecision);
+  let materializableDecisions: MaterializableDecision[] = latestRows.map(toMaterializableDecision);
 
   const queuePayload = await getWorkbenchQueue({
     user,
     manuscriptId: String(manuscriptId),
     evaluationJobId: input.evaluationJobId,
   });
+
+  let opportunitiesById = new Map<string, ReturnType<typeof toMaterializableOpportunity>>();
+  let allOpportunityIds = new Set<string>();
+
   if (queuePayload.ok) {
     // Final Review must read the same persisted rows as the workbench and the
     // ledger API. Filtering to only the copy-paste bucket dropped deferred/
     // kept/rejected decisions for strategy and withheld cards. Use the full
     // canonical queue projection as the allowed-opportunity set.
-    const allOpportunityIds = new Set(
+    allOpportunityIds = new Set(
       [
         ...queuePayload.opportunities,
         ...queuePayload.needsTargeting,
@@ -255,6 +279,11 @@ export async function getFinalReviewPayload(input: {
       ].map((opportunity) => opportunity.id),
     );
     decisions = decisions.filter((decision) => allOpportunityIds.has(decision.opportunityId));
+    materializableDecisions = materializableDecisions.filter((decision) => allOpportunityIds.has(decision.opportunity_id));
+
+    opportunitiesById = new Map(
+      queuePayload.opportunities.map((opportunity) => [opportunity.id, toMaterializableOpportunity(opportunity)]),
+    );
   }
 
   const sourceText = await resolveFinalReviewSourceText({
@@ -266,9 +295,19 @@ export async function getFinalReviewPayload(input: {
   });
 
   const sourceAvailable = sourceText.trim().length > 0;
-  const previewText = sourceAvailable
-    ? applyDecisionsForPreview(sourceText, decisions)
-    : buildDecisionOnlyPreview({ manuscriptTitle: manuscript.title ?? "Untitled Manuscript", decisions: decisions.map(toRuntimeDecision) });
+  let previewText: string;
+  if (!sourceAvailable) {
+    previewText = buildDecisionOnlyPreview({ manuscriptTitle: manuscript.title ?? "Untitled Manuscript", decisions: decisions.map(toRuntimeDecision) });
+  } else if (queuePayload.ok) {
+    const materialization = applyValidatedFinalReviewDecisions({
+      sourceText,
+      decisions: materializableDecisions,
+      opportunitiesById,
+    });
+    previewText = materialization.text;
+  } else {
+    previewText = applyDecisionsForPreview(sourceText, decisions);
+  }
 
   const acceptedCount = decisions.filter((d) => d.decision.startsWith("accepted_")).length;
   const customCount = decisions.filter((d) => d.decision === "custom").length;
