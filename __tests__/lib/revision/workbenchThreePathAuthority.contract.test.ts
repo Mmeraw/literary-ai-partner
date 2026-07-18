@@ -686,7 +686,12 @@ describe('#1260 workbench three-path authority contract', () => {
     });
 
     it('withheld decisions are not materialized in exported manuscript', async () => {
-      const { client: supabase } = buildMinimalSupabaseWithLegacyDecision();
+      const { client: supabase } = buildMinimalSupabaseWithLegacyDecision({
+        decision: 'deferred' as const,
+        selected_option: null,
+        selected_text: null,
+        custom_text: null,
+      });
       mockCreateAdminClient.mockReturnValue(supabase as any);
       const withheldPayload = deepClone(strategyQueuePayload());
       withheldPayload.needsTargeting = [];
@@ -704,6 +709,28 @@ describe('#1260 workbench three-path authority contract', () => {
       const exported = await buildFinalReviewExport({ manuscriptId: 9001, evaluationJobId: 'job-abc', format: 'clean', file: 'txt' });
       expect(exported.content).not.toContain('STRATEGY_REPLACEMENT_TEXT');
       expect(exported.content).toContain(ANCHOR);
+    });
+
+    it('blocks an accepted rewrite against a withheld opportunity', async () => {
+      const { client: supabase } = buildMinimalSupabaseWithLegacyDecision();
+      mockCreateAdminClient.mockReturnValue(supabase as any);
+      const withheldPayload = deepClone(strategyQueuePayload());
+      withheldPayload.needsTargeting = [];
+      withheldPayload.withheldUnsupported = [{
+        id: 'opp-strategy-001',
+        cardType: 'withheld',
+        trustedPathStatus: 'impossible',
+        title: 'Withheld guidance',
+        anchor: 'Chapter 1, paragraph 1.',
+        options: [],
+      }];
+      mockGetWorkbenchQueue.mockReset();
+      mockGetWorkbenchQueue.mockResolvedValue(withheldPayload);
+
+      const exported = await buildFinalReviewExport({ manuscriptId: 9001, evaluationJobId: 'job-abc', format: 'clean', file: 'txt' });
+      expect(exported.content).not.toContain('STRATEGY_REPLACEMENT_TEXT');
+      expect(exported.content).not.toContain(ANCHOR);
+      expect(exported.content).toMatch(/blocked|missing from authoritative copy-paste queue/i);
     });
   });
 });

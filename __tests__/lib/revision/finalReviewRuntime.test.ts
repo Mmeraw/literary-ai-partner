@@ -243,7 +243,7 @@ describe('final review runtime governance', () => {
     process.env.REVISIONGRADE_ADMIN_EMAILS = ORIGINAL_ADMIN_EMAILS;
   });
 
-  it('exports a semi-revised manuscript by applying only queue-visible copy-paste repairs', async () => {
+  it('fails closed when exported decisions include unauthorized applicable strategy or withheld cards', async () => {
     const { client, insertSpy, artifactUpsertSpy } = buildSupabaseMock([
       decision(),
       decision({ id: '00000000-0000-0000-0000-000000000002', opportunity_id: 'strategy-1', opportunity_title: 'Strategy card', selected_text: 'Beta strategy replacement should not apply.', source_excerpt: 'Beta original strategy.' }),
@@ -253,15 +253,14 @@ describe('final review runtime governance', () => {
 
     const exported = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'clean' });
 
-    expect(exported.content).toContain('Alpha repaired safe.');
-    expect(exported.content).toContain('Beta original strategy.');
-    expect(exported.content).toContain('Gamma original withheld.');
+    expect(exported.content).not.toContain('Alpha repaired safe.');
     expect(exported.content).not.toContain('Beta strategy replacement should not apply.');
     expect(exported.content).not.toContain('Gamma withheld replacement should not apply.');
+    expect(exported.content).toMatch(/blocked|Strategy card: opportunity missing from authoritative copy-paste queue|Withheld card: opportunity missing from authoritative copy-paste queue/i);
     expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({
-      status: 'exported',
-      applied_decision_ids: ['00000000-0000-0000-0000-000000000001'],
-      skipped_decision_ids: ['00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003'],
+      mode: 'export_clean',
+      applied_decision_ids: [],
+      revised_version_id: null,
     }));
     expect(artifactUpsertSpy).toHaveBeenCalled();
   });
@@ -278,7 +277,7 @@ describe('final review runtime governance', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('claims and creates a derived version through the atomic Apply RPC', async () => {
+  it('blocks apply when exported decisions include unauthorized applicable strategy or withheld cards', async () => {
     const { client, rpc, insertSpy } = buildSupabaseMock([
       decision(),
       decision({ id: '00000000-0000-0000-0000-000000000002', opportunity_id: 'strategy-1', opportunity_title: 'Strategy card' }),
@@ -287,19 +286,14 @@ describe('final review runtime governance', () => {
 
     const result = await applyFinalReviewDecisions({ manuscriptId: 6074, evaluationJobId: 'job-1' });
 
-    expect(result).toEqual({ ok: true, revisedVersionId: 'version-2', appliedCount: 1, reusedExistingVersion: false });
-    expect(rpc).toHaveBeenCalledWith('apply_final_review_once', expect.objectContaining({
-      p_user_id: 'user-1',
-      p_manuscript_id: 6074,
-      p_evaluation_job_id: 'job-1',
-      p_source_version_id: 'version-1',
-      p_apply_fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
-      p_raw_text: 'Alpha repaired safe. Beta original strategy. Gamma original withheld. Delta unchanged.',
-      p_word_count: 11,
-      p_applied_decision_ids: ['00000000-0000-0000-0000-000000000001'],
-      p_skipped_decision_ids: ['00000000-0000-0000-0000-000000000002'],
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/Strategy card: opportunity missing from authoritative copy-paste queue/i);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'blocked',
+      mode: 'apply',
+      applied_decision_ids: [],
     }));
-    expect(insertSpy).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'applied' }));
   });
 
   it('returns the same revised version for a sequential duplicate Apply', async () => {
@@ -387,17 +381,15 @@ describe('final review runtime governance', () => {
       expect(new Set(appliedIds).size).toBe(2);
     });
 
-    it('does not modify the manuscript for rejected, deferred, keep_original, strategy, or withheld decisions', async () => {
+    it('does not modify or block for rejected, deferred, and keep_original decisions', async () => {
       const source = 'Alpha original safe. Beta original strategy. Gamma original withheld. Delta unchanged.';
       mockResolveFinalReviewSourceText.mockResolvedValue(source);
 
       const decisions = [
         decision(),
-        decision({ id: '00000000-0000-0000-0000-000000000002', opportunity_id: 'copy-1', decision: 'rejected', selected_text: 'REJECTED BETA' }),
-        decision({ id: '00000000-0000-0000-0000-000000000003', opportunity_id: 'copy-1', decision: 'deferred', selected_text: 'DEFERRED BETA' }),
-        decision({ id: '00000000-0000-0000-0000-000000000004', opportunity_id: 'copy-1', decision: 'keep_original', selected_text: 'KEPT BETA' }),
-        decision({ id: '00000000-0000-0000-0000-000000000005', opportunity_id: 'strategy-1', decision: 'accepted_a', selected_text: 'STRATEGY BETA' }),
-        decision({ id: '00000000-0000-0000-0000-000000000006', opportunity_id: 'withheld-1', decision: 'accepted_a', selected_text: 'WITHHELD GAMMA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000002', opportunity_id: 'strategy-reject-1', opportunity_title: 'Strategy card', decision: 'reject', selected_text: 'REJECTED BETA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000003', opportunity_id: 'withheld-deferred-1', opportunity_title: 'Withheld card', decision: 'deferred', selected_text: 'DEFERRED GAMMA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000004', opportunity_id: 'keep-original-1', decision: 'keep_original', selected_text: 'KEPT EPSILON' }),
       ];
 
       const { client } = buildSupabaseMock(decisions);
@@ -409,8 +401,28 @@ describe('final review runtime governance', () => {
       expect(exported.content).toContain('Gamma original withheld.');
       expect(exported.content).toContain('Delta unchanged.');
       expect(exported.content).not.toContain('REJECTED BETA');
+      expect(exported.content).not.toContain('DEFERRED GAMMA');
+      expect(exported.content).not.toContain('KEPT DELTA');
+    });
+
+    it('fails closed for accepted or custom strategy and withheld decisions', async () => {
+      const source = 'Alpha original safe. Beta original strategy. Gamma original withheld. Delta unchanged.';
+      mockResolveFinalReviewSourceText.mockResolvedValue(source);
+
+      const decisions = [
+        decision(),
+        decision({ id: '00000000-0000-0000-0000-000000000005', opportunity_id: 'strategy-1', opportunity_title: 'Strategy card', decision: 'accepted_a', selected_text: 'STRATEGY BETA' }),
+        decision({ id: '00000000-0000-0000-0000-000000000006', opportunity_id: 'withheld-1', opportunity_title: 'Withheld card', decision: 'accepted_a', selected_text: 'WITHHELD GAMMA' }),
+      ];
+
+      const { client } = buildSupabaseMock(decisions);
+      mockCreateAdminClient.mockReturnValue(client as never);
+
+      const exported = await buildFinalReviewExport({ manuscriptId: 6074, evaluationJobId: 'job-1', format: 'clean' });
+      expect(exported.content).not.toContain('Alpha repaired safe.');
       expect(exported.content).not.toContain('STRATEGY BETA');
       expect(exported.content).not.toContain('WITHHELD GAMMA');
+      expect(exported.content).toMatch(/blocked|Strategy card: opportunity missing from authoritative copy-paste queue|Withheld card: opportunity missing from authoritative copy-paste queue/i);
     });
 
     it('replays the same decision ledger to an identical raw text and fingerprint', async () => {
