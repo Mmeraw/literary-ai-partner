@@ -2,6 +2,7 @@ import { describe, it, expect, jest } from '@jest/globals'
 import {
   createSupabaseHeldRecoveryRuntimeLoaders,
   runHeldRecoveryRuntimeOrchestration,
+  runHeldRecoveryRuntimeOrchestrationWithAttemptRecording,
   type CanonicalCandidateStateLoadResult,
   type CanonicalHeldItem,
   type CanonicalHeldItemLoadResult,
@@ -16,6 +17,11 @@ import {
   type CanonicalRecoveryState,
 } from '@/lib/revision/heldRecoveryRuntimeInputs'
 import type { RecoveryExecutorInput } from '@/lib/revision/heldRecoveryExecutor'
+import type {
+  HeldRecoveryAttemptPersistenceAdapter,
+  RecordRecoveryAttemptInput,
+  RecordRecoveryAttemptResult,
+} from '@/lib/revision/heldRecoveryAttemptRecorder'
 
 const MANUSCRIPT_VERSION_SHA = 'runtime-manuscript-sha'
 
@@ -321,6 +327,217 @@ describe('bounded held recovery runtime orchestration', () => {
       'loadHeldItem', 'loadOpportunityLedger', 'loadCandidateState', 'loadManuscriptChunks',
       'loadHeldItem', 'loadOpportunityLedger', 'loadCandidateState', 'loadManuscriptChunks',
     ])
+  })
+})
+
+describe('bounded held recovery runtime attempt recording boundary', () => {
+  function attemptPersistence(): HeldRecoveryAttemptPersistenceAdapter {
+    return {
+      findByIdempotencyKey: jest.fn(async () => null),
+      countAttemptsForSeries: jest.fn(async () => 0),
+      insertAttempt: jest.fn(async () => { throw new Error('direct insert must not be called by wiring test') }),
+    }
+  }
+
+  it('records a runtime attempt after canonical input construction and executor classification', async () => {
+    const { loaders, calls } = loadersWith()
+    const adapter = attemptPersistence()
+    const recordedInputs: RecordRecoveryAttemptInput[] = []
+    const recordRecoveryAttempt = jest.fn(async (_adapter, input: RecordRecoveryAttemptInput): Promise<RecordRecoveryAttemptResult> => {
+      recordedInputs.push(input)
+      return {
+        status: 'recorded',
+        record: {
+          idempotencyKey: 'recorded-key',
+          heldItemId: input.heldItem.heldItemId,
+          opportunityId: input.heldItem.opportunityId,
+          manuscriptId: input.heldItem.manuscriptId,
+          manuscriptVersionSha: input.heldItem.manuscriptVersionSha,
+          heldItemPersistedVersion: input.heldItem.persistedVersion,
+          runtimeOutcomeStatus: input.runtimeOutcome.status,
+          runtimeRejectionReason: undefined,
+          executorResult: input.runtimeOutcome.result,
+          attempt: {
+            seriesKey: {
+              opportunityVersion: input.executorInput.opportunityVersion,
+              candidateSetVersion: input.executorInput.candidateSetVersion,
+              producer: input.runtimeOutcome.result.producer,
+              code: input.runtimeOutcome.result.code,
+              recoveryAction: input.runtimeOutcome.result.action,
+            },
+            recoveryInputFingerprint: input.executorInput.recoveryInputFingerprint,
+            attemptNumber: 1,
+            maxAttempts: 3,
+            status: 'recovered_pending_reclassification',
+            outcome: 'succeeded',
+            terminalCardType: null,
+            terminalTrustedPathStatus: null,
+            snapshot: {
+              idempotencyKey: 'recorded-key',
+              manuscriptVersionSha: input.heldItem.manuscriptVersionSha,
+              opportunityId: input.heldItem.opportunityId,
+              trigger: input.trigger,
+              canonicalReasons: [],
+              originalBaseReasons: [],
+              originalFinalReasons: [],
+              promotionTransitionReason: null,
+              opportunityVersionBefore: input.executorInput.opportunityVersion,
+              candidateSetVersionBefore: input.executorInput.candidateSetVersion,
+              recoveryInputFingerprintBefore: input.executorInput.recoveryInputFingerprint,
+            },
+            events: [],
+            createdAt: input.nowIso ?? 'now',
+            updatedAt: input.nowIso ?? 'now',
+          },
+        },
+      }
+    })
+
+    const result = await runHeldRecoveryRuntimeOrchestrationWithAttemptRecording(
+      { heldItemId: 'held-1' },
+      loaders,
+      adapter,
+      { trigger: 'system', nowIso: '2026-07-18T03:00:00.000Z', recordRecoveryAttempt },
+    )
+
+    expect(result.runtimeOutcome.status).toBe('completed')
+    expect(result.attemptRecording?.status).toBe('recorded')
+    expect(result.runtimeOutcome).not.toHaveProperty('attemptRecording')
+    expect(result.runtimeOutcome).not.toHaveProperty('recordingSkippedReason')
+    expect(result.attemptRecording).not.toHaveProperty('runtimeOutcome')
+    expect(recordRecoveryAttempt).toHaveBeenCalledTimes(1)
+    expect(recordRecoveryAttempt).toHaveBeenCalledWith(adapter, expect.objectContaining({
+      heldItem: expect.objectContaining({ heldItemId: 'held-1', persistedVersion: 'held-v1' }),
+      runtimeOutcome: expect.objectContaining({ status: 'completed' }),
+      trigger: 'system',
+      nowIso: '2026-07-18T03:00:00.000Z',
+    }))
+    expect(recordedInputs[0].executorInput).toMatchObject({
+      opportunityId: 'op-1',
+      manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
+      authority: expect.objectContaining({
+        canonicalRecoveryInputFingerprint: recordedInputs[0].executorInput.recoveryInputFingerprint,
+      }),
+    })
+    expect(calls).toEqual(['loadHeldItem', 'loadOpportunityLedger', 'loadCandidateState', 'loadManuscriptChunks'])
+  })
+
+  it('skips attempt recording when canonical authority is rejected before executor invocation', async () => {
+    const { loaders, calls } = loadersWith({ opportunity: { status: 'legacy_only', legacyArtifactId: 'legacy-ledger-1' } })
+    const recordRecoveryAttempt = jest.fn()
+
+    const result = await runHeldRecoveryRuntimeOrchestrationWithAttemptRecording(
+      { heldItemId: 'held-1' },
+      loaders,
+      attemptPersistence(),
+      { trigger: 'system', recordRecoveryAttempt: recordRecoveryAttempt as never },
+    )
+
+    expect(result.runtimeOutcome).toEqual({
+      status: 'rejected',
+      reason: 'legacy_artifact_unsupported',
+      details: { legacyArtifactId: 'legacy-ledger-1' },
+    })
+    expect(result.attemptRecording).toBeNull()
+    expect(result.recordingSkippedReason).toBe('executor_not_invoked')
+    expect(recordRecoveryAttempt).not.toHaveBeenCalled()
+    expect(calls).toEqual(['loadHeldItem', 'loadOpportunityLedger'])
+  })
+
+  it('records executor-produced rejected outcomes without queue transitions or retry scheduling', async () => {
+    const { loaders } = loadersWith()
+    const recordRecoveryAttempt = jest.fn(async (_adapter, input: RecordRecoveryAttemptInput): Promise<RecordRecoveryAttemptResult> => ({
+      status: 'already_recorded',
+      record: {
+        idempotencyKey: 'existing-key',
+        heldItemId: input.heldItem.heldItemId,
+        opportunityId: input.heldItem.opportunityId,
+        manuscriptId: input.heldItem.manuscriptId,
+        manuscriptVersionSha: input.heldItem.manuscriptVersionSha,
+        heldItemPersistedVersion: input.heldItem.persistedVersion,
+        runtimeOutcomeStatus: input.runtimeOutcome.status,
+        runtimeRejectionReason: input.runtimeOutcome.status === 'rejected' ? input.runtimeOutcome.reason : undefined,
+        executorResult: input.runtimeOutcome.result,
+        attempt: {
+          seriesKey: {
+            opportunityVersion: input.executorInput.opportunityVersion,
+            candidateSetVersion: input.executorInput.candidateSetVersion,
+            producer: input.runtimeOutcome.result.producer,
+            code: input.runtimeOutcome.result.code,
+            recoveryAction: input.runtimeOutcome.result.action,
+          },
+          recoveryInputFingerprint: input.executorInput.recoveryInputFingerprint,
+          attemptNumber: 1,
+          maxAttempts: 3,
+          status: 'recovery_attempt_failed_terminal',
+          outcome: 'failed_terminal',
+          terminalCardType: null,
+          terminalTrustedPathStatus: null,
+          snapshot: {
+            idempotencyKey: 'existing-key',
+            manuscriptVersionSha: input.heldItem.manuscriptVersionSha,
+            opportunityId: input.heldItem.opportunityId,
+            trigger: input.trigger,
+            canonicalReasons: [],
+            originalBaseReasons: [],
+            originalFinalReasons: [],
+            promotionTransitionReason: null,
+            opportunityVersionBefore: input.executorInput.opportunityVersion,
+            candidateSetVersionBefore: input.executorInput.candidateSetVersion,
+            recoveryInputFingerprintBefore: input.executorInput.recoveryInputFingerprint,
+          },
+          events: [],
+          createdAt: 'now',
+          updatedAt: 'now',
+        },
+      },
+    }))
+
+    const result = await runHeldRecoveryRuntimeOrchestrationWithAttemptRecording(
+      { heldItemId: 'held-1' },
+      loaders,
+      attemptPersistence(),
+      {
+        trigger: 'request_reanalysis',
+        recordRecoveryAttempt,
+        dependencies: {
+          executeRecoveryAction: (input) => ({
+            outcome: 'terminal_failure',
+            action: 'retrieve_context',
+            producer: 'preflight',
+            code: input.reason.code,
+            error: 'STALE_OPPORTUNITY_VERSION',
+            details: { expected: input.opportunityVersion, actual: 'newer-version' },
+          }),
+        },
+      },
+    )
+
+    expect(result.runtimeOutcome.status).toBe('rejected')
+    if (result.runtimeOutcome.status !== 'rejected') throw new Error('expected rejected runtime outcome')
+    expect(result.runtimeOutcome.reason).toBe('stale_authority')
+    expect(result.attemptRecording?.status).toBe('already_recorded')
+    expect(recordRecoveryAttempt).toHaveBeenCalledTimes(1)
+    expect(recordRecoveryAttempt.mock.calls[0][1]).not.toHaveProperty('queueTransition')
+    expect(recordRecoveryAttempt.mock.calls[0][1]).not.toHaveProperty('retrySchedule')
+    expect(recordRecoveryAttempt.mock.calls[0][1]).not.toHaveProperty('candidateMutation')
+    expect(recordRecoveryAttempt.mock.calls[0][1]).not.toHaveProperty('manuscriptMutation')
+    expect(recordRecoveryAttempt.mock.calls[0][1]).not.toHaveProperty('finalReviewMutation')
+  })
+
+  it('rejects the opt-in recording wrapper when persistence fails after executor invocation', async () => {
+    const { loaders } = loadersWith()
+    const persistenceFailure = new Error('attempt persistence unavailable')
+    const recordRecoveryAttempt = jest.fn(async () => { throw persistenceFailure })
+
+    await expect(runHeldRecoveryRuntimeOrchestrationWithAttemptRecording(
+      { heldItemId: 'held-1' },
+      loaders,
+      attemptPersistence(),
+      { trigger: 'system', recordRecoveryAttempt: recordRecoveryAttempt as never },
+    )).rejects.toThrow('attempt persistence unavailable')
+
+    expect(recordRecoveryAttempt).toHaveBeenCalledTimes(1)
   })
 })
 

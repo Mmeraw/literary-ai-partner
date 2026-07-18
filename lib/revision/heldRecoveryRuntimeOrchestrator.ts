@@ -1,10 +1,12 @@
 /**
  * Bounded Held Recovery Runtime Orchestration
  *
- * Read-only orchestration boundary for invoking the canonical #1326 runtime
- * adapter and pure executor. This module does not persist recovery attempts,
- * mutate queues, schedule retries, update ledgers, write candidates, alter
- * manuscripts, touch Final Review state, or render UI/API output.
+ * Orchestration boundary for invoking the canonical #1326 runtime adapter and
+ * pure executor. The default runtime entrypoint remains read-only. The opt-in
+ * attempt-recording entrypoint may persist a recovery-attempt audit record only;
+ * neither path mutates queues, schedules retries, updates ledgers, writes
+ * candidates, alters manuscripts, touches Final Review state, or renders UI/API
+ * output.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -24,6 +26,12 @@ import {
   type RecoveryExecutorInput,
   type RecoveryReasonIdentity,
 } from './heldRecoveryExecutor'
+import {
+  recordHeldRecoveryAttempt,
+  type HeldRecoveryAttemptPersistenceAdapter,
+  type RecordRecoveryAttemptResult,
+  type RecoveryAttemptTrigger,
+} from './heldRecoveryAttemptRecorder'
 import { getRecoveryContractForReason } from './heldRecoveryReasons'
 import type { HeldReasonProducer } from './heldRecoverySources'
 
@@ -129,6 +137,32 @@ export type HeldRecoveryRuntimeDependencies = {
   readonly executeRecoveryAction?: (input: RecoveryExecutorInput) => RecoveryExecutionResult
 }
 
+export type HeldRecoveryRuntimeAttemptRecordingOptions = {
+  readonly trigger: RecoveryAttemptTrigger
+  readonly nowIso?: string
+  readonly dependencies?: HeldRecoveryRuntimeDependencies
+  /**
+   * Recording is part of this opt-in boundary's durability contract. If the
+   * recorder rejects after executor invocation, this wrapper rejects rather than
+   * returning a runtime-success envelope with a missing audit record.
+   */
+  readonly recordRecoveryAttempt?: typeof recordHeldRecoveryAttempt
+}
+
+export type HeldRecoveryRuntimeAttemptRecordingResult = {
+  readonly runtimeOutcome: HeldRecoveryRuntimeOutcome
+  readonly attemptRecording: RecordRecoveryAttemptResult | null
+  readonly recordingSkippedReason?: 'executor_not_invoked'
+}
+
+type HeldRecoveryRuntimeExecution = {
+  readonly outcome: HeldRecoveryRuntimeOutcome
+  readonly heldItem?: CanonicalHeldItem
+  readonly executorInput?: RecoveryExecutorInput
+}
+
+type RecordableHeldRecoveryRuntimeOutcome = HeldRecoveryRuntimeOutcome & { readonly result: RecoveryExecutionResult }
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
 }
@@ -225,11 +259,21 @@ export async function runHeldRecoveryRuntimeOrchestration(
   loaders: HeldRecoveryRuntimeLoaders,
   dependencies: HeldRecoveryRuntimeDependencies = {},
 ): Promise<HeldRecoveryRuntimeOutcome> {
+  return (await runHeldRecoveryRuntimeExecution(reference, loaders, dependencies)).outcome
+}
+
+async function runHeldRecoveryRuntimeExecution(
+  reference: HeldItemReference,
+  loaders: HeldRecoveryRuntimeLoaders,
+  dependencies: HeldRecoveryRuntimeDependencies = {},
+): Promise<HeldRecoveryRuntimeExecution> {
   const heldItemResult = await loaders.loadHeldItem(reference)
   if (heldItemResult.status !== 'loaded') {
-    return loadedOrReject(heldItemResult as CanonicalOpportunityLoadResult) ?? {
-      status: 'rejected',
-      reason: 'invalid_canonical_input',
+    return {
+      outcome: loadedOrReject(heldItemResult as CanonicalOpportunityLoadResult) ?? {
+        status: 'rejected',
+        reason: 'invalid_canonical_input',
+      },
     }
   }
 
@@ -237,44 +281,50 @@ export async function runHeldRecoveryRuntimeOrchestration(
   const contract = getRecoveryContractForReason(heldItem.reason)
   if (!contract) {
     return {
-      status: 'rejected',
-      reason: 'unknown_held_reason',
-      details: { reason: heldItem.reason, heldItemId: heldItem.heldItemId },
+      outcome: {
+        status: 'rejected',
+        reason: 'unknown_held_reason',
+        details: { reason: heldItem.reason, heldItemId: heldItem.heldItemId },
+      },
+      heldItem,
     }
   }
 
   if (contract.producer !== heldItem.producer || contract.code !== heldItem.reason.code) {
     return {
-      status: 'rejected',
-      reason: 'identity_mismatch',
-      details: {
-        heldItemProducer: heldItem.producer,
-        contractProducer: contract.producer,
-        heldItemCode: heldItem.reason.code,
-        contractCode: contract.code,
+      outcome: {
+        status: 'rejected',
+        reason: 'identity_mismatch',
+        details: {
+          heldItemProducer: heldItem.producer,
+          contractProducer: contract.producer,
+          heldItemCode: heldItem.reason.code,
+          contractCode: contract.code,
+        },
       },
+      heldItem,
     }
   }
 
   const opportunityResult = await loaders.loadOpportunityLedger(heldItem.opportunityId, heldItem)
   const opportunityRejection = loadedOrReject(opportunityResult)
-  if (opportunityRejection) return opportunityRejection
+  if (opportunityRejection) return { outcome: opportunityRejection, heldItem }
   if (opportunityResult.status !== 'loaded') {
-    return { status: 'rejected', reason: 'invalid_canonical_input' }
+    return { outcome: { status: 'rejected', reason: 'invalid_canonical_input' }, heldItem }
   }
 
   const candidateResult = await loaders.loadCandidateState(heldItem.opportunityId, heldItem)
   const candidateRejection = loadedOrReject(candidateResult)
-  if (candidateRejection) return candidateRejection
+  if (candidateRejection) return { outcome: candidateRejection, heldItem }
   if (candidateResult.status !== 'loaded') {
-    return { status: 'rejected', reason: 'invalid_canonical_input' }
+    return { outcome: { status: 'rejected', reason: 'invalid_canonical_input' }, heldItem }
   }
 
   const chunksResult = await loaders.loadManuscriptChunks(heldItem.manuscriptId, heldItem.manuscriptVersionSha)
   const chunksRejection = loadedOrReject(chunksResult)
-  if (chunksRejection) return chunksRejection
+  if (chunksRejection) return { outcome: chunksRejection, heldItem }
   if (chunksResult.status !== 'loaded') {
-    return { status: 'rejected', reason: 'invalid_canonical_input' }
+    return { outcome: { status: 'rejected', reason: 'invalid_canonical_input' }, heldItem }
   }
 
   let chunks
@@ -284,9 +334,12 @@ export async function runHeldRecoveryRuntimeOrchestration(
     })
   } catch (error) {
     return {
-      status: 'rejected',
-      reason: 'invalid_canonical_input',
-      details: { reason: error instanceof Error ? error.message : String(error) },
+      outcome: {
+        status: 'rejected',
+        reason: 'invalid_canonical_input',
+        details: { reason: error instanceof Error ? error.message : String(error) },
+      },
+      heldItem,
     }
   }
 
@@ -306,7 +359,38 @@ export async function runHeldRecoveryRuntimeOrchestration(
   const execute = dependencies.executeRecoveryAction ?? executeRecoveryAction
   const executorInput = buildInput({ reason: heldItem.reason }, state)
   const result = execute(executorInput)
-  return classifyExecutorResult(result)
+  return { outcome: classifyExecutorResult(result), heldItem, executorInput }
+}
+
+function hasRecordableResult(outcome: HeldRecoveryRuntimeOutcome): outcome is RecordableHeldRecoveryRuntimeOutcome {
+  return 'result' in outcome && outcome.result !== undefined
+}
+
+export async function runHeldRecoveryRuntimeOrchestrationWithAttemptRecording(
+  reference: HeldItemReference,
+  loaders: HeldRecoveryRuntimeLoaders,
+  attemptPersistence: HeldRecoveryAttemptPersistenceAdapter,
+  options: HeldRecoveryRuntimeAttemptRecordingOptions,
+): Promise<HeldRecoveryRuntimeAttemptRecordingResult> {
+  const execution = await runHeldRecoveryRuntimeExecution(reference, loaders, options.dependencies)
+  if (!execution.heldItem || !execution.executorInput || !hasRecordableResult(execution.outcome)) {
+    return {
+      runtimeOutcome: execution.outcome,
+      attemptRecording: null,
+      recordingSkippedReason: 'executor_not_invoked',
+    }
+  }
+
+  const record = options.recordRecoveryAttempt ?? recordHeldRecoveryAttempt
+  const attemptRecording = await record(attemptPersistence, {
+    heldItem: execution.heldItem,
+    executorInput: execution.executorInput,
+    runtimeOutcome: execution.outcome,
+    trigger: options.trigger,
+    nowIso: options.nowIso,
+  })
+
+  return { runtimeOutcome: execution.outcome, attemptRecording }
 }
 
 type LedgerArtifactRow = {
