@@ -5,7 +5,12 @@
  * repair family, recoverability, confidence, and allowed terminal outcomes.
  */
 
-import type { HeldReasonSource } from './heldRecoverySources'
+import {
+  HELD_REASON_SOURCE_REGISTRY,
+  type HeldReasonProducer,
+  type HeldReasonSource,
+  type RecoveryAuthorityRole,
+} from './heldRecoverySources'
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +41,10 @@ export type HeldAuthorAction =
   | 'request_reanalysis'
   | 'dismiss'
   | 'save_as_note'
+  | 'author_assisted_canon_review'
+
+// Author dispositions are separate from executor actions.
+export type RequiredAuthorDisposition = HeldAuthorAction
 
 export type HeldTerminalOutcome =
   | 'copy_paste_rewrite'
@@ -43,6 +52,61 @@ export type HeldTerminalOutcome =
   | 'withheld'
 
 export type HeldReasonStatus = 'currently_emitted' | 'legacy_supported' | 'reserved_not_emitted' | 'unverified'
+
+export type RecoveryExecutionAction =
+  | 'resolve_anchor'
+  | 'retrieve_context'
+  | 'repair_diagnosis'
+  | 'create_versioned_candidate_set'
+  | 'none'
+
+export type RecoveryValidationStep =
+  | 'rerun_admission'
+  | 'reclassify'
+
+export type RecoveryValidationPrecondition =
+  | 'execution_action_changed_inputs'
+  | 'author_submission_changed_inputs'
+  | 'new_canonical_version'
+
+export type RecoveryExecutionMode =
+  | 'deterministic'
+  | 'llm_assisted'
+  | 'none'
+
+export type RecoveryInputSource =
+  | 'canonical_opportunity'
+  | 'persisted_ledger'
+  | 'classification'
+  | 'author_submission'
+  | 'manuscript_artifact'
+
+export type RecoveryInputValidation =
+  | 'non_empty'
+  | 'valid_anchor'
+  | 'complete_diagnostic'
+  | 'complete_candidate_set'
+  | 'non_empty_source_hash'
+
+export type RecoveryInputRequirement = {
+  key: string
+  source: RecoveryInputSource
+  required: boolean
+  validation: RecoveryInputValidation
+  notes?: string
+}
+
+export type HeldReasonRecoveryContract = {
+  producer: HeldReasonProducer
+  producerModule: string
+  code: string
+  authorityRole: RecoveryAuthorityRole
+  recoveryAction: RecoveryExecutionAction
+  validationStep: RecoveryValidationStep | null
+  validationPrecondition: RecoveryValidationPrecondition | null
+  requiredInputs: RecoveryInputRequirement[]
+  executionMode: RecoveryExecutionMode
+}
 
 export type HeldReasonInfo = {
   reasonCode: string
@@ -59,6 +123,7 @@ export type HeldReasonInfo = {
   authorFacingExplanation: string
   isHardBlocker: boolean
   isUnknown: boolean
+  recoveryContract?: HeldReasonRecoveryContract
 }
 
 export const REPAIR_STEP_ORDER: HeldRecoveryStep[] = [
@@ -1375,5 +1440,196 @@ export function getHeldReasonInfo(rawReason: string): HeldReasonInfo {
     reasonCode: normalized,
     isUnknown: true,
     authorFacingExplanation: `Unrecognized diagnostic "${rawReason}". It will remain auditable and withheld until the inventory is updated.`,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-source recovery execution contracts
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SOURCE_REGISTRY_BY_SOURCE = new Map<HeldReasonSource, typeof HELD_REASON_SOURCE_REGISTRY[number]>(
+  HELD_REASON_SOURCE_REGISTRY.map((entry) => [entry.source, entry]),
+)
+
+type RecoveryContractShell = Pick<
+  HeldReasonRecoveryContract,
+  'recoveryAction' | 'validationStep' | 'validationPrecondition' | 'executionMode' | 'requiredInputs'
+>
+
+const FAMILY_CONTRACT_DEFAULTS: Record<HeldRepairFamily, RecoveryContractShell> = {
+  anchor: {
+    recoveryAction: 'resolve_anchor',
+    validationStep: 'rerun_admission',
+    validationPrecondition: 'execution_action_changed_inputs',
+    executionMode: 'deterministic',
+    requiredInputs: [
+      { key: 'source_text', source: 'canonical_opportunity', required: true, validation: 'non_empty' },
+      { key: 'manuscript_coordinates', source: 'canonical_opportunity', required: true, validation: 'valid_anchor' },
+      { key: 'evidence_anchor', source: 'manuscript_artifact', required: true, validation: 'valid_anchor' },
+    ],
+  },
+  context: {
+    recoveryAction: 'retrieve_context',
+    validationStep: 'rerun_admission',
+    validationPrecondition: 'execution_action_changed_inputs',
+    executionMode: 'deterministic',
+    requiredInputs: [
+      { key: 'source_text', source: 'canonical_opportunity', required: true, validation: 'non_empty' },
+      { key: 'evidence_anchor', source: 'manuscript_artifact', required: true, validation: 'valid_anchor' },
+      { key: 'manuscript_chunks', source: 'manuscript_artifact', required: true, validation: 'non_empty' },
+    ],
+  },
+  diagnosis: {
+    recoveryAction: 'repair_diagnosis',
+    validationStep: 'rerun_admission',
+    validationPrecondition: 'execution_action_changed_inputs',
+    executionMode: 'llm_assisted',
+    requiredInputs: [
+      { key: 'symptom', source: 'canonical_opportunity', required: true, validation: 'complete_diagnostic' },
+      { key: 'cause', source: 'canonical_opportunity', required: true, validation: 'complete_diagnostic' },
+      { key: 'fix_direction', source: 'canonical_opportunity', required: true, validation: 'complete_diagnostic' },
+      { key: 'reader_effect', source: 'canonical_opportunity', required: true, validation: 'complete_diagnostic' },
+      { key: 'rationale', source: 'canonical_opportunity', required: false, validation: 'non_empty' },
+    ],
+  },
+  candidates: {
+    recoveryAction: 'create_versioned_candidate_set',
+    validationStep: 'rerun_admission',
+    validationPrecondition: 'execution_action_changed_inputs',
+    executionMode: 'llm_assisted',
+    requiredInputs: [
+      { key: 'existing_candidates_a_b_c', source: 'persisted_ledger', required: false, validation: 'complete_candidate_set' },
+      { key: 'source_text', source: 'canonical_opportunity', required: true, validation: 'non_empty' },
+      { key: 'evidence_anchor', source: 'manuscript_artifact', required: true, validation: 'valid_anchor' },
+      { key: 'rationale', source: 'canonical_opportunity', required: false, validation: 'non_empty' },
+      { key: 'diagnostic_object', source: 'classification', required: true, validation: 'complete_diagnostic' },
+    ],
+  },
+  strategy: {
+    recoveryAction: 'none',
+    validationStep: null,
+    validationPrecondition: null,
+    executionMode: 'none',
+    // recoveryAction is 'none'; no inputs are consumed by an executor.
+    requiredInputs: [],
+  },
+  none: {
+    recoveryAction: 'none',
+    validationStep: null,
+    validationPrecondition: null,
+    executionMode: 'none',
+    requiredInputs: [],
+  },
+}
+
+function isNonRecoverableByPolicy(info: HeldReasonInfo): boolean {
+  return info.repairFamily === 'none' || info.isHardBlocker || !info.recoverable
+}
+
+function decisionProjectionContract(
+  code: string,
+  entry: typeof HELD_REASON_SOURCE_REGISTRY[number],
+): HeldReasonRecoveryContract | undefined {
+  // Decision-owned summary codes do not select independent executor actions.
+  if (code === 'passage_too_long') {
+    return {
+      producer: entry.producer,
+      producerModule: entry.producerModule,
+      code,
+      authorityRole: entry.authorityRole,
+      recoveryAction: 'none',
+      validationStep: 'rerun_admission',
+      validationPrecondition: 'new_canonical_version',
+      requiredInputs: FAMILY_CONTRACT_DEFAULTS.strategy.requiredInputs,
+      executionMode: 'none',
+    }
+  }
+
+  if (code === 'copy_paste_admission_failed' || code === 'strategy_admission_failed') {
+    return {
+      producer: entry.producer,
+      producerModule: entry.producerModule,
+      code,
+      authorityRole: entry.authorityRole,
+      recoveryAction: 'none',
+      validationStep: null,
+      validationPrecondition: null,
+      requiredInputs: [],
+      executionMode: 'none',
+    }
+  }
+
+  // Other decision-projection codes are routing/audit context only.
+  return {
+    producer: entry.producer,
+    producerModule: entry.producerModule,
+    code,
+    authorityRole: entry.authorityRole,
+    recoveryAction: 'none',
+    validationStep: null,
+    validationPrecondition: null,
+    requiredInputs: [],
+    executionMode: 'none',
+  }
+}
+
+/**
+ * Returns the recovery execution contract for a canonical reason occurrence.
+ *
+ * The contract is determined by the source (which provides the producer and
+ * authority role) and the reason code (which provides the repair family and
+ * per-code overrides). Annotation sources never return a contract.
+ *
+ * Decision-projection sources return `recoveryAction: 'none'` for all codes
+ * except the genuinely decision-owned `passage_too_long`, which only validates
+ * after a new canonical version.
+ */
+export function getRecoveryContractForReason(
+  occurrence: { code: string; source: HeldReasonSource; raw?: string },
+): HeldReasonRecoveryContract | undefined {
+  const entry = SOURCE_REGISTRY_BY_SOURCE.get(occurrence.source)
+  if (!entry) return undefined
+
+  const code = normalizeHeldReasonCode(occurrence.code)
+  const info = getHeldReasonInfo(code)
+  const base = FAMILY_CONTRACT_DEFAULTS[info.repairFamily]
+
+  if (entry.authorityRole === 'annotation') {
+    return undefined
+  }
+
+  if (info.isUnknown) {
+    return undefined
+  }
+
+  if (entry.authorityRole === 'decision_projection') {
+    return decisionProjectionContract(code, entry)
+  }
+
+  // Origin producers.
+  if (isNonRecoverableByPolicy(info)) {
+    return {
+      producer: entry.producer,
+      producerModule: entry.producerModule,
+      code,
+      authorityRole: entry.authorityRole,
+      recoveryAction: 'none',
+      validationStep: null,
+      validationPrecondition: null,
+      requiredInputs: [],
+      executionMode: 'none',
+    }
+  }
+
+  return {
+    producer: entry.producer,
+    producerModule: entry.producerModule,
+    code,
+    authorityRole: entry.authorityRole,
+    recoveryAction: base.recoveryAction,
+    validationStep: base.validationStep,
+    validationPrecondition: base.validationPrecondition,
+    requiredInputs: base.requiredInputs,
+    executionMode: base.executionMode,
   }
 }

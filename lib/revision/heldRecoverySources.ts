@@ -40,11 +40,32 @@ export type HeldReasonSource =
   | 'voice_gate'
   | 'canon_gate'
 
+export type HeldReasonProducer =
+  | 'grounding'
+  | 'preflight'
+  | 'hydration'
+  | 'res_blocker'
+  | 'copy_paste_admission'
+  | 'strategy_admission'
+  | 'integrity'
+  | 'candidate_quality'
+  | 'voice_gate'
+  | 'canon_gate'
+  | 'base_decision'
+  | 'final_decision'
+
+export type RecoveryAuthorityRole =
+  | 'origin'
+  | 'decision_projection'
+  | 'annotation'
+
 export type HeldReasonSourceRegistryEntry = {
   source: HeldReasonSource
   canonicalField: string
-  producer: string
+  producer: HeldReasonProducer
+  producerModule: string
   phase: string
+  authorityRole: RecoveryAuthorityRole
   authoritativeForRecoveryPlanning: boolean
   authoritativeForRouting: boolean
   mayContainDuplicates: boolean
@@ -53,16 +74,19 @@ export type HeldReasonSourceRegistryEntry = {
 /**
  * Canonical source-of-truth table for held reason provenance.
  *
- * Only `final_decision` is authoritative for routing. The admission, grounding,
- * preflight, and base_decision sources are authoritative for planning repairs.
+ * Only `final_decision` is authoritative for routing. Origin producers are
+ * authoritative for selecting recovery actions. `base_decision` is a decision
+ * projection (audit/routing context, not an independent recovery origin).
  * `grounding_note` and `executability` are non-authoritative annotations.
  */
 export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'grounding',
     canonicalField: 'groundingStatus',
-    producer: 'lib/revision/workbenchQueue.ts (SLAE evidence matching) and lib/revision/opportunityLedger.ts (hydration fallback)',
+    producer: 'grounding',
+    producerModule: 'lib/revision/workbenchQueue.ts (SLAE evidence matching) and lib/revision/opportunityLedger.ts (hydration fallback)',
     phase: 'queue_construction',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: false,
@@ -70,8 +94,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'grounding_note',
     canonicalField: 'groundingNote',
-    producer: 'lib/revision/opportunityLedger.ts (preflight block notes and admin annotations)',
+    producer: 'grounding',
+    producerModule: 'lib/revision/opportunityLedger.ts (preflight block notes and admin annotations)',
     phase: 'queue_construction',
+    authorityRole: 'annotation',
     authoritativeForRecoveryPlanning: false,
     authoritativeForRouting: false,
     mayContainDuplicates: false,
@@ -79,8 +105,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'preflight',
     canonicalField: 'preflightStatus / preflightReasons',
-    producer: 'lib/revision/opportunityLedger.ts (preflightReasonsForOpportunity, blockOpportunityByPreflight, applyReviseQueuePreflight)',
+    producer: 'preflight',
+    producerModule: 'lib/revision/opportunityLedger.ts (preflightReasonsForOpportunity, blockOpportunityByPreflight, applyReviseQueuePreflight)',
     phase: 'ledger_preflight',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: true,
@@ -88,8 +116,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'hydration',
     canonicalField: 'hydrationFailureReasons',
-    producer: 'lib/revision/opportunityLedger.ts (candidate hydration loop) and lib/revision/workbenchQueue.ts (splitPreflightReasonsByClass)',
+    producer: 'hydration',
+    producerModule: 'lib/revision/opportunityLedger.ts (candidate hydration loop) and lib/revision/workbenchQueue.ts (splitPreflightReasonsByClass)',
     phase: 'candidate_hydration',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: true,
@@ -97,8 +127,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'res_blocker',
     canonicalField: 'resBlockerReasons',
-    producer: 'lib/revision/workbenchQueue.ts (splitPreflightReasonsByClass)',
+    producer: 'res_blocker',
+    producerModule: 'lib/revision/workbenchQueue.ts (splitPreflightReasonsByClass)',
     phase: 'queue_construction',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: true,
@@ -106,8 +138,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'copy_paste_admission',
     canonicalField: 'classification.copyPasteAdmissionPassed / classification.copyPasteAdmissionReasons',
-    producer: 'lib/revision/reviseAdmissionGate.ts (runCopyPasteAdmissionGate)',
+    producer: 'copy_paste_admission',
+    producerModule: 'lib/revision/reviseAdmissionGate.ts (runCopyPasteAdmissionGate)',
     phase: 'admission_gate',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: true,
@@ -115,8 +149,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'strategy_admission',
     canonicalField: 'classification.strategyAdmissionPassed / classification.strategyAdmissionReasons',
-    producer: 'lib/revision/reviseAdmissionGate.ts (runStrategyAdmissionGate)',
+    producer: 'strategy_admission',
+    producerModule: 'lib/revision/reviseAdmissionGate.ts (runStrategyAdmissionGate)',
     phase: 'admission_gate',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: true,
@@ -124,26 +160,32 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'base_decision',
     canonicalField: 'classification.baseDecision (cardType, trustedPathStatus, reasons)',
-    producer: 'lib/revision/recommendationExecutability.ts (evaluateRecommendationExecutability)',
+    producer: 'base_decision',
+    producerModule: 'lib/revision/recommendationExecutability.ts (evaluateRecommendationExecutability)',
     phase: 'executability_classification',
-    authoritativeForRecoveryPlanning: true,
+    authorityRole: 'decision_projection',
+    authoritativeForRecoveryPlanning: false,
     authoritativeForRouting: false,
     mayContainDuplicates: false,
   },
   {
     source: 'final_decision',
     canonicalField: 'classification.finalDecision (cardType, trustedPathStatus, reasons)',
-    producer: 'lib/revision/workbenchQueueProjection.ts (classifyWorkbenchExecutabilityDetailedCore, after needs-targeting promotion/override)',
+    producer: 'final_decision',
+    producerModule: 'lib/revision/workbenchQueueProjection.ts (classifyWorkbenchExecutabilityDetailedCore, after needs-targeting promotion/override)',
     phase: 'executability_classification',
-    authoritativeForRecoveryPlanning: true,
+    authorityRole: 'decision_projection',
+    authoritativeForRecoveryPlanning: false,
     authoritativeForRouting: true,
     mayContainDuplicates: false,
   },
   {
     source: 'executability',
     canonicalField: 'executabilityReasons',
-    producer: 'lib/revision/workbenchQueueProjection.ts (copied from finalDecision.reasons onto the opportunity)',
+    producer: 'final_decision',
+    producerModule: 'lib/revision/workbenchQueueProjection.ts (copied from finalDecision.reasons onto the opportunity)',
     phase: 'presentation',
+    authorityRole: 'annotation',
     authoritativeForRecoveryPlanning: false,
     authoritativeForRouting: false,
     mayContainDuplicates: true,
@@ -151,8 +193,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'integrity',
     canonicalField: 'Embedded in admission reasons as INTEGRITY_* and DIAGNOSTIC_* codes',
-    producer: 'lib/evaluation/pipeline/recommendationIntegrityGate.ts (runRecommendationIntegrityGate)',
+    producer: 'integrity',
+    producerModule: 'lib/evaluation/pipeline/recommendationIntegrityGate.ts (runRecommendationIntegrityGate)',
     phase: 'admission_gate',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: false,
@@ -160,8 +204,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'candidate_quality',
     canonicalField: 'Embedded in admission/preflight reasons',
-    producer: 'lib/revision/candidateQuality.ts (evaluateCardCandidateQuality) and lib/revision/opportunityLedger.ts (candidateQualityReasons)',
+    producer: 'candidate_quality',
+    producerModule: 'lib/revision/candidateQuality.ts (evaluateCardCandidateQuality) and lib/revision/opportunityLedger.ts (candidateQualityReasons)',
     phase: 'candidate_quality_gate',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: true,
@@ -169,8 +215,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'voice_gate',
     canonicalField: 'Embedded in admission reasons',
-    producer: 'lib/revision/voiceGate.ts (runVoiceGate)',
+    producer: 'voice_gate',
+    producerModule: 'lib/revision/voiceGate.ts (runVoiceGate)',
     phase: 'candidate_quality_gate',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: false,
@@ -178,8 +226,10 @@ export const HELD_REASON_SOURCE_REGISTRY: HeldReasonSourceRegistryEntry[] = [
   {
     source: 'canon_gate',
     canonicalField: 'Embedded in admission reasons',
-    producer: 'lib/revision/canonGate.ts (runCanonGate)',
+    producer: 'canon_gate',
+    producerModule: 'lib/revision/canonGate.ts (runCanonGate)',
     phase: 'candidate_quality_gate',
+    authorityRole: 'origin',
     authoritativeForRecoveryPlanning: true,
     authoritativeForRouting: false,
     mayContainDuplicates: false,
