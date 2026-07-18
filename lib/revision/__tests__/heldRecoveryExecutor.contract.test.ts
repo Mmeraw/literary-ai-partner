@@ -12,7 +12,30 @@ import {
   type RecoveryAuthoritySnapshot,
   type RecoveryExecutorInput,
 } from '@/lib/revision/heldRecoveryExecutor';
+import {
+  deriveCanonicalManuscriptChunkReferences,
+  sourceHashForCanonicalChunkContent,
+} from '@/lib/revision/heldRecoveryRuntimeInputs';
 import { revisionOpportunityVersionFor, candidateSetVersionFor } from '@/lib/revision/heldRecoveryVersioning';
+
+const MANUSCRIPT_VERSION_SHA = 'manuscript-sha';
+
+function canonicalChunks(contents: string[], manuscriptVersionSha = MANUSCRIPT_VERSION_SHA) {
+  return deriveCanonicalManuscriptChunkReferences(
+    contents.map((content, index) => ({
+      id: `chunk-${index}`,
+      manuscript_id: 101,
+      chunk_index: index,
+      char_start: index * 100,
+      char_end: index * 100 + content.length,
+      overlap_chars: 0,
+      label: `Chunk ${index + 1}`,
+      content,
+      content_hash: sourceHashForCanonicalChunkContent(content),
+    })),
+    { manuscriptVersionSha },
+  );
+}
 
 function deepFreeze<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') return obj;
@@ -40,7 +63,7 @@ function baseInput(
   return deepFreeze({
     reason: { code, source },
     opportunityId,
-    manuscriptVersionSha: 'manuscript-sha',
+    manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
     ledgerSourceHash,
     opportunityVersion,
     candidateSetVersion,
@@ -224,7 +247,7 @@ describe('held recovery executor characterization', () => {
     const input = baseInput('retrieve_context', 'context_missing', 'preflight', {
       source_text: 'The quick brown fox jumps over the lazy dog.',
       evidence_anchor: 'quick brown fox',
-      manuscript_chunks: ['The quick brown fox', 'jumps over the lazy dog.'],
+      manuscript_chunks: canonicalChunks(['The quick brown fox', 'jumps over the lazy dog.']),
     });
     const before = JSON.stringify(input);
     executeRecoveryAction(input);
@@ -240,7 +263,7 @@ describe('held recovery executor characterization', () => {
     const input = baseInput('retrieve_context', 'context_missing', 'preflight', {
       source_text: 'The quick brown fox jumps over the lazy dog.',
       evidence_anchor: 'quick brown fox',
-      manuscript_chunks: ['The quick brown fox', 'jumps over the lazy dog.'],
+      manuscript_chunks: canonicalChunks(['The quick brown fox', 'jumps over the lazy dog.']),
     });
     const result = executeRecoveryAction(input);
     expect(result.outcome).toBe('success');
@@ -336,8 +359,8 @@ describe('held recovery executor characterization', () => {
       { code: 'truncated_anchor', source: 'preflight', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', manuscript_coordinates: 'ch1.p3', evidence_anchor: 'quick brown fox' }, expectedAction: 'resolve_anchor' },
       { code: 'hydration_anchor_truncated', source: 'hydration', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', manuscript_coordinates: 'ch1.p3', evidence_anchor: 'quick brown fox' }, expectedAction: 'resolve_anchor' },
       { code: 'insufficient_anchor_grounding', source: 'res_blocker', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', manuscript_coordinates: 'ch1.p3', evidence_anchor: 'quick brown fox' }, expectedAction: 'resolve_anchor' },
-      { code: 'grounding_unsupported', source: 'grounding', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', evidence_anchor: 'quick brown fox', manuscript_chunks: ['The quick brown fox'] }, expectedAction: 'retrieve_context' },
-      { code: 'context_missing', source: 'preflight', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', evidence_anchor: 'quick brown fox', manuscript_chunks: ['The quick brown fox'] }, expectedAction: 'retrieve_context' },
+      { code: 'grounding_unsupported', source: 'grounding', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', evidence_anchor: 'quick brown fox', manuscript_chunks: canonicalChunks(['The quick brown fox']) }, expectedAction: 'retrieve_context' },
+      { code: 'context_missing', source: 'preflight', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', evidence_anchor: 'quick brown fox', manuscript_chunks: canonicalChunks(['The quick brown fox']) }, expectedAction: 'retrieve_context' },
       { code: 'evidence_missing', source: 'strategy_admission', inputs: { source_text: 'The quick brown fox jumps over the lazy dog.', manuscript_coordinates: 'ch1.p3', evidence_anchor: 'quick brown fox' }, expectedAction: 'resolve_anchor' },
       { code: 'too_short', source: 'copy_paste_admission', inputs: { source_text: 'Passage.', evidence_anchor: 'Passage', diagnostic_object: { symptom: 's', cause: 'c', fix_direction: 'f', reader_effect: 'r' } }, expectedAction: 'create_versioned_candidate_set' },
       { code: 'empty_candidate', source: 'candidate_quality', inputs: { source_text: 'Passage.', evidence_anchor: 'Passage', diagnostic_object: { symptom: 's', cause: 'c', fix_direction: 'f', reader_effect: 'r' } }, expectedAction: 'create_versioned_candidate_set' },
@@ -386,7 +409,7 @@ describe('held recovery executor characterization', () => {
     const inputs = {
       source_text: 'The quick brown fox jumps over the lazy dog.',
       evidence_anchor: 'quick brown fox',
-      manuscript_chunks: ['The quick brown fox', 'jumps over the lazy dog.'],
+      manuscript_chunks: canonicalChunks(['The quick brown fox', 'jumps over the lazy dog.']),
     };
     const a = executeRecoveryAction(baseInput('retrieve_context', 'context_missing', 'preflight', inputs));
     const b = executeRecoveryAction(baseInput('retrieve_context', 'context_missing', 'preflight', inputs));
