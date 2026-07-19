@@ -48,7 +48,14 @@ import { sourceHashFor } from './heldRecoveryVersioning'
 import { sourceHashForCanonicalChunkContent } from './heldRecoveryRuntimeInputs'
 
 export type ReconstructedAnchorAuthority = {
-  readonly manuscriptId: number
+  /**
+   * Canonical non-negative integer STRING (e.g. "9223372036854775807"), never a
+   * JS number, so the exact bigint value of `manuscripts.id` survives unchanged
+   * from the executor boundary through this builder to the persistence adapter.
+   * Identity is compared by string equality against canonicalSource.manuscriptId
+   * and chunk.manuscriptId; no numeric conversion occurs anywhere in this path.
+   */
+  readonly manuscriptId: string
   readonly manuscriptVersionSha: string
   readonly heldItemPersistedVersion: string
   readonly sourceHash: string
@@ -76,7 +83,7 @@ export type ReconstructedAnchorContent = {
  */
 export type CanonicalSingleChunkSource = {
   readonly chunkId: string
-  readonly manuscriptId: number
+  readonly manuscriptId: string
   readonly manuscriptVersionSha: string
   readonly contentAbsoluteStart: number
   readonly contentAbsoluteEnd: number
@@ -93,7 +100,7 @@ export type BuildReconstructedAnchorContentInput = {
    * executeResolveAnchor.
    */
   readonly canonicalSource: {
-    readonly manuscriptId: number
+    readonly manuscriptId: string
     readonly manuscriptVersionSha: string
     readonly text: string
   }

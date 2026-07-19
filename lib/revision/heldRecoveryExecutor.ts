@@ -137,7 +137,7 @@ function canonicalChunkFingerprint(value: unknown): unknown {
 
 function isCanonicalChunkReference(value: unknown): value is {
   chunkId: string
-  manuscriptId: number
+  manuscriptId: string
   manuscriptVersionSha: string
   chunkIndex: number
   sourceStartOffset: number
@@ -154,7 +154,11 @@ function isCanonicalChunkReference(value: unknown): value is {
   if (!isNonEmptyString(chunk.contentHash)) return false
   const contentHash = chunk.contentHash as string
   return isNonEmptyString(chunk.chunkId) &&
-    typeof chunk.manuscriptId === 'number' && Number.isInteger(chunk.manuscriptId) &&
+    // manuscriptId is carried as a canonical non-negative integer STRING to
+    // preserve exact bigint fidelity end-to-end. A JS number is rejected at this
+    // boundary: numeric manuscript IDs above Number.MAX_SAFE_INTEGER may already
+    // have lost precision, so we never accept a number and convert it here.
+    typeof chunk.manuscriptId === 'string' && /^(0|[1-9][0-9]*)$/.test(chunk.manuscriptId) &&
     isNonEmptyString(chunk.manuscriptVersionSha) &&
     typeof chunk.chunkIndex === 'number' && Number.isInteger(chunk.chunkIndex) &&
     typeof chunk.sourceStartOffset === 'number' && Number.isInteger(chunk.sourceStartOffset) &&

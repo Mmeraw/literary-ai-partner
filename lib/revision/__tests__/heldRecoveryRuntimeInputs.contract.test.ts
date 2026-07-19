@@ -17,7 +17,7 @@ const MANUSCRIPT_VERSION_SHA = 'mv-sha-1';
 function chunkRow(content: string, index: number = 0) {
   return {
     id: `chunk-${index}`,
-    manuscript_id: 44,
+    manuscript_id: '44',
     chunk_index: index,
     char_start: index * 100,
     char_end: index * 100 + content.length,
@@ -53,7 +53,7 @@ function baseState(overrides: Partial<CanonicalRecoveryState> = {}): CanonicalRe
       existingCandidatesABC: { a: 'Alpha', b: 'Beta', c: 'Gamma' },
     },
     manuscript: {
-      manuscriptId: 44,
+      manuscriptId: '44',
       manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
       chunks,
     },
@@ -77,7 +77,7 @@ describe('held recovery runtime input provenance proof', () => {
 
     expect(ref).toMatchObject({
       chunkId: 'chunk-0',
-      manuscriptId: 44,
+      manuscriptId: '44',
       manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
       chunkIndex: 0,
       sourceStartOffset: 0,
@@ -182,7 +182,7 @@ describe('held recovery runtime input provenance proof', () => {
       reason: heldRecoveryReason('context_missing', 'preflight'),
     }, baseState({
       manuscript: {
-        manuscriptId: 44,
+        manuscriptId: '44',
         manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
         chunks: staleChunks,
       },

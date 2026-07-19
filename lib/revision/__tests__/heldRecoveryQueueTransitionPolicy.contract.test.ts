@@ -16,7 +16,7 @@ function recordedAttempt(overrides: Partial<HeldRecoveryAttemptRecord> = {}): He
     idempotencyKey: 'attempt-key-1',
     heldItemId: 'held-1',
     opportunityId: 'op-1',
-    manuscriptId: 77,
+    manuscriptId: '77',
     manuscriptVersionSha: 'manuscript-sha-1',
     heldItemPersistedVersion: 'held-version-1',
     runtimeOutcomeStatus: 'completed',

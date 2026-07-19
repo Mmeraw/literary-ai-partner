@@ -11,7 +11,12 @@ import {
 import { sourceHashForCanonicalChunkContent } from '@/lib/revision/heldRecoveryRuntimeInputs'
 import { sourceHashFor } from '@/lib/revision/heldRecoveryVersioning'
 
-const MANUSCRIPT_ID = 42
+// Canonical non-negative integer STRING (never a JS number). Using the maximum
+// signed PostgreSQL bigint proves the exact value survives the builder unchanged
+// even though it exceeds Number.MAX_SAFE_INTEGER and could not round-trip as a
+// JS number.
+const MANUSCRIPT_ID = '9223372036854775807'
+const OTHER_MANUSCRIPT_ID = '9223372036854775806'
 const MANUSCRIPT_VERSION_SHA = 'msv-sha-1'
 const HELD_ITEM_PERSISTED_VERSION = 'hiv-1'
 const CANONICAL_COORDINATES = 'ch3:p12'
@@ -384,11 +389,11 @@ describe('buildReconstructedAnchorContent — canonical chunk/source parity', ()
 describe('buildReconstructedAnchorContent — identity failures', () => {
   it('rejects manuscript ID mismatches', () => {
     expect(buildReconstructedAnchorContent(baseInput({
-      canonicalSource: { manuscriptId: MANUSCRIPT_ID + 1, manuscriptVersionSha: MANUSCRIPT_VERSION_SHA, text: SOURCE_TEXT },
+      canonicalSource: { manuscriptId: OTHER_MANUSCRIPT_ID, manuscriptVersionSha: MANUSCRIPT_VERSION_SHA, text: SOURCE_TEXT },
     }))).toEqual({ status: 'rejected', reason: 'manuscript_identity_mismatch' })
 
     expect(buildReconstructedAnchorContent(baseInput({
-      chunk: { ...chunkFor(SOURCE_TEXT, 0), manuscriptId: MANUSCRIPT_ID + 1 },
+      chunk: { ...chunkFor(SOURCE_TEXT, 0), manuscriptId: OTHER_MANUSCRIPT_ID },
     }))).toEqual({ status: 'rejected', reason: 'manuscript_identity_mismatch' })
   })
 
@@ -516,5 +521,45 @@ describe('buildReconstructedAnchorContent — source guards (secondary)', () => 
 
   it('never reads the opaque executorResult snapshot', () => {
     expect(source).not.toMatch(/executorResult/)
+  })
+
+  it('never converts a manuscript id from a number (no Number/parseInt/unary+/String(number))', () => {
+    expect(source).not.toMatch(/Number\(/)
+    expect(source).not.toMatch(/parseInt\(/)
+    expect(source).not.toMatch(/parseFloat\(/)
+    // unary plus applied to a manuscript identifier
+    expect(source).not.toMatch(/\+\s*\w*[mM]anuscriptId/)
+    // stringifying a numeric manuscript id would launder lost precision
+    expect(source).not.toMatch(/String\([^)]*[mM]anuscriptId/)
+  })
+})
+
+describe('buildReconstructedAnchorContent — canonical bigint manuscriptId fidelity', () => {
+  it('carries the exact max signed PostgreSQL bigint string through to the result path unchanged', () => {
+    // The builder returns only evidenceAnchor + manuscriptCoordinates, so we
+    // prove fidelity by requiring the exact-string identity triple to be
+    // accepted (build succeeds) for a value that exceeds Number.MAX_SAFE_INTEGER.
+    expect(Number(MANUSCRIPT_ID) > Number.MAX_SAFE_INTEGER).toBe(true)
+    const result = buildReconstructedAnchorContent(baseInput())
+    expect(result.status).toBe('built')
+  })
+
+  it('accepts two distinct large bigint strings that would collide as JS numbers', () => {
+    // 9223372036854775807 and ...806 both round to the same IEEE-754 double, so a
+    // number-based identity check could not tell them apart. As strings they are
+    // distinct and the mismatch is detected exactly.
+    expect(Number(MANUSCRIPT_ID)).toBe(Number(OTHER_MANUSCRIPT_ID))
+    // Compared as runtime strings (not narrowed literals): they are distinct.
+    expect(String(MANUSCRIPT_ID) === String(OTHER_MANUSCRIPT_ID)).toBe(false)
+    expect(buildReconstructedAnchorContent(baseInput({
+      canonicalSource: { manuscriptId: OTHER_MANUSCRIPT_ID, manuscriptVersionSha: MANUSCRIPT_VERSION_SHA, text: SOURCE_TEXT },
+    }))).toEqual({ status: 'rejected', reason: 'manuscript_identity_mismatch' })
+  })
+
+  it('requires all three identity sources (authority, canonicalSource, chunk) to match exactly', () => {
+    // authority mismatches the (matching) source+chunk pair
+    expect(buildReconstructedAnchorContent(baseInput({
+      authority: authorityFor({ manuscriptId: OTHER_MANUSCRIPT_ID }),
+    }))).toEqual({ status: 'rejected', reason: 'manuscript_identity_mismatch' })
   })
 })
