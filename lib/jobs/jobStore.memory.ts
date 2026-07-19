@@ -55,7 +55,7 @@ function getStore(): Map<string, Job> {
   return _store;
 }
 
-export function createJob(input: { manuscript_id: string; manuscript_version_id?: string; job_type: JobType; user_id: string; sensitivity_mode?: string; voice_preservation_level?: string; english_variant?: string }): Job {
+export function createJob(input: { manuscript_id: string; manuscript_version_id?: string; job_type: JobType; user_id: string; sensitivity_mode?: string; voice_preservation_level?: string; english_variant?: string; hold_for_dispatch?: boolean }): Job {
   const store = getStore();
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -73,7 +73,8 @@ export function createJob(input: { manuscript_id: string; manuscript_version_id?
       // phase_status: queued | running | complete | failed (JobStatus | null)
       // CANON counters: total_units, completed_units (matching phase writers)
       phase: "phase_0",
-      phase_status: "queued",
+      phase_status: input.hold_for_dispatch ? "awaiting_approval" : "queued",
+      ...(input.hold_for_dispatch ? { held_recovery_proof_hold: true } : {}),
       total_units: null,
       completed_units: null,
     },

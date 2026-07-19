@@ -28,6 +28,7 @@ import { isPipelineEnabled, pipelineDisabledResponse } from '@/lib/config/pipeli
 import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireWorkerSecret } from '@/lib/security/apiGuards';
+import { runHeldRecoveryReconstructionProductionContinuation } from '@/lib/revision/heldRecoveryReconstructionProductionCaller';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -521,6 +522,21 @@ export async function GET(request: NextRequest) {
       leaseMs: workerConfig.leaseMs,
       targetJobId,
     });
+    let heldRecoveryContinuation: Awaited<ReturnType<typeof runHeldRecoveryReconstructionProductionContinuation>> | null = null;
+    if (targetJobId) {
+      try {
+        heldRecoveryContinuation = await runHeldRecoveryReconstructionProductionContinuation({
+          jobId: targetJobId,
+          workerId: `${workerId}:held-recovery`,
+        });
+      } catch (error) {
+        console.error('[HeldRecovery] Targeted continuation failed closed', {
+          traceId,
+          targetJobId,
+          error: error instanceof Error ? error.name : 'UnknownError',
+        });
+      }
+    }
     const durationMs = Date.now() - startTime;
 
     const selfChainBase = getConfiguredAppBaseUrl();
@@ -554,6 +570,7 @@ export async function GET(request: NextRequest) {
         targetJobId: results.targetJobId,
         targetClaimed: results.targetClaimed,
         batchSize: workerConfig.batchSize,
+        heldRecoveryContinuation: heldRecoveryContinuation?.status ?? null,
       },
       service: 'process-evaluations-worker',
     }));
@@ -572,6 +589,7 @@ export async function GET(request: NextRequest) {
       targetClaimed: results.targetClaimed,
       batchSize: workerConfig.batchSize,
       errors: results.errors,
+      heldRecoveryContinuation,
       timestamp: new Date().toISOString(),
     }, { status: 200 });
 

@@ -74,6 +74,8 @@ function isPersistenceEnabled(): boolean {
 
 export type PersistReconstructedAnchorDependencies = {
   readonly adapter?: ReconstructedAnchorInsertAdapter
+  /** Narrow caller override; the default remains the existing process-env kill switch. */
+  readonly isEnabled?: () => boolean
 }
 
 /**
@@ -85,7 +87,7 @@ export async function persistReconstructedAnchor(
   dependencies: PersistReconstructedAnchorDependencies = {},
 ): Promise<ResolveAnchorPersistenceResult> {
   // 1. Flag check, before any builder or writer work.
-  if (!isPersistenceEnabled()) {
+  if (!(dependencies.isEnabled ?? isPersistenceEnabled)()) {
     return { status: 'disabled' }
   }
 

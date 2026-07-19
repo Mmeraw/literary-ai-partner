@@ -171,6 +171,8 @@ export async function createJob(input: {
   sensitivity_mode?: string;
   voice_preservation_level?: string;
   english_variant?: string;
+  /** Operator-proof seam: insert atomically in an existing non-claimable state. */
+  hold_for_dispatch?: boolean;
 }): Promise<Job> {
   const now = new Date().toISOString();
   
@@ -238,13 +240,17 @@ export async function createJob(input: {
     // scoring criteria BEFORE the manuscript is touched.
     phase: PHASES.PHASE_0,
     phase_status: JOB_STATUS.QUEUED,
+    ...(input.hold_for_dispatch ? { phase_status: 'awaiting_approval' } : {}),
     ...(includeValidityStatus
       ? { validity_status: normalizeEvaluationValidityStatus("pending") }
       : {}),
     progress: {
       phase: PHASES.PHASE_0,
-      phase_status: JOB_STATUS.QUEUED, // CANON: aligned with JobStatus
+      phase_status: JOB_STATUS.QUEUED,
       message: "Job created — awaiting gold-standard calibration",
+      ...(input.hold_for_dispatch
+        ? { phase_status: 'awaiting_approval', held_recovery_proof_hold: true }
+        : {}),
     },
     policy_family: input.sensitivity_mode === "TRANSGRESSIVE" ? "transgressive" : input.sensitivity_mode === "TESTIMONY" ? "testimony" : "standard",
     voice_preservation_level: input.voice_preservation_level ?? "balanced",

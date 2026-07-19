@@ -382,6 +382,7 @@ function unexpected(fn: string, status: unknown): never {
 
 export function createSupabaseHeldRecoveryReconstructionPersistenceAdapter(
   supabase: Pick<SupabaseClient, 'rpc'> = createAdminClient(),
+  options: { readonly opportunityIds?: readonly string[] } = {},
 ): HeldRecoveryReconstructionPersistenceAdapter {
   return {
     async recordDeferredAttemptAndEnqueue(input) {
@@ -495,10 +496,20 @@ export function createSupabaseHeldRecoveryReconstructionPersistenceAdapter(
       requireNonEmptyString(input.workerId, 'workerId')
       requirePositiveInteger(input.leaseSeconds, 'leaseSeconds')
 
-      const { data, error } = await supabase.rpc(
-        'claim_held_recovery_reconstruction_work_atomic',
-        { p_worker_id: input.workerId, p_lease_seconds: input.leaseSeconds },
-      )
+      const opportunityIds = options.opportunityIds
+      const { data, error } = opportunityIds
+        ? await supabase.rpc(
+            'claim_held_recovery_reconstruction_work_for_opportunities_atomic',
+            {
+              p_worker_id: input.workerId,
+              p_lease_seconds: input.leaseSeconds,
+              p_opportunity_ids: [...opportunityIds],
+            },
+          )
+        : await supabase.rpc(
+            'claim_held_recovery_reconstruction_work_atomic',
+            { p_worker_id: input.workerId, p_lease_seconds: input.leaseSeconds },
+          )
       if (error) {
         throw new ReconstructionPersistenceContractError(
           `Failed to claim reconstruction work: ${error.message}`,
