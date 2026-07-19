@@ -249,7 +249,7 @@ export async function createJob(input: {
       phase_status: JOB_STATUS.QUEUED,
       message: "Job created — awaiting gold-standard calibration",
       ...(input.hold_for_dispatch
-        ? { phase_status: 'awaiting_approval', held_recovery_proof_hold: true }
+        ? { held_recovery_proof_hold: true }
         : {}),
     },
     policy_family: input.sensitivity_mode === "TRANSGRESSIVE" ? "transgressive" : input.sensitivity_mode === "TESTIMONY" ? "testimony" : "standard",
