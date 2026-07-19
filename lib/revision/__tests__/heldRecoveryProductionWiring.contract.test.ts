@@ -35,7 +35,8 @@ describe('Held Recovery production reachability', () => {
   })
 
   it('creates the proof job atomically non-claimable and releases only after exact-job deployment', () => {
-    expect(store).toContain("input.hold_for_dispatch ? 'awaiting_approval' : JOB_STATUS.QUEUED")
+    expect(store).toContain('phase_status: JOB_STATUS.QUEUED')
+    expect(store).toContain("phase_status: 'awaiting_approval'")
     expect(store).toContain('held_recovery_proof_hold: true')
     expect(proofRoute).toContain('hold_for_held_recovery_proof')
     expect(proofRoute).toContain('release_held_recovery_proof')
