@@ -73,7 +73,7 @@ export function createJob(input: { manuscript_id: string; manuscript_version_id?
       // phase_status: queued | running | complete | failed (JobStatus | null)
       // CANON counters: total_units, completed_units (matching phase writers)
       phase: "phase_0",
-      phase_status: input.hold_for_dispatch ? "awaiting_approval" : "queued",
+      phase_status: "queued",
       ...(input.hold_for_dispatch ? { held_recovery_proof_hold: true } : {}),
       total_units: null,
       completed_units: null,

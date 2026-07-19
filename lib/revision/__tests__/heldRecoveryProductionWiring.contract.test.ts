@@ -38,6 +38,7 @@ describe('Held Recovery production reachability', () => {
     expect(store).toContain('phase_status: JOB_STATUS.QUEUED')
     expect(store).toContain("phase_status: 'awaiting_approval'")
     expect(store).toContain('held_recovery_proof_hold: true')
+    expect(store).not.toContain("{ phase_status: 'awaiting_approval', held_recovery_proof_hold: true }")
     expect(proofRoute).toContain('hold_for_held_recovery_proof')
     expect(proofRoute).toContain('release_held_recovery_proof')
     expect(proofRoute).toContain('targetJobId !== jobId')
