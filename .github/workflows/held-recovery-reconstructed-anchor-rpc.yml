@@ -1,0 +1,75 @@
+name: Held Recovery Reconstructed-Anchor RPC
+
+# Narrowly scoped behavioral gate for the atomic reconstructed-anchor insert RPC.
+# It starts a real PostgreSQL service, then runs the reconstructed-anchor RPC
+# behavioral proof (which self-provisions the minimum Supabase-compatible roles
+# and schema, replays the reconstructed-anchor table + RPC migrations in
+# dependency order, and exercises every deterministic outcome against real SQL).
+#
+# This job intentionally does NOT introduce a whole-repository migration-replay
+# framework: the repository has no canonical disposable-Postgres replay mechanism
+# to reuse, so the proof is confined to the migrations this RPC depends on, driven
+# by the behavioral test itself.
+#
+# REQUIRE_PG_BEHAVIORAL=1 makes the behavioral suite FAIL rather than silently
+# skip when PostgreSQL is unavailable, so this gate cannot pass by skipping.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20260718090000_create_held_recovery_reconstructed_anchors.sql'
+      - 'supabase/migrations/20260718100000_create_held_recovery_reconstructed_anchor_insert_rpc.sql'
+      - 'lib/revision/__tests__/heldRecoveryReconstructedAnchorRpc.behavioral.test.ts'
+      - 'lib/revision/__tests__/heldRecoveryReconstructedAnchorRpcMigration.contract.test.ts'
+      - '.github/workflows/held-recovery-reconstructed-anchor-rpc.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reconstructed-anchor-rpc-behavioral:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      # Point the behavioral suite at the real PostgreSQL service and forbid skips.
+      PG_BEHAVIORAL_URL: postgres://postgres:postgres@localhost:5432/testdb
+      REQUIRE_PG_BEHAVIORAL: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: SQL-text contract suite (reconstructed-anchor RPC migration)
+        run: >-
+          npx jest --runTestsByPath
+          lib/revision/__tests__/heldRecoveryReconstructedAnchorRpcMigration.contract.test.ts
+
+      - name: Real-PostgreSQL behavioral proof (insert / replay / conflict / stale / missing / RBAC)
+        run: >-
+          npx jest --runTestsByPath
+          lib/revision/__tests__/heldRecoveryReconstructedAnchorRpc.behavioral.test.ts
