@@ -627,7 +627,17 @@ export function createSupabaseHeldRecoveryRuntimeLoaders(
       // normalization, no numeric conversion. Malformed rows (e.g. missing or
       // non-canonical manuscript_id_text) flow into the same canonical derivation
       // path, whose validation rejects them as invalid_canonical_input.
+      //
+      // Guard row before destructuring: the RPC response is untyped at runtime
+      // (the ReadonlyArray<Record<string, unknown>> cast above is a compile-time
+      // assertion only), so a non-object element such as null must not be
+      // destructured directly -- that would throw here and bypass the existing
+      // canonical-derivation rejection path entirely. A malformed element is
+      // passed through as an empty shape instead, so it still reaches
+      // deriveCanonicalManuscriptChunkReferences and is rejected there as
+      // invalid_canonical_input, exactly like any other malformed row.
       const rows = rawRows.map((row) => {
+        if (!isRecord(row)) return {} as unknown as CanonicalManuscriptChunkRow
         const { manuscript_id_text, ...rest } = row
         return { ...rest, manuscript_id: manuscript_id_text } as unknown as CanonicalManuscriptChunkRow
       })

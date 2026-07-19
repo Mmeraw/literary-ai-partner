@@ -2,12 +2,13 @@
 --
 -- Purpose: return the manuscript_chunks read model that the Held Recovery
 -- reconstruction path consumes, with manuscript_id projected as TEXT so the
--- exact bigint identity survives the persistence boundary. manuscript_chunks.
--- manuscript_id is a bigint (see 20260129000000_fix_manuscript_chunks_fk_type);
--- reading it through a JS number in the client would risk IEEE-754 precision
--- loss for values above 2^53. The cast to text happens here, in SQL, at the
--- database boundary — the TypeScript layer accepts only the canonical string and
--- never converts from a number.
+-- exact bigint identity survives the persistence boundary.
+-- manuscript_chunks.manuscript_id is a bigint (see
+-- 20260129000000_fix_manuscript_chunks_fk_type); reading it through a JS
+-- number in the client would risk IEEE-754 precision loss for values above
+-- 2^53. The cast to text happens here, in SQL, at the database boundary —
+-- the TypeScript layer accepts only the canonical string and never converts
+-- from a number.
 --
 -- Scope fence: this migration adds ONLY a read RPC. It returns exactly the nine
 -- columns the two Held Recovery reads already consume (id, manuscript_id as

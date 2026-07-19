@@ -113,6 +113,100 @@ describe('Held Recovery manuscript_chunks read RPC mapping + semantics', () => {
     if (result.status !== 'loaded') throw new Error('expected loaded')
     expect(result.value[0].manuscript_id).toBe(' 01 ')
   })
+
+  it('does not throw when the RPC returns a null array element, and still yields a loaded result', async () => {
+    // The ReadonlyArray<Record<string, unknown>> cast on the RPC data is a
+    // compile-time-only assertion; a real RPC response is untrusted at
+    // runtime and could contain a non-object element. Destructuring such an
+    // element directly (`const { manuscript_id_text, ...rest } = row`) would
+    // throw a TypeError synchronously inside this mapping, well before the
+    // existing canonical-derivation rejection path ever runs. This proves the
+    // guard classifies the malformed element as an ordinary loaded row
+    // (which canonical derivation will separately reject) rather than
+    // crashing the read.
+    const { supabase } = mockSupabaseRpc({
+      data: [null, rpcRow('The quick brown fox watches the gate.', 1, MAX_PG_BIGINT)],
+      error: null,
+    })
+    const loaders = createSupabaseHeldRecoveryRuntimeLoaders({ supabase, jobId: 'job-1' })
+
+    // Calling this directly (no try/catch) is itself the proof: if the guard
+    // regressed, the destructure would throw synchronously inside the async
+    // mapping and this await would reject, failing the test outright.
+    const result = await loaders.loadManuscriptChunks(MAX_PG_BIGINT, MANUSCRIPT_VERSION_SHA)
+
+    expect(result.status).toBe('loaded')
+    if (result.status !== 'loaded') throw new Error('expected loaded')
+    expect(result.value).toHaveLength(2)
+    // The malformed element is passed through as an empty shape, not repaired
+    // and not silently dropped -- canonical derivation is the sole rejector.
+    expect(result.value[0].manuscript_id).toBeUndefined()
+    expect(result.value[0].id).toBeUndefined()
+    // The well-formed neighbour row is unaffected by the malformed element.
+    expect(result.value[1].manuscript_id).toBe(MAX_PG_BIGINT)
+  })
+
+  it('rejects a null-row response end-to-end as invalid_canonical_input, without throwing out of the orchestration', async () => {
+    // End-to-end proof through the real production loaders factory (not a
+    // hand-rolled loaders object): a null element from the RPC must resolve
+    // to a rejected outcome classified as invalid_canonical_input, the exact
+    // classification the malformed-row transport comment already promises --
+    // not an unhandled rejection / thrown error out of runHeldRecoveryRuntimeOrchestration.
+    const { supabase } = mockSupabaseRpc({
+      data: [null],
+      error: null,
+    })
+    const loaders = {
+      ...createSupabaseHeldRecoveryRuntimeLoaders({ supabase, jobId: 'job-1' }),
+      async loadHeldItem(): Promise<CanonicalHeldItemLoadResult> {
+        return {
+          status: 'loaded',
+          value: {
+            heldItemId: 'held-1',
+            opportunityId: 'op-1',
+            reason: { code: 'context_missing', source: 'preflight' },
+            producer: 'preflight',
+            persistedVersion: 'held-v1',
+            manuscriptId: MAX_PG_BIGINT,
+            manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
+          },
+        }
+      },
+      async loadOpportunityLedger(): Promise<CanonicalOpportunityLoadResult> {
+        return {
+          status: 'loaded',
+          value: {
+            opportunityId: 'op-1',
+            ledgerSourceHash: 'ledger-source-hash',
+            sourceText: 'The quick brown fox watches the gate while rain gathers.',
+            evidenceAnchor: 'quick brown fox',
+            manuscriptCoordinates: 'chapter 1 / chunk 0',
+            rationale: 'Recover the surrounding context before generating revised prose.',
+            diagnostic: {
+              symptom: 'The recommendation lacks enough local context.',
+              cause: 'The evidence window is too narrow for a grounded change.',
+              fix_direction: 'Retrieve the surrounding manuscript passage.',
+              reader_effect: 'The proposed recovery can stay grounded in the scene.',
+            },
+          },
+        }
+      },
+      async loadCandidateState(): Promise<CanonicalCandidateStateLoadResult> {
+        return { status: 'loaded', value: { a: 'Alpha', b: 'Beta', c: 'Gamma' } }
+      },
+    }
+
+    let outcome: unknown
+    let thrown: unknown
+    try {
+      outcome = await runHeldRecoveryRuntimeOrchestration({ heldItemId: 'held-1' }, loaders)
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeUndefined()
+    expect(outcome).toMatchObject({ status: 'rejected', reason: 'invalid_canonical_input' })
+  })
 })
 
 describe('canonical derivation rejects non-canonical manuscript_id (not repaired)', () => {
