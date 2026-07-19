@@ -288,6 +288,11 @@ declare
   v_existing_attempt public.held_recovery_attempts%rowtype;
   v_existing_item public.held_recovery_reconstruction_work_items%rowtype;
   v_new_item public.held_recovery_reconstruction_work_items%rowtype;
+  -- Referential-consistency guard: the originating attempt's manuscript, rendered as
+  -- canonical text, MUST equal the work item's stored manuscript_id. The work-items
+  -- table carries text (no numeric FK), so this is enforced explicitly here rather than
+  -- by a FOREIGN KEY. See the paired assertion after both inserts.
+  v_attempt_manuscript_id_text text;
 begin
   if p_request is null or jsonb_typeof(p_request) <> 'object' then
     raise exception 'Held Recovery deferred handoff blocked: p_request must be a JSON object';
@@ -496,6 +501,25 @@ begin
     'pending'
   )
   returning * into v_new_item;
+
+  -- ── REFERENTIAL-CONSISTENCY ASSERTION (defense in depth) ──
+  -- The work-items table stores manuscript_id as canonical TEXT and carries NO numeric
+  -- foreign key to manuscripts(id) (a text column cannot FK a bigint PK). The
+  -- originating_attempt_id FK therefore gives transitive manuscript existence ONLY IF the
+  -- work item's manuscript_id equals the originating attempt's manuscript. Both rows are
+  -- written here from the same v_manuscript_id, so equality holds by construction — but we
+  -- assert it explicitly so a future refactor that sources the two independently can never
+  -- silently persist a work item whose manuscript disagrees with its originating attempt.
+  select a.manuscript_id::text
+    into v_attempt_manuscript_id_text
+  from public.held_recovery_attempts a
+  where a.id = v_attempt_id;
+
+  if v_attempt_manuscript_id_text is distinct from v_new_item.manuscript_id then
+    raise exception
+      'Held Recovery deferred handoff blocked: work item manuscript_id (%) does not match originating attempt manuscript_id (%)',
+      v_new_item.manuscript_id, v_attempt_manuscript_id_text;
+  end if;
 
   return jsonb_build_object(
     'status', 'enqueued',

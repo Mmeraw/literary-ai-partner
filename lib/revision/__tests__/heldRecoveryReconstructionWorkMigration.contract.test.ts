@@ -100,6 +100,19 @@ describe('held recovery reconstruction-work migration contract', () => {
     expect(sql).toContain('before update on public.held_recovery_reconstruction_work_items')
   })
 
+  it('enforces referential consistency between the work item and its originating attempt manuscript', () => {
+    // Because the work-items table carries text (no numeric FK to manuscripts), the
+    // originating_attempt_id FK only yields transitive manuscript existence if the work
+    // item's manuscript_id equals the originating attempt's manuscript. The enqueue RPC
+    // must assert that equality explicitly (rendering the attempt's bigint manuscript_id
+    // as ::text) and fail the transaction on any mismatch.
+    expect(sql).toMatch(/a\.manuscript_id::text/i)
+    expect(sql).toMatch(
+      /v_attempt_manuscript_id_text\s+is distinct from\s+v_new_item\.manuscript_id/i,
+    )
+    expect(sql).toMatch(/does not match originating attempt manuscript_id/i)
+  })
+
   it('is forward-only and idempotent (safe to re-run)', () => {
     expect(sql).toContain('create table if not exists')
     expect(sql).toContain('create index if not exists')

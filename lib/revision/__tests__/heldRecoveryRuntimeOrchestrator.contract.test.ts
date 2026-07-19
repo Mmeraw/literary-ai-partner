@@ -336,7 +336,7 @@ describe('bounded held recovery runtime attempt recording boundary', () => {
       findByIdempotencyKey: jest.fn(async () => null),
       countAttemptsForSeries: jest.fn(async () => 0),
       insertAttempt: jest.fn(async () => { throw new Error('direct insert must not be called by wiring test') }),
-      findByHeldItemAndOpportunity: jest.fn(async () => null),
+      findByHeldItemAndOpportunity: jest.fn(async () => []),
     }
   }
 

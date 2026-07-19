@@ -58,13 +58,16 @@ export type HeldRecoveryAttemptPersistenceAdapter = {
   readonly countAttemptsForSeries: (seriesKey: RecoverySeriesKey) => Promise<number>
   readonly insertAttempt: (record: HeldRecoveryAttemptRecord) => Promise<HeldRecoveryAttemptRecord>
   /**
-   * Most recent recorded attempt for a held item + opportunity (or null). Read-only;
-   * used by the deterministic-follow-up path to locate the originating attempt.
+   * ALL recorded attempts for a held item + opportunity, in the DB's natural
+   * return order. Read-only. The adapter imposes NO authority ordering and
+   * discards NO row: supersession/history selection is the LOADER's
+   * responsibility, never the adapter's. Preserves the recovered Unit 3
+   * contract (exact-parity array semantics).
    */
-  readonly findByHeldItemAndOpportunity: (
-    heldItemId: string,
-    opportunityId: string,
-  ) => Promise<HeldRecoveryAttemptRecord | null>
+  readonly findByHeldItemAndOpportunity: (input: {
+    readonly heldItemId: string
+    readonly opportunityId: string
+  }) => Promise<readonly HeldRecoveryAttemptRecord[]>
 }
 
 export type RecordRecoveryAttemptInput = Omit<BuildRecoveryAttemptRecordInput, 'attemptNumber'>
@@ -352,29 +355,34 @@ export function createSupabaseHeldRecoveryAttemptPersistenceAdapter(
       return recordFromRow(data as Record<string, any>)
     },
 
-    async findByHeldItemAndOpportunity(
-      heldItemId: string,
-      opportunityId: string,
-    ): Promise<HeldRecoveryAttemptRecord | null> {
+    async findByHeldItemAndOpportunity(input: {
+      readonly heldItemId: string
+      readonly opportunityId: string
+    }): Promise<readonly HeldRecoveryAttemptRecord[]> {
+      // Returns ALL matching rows without imposing an authority order. The loader
+      // owns supersession; DB return order is NOT treated as authority. No row is
+      // discarded here (exact-parity Unit 3 recovered contract).
       const { data, error } = await supabase
         .from('held_recovery_attempts')
         .select('*')
-        .eq('held_item_id', heldItemId)
-        .eq('opportunity_id', opportunityId)
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .eq('held_item_id', input.heldItemId)
+        .eq('opportunity_id', input.opportunityId)
 
       if (error) {
-        throw new Error(`Failed to read Held Recovery attempt by held item: ${error.message}`)
+        throw new Error(`Failed to read Held Recovery attempts for held item: ${error.message}`)
       }
-      if (!Array.isArray(data) || data.length === 0) return null
-
-      // Malformed-row guard BEFORE mapping: never destructure a non-object row.
-      const row = data[0]
-      if (!isRecord(row)) {
-        throw new Error('Held Recovery attempt row is malformed: expected an object')
-      }
-      return recordFromRow(row as Record<string, any>)
+      const rows = Array.isArray(data) ? data : []
+      // Malformed-row guard on EVERY row BEFORE mapping: a DB read path must never
+      // destructure a non-object row, and it must fail closed rather than silently
+      // reinterpret or drop malformed data.
+      return rows.map((row, index) => {
+        if (!isRecord(row)) {
+          throw new Error(
+            `Held Recovery attempt row is malformed at index ${index}: expected an object`,
+          )
+        }
+        return recordFromRow(row as Record<string, any>)
+      })
     },
   }
 }
