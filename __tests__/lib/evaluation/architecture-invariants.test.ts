@@ -80,7 +80,10 @@ describe("evaluation architecture invariants", () => {
     const code = fs.readFileSync(storePath, "utf8");
 
     expect(code).toContain("phase: PHASES.PHASE_0");
-    expect(code).toContain("phase_status: JOB_STATUS.QUEUED");
+    // phase_status is set via initialPhaseStatus which defaults to JOB_STATUS.QUEUED for the
+    // canonical (non-held) path; the held-recovery path uses 'awaiting_approval'.
+    expect(code).toContain("phase_status: initialPhaseStatus");
+    expect(code).toContain("? 'awaiting_approval' : JOB_STATUS.QUEUED");
   });
 
   test("production entrypoints do not import legacy phase2 evaluator authorities", () => {
