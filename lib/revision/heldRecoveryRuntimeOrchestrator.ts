@@ -513,6 +513,64 @@ function findOpportunity(content: Record<string, unknown>, opportunityId: string
     .find((opportunity) => opportunity.opportunity_id === opportunityId) ?? null
 }
 
+export type CanonicalRevisionOpportunityRecord = {
+  readonly ledgerSourceHash: string
+  readonly opportunity: Readonly<Record<string, unknown>>
+}
+
+/**
+ * Narrow production read used by the targeted reconstruction continuation.
+ * It reuses the same current-vs-legacy conflict checks as the runtime loaders;
+ * no second artifact authority or fallback projection is introduced.
+ */
+export async function loadCanonicalRevisionOpportunityRecord(
+  input: {
+    readonly jobId: string
+    readonly opportunityId: string
+    readonly supabase?: Pick<SupabaseClient, 'from'>
+  },
+): Promise<
+  | { readonly status: 'loaded'; readonly value: CanonicalRevisionOpportunityRecord }
+  | { readonly status: 'missing' | 'legacy_only' | 'conflict' | 'invalid'; readonly reason?: string }
+> {
+  const supabase = input.supabase ?? createAdminClient()
+  const artifact = await loadCanonicalLedgerArtifact(supabase, input.jobId)
+  if (artifact.status !== 'loaded') {
+    return {
+      status: artifact.status,
+      reason: 'reason' in artifact ? artifact.reason : undefined,
+    }
+  }
+  const opportunity = findOpportunity(artifact.content, input.opportunityId)
+  if (!opportunity) return { status: 'missing' }
+  const ledgerSourceHash = isNonEmptyString(artifact.content.source_hash)
+    ? artifact.content.source_hash
+    : isNonEmptyString(opportunity.source_ued_hash)
+      ? opportunity.source_ued_hash
+      : null
+  if (!ledgerSourceHash) {
+    return { status: 'invalid', reason: 'canonical ledger source hash is missing' }
+  }
+  return { status: 'loaded', value: { ledgerSourceHash, opportunity } }
+}
+
+export async function loadCanonicalRevisionOpportunityIdsForJob(
+  input: { readonly jobId: string; readonly supabase?: Pick<SupabaseClient, 'from'> },
+): Promise<
+  | { readonly status: 'loaded'; readonly opportunityIds: readonly string[] }
+  | { readonly status: 'missing' | 'legacy_only' | 'conflict' | 'invalid'; readonly reason?: string }
+> {
+  const supabase = input.supabase ?? createAdminClient()
+  const artifact = await loadCanonicalLedgerArtifact(supabase, input.jobId)
+  if (artifact.status !== 'loaded') {
+    return {
+      status: artifact.status,
+      reason: 'reason' in artifact ? artifact.reason : undefined,
+    }
+  }
+  return { status: 'loaded', opportunityIds: opportunityIds(artifact.content) }
+}
+
 function diagnosticFor(opportunity: Record<string, unknown>): CanonicalRecoveryDiagnostic | undefined {
   const symptom = opportunity.symptom
   const cause = opportunity.cause

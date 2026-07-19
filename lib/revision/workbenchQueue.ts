@@ -1070,11 +1070,16 @@ async function loadEvaluationResultPayload(
   return data?.content ?? null
 }
 
-export async function getWorkbenchQueue(input: {
+type GetWorkbenchQueueInput = {
   manuscriptId?: string
   evaluationJobId?: string
   user?: { id: string; email?: string | null } | null
-}): Promise<WorkbenchQueuePayload> {
+}
+
+async function getWorkbenchQueueInternal(
+  input: GetWorkbenchQueueInput,
+  allowTrustedServerUser: boolean,
+): Promise<WorkbenchQueuePayload> {
   let warmupCorpus: Awaited<ReturnType<typeof loadReviseQueueWarmupCorpus>> | null = null
   let warmupWarning: string | null = null
   try {
@@ -1085,7 +1090,7 @@ export async function getWorkbenchQueue(input: {
   }
 
   const user =
-    input.user && process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1'
+    input.user && (allowTrustedServerUser || process.env.WORKER_ALLOW_SERVICE_ROLE_DEV === '1')
       ? input.user
       : await getAuthenticatedUser()
   if (!user) return emptyPayload('Please sign in to open your Revise Workbench.')
@@ -1411,6 +1416,21 @@ export async function getWorkbenchQueue(input: {
   }
 
   return payload
+}
+
+export async function getWorkbenchQueue(input: GetWorkbenchQueueInput): Promise<WorkbenchQueuePayload> {
+  return getWorkbenchQueueInternal(input, false)
+}
+
+/**
+ * Server-only projection for identity-verified Held Recovery Readmission.
+ * It deliberately reuses the complete Workbench hydration and classification
+ * path instead of maintaining a second admission projection.
+ */
+export async function getWorkbenchQueueForHeldRecoveryReadmission(
+  input: GetWorkbenchQueueInput & { user: { id: string; email?: string | null } },
+): Promise<WorkbenchQueuePayload> {
+  return getWorkbenchQueueInternal(input, true)
 }
 
 export const __testing = {

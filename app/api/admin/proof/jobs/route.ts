@@ -6,6 +6,7 @@ import { generateTraceId, jobLogger, logger } from "@/lib/observability/logger";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { isTriggerWorkerFailure, triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { failEvaluationJobTerminally } from "@/lib/jobs/failJobTerminal";
+import { HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG } from "@/lib/revision/heldRecoveryReconstructionReadmissionCaller";
 
 const ALLOWED_JOB_TYPES = new Set<string>(Object.values(JOB_TYPES));
 
@@ -61,6 +62,78 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json().catch(() => ({}));
+    if (body?.action === "release_held_recovery_proof") {
+      const jobId = typeof body?.job_id === "string" ? body.job_id.trim() : "";
+      const targetJobId = process.env[HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG];
+      if (!jobId || targetJobId !== jobId) {
+        return NextResponse.json(
+          { ok: false, error: "The deployed exact-job Held Recovery target does not match this release.", trace_id },
+          { status: 409 },
+        );
+      }
+
+      const admin = createAdminClient();
+      const { data: heldJob, error: heldJobError } = await admin
+        .from("evaluation_jobs")
+        .select("id,status,phase,phase_status,progress")
+        .eq("id", jobId)
+        .maybeSingle();
+      const heldProgress = heldJob?.progress && typeof heldJob.progress === "object" && !Array.isArray(heldJob.progress)
+        ? heldJob.progress
+        : {};
+      if (
+        heldJobError ||
+        !heldJob ||
+        heldJob.status !== "queued" ||
+        heldJob.phase_status !== "awaiting_approval" ||
+        heldProgress.held_recovery_proof_hold !== true
+      ) {
+        return NextResponse.json(
+          { ok: false, error: "Proof job is not in the undispatched hold state.", trace_id },
+          { status: 409 },
+        );
+      }
+
+      const { data: released, error: releaseError } = await admin
+        .from("evaluation_jobs")
+        .update({
+          phase_status: "queued",
+          progress: {
+            ...heldProgress,
+            phase_status: "queued",
+            held_recovery_proof_hold: false,
+            held_recovery_proof_released_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", jobId)
+        .eq("status", "queued")
+        .eq("phase_status", "awaiting_approval")
+        .contains("progress", { held_recovery_proof_hold: true })
+        .select("id")
+        .maybeSingle();
+      if (releaseError || !released) {
+        return NextResponse.json(
+          { ok: false, error: "Proof job release lost its compare-and-set guard.", trace_id },
+          { status: 409 },
+        );
+      }
+
+      const kickoffResult = await triggerEvaluationWorker({
+        req,
+        jobId,
+        trace_id,
+        request_id,
+        source: "api.admin.proof.jobs.release_held_recovery",
+      });
+      if (!kickoffResult.ok || kickoffResult.targetClaimed === false) {
+        return NextResponse.json(
+          { ok: false, error: "Released proof job was not claimed by the worker.", trace_id },
+          { status: 503 },
+        );
+      }
+      return NextResponse.json({ ok: true, job_id: jobId, status: "released", trace_id });
+    }
+
     const manuscriptText = typeof body?.manuscript_text === "string" ? body.manuscript_text.trim() : "";
     const manuscriptTitle =
       typeof body?.manuscript_title === "string" && body.manuscript_title.trim()
@@ -144,6 +217,7 @@ export async function POST(req: Request) {
       manuscript_id: manuscript.id,
       user_id: proofUserId,
       job_type: jobType,
+      hold_for_dispatch: body?.hold_for_held_recovery_proof === true,
     });
 
     const jobAcceptedAt = new Date().toISOString();
@@ -165,6 +239,28 @@ export async function POST(req: Request) {
       user_id: proofUserId,
       proof_run: true,
     });
+
+    const holdForHeldRecoveryProof = body?.hold_for_held_recovery_proof === true;
+    if (holdForHeldRecoveryProof) {
+      logger.info("Proof job created in undispatched Held Recovery hold", {
+        trace_id,
+        request_id,
+        event: "api.admin.proof.jobs.held_recovery_hold_created",
+        job_id: job.id,
+        manuscript_id: manuscript.id,
+      });
+      return NextResponse.json(
+        {
+          ok: true,
+          job_id: job.id,
+          manuscript_id: manuscript.id,
+          status: "held_undispatched",
+          next_action: `Deploy ${HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG}=${job.id}, then release this exact job.`,
+          trace_id,
+        },
+        { status: 201 },
+      );
+    }
 
     const kickoffDispatchStartedAt = new Date().toISOString();
     emitLatencyTrace({
