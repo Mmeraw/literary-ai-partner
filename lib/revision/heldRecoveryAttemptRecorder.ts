@@ -57,6 +57,14 @@ export type HeldRecoveryAttemptPersistenceAdapter = {
   readonly findByIdempotencyKey: (idempotencyKey: string) => Promise<HeldRecoveryAttemptRecord | null>
   readonly countAttemptsForSeries: (seriesKey: RecoverySeriesKey) => Promise<number>
   readonly insertAttempt: (record: HeldRecoveryAttemptRecord) => Promise<HeldRecoveryAttemptRecord>
+  /**
+   * Most recent recorded attempt for a held item + opportunity (or null). Read-only;
+   * used by the deterministic-follow-up path to locate the originating attempt.
+   */
+  readonly findByHeldItemAndOpportunity: (
+    heldItemId: string,
+    opportunityId: string,
+  ) => Promise<HeldRecoveryAttemptRecord | null>
 }
 
 export type RecordRecoveryAttemptInput = Omit<BuildRecoveryAttemptRecordInput, 'attemptNumber'>
@@ -268,6 +276,14 @@ function rowForRecord(record: HeldRecoveryAttemptRecord): Record<string, unknown
   }
 }
 
+/**
+ * Malformed-row guard: a DB read path must never destructure a non-object row.
+ * Mirrors the orchestrator's isRecord() guard (rejects null, arrays, primitives).
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 function recordFromRow(row: Record<string, any>): HeldRecoveryAttemptRecord {
   return {
     idempotencyKey: row.idempotency_key,
@@ -334,6 +350,31 @@ export function createSupabaseHeldRecoveryAttemptPersistenceAdapter(
 
       if (error) throw new Error(`Failed to persist Held Recovery attempt: ${error.message}`)
       return recordFromRow(data as Record<string, any>)
+    },
+
+    async findByHeldItemAndOpportunity(
+      heldItemId: string,
+      opportunityId: string,
+    ): Promise<HeldRecoveryAttemptRecord | null> {
+      const { data, error } = await supabase
+        .from('held_recovery_attempts')
+        .select('*')
+        .eq('held_item_id', heldItemId)
+        .eq('opportunity_id', opportunityId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (error) {
+        throw new Error(`Failed to read Held Recovery attempt by held item: ${error.message}`)
+      }
+      if (!Array.isArray(data) || data.length === 0) return null
+
+      // Malformed-row guard BEFORE mapping: never destructure a non-object row.
+      const row = data[0]
+      if (!isRecord(row)) {
+        throw new Error('Held Recovery attempt row is malformed: expected an object')
+      }
+      return recordFromRow(row as Record<string, any>)
     },
   }
 }

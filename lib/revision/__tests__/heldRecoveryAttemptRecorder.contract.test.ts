@@ -210,6 +210,7 @@ describe('held recovery attempt recorder', () => {
       findByIdempotencyKey: jest.fn(async () => existing),
       countAttemptsForSeries: jest.fn(async () => { throw new Error('count must not run for existing attempt') }),
       insertAttempt: jest.fn(async () => { throw new Error('insert must not run for existing attempt') }),
+      findByHeldItemAndOpportunity: jest.fn(async () => null),
     }
 
     const result = await recordHeldRecoveryAttempt(adapter, {
@@ -235,6 +236,7 @@ describe('held recovery attempt recorder', () => {
         inserted.push(record)
         return record
       }),
+      findByHeldItemAndOpportunity: jest.fn(async () => null),
     }
 
     const result = await recordHeldRecoveryAttempt(adapter, {
@@ -352,5 +354,83 @@ describe('held recovery attempt Supabase persistence adapter', () => {
     expect(fromCalls).toEqual(['held_recovery_attempts', 'held_recovery_attempts', 'held_recovery_attempts'])
     expect(insertChain.insert).toHaveBeenCalledTimes(1)
     expect(forbiddenMutation).not.toHaveBeenCalled()
+  })
+
+  function rowForRecord(record: HeldRecoveryAttemptRecord): Record<string, unknown> {
+    return {
+      idempotency_key: record.idempotencyKey,
+      held_item_id: record.heldItemId,
+      opportunity_id: record.opportunityId,
+      // Carried verbatim as a canonical string, as pg/PostgREST returns bigint text.
+      manuscript_id: record.manuscriptId,
+      manuscript_version_sha: record.manuscriptVersionSha,
+      held_item_persisted_version: record.heldItemPersistedVersion,
+      runtime_outcome_status: record.runtimeOutcomeStatus,
+      runtime_rejection_reason: record.runtimeRejectionReason ?? null,
+      executor_result: record.executorResult,
+      series_key: record.attempt.seriesKey,
+      recovery_input_fingerprint: record.attempt.recoveryInputFingerprint,
+      attempt_number: record.attempt.attemptNumber,
+      max_attempts: record.attempt.maxAttempts,
+      status: record.attempt.status,
+      outcome: record.attempt.outcome,
+      terminal_card_type: record.attempt.terminalCardType,
+      terminal_trusted_path_status: record.attempt.terminalTrustedPathStatus,
+      snapshot: record.attempt.snapshot,
+      events: record.attempt.events,
+      created_at: record.attempt.createdAt,
+      updated_at: record.attempt.updatedAt,
+    }
+  }
+
+  it('findByHeldItemAndOpportunity carries a > 2^53 manuscript id as an exact canonical string (no numeric coercion)', async () => {
+    // 2^53 + 1 — the first integer that a JS number cannot represent exactly.
+    const bigId = '9007199254740993'
+    const record = buildRecord({ heldItem: { ...heldItem(), manuscriptId: bigId } })
+    const orderArgs: unknown[] = []
+    const chain = {
+      select: jest.fn(() => chain),
+      eq: jest.fn((_column: string, _value: unknown) => chain),
+      order: jest.fn((...args: unknown[]) => { orderArgs.push(args); return chain }),
+      limit: jest.fn(async () => ({ data: [rowForRecord(record)], error: null })),
+    }
+    const supabase = { from: jest.fn(() => chain) }
+    const adapter = createSupabaseHeldRecoveryAttemptPersistenceAdapter(supabase as never)
+
+    const result = await adapter.findByHeldItemAndOpportunity('held-1', 'op-1')
+
+    expect(result).not.toBeNull()
+    expect(typeof result?.manuscriptId).toBe('string')
+    expect(result?.manuscriptId).toBe(bigId)
+    // Prove no precision loss: a numeric round-trip would collapse to 9007199254740992.
+    expect(Number(result?.manuscriptId).toString()).not.toBe(result?.manuscriptId)
+    expect(chain.eq).toHaveBeenCalledWith('held_item_id', 'held-1')
+    expect(chain.eq).toHaveBeenCalledWith('opportunity_id', 'op-1')
+  })
+
+  it('findByHeldItemAndOpportunity returns null when no attempt matches', async () => {
+    const chain = {
+      select: jest.fn(() => chain),
+      eq: jest.fn(() => chain),
+      order: jest.fn(() => chain),
+      limit: jest.fn(async () => ({ data: [], error: null })),
+    }
+    const supabase = { from: jest.fn(() => chain) }
+    const adapter = createSupabaseHeldRecoveryAttemptPersistenceAdapter(supabase as never)
+
+    expect(await adapter.findByHeldItemAndOpportunity('held-1', 'op-1')).toBeNull()
+  })
+
+  it('findByHeldItemAndOpportunity rejects a malformed (non-object) row via the isRecord guard', async () => {
+    const chain = {
+      select: jest.fn(() => chain),
+      eq: jest.fn(() => chain),
+      order: jest.fn(() => chain),
+      limit: jest.fn(async () => ({ data: ['not-an-object'], error: null })),
+    }
+    const supabase = { from: jest.fn(() => chain) }
+    const adapter = createSupabaseHeldRecoveryAttemptPersistenceAdapter(supabase as never)
+
+    await expect(adapter.findByHeldItemAndOpportunity('held-1', 'op-1')).rejects.toThrow(/malformed/)
   })
 })
