@@ -21,7 +21,7 @@ function heldItem(): CanonicalHeldItem {
     reason: { code: 'context_missing', source: 'preflight' },
     producer: 'preflight',
     persistedVersion: 'held-version-1',
-    manuscriptId: 77,
+    manuscriptId: '77',
     manuscriptVersionSha: 'manuscript-sha-1',
   }
 }

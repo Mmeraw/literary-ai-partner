@@ -24,7 +24,7 @@ function canonicalChunks(contents: string[], manuscriptVersionSha = MANUSCRIPT_V
   return deriveCanonicalManuscriptChunkReferences(
     contents.map((content, index) => ({
       id: `chunk-${index}`,
-      manuscript_id: 101,
+      manuscript_id: '101',
       chunk_index: index,
       char_start: index * 100,
       char_end: index * 100 + content.length,

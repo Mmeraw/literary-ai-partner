@@ -24,7 +24,14 @@ export type CanonicalChunkSource = 'manuscript_chunks'
 
 export type CanonicalManuscriptChunkRow = {
   readonly id: string
-  readonly manuscript_id: number
+  /**
+   * Canonical non-negative integer STRING, never a JS number. manuscript_chunks.
+   * manuscript_id is a Postgres bigint whose exact value can exceed 2^53; reading
+   * it as a number would lose precision. This boundary accepts only the canonical
+   * string form (see get_held_recovery_manuscript_chunks, which projects
+   * manuscript_id::text). Numeric IDs are rejected, not converted.
+   */
+  readonly manuscript_id: string
   readonly chunk_index: number
   readonly char_start: number
   readonly char_end: number
@@ -36,7 +43,8 @@ export type CanonicalManuscriptChunkRow = {
 
 export type CanonicalManuscriptChunkReference = {
   readonly chunkId: string
-  readonly manuscriptId: number
+  /** Canonical non-negative integer string carried unchanged from the DB read. */
+  readonly manuscriptId: string
   readonly manuscriptVersionSha: string
   readonly chunkIndex: number
   readonly sourceStartOffset: number
@@ -77,7 +85,8 @@ export type CanonicalRecoveryOpportunity = {
 export type CanonicalRecoveryState = {
   readonly opportunity: CanonicalRecoveryOpportunity
   readonly manuscript: {
-    readonly manuscriptId: number
+    /** Canonical non-negative integer string; never a JS number (bigint fidelity). */
+    readonly manuscriptId: string
     readonly manuscriptVersionSha: string
     readonly chunks: readonly CanonicalManuscriptChunkReference[]
   }
@@ -138,12 +147,26 @@ function isFiniteInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number.isFinite(value)
 }
 
+/**
+ * Canonical non-negative integer string: an optional single leading zero only
+ * for the literal "0", otherwise no leading zeros, and no sign, decimal point,
+ * exponent, or surrounding whitespace. This is the ONLY accepted form for a
+ * manuscript_id at this boundary. Values such as " 1", "01", "+1", "1.0", and
+ * "1e3" are rejected rather than repaired, and numeric IDs are rejected outright
+ * so a precision-lossy number can never masquerade as an identity here.
+ */
+const CANONICAL_INTEGER_STRING = /^(0|[1-9][0-9]*)$/
+
+function isCanonicalManuscriptId(value: unknown): value is string {
+  return typeof value === 'string' && CANONICAL_INTEGER_STRING.test(value)
+}
+
 export function deriveCanonicalManuscriptChunkReference(
   row: CanonicalManuscriptChunkRow,
   context: { readonly manuscriptVersionSha: string },
 ): CanonicalManuscriptChunkReference {
   if (!isNonEmptyString(row.id)) throw new Error('Canonical chunk row is missing stable id')
-  if (!isFiniteInteger(row.manuscript_id)) throw new Error(`Canonical chunk ${row.id} is missing manuscript_id`)
+  if (!isCanonicalManuscriptId(row.manuscript_id)) throw new Error(`Canonical chunk ${row.id} has a non-canonical manuscript_id`)
   if (!isFiniteInteger(row.chunk_index) || row.chunk_index < 0) throw new Error(`Canonical chunk ${row.id} has invalid chunk_index`)
   if (!isFiniteInteger(row.char_start) || !isFiniteInteger(row.char_end) || row.char_end <= row.char_start) {
     throw new Error(`Canonical chunk ${row.id} has invalid source offsets`)
@@ -159,6 +182,7 @@ export function deriveCanonicalManuscriptChunkReference(
 
   return {
     chunkId: row.id,
+    // Carried unchanged: no trimming, no normalization, no numeric conversion.
     manuscriptId: row.manuscript_id,
     manuscriptVersionSha: context.manuscriptVersionSha,
     chunkIndex: row.chunk_index,
@@ -196,7 +220,7 @@ export function isCanonicalManuscriptChunkReference(value: unknown): value is Ca
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const ref = value as CanonicalManuscriptChunkReference
   return isNonEmptyString(ref.chunkId) &&
-    isFiniteInteger(ref.manuscriptId) &&
+    isCanonicalManuscriptId(ref.manuscriptId) &&
     isNonEmptyString(ref.manuscriptVersionSha) &&
     isFiniteInteger(ref.chunkIndex) &&
     isFiniteInteger(ref.sourceStartOffset) &&

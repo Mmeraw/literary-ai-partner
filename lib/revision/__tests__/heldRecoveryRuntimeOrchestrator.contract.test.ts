@@ -32,7 +32,7 @@ function baseHeldItem(overrides: Partial<CanonicalHeldItem> = {}): CanonicalHeld
     reason: { code: 'context_missing', source: 'preflight' },
     producer: 'preflight',
     persistedVersion: 'held-v1',
-    manuscriptId: 77,
+    manuscriptId: '77',
     manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
     ...overrides,
   }
@@ -65,7 +65,7 @@ function baseCandidates(): CanonicalCandidateStateLoadResult {
 function chunk(content: string, index = 0) {
   return {
     id: `chunk-${index}`,
-    manuscript_id: 77,
+    manuscript_id: '77',
     chunk_index: index,
     char_start: index * 100,
     char_end: index * 100 + content.length,
@@ -248,7 +248,7 @@ describe('bounded held recovery runtime orchestration', () => {
         existingCandidatesABC: { a: 'Alpha', b: 'Beta', c: 'Gamma' },
       },
       manuscript: {
-        manuscriptId: 77,
+        manuscriptId: '77',
         manuscriptVersionSha: MANUSCRIPT_VERSION_SHA,
       },
     })

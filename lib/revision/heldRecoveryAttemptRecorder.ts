@@ -27,7 +27,11 @@ export type HeldRecoveryAttemptRecord = {
   readonly idempotencyKey: string
   readonly heldItemId: string
   readonly opportunityId: string
-  readonly manuscriptId: number
+  /**
+   * Canonical non-negative integer string (bigint fidelity). Carried unchanged
+   * from the DB read; never reconstructed from a JS number.
+   */
+  readonly manuscriptId: string
   readonly manuscriptVersionSha: string
   readonly heldItemPersistedVersion: string
   readonly runtimeOutcomeStatus: HeldRecoveryRuntimeOutcome['status']
@@ -269,7 +273,11 @@ function recordFromRow(row: Record<string, any>): HeldRecoveryAttemptRecord {
     idempotencyKey: row.idempotency_key,
     heldItemId: row.held_item_id,
     opportunityId: row.opportunity_id,
-    manuscriptId: Number(row.manuscript_id),
+    // Carried unchanged as a canonical string. Never Number(...): held_recovery
+    // _attempts.manuscript_id is a bigint whose exact value can exceed 2^53, and
+    // a numeric conversion here would silently corrupt the identity. The pg/
+    // PostgREST layer already returns bigint as a string.
+    manuscriptId: row.manuscript_id,
     manuscriptVersionSha: row.manuscript_version_sha,
     heldItemPersistedVersion: row.held_item_persisted_version,
     runtimeOutcomeStatus: row.runtime_outcome_status,

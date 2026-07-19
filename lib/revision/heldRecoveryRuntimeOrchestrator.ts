@@ -45,7 +45,12 @@ export type CanonicalHeldItem = {
   readonly reason: RecoveryReasonIdentity
   readonly producer: HeldReasonProducer
   readonly persistedVersion: string
-  readonly manuscriptId: number
+  /**
+   * Canonical non-negative integer string (bigint fidelity). Never a JS number:
+   * the manuscript_id identity may exceed 2^53 and must survive to the
+   * persistence boundary unchanged.
+   */
+  readonly manuscriptId: string
   readonly manuscriptVersionSha: string
 }
 
@@ -97,7 +102,7 @@ export type HeldRecoveryRuntimeLoaders = {
     heldItem: CanonicalHeldItem,
   ) => Promise<CanonicalCandidateStateLoadResult>
   readonly loadManuscriptChunks: (
-    manuscriptId: number,
+    manuscriptId: string,
     manuscriptVersionSha: string,
   ) => Promise<CanonicalManuscriptChunkRowsLoadResult>
 }
@@ -545,7 +550,7 @@ function candidateStateFor(opportunity: Record<string, unknown>): CanonicalPersi
 }
 
 export type SupabaseHeldRecoveryRuntimeLoaderOptions = {
-  readonly supabase?: Pick<SupabaseClient, 'from'>
+  readonly supabase?: Pick<SupabaseClient, 'from' | 'rpc'>
   readonly jobId: string
 }
 
@@ -598,16 +603,44 @@ export function createSupabaseHeldRecoveryRuntimeLoaders(
       return { status: 'loaded', value: candidateStateFor(opportunity) }
     },
 
-    async loadManuscriptChunks(manuscriptId: number): Promise<CanonicalManuscriptChunkRowsLoadResult> {
-      const { data, error } = await supabase
-        .from('manuscript_chunks')
-        .select('id, manuscript_id, chunk_index, char_start, char_end, overlap_chars, label, content, content_hash')
-        .eq('manuscript_id', manuscriptId)
-        .order('chunk_index', { ascending: true })
+    async loadManuscriptChunks(manuscriptId: string): Promise<CanonicalManuscriptChunkRowsLoadResult> {
+      // Read through the narrow text-returning RPC so the bigint manuscript_id
+      // survives as an exact string (get_held_recovery_manuscript_chunks projects
+      // manuscript_id::text). The manuscriptId argument is the canonical integer
+      // string carried from heldItem.manuscriptId; Postgres accepts it for the
+      // bigint parameter. There is deliberately no fallback to a direct
+      // .from('manuscript_chunks') read: a numeric read here would reintroduce the
+      // precision loss this path exists to prevent.
+      const { data, error } = await supabase.rpc('get_held_recovery_manuscript_chunks', {
+        p_manuscript_id: manuscriptId,
+      })
 
+      // RPC error -> same existing load-error (invalid) result.
       if (error) return { status: 'invalid', reason: error.message ?? 'failed to read manuscript_chunks' }
-      const rows = Array.isArray(data) ? data as CanonicalManuscriptChunkRow[] : []
-      if (rows.length === 0) return { status: 'missing' }
+
+      const rawRows = Array.isArray(data) ? (data as ReadonlyArray<Record<string, unknown>>) : []
+      // RPC success with no rows -> same existing missing-chunks result.
+      if (rawRows.length === 0) return { status: 'missing' }
+
+      // Transport-shape adaptation ONLY: rename manuscript_id_text -> manuscript_id
+      // so downstream canonical derivation is unchanged. No trimming, no
+      // normalization, no numeric conversion. Malformed rows (e.g. missing or
+      // non-canonical manuscript_id_text) flow into the same canonical derivation
+      // path, whose validation rejects them as invalid_canonical_input.
+      //
+      // Guard row before destructuring: the RPC response is untyped at runtime
+      // (the ReadonlyArray<Record<string, unknown>> cast above is a compile-time
+      // assertion only), so a non-object element such as null must not be
+      // destructured directly -- that would throw here and bypass the existing
+      // canonical-derivation rejection path entirely. A malformed element is
+      // passed through as an empty shape instead, so it still reaches
+      // deriveCanonicalManuscriptChunkReferences and is rejected there as
+      // invalid_canonical_input, exactly like any other malformed row.
+      const rows = rawRows.map((row) => {
+        if (!isRecord(row)) return {} as unknown as CanonicalManuscriptChunkRow
+        const { manuscript_id_text, ...rest } = row
+        return { ...rest, manuscript_id: manuscript_id_text } as unknown as CanonicalManuscriptChunkRow
+      })
       return { status: 'loaded', value: rows }
     },
   }
