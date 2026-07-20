@@ -127,6 +127,61 @@ function findFieldValue(payload: unknown, requiredField: string): unknown {
   return undefined;
 }
 
+type ExactPathResolution = {
+  missingPaths: string[];
+  values: Array<{ path: string; value: unknown }>;
+};
+
+/**
+ * Resolve registry paths such as `quality_manifest.dcip_compliance` and
+ * `opportunities[].criterion` without allowing an unrelated nested leaf to
+ * satisfy the contract. Empty arrays are valid when the parent collection is
+ * itself a governed empty authority.
+ */
+function resolveExactRequiredPath(payload: unknown, requiredField: string): ExactPathResolution {
+  const canonicalField = requiredField.startsWith('$.') ? requiredField.slice(2) : requiredField;
+  const segments = canonicalField.split('.').filter(Boolean);
+  const result: ExactPathResolution = { missingPaths: [], values: [] };
+
+  function visit(current: unknown, segmentIndex: number, currentPath: string): void {
+    if (segmentIndex >= segments.length) {
+      result.values.push({ path: currentPath, value: current });
+      return;
+    }
+
+    const segment = segments[segmentIndex];
+    const isArraySegment = segment.endsWith('[]');
+    const key = isArraySegment ? segment.slice(0, -2) : segment;
+    const nextPath = currentPath === '$' ? `$.${key}` : `${currentPath}.${key}`;
+
+    if (!isRecord(current) || !Object.prototype.hasOwnProperty.call(current, key)) {
+      result.missingPaths.push(nextPath);
+      return;
+    }
+
+    const next = current[key];
+    if (isArraySegment) {
+      if (!Array.isArray(next)) {
+        result.missingPaths.push(nextPath);
+        return;
+      }
+      if (next.length === 0) {
+        // The collection field exists and an empty canonical collection is a
+        // valid authority. Per-item requirements therefore pass vacuously.
+        result.values.push({ path: nextPath, value: next });
+        return;
+      }
+      next.forEach((item, index) => visit(item, segmentIndex + 1, `${nextPath}[${index}]`));
+      return;
+    }
+
+    visit(next, segmentIndex + 1, nextPath);
+  }
+
+  visit(payload, 0, '$');
+  return result;
+}
+
 function clampScore(score: number): number {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -263,6 +318,32 @@ export function evaluateArtifactPayloadQuality(params: {
 
     const perFieldPenalty = Math.max(8, Math.ceil(100 / Math.max(entry.requiredFields.length, 1)));
     for (const requiredField of entry.requiredFields) {
+      if (requiredField.startsWith('$.') || requiredField.includes('.') || requiredField.includes('[]')) {
+        const resolution = resolveExactRequiredPath(params.content, requiredField);
+        for (const missingPath of resolution.missingPaths) {
+          issues.push({
+            code: 'REQUIRED_FIELD_MISSING',
+            artifact: params.artifact,
+            path: missingPath.replace(/^\$\./, ''),
+            message: `${params.artifact} is missing required field ${missingPath}.`,
+            penalty: perFieldPenalty,
+          });
+        }
+        for (const resolved of resolution.values) {
+          if (Array.isArray(resolved.value) && resolved.value.length === 0) continue;
+          if (!hasMeaningfulValue(resolved.value)) {
+            issues.push({
+              code: 'REQUIRED_FIELD_EMPTY',
+              artifact: params.artifact,
+              path: resolved.path.replace(/^\$\./, ''),
+              message: `${params.artifact} has empty required field ${resolved.path}.`,
+              penalty: perFieldPenalty,
+            });
+          }
+        }
+        continue;
+      }
+
       const value = findFieldValue(params.content, requiredField);
       if (value === undefined) {
         issues.push({

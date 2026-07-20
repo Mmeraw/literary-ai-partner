@@ -1094,16 +1094,17 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
   - Diagnostic findings have evidence anchors
   - Source artifact references resolvable
 - **Process / runtime code surface:**
-  - `lib/evaluation/processor.ts` (revision opportunity ledger assembly)
+  - `lib/revision/opportunityLedger.ts` (single active revision opportunity ledger producer)
+  - `lib/revision/revisionOpportunityLedgerContract.ts` (shared pre-persistence, reload, and Held Recovery validator)
   - `lib/evaluation/phase-architecture-v2/checklistMatrix.ts` (revision_ledger row)
 - **Output:** `revision_opportunity_ledger_v1`
 - **Output acceptance metrics:**
-  - Every opportunity includes: `manuscript_id`, `evaluation_job_id`, `finding_id`, `criterion`, `severity` (Must / Should / Could), `source_text` or affected passage, `source_location`, `affected_manuscript_span`, `evidence_anchor`, `diagnosis` (symptom + likely cause + reader effect), `fix_direction`, `mistake_proofing_guidance`, `revision_operation`, `confidence`, `source_artifact_reference`, `status`
-  - No opportunity without an evidence anchor
-  - No opportunity without a specific source target and operation
-  - Severity must be Must / Should / Could — not arbitrary free text
-  - Every opportunity traceable to a `finding_id` from `diagnostic_findings_v1`
-  - Ready vs Needs Targeting classification for each opportunity
+  - Top-level authority fields include `job_id`, `manuscript_id`, `manuscript_version_hash`, `artifact_id`, `artifact_type`, `artifact_version`, `source_hash`, `generated_at`, `opportunity_source_authority`, `quality_manifest`, and `revise_queue_preflight`
+  - `quality_manifest` carries `dcip_compliance` and `constitutional_authority_registry`
+  - Every non-empty `opportunities[]` entry includes `opportunity_id`, `finding_id`, `criterion`, `severity`, `rationale`, `evidence_anchor`, `manuscript_coordinates`, `provenance`, `confidence`, `decision_state`, `revision_operation`, `preflight_status`, and `grounding_status`
+  - Every opportunity is validated independently; one complete sibling cannot mask another malformed sibling
+  - Opportunity IDs are unique and enum values are canonical
+  - `opportunities: []` is valid governed authority; missing or non-array authority fails closed
 - **Customer / downstream stage:** `ADJACENT_REVISE` (Revise Queue)
 - **Gates / invariants:**
   - **Governing doctrine:** "No evaluation evidence = no Revise Queue item."
@@ -1125,7 +1126,7 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
 - **Supplier:** `revision_opportunity_ledger_v1` + `revise_opportunity_seed_v1` (where available)
 - **Input:** Revision opportunity ledger from completed evaluation + optional Phase 0.5B revise opportunity seeds
 - **Input acceptance metrics:**
-  - `revision_opportunity_ledger_v1` present and non-empty
+  - `revision_opportunity_ledger_v1` present with `opportunities` array; an explicit empty array is a valid governed zero-opportunity outcome
   - Each queue item has required fields (criterion, severity, source_location, evidence_anchor, diagnosis, revision_operation, confidence)
   - A/B/C repair options (where Ready) are actual manuscript-ready prose — not meta-instructions or problem restatements
   - `revise_opportunity_seed_v1` merged if present (seeds enrich, evaluation evidence governs)

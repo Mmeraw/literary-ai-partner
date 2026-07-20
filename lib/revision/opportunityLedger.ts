@@ -22,7 +22,6 @@ import {
 } from './candidateHydration';
 import {
   evaluateCardQuality,
-  LEDGER_CANDIDATE_QUALITY_REASON,
   LEDGER_CARD_QUALITY_FAILED,
 } from './candidateQuality';
 import { regenerateCandidatesForQualityFailed } from './candidateRegeneration';
@@ -31,6 +30,10 @@ import { logRevisionEvent } from './logRevisionEvent';
 import type { CandidateRejectionTelemetry } from './telemetry';
 import { getArtifact } from '@/lib/evaluation/fipocRegistry';
 import { CANONICAL_CRITERIA } from '@/lib/governance/canonicalCriteria';
+import {
+  assertRevisionOpportunityLedgerPayload,
+  validateRevisionOpportunityLedgerPayload,
+} from './revisionOpportunityLedgerContract';
 
 type LedgerSeverity = 'must' | 'should' | 'could';
 type LedgerConfidence = 'low' | 'medium' | 'high';
@@ -467,7 +470,6 @@ function buildReplacementCandidates(input: CandidateBuildInput): { a: string; b:
   const sentences = sentenceUnits(anchor);
   const first = sentences[0] ?? anchor;
   const second = sentences[1] ?? '';
-  const leadName = extractLeadName(`${input.rationale} ${input.action ?? ''} ${anchor}`) || 'The moment';
   const concreteObject = extractQuotedSpan(anchor) || first;
   const seed = trimWords(concreteObject, 32);
 
@@ -989,97 +991,6 @@ function candidateSetHasLowDiversity(opportunity: RevisionOpportunity): boolean 
   );
 }
 
-function tokenArray(raw: string): string[] {
-  return normalizedForComparison(raw).split(' ').filter(Boolean);
-}
-
-function candidateLooksGenericAdvice(text: string): boolean {
-  return /\b(should|needs to|must|try to|consider|revise|rewrite|replace|insert|add|improve|clarify|strengthen|tighten)\b/i.test(text)
-    || /\b(this (passage|scene|paragraph|section)|the reader|narrative|manuscript|revision)\b/i.test(text);
-}
-
-function candidateLooksSummaryNotProse(text: string): boolean {
-  return /\b(this (shows|demonstrates|indicates|suggests)|the scene (shows|demonstrates|indicates)|the passage (shows|demonstrates|indicates))\b/i.test(text)
-    || /\b(summary|in summary|overall|ultimately)\b/i.test(text);
-}
-
-function candidateLooksStilted(text: string): boolean {
-  if (/\b(very\s+very|really\s+really|just\s+just)\b/i.test(text)) return true;
-  if (/[,;:]{2,}|\.{3,}/.test(text)) return true;
-  return false;
-}
-
-function candidateLooksRepetitive(text: string): boolean {
-  const tokens = tokenArray(text).filter((token) => token.length >= 3);
-  if (tokens.length < 10) return false;
-  const unique = new Set(tokens);
-  return unique.size / tokens.length < 0.45;
-}
-
-function candidateIntroducesUnsupportedFacts(candidate: string, anchor: string): boolean {
-  const anchorTokens = normalizedTokenSet(anchor);
-  const candidateTokens = normalizedTokenSet(candidate);
-  const candidateNumbers = candidate.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? [];
-  const anchorNumbers = new Set(anchor.match(/\b\d+(?:,\d{3})*(?:\.\d+)?\b/g) ?? []);
-  if (candidateNumbers.some((num) => !anchorNumbers.has(num))) return true;
-
-  const candidateNames = new Set((candidate.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((name) => name.toLowerCase()));
-  const anchorNames = new Set((anchor.match(/\b[A-Z][a-zA-Z'\u2019-]{2,}\b/g) ?? []).map((name) => name.toLowerCase()));
-  let unseenNames = 0;
-  for (const name of candidateNames) {
-    if (!anchorNames.has(name) && !anchorTokens.has(name) && !candidateTokens.has('i')) {
-      unseenNames += 1;
-    }
-  }
-  return unseenNames >= 2;
-}
-
-function candidateVoiceMismatch(text: string): boolean {
-  return /\b(reader|narrative|theme|arc|stakes|craft|manuscript|criterion|diagnostic)\b/i.test(text);
-}
-
-function candidateFitsContext(candidate: string, anchor: string, rationale: string): boolean {
-  const candidateTokens = normalizedTokenSet(candidate);
-  const anchorTokens = normalizedTokenSet(anchor);
-  const rationaleTokens = normalizedTokenSet(rationale);
-  if (candidateTokens.size === 0) return false;
-  const overlapAnchor = jaccardSimilarity(candidateTokens, anchorTokens);
-  const overlapRationale = jaccardSimilarity(candidateTokens, rationaleTokens);
-  return overlapAnchor >= 0.05 || overlapRationale >= 0.05;
-}
-
-const CANDIDATE_QUALITY_FAILURE_REASON = {
-  WEAK_IMPROVEMENT: 'candidate_quality_weak_improvement' as const,
-};
-
-function candidateQualityFailureCodes(opportunity: RevisionOpportunity, candidate: string): string[] {
-  const reasons: string[] = [];
-  if (!candidateTextIsCopyPasteReady(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.NOT_COPY_READY);
-
-  const words = tokenArray(candidate);
-  if (words.length < 8) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.TOO_SHORT);
-
-  if (candidateLooksGenericAdvice(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.GENERIC);
-  if (candidateLooksSummaryNotProse(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.SUMMARY);
-  if (candidateLooksStilted(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.STILTED);
-  if (candidateLooksRepetitive(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.REPETITIVE);
-
-  const overlap = overlapScoreWithAnchor(candidate, opportunity.evidence_anchor);
-  if (overlap >= 0.82) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.ANCHOR_OVERLAP);
-  if (overlap >= 0.92) reasons.push(CANDIDATE_QUALITY_FAILURE_REASON.WEAK_IMPROVEMENT);
-
-  if (candidateIntroducesUnsupportedFacts(candidate, opportunity.evidence_anchor)) {
-    reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.UNSUPPORTED_FACTS);
-  }
-
-  if (candidateVoiceMismatch(candidate)) reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.VOICE_MISMATCH);
-  if (!candidateFitsContext(candidate, opportunity.evidence_anchor, opportunity.rationale)) {
-    reasons.push(LEDGER_CANDIDATE_QUALITY_REASON.CONTEXT_MISMATCH);
-  }
-
-  return [...new Set(reasons)];
-}
-
 function candidateQualityReasons(opportunity: RevisionOpportunity): string[] {
   const candidates = [
     opportunity.candidate_text_a,
@@ -1140,53 +1051,6 @@ function blockOpportunityByPreflight(opportunity: RevisionOpportunity, reasons: 
     preflight_note: 'Recommendation requires rewrite or admin review before it can become a user-facing Revise Queue card.',
     admin_actions: blockedAdminActions(combinedReasons),
   };
-}
-
-/**
- * Six-part diagnostic completeness check per canon:
- * docs/canon/revise-queue-six-part-diagnostic.md
- *
- * Required layers: symptom, cause, fix_direction, reader_effect, evidence_anchor, revision_operation
- * Optional (recommended): mistake_proofing
- *
- * A recommendation without all six diagnostic layers cannot enter the Revise queue
- * because the author cannot trust a recommendation that doesn't explain WHY.
- */
-function diagnosticCompletenessReasons(opportunity: RevisionOpportunity): string[] {
-  const reasons: string[] = [];
-  const MIN_DIAGNOSTIC_LENGTH = 10; // minimum chars to count as populated
-
-  // Layer 1: Symptom — the visible problem on the page
-  if (!opportunity.symptom || opportunity.symptom.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_SYMPTOM);
-  }
-
-  // Layer 2: Cause — craft mechanism creating the problem
-  if (!opportunity.cause || opportunity.cause.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_CAUSE);
-  }
-
-  // Layer 3: Fix Strategy — repair approach
-  if (!opportunity.fix_direction || opportunity.fix_direction.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_FIX_DIRECTION);
-  }
-
-  // Layer 4: Reader Impact — what the reader gains or loses
-  if (!opportunity.reader_effect || opportunity.reader_effect.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_READER_EFFECT);
-  }
-
-  // Layer 5: Evidence — manuscript text (already required by evidence_anchor field)
-  if (!opportunity.evidence_anchor || opportunity.evidence_anchor.trim().length < MIN_DIAGNOSTIC_LENGTH) {
-    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_EVIDENCE);
-  }
-
-  // Layer 6: Operation / Targeting — what action applied where
-  if (!opportunity.revision_operation) {
-    reasons.push(LEDGER_DIAGNOSTIC_REASON.MISSING_OPERATION);
-  }
-
-  return reasons;
 }
 
 function preflightReasonsForOpportunity(
@@ -1876,10 +1740,6 @@ function extractTopLevelRecommendations(payload: Record<string, unknown>): Revis
   return opportunities;
 }
 
-const MAX_OPPORTUNITIES_SHORT_FORM = REVISE_QUEUE_MAX_SHORT_FORM;
-const MAX_OPPORTUNITIES_LONG_FORM = REVISE_QUEUE_MAX_LONG_FORM;
-const LONG_FORM_WORD_THRESHOLD = REVISE_QUEUE_LONG_FORM_WORD_THRESHOLD;
-
 const SEVERITY_RANK: Record<string, number> = { must: 0, should: 1, could: 2 };
 
 type CanonicalRevisionSourceMode = 'canonical_full' | 'legacy_rendered_degraded';
@@ -2414,14 +2274,6 @@ function extractLongformCriterionRevisionQueue(longformPayload: unknown): Revisi
           fixDirection: null,
         });
 
-      const fallbackCandidates = buildFallbackCandidateTexts(recommendationCandidateInput({
-        criterion,
-        evidenceAnchor: anchor,
-        rationale: cleanText,
-        recommendationRow: {},
-        revisionOperation,
-      }));
-
       opportunities.push(ensureOpportunityCandidates({
         opportunity_id: buildOpportunityId({
           criterion,
@@ -2506,14 +2358,6 @@ function extractLongformRevisionPlan(longformPayload: unknown): RevisionOpportun
           action: operation,
           fixDirection: null,
         });
-
-      const fallbackCandidates = buildFallbackCandidateTexts(recommendationCandidateInput({
-        criterion,
-        evidenceAnchor: anchor,
-        rationale: cleanText,
-        recommendationRow: {},
-        revisionOperation,
-      }));
 
       opportunities.push(ensureOpportunityCandidates({
         opportunity_id: buildOpportunityId({
@@ -2638,9 +2482,12 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     throw new Error(`Failed to read revision_opportunity_ledger_v1: ${existingLedgerError.message}`);
   }
 
-  const existingOpportunities = normalizeExistingLedgerOpportunities(
-    existingLedgerRow?.content?.opportunities,
-  );
+  const existingLedgerValidation = existingLedgerRow?.content
+    ? validateRevisionOpportunityLedgerPayload(existingLedgerRow.content)
+    : null;
+  const existingOpportunities = existingLedgerValidation?.valid
+    ? normalizeExistingLedgerOpportunities(existingLedgerRow?.content?.opportunities)
+    : null;
 
   const { data: jobRow, error: jobReadError } = await supabase
     .from('evaluation_jobs')
@@ -3202,6 +3049,10 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     },
     opportunities,
   };
+
+  // RS01 owns the persistence kickback. A malformed sibling opportunity must
+  // never be hidden by another valid row or reach Workbench/Readmission.
+  assertRevisionOpportunityLedgerPayload(payload);
 
   const { data: upsertRows, error: upsertError } = await supabase
     .from('evaluation_artifacts')

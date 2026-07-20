@@ -34,6 +34,7 @@ import {
 } from './heldRecoveryAttemptRecorder'
 import { getRecoveryContractForReason } from './heldRecoveryReasons'
 import type { HeldReasonProducer } from './heldRecoverySources'
+import { validateRevisionOpportunityLedgerPayload } from './revisionOpportunityLedgerContract'
 
 export type HeldItemReference = {
   readonly heldItemId: string
@@ -450,7 +451,17 @@ function classifyRevisionLedgerArtifact(row: LedgerArtifactRow): ClassifiedLedge
     isRecord(content.revise_queue_preflight) &&
     isRecord(content.quality_manifest)
 
-  if (hasCurrentAuthorityFields) return { status: 'current', row, content }
+  if (hasCurrentAuthorityFields) {
+    const contract = validateRevisionOpportunityLedgerPayload(content)
+    if (!contract.valid) {
+      return {
+        status: 'invalid',
+        row,
+        reason: `revision_opportunity_ledger_v1 contract invalid: ${contract.issues.map((issue) => `${issue.code}:${issue.path}`).join(', ')}`,
+      }
+    }
+    return { status: 'current', row, content }
+  }
   return { status: 'legacy', row, content }
 }
 

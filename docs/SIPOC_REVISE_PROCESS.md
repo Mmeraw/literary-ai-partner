@@ -113,6 +113,7 @@ Revise consumes this constitutional context as provenance only. It must not rein
 20. **Summaries and scores are not producers.** Report summaries, `top_recommendations`, criterion scores, ViewModel fields, and rendered output cannot create or alter Revise queue membership.
 21. **Held is not a fallback disposition.** `held_recoverable` is reserved but rejected by `recommendation_disposition_v1` until a neutral, versioned recovery-authority proof exists. Missing anchors do not automatically create Held items.
 22. **Held diagnostics are author-safe projections.** Internal reason codes remain auditable, but the Workbench exposes one safe explanation per distinct diagnostic family, deduplicates repeated families, maps unknown codes to generic safe prose, and emits zero raw-code leakage.
+23. **One ledger producer and one validator.** `lib/revision/opportunityLedger.ts` is the sole active `revision_opportunity_ledger_v1` producer. `lib/revision/revisionOpportunityLedgerContract.ts` validates the complete persisted payload before write, before reuse, and before Held Recovery consumption. A valid sibling may not mask a malformed sibling. The former Workbench-derived parallel producer is removed.
 
 ### Evaluation → Revise Authority and Kickback Matrix
 
@@ -123,6 +124,7 @@ Revise consumes this constitutional context as provenance only. It must not rein
 | `admitted` disposition | Non-empty canonical opportunity identity; exactly one ledger mapping | RS01 ledger opportunity | Missing/duplicate identity or admitted row loss → `S10b`/RS01; no queue exposure |
 | `suppressed_governed` / `informational_non_actionable` | No canonical opportunity identity | Persisted lineage only | Any queue identity or queue item → `S10b`/RS01; reject projection |
 | Canonical opportunity authority | `opportunities` is an array; empty is valid | Ledger projection or valid empty Workbench | Missing/malformed authority → fail closed; no legacy fallback |
+| RS01 persisted ledger | Top-level authority/quality fields present; every non-empty `opportunities[]` item satisfies the canonical item contract; opportunity IDs unique | Persisted ledger or governed empty ledger | Any malformed sibling, duplicate ID, missing quality authority, or unknown enum → RS01; reject before persistence/reuse |
 | RS01 → RS02 | Every queue candidate backed by one canonical ledger opportunity | `ready_for_revise` or `needs_targeting` | Unbacked item or admitted coverage loss → RS01 |
 | Internal Held diagnostics → RS04 | Every non-empty raw input classified; distinct families deduplicated | One author-safe explanation per distinct family | Lost classification, duplicate explanation, empty safe output, or raw leakage → block Workbench author exposure |
 
