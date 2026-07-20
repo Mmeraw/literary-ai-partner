@@ -24,7 +24,6 @@ import {
   AUTHOR_DECISION_TRANSITIONS,
   QUEUE_ITEM_LIFECYCLE_TRANSITIONS,
   type AuthorDecisionState,
-  type QueueItemLifecycleState,
 } from '../../../lib/revision/reviseRegistry';
 
 // ─── Canonical Sets ──────────────────────────────────────────────────────────
@@ -44,28 +43,6 @@ const CANONICAL_ADMISSION_STATUS = new Set([
 
 const CANONICAL_VERDICT_VALUES = new Set([
   'approve', 'flag', 'reject', 'unavailable', 'pending',
-]);
-
-const CANONICAL_WORKBENCH_MODE = new Set([
-  'direct-rewrite', 'repair-brief',
-]);
-
-const CANONICAL_WORKBENCH_SCOPE = new Set([
-  'Line', 'Passage', 'Scene', 'Chapter', 'Structural', 'Manuscript',
-]);
-
-const CANONICAL_SEVERITY = new Set(['must', 'should', 'could']);
-
-const CANONICAL_COMPLETION_TYPE = new Set([
-  'full', 'partial', 'needs_targeting_deferred',
-]);
-
-const CANONICAL_EVALUATION_MODE = new Set([
-  'STANDARD', 'TRANSGRESSIVE', 'TESTIMONY',
-]);
-
-const CANONICAL_VOICE_PRESERVATION = new Set([
-  'BALANCED', 'POLISHED', 'MAXIMUM',
 ]);
 
 const CANONICAL_REVISION_SESSION_STATUS = new Set([
@@ -186,6 +163,53 @@ describe('Revise Registry — process registry', () => {
     expect(fields.has('evidence')).toBe(false);
     expect(stage!.notes).toContain('fixStrategy=fixDirection');
     expect(stage!.notes).toContain('readerImpact=readerEffect');
+  });
+
+  test('RS01 binds queue authority to admitted dispositions and accepts governed empty authority', () => {
+    const stage = REVISE_PROCESS_REGISTRY.find((s) => s.stageId === 'RS01_LEDGER_ASSEMBLY');
+    expect(stage).toBeDefined();
+    expect(stage!.processContract).toMatch(/only admitted canonical opportunities/);
+    expect(stage!.processContract).toMatch(/without becoming work/);
+    expect(stage!.inputRequiredFields).toEqual(expect.arrayContaining([
+      'canonicalOpportunityLedger.opportunities',
+      'canonicalOpportunityLedger.recommendation_dispositions',
+    ]));
+    expect(stage!.outputMetrics).toEqual(expect.arrayContaining([
+      'opportunity count equals admitted disposition count and may be zero',
+      'suppressed/informational queue identity count = 0',
+      'duplicate canonical opportunity count = 0',
+    ]));
+    expect(stage!.dirtyDataRules).toEqual(expect.arrayContaining([
+      'ledger opportunity lacks admitted disposition',
+      'admitted disposition lacks ledger opportunity',
+      'suppressed or informational disposition carries queue identity',
+    ]));
+
+    const certification = REVISE_CERTIFICATION_GATE_REGISTRY.find(
+      (gate) => gate.gateId === 'RCG01_LEDGER_CERTIFICATION',
+    );
+    expect(certification).toBeDefined();
+    expect(certification!.requiredChecks).toEqual(expect.arrayContaining([
+      'canonical opportunity authority present and opportunities is an array',
+      'ledger count equals admitted disposition count',
+    ]));
+    expect(certification!.blockingFailureCodes).not.toContain('LEDGER_EMPTY');
+    expect(certification!.notes).toMatch(/governed zero-opportunity ledger is certifiable/);
+  });
+
+  test('RS04 makes Held diagnostics author-safe without weakening internal classification coverage', () => {
+    const stage = REVISE_PROCESS_REGISTRY.find((s) => s.stageId === 'RS04_WORKBENCH_LOAD');
+    expect(stage).toBeDefined();
+    expect(stage!.outputMetrics).toEqual(expect.arrayContaining([
+      'raw diagnostic leakage count = 0',
+      'each raw diagnostic input classified into one family',
+      'one author-safe explanation per distinct diagnostic family',
+    ]));
+    expect(stage!.dirtyDataRules).toEqual(expect.arrayContaining([
+      'raw internal diagnostic code appears in author-facing output',
+      'diagnostic input disappears before family classification',
+      'classified family lacks author-safe explanation',
+    ]));
   });
 
   test('failureCodes are derived from stage-owned failureDefinitions', () => {

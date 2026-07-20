@@ -1154,7 +1154,7 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
   - Supporting diagnostics must NOT be shown as copy-ready repairs
   - Short-form evaluations must NOT pretend to have WAVE/Golden Spine certainty
   - Author decisions must be persisted to `revision_ledger_decisions`
-  - Revise Queue must NOT be empty simply because the summary report had few top recommendations
+  - Report summaries and top recommendations must never determine Revise queue membership. A certified empty canonical opportunity ledger is valid; missing/malformed authority or silently undisposed source recommendations are not.
   - UI must NOT send users to public Revise marketing page instead of authenticated workbench
 - **TrustedPath requirements:**
   - Apply all eligible Recommended Repair A options across a protected manuscript copy after preview/confirmation
@@ -1187,7 +1187,7 @@ The following patterns violate the Evaluation → Revise Operating Doctrine and 
 6. Author decisions are not persisted
 7. TrustedPath applies unverified or unavailable repairs
 8. A generated revised manuscript overwrites the original
-9. Revise Queue is empty simply because the summary report had few top recommendations
+9. Report-summary or criterion-score content is used as Revise queue authority, or source recommendations disappear without a governed disposition. A present canonical ledger with `opportunities: []` remains a valid outcome when every source recommendation is accounted for.
 10. The UI sends users to the public Revise marketing page instead of the authenticated workbench
 11. Re-evaluation runs on the original manuscript version instead of the revised manuscript version
 

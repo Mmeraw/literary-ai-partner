@@ -108,6 +108,25 @@ Revise consumes this constitutional context as provenance only. It must not rein
 15. **Queues own queue state only.** Queues own lifecycle, admission, retry, lease, and presentation state. Queues do not own or mutate certified UED, ViewModel, renderer, or download artifacts.
 16. **Revise consumes certified lineage only.** Revise consumes certified Evaluation lineage and `revision_opportunity_ledger_v1` provenance only. It must not consume Web/PDF/DOCX/TXT renderer output or `evaluation_report_view_model_v1` as a revision authority.
 17. **Renderer-dependent handoff is invalid.** If Revise admission depends on renderer/download output, the handoff is invalid and must kick back to the Evaluation authority boundary (`S10b_PHASE5_AUTHOR_EXPOSURE_GATE` / `S10c_VIEWMODEL_BOUNDARY_GATE`) instead of proceeding through Revise.
+18. **Recommendation lineage is not queue cardinality.** Every authoritative criterion recommendation must receive exactly one governed Evaluation disposition. Only `admitted` dispositions receive canonical opportunity identity and may enter RS01. `suppressed_governed` and `informational_non_actionable` remain certified lineage without becoming active or Held work.
+19. **Empty authority differs from missing authority.** `canonicalOpportunityLedger.opportunities: []` is a valid governed zero-opportunity outcome. A missing ledger, malformed ledger, or non-array `opportunities` value fails closed before Revise exposure.
+20. **Summaries and scores are not producers.** Report summaries, `top_recommendations`, criterion scores, ViewModel fields, and rendered output cannot create or alter Revise queue membership.
+21. **Held is not a fallback disposition.** `held_recoverable` is reserved but rejected by `recommendation_disposition_v1` until a neutral, versioned recovery-authority proof exists. Missing anchors do not automatically create Held items.
+22. **Held diagnostics are author-safe projections.** Internal reason codes remain auditable, but the Workbench exposes one safe explanation per distinct diagnostic family, deduplicates repeated families, maps unknown codes to generic safe prose, and emits zero raw-code leakage.
+
+### Evaluation → Revise Authority and Kickback Matrix
+
+| Boundary input | Required state / metric | Authorized output | Dirty-data kickback |
+|---|---|---|---|
+| Authoritative criterion recommendations | Stable source identity for every source; source IDs unique | One disposition per source | Missing, duplicate, or unexpected identity → `S10b_PHASE5_AUTHOR_EXPOSURE_GATE`; block certification |
+| `recommendation_disposition_v1` | `source_recommendation_count = disposition_count = unique source count`; coverage ratio `1` | Complete recommendation lineage | Count/set mismatch, unknown version, or invalid disposition → `S10b`; reconstruct lineage |
+| `admitted` disposition | Non-empty canonical opportunity identity; exactly one ledger mapping | RS01 ledger opportunity | Missing/duplicate identity or admitted row loss → `S10b`/RS01; no queue exposure |
+| `suppressed_governed` / `informational_non_actionable` | No canonical opportunity identity | Persisted lineage only | Any queue identity or queue item → `S10b`/RS01; reject projection |
+| Canonical opportunity authority | `opportunities` is an array; empty is valid | Ledger projection or valid empty Workbench | Missing/malformed authority → fail closed; no legacy fallback |
+| RS01 → RS02 | Every queue candidate backed by one canonical ledger opportunity | `ready_for_revise` or `needs_targeting` | Unbacked item or admitted coverage loss → RS01 |
+| Internal Held diagnostics → RS04 | Every non-empty raw input classified; distinct families deduplicated | One author-safe explanation per distinct family | Lost classification, duplicate explanation, empty safe output, or raw leakage → block Workbench author exposure |
+
+The executable registries in `lib/evaluation/fipocRegistry.ts` and `lib/revision/reviseRegistry.ts` are the single source of truth. CSVs under `docs/registries/` and forensic workbooks are generated evidence mirrors; they must not introduce new authority or thresholds.
 
 ---
 
@@ -192,7 +211,7 @@ Validate traceability fields → verify UED hash against persisted artifacts →
 | Metric | Threshold | Notes |
 |---|---|---|
 | Traceability coverage | 100% of `ready_for_revise` items have all five traceability fields | `needs_targeting` items may have partial traceability |
-| Queue item count | ≥1 item admitted | Empty queue after traceability = `REVISE_QUEUE_EMPTY` (evaluation likely too clean to revise) |
+| Queue item count | Equals authorized admitted/withheld input count; may be zero | A zero queue is valid when canonical authority is present and contains zero opportunities. `REVISE_QUEUE_EMPTY` applies only when authorized input opportunities were unexpectedly lost. |
 | Ready/NeedsTargeting ratio | No minimum — passive observability | Informational; does not block |
 | Ledger-to-queue loss rate | ≤20% of admitted items rejected by traceability | If >20% rejected, emit diagnostic warning (likely upstream ledger assembly issue) |
 
@@ -347,6 +366,11 @@ Generated by `npm run fipoc:export` from `lib/revision/reviseRegistry.ts`.
 | Metric | Description | Governing Stage | Threshold |
 |---|---|---|---|
 | `ledger_backing_coverage` | % of queue items sourced from `revision_opportunity_ledger_v1` | RS02, RS02b, RS03 | 100% (enforced) |
+| `recommendation_lineage_coverage` | `disposition_count / source_recommendation_count` with exact source-ID set equality | S10b, RS01 | 100% (enforced) |
+| `recommendation_source_identity_integrity` | missing + duplicate + unexpected source identities | S10b | 0 (enforced) |
+| `admitted_authority_coverage` | admitted dispositions with exactly one canonical opportunity identity | S10b, RS01 | 100% (enforced) |
+| `non_admitted_queue_identity_count` | suppressed/informational dispositions carrying queue identity | S10b, RS01 | 0 (enforced) |
+| `canonical_authority_presence` | `canonicalOpportunityLedger.opportunities` is an array; empty allowed | S10b, RS01 | 100% (enforced) |
 | `traceability_coverage` | % of `ready_for_revise` items with all 5 traceability fields | RS02b | 100% (enforced) |
 | `traceability_loss_rate` | % of admitted items rejected by traceability gate | RS02b | ≤20% (warning above) |
 | `ready_rate` | `ready_for_revise / total_opportunities` | RS02 | No minimum (passive) |
@@ -356,6 +380,9 @@ Generated by `npm run fipoc:export` from `lib/revision/reviseRegistry.ts`.
 | `candidate_option_coverage` | % of opportunities with exact A/B/C manuscript-ready candidates | RS02, RS04, RS05 | 100% of ready items (enforced) |
 | `candidate_option_distinctness` | A/B/C options are materially distinct from one another (no duplicate/near-duplicate); pairwise content overlap < 0.80 | RS02, RS05 | 100% of ready items (enforced — duplicate options fail the card and trigger regeneration via `candidate_quality_duplicate_options`) |
 | `needs_targeting_count` | Count of evidence-backed but incomplete rows withheld from author acceptance | RS02, RS04 | No maximum (passive) |
+| `raw_diagnostic_classification_coverage` | non-empty raw diagnostic inputs assigned a diagnostic family | RS04 | 100% (enforced) |
+| `author_safe_explanation_coverage` | distinct diagnostic families with one safe public explanation | RS04 | 100% (enforced) |
+| `raw_diagnostic_leakage_count` | internal diagnostic tokens present in author-facing Workbench fields | RS04 | 0 (enforced) |
 | `trustedpath_apply_rate` | `appliedCount / total_eligible` | RS10 | No minimum (passive) |
 | `queue_cap_utilization` | `queue_length / hard_cap`; short-form=50, long-form=100 | RS03 | ≤100% (enforced) |
 | `decision_canonical_rate` | % of author decisions using `RevisionLedgerDecision` enum values | RS06 | 100% (enforced) |

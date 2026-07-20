@@ -25,7 +25,7 @@ const NON_STAGE_PRODUCERS = new Set([
   'external_canon_build',
 ]);
 
-function expectUnique(values: string[], label: string): void {
+function expectUnique(values: string[], _label: string): void {
   const seen = new Set<string>();
   const dupes = new Set<string>();
   for (const value of values) {
@@ -99,6 +99,40 @@ describe('executable FIPOC registry', () => {
       expect(process?.activeState).toBe('long_form_active');
       expect(process?.certificationStatus).toBe('active_partial');
     }
+  });
+
+  test('Phase 5 governs recommendation lineage without imposing queue cardinality', () => {
+    const phase5 = getProcess('S10b_PHASE5_AUTHOR_EXPOSURE_GATE');
+    expect(phase5).toBeDefined();
+    expect(phase5!.inputRequiredFields).toEqual(expect.arrayContaining([
+      'canonicalOpportunityLedger.opportunities',
+      'canonicalOpportunityLedger.source_recommendation_ids',
+      'canonicalOpportunityLedger.recommendation_dispositions',
+    ]));
+    expect(phase5!.inputMetrics).toEqual(expect.arrayContaining([
+      'disposition_coverage_ratio = 1',
+      'admitted disposition canonical identity coverage = 100%',
+      'suppressed/informational queue identity count = 0',
+    ]));
+    expect(phase5!.dirtyDataRules).toEqual(expect.arrayContaining([
+      'canonical opportunity authority missing or malformed',
+      'unknown explicit recommendation disposition version',
+      'held_recoverable used under recommendation_disposition_v1',
+    ]));
+    expect(phase5!.outputMetrics).toContain('canonical opportunity count is evidence-driven and may be zero');
+  });
+
+  test('Evaluation to Revise ledger projection authorizes only admitted dispositions', () => {
+    const ledger = getProcess('ADJACENT_REVISION_LEDGER');
+    expect(ledger).toBeDefined();
+    expect(ledger!.processContract).toMatch(/Project admitted canonical opportunities/);
+    expect(ledger!.processContract).toMatch(/do not become active or Held work/);
+    expect(ledger!.inputMetrics).toContain('only admitted dispositions supply ledger rows');
+    expect(ledger!.outputMetrics).toContain('ledger row count equals admitted disposition count');
+    expect(ledger!.dirtyDataRules).toEqual(expect.arrayContaining([
+      'ledger row exists without admitted disposition',
+      'admitted disposition omitted from ledger',
+    ]));
   });
 
   test('all process output artifacts are registered with producer/consumer ownership', () => {
