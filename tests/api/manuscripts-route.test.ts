@@ -353,27 +353,40 @@ describe("/api/manuscripts route", () => {
   });
 
   test("DELETE removes the authenticated user's manuscript by id", async () => {
-    const selectMock = jest.fn(async () => ({
-      data: [{ id: 321 }],
+    const rpcMock = jest.fn(async () => ({
+      data: [{ deleted_ids: [321], deleted_count: 1, counts: {} }],
       error: null,
     }));
 
-    const eqIdMock = jest.fn(() => ({
-      select: selectMock,
+    const inMock = jest.fn(async () => ({
+      data: [{ id: 321, file_url: null }],
+      error: null,
     }));
 
     const eqUserMock = jest.fn(() => ({
-      eq: eqIdMock,
+      in: inMock,
     }));
 
-    const deleteMock = jest.fn(() => ({
+    const selectMock = jest.fn(() => ({
       eq: eqUserMock,
     }));
 
+    const removeMock = jest.fn(async () => ({ data: [], error: null }));
+    const fromStorageMock = jest.fn(() => ({ remove: removeMock }));
+
     const supabase = {
-      from: jest.fn(() => ({
-        delete: deleteMock,
-      })),
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return {
+            select: selectMock,
+          };
+        }
+        return {};
+      }),
+      rpc: rpcMock,
+      storage: {
+        from: fromStorageMock,
+      },
     };
 
     mockCreateAdminClient.mockReturnValue(supabase as never);
@@ -383,14 +396,17 @@ describe("/api/manuscripts route", () => {
     });
 
     const response = await DELETE(req);
-    const json = (await response.json()) as { ok: boolean; deleted: number };
+    const json = (await response.json()) as { ok: boolean; deleted: number[] };
 
     expect(response.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.deleted).toBe(321);
+    expect(json.deleted).toEqual([321]);
     expect(supabase.from).toHaveBeenCalledWith("manuscripts");
-    expect(deleteMock).toHaveBeenCalled();
-    expect(eqUserMock).toHaveBeenCalledWith("user_id", "user-1");
-    expect(eqIdMock).toHaveBeenCalledWith("id", 321);
+    expect(selectMock).toHaveBeenCalledWith("id,file_url");
+    expect(rpcMock).toHaveBeenCalledWith("delete_manuscripts_permanently", {
+      p_user_id: "user-1",
+      p_manuscript_ids: [321],
+    });
+    expect(fromStorageMock).not.toHaveBeenCalled();
   });
 });
