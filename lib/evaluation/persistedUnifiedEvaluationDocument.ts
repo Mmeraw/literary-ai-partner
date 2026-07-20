@@ -68,7 +68,7 @@ export function isUnifiedEvaluationDocument(value: unknown): value is UnifiedEva
     (canonicalOpportunityLedger.disposition_contract_version == null ||
       (canonicalOpportunityLedger.disposition_contract_version === 'recommendation_disposition_v1' &&
         canonicalOpportunityLedger.source_identity_version === 'criterion_content_fingerprint_v1' &&
-        Array.isArray(canonicalOpportunityLedger.source_recommendation_ids) &&
+        isStringArray(canonicalOpportunityLedger.source_recommendation_ids) &&
         Array.isArray(canonicalOpportunityLedger.recommendation_dispositions))) &&
     Array.isArray(value.criteriaScoreGrid) &&
     Array.isArray(value.criterionDetails) &&

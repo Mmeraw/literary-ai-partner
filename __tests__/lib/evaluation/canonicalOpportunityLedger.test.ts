@@ -186,6 +186,10 @@ describe('canonical opportunity duplicate collapse', () => {
     unknownVersion.canonicalOpportunityLedger.disposition_contract_version = 'recommendation_disposition_v2';
     expect(isUnifiedEvaluationDocument(unknownVersion)).toBe(false);
 
+    const malformedSourceIds = JSON.parse(JSON.stringify(ued));
+    malformedSourceIds.canonicalOpportunityLedger.source_recommendation_ids = [42];
+    expect(isUnifiedEvaluationDocument(malformedSourceIds)).toBe(false);
+
     const legacy = JSON.parse(JSON.stringify(ued));
     delete legacy.canonicalOpportunityLedger.disposition_contract_version;
     delete legacy.canonicalOpportunityLedger.source_identity_version;
