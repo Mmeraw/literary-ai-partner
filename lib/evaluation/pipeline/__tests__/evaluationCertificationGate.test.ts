@@ -169,6 +169,10 @@ function makeCleanInput(overrides: Partial<ECGInput> = {}): ECGInput {
         final_score_0_10: 7,
         final_rationale:
           "Momentum flows through the escalating penthouse conversation but stalls during exposition.",
+        recommendation_count: 0,
+        recommendation_status: "insufficient_evidence",
+        recommendation_status_rationale:
+          "The diagnosis is supported, but the submitted excerpt does not support a safe intervention.",
       },
     ],
     governance: {
@@ -827,8 +831,42 @@ describe("ECG — individual invariant coverage", () => {
   it("ECG_ART_MISSING_RECOMMENDATIONS", () => {
     const input = makeCleanInput();
     input.recommendations = { quick_wins: [], strategic_revisions: [] };
+    input.criteria = [{
+      key: "narrativeDrive",
+      final_score_0_10: 7,
+      final_rationale: "Momentum stalls during exposition and the criterion requires a governed disposition.",
+      recommendation_count: 0,
+    }];
     const { violations } = runWarn(input);
     expect(violations.map(v => v.code)).toContain("ECG_ART_MISSING_RECOMMENDATIONS");
+  });
+
+  it("does not let a recommendation on one criterion mask invalid coverage on another", () => {
+    const input = makeCleanInput({
+      criteria: [
+        {
+          key: "concept",
+          final_score_0_10: 8,
+          final_rationale: "The concept is coherent and supported by the submitted text.",
+          recommendation_count: 1,
+        },
+        {
+          key: "sceneConstruction",
+          final_score_0_10: 6,
+          final_rationale: "Scene construction is weak in several grounded passages.",
+          recommendation_count: 0,
+          recommendation_status: "recommendation_provided",
+          recommendation_status_rationale: "This status contradicts the empty recommendation collection.",
+        },
+      ],
+    });
+
+    const { violations } = runWarn(input);
+
+    expect(violations).toContainEqual(expect.objectContaining({
+      code: "ECG_ART_MISSING_RECOMMENDATIONS",
+      message: expect.stringContaining("sceneConstruction"),
+    }));
   });
 
   it("ECG_RENDERER_VERDICT_UNKNOWN", () => {

@@ -23,6 +23,7 @@ import type { SynthesisOutput, SynthesizedCriterion } from "@/lib/evaluation/pip
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function baseCriterion(key: CriterionKey, overrides: Partial<SynthesizedCriterion> = {}): SynthesizedCriterion {
+  const recommendations = overrides.recommendations ?? [];
   return {
     key,
     craft_score: 7,
@@ -34,7 +35,13 @@ function baseCriterion(key: CriterionKey, overrides: Partial<SynthesizedCriterio
     decision_points: ["A consequential choice is reached at the chapter turn."],
     consequence_status: "landed",
     evidence: [{ snippet: `Evidence for ${key}: the scene turn carries narrative weight confirmed by textual detail.` }],
-    recommendations: [],
+    recommendations,
+    recommendation_status: recommendations.length > 0
+      ? "recommendation_provided"
+      : "insufficient_evidence",
+    recommendation_status_rationale: recommendations.length > 0
+      ? undefined
+      : `The ${key} diagnosis is supported, but this fixture provides no separate safe intervention for that criterion.`,
     ...overrides,
   };
 }

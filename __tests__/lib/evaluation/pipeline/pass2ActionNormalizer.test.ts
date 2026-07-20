@@ -248,6 +248,48 @@ describe("normalizeRecommendationAction", () => {
       expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 })).toThrow("OPPORTUNITY_COVERAGE_MISSING");
     });
 
+    it("preserves a valid governed disposition so Pass 2 can accept zero safe recommendations", () => {
+      const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
+      const rawResponse = JSON.stringify({
+        criteria: [{
+          key: "concept",
+          score_0_10: 4,
+          rationale: "The concept diagnosis is grounded in the manuscript's recurring conflict.",
+          evidence: [{ snippet: "Sister's shadow hung over everything.", char_start: 100, char_end: 140 }],
+          recommendations: [],
+          recommendation_status: "insufficient_evidence",
+          recommendation_status_rationale:
+            "The excerpt supports the diagnosis but not a separate, safely anchored intervention.",
+        }],
+      });
+
+      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 });
+      expect(result.criteria[0]).toEqual(expect.objectContaining({
+        recommendation_status: "insufficient_evidence",
+        recommendation_status_rationale:
+          "The excerpt supports the diagnosis but not a separate, safely anchored intervention.",
+        recommendations: [],
+      }));
+    });
+
+    it("fails Pass 2 closed on an unknown explicit recommendation status", () => {
+      const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
+      const rawResponse = JSON.stringify({
+        criteria: [{
+          key: "concept",
+          score_0_10: 4,
+          rationale: "The concept diagnosis is grounded in the manuscript's recurring conflict.",
+          evidence: [{ snippet: "Sister's shadow hung over everything.", char_start: 100, char_end: 140 }],
+          recommendations: [],
+          recommendation_status: "future_unregistered_status",
+          recommendation_status_rationale: "A future status cannot silently inherit current authority.",
+        }],
+      });
+
+      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 }))
+        .toThrow("RECOMMENDATION_STATUS_INVALID");
+    });
+
     it("does NOT throw coverage error for high-scoring short submission (201 words) when all recs are stripped", () => {
       const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
       const rawResponse = JSON.stringify({

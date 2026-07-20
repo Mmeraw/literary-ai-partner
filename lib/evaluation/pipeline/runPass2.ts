@@ -29,7 +29,10 @@ import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig
 import { trackCompletionCost } from "@/lib/jobs/cost";
 import { summarizePromptCoverage } from "./promptInput";
 import { countWords } from "./submissionScope";
-import { hasGovernedOpportunityCoverage } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
+import {
+  analyzeGovernedOpportunityCoverage,
+  isGovernedRecommendationStatus,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import { getConfiguredChunkCap } from "./chunkCap";
 import {
   ChunkCountExceedsCapError,
@@ -1186,6 +1189,24 @@ export function parsePass2Response(
         ? Math.round(parsedScore)
         : null;
     const rationale = String(c["rationale"] ?? "");
+    const rawRecommendationStatus = c["recommendation_status"];
+    const hasExplicitRecommendationStatus = rawRecommendationStatus !== undefined
+      && rawRecommendationStatus !== null
+      && rawRecommendationStatus !== "";
+    if (
+      hasExplicitRecommendationStatus
+      && !isGovernedRecommendationStatus(rawRecommendationStatus)
+    ) {
+      throw new Error(
+        `[Pass2] RECOMMENDATION_STATUS_INVALID: ${key} emitted an unknown recommendation_status.`,
+      );
+    }
+    const recommendationStatus = isGovernedRecommendationStatus(rawRecommendationStatus)
+      ? rawRecommendationStatus
+      : undefined;
+    const recommendationStatusRationale = typeof c["recommendation_status_rationale"] === "string"
+      ? c["recommendation_status_rationale"].trim()
+      : undefined;
 
     const reasonCodes: string[] = [];
     // PR-D: preserve null sentinel; canonical floor is 1
@@ -1203,6 +1224,8 @@ export function parsePass2Response(
       score_0_10: (boundedScore as unknown) as number,
       reason_codes: reasonCodes.length > 0 ? reasonCodes : undefined,
       rationale,
+      recommendation_status: recommendationStatus,
+      recommendation_status_rationale: recommendationStatusRationale,
       evidence,
       recommendations: normalizedRecommendations,
     });
@@ -1221,17 +1244,17 @@ export function parsePass2Response(
         typeof r.anchor_snippet === "string" && r.anchor_snippet.trim().length > 0,
       ).length;
 
-      const governed = hasGovernedOpportunityCoverage({
+      const coverage = analyzeGovernedOpportunityCoverage({
         score,
         meaningfulOpportunityCount: meaningful,
-        recommendationStatus: (criterion as any).recommendation_status,
-        recommendationStatusRationale: (criterion as any).recommendation_status_rationale,
+        recommendationStatus: criterion.recommendation_status,
+        recommendationStatusRationale: criterion.recommendation_status_rationale,
       });
 
-      if (!governed) {
+      if (!coverage.covered) {
         throw new Error(
           `[Pass2] OPPORTUNITY_COVERAGE_MISSING: ${criterion.key} score=${score} ` +
-            `has ${meaningful} meaningful recommendation(s) and no governed status rationale.`,
+            `has ${meaningful} meaningful recommendation(s); issues=${coverage.issues.join(",")}.`,
         );
       }
     }

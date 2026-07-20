@@ -167,6 +167,21 @@ For scores 9–10, zero opportunities is valid when accompanied by a substantive
 
 For weak criteria, an empty opportunity list MUST NOT be silent. The criterion must either provide at least one supported opportunity or explain why evidence or safety prevented one.
 
+The status/cardinality contract is:
+
+| Status | Zero recommendations allowed | Recommendations allowed | Rationale required | Invalid combination recovery |
+|---|---:|---:|---:|---|
+| `recommendation_provided` | No | Yes | No | One bounded Pass 3 retry |
+| `no_recommendation_warranted` | Yes | No | Yes | One bounded Pass 3 retry |
+| `genre_appropriate_no_revision_warranted` | Yes | No | Yes | One bounded Pass 3 retry |
+| `criterion_not_applicable` | Yes | No | Yes | One bounded Pass 3 retry |
+| `insufficient_evidence` | Yes | No | Yes | One bounded Pass 3 retry |
+| `gate_suppressed_no_safe_recommendation` | Yes | No | Yes | One bounded Pass 3 retry |
+
+An omitted status remains legacy-compatible only when a recommendation exists, or when a strong criterion legitimately contains no recommendation. An unknown explicit status always fails closed.
+
+`confidence_level` describes confidence in the criterion diagnosis. It is not intervention confidence and MUST NOT grant recommendation admission, invalidate an otherwise governed `insufficient_evidence` disposition, or manufacture queue work. Evidence-anchor counts and snippet length are likewise observational unless a separate grounding contract proves source membership and actionability.
+
 ## 8. Opportunity-budget accounting
 
 The canonical ledger SHOULD expose discovery accounting without implying a fill requirement:
@@ -272,6 +287,11 @@ The repository MUST prove at least the following:
 - 10/10 may render zero opportunities;
 - 6/10 with no opportunity and no governed status fails closed;
 - 6/10 with `insufficient_evidence` and concrete rationale passes with disclosure;
+- 6/10 with High diagnostic confidence, evidence anchors, and a valid `insufficient_evidence` rationale passes and remains available for editorial calibration;
+- recommendation present plus `insufficient_evidence` or a safety-suppression status fails closed;
+- no recommendation plus `recommendation_provided` fails closed;
+- one valid recommendation elsewhere in the report does not mask missing or contradictory coverage on another scored criterion;
+- only `CRITERION_OPPORTUNITY_COVERAGE_INVALID` receives the bounded Pass 3 recovery; generic template-completeness failures remain terminal;
 - Short Form never receives WAVE opportunities;
 - Long Form may combine editorial, WAVE, and cross-WAVE opportunities up to 100;
 - no renderer creates opportunities absent from the canonical ledger.

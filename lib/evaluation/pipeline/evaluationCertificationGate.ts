@@ -47,7 +47,7 @@
  */
 
 import { getECGMode, type ECGMode } from '@/lib/evaluation/policy';
-import { hasGovernedOpportunityCoverage } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
+import { analyzeGovernedOpportunityCoverage } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import {
   trimAtSentenceBoundary as trimAtSentenceBoundaryShared,
@@ -696,14 +696,6 @@ function mapAuthorityViolationToLegacyEcg(
     violation: violation(ecgCode, message),
   });
 
-  // Legacy-local: enrichment.premise is enforced by the existing ECG checkText
-  // but is not part of the central author-facing contract for Stage 2.
-  const legacyLocal = (ecgCode: string, message: string): CompatibilityDisposition => ({
-    kind: 'legacy-local',
-    reason: 'not-part-of-certified-author-facing-contract',
-    violation: violation(ecgCode, message),
-  });
-
   const legacyNotEnforced = (): CompatibilityDisposition => ({
     kind: 'legacy-not-enforced',
     authorityViolation,
@@ -1191,31 +1183,30 @@ function checkCompleteness(input: ECGInput): ECGViolation[] {
   if (input.governance?.confidence === null || input.governance?.confidence === undefined)
     vs.push(violation('ECG_ART_MISSING_CONFIDENCE', 'governance.confidence is absent.'));
 
-  const totalRecs =
-    (input.recommendations?.quick_wins?.length ?? 0) +
-    (input.recommendations?.strategic_revisions?.length ?? 0);
-
-  // ODP: zero total recommendations is acceptable when every scored criterion
-  // either carries recommendations or a governed zero-opportunity status.
+  // ODP coverage is per criterion. A recommendation on one criterion cannot
+  // mask missing or contradictory disposition authority on another.
   const scoredCriteria = (input.criteria ?? []).filter(
     (c) => c.final_score_0_10 !== null && c.final_score_0_10 !== undefined,
   );
-  const hasCoverage =
-    scoredCriteria.length === 0 ||
-    scoredCriteria.every((c) =>
-      hasGovernedOpportunityCoverage({
-        score: c.final_score_0_10 ?? null,
-        meaningfulOpportunityCount: c.recommendation_count ?? 0,
-        recommendationStatus: c.recommendation_status,
-        recommendationStatusRationale: c.recommendation_status_rationale,
+  const criteriaCoverage = scoredCriteria.map((criterion) => ({
+    criterion,
+    analysis: analyzeGovernedOpportunityCoverage({
+        score: criterion.final_score_0_10 ?? null,
+        meaningfulOpportunityCount: criterion.recommendation_count ?? 0,
+        recommendationStatus: criterion.recommendation_status,
+        recommendationStatusRationale: criterion.recommendation_status_rationale,
       }),
-    );
+  }));
+  const criteriaWithoutCoverage = criteriaCoverage.filter(({ analysis }) => !analysis.covered);
 
-  if (totalRecs === 0 && !hasCoverage) {
+  if (criteriaWithoutCoverage.length > 0) {
+    const diagnostics = criteriaWithoutCoverage.map(({ criterion, analysis }) =>
+      `${criterion.key ?? 'unknown'}(${analysis.issues.join(',') || 'unknown'})`,
+    );
     vs.push(
       violation(
         'ECG_ART_MISSING_RECOMMENDATIONS',
-        'No quick_wins or strategic_revisions present and at least one scored criterion lacks governed opportunity coverage. Under ODP, every scored criterion must either carry recommendations or a valid recommendation_status with rationale.',
+        `${criteriaWithoutCoverage.length} scored criterion/criteria lack valid governed opportunity coverage: ${diagnostics.join('; ')}. Under ODP, every scored criterion must carry a supported recommendation or a cardinality-consistent governed disposition.`,
       ),
     );
   }

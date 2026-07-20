@@ -16,6 +16,23 @@ Documents the three `SHORT_FORM_*` entries added to `KICK_MATRIX` in `fipocRegis
 
 ## New KICK_MATRIX Entries
 
+### `CRITERION_OPPORTUNITY_COVERAGE_INVALID` — contradictory recommendation coverage
+
+| Field | Value |
+|---|---|
+| `dirtyDataDetectedAt` | `S07_TEMPLATE_COMPLETENESS_GATE` |
+| `failure` | A scored criterion lacks governed opportunity coverage, or explicit recommendation status contradicts recommendation cardinality |
+| `kickBackTo` | `S07_PASS3` |
+| `redoAction` | Regenerate the affected criterion so recommendation cardinality, governed status, and required rationale agree |
+| `retryLimit` | 1 |
+| `ifRetryFails` | Fail closed; preserve diagnostics and block certification, persistence, and Revise projection |
+| `failureCode` | `CRITERION_OPPORTUNITY_COVERAGE_INVALID` |
+| `blocksAuthorExposure` | `true` |
+
+This entry measures status/cardinality consistency rather than recommendation quantity. It does not require a minimum number of opportunities and does not authorize queue creation. Diagnostic confidence and evidence counts remain observational. One recommendation on another criterion cannot hide invalid coverage.
+
+Generic `TEMPLATE_COMPLETENESS_GATE_FAILED` remains terminal because structural/template defects may require a code or contract correction rather than model re-synthesis.
+
 ### `SHORT_FORM_LONGFORM_ARTIFACT_LEAK`
 
 | Field | Value |

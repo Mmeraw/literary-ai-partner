@@ -72,12 +72,18 @@ function makeCertificationInput(): ECGInput {
           final_score_0_10: 8,
           final_rationale:
             "The concept linking diamond industry collapse to cobalt mining and personal ethics is fresh.",
+          recommendation_status: "no_recommendation_warranted",
+          recommendation_status_rationale:
+            "The concept is already distinct and coherent; the report-level advice belongs to other criteria.",
         },
         {
           key: "narrativeDrive",
           final_score_0_10: 7,
           final_rationale:
             "Momentum flows through the escalating penthouse conversation but stalls during exposition.",
+          recommendation_status: "insufficient_evidence",
+          recommendation_status_rationale:
+            "The available synthesis supports the diagnosis but not a separate, criterion-owned safe intervention.",
         },
       ],
       governance: {

@@ -211,6 +211,7 @@ function firstFailureArtifact(failureCode: string | null): string | undefined {
       return 'quality_gate_diagnostics_v1';
     case 'ARTIFACT_CONSISTENCY_GATE_FAILED':
       return 'artifact_consistency_gate_v1';
+    case 'CRITERION_OPPORTUNITY_COVERAGE_INVALID':
     case 'TEMPLATE_COMPLETENESS_GATE_FAILED':
       return 'evaluation_result_v2';
     default:
@@ -407,7 +408,27 @@ function buildTemplateGateFailure(diagnostics: Record<string, unknown> | null): 
   };
 }
 
-function buildBackwardKickStatus(failureCode: string | null): FailureDiagnosisV1['backward_kick_status'] {
+function buildBackwardKickStatus(
+  failureCode: string | null,
+  diagnostics?: Record<string, unknown> | null,
+): FailureDiagnosisV1['backward_kick_status'] {
+  const recordedDecision = isRecord(diagnostics?.backward_kick)
+    ? diagnostics.backward_kick
+    : null;
+
+  if (failureCode === 'CRITERION_OPPORTUNITY_COVERAGE_INVALID') {
+    return {
+      triggered: recordedDecision?.kicked === true,
+      reason: asString(recordedDecision?.reason)
+        ?? 'The bounded Pass 3 recovery was unavailable before terminal diagnosis.',
+      retry_policy: {
+        max_retries: 1,
+        retryable: false,
+        classification: 'recoverable_exhausted',
+      },
+    };
+  }
+
   if (
     failureCode === 'QG_FAILED' ||
     failureCode === 'ARTIFACT_CONSISTENCY_GATE_FAILED' ||
@@ -435,6 +456,7 @@ function buildFailureClass(failureCode: string | null): FailureDiagnosisV1['fail
       return 'recoverable_exhausted';
     case 'QG_FAILED':
     case 'ARTIFACT_CONSISTENCY_GATE_FAILED':
+    case 'CRITERION_OPPORTUNITY_COVERAGE_INVALID':
     case 'TEMPLATE_COMPLETENESS_GATE_FAILED':
       return 'governance_blocked';
     case 'ARTIFACT_PERSISTENCE_FAILED':
@@ -527,7 +549,7 @@ function buildTemplateFailure(
       mechanism: 'synthesisToEvaluationResultV2.template_completeness_fallback',
       outcome: templateGateFailure.critical_violation ? 'failed' : 'not_applicable',
     },
-    backward_kick_status: buildBackwardKickStatus(failureCode),
+    backward_kick_status: buildBackwardKickStatus(failureCode, diagnostics),
     recommended_next_action:
       'Repair the blocking template completeness violations before re-attempting canonical persistence.',
     evidence_refs: [
@@ -889,7 +911,10 @@ export function buildFailureDiagnosisV1(input: FailureDiagnosisBuildInput): Fail
         : diagnostics,
       artifactInventory,
     );
-  } else if (input.failureCode === 'TEMPLATE_COMPLETENESS_GATE_FAILED') {
+  } else if (
+    input.failureCode === 'TEMPLATE_COMPLETENESS_GATE_FAILED'
+    || input.failureCode === 'CRITERION_OPPORTUNITY_COVERAGE_INVALID'
+  ) {
     diagnosis = buildTemplateFailure(
       input.phase,
       input.failureCode,

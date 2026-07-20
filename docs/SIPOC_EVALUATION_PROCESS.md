@@ -697,12 +697,15 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Output acceptance metrics:**
   - synthesis object present
   - criteria/recommendation structure survives deterministic checks
+  - every scored criterion has either an evidence-grounded recommendation or a valid governed disposition
+  - recommendation cardinality, explicit status, and required rationale agree per criterion
+  - diagnostic confidence and evidence counts remain observational and never grant recommendation or queue authority
   - **Recommendation Integrity Gate passes:** no FAIL-tier recommendations reach persistence (malformed, garbled, generic, or evidence-free recommendations are quarantined)
   - Every recommendation has: complete sentences, specific manuscript evidence anchor, actionable language (not generic workshop advice)
 - **Customer / downstream stage:** `S08_ER2_NORMALIZATION`
-- **Gates / invariants:** stages fail closed; no partial success promoted as final. No malformed recommendation may reach the author (Runtime Doctrine #11).
-- **Failure codes:** `PASS3_TIMEOUT`, `PASS3_FAILED`
-- **Required telemetry:** pass3 timing + convergence diagnostics
+- **Gates / invariants:** stages fail closed; no partial success promoted as final. No malformed recommendation may reach the author (Runtime Doctrine #11). A recommendation elsewhere in the report cannot mask invalid coverage on another criterion. Opportunity cardinality/status contradictions kick back once through `CRITERION_OPPORTUNITY_COVERAGE_INVALID`; unrelated `TEMPLATE_COMPLETENESS_GATE_FAILED` defects remain terminal.
+- **Failure codes:** `PASS3_TIMEOUT`, `PASS3_FAILED`, `CRITERION_OPPORTUNITY_COVERAGE_INVALID`, `TEMPLATE_COMPLETENESS_GATE_FAILED`
+- **Required telemetry:** pass3 timing + convergence diagnostics + per-criterion recommendation count, governed status, diagnostic confidence, evidence-anchor count, coverage result, selected failure code, and kick attempt/outcome
 - **Required evidence artifact:** pass3 output snapshot
 - **Canon refs:** Volume III pass/convergence canon
 - **Spec refs:** `docs/EVALUATION_CRITICAL_FILE_PATH.md`
