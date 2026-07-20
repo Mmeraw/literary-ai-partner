@@ -202,7 +202,7 @@ async function insertAdminAction(jobId: string) {
 async function rowExists(table: string, column: string, value: unknown): Promise<boolean> {
   const { data, error } = await supabase
     .from(table)
-    .select("id")
+    .select("*")
     .eq(column, value)
     .limit(1);
   if (error) throw new Error(`Failed to query ${table}: ${error.message}`);
