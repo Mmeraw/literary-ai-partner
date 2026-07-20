@@ -1,7 +1,7 @@
 # RevisionGrade Production Corrective Action Register
 
 **Authority:** Repository source of truth  
-**Version:** 1.1  
+**Version:** 1.1
 **Effective date:** 2026-07-20  
 **Derived consumers:** forensic workbooks, release dashboards, executive summaries, PR descriptions
 
