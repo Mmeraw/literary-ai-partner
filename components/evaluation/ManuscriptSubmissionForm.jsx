@@ -493,6 +493,21 @@ export default function ManuscriptSubmissionForm({ onSubmitSuccess, freeDiagnost
     };
   }, []);
 
+  // Pre-select a manuscript when the Evaluate page is reached via /evaluate?manuscriptId=...
+  useEffect(() => {
+    if (typeof window === "undefined" || activeInputMethod !== "saved" || dashboardManuscripts.length === 0) {
+      return;
+    }
+    const rawId = new URLSearchParams(window.location.search).get("manuscriptId");
+    if (!rawId) return;
+
+    const id = Number(rawId);
+    if (!Number.isInteger(id) || id <= 0) return;
+    if (dashboardManuscripts.some((doc) => doc.id === id)) {
+      setSelectedManuscriptId(id);
+    }
+  }, [dashboardManuscripts, activeInputMethod]);
+
   useEffect(() => {
     return () => {
       clearPendingPastedTextSummary();

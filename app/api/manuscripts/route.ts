@@ -284,26 +284,75 @@ export async function POST(req: Request) {
   }
 }
 
+function tryParseStorageObjectUrl(fileUrl: string | null): { bucket: string; path: string } | null {
+  if (!fileUrl || !fileUrl.startsWith("http")) return null;
+  try {
+    const url = new URL(fileUrl);
+    const match = url.pathname.match(/^\/storage\/v1\/object\/(?:public|private)\/([^/]+)\/(.+)$/);
+    if (!match) return null;
+    return { bucket: match[1], path: decodeURIComponent(match[2]) };
+  } catch {
+    return null;
+  }
+}
+
+function parseManuscriptIds(req: Request): number[] | null {
+  const params = new URL(req.url).searchParams;
+  const rawIds = params.get("ids");
+  const rawId = params.get("id");
+
+  const inputs: string[] = [];
+  if (rawIds) {
+    inputs.push(...rawIds.split(",").map((s) => s.trim()).filter(Boolean));
+  }
+  if (rawId) {
+    inputs.push(rawId.trim());
+  }
+
+  const ids = inputs
+    .map((s) => Number(s))
+    .filter((n) => Number.isInteger(n) && n > 0);
+
+  if (ids.length === 0 || ids.length !== inputs.length) {
+    return null;
+  }
+
+  return [...new Set(ids)];
+}
+
 export async function DELETE(req: Request) {
   try {
     const auth = await requireUser();
     if (auth.ok === false) return auth.response;
     const user = auth.user;
 
-    const manuscriptIdParam = new URL(req.url).searchParams.get("id");
-    const manuscriptId = Number(manuscriptIdParam);
-
-    if (!manuscriptIdParam || !Number.isInteger(manuscriptId) || manuscriptId <= 0) {
-      return NextResponse.json({ ok: false, error: "Valid manuscript id is required" }, { status: 400 });
+    const ids = parseManuscriptIds(req);
+    if (!ids) {
+      return NextResponse.json({ ok: false, error: "Valid manuscript id(s) are required" }, { status: 400 });
     }
 
     const supabase = createAdminClient();
-    const { data, error } = await supabase
+
+    const { data: fileRows, error: fileError } = await supabase
       .from("manuscripts")
-      .delete()
+      .select("id,file_url")
       .eq("user_id", user.id)
-      .eq("id", manuscriptId)
-      .select("id");
+      .in("id", ids);
+
+    if (fileError) {
+      return NextResponse.json({ ok: false, error: "Failed to read manuscripts" }, { status: 500 });
+    }
+
+    const foundIds = (fileRows ?? []).map((row: any) => Number(row.id));
+    if (foundIds.length !== ids.length) {
+      // Ensure every requested id belongs to the user before deleting any of them.
+      return NextResponse.json({ ok: false, error: "One or more manuscripts not found" }, { status: 404 });
+    }
+
+    const { data, error } = await supabase.rpc("delete_manuscripts_permanently", {
+      p_user_id: user.id,
+      p_manuscript_ids: ids,
+    });
 
     if (error) {
       return NextResponse.json(
@@ -312,11 +361,39 @@ export async function DELETE(req: Request) {
       );
     }
 
-    if (!data || data.length === 0) {
-      return NextResponse.json({ ok: false, error: "Manuscript not found" }, { status: 404 });
+    const result = Array.isArray(data) && data.length > 0 ? data[0] : data;
+    const deletedIds = result?.deleted_ids ?? foundIds;
+
+    // Best-effort storage cleanup (not atomic with the DB transaction).
+    const storageUrls = (fileRows ?? [])
+      .map((row: any) => tryParseStorageObjectUrl(row.file_url))
+      .filter((x): x is { bucket: string; path: string } => x !== null);
+
+    const removalsByBucket: Record<string, string[]> = {};
+    for (const item of storageUrls) {
+      removalsByBucket[item.bucket] = removalsByBucket[item.bucket] ?? [];
+      removalsByBucket[item.bucket].push(item.path);
     }
 
-    return NextResponse.json({ ok: true, deleted: data[0]?.id ?? manuscriptId }, { status: 200 });
+    await Promise.allSettled(
+      Object.entries(removalsByBucket).map(async ([bucket, paths]) => {
+        try {
+          await supabase.storage.from(bucket).remove(paths);
+        } catch {
+          // Non-fatal; DB deletion already succeeded.
+        }
+      }),
+    );
+
+    return NextResponse.json(
+      {
+        ok: true,
+        deleted: deletedIds,
+        count: deletedIds.length,
+        counts: result?.counts ?? {},
+      },
+      { status: 200 },
+    );
   } catch (error) {
     return NextResponse.json(
       {
