@@ -1,11 +1,18 @@
 export {};
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 import {
   classifyQueuedHardStop,
   classifySplitBrain,
   decideSplitBrainRecovery,
   hasCompletePhase1aSeedState,
+  HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER,
+  HELD_RECOVERY_PROOF_HOLD_JSON_CONTAINMENT,
   isGlobalSlaExceeded,
+  isHeldRecoveryProofHoldProgress,
+  isQueuedHardStopWatchdogCandidate,
   isMaxAgeKillSwitchExpired,
   isPostPhase0HandoffLimbo,
   partitionMaxAgeKillSwitchCandidates,
@@ -15,6 +22,64 @@ import {
 } from '../../../lib/evaluation/hardStopGovernance';
 
 describe('hardStopGovernance', () => {
+  test('recognizes only an explicit boolean Held Recovery proof hold marker', () => {
+    expect(isHeldRecoveryProofHoldProgress({ held_recovery_proof_hold: true })).toBe(true);
+    expect(isHeldRecoveryProofHoldProgress({ held_recovery_proof_hold: false })).toBe(false);
+    expect(isHeldRecoveryProofHoldProgress({ held_recovery_proof_hold: 'true' })).toBe(false);
+    expect(isHeldRecoveryProofHoldProgress({})).toBe(false);
+    expect(isHeldRecoveryProofHoldProgress([])).toBe(false);
+    expect(isHeldRecoveryProofHoldProgress(null)).toBe(false);
+  });
+
+  test('selects ordinary queued jobs while excluding proof-held queued jobs', () => {
+    const ordinaryStaleJob = {
+      progress: { phase_status: 'queued', sla_auto_requeue_count: 2 },
+    };
+    const proofHeldJob = {
+      progress: {
+        phase_status: 'queued',
+        held_recovery_proof_hold: true,
+        sla_auto_requeue_count: 0,
+      },
+    };
+
+    expect(isQueuedHardStopWatchdogCandidate(ordinaryStaleJob)).toBe(true);
+    expect(isQueuedHardStopWatchdogCandidate({ progress: null })).toBe(true);
+    expect(isQueuedHardStopWatchdogCandidate(proofHeldJob)).toBe(false);
+    expect([ordinaryStaleJob, proofHeldJob].filter(isQueuedHardStopWatchdogCandidate)).toEqual([
+      ordinaryStaleJob,
+    ]);
+    expect(proofHeldJob.progress).toEqual({
+      phase_status: 'queued',
+      held_recovery_proof_hold: true,
+      sla_auto_requeue_count: 0,
+    });
+  });
+
+  test('guards the complete queued-hard-stop mutation boundary from proof-held jobs', () => {
+    const processorSource = fs.readFileSync(
+      path.join(process.cwd(), 'lib/evaluation/processor.ts'),
+      'utf8',
+    );
+    const functionSource = processorSource.slice(
+      processorSource.indexOf('async function terminalizeQueuedHardStops'),
+      processorSource.indexOf('async function ensureSeedArtifactsForPhase1a'),
+    );
+
+    expect(functionSource).toContain('isQueuedHardStopWatchdogCandidate');
+    expect(HELD_RECOVERY_PROOF_HOLD_JSON_CONTAINMENT).toBe(
+      '{"held_recovery_proof_hold":true}',
+    );
+    expect(HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER).toBe(
+      'progress.is.null,progress.not.cs.{"held_recovery_proof_hold":true}',
+    );
+    expect(
+      functionSource.match(
+        /\.or\(HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER\)/g,
+      ),
+    ).toHaveLength(4);
+  });
+
   test('detects split-brain phase mismatches', () => {
     expect(
       isSplitBrainState({

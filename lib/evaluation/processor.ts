@@ -115,6 +115,8 @@ import {
   decideSplitBrainRecovery,
   hasCompletePhase1aSeedState,
   classifySplitBrain,
+  HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER,
+  isQueuedHardStopWatchdogCandidate,
   isMaxAgeKillSwitchExpired,
   partitionMaxAgeKillSwitchCandidates,
   resolveProviderBudget,
@@ -4303,7 +4305,12 @@ async function terminalizeQueuedHardStops(): Promise<{
     return { hardStopped: 0, ids: [], shouldHaltProcessing: false };
   }
 
-  const rows = (queuedRows ?? []) as QueueHardStopCandidate[];
+  // A proof-held job is deliberately queued but undispatchable. Exclude it from
+  // watchdog classification, then repeat the same condition on every write so
+  // a hold created after this read cannot be erased by a stale watchdog row.
+  const rows = ((queuedRows ?? []) as QueueHardStopCandidate[]).filter(
+    isQueuedHardStopWatchdogCandidate,
+  );
   if (rows.length === 0) {
     return { hardStopped: 0, ids: [], shouldHaltProcessing: false };
   }
@@ -4428,7 +4435,8 @@ async function terminalizeQueuedHardStops(): Promise<{
         .from('evaluation_jobs')
         .update({ progress: healedProgress, updated_at: nowIso })
         .eq('id', row.id)
-        .eq('status', JOB_STATUS.QUEUED);
+        .eq('status', JOB_STATUS.QUEUED)
+        .or(HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER);
 
       if (!healErr) {
         await sendRecoveryAlert({
@@ -4494,7 +4502,8 @@ async function terminalizeQueuedHardStops(): Promise<{
           progress: resetProgress,
         })
         .eq('id', row.id)
-        .eq('status', JOB_STATUS.QUEUED);
+        .eq('status', JOB_STATUS.QUEUED)
+        .or(HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER);
 
       if (resetErr) {
         console.warn('[Watchdog] post-phase0 missing-seed reset failed:', row.id, resetErr.message);
@@ -4544,7 +4553,8 @@ async function terminalizeQueuedHardStops(): Promise<{
             progress: requeueProgress,
           })
           .eq('id', row.id)
-          .eq('status', JOB_STATUS.QUEUED);
+          .eq('status', JOB_STATUS.QUEUED)
+          .or(HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER);
 
         if (!requeueErr) {
           console.log(`[Watchdog] SLA auto-requeue for job ${row.id} (attempt ${slaRequeueCount + 1}/${SLA_AUTO_REQUEUE_MAX})`);
@@ -4583,7 +4593,8 @@ async function terminalizeQueuedHardStops(): Promise<{
         progress: hardStopProgress,
       })
       .eq('id', row.id)
-      .eq('status', JOB_STATUS.QUEUED);
+      .eq('status', JOB_STATUS.QUEUED)
+      .or(HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER);
 
     if (promoteErr) {
       console.warn('[Watchdog] queued-hard-stop promote failed:', row.id, promoteErr.message);
