@@ -234,7 +234,6 @@ const SHORT_FORM_SECTION_TITLES = getShortFormSections()
   .map(s => s.title);
 
 // Long-form §12–§21: titles from sharedLongFormMultiLayerSections
-const LONG_FORM_SECTION_TITLES = getLongFormMultiLayerSections().map(s => s.title);
 
 // Combined expected TXT sections (TXT uses UPPER CASE headings).
 // Short-form §2–§12 (excluding overlaps with long-form) + long-form sections that
@@ -323,7 +322,7 @@ describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
     const vm = normalizeEvaluationReportViewModel({ ued: canonicalDoc as any, dreamDoc: dream as any });
 
     txt = testing.renderTxtFromViewModel(vm, 'parity-gate-job');
-    html = testing.renderHtmlFromViewModel(vm);
+    html = testing.renderHtmlFromViewModel(vm, 'parity-gate-job');
     const docxBuffer = await testing.renderDocxFromViewModel(vm);
     docxText = (await mammoth.extractRawText({ buffer: docxBuffer })).value;
 
@@ -786,9 +785,52 @@ describe('surface-parity gate (UED → VM → TXT/HTML/DOCX)', () => {
   });
 
   describe('layout and pagination doctrine', () => {
-    test('download HTML: no break-inside:avoid on section or article elements (soft pagination)', () => {
-      expect(html).not.toMatch(/section[^>]*style="[^"]*break-inside:\s*avoid/);
-      expect(html).not.toMatch(/article[^>]*style="[^"]*break-inside:\s*avoid/);
+    test('download HTML stylesheet: sections, criterion cards, and opportunity blocks use soft pagination', () => {
+      const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+      expect(style).toMatch(/section\{[^}]*break-inside:auto[^}]*page-break-inside:auto/);
+      expect(style).toMatch(/\.card\{[^}]*break-inside:auto[^}]*page-break-inside:auto/);
+      expect(style).toMatch(/\.opp-block\{[^}]*break-inside:auto[^}]*page-break-inside:auto/);
+      expect(style).toMatch(/\.opp-recommendation\{[^}]*break-inside:auto[^}]*page-break-inside:auto/);
+      expect(style).toMatch(/article\.card\{[^}]*break-inside:auto[^}]*page-break-inside:auto/);
+      expect(style).not.toMatch(/(?:^|})\s*(?:section|article\.card|\.card|\.opp-block|\.opp-recommendation)\{[^}]*break-inside:avoid/);
+    });
+
+    test('download HTML stylesheet: only compact units stay intact and table headers repeat', () => {
+      const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+      expect(style).toMatch(/\.score-grid-table thead\{display:table-header-group\}/);
+      expect(style).toMatch(/\.score-grid-table tr\{[^}]*break-inside:avoid/);
+      expect(style).toMatch(/\.metric,.dash-card,.opp-field\{[^}]*break-inside:avoid/);
+      expect(style).toMatch(/h2\{[^}]*break-after:avoid[^}]*page-break-after:avoid/);
+      expect(style).toMatch(/\.report-closing\{[^}]*break-inside:avoid[^}]*page-break-inside:avoid/);
+      expect(html).toMatch(/<section class="sec-meta report-closing">[\s\S]*Confidence Explanation[\s\S]*Author-Facing Disclaimer[\s\S]*<\/section>/);
+    });
+
+    test('download HTML cover preserves the approved premium title-page composition', () => {
+      const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+      expect(style).toMatch(/\.cover\{[^}]*min-height:9\.2in[^}]*background:#FFFDF9/);
+      expect(style).toMatch(/\.brand\{[^}]*font-family:Helvetica[^}]*font-size:25pt[^}]*font-weight:700[^}]*text-align:center/);
+      expect(style).toMatch(/\.title\{[^}]*font-family:Helvetica[^}]*font-size:28pt[^}]*font-weight:700/);
+      expect(style).toMatch(/\.dashboard\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+      expect(style).toMatch(/\.cover-wide\{[^}]*text-align:left[^}]*break-inside:avoid/);
+      expect(style).toMatch(/\.cover-compact\{[^}]*min-height:9\.2in/);
+      expect(html).toContain('<div class="cover-rule"><span></span></div>');
+      expect(html).toContain('<strong>Target Audience</strong>');
+      expect(html).toContain('class="cover-reference"');
+      const dashboard = html.match(/<div class="dashboard">([\s\S]*?)<\/div>\s*<div class="grid title-metadata-grid">/)?.[1] ?? '';
+      expect(dashboard).toContain('Overall Score');
+      expect(dashboard).toContain('Market Readiness');
+      expect(dashboard).toContain('Genre');
+      expect(dashboard).not.toContain('Target Audience');
+    });
+
+    test('download HTML preserves the approved typography and section hierarchy', () => {
+      const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+      expect(style).toMatch(/body\{[^}]*font-family:Georgia[^}]*line-height:1\.28[^}]*font-size:11pt/);
+      expect(style).toMatch(/h2\{[^}]*font-size:18pt[^}]*border-bottom:1px solid #D9D0C3/);
+      expect(style).toMatch(/section\{[^}]*background:#FFFFFF[^}]*border:1px solid #D9D0C3[^}]*border-radius:9px/);
+      expect(style).toMatch(/section\.sec-pitch\{border-left:3\.5px solid #C8A96E\}/);
+      expect(style).toMatch(/section\.sec-risk\{border-left:3\.5px solid #8B2020\}/);
+      expect(style).toMatch(/\.opp-key\{[^}]*font-weight:700[^}]*color:#8B6D4A/);
     });
 
     test('download HTML: page-break-before only appears for major divisions', () => {

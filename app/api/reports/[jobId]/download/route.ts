@@ -1203,69 +1203,72 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
   })() : '';
 
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(vm.titleBlock.displayTitle)} - RevisionGrade Report</title><style>
-    @page{size:Letter;margin:0.75in 0.80in 0.85in;@bottom-center{content:'RevisionGrade\u2122 | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
+    @page{size:Letter;margin:0.66in 0.68in 0.78in;@bottom-center{content:'RevisionGrade\u2122 | Confidential Editorial Assessment | Page ' counter(page);color:#9A9087;font-size:8.5pt;font-family:Helvetica,Arial,sans-serif}}
     *{box-sizing:border-box;min-width:0}
-    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#F5EFE0;margin:0;padding:0.22in 0.30in;line-height:1.52;font-size:11pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;orphans:3;widows:3}
+    body{font-family:Georgia,'Times New Roman',serif;color:#1C1814;background:#FAF7F2;margin:0;padding:0.18in;line-height:1.28;font-size:11pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;orphans:3;widows:3}
     body,p,li,td,div,span{overflow-wrap:anywhere;word-break:normal;hyphens:auto}
-    .cover{position:relative;min-height:7.8in;background:#F5EFE0;border:1px solid #C8BEA8;border-radius:12px;padding:0.44in 0.52in;margin:0 0 16px;break-after:page;display:flex;flex-direction:column}
-    .cover-compact{min-height:auto}.cover-compact .title{font-size:26pt}.cover-compact .hero{margin-top:0.18in}.cover-compact .dashboard{margin-top:0.14in}.cover-compact .dash-card{padding:8px 7px}.cover-compact .dash-card .value{font-size:12pt}.cover-compact .dash-card .value.dash-score{font-size:20pt}.cover-compact .grid{margin-top:10px}
-    .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:10px;background:#8B2E2E;border-radius:12px 0 0 12px}
-    .cover-watermark{position:absolute;top:52%;left:50%;transform:translate(-50%,-50%) rotate(-28deg);font-family:Georgia,'Times New Roman',serif;font-size:56pt;font-weight:700;color:rgba(139,46,46,.055);letter-spacing:.14em;white-space:nowrap;pointer-events:none;user-select:none}
-    .cover-bottom{margin-top:auto;padding-top:0.24in}
-    .brand{font-family:Georgia,'Times New Roman',serif;font-size:22pt;font-weight:700;color:#8B2E2E;letter-spacing:.04em;text-transform:uppercase}
-    .tag{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#9A9087;margin-top:4px;text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid #D9D0C3;padding-bottom:0.14in}
-    .hero{margin-top:0.28in}
-    .cover-date{font-family:Helvetica,Arial,sans-serif;font-size:9pt;color:#9A9087;margin:8px 0 0;text-transform:uppercase;letter-spacing:.05em}
-    .dashboard{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-top:0.3in}
-    .dash-card{border:1px solid #D9D0C3;border-radius:8px;padding:14px 10px;text-align:center;background:#FFFAF2;break-inside:avoid;border-top:2px solid #A07A36}
+    .cover{position:relative;min-height:9.2in;background:#FFFDF9;border:1px solid #D9D0C3;border-radius:12px;padding:0.42in 0.46in 0.26in;margin:0 0 16px;break-after:page;display:flex;flex-direction:column}
+    .cover-compact{min-height:9.2in;padding-top:0.28in}.cover-compact .brand{font-size:22pt}.cover-compact .title{font-size:25pt}.cover-compact .hero{margin-top:0.18in}.cover-compact .dashboard{margin-top:0.16in}.cover-compact .dash-card{padding:9px 8px}.cover-compact .dash-card .value{font-size:13pt}.cover-compact .dash-card .value.dash-score{font-size:22pt}.cover-compact .grid{margin-top:9px}.cover-compact .cover-wide{margin-top:9px;padding:8px 12px}.cover-compact .cover-bottom{padding-top:0.12in}
+    .cover:before{content:'';position:absolute;left:0;top:0;bottom:0;width:10px;background:#6F2A22;border-radius:12px 0 0 12px}
+    .cover-bottom{margin-top:auto;padding-top:0.20in;font-family:Helvetica,Arial,sans-serif}
+    .brand{font-family:Helvetica,Arial,sans-serif;font-size:25pt;font-weight:700;color:#6F3029;letter-spacing:-.015em;text-align:center}
+    .tag{font-family:Helvetica,Arial,sans-serif;font-size:9.2pt;font-weight:600;color:#5C5549;margin:9px auto 0;max-width:5.9in;text-align:center;text-transform:uppercase;letter-spacing:.085em;line-height:1.35}
+    .cover-rule{display:flex;align-items:center;gap:10px;margin:0.22in auto 0;width:82%;color:#BFB6A8}.cover-rule:before,.cover-rule:after{content:'';height:1px;background:#D9D0C3;flex:1}.cover-rule span{display:block;width:1px;height:8px;background:#B8AD9E}
+    .hero{margin-top:0.26in;text-align:center}
+    .cover-date{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;font-weight:600;color:#5C5549;margin:10px 0 0;text-transform:uppercase;letter-spacing:.08em}
+    .dashboard{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin-top:0.24in}
+    .dash-card{border:1px solid #D9D0C3;border-radius:7px;padding:13px 10px;text-align:center;background:#FFFFFF;break-inside:avoid}
     .dash-card .label{font-family:Helvetica,Arial,sans-serif;font-size:8pt;text-transform:uppercase;color:#5C5549;letter-spacing:.06em}
-    .dash-card .value{font-family:Georgia,'Times New Roman',serif;font-size:15pt;font-weight:700;line-height:1.15;margin-top:6px;color:#1C1814}
-    .dash-card .value.dash-score{font-size:26pt}.dash-card .value.dash-audience{font-size:11pt}
+    .dash-card .value{font-family:Helvetica,Arial,sans-serif;font-size:15pt;font-weight:700;line-height:1.15;margin-top:6px;color:#1C1814}
+    .dash-card .value.dash-score{font-size:24pt}
     .dash-card .sub{margin-top:5px}
     .dash-card.readiness-strong{background:#EEF7EF;border-color:#9DC79D}.dash-card.readiness-watch{background:#FFF6E8;border-color:#D9A441}.dash-card.readiness-risk{background:#FDEEEE;border-color:#C97A7A}.dash-card.readiness-muted{background:#FAF7F2;border-color:#D9D0C3}
-    .title{font-size:38pt;line-height:1.05;color:#1C1814;margin:0 0 8px;letter-spacing:-.01em}.subtitle{font-family:Helvetica,Arial,sans-serif;color:#8B2E2E;font-size:10pt;margin:0;text-transform:uppercase;letter-spacing:.1em;font-weight:700}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFAF2;border-radius:5px;break-inside:avoid}
+    .cover .dash-card.readiness-strong,.cover .dash-card.readiness-watch,.cover .dash-card.readiness-risk,.cover .dash-card.readiness-muted{background:#FFFFFF;border-color:#D9D0C3}.cover .dash-card .score-strong,.cover .dash-card .score-watch,.cover .dash-card .score-risk,.cover .dash-card .score-muted{color:#111}.cover .confidence-pill{padding:0;background:transparent;color:#1C1814}
+    .title{font-family:Helvetica,Arial,sans-serif;font-size:28pt;font-weight:700;line-height:1.12;color:#111;margin:0;letter-spacing:-.02em}.subtitle{display:none}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}.metric{padding:10px 12px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:7px;break-inside:avoid}
     .title-metadata-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:10px}
     .metric strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:7.5pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
     .metric div{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1C1814;line-height:1.35}
-    section{background:transparent;border:none;border-top:1px solid #D9D0C3;padding:22px 0 24px;margin:0 0 4px;break-inside:avoid;page-break-inside:avoid}
-    section.sec-strength{background:transparent}section.sec-risk{background:transparent}section.sec-strength h2{color:#3A6B2A}section.sec-risk h2{color:#8B2020}
-    h2{margin:0 0 16px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:16pt;line-height:1.18;border-bottom:none;padding-bottom:0;break-after:avoid;page-break-after:avoid;letter-spacing:-.01em} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11.5pt;break-after:avoid;page-break-after:avoid} small{font-weight:normal;color:#5C5549}
+    .cover-wide{margin-top:10px;padding:10px 12px;border:1px solid #E1D8CB;background:#FFFFFF;border-radius:7px;text-align:left;break-inside:avoid;page-break-inside:avoid}.cover-wide strong{display:block;font-family:Helvetica,Arial,sans-serif;color:#1C1814;font-size:7.8pt;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}.cover-wide div{font-family:Helvetica,Arial,sans-serif;font-size:9pt;line-height:1.45;color:#1C1814}.cover-wide small{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;line-height:1.4;color:#5C5549}.cover-disclaimer{border-top:1px solid #D9D0C3;padding:9px 20px 0;text-align:left}.cover-reference{border-top:1px solid #D9D0C3;margin-top:9px;padding-top:7px;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:8pt;font-weight:700;letter-spacing:.04em;color:#1C1814}.cover-reference span{font-weight:400;overflow-wrap:anywhere}
+    section{background:#FFFFFF;border:1px solid #D9D0C3;border-radius:9px;padding:20px 22px;margin:0 0 16px;break-inside:auto;page-break-inside:auto;box-shadow:0 2px 8px rgba(28,24,20,.025)}
+    section.sec-pitch{border-left:3.5px solid #C8A96E}section.sec-warning{border-left:3.5px solid #C97A7A}section.sec-summary{border-left:3.5px solid #8B2E2E}section.sec-score{border-left:3.5px solid #5C5549}section.sec-detail{border-left:3.5px solid #B8922A}section.sec-meta{border-left:3.5px solid #9DC79D}section.sec-strength{border-left:3.5px solid #3A6B2A}section.sec-risk{border-left:3.5px solid #8B2020}section.sec-recommend{border-left:3.5px solid #8B2E2E}
+    section.sec-strength h2{color:#3A6B2A}section.sec-risk h2{color:#8B2020}
+    h2{margin:0 0 11px;color:#8B2E2E;font-family:Georgia,'Times New Roman',serif;font-size:18pt;line-height:1.18;border-bottom:1px solid #D9D0C3;padding-bottom:7px;break-after:avoid;page-break-after:avoid} h3{margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:11.5pt;break-after:avoid;page-break-after:avoid} small{font-weight:normal;color:#5C5549}
     ul.rg-bullet-list,ul.rg-ordered-list{margin:6px 0 0;padding-left:0;list-style:none}.rg-bullet-list li,.rg-ordered-list li{display:flex;gap:6px;margin:0 0 6px;padding-left:0}.rg-list-marker{flex:0 0 auto;color:#5C5549;font-weight:700}.sec-strength .rg-list-marker{color:#3A6B2A}.sec-risk .rg-list-marker{color:#8B2020}.sec-recommend .rg-list-marker{color:#8B2E2E}
-    table{width:100%;border-collapse:collapse;break-inside:avoid;page-break-inside:avoid}.score-grid-table{table-layout:fixed;border:1px solid #E6DED2;border-radius:8px;overflow:hidden}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;background:#F5EEE3;border-bottom:2px solid #C8A96E}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:10px 12px;text-align:left;vertical-align:middle}.score-grid-table tbody tr:nth-child(odd){background:#FFFDF9}.score-grid-table tbody tr:nth-child(even){background:#FAF7F2}.score-grid-table tbody tr:hover{background:#F5EEE3}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:62%;word-break:normal;overflow-wrap:break-word}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:23%;white-space:nowrap}
-    .card{margin-bottom:16px;padding:14px 18px;border:1px solid #E6DED2;background:#FFFAF2;border-radius:6px;border-left:3px solid #B8922A;break-inside:avoid;page-break-inside:avoid}
+    table{width:100%;border-collapse:collapse;break-inside:auto;page-break-inside:auto}.score-grid-table{table-layout:fixed;border:1px solid #E6DED2;border-radius:8px;overflow:hidden}.score-grid-table thead{display:table-header-group}.score-grid-table tr{break-inside:avoid;page-break-inside:avoid}.score-grid-table th{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;text-transform:uppercase;color:#5C5549;letter-spacing:.04em;background:#F8F3EA}.score-grid-table th,.score-grid-table td{border-bottom:1px solid #E6DED2;padding:8px 10px;text-align:left;vertical-align:top}.score-grid-table tbody tr:nth-child(even){background:#FFFDF9}.score-grid-table th:nth-child(2),.score-grid-table th:nth-child(3),.score-grid-table td:nth-child(2),.score-grid-table td:nth-child(3){text-align:right}.score-grid-table td:nth-child(1){width:55%;overflow-wrap:anywhere}.score-grid-table td:nth-child(2){width:15%;white-space:nowrap}.score-grid-table td:nth-child(3){width:30%;white-space:nowrap}
+    .card{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFDF9;border-radius:8px;border-left:3px solid #B8922A;break-inside:auto;page-break-inside:auto}
     .card h3{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-bottom:1px solid #E6DED2;padding-bottom:8px;color:#1C1814}
     .card h3 small{white-space:nowrap;font-family:Helvetica,Arial,sans-serif}
-    .opp-block{margin-top:14px;background:#FFFDF9;border:1px solid #E6DED2;border-radius:10px;padding:16px 18px;break-inside:avoid;page-break-inside:avoid;max-width:100%;overflow:visible;white-space:normal}
-    .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8B2E2E;margin-bottom:12px;padding-bottom:8px;border-bottom:1.5px solid #D9D0C3}
-    .opp-recommendation{margin-bottom:16px;padding:18px 20px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:8px;border-left:3.5px solid #C8A96E;break-inside:avoid;page-break-inside:avoid}
+    .opp-block{margin-top:14px;background:#FFFDF9;border:1px solid #E6DED2;border-radius:10px;padding:16px 18px;break-inside:auto;page-break-inside:auto;max-width:100%;overflow:visible;white-space:normal}
+    .opp-label{font-family:Helvetica,Arial,sans-serif;font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#8B2E2E;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #E6DED2}
+    .opp-recommendation{margin-bottom:14px;padding:14px 16px;border:1px solid #E6DED2;background:#FFFFFF;border-radius:8px;border-left:3.5px solid #C8A96E;break-inside:auto;page-break-inside:auto}
     .opp-recommendation:last-child{margin-bottom:0}
     .opp-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #F0EBE3}
     .opp-severity{font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:9pt;color:#8B2E2E;margin:0;text-transform:uppercase;letter-spacing:.03em}
     .opp-badge{display:inline-block;font-family:Helvetica,Arial,sans-serif;font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:4px}
     .opp-badge-high{background:#F9E8E8;color:#8B2020}.opp-badge-medium{background:#FBF1DC;color:#8B5E1A}.opp-badge-low{background:#EBF4E6;color:#3A6B2A}.opp-badge-consider{background:#FAF7F2;color:#5C5549}
-    .opp-field{margin-top:14px;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-field:first-child{margin-top:0}
-    .opp-key{font-family:Helvetica,Arial,sans-serif;font-size:7.5pt;font-weight:700;text-transform:uppercase;color:#8B2E2E;letter-spacing:.07em;margin-bottom:4px}
+    .opp-field{margin-top:10px;max-width:100%;overflow:visible;white-space:normal;break-inside:avoid;page-break-inside:avoid}.opp-field:first-child{margin-top:0}
+    .opp-key{font-family:Helvetica,Arial,sans-serif;font-size:7.5pt;font-weight:700;text-transform:uppercase;color:#8B6D4A;letter-spacing:.05em;margin-bottom:3px}
     .opp-val{display:block;width:100%;font-family:Georgia,'Times New Roman',serif;font-size:9.5pt;color:#1C1814;line-height:1.5;max-width:100%;overflow:visible;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
     .opp-val-evidence{font-style:normal;color:#3D3630;border-left:2px solid #D9D0C3;padding:6px 12px;margin-left:2px;background:#FFFDF9;border-radius:0 4px 4px 0}
     .score-cell,.criterion-score,.overall-value,.readiness-value{font-weight:700}.score-strong{color:#3A6B2A}.score-watch{color:#8B5E1A}.score-risk{color:#8B2020}.score-muted{color:#5C5549}.score-grid-table .score-cell{font-size:10.5pt;letter-spacing:-.01em}.score-grid-table td:nth-child(1){font-size:9.5pt;line-height:1.35}
     .confidence-pill{display:inline-block;border-radius:999px;padding:2px 8px;font-size:8.5pt;font-weight:700}.confidence-high,.confidence-text.confidence-high{color:#3A6B2A}.confidence-moderate,.confidence-text.confidence-moderate{color:#8B5E1A}.confidence-low,.confidence-text.confidence-low{color:#8B2020}.confidence-muted,.confidence-text.confidence-muted{color:#5C5549}.confidence-pill.confidence-high{background:#EBF4E6}.confidence-pill.confidence-moderate{background:#FBF1DC}.confidence-pill.confidence-low{background:#F9E8E8}.confidence-pill.confidence-muted{background:#FAF7F2}
     .footnote{font-family:Helvetica,Arial,sans-serif;color:#5C5549;font-size:8.5pt;line-height:1.45}
-    article.card{break-inside:avoid;page-break-inside:avoid}
+    .report-closing{break-inside:avoid;page-break-inside:avoid}.closing-disclaimer-title{font-size:12pt;margin-top:14px;padding-top:10px;border-top:1px solid #D9D0C3;border-bottom:none}.closing-disclaimer-copy{font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;line-height:1.4;color:#5C5549;margin-bottom:0}
+    article.card{break-inside:auto;page-break-inside:auto}
     p{orphans:3;widows:3}
-    .sec-score{break-before:auto}.sec-detail{break-before:page;page-break-before:always;break-inside:auto;page-break-inside:auto}
-    ul.rg-bullet-list li,ul.rg-ordered-list li{break-inside:avoid;page-break-inside:avoid}
+    .sec-score,.sec-detail{break-before:auto;page-break-before:auto;break-inside:auto;page-break-inside:auto}
+    ul.rg-bullet-list li,ul.rg-ordered-list li,.metric,.dash-card,.opp-field{break-inside:avoid;page-break-inside:avoid}
   </style></head><body>
     <header class="cover${(vm.titleBlock.displayTitle.length + vm.titleBlock.genre.length + vm.titleBlock.targetAudience.length > 170) ? ' cover-compact' : ''}">
       <div class="brand">RevisionGrade\u2122 Evaluation Report</div>
       <div class="tag">Manuscript diagnosis, author-controlled revision, and professional submission preparation.</div>
-      <div class="cover-watermark">RevisionGrade\u2122</div>
+      <div class="cover-rule"><span></span></div>
       <div class="hero">
         <h1 class="title">${escapeHtml(vm.titleBlock.displayTitle)}</h1>
         <p class="subtitle">${escapeHtml(vm.titleBlock.reportType)}</p>
         <p class="cover-date">Evaluated ${escapeHtml(vm.titleBlock.dateGenerated)}</p>
-        ${jobId ? `<p style="margin:4px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:8.5pt;color:#5C5549">Reference ID: ${escapeHtml(jobId)}</p>` : ''}
       </div>
       <div class="dashboard">
         <div class="dash-card ${readinessPaletteClass(vm.titleBlock.marketReadiness)}">
@@ -1283,11 +1286,6 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
           <div class="value">${escapeHtml(vm.titleBlock.genre)}</div>
           ${vm.titleBlock.genreConfidenceLabel ? `<div class="sub"><span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.genreConfidenceLabel)}">${escapeHtml(vm.titleBlock.genreConfidenceLabel)}</span></div>` : ''}
         </div>
-        <div class="dash-card">
-          <div class="label">Target Audience</div>
-          <div class="value dash-audience">${vm.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(vm.titleBlock.targetAudience)}</div>
-          <div class="sub"><span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.audienceConfidenceLabel)}">${escapeHtml(vm.titleBlock.audienceConfidenceLabel)}</span></div>
-        </div>
       </div>
       <div class="grid title-metadata-grid">
         <div class="metric"><strong>Submitted Word Count</strong><div>${escapeHtml(vm.titleBlock.submittedWordCount)}</div></div>
@@ -1296,10 +1294,11 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
         <div class="metric"><strong>Dialogue/Narrative Ratio</strong><div>${escapeHtml(vm.titleBlock.dialogueNarrativeRatio)}</div></div>
         <div class="metric"><strong>Date Generated</strong><div>${escapeHtml(vm.titleBlock.dateGenerated)}</div></div>
         <div class="metric"><strong>Confidentiality</strong><div>Prepared for author/editorial use.</div></div>
-        ${vm.titleBlock.shelf ? `<div class="metric"><strong>Shelf</strong><div>${escapeHtml(vm.titleBlock.shelf)}${vm.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.shelfConfidenceLabel)}">${escapeHtml(vm.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
-        ${vm.titleBlock.genreExpectationSummary ? `<div class="metric"><strong>Genre Expectations</strong><div>${escapeHtml(vm.titleBlock.genreExpectationSummary)}${vm.titleBlock.genreExpectationProfileLabels.length > 0 ? `<br /><small>Reader emphasis: ${escapeHtml(vm.titleBlock.genreExpectationProfileLabels.join(', '))}</small>` : ''}</div></div>` : ''}
       </div>
-      <div class="cover-bottom"><p class="footnote" style="margin:0">${escapeHtml(EXPORT_DISCLAIMER)}</p></div>
+      ${vm.titleBlock.shelf ? `<div class="cover-wide"><strong>Shelf</strong><div>${escapeHtml(vm.titleBlock.shelf)}${vm.titleBlock.shelfConfidenceLabel ? ` <span class="confidence-pill ${confidencePaletteClass(vm.titleBlock.shelfConfidenceLabel)}">${escapeHtml(vm.titleBlock.shelfConfidenceLabel)}</span>` : ''}</div></div>` : ''}
+      ${vm.titleBlock.genreExpectationSummary ? `<div class="cover-wide"><strong>Genre Expectations</strong><div>${escapeHtml(vm.titleBlock.genreExpectationSummary)}</div>${vm.titleBlock.genreExpectationProfileLabels.length > 0 ? `<small>Reader emphasis: ${escapeHtml(vm.titleBlock.genreExpectationProfileLabels.join(', '))}</small>` : ''}</div>` : ''}
+      <div class="cover-wide"><strong>Target Audience</strong><div>${vm.titleBlock.audienceTentative ? '<em>Tentative: </em>' : ''}${escapeHtml(vm.titleBlock.targetAudience)}</div></div>
+      <div class="cover-bottom"><p class="footnote cover-disclaimer" style="margin:0">${escapeHtml(EXPORT_DISCLAIMER)}</p>${jobId ? `<p class="cover-reference">REFERENCE ID: <span>${escapeHtml(jobId)}</span></p>` : ''}</div>
     </header>
     <section class="sec-pitch"><h2>One-Paragraph Pitch</h2><p>${escapeHtml(vm.oneParagraphPitch)}</p></section>
     <section class="sec-pitch"><h2>One-Sentence Pitch</h2><p>${escapeHtml(vm.oneSentencePitch)}</p></section>
@@ -1323,8 +1322,7 @@ function renderHtmlFromViewModel(vm: EvaluationReportViewModel, jobId = ''): str
     ${vm.modeSpecific.continuityCoverageProof.length > 0 ? `<section><h2>${sectionTitle('continuity_coverage')}</h2>${list(vm.modeSpecific.continuityCoverageProof)}</section>` : ''}
     ${vm.modeSpecific.readinessReleasabilityPosture.trim().length > 0 ? `<section><h2>${sectionTitle('readiness_posture')}</h2><p>${escapeHtml(vm.modeSpecific.readinessReleasabilityPosture)}</p></section>` : ''}
     ` : '')}
-    <section class="sec-meta"><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(vm.confidenceExplanation)}</p></section>
-    <section class="sec-meta"><h2>${sectionTitle('disclaimer')}</h2><p>${escapeHtml(vm.disclaimer)}</p></section>
+    <section class="sec-meta report-closing"><h2>${sectionTitle('confidence_explanation')}</h2><p>${escapeHtml(vm.confidenceExplanation)}</p><h2 class="closing-disclaimer-title">${sectionTitle('disclaimer')}</h2><p class="closing-disclaimer-copy">${escapeHtml(vm.disclaimer)}</p></section>
   </body></html>`;
 }
 
@@ -2135,10 +2133,12 @@ async function buildChromiumPdf(html: string): Promise<Buffer> {
     headless?: boolean | 'shell';
   };
   const puppeteer = puppeteerModule.default ?? puppeteerModule;
-  const executablePath =
+  const configuredExecutablePath = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+  const executablePath = configuredExecutablePath || (
     typeof chromium.executablePath === "function"
       ? await chromium.executablePath()
-      : chromium.executablePath;
+      : chromium.executablePath
+  );
 
   const browser = await puppeteer.launch({
     args: chromium.args,
