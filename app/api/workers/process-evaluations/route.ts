@@ -502,8 +502,11 @@ export async function GET(request: NextRequest) {
     }
 
     const workerId = buildWorkerId(traceId);
-    const targetJobId =
-      request.headers.get('x-job-id')?.trim() ||
+    // Evaluation dispatch targeting and the post-completion Held Recovery proof
+    // target are separate authorities. The env flag must never pin ordinary
+    // cron queue claims to a completed proof job.
+    const evaluationTargetJobId = request.headers.get('x-job-id')?.trim() || undefined;
+    const heldRecoveryTargetJobId =
       process.env[HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG]?.trim() ||
       undefined;
     // GUARD: Auto-kill stale/over-retried jobs before claiming new work
@@ -525,23 +528,23 @@ export async function GET(request: NextRequest) {
       workerId,
       batchSize: workerConfig.batchSize,
       leaseMs: workerConfig.leaseMs,
-      targetJobId,
+      targetJobId: evaluationTargetJobId,
     });
     let heldRecoveryInitiation: Awaited<ReturnType<typeof runHeldRecoveryProductionInitiation>> | null = null;
     let heldRecoveryContinuation: Awaited<ReturnType<typeof runHeldRecoveryReconstructionProductionContinuation>> | null = null;
-    if (targetJobId) {
+    if (heldRecoveryTargetJobId) {
       try {
         heldRecoveryInitiation = await runHeldRecoveryProductionInitiation({
-          jobId: targetJobId,
+          jobId: heldRecoveryTargetJobId,
         });
         heldRecoveryContinuation = await runHeldRecoveryReconstructionProductionContinuation({
-          jobId: targetJobId,
+          jobId: heldRecoveryTargetJobId,
           workerId: `${workerId}:held-recovery`,
         });
       } catch (error) {
         console.error('[HeldRecovery] Targeted continuation failed closed', {
           traceId,
-          targetJobId,
+          targetJobId: heldRecoveryTargetJobId,
           error: error instanceof Error ? error.name : 'UnknownError',
         });
       }
@@ -557,7 +560,7 @@ export async function GET(request: NextRequest) {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${cronSecret}`,
-            ...(targetJobId ? { 'x-job-id': targetJobId } : {}),
+            ...(evaluationTargetJobId ? { 'x-job-id': evaluationTargetJobId } : {}),
           },
           signal: AbortSignal.timeout(5_000),
         }).catch(() => {

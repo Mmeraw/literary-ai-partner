@@ -22,11 +22,31 @@ describe('Held Recovery production reachability', () => {
   it('is imported and invoked by the existing exact-job evaluation worker', () => {
     expect(workerRoute).toContain("from '@/lib/revision/heldRecoveryProductionInitiationCaller'")
     expect(workerRoute).toContain("from '@/lib/revision/heldRecoveryReconstructionProductionCaller'")
-    expect(workerRoute).toMatch(
-      /if \(targetJobId\)[\s\S]*runHeldRecoveryProductionInitiation\(\{[\s\S]*runHeldRecoveryReconstructionProductionContinuation\(\{/,
-    )
+    expect(workerRoute).toMatch(/if \(heldRecoveryTargetJobId\)[\s\S]*runHeldRecoveryProductionInitiation/)
+    expect(workerRoute).toMatch(/runHeldRecoveryReconstructionProductionContinuation\(\{[\s\S]*jobId: heldRecoveryTargetJobId/)
     expect(workerRoute).toContain('process.env[HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG]')
-    expect(workerRoute).toMatch(/'x-job-id': targetJobId/)
+    expect(workerRoute).toMatch(/'x-job-id': evaluationTargetJobId/)
+  })
+
+  it('never uses the Held Recovery env target to pin ordinary evaluation queue claims', () => {
+    const evaluationTargetAssignment = workerRoute.match(
+      /const evaluationTargetJobId = ([^;]+);/,
+    )?.[1]
+    expect(evaluationTargetAssignment).toContain("request.headers.get('x-job-id')")
+    expect(evaluationTargetAssignment).not.toContain(
+      'HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG',
+    )
+    expect(workerRoute).toMatch(
+      /const heldRecoveryTargetJobId =[\s\S]*process\.env\[HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG\]/,
+    )
+    const evaluationClaim = workerRoute.match(
+      /processQueuedJobs\(\{([\s\S]*?)\}\);/,
+    )?.[1]
+    expect(evaluationClaim).toContain('targetJobId: evaluationTargetJobId')
+    expect(evaluationClaim).not.toContain('heldRecoveryTargetJobId')
+    expect(evaluationClaim).not.toContain(
+      'HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG',
+    )
   })
 
   it('remains a strict no-op unless the deployed exact-job target matches', async () => {
