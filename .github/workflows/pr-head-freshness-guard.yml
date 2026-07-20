@@ -21,6 +21,9 @@ jobs:
       - name: Enforce PR branch freshness against base HEAD
         uses: actions/github-script@v7
         with:
+          # A transient GitHub API 5xx is not evidence that a branch is stale.
+          # Retain fail-closed comparison semantics after bounded retries.
+          retries: 3
           script: |
             const { owner, repo } = context.repo;
             const pr = context.payload.pull_request;

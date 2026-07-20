@@ -42,6 +42,9 @@ export function isUnifiedEvaluationDocument(value: unknown): value is UnifiedEva
   if (!isRecord(value)) return false;
   const titleBlock = isRecord(value.titleBlock) ? value.titleBlock : null;
   const modeSpecific = isRecord(value.modeSpecific) ? value.modeSpecific : null;
+  const canonicalOpportunityLedger = isRecord(value.canonicalOpportunityLedger)
+    ? value.canonicalOpportunityLedger
+    : null;
 
   return (
     (value.templateMode === 'short_form_evaluation' ||
@@ -59,6 +62,9 @@ export function isUnifiedEvaluationDocument(value: unknown): value is UnifiedEva
     isStringArray(value.topStrengths) &&
     isStringArray(value.topRisks) &&
     isStringArray(value.topRecommendations) &&
+    !!canonicalOpportunityLedger &&
+    Array.isArray(canonicalOpportunityLedger.opportunities) &&
+    Array.isArray(canonicalOpportunityLedger.rendered_opportunities) &&
     Array.isArray(value.criteriaScoreGrid) &&
     Array.isArray(value.criterionDetails) &&
     typeof value.confidenceExplanation === 'string' &&

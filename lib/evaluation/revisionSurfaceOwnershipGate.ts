@@ -120,6 +120,33 @@ function checkForbiddenSectionsInUED(
 }
 
 /**
+ * A certified UED must carry the canonical Revise authority even when the
+ * governed result contains zero safe opportunities. Empty is valid; missing or
+ * malformed is not. This prevents Phase 5 from certifying a document that its
+ * fail-closed Revise consumer cannot interpret.
+ */
+function checkCanonicalOpportunityAuthority(
+  document: UnifiedEvaluationDocument,
+): RevisionSurfaceOwnershipFailure[] {
+  const ledger = (document as unknown as Record<string, unknown>).canonicalOpportunityLedger;
+  const ledgerRecord = ledger && typeof ledger === 'object' && !Array.isArray(ledger)
+    ? ledger as Record<string, unknown>
+    : null;
+  if (ledgerRecord && Array.isArray(ledgerRecord.opportunities)) return [];
+
+  return [{
+    failure_code: 'CANONICAL_OPPORTUNITY_AUTHORITY_INVALID',
+    section: 'canonicalOpportunityLedger',
+    field: 'canonicalOpportunityLedger.opportunities',
+    expected_behavior: 'Certified UED must contain canonicalOpportunityLedger.opportunities as an array; an empty array is a valid governed outcome',
+    actual_behavior: ledgerRecord
+      ? `opportunities is ${Array.isArray(ledgerRecord.opportunities) ? 'array' : typeof ledgerRecord.opportunities}`
+      : 'canonicalOpportunityLedger is missing or malformed',
+    remediation_hint: 'Build and preserve the canonical opportunity ledger before author-exposure certification. Do not use legacy recommendation fallback.',
+  }];
+}
+
+/**
  * Check 2: Validate opportunity traceability.
  *
  * Every surfaced recommendation in criterionDetails must have an opportunity_id
@@ -351,6 +378,7 @@ export function runRevisionSurfaceOwnershipGate(
   }
 
   failures.push(
+    ...checkCanonicalOpportunityAuthority(document),
     ...checkForbiddenSectionsInUED(document),
     ...checkOpportunityTraceability(document),
     ...checkCountParity(document),

@@ -428,6 +428,16 @@ describe('REVISION_SURFACE_OWNERSHIP_GATE', () => {
       medium: 1,
       low: 0,
     },
+    canonicalOpportunityLedger: {
+      opportunities: [
+        { opportunity_id: 'opp-1' },
+        { opportunity_id: 'opp-2' },
+      ],
+      rendered_opportunities: [
+        { opportunity_id: 'opp-1' },
+        { opportunity_id: 'opp-2' },
+      ],
+    },
     topRecommendations: [
       'Clarify priority structural risks first, then tune supporting execution.',
     ],

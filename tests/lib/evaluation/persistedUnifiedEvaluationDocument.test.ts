@@ -89,6 +89,15 @@ describe('persisted unified evaluation document loader', () => {
     const unifiedDocument = makeUnifiedDocument();
     expect(isUnifiedEvaluationDocument(unifiedDocument)).toBe(true);
     expect(isUnifiedEvaluationDocument({ ...unifiedDocument, titleBlock: null })).toBe(false);
+    expect(isUnifiedEvaluationDocument({ ...unifiedDocument, canonicalOpportunityLedger: undefined })).toBe(false);
+    expect(isUnifiedEvaluationDocument({
+      ...unifiedDocument,
+      canonicalOpportunityLedger: { opportunities: {}, rendered_opportunities: [] },
+    })).toBe(false);
+    expect(isUnifiedEvaluationDocument({
+      ...unifiedDocument,
+      canonicalOpportunityLedger: { opportunities: [], rendered_opportunities: [] },
+    })).toBe(true);
   });
 
   test('loads certified persisted UED when certification hash matches', async () => {
