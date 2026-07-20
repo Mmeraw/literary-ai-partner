@@ -3,6 +3,7 @@ import { synthesisToEvaluationResultV2 } from '@/lib/evaluation/pipeline/runPipe
 import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import { findMatchingAuthorFacingContracts } from '@/lib/text/authorFacingProseAuthority';
 import { isAuthorTextPath, isExcludedPath } from '@/lib/text/authorFacingIntegrity';
+import { isKnownAuthorFacingPath } from '@/lib/evaluation/pipeline/authorFacingFieldRegistry';
 
 const NON_CENTRAL_AUTHOR_TEXT_PATHS: readonly RegExp[] = [
   /^evaluation_result_v2\.criteria\[\d+\]\.signal_strength$/u,
@@ -25,7 +26,7 @@ function createProductionShapeSynthesis(): SynthesisOutput {
       decision_points: ['The manuscript makes a visible decision at this point.'],
       consequence_status: 'landed' as const,
       evidence: [{ snippet: `Evidence passage ${criterionIndex}.` }],
-      recommendations: [
+      recommendations: criterionIndex % 2 === 0 ? [
         {
           priority: 'medium' as const,
           action: 'Clarify the targeted passage so the intended effect is immediately legible.',
@@ -47,7 +48,15 @@ function createProductionShapeSynthesis(): SynthesisOutput {
           candidate_text_b: 'After a brief pause, the character answers and reveals the consequence.',
           candidate_text_c: 'The answer lands only after the character recognizes what has changed.',
         },
-      ],
+      ] : [],
+      recommendation_status:
+        criterionIndex % 2 === 0
+          ? 'recommendation_provided' as const
+          : 'no_recommendation_warranted' as const,
+      recommendation_status_rationale:
+        criterionIndex % 2 === 0
+          ? 'A concrete recommendation is available for this criterion.'
+          : 'The manuscript already performs strongly here, so no revision is warranted.',
       technical_defects: [
         {
           code: 'RECOMMENDATION_TRUNCATED' as const,
@@ -142,9 +151,13 @@ describe('production EvaluationResultV2 author-facing registry coverage', () => 
     expect(discoveredPaths.length).toBeGreaterThan(0);
 
     for (const path of discoveredPaths) {
-      const centralMatches = findMatchingAuthorFacingContracts(path).length;
+      const contracts = findMatchingAuthorFacingContracts(path);
+      const centralMatches = contracts.length;
       const nonCentralMatches = countNonCentralDispositions(path);
       expect(centralMatches + nonCentralMatches).toBe(1);
+      if (contracts.some(({ ownership }) => ownership !== 'excluded')) {
+        expect(isKnownAuthorFacingPath(path)).toBe(true);
+      }
     }
 
     expect(
@@ -157,5 +170,15 @@ describe('production EvaluationResultV2 author-facing registry coverage', () => 
         'evaluation_result_v2.criteria[2].technical_defects[0].author_facing_reason',
       ),
     ).toHaveLength(1);
+    expect(
+      findMatchingAuthorFacingContracts(
+        'evaluation_result_v2.criteria[1].recommendation_status_rationale',
+      ),
+    ).toHaveLength(1);
+    expect(
+      isKnownAuthorFacingPath(
+        'evaluation_result_v2.criteria[1].recommendation_status_rationale',
+      ),
+    ).toBe(true);
   });
 });

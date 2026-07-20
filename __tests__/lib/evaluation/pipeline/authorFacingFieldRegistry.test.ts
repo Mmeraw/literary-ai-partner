@@ -130,4 +130,42 @@ describe('authorFacingFieldRegistry', () => {
     expect(result.ok).toBe(true);
     expect(result.remainingViolations).toHaveLength(0);
   });
+
+  it('owns and repairs the governed no-recommendation rationale branch', async () => {
+    const synthesis = makeMinimalSynthesis();
+    synthesis.criteria[0]!.recommendations = [];
+    synthesis.criteria[0]!.recommendation_status = 'no_recommendation_warranted';
+    synthesis.criteria[0]!.recommendation_status_rationale =
+      'the manuscript already performs strongly here, so no revision is warranted';
+    mockedRegenerateRequiredProse.mockImplementationOnce(async (target, violations) => {
+      target.criteria[0]!.recommendation_status_rationale =
+        'The manuscript already performs strongly here, so no revision is warranted.';
+      return {
+        ok: true,
+        synthesis: target,
+        regeneratedFields: violations.map((violation) => violation.path),
+        failedFields: [],
+        telemetry: {
+          attempts: 1,
+          regeneratedFields: violations.map((violation) => violation.path),
+          failedFields: [],
+          model: 'mock',
+        },
+      };
+    });
+
+    const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
+
+    expect(result.ok).toBe(true);
+    expect(result.remainingViolations).toHaveLength(0);
+    expect(mockedRegenerateRequiredProse).toHaveBeenCalledWith(
+      synthesis,
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'evaluation_result_v2.criteria[0].recommendation_status_rationale',
+        }),
+      ]),
+      expect.any(Object),
+    );
+  });
 });
