@@ -68,6 +68,27 @@ export interface MaxAgeKillSwitchPartition {
 
 export const REVISIONGRADE_SUPPORT_EMAIL = 'support@revisiongrade.com' as const;
 
+export const HELD_RECOVERY_PROOF_HOLD_JSON_CONTAINMENT = JSON.stringify({
+  held_recovery_proof_hold: true,
+});
+export const HELD_RECOVERY_PROOF_HOLD_ABSENT_POSTGREST_FILTER =
+  `progress.is.null,progress.not.cs.${HELD_RECOVERY_PROOF_HOLD_JSON_CONTAINMENT}`;
+
+export function isHeldRecoveryProofHoldProgress(progress: unknown): boolean {
+  return (
+    progress !== null &&
+    typeof progress === 'object' &&
+    !Array.isArray(progress) &&
+    (progress as Record<string, unknown>).held_recovery_proof_hold === true
+  );
+}
+
+export function isQueuedHardStopWatchdogCandidate(
+  candidate: Pick<QueueHardStopCandidate, 'progress'>,
+): boolean {
+  return !isHeldRecoveryProofHoldProgress(candidate.progress);
+}
+
 const AUTHOR_SAFE_SYNC_MESSAGE =
   'Evaluation paused while synchronizing progress. Your writing and completed analysis have been preserved. Continue Evaluation will resume from the safest available checkpoint.';
 
