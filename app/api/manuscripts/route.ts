@@ -106,7 +106,7 @@ export async function GET() {
     }
 
     return NextResponse.json({ ok: true, manuscripts: data ?? [] }, { status: 200 });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         ok: false,
@@ -257,7 +257,7 @@ export async function POST(req: Request) {
         word_count: wordCount,
         created_by: user.id,
       });
-    } catch (versionError) {
+    } catch {
       return NextResponse.json(
         {
           ok: false,
