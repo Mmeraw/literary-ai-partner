@@ -1,9 +1,11 @@
 /**
  * Manuscript permanent deletion tests
  *
- * Proves the delete_manuscripts_permanently RPC and the /api/manuscripts DELETE
- * route behave correctly: authorized, atomic, dependency-ordered, retention-aware,
- * and idempotent.
+ * Proves the delete_manuscripts_permanently RPC behaves correctly:
+ * - authorized, atomic, dependency-ordered, retention-aware, and idempotent.
+ *
+ * These tests hit a real database. They run when LOCAL_DB=1 and the required
+ * Supabase/Postgres env vars are configured; otherwise they skip.
  */
 
 import { describe, expect, test } from "@jest/globals";
@@ -13,7 +15,6 @@ import { getSupabaseAdminClient } from "@/lib/supabase";
 import { createTestManuscript, createTestManuscriptWithChunks } from "../test-helpers/manuscript-factory";
 
 const supabase = getSupabaseAdminClient();
-// These tests need a running local Supabase/Postgres (set LOCAL_DB=1).
 const run = process.env.LOCAL_DB ? describe : describe.skip;
 
 async function getOrCreateTestUser(): Promise<string> {
@@ -134,66 +135,91 @@ async function insertDocumentGenerationEvent(jobId: string) {
 }
 
 async function insertCostEvent(manuscriptId: number, jobId: string) {
-  const { error } = await supabase.from("llm_cost_events").insert({
-    source: "evaluation",
-    activity: "test",
-    provider: "openai",
-    model: "gpt-4",
-    input_tokens: 10,
-    output_tokens: 5,
-    cost_cents: 50,
-    manuscript_id: manuscriptId,
-    evaluation_job_id: jobId,
-  });
-  if (error) throw new Error(`Failed to insert cost event: ${error.message}`);
+  const { data, error } = await supabase
+    .from("llm_cost_events")
+    .insert({
+      source: "evaluation",
+      activity: "test",
+      provider: "openai",
+      model: "gpt-4",
+      input_tokens: 10,
+      output_tokens: 5,
+      cost_cents: 50,
+      manuscript_id: manuscriptId,
+      evaluation_job_id: jobId,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Failed to insert cost event: ${error?.message}`);
+  return data.id as string;
 }
 
 async function insertRevenueEvent(jobId: string) {
-  const { error } = await supabase.from("revenue_events").insert({
-    source: "stripe",
-    event_type: "payment_succeeded",
-    gross_revenue_cents: 1000,
-    stripe_fee_cents: 30,
-    refund_cents: 0,
-    job_id: jobId,
-  });
-  if (error) throw new Error(`Failed to insert revenue event: ${error.message}`);
+  const { data, error } = await supabase
+    .from("revenue_events")
+    .insert({
+      source: "stripe",
+      event_type: "payment_succeeded",
+      gross_revenue_cents: 1000,
+      stripe_fee_cents: 30,
+      refund_cents: 0,
+      job_id: jobId,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Failed to insert revenue event: ${error.message}`);
+  return data.id as string;
 }
 
 async function insertFreeDiagnosticClaim(userId: string, manuscriptId: number, jobId: string) {
-  const { error } = await supabase.from("free_diagnostic_claims").insert({
-    user_id: userId,
-    normalized_email: "test@example.com",
-    manuscript_id: String(manuscriptId),
-    job_id: jobId,
-  });
-  if (error) throw new Error(`Failed to insert free diagnostic claim: ${error.message}`);
+  const { data, error } = await supabase
+    .from("free_diagnostic_claims")
+    .insert({
+      user_id: userId,
+      normalized_email: "test@example.com",
+      manuscript_id: String(manuscriptId),
+      job_id: jobId,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Failed to insert free diagnostic claim: ${error.message}`);
+  return data.id as string;
 }
 
 async function insertAuditEntry(jobId: string) {
-  const { error } = await supabase.from("audit_entries").insert({
-    event_type: "job.transition",
-    ok: true,
-    actor: "api",
-    job_id: jobId,
-    to_status: "queued",
-    decision_code: "ALLOWED",
-    contract_id: "JOB_CONTRACT_v1",
-    contract_section: "3.1",
-    source: "api",
-  });
-  if (error) throw new Error(`Failed to insert audit entry: ${error.message}`);
+  const { data, error } = await supabase
+    .from("audit_entries")
+    .insert({
+      event_type: "job.transition",
+      ok: true,
+      actor: "api",
+      job_id: jobId,
+      to_status: "queued",
+      decision_code: "ALLOWED",
+      contract_id: "JOB_CONTRACT_v1",
+      contract_section: "3.1",
+      source: "api",
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Failed to insert audit entry: ${error.message}`);
+  return data.id as string;
 }
 
 async function insertAdminAction(jobId: string) {
-  const { error } = await supabase.from("admin_actions").insert({
-    action_type: "retry_job",
-    job_id: jobId,
-    performed_at: new Date().toISOString(),
-    before_status: "failed",
-    after_status: "queued",
-  });
-  if (error) throw new Error(`Failed to insert admin action: ${error.message}`);
+  const { data, error } = await supabase
+    .from("admin_actions")
+    .insert({
+      action_type: "retry_job",
+      job_id: jobId,
+      performed_at: new Date().toISOString(),
+      before_status: "failed",
+      after_status: "queued",
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Failed to insert admin action: ${error.message}`);
+  return data.id as string;
 }
 
 async function rowExists(table: string, column: string, value: unknown): Promise<boolean> {
@@ -215,7 +241,7 @@ async function deleteManuscripts(userId: string, ids: number[]) {
 }
 
 run("delete_manuscripts_permanently RPC", () => {
-  test("rejects deletion of another user's manuscript", async () => {
+  test("rejects deletion of another user's manuscript and rolls back the transaction", async () => {
     const owner = await getOrCreateTestUser();
     const attacker = await getOrCreateTestUser();
     const manuscriptId = await createTestManuscript({ userId: owner });
@@ -225,6 +251,21 @@ run("delete_manuscripts_permanently RPC", () => {
 
     const stillThere = await rowExists("manuscripts", "id", manuscriptId);
     expect(stillThere).toBe(true);
+  });
+
+  test("rejects a mixed-owner bulk request atomically", async () => {
+    const userA = await getOrCreateTestUser();
+    const userB = await getOrCreateTestUser();
+    const owned1 = await createTestManuscript({ userId: userA });
+    const owned2 = await createTestManuscript({ userId: userA });
+    const protectedId = await createTestManuscript({ userId: userB });
+
+    const { error } = await deleteManuscripts(userA, [owned1, owned2, protectedId]);
+    expect(error).not.toBeNull();
+
+    expect(await rowExists("manuscripts", "id", owned1)).toBe(true);
+    expect(await rowExists("manuscripts", "id", owned2)).toBe(true);
+    expect(await rowExists("manuscripts", "id", protectedId)).toBe(true);
   });
 
   test("single deletion removes manuscript-owned records and preserves ledgers", async () => {
@@ -237,15 +278,16 @@ run("delete_manuscripts_permanently RPC", () => {
     await insertHeldRecoveryQueueItem(manuscriptId);
     await insertHeldRecoveryRetrySchedule(attemptId);
     await insertDocumentGenerationEvent(jobId);
-    await insertCostEvent(manuscriptId, jobId);
-    await insertRevenueEvent(jobId);
-    await insertFreeDiagnosticClaim(userId, manuscriptId, jobId);
-    await insertAuditEntry(jobId);
-    await insertAdminAction(jobId);
+    const costId = await insertCostEvent(manuscriptId, jobId);
+    const revenueId = await insertRevenueEvent(jobId);
+    const claimId = await insertFreeDiagnosticClaim(userId, manuscriptId, jobId);
+    const auditId = await insertAuditEntry(jobId);
+    const adminActionId = await insertAdminAction(jobId);
 
     const { data, error } = await deleteManuscripts(userId, [manuscriptId]);
     expect(error).toBeNull();
     expect(data?.[0]?.deleted_ids).toContain(manuscriptId);
+    expect(data?.[0]?.deleted_count).toBe(1);
 
     expect(await rowExists("manuscripts", "id", manuscriptId)).toBe(false);
     expect(await rowExists("manuscript_versions", "id", versionId)).toBe(false);
@@ -256,35 +298,35 @@ run("delete_manuscripts_permanently RPC", () => {
     expect(await rowExists("held_recovery_retry_schedules", "attempt_id", attemptId)).toBe(false);
     expect(await rowExists("document_generation_events", "job_id", jobId)).toBe(false);
 
-    const { data: costRows } = await supabase.from("llm_cost_events").select("manuscript_id, evaluation_job_id").eq("evaluation_job_id", jobId);
-    expect(costRows?.length).toBe(1);
-    expect(costRows?.[0]?.manuscript_id).toBeNull();
-    expect(costRows?.[0]?.evaluation_job_id).toBeNull();
+    // Retained rows should be findable by their own primary keys and have lost
+    // manuscript/job linkage (the RPC nulls them before deleting the job).
+    const { data: costRow } = await supabase.from("llm_cost_events").select("manuscript_id, evaluation_job_id").eq("id", costId).single();
+    expect(costRow).not.toBeNull();
+    expect(costRow.manuscript_id).toBeNull();
+    expect(costRow.evaluation_job_id).toBeNull();
 
-    const { data: revenueRows } = await supabase.from("revenue_events").select("job_id").eq("job_id", jobId);
-    expect(revenueRows?.length).toBe(1);
-    expect(revenueRows?.[0]?.job_id).toBeNull();
+    const { data: revenueRow } = await supabase.from("revenue_events").select("job_id").eq("id", revenueId).single();
+    expect(revenueRow).not.toBeNull();
+    expect(revenueRow.job_id).toBeNull();
 
-    const { data: claimRows } = await supabase.from("free_diagnostic_claims").select("manuscript_id, job_id").eq("user_id", userId);
-    expect(claimRows?.length).toBe(1);
-    expect(claimRows?.[0]?.manuscript_id).toBeNull();
-    expect(claimRows?.[0]?.job_id).toBeNull();
+    const { data: claimRow } = await supabase.from("free_diagnostic_claims").select("manuscript_id, job_id").eq("id", claimId).single();
+    expect(claimRow).not.toBeNull();
+    expect(claimRow.manuscript_id).toBeNull();
+    expect(claimRow.job_id).toBeNull();
 
-    const { data: auditByJob } = await supabase.from("audit_entries").select("job_id").eq("job_id", jobId);
-    expect(auditByJob?.length).toBe(1);
-    expect(auditByJob?.[0]?.job_id).toBeNull();
+    const { data: auditRow } = await supabase.from("audit_entries").select("job_id").eq("id", auditId).single();
+    expect(auditRow).not.toBeNull();
+    expect(auditRow.job_id).toBeNull();
 
-    const { data: adminRows } = await supabase.from("admin_actions").select("job_id").eq("job_id", jobId);
-    expect(adminRows?.length).toBe(1);
-    expect(adminRows?.[0]?.job_id).toBeNull();
+    const { data: adminRow } = await supabase.from("admin_actions").select("job_id").eq("id", adminActionId).single();
+    expect(adminRow).not.toBeNull();
+    expect(adminRow.job_id).toBeNull();
   });
 
   test("bulk deletion is atomic", async () => {
     const userId = await getOrCreateTestUser();
     const m1 = await createTestManuscript({ userId });
     const m2 = await createTestManuscript({ userId });
-    const otherUser = await getOrCreateTestUser();
-    const protectedId = await createTestManuscript({ userId: otherUser });
 
     const { data, error } = await deleteManuscripts(userId, [m1, m2]);
     expect(error).toBeNull();
@@ -292,7 +334,6 @@ run("delete_manuscripts_permanently RPC", () => {
 
     expect(await rowExists("manuscripts", "id", m1)).toBe(false);
     expect(await rowExists("manuscripts", "id", m2)).toBe(false);
-    expect(await rowExists("manuscripts", "id", protectedId)).toBe(true);
   });
 
   test("held recovery dependencies are removed in correct order", async () => {
@@ -303,8 +344,9 @@ run("delete_manuscripts_permanently RPC", () => {
     await insertHeldRecoveryQueueItem(manuscriptId);
     await insertHeldRecoveryRetrySchedule(attemptId);
 
-    const { error } = await deleteManuscripts(userId, [manuscriptId]);
+    const { data, error } = await deleteManuscripts(userId, [manuscriptId]);
     expect(error).toBeNull();
+    expect(data?.[0]?.deleted_count).toBe(1);
 
     expect(await rowExists("manuscripts", "id", manuscriptId)).toBe(false);
     expect(await rowExists("held_recovery_attempts", "id", attemptId)).toBe(false);
@@ -318,8 +360,9 @@ run("delete_manuscripts_permanently RPC", () => {
     const { manuscriptId, chunks } = await createTestManuscriptWithChunks({ userId });
     expect(chunks.length).toBeGreaterThan(0);
 
-    const { error } = await deleteManuscripts(userId, [manuscriptId]);
+    const { data, error } = await deleteManuscripts(userId, [manuscriptId]);
     expect(error).toBeNull();
+    expect(data?.[0]?.deleted_count).toBe(1);
 
     expect(await rowExists("manuscripts", "id", manuscriptId)).toBe(false);
     for (const chunk of chunks) {
@@ -327,17 +370,41 @@ run("delete_manuscripts_permanently RPC", () => {
     }
   });
 
-  test("duplicate and already-deleted ids are safe", async () => {
+  test("duplicate and already-deleted ids are idempotent", async () => {
     const userId = await getOrCreateTestUser();
     const m1 = await createTestManuscript({ userId });
     const m2 = await createTestManuscript({ userId });
 
+    const { data: firstData, error: firstError } = await deleteManuscripts(userId, [m1]);
+    expect(firstError).toBeNull();
+    expect(firstData?.[0]?.deleted_count).toBe(1);
+
+    const { data, error } = await deleteManuscripts(userId, [m1, m2, m1]);
+    expect(error).toBeNull();
+    expect(data?.[0]?.deleted_count).toBe(1);
+    expect(data?.[0]?.already_absent_ids).toContain(m1);
+    expect(data?.[0]?.deleted_ids).toContain(m2);
+    expect(data?.[0]?.deleted_ids).not.toContain(m1);
+  });
+
+  test("replaying an already-deleted id with no other ids is a no-op", async () => {
+    const userId = await getOrCreateTestUser();
+    const m1 = await createTestManuscript({ userId });
+
     const { error: firstError } = await deleteManuscripts(userId, [m1]);
     expect(firstError).toBeNull();
 
-    const { data, error: secondError } = await deleteManuscripts(userId, [m1, m2, m1]);
-    expect(secondError).toBeNull();
-    expect(data?.[0]?.deleted_ids).toContain(m2);
-    expect(data?.[0]?.deleted_ids).not.toContain(m1);
+    const { data, error } = await deleteManuscripts(userId, [m1]);
+    expect(error).toBeNull();
+    expect(data?.[0]?.deleted_count).toBe(0);
+    expect(data?.[0]?.already_absent_ids).toContain(m1);
+  });
+
+  test("rejects a not-found id as non-idempotent", async () => {
+    const userId = await getOrCreateTestUser();
+    const missingId = 999999999;
+
+    const { error } = await deleteManuscripts(userId, [missingId]);
+    expect(error).not.toBeNull();
   });
 });

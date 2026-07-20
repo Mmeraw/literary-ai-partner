@@ -2,6 +2,8 @@
 
 This document is the authoritative contract for `public.delete_manuscripts_permanently(p_user_id, p_manuscript_ids)` and the server code that invokes it.
 
+The `p_user_id` argument is a *server-authorized owner identity*. The function is `SECURITY DEFINER` and executable only by `service_role`; it is never exposed directly to clients. The application server validates the authenticated session and then invokes the RPC with the verified user's id.
+
 ## Boundary
 
 - **Delete permanently**: all content owned by the manuscript and its operational derivatives (versions, chunks, evaluation jobs/artifacts, revision workbench, held-recovery data, generated document events, exports, project listings, etc.).
@@ -11,13 +13,15 @@ This document is the authoritative contract for `public.delete_manuscripts_perma
 
 The RPC must:
 
-1. Verify every supplied `manuscript_id` belongs to `p_user_id`.
-2. Lock the selected `manuscripts` rows for the transaction.
-3. Anonymize or delete dependent records in the order below.
-4. Delete the `manuscripts` rows.
-5. Return the exact ids deleted and per-table counts.
-6. Roll back everything if any step fails (single transaction).
-7. Be idempotent for already-deleted or unknown ids.
+1. Deduplicate and normalize the requested `manuscript_id`s.
+2. Lock every existing `manuscripts` row matching the requested ids.
+3. Compare the requested distinct-id count against the locked/owned count.
+4. Reject the entire request if any requested id belongs to another user or was never owned by `p_user_id` (and is not already recorded in `manuscript_deletion_log` for `p_user_id`).
+5. Anonymize or delete dependent records in the order below.
+6. Delete the `manuscripts` rows.
+7. Record successfully deleted ids in `manuscript_deletion_log` for idempotent replay.
+8. Return the exact ids deleted, the ids already absent, and per-table counts.
+9. Roll back everything if any step fails (single transaction).
 
 ## Dependency / Retention Matrix
 
@@ -64,32 +68,42 @@ The RPC must:
 | `audit_entries` | none (`job_id` uuid, nullable) | n/a | Preserve / anonymize | Set `job_id` to NULL. |
 | `admin_actions` | `evaluation_jobs(id)` | `ON DELETE CASCADE` (column made nullable by migration) | Preserve / anonymize | Set `job_id` to NULL before deleting jobs. |
 | `evaluation_support_access_log` | `evaluation_jobs(id)` | `ON DELETE CASCADE` (column made nullable by migration) | Preserve / anonymize | Set `evaluation_job_id` to NULL before deleting jobs. |
+| `manuscript_deletion_log` | `manuscripts(id)` | n/a (tombstone table) | **Audit** | Inserted at the end of the transaction; supports idempotent replay and durable deletion evidence. |
+| `manuscript_storage_cleanup_queue` | none | n/a | **Cleanup retry** | Populated outside the RPC by the API route when a storage `remove()` call fails; a background worker can retry `pending` rows. |
 
 ## Execution order inside the RPC
 
-1. Anonymize financial/audit/fraud ledgers:
+1. Classify requested ids:
+   - Lock existing `manuscripts` rows.
+   - Reject the entire request if any requested id exists but belongs to another user, or does not exist and is not already in `manuscript_deletion_log` for `p_user_id`.
+   - Mark ids already present in `manuscript_deletion_log` as `already_absent`.
+2. Anonymize financial/audit/fraud ledgers:
    - `llm_cost_events`
    - `revenue_events`
    - `audit_entries`
    - `admin_actions`
    - `evaluation_support_access_log`
    - `free_diagnostic_claims`
-2. Delete operational generation events:
+3. Delete operational generation events:
    - `document_generation_events`
-3. Delete held-recovery children before their parents:
+4. Delete held-recovery children before their parents:
    - `held_recovery_reconstruction_work_items`
    - `held_recovery_retry_schedules`
+   - `held_recovery_reconstructed_anchors`
+   - `held_recovery_queue_transition_events`
    - `held_recovery_queue_items`
-4. Delete revision events (manuscript `SET NULL` would orphan them):
+5. Delete revision events (manuscript `SET NULL` would orphan them):
    - `revision_events`
-5. Delete evaluation jobs (cascades to most job-owned tables):
+6. Delete evaluation jobs (cascades to most job-owned tables):
    - `evaluation_jobs`
-6. Delete the manuscripts (cascades to remaining direct children):
+7. Delete the manuscripts (cascades to remaining direct children):
    - `manuscripts`
+8. Record deleted ids in `manuscript_deletion_log`.
 
 ## Notes
 
 - `admin_actions` and `evaluation_support_access_log` columns were altered in the same migration to drop `NOT NULL` on the job reference. The FK action remains `CASCADE` for other callers; this RPC sets the reference to NULL before deleting the job, which preserves the audit row.
 - `storygate_access_audit_events` already uses `SET NULL` on `listing_id`, so it survives listing deletion automatically.
 - No table references `manuscripts` with `ON DELETE RESTRICT` or `NO ACTION` except `held_recovery_reconstruction_work_items` referencing `held_recovery_attempts`.
-- Storage objects are removed best-effort after the DB transaction succeeds; storage cleanup is not atomic with the DB deletion.
+- Storage objects are removed after the DB transaction succeeds; storage cleanup is not atomic with the DB deletion. Failures are returned in the API response and persisted in `manuscript_storage_cleanup_queue` for retry.
+- `p_user_id` is server-authorized; the RPC is `SECURITY DEFINER` and executable only by `service_role`. The application server validates the authenticated session before invoking the RPC.

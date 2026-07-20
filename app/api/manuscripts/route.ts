@@ -333,6 +333,10 @@ export async function DELETE(req: Request) {
 
     const supabase = createAdminClient();
 
+    // Collect storage metadata for rows the RPC will actually delete. This read
+    // is not authoritative for authorization; the RPC re-verifies ownership
+    // under row locks and rejects the entire request if any id is missing,
+    // already-deleted-but-not-owned, or belongs to another user.
     const { data: fileRows, error: fileError } = await supabase
       .from("manuscripts")
       .select("id,file_url")
@@ -343,44 +347,70 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ ok: false, error: "Failed to read manuscripts" }, { status: 500 });
     }
 
-    const foundIds = (fileRows ?? []).map((row: any) => Number(row.id));
-    if (foundIds.length !== ids.length) {
-      // Ensure every requested id belongs to the user before deleting any of them.
-      return NextResponse.json({ ok: false, error: "One or more manuscripts not found" }, { status: 404 });
-    }
-
     const { data, error } = await supabase.rpc("delete_manuscripts_permanently", {
       p_user_id: user.id,
       p_manuscript_ids: ids,
     });
 
     if (error) {
-      return NextResponse.json(
-        { ok: false, error: "Failed to delete manuscript" },
-        { status: 500 },
-      );
+      const msg = error.message ?? "";
+      if (msg.includes("Unauthorized")) {
+        return NextResponse.json({ ok: false, error: msg }, { status: 403 });
+      }
+      if (msg.includes("not found") || msg.includes("unknown")) {
+        return NextResponse.json({ ok: false, error: msg }, { status: 404 });
+      }
+      if (msg.includes("empty")) {
+        return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+      }
+      return NextResponse.json({ ok: false, error: "Failed to delete manuscript" }, { status: 500 });
     }
 
     const result = Array.isArray(data) && data.length > 0 ? data[0] : data;
-    const deletedIds = result?.deleted_ids ?? foundIds;
+    const deletedIds = ((result?.deleted_ids ?? []) as number[]).map(Number);
+    const alreadyAbsentIds = ((result?.already_absent_ids ?? []) as number[]).map(Number);
+    const deletedSet = new Set<number>(deletedIds);
 
-    // Best-effort storage cleanup (not atomic with the DB transaction).
-    const storageUrls = (fileRows ?? [])
-      .map((row: any) => tryParseStorageObjectUrl(row.file_url))
-      .filter((x): x is { bucket: string; path: string } => x !== null);
+    // Post-commit storage cleanup. This cannot be part of the database
+    // transaction, so failures are reported and persisted for retry.
+    const fileRowsToClean = (fileRows ?? []).filter((row: any) => deletedSet.has(Number(row.id)));
+    const removed: string[] = [];
+    const failed: { bucket: string; path: string; error: string }[] = [];
 
-    const removalsByBucket: Record<string, string[]> = {};
-    for (const item of storageUrls) {
-      removalsByBucket[item.bucket] = removalsByBucket[item.bucket] ?? [];
-      removalsByBucket[item.bucket].push(item.path);
+    const byBucket: Record<string, { path: string; manuscript_id: number }[]> = {};
+    for (const row of fileRowsToClean as any[]) {
+      const parsed = tryParseStorageObjectUrl(row.file_url);
+      if (!parsed) continue;
+      byBucket[parsed.bucket] = byBucket[parsed.bucket] ?? [];
+      byBucket[parsed.bucket].push({ path: parsed.path, manuscript_id: Number(row.id) });
     }
 
     await Promise.allSettled(
-      Object.entries(removalsByBucket).map(async ([bucket, paths]) => {
+      Object.entries(byBucket).map(async ([bucket, items]) => {
         try {
-          await supabase.storage.from(bucket).remove(paths);
-        } catch {
-          // Non-fatal; DB deletion already succeeded.
+          const paths = items.map((i) => i.path);
+          const { error: removeError } = await supabase.storage.from(bucket).remove(paths);
+          if (removeError) throw removeError;
+          for (const item of items) {
+            removed.push(`${bucket}/${item.path}`);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          for (const item of items) {
+            failed.push({ bucket, path: item.path, error: message });
+            try {
+              await supabase.from("manuscript_storage_cleanup_queue").insert({
+                manuscript_id: item.manuscript_id,
+                user_id: user.id,
+                bucket,
+                path: item.path,
+                status: "pending",
+                last_error: message,
+              });
+            } catch {
+              // Best-effort persistence; the response still reports the failure.
+            }
+          }
         }
       }),
     );
@@ -389,18 +419,14 @@ export async function DELETE(req: Request) {
       {
         ok: true,
         deleted: deletedIds,
+        alreadyAbsent: alreadyAbsentIds,
         count: deletedIds.length,
         counts: result?.counts ?? {},
+        storageCleanup: { removed, failed },
       },
       { status: 200 },
     );
-  } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Failed to delete manuscript",
-      },
-      { status: 500 },
-    );
+  } catch {
+    return NextResponse.json({ ok: false, error: "Failed to delete manuscript" }, { status: 500 });
   }
 }

@@ -352,14 +352,16 @@ describe("/api/manuscripts route", () => {
     expect(singleMock).toHaveBeenCalledTimes(2);
   });
 
-  test("DELETE removes the authenticated user's manuscript by id", async () => {
+  test("DELETE removes the authenticated user's manuscript by id and storage object", async () => {
+    const fileUrl = "https://example.supabase.co/storage/v1/object/public/manuscripts/user-1/321.docx";
+
     const rpcMock = jest.fn(async () => ({
-      data: [{ deleted_ids: [321], deleted_count: 1, counts: {} }],
+      data: [{ deleted_ids: [321], already_absent_ids: [], deleted_count: 1, counts: {} }],
       error: null,
     }));
 
     const inMock = jest.fn(async () => ({
-      data: [{ id: 321, file_url: null }],
+      data: [{ id: 321, file_url: fileUrl }],
       error: null,
     }));
 
@@ -371,15 +373,17 @@ describe("/api/manuscripts route", () => {
       eq: eqUserMock,
     }));
 
-    const removeMock = jest.fn(async () => ({ data: [], error: null }));
+    const insertQueueMock = jest.fn(async () => ({ data: null, error: null }));
+    const removeMock = jest.fn(async () => ({ data: [{ name: "user-1/321.docx", metadata: { httpStatusCode: 200 } }], error: null }));
     const fromStorageMock = jest.fn(() => ({ remove: removeMock }));
 
     const supabase = {
       from: jest.fn((table: string) => {
         if (table === "manuscripts") {
-          return {
-            select: selectMock,
-          };
+          return { select: selectMock };
+        }
+        if (table === "manuscript_storage_cleanup_queue") {
+          return { insert: insertQueueMock };
         }
         return {};
       }),
@@ -396,17 +400,97 @@ describe("/api/manuscripts route", () => {
     });
 
     const response = await DELETE(req);
-    const json = (await response.json()) as { ok: boolean; deleted: number[] };
+    const json = (await response.json()) as {
+      ok: boolean;
+      deleted: number[];
+      storageCleanup: { removed: string[]; failed: unknown[] };
+    };
 
     expect(response.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.deleted).toEqual([321]);
+    expect(json.storageCleanup.removed).toContain("manuscripts/user-1/321.docx");
+    expect(json.storageCleanup.failed).toHaveLength(0);
     expect(supabase.from).toHaveBeenCalledWith("manuscripts");
     expect(selectMock).toHaveBeenCalledWith("id,file_url");
     expect(rpcMock).toHaveBeenCalledWith("delete_manuscripts_permanently", {
       p_user_id: "user-1",
       p_manuscript_ids: [321],
     });
-    expect(fromStorageMock).not.toHaveBeenCalled();
+    expect(fromStorageMock).toHaveBeenCalledWith("manuscripts");
+    expect(removeMock).toHaveBeenCalledWith(["user-1/321.docx"]);
+    expect(insertQueueMock).not.toHaveBeenCalled();
+  });
+
+  test("DELETE reports storage cleanup failures and persists them for retry", async () => {
+    const fileUrl = "https://example.supabase.co/storage/v1/object/public/manuscripts/user-1/321.docx";
+
+    const rpcMock = jest.fn(async () => ({
+      data: [{ deleted_ids: [321], already_absent_ids: [], deleted_count: 1, counts: {} }],
+      error: null,
+    }));
+
+    const inMock = jest.fn(async () => ({
+      data: [{ id: 321, file_url: fileUrl }],
+      error: null,
+    }));
+
+    const eqUserMock = jest.fn(() => ({
+      in: inMock,
+    }));
+
+    const selectMock = jest.fn(() => ({
+      eq: eqUserMock,
+    }));
+
+    const insertQueueMock = jest.fn(async () => ({ data: null, error: null }));
+    const removeError = new Error("storage remove failed");
+    const removeMock = jest.fn(async () => ({ data: null, error: removeError }));
+    const fromStorageMock = jest.fn(() => ({ remove: removeMock }));
+
+    const supabase = {
+      from: jest.fn((table: string) => {
+        if (table === "manuscripts") {
+          return { select: selectMock };
+        }
+        if (table === "manuscript_storage_cleanup_queue") {
+          return { insert: insertQueueMock };
+        }
+        return {};
+      }),
+      rpc: rpcMock,
+      storage: {
+        from: fromStorageMock,
+      },
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const req = new Request("https://localhost:3000/api/manuscripts?id=321", {
+      method: "DELETE",
+    });
+
+    const response = await DELETE(req);
+    const json = (await response.json()) as {
+      ok: boolean;
+      deleted: number[];
+      storageCleanup: { removed: string[]; failed: { bucket: string; path: string; error: string }[] };
+    };
+
+    expect(response.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.storageCleanup.removed).toHaveLength(0);
+    expect(json.storageCleanup.failed).toHaveLength(1);
+    expect(json.storageCleanup.failed[0]?.bucket).toBe("manuscripts");
+    expect(json.storageCleanup.failed[0]?.path).toBe("user-1/321.docx");
+
+    expect(insertQueueMock).toHaveBeenCalledWith({
+      manuscript_id: 321,
+      user_id: "user-1",
+      bucket: "manuscripts",
+      path: "user-1/321.docx",
+      status: "pending",
+      last_error: "storage remove failed",
+    });
   });
 });

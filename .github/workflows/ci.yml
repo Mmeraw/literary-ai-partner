@@ -91,6 +91,9 @@ jobs:
         run: npm test -- --runInBand --no-coverage --bail
         env:
           CI: true
+          LOCAL_DB: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && '1' || '' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Semantic parity gate (UED to ViewModel to renderer)
         if: steps.scope.outputs.skip != 'true'
         run: npm run test:parity

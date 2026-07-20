@@ -47,7 +47,7 @@ export default function ManuscriptLibraryClient({
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirm, setConfirm] = useState<DeleteConfirmation | null>(null);
   const [typedConfirm, setTypedConfirm] = useState("");
-  const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [, startTransition] = useTransition();
 
   const allSelected = useMemo(
@@ -126,13 +126,20 @@ export default function ManuscriptLibraryClient({
         return next;
       });
 
-      setNotice({
-        type: "success",
-        message:
-          confirm.mode === "single"
-            ? `"${confirm.titles[0]}" was permanently deleted.`
-            : `Permanently deleted ${confirm.ids.length} ${pluralizeManuscript(confirm.ids.length)}.`,
-      });
+      const failedStorage = Array.isArray(data.storageCleanup?.failed) ? data.storageCleanup.failed : [];
+      const baseMessage =
+        confirm.mode === "single"
+          ? `"${confirm.titles[0]}" was permanently deleted.`
+          : `Permanently deleted ${confirm.ids.length} ${pluralizeManuscript(confirm.ids.length)}.`;
+
+      if (failedStorage.length > 0) {
+        setNotice({
+          type: "warning",
+          message: `${baseMessage} ${failedStorage.length} associated storage object(s) could not be removed and are queued for retry.`,
+        });
+      } else {
+        setNotice({ type: "success", message: baseMessage });
+      }
 
       // Refresh the server-rendered table once the deletion transaction is complete.
       startTransition(() => router.refresh());
@@ -185,7 +192,9 @@ export default function ManuscriptLibraryClient({
         <div
           className={`mt-6 rounded-xl border p-4 text-sm ${
             notice.type === "success"
-              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+            : notice.type === "warning"
+              ? "border-amber-400/40 bg-amber-500/10 text-amber-100"
               : "border-red-400/40 bg-red-500/10 text-red-100"
           }`}
         >
