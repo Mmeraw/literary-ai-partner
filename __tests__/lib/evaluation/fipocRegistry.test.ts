@@ -125,6 +125,19 @@ describe('executable FIPOC registry', () => {
     expect(phase5!.outputMetrics).toContain('canonical opportunity count is evidence-driven and may be zero');
   });
 
+  test('Pass 1/2 handoff registry matches the durable producer and Phase 3 consumer contract', () => {
+    const handoff = getProcess('S06b_HANDOFF_GATE');
+    const pass3 = getProcess('S07_PASS3');
+    const artifact = ARTIFACT_REGISTRY.find((entry) => entry.artifact === 'pass12_handoff_v1');
+    const required = ['schema_version', 'pass1Output', 'pass2Output', 'chunk_count', 'captured_at'];
+
+    expect(handoff?.outputRequiredFields).toEqual(required);
+    expect(artifact?.requiredFields).toEqual(required);
+    expect(pass3?.inputRequiredFields).toEqual(expect.arrayContaining(['schema_version', 'pass1Output', 'pass2Output']));
+    expect(handoff?.outputRequiredFields).not.toEqual(expect.arrayContaining(['certified_payload', 'prose_quality_certification']));
+    expect(handoff?.processContract).toMatch(/exact pass1Output\/pass2Output content contract/);
+  });
+
   test('Evaluation to Revise ledger projection authorizes only admitted dispositions', () => {
     const ledger = getProcess('ADJACENT_REVISION_LEDGER');
     expect(ledger).toBeDefined();

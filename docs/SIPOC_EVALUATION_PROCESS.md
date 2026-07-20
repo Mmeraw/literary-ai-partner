@@ -664,16 +664,19 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
   - No generic workshop language (e.g., `"consider adding more detail"` without evidence anchor)
   - Evidence anchors present: every recommendation references a specific manuscript location
 - **Process / runtime code surface:**
-  - `lib/evaluation/pipeline/pass12HandoffGate.ts` (to be implemented — PR 2)
-- **Output:** Certified Pass 1/2 payload that is safe to feed into synthesis
+  - `lib/evaluation/pipeline/pass12HandoffGate.ts`
+  - `lib/evaluation/processor.ts` (review-gate write authority, durable handoff, and Phase 3 presence/shape guard)
+- **Output:** `pass12_handoff_v1` with `schema_version`, `pass1Output`, `pass2Output`, `chunk_count`, and `captured_at`
 - **Output acceptance metrics:**
-  - All input acceptance metrics pass
-  - Handoff payload carries prose quality certification flag
+  - `schema_version = pass12_handoff_v1`
+  - Both pass payloads are present before Phase 3 queue transition
+  - All input acceptance metrics pass or remain within the governed warning threshold
+  - `review_gate_passed_at` is verified before persistence
 - **Customer / downstream stage:** `S07_PASS3`
-- **Gates / invariants:** Handoff cannot feed garbage to synthesis. Fail closed if any prose quality check fails.
+- **Gates / invariants:** Handoff cannot feed garbage to synthesis. Fail closed when violations exceed the governed warning threshold, or when schema/version/pass payload authority is incomplete.
 - **Failure codes:** `HANDOFF_SCAFFOLD_RESIDUE`, `HANDOFF_INCOMPLETE_SENTENCE`, `HANDOFF_BROKEN_MODAL`, `HANDOFF_GENERIC_LANGUAGE`, `HANDOFF_MISSING_EVIDENCE_ANCHOR`
 - **Required telemetry:** handoff gate pass/fail counts, per-check failure reasons, retry count
-- **Required evidence artifact:** pre-gate payload snapshot + gate diagnostic output
+- **Required evidence artifact:** durable `pass12_handoff_v1`; failed gate diagnostics remain in the pipeline failure envelope rather than a phantom payload field
 - **Canon refs:** Volume III pass architecture, Runtime Doctrine #11/#13
 - **Spec refs:** `docs/forensics/SISTER_FORENSIC_PIPELINE_MAP.md` (Stage 5: Pass 1/2 → Pass 3 Handoff)
 - **Runtime refs:** `lib/evaluation/pipeline/runPipeline.ts`
@@ -1057,7 +1060,7 @@ RevisionGrade has three evaluation depths, and the pipeline must respect mode bo
 | `S04_ROUTING_CHUNKING` | Emerging | Operationally visible, needs fixture/harness certification |
 | `S05_PASS1` | Partial | Stable path, but stress-certification not yet frozen |
 | `S06_PASS2` | Partial | Independence checks exist; adversarial certification pending |
-| `S06b_HANDOFF_GATE` | Emerging | Doctrine defined (PR 1); implementation pending (PR 2). Highest-priority new gate. |
+| `S06b_HANDOFF_GATE` | Emerging | Runtime gate, durable handoff, write authority, and Phase 3 shape guard are active; production artifact-quality contract reconciled to the persisted payload. |
 | `S07_PASS3` | High-risk | Upstream of highest-risk seam. Recommendation Integrity Gate added (PR #1044). |
 | `S08_ER2_NORMALIZATION` | High-risk | Boundary semantics and score/null integrity critical |
 | `S09_QUALITYGATEV2` | Partial | Deterministic gate active; statistical certification pending |
