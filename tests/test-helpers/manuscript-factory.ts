@@ -12,10 +12,15 @@
  */
 
 import { getSupabaseAdminClient } from "@/lib/supabase";
-import { ensureChunks, getManuscriptChunks } from "@/lib/manuscripts/chunks";
+import { getManuscriptChunks } from "@/lib/manuscripts/chunks";
 import { randomUUID } from "crypto";
 
 const supabase = getSupabaseAdminClient();
+
+function randomManuscriptId(): number {
+  // Use a 12-digit random positive bigint to avoid collisions with identity-sequence starts.
+  return Math.floor(Math.random() * 900_000_000_000) + 100_000_000_000;
+}
 
 export type TestChunkInfo = {
   id: string;
@@ -47,6 +52,7 @@ export async function createTestManuscript(options: {
   const { data: manuscript, error: manuscriptError } = await supabase
     .from("manuscripts")
     .insert({
+      id: randomManuscriptId(),
       title,
       created_by: userId,
       user_id: userId,
@@ -103,6 +109,7 @@ export async function createTestManuscriptWithChunks(options: {
   const { data: manuscript, error: manuscriptError } = await supabase
     .from("manuscripts")
     .insert({
+      id: randomManuscriptId(),
       title,
       created_by: userId,
       user_id: userId,

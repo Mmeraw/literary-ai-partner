@@ -132,14 +132,8 @@ export default async function ManuscriptSourcePage({ params, searchParams }: Pag
             <div className="mt-4 space-y-3">
               {versionRows.length > 0 ? versionRows.map((version: any) => {
                 const isSelected = selectedVersion?.id === version.id;
-                return (
-                  <Link
-                    key={version.id}
-                    href={`/manuscripts/${manuscriptId}?versionId=${encodeURIComponent(version.id)}`}
-                    aria-current={isSelected ? "page" : undefined}
-                    className="block rounded-xl border bg-[#0D0A05] p-3 hover:border-[#C8A96E]"
-                    style={{ borderColor: isSelected ? "#C8A96E" : "#2E261A" }}
-                  >
+                const versionContent = (
+                  <>
                     <div className="flex items-center justify-between gap-3">
                       <strong className="text-[#F8F1E6]">Version {version.version_number}</strong>
                       <span className="text-xs text-[#C8A96E]">{formatWords(version.word_count)} words</span>
@@ -147,6 +141,30 @@ export default async function ManuscriptSourcePage({ params, searchParams }: Pag
                     <p className="mt-1 text-xs text-[#8F806A]">{formatDate(version.created_at)}</p>
                     {version.source_version_id && <p className="mt-1 text-xs text-[#A9987D]">Derived from prior source</p>}
                     {isSelected && <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A96E]">Currently viewing</p>}
+                  </>
+                );
+
+                if (isSelected) {
+                  return (
+                    <div
+                      key={version.id}
+                      aria-current="page"
+                      className="block cursor-default rounded-xl border bg-[#0D0A05] p-3"
+                      style={{ borderColor: "#C8A96E" }}
+                    >
+                      {versionContent}
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={version.id}
+                    href={`/manuscripts/${manuscriptId}?versionId=${encodeURIComponent(version.id)}`}
+                    className="block rounded-xl border bg-[#0D0A05] p-3 hover:border-[#C8A96E]"
+                    style={{ borderColor: "#2E261A" }}
+                  >
+                    {versionContent}
                   </Link>
                 );
               }) : (
