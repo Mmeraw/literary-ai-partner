@@ -80,6 +80,7 @@ describe('Revise canonical authority contract', () => {
     const result = projectCanonicalRevisionOpportunities(ued, SOURCE_HASH, LONG_FORM_WORDS);
 
     expect(result.sourceMode).toBe('canonical_full');
+    expect(result.canonicalArrayPresent).toBe(true);
     expect(result.canonicalCount).toBe(21);
     expect(result.renderedCount).toBe(10);
     // The whole point: Revise receives 21, NOT the truncated 10.
@@ -156,6 +157,16 @@ describe('Revise canonical authority contract', () => {
       expect(extraction.canonicalCount).toBe(0);
       expect(extraction.renderedCount).toBe(10);
       expect(extraction.items).toHaveLength(10);
+      expect(extraction.canonicalArrayPresent).toBe(false);
+
+      const malformed = extractCanonicalRevisionOpportunities({
+        canonicalOpportunityLedger: {
+          opportunities: { invalid: true },
+          rendered_opportunities: [],
+        },
+      });
+      expect(malformed.items).toEqual([]);
+      expect(malformed.canonicalArrayPresent).toBe(false);
 
       const result = projectCanonicalRevisionOpportunities(ued, SOURCE_HASH, LONG_FORM_WORDS);
       // Fallback still supplies opportunities, but is explicitly marked degraded.
@@ -163,7 +174,7 @@ describe('Revise canonical authority contract', () => {
       expect(result.opportunities).toHaveLength(10);
     });
 
-    it('returns empty for a document with neither array', () => {
+    it('distinguishes a missing canonical authority surface from a governed empty supply', () => {
       const extraction = extractCanonicalRevisionOpportunities({
         canonicalOpportunityLedger: {},
       });
@@ -171,6 +182,30 @@ describe('Revise canonical authority contract', () => {
       expect(extraction.sourceMode).toBe('canonical_full');
       expect(extraction.canonicalCount).toBe(0);
       expect(extraction.renderedCount).toBe(0);
+      expect(extraction.canonicalArrayPresent).toBe(false);
+
+      const governedEmpty = extractCanonicalRevisionOpportunities({
+        canonicalOpportunityLedger: {
+          opportunities: [],
+          rendered_opportunities: [],
+        },
+      });
+      expect(governedEmpty.items).toEqual([]);
+      expect(governedEmpty.canonicalArrayPresent).toBe(true);
+
+      const projection = projectCanonicalRevisionOpportunities({
+        canonicalOpportunityLedger: {
+          opportunities: [],
+          rendered_opportunities: [],
+        },
+      }, SOURCE_HASH, SHORT_FORM_WORDS);
+      expect(projection).toMatchObject({
+        opportunities: [],
+        sourceMode: 'canonical_full',
+        canonicalCount: 0,
+        renderedCount: 0,
+        canonicalArrayPresent: true,
+      });
     });
   });
 

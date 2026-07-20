@@ -113,6 +113,16 @@ jest.mock("@/lib/evaluation/reportRenderParity", () => ({
       },
     ],
     revisionOpportunitySummary: { total: 2, high: 1, medium: 1, low: 0 },
+    canonicalOpportunityLedger: {
+      opportunities: [
+        { opportunity_id: "opp-001" },
+        { opportunity_id: "opp-002" },
+      ],
+      rendered_opportunities: [
+        { opportunity_id: "opp-001" },
+        { opportunity_id: "opp-002" },
+      ],
+    },
     topRecommendations: [
       "Prioritize scene-boundary tension to maintain mid-manuscript momentum.",
       "Ensure secondary character arcs receive final-act closure.",

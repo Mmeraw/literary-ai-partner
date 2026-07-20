@@ -1887,6 +1887,8 @@ type CanonicalRevisionSourceMode = 'canonical_full' | 'legacy_rendered_degraded'
 type CertifiedUedOpportunityProjection = {
   opportunities: RevisionOpportunity[];
   sourceUedHash: string;
+  /** True only when the certified UED contains the authoritative canonical array. */
+  canonicalArrayPresent: boolean;
   /**
    * Count of items in the report-display `rendered_opportunities` array (curated,
    * capped at 7/10 by capRenderedOpportunities). Retained for observability/telemetry
@@ -1965,6 +1967,8 @@ type CanonicalRevisionExtraction = {
   renderedCount: number;
   /** Size of the full canonical opportunities array (telemetry only). */
   canonicalCount: number;
+  /** Distinguishes a governed empty canonical supply from a missing authority surface. */
+  canonicalArrayPresent: boolean;
 };
 
 /**
@@ -1993,6 +1997,7 @@ export function extractCanonicalRevisionOpportunities(unifiedDocument: unknown):
     sourceMode: 'canonical_full',
     renderedCount: 0,
     canonicalCount: 0,
+    canonicalArrayPresent: false,
   };
   if (!isRecord(unifiedDocument)) return empty;
   const ledger = isRecord(unifiedDocument.canonicalOpportunityLedger)
@@ -2014,6 +2019,7 @@ export function extractCanonicalRevisionOpportunities(unifiedDocument: unknown):
       sourceMode: 'canonical_full',
       renderedCount: rendered.length,
       canonicalCount: canonical.length,
+      canonicalArrayPresent: true,
     };
   }
 
@@ -2025,6 +2031,7 @@ export function extractCanonicalRevisionOpportunities(unifiedDocument: unknown):
       sourceMode: 'legacy_rendered_degraded',
       renderedCount: rendered.length,
       canonicalCount: 0,
+      canonicalArrayPresent: false,
     };
   }
 
@@ -2097,6 +2104,7 @@ async function loadCertifiedUedOpportunityProjection(
     renderedOpportunityCount: extraction.renderedCount,
     canonicalOpportunityCount: extraction.canonicalCount,
     sourceMode: extraction.sourceMode,
+    canonicalArrayPresent: extraction.canonicalArrayPresent,
   };
 }
 
@@ -2105,6 +2113,7 @@ export type CanonicalRevisionProjectionResult = {
   sourceMode: CanonicalRevisionSourceMode;
   renderedCount: number;
   canonicalCount: number;
+  canonicalArrayPresent: boolean;
 };
 
 type HydrationLookupSummary = {
@@ -2184,6 +2193,7 @@ export function projectCanonicalRevisionOpportunities(
     sourceMode: extraction.sourceMode,
     renderedCount: extraction.renderedCount,
     canonicalCount: extraction.canonicalCount,
+    canonicalArrayPresent: extraction.canonicalArrayPresent,
   };
 }
 
@@ -2739,10 +2749,11 @@ export async function ensureRevisionOpportunityLedgerArtifact(
   const uedProjection = await loadCertifiedUedOpportunityProjection(supabase, jobId);
 
   const hasRebuildableSource =
-    Boolean(uedProjection?.opportunities.length) ||
+    Boolean(uedProjection?.canonicalArrayPresent) ||
+    uedProjection?.sourceMode === 'legacy_rendered_degraded' ||
     (Boolean(options?.allowLegacyEvaluationProjection) && Boolean(evaluationPayload));
 
-  const opportunitySourceAuthority = uedProjection?.opportunities.length
+  const opportunitySourceAuthority = uedProjection && hasRebuildableSource
     ? uedProjection.sourceMode === 'legacy_rendered_degraded'
       ? 'unified_evaluation_document_v1.canonicalOpportunityLedger.rendered_opportunities_legacy_degraded'
       : 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities'
@@ -2796,7 +2807,7 @@ export async function ensureRevisionOpportunityLedgerArtifact(
     );
   }
 
-  const opportunities = uedProjection?.opportunities.length
+  const opportunities = uedProjection && hasRebuildableSource
     ? capRevisionOpportunities(uedProjection.opportunities, wordCount)
     : buildRevisionOpportunitiesFromEvaluationPayload(
         evaluationPayload, chunkCachePayload, longformPayload, { wordCount },

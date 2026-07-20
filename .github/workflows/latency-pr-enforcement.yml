@@ -20,6 +20,11 @@ jobs:
         id: classify
         uses: actions/github-script@v7
         with:
+          # Governance must fail closed on a real contract violation, not on a
+          # transient GitHub API outage. github-script's Octokit retry plugin
+          # retries 5xx responses while leaving non-retryable 4xx responses
+          # and the validator's own failures untouched.
+          retries: 3
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
@@ -392,6 +397,7 @@ jobs:
       - name: Validate PR body
         uses: actions/github-script@v7
         with:
+          retries: 3
           script: |
             const { owner } = context.repo;
             const type = "${{ steps.classify.outputs.type }}";

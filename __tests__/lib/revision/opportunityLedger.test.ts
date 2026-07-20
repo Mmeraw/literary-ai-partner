@@ -531,6 +531,106 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
     ]));
   });
 
+  it('persists a governed empty ledger when the certified canonical array is present and empty', async () => {
+    const upsertSpy = jest.fn();
+    let persistedContent: Record<string, unknown> | null = null;
+    const unifiedDocument = {
+      title: 'Governed Empty Supply',
+      canonicalOpportunityLedger: {
+        opportunities: [],
+        rendered_opportunities: [],
+        metrics: {
+          canonical_opportunity_count: 0,
+          rendered_opportunity_count: 0,
+        },
+      },
+    };
+    const uedHash = canonicalJsonSha256(unifiedDocument);
+
+    const supabase = {
+      from: (table: string) => {
+        const state: { selectClause: string | null; filters: Record<string, unknown> } = {
+          selectClause: null,
+          filters: {},
+        };
+        const chain = {
+          select: (value: string) => { state.selectClause = value; return chain; },
+          eq: (column: string, value: unknown) => { state.filters[column] = value; return chain; },
+          in: () => chain,
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: async () => {
+            if (table === 'evaluation_artifacts' && state.selectClause === 'id, content') {
+              return {
+                data: persistedContent ? { id: 'ledger-empty', content: persistedContent } : null,
+                error: null,
+              };
+            }
+            if (table === 'evaluation_jobs') {
+              return {
+                data: {
+                  id: state.filters.id,
+                  manuscript_id: 7764,
+                  evaluation_project_id: null,
+                  evaluation_result: null,
+                },
+                error: null,
+              };
+            }
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content, source_hash') {
+              return {
+                data: { source_hash: 'evaluation-result-hash', content: { overview: { word_count: 5326 }, criteria: [] } },
+                error: null,
+              };
+            }
+            if (table === 'evaluation_artifacts' && state.selectClause === 'content') {
+              if (state.filters.artifact_type === 'unified_evaluation_document_v1') {
+                return { data: { content: unifiedDocument }, error: null };
+              }
+              if (state.filters.artifact_type === 'author_exposure_certification_v1') {
+                return {
+                  data: {
+                    content: {
+                      schema_version: 'author_exposure_certification_v1',
+                      decision: 'certified',
+                      unified_document_hash: uedHash,
+                    },
+                  },
+                  error: null,
+                };
+              }
+            }
+            return { data: null, error: null };
+          },
+          upsert: (payload: unknown) => {
+            upsertSpy(payload);
+            persistedContent = (payload as { content: Record<string, unknown> }).content;
+            return { select: () => ({ limit: async () => ({ data: [{ id: 'ledger-empty' }], error: null }) }) };
+          },
+        };
+        return chain;
+      },
+    };
+
+    const result = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-governed-empty');
+
+    expect(result).toEqual({ artifactId: 'ledger-empty', opportunities: [] });
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+    const persisted = upsertSpy.mock.calls[0][0] as { content: Record<string, unknown> };
+    expect(persisted.content).toMatchObject({
+      opportunity_source_authority: 'unified_evaluation_document_v1.canonicalOpportunityLedger.opportunities',
+      source_ued_hash: uedHash,
+      ued_canonical_opportunity_count: 0,
+      ued_rendered_opportunity_count: 0,
+      revise_source_mode: 'canonical_full',
+      opportunities: [],
+    });
+
+    const reopened = await ensureRevisionOpportunityLedgerArtifact(supabase, 'job-governed-empty');
+    expect(reopened).toEqual({ artifactId: 'ledger-empty', opportunities: [] });
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('rebuilds stale empty ledger from legacy evaluation payload only when explicit backfill is enabled', async () => {
     const upsertSpy = jest.fn();
 
