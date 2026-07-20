@@ -111,12 +111,15 @@ describe('executable FIPOC registry', () => {
     ]));
     expect(phase5!.inputMetrics).toEqual(expect.arrayContaining([
       'disposition_coverage_ratio = 1',
-      'admitted disposition canonical identity coverage = 100%',
+      'admitted_authority_coverage_ratio = 1',
+      'post_canonicalization_suppression_count derived from persisted dispositions',
+      'disposition_counts, validation_counts, governing_rule_counts, and criterion_disposition_counts exactly match persisted dispositions',
       'suppressed/informational queue identity count = 0',
     ]));
     expect(phase5!.dirtyDataRules).toEqual(expect.arrayContaining([
       'canonical opportunity authority missing or malformed',
-      'unknown explicit recommendation disposition version',
+      'unknown explicit recommendation disposition or suppression-forensics version',
+      'suppression-forensics counters differ from persisted dispositions',
       'held_recoverable used under recommendation_disposition_v1',
     ]));
     expect(phase5!.outputMetrics).toContain('canonical opportunity count is evidence-driven and may be zero');

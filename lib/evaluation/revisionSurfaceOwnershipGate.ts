@@ -23,6 +23,7 @@ import {
   RECOMMENDATION_DISPOSITION_CONTRACT_VERSION,
   RECOMMENDATION_FINAL_DISPOSITIONS,
   RECOMMENDATION_SOURCE_IDENTITY_VERSION,
+  RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION,
 } from '@/lib/evaluation/canonicalOpportunityLedger';
 
 export type RevisionSurfaceOwnershipFailure = {
@@ -165,6 +166,20 @@ function checkRecommendationDispositionCompleteness(
   if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) return [];
   const record = ledger as Record<string, unknown>;
   const version = record.disposition_contract_version;
+  const forensicsVersion = record.forensics_contract_version;
+  if (
+    forensicsVersion != null &&
+    forensicsVersion !== RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION
+  ) {
+    return [{
+      failure_code: 'RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION_UNKNOWN',
+      section: 'canonicalOpportunityLedger',
+      field: 'canonicalOpportunityLedger.forensics_contract_version',
+      expected_behavior: `Missing version for a legacy ledger or ${RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION}`,
+      actual_behavior: `Unknown suppression forensics version ${String(forensicsVersion)}`,
+      remediation_hint: 'Add an explicit compatibility validator before certifying a new suppression-forensics contract version.',
+    }];
+  }
   if (version == null) return [];
   if (version !== RECOMMENDATION_DISPOSITION_CONTRACT_VERSION) {
     return [{
@@ -266,6 +281,87 @@ function checkRecommendationDispositionCompleteness(
       actual_behavior: `source_count=${String(sourceCount)} metric_disposition_count=${String(dispositionCount)} actual_disposition_count=${dispositions.length} coverage_ratio=${String(coverageRatio)} unique_source_count=${sourceIds.size} missing_source_ids=${missingSourceIds.join('|') || 'none'} unexpected_source_ids=${unexpectedSourceIds.join('|') || 'none'} duplicate_expected_ids=${[...new Set(duplicateExpectedIds)].join('|') || 'none'}`,
       remediation_hint: 'Block certification and reconstruct the missing recommendation disposition records.',
     });
+  }
+
+
+  if (forensicsVersion === RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION && metrics) {
+    const dispositionCounts = Object.fromEntries(
+      RECOMMENDATION_FINAL_DISPOSITIONS.map((value) => [value, 0]),
+    ) as Record<string, number>;
+    const validationCounts: Record<string, number> = {
+      accepted: 0,
+      missing_revision_directive: 0,
+      missing_verifiable_anchor: 0,
+    };
+    const governingRuleCounts: Record<string, number> = {};
+    const criterionCounts: Record<string, Record<string, number>> = {};
+    let admittedAuthorityCount = 0;
+
+    for (const value of dispositions) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      const item = value as Record<string, unknown>;
+      const disposition = typeof item.disposition === 'string' ? item.disposition : '';
+      const validation = typeof item.validation === 'string' ? item.validation : '';
+      const rule = typeof item.governing_rule === 'string' ? item.governing_rule : '';
+      const criterion = typeof item.criterion === 'string' && item.criterion ? item.criterion : 'general';
+      if (disposition in dispositionCounts) dispositionCounts[disposition] += 1;
+      if (validation) validationCounts[validation] = (validationCounts[validation] ?? 0) + 1;
+      if (rule) governingRuleCounts[rule] = (governingRuleCounts[rule] ?? 0) + 1;
+      const byCriterion = criterionCounts[criterion] ?? {
+        source_count: 0,
+        admitted: 0,
+        held_recoverable: 0,
+        suppressed_governed: 0,
+        informational_non_actionable: 0,
+      };
+      byCriterion.source_count += 1;
+      if (disposition in byCriterion) byCriterion[disposition] += 1;
+      criterionCounts[criterion] = byCriterion;
+      if (
+        disposition === 'admitted' &&
+        typeof item.canonical_opportunity_id === 'string' &&
+        item.canonical_opportunity_id.trim()
+      ) admittedAuthorityCount += 1;
+    }
+
+    const actualDispositionCounts = metrics.disposition_counts;
+    const actualValidationCounts = metrics.validation_counts;
+    const actualRuleCounts = metrics.governing_rule_counts;
+    const actualCriterionCounts = metrics.criterion_disposition_counts;
+    const matchesRecord = (actual: unknown, expected: Record<string, unknown>) => {
+      if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false;
+      const actualRecord = actual as Record<string, unknown>;
+      const keys = new Set([...Object.keys(actualRecord), ...Object.keys(expected)]);
+      return [...keys].every((key) => {
+        const expectedValue = expected[key];
+        const actualValue = actualRecord[key];
+        if (expectedValue && typeof expectedValue === 'object' && !Array.isArray(expectedValue)) {
+          return matchesRecord(actualValue, expectedValue as Record<string, unknown>);
+        }
+        return actualValue === expectedValue;
+      });
+    };
+    const admittedCount = dispositionCounts.admitted;
+    const expectedAuthorityRatio = admittedCount === 0 ? 1 : admittedAuthorityCount / admittedCount;
+    const expectedPostCanonicalization = governingRuleCounts.canonical_opportunity_completeness_gate ?? 0;
+    if (
+      !matchesRecord(actualDispositionCounts, dispositionCounts) ||
+      !matchesRecord(actualValidationCounts, validationCounts) ||
+      !matchesRecord(actualRuleCounts, governingRuleCounts) ||
+      !matchesRecord(actualCriterionCounts, criterionCounts) ||
+      metrics.admitted_authority_count !== admittedAuthorityCount ||
+      metrics.admitted_authority_coverage_ratio !== expectedAuthorityRatio ||
+      metrics.post_canonicalization_suppression_count !== expectedPostCanonicalization
+    ) {
+      failures.push({
+        failure_code: 'RECOMMENDATION_SUPPRESSION_FORENSICS_INCONSISTENT',
+        section: 'canonicalOpportunityLedger',
+        field: 'canonicalOpportunityLedger.metrics',
+        expected_behavior: 'Suppression-forensics counters must be derived exactly from the persisted recommendation dispositions',
+        actual_behavior: 'One or more disposition, validation, rule, criterion, authority, or post-canonicalization counters do not match source lineage',
+        remediation_hint: 'Rebuild suppression-forensics metrics from recommendation_dispositions; never accept caller-supplied counters.',
+      });
+    }
   }
 
   return failures;

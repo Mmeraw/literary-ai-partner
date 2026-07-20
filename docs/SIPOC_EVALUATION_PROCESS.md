@@ -1187,7 +1187,7 @@ The following patterns violate the Evaluation → Revise Operating Doctrine and 
 6. Author decisions are not persisted
 7. TrustedPath applies unverified or unavailable repairs
 8. A generated revised manuscript overwrites the original
-9. Report-summary or criterion-score content is used as Revise queue authority, or source recommendations disappear without a governed disposition. A present canonical ledger with `opportunities: []` remains a valid outcome when every source recommendation is accounted for.
+9. Report-summary or criterion-score content is used as Revise queue authority, source recommendations disappear without a governed disposition, or versioned suppression-forensics counters do not reconcile exactly to the persisted dispositions. A present canonical ledger with `opportunities: []` remains a valid outcome when every source recommendation is accounted for. Suppression metrics explain governed outcomes and never act as admission signals.
 10. The UI sends users to the public Revise marketing page instead of the authenticated workbench
 11. Re-evaluation runs on the original manuscript version instead of the revised manuscript version
 

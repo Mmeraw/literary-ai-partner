@@ -33,6 +33,19 @@ export type CanonicalOpportunityLedgerMetrics = {
   source_recommendation_count: number;
   disposition_count: number;
   disposition_coverage_ratio: number;
+  admitted_authority_count: number;
+  admitted_authority_coverage_ratio: number;
+  post_canonicalization_suppression_count: number;
+  disposition_counts: Record<RecommendationFinalDisposition, number>;
+  validation_counts: Record<CanonicalRecommendationDisposition['validation'], number>;
+  governing_rule_counts: Record<string, number>;
+  criterion_disposition_counts: Record<string, {
+    source_count: number;
+    admitted: number;
+    held_recoverable: number;
+    suppressed_governed: number;
+    informational_non_actionable: number;
+  }>;
   raw_opportunity_count: number;
   canonical_opportunity_count: number;
   deduplication_ratio: number;
@@ -48,6 +61,7 @@ export type CanonicalOpportunityLedgerMetrics = {
 
 export const RECOMMENDATION_DISPOSITION_CONTRACT_VERSION = 'recommendation_disposition_v1' as const;
 export const RECOMMENDATION_SOURCE_IDENTITY_VERSION = 'criterion_content_fingerprint_v1' as const;
+export const RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION = 'recommendation_suppression_forensics_v1' as const;
 export const RECOMMENDATION_FINAL_DISPOSITIONS = [
   'admitted',
   // Reserved vocabulary only in v1. Evaluate cannot certify this value until
@@ -72,9 +86,52 @@ export type CanonicalRecommendationDisposition = {
   canonical_opportunity_id?: string;
 };
 
+function countBy<T extends string>(values: readonly T[]): Record<T, number> {
+  return values.reduce((counts, value) => {
+    counts[value] = (counts[value] ?? 0) + 1;
+    return counts;
+  }, {} as Record<T, number>);
+}
+
+function buildDispositionForensics(dispositions: readonly CanonicalRecommendationDisposition[]) {
+  const dispositionCounts = Object.fromEntries(
+    RECOMMENDATION_FINAL_DISPOSITIONS.map((value) => [value, 0]),
+  ) as Record<RecommendationFinalDisposition, number>;
+  const validationCounts: Record<CanonicalRecommendationDisposition['validation'], number> = {
+    accepted: 0,
+    missing_revision_directive: 0,
+    missing_verifiable_anchor: 0,
+  };
+  const criterionCounts: CanonicalOpportunityLedgerMetrics['criterion_disposition_counts'] = {};
+
+  for (const item of dispositions) {
+    dispositionCounts[item.disposition] += 1;
+    validationCounts[item.validation] += 1;
+    const criterion = item.criterion || 'general';
+    const counts = criterionCounts[criterion] ?? {
+      source_count: 0,
+      admitted: 0,
+      held_recoverable: 0,
+      suppressed_governed: 0,
+      informational_non_actionable: 0,
+    };
+    counts.source_count += 1;
+    counts[item.disposition] += 1;
+    criterionCounts[criterion] = counts;
+  }
+
+  return {
+    dispositionCounts,
+    validationCounts,
+    governingRuleCounts: countBy(dispositions.map((item) => item.governing_rule)),
+    criterionCounts,
+  };
+}
+
 export type CanonicalOpportunityLedger = {
   disposition_contract_version: typeof RECOMMENDATION_DISPOSITION_CONTRACT_VERSION;
   source_identity_version: typeof RECOMMENDATION_SOURCE_IDENTITY_VERSION;
+  forensics_contract_version?: typeof RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION;
   source_recommendation_ids: string[];
   opportunities: CanonicalOpportunityLedgerItem[];
   rendered_opportunities: CanonicalOpportunityLedgerItem[];
@@ -659,10 +716,16 @@ export function buildCanonicalOpportunityLedger(result: EvaluationLike): Canonic
     count + rendered.slice(index + 1).filter((other) => sameFinalIssue(item, other)).length,
   0);
   const repeatedRatio = rendered.length <= 1 ? 0 : repeatedPairs / rendered.length;
+  const dispositionForensics = buildDispositionForensics(recommendationDispositions);
+  const admittedCount = dispositionForensics.dispositionCounts.admitted;
+  const admittedAuthorityCount = recommendationDispositions.filter(
+    (item) => item.disposition === 'admitted' && Boolean(item.canonical_opportunity_id),
+  ).length;
 
   return {
     disposition_contract_version: RECOMMENDATION_DISPOSITION_CONTRACT_VERSION,
     source_identity_version: RECOMMENDATION_SOURCE_IDENTITY_VERSION,
+    forensics_contract_version: RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION,
     source_recommendation_ids: collected.sourceIds,
     opportunities,
     rendered_opportunities: rendered,
@@ -673,6 +736,16 @@ export function buildCanonicalOpportunityLedger(result: EvaluationLike): Canonic
       disposition_coverage_ratio: collected.sourceIds.length === 0
         ? 1
         : recommendationDispositions.length / collected.sourceIds.length,
+      admitted_authority_count: admittedAuthorityCount,
+      admitted_authority_coverage_ratio: admittedCount === 0
+        ? 1
+        : admittedAuthorityCount / admittedCount,
+      post_canonicalization_suppression_count:
+        dispositionForensics.governingRuleCounts.canonical_opportunity_completeness_gate ?? 0,
+      disposition_counts: dispositionForensics.dispositionCounts,
+      validation_counts: dispositionForensics.validationCounts,
+      governing_rule_counts: dispositionForensics.governingRuleCounts,
+      criterion_disposition_counts: dispositionForensics.criterionCounts,
       raw_opportunity_count: raw.length,
       canonical_opportunity_count: opportunities.length,
       deduplication_ratio: raw.length === 0 ? 0 : 1 - (opportunities.length / raw.length),
