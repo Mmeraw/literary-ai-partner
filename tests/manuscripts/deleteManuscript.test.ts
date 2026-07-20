@@ -59,7 +59,7 @@ async function enqueueHeldRecoveryReconstruction(manuscriptId: number) {
   const idempotencyKey = randomUUID();
   const heldItemId = `held-${manuscriptId}`;
   const { data, error } = await supabase.rpc(
-    "record_held_recovery_deferred_attempt_and_enqueue_reconstruction_atomic",
+    "record_held_recovery_deferred_attempt_and_enqueue_reconstructio",
     {
       p_request: {
         attempt: {
