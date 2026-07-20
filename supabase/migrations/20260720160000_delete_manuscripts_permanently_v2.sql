@@ -204,7 +204,7 @@ BEGIN
 
   IF to_regclass('public.held_recovery_retry_schedules') IS NOT NULL THEN
     DELETE FROM public.held_recovery_retry_schedules
-    WHERE attempt_id IN (SELECT id::text FROM public.held_recovery_attempts WHERE manuscript_id = ANY(v_text_ids));
+    WHERE attempt_id IN (SELECT id::text FROM public.held_recovery_attempts WHERE manuscript_id = ANY(v_to_delete));
     GET DIAGNOSTICS v_count = ROW_COUNT;
     v_counts := jsonb_set(v_counts, ARRAY['held_recovery_retry_schedules'], to_jsonb(v_count));
   END IF;
@@ -227,7 +227,7 @@ BEGIN
 
   IF to_regclass('public.held_recovery_reconstructed_anchors') IS NOT NULL THEN
     DELETE FROM public.held_recovery_reconstructed_anchors
-    WHERE attempt_id IN (SELECT id::text FROM public.held_recovery_attempts WHERE manuscript_id = ANY(v_text_ids));
+    WHERE attempt_id IN (SELECT id::text FROM public.held_recovery_attempts WHERE manuscript_id = ANY(v_to_delete));
     GET DIAGNOSTICS v_count = ROW_COUNT;
     v_counts := jsonb_set(v_counts, ARRAY['held_recovery_reconstructed_anchors'], to_jsonb(v_count));
   END IF;
@@ -236,7 +236,7 @@ BEGIN
   --    before dropping the manuscript to avoid orphan rows.
   IF to_regclass('public.revision_events') IS NOT NULL THEN
     DELETE FROM public.revision_events
-    WHERE manuscript_id = ANY(v_text_ids)
+    WHERE manuscript_id = ANY(v_to_delete)
        OR evaluation_job_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
     GET DIAGNOSTICS v_count = ROW_COUNT;
     v_counts := jsonb_set(v_counts, ARRAY['revision_events'], to_jsonb(v_count));
