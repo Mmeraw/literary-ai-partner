@@ -281,3 +281,33 @@ describe('targeted reconstruction claim authority', () => {
     )
   })
 })
+
+describe('proof-only held progress lifecycle authority', () => {
+  const migration = read(
+    'supabase/migrations/20260720065000_preserve_held_proof_progress_lifecycle.sql',
+  )
+
+  it('keeps the queue hold authoritative without emitting a noncanonical progress status', () => {
+    expect(migration).toMatch(
+      /when new\.phase_status = 'awaiting_approval'[\s\S]*held_recovery_proof_hold[\s\S]*then 'queued'/i,
+    )
+    expect(migration).toMatch(
+      /'phase_status', v_progress_phase_status/i,
+    )
+    expect(migration).toMatch(
+      /update public\.evaluation_jobs[\s\S]*phase_status = 'awaiting_approval'[\s\S]*held_recovery_proof_hold[\s\S]*progress ->> 'phase_status' is distinct from 'queued'/i,
+    )
+    expect(migration).toMatch(
+      /revoke all on function public\.sync_evaluation_job_progress_authority\(\) from public/i,
+    )
+  })
+
+  it('does not redefine ordinary Review Gate or worker lifecycle states', () => {
+    const proofException = migration.match(
+      /v_progress_phase_status := case([\s\S]*?)end;/i,
+    )?.[1]
+    expect(proofException).toContain("NEW.phase_status = 'awaiting_approval'")
+    expect(proofException).toContain('held_recovery_proof_hold')
+    expect(proofException).toContain('ELSE NEW.phase_status')
+  })
+})
