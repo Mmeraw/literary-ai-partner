@@ -10,6 +10,13 @@ const {
 } = require("../../scripts/check-nomenclature-canon.js");
 
 describe("check-nomenclature-canon vocabulary-detection allow marker", () => {
+  test.each([
+    ["src/example.ts:12:const value = { key: 'a:b' };", "src/example.ts", 12, "const value = { key: 'a:b' };"],
+    ["C:\\repo\\src\\example.ts:34:const value = { key: 'a:b' };", "C:\\repo\\src\\example.ts", 34, "const value = { key: 'a:b' };"],
+  ])("parses ripgrep path, line, and text across platforms", (raw, filePath, lineNumber, lineText) => {
+    expect(parseSearchOutput(raw)).toEqual([{ filePath, lineNumber, lineText, raw }]);
+  });
+
   test("detects the explicit vocabulary-detection allow marker", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "canon-audit-allow-"));
     const filePath = path.join(tmpDir, "allowed.ts");
