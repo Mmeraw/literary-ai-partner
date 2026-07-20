@@ -3,6 +3,7 @@
 // Otherwise use sensible test defaults
 
 import { resolveEvaluationTimeoutConfig } from "./lib/evaluation/config";
+import { resolveTestBrowserExecutable } from "./lib/testing/resolveTestBrowserExecutable";
 
 process.env.SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://localhost:54321";
@@ -12,6 +13,15 @@ process.env.SUPABASE_ANON_KEY =
 
 process.env.SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? "test_service_role_key";
+
+// PDF parity tests use the same puppeteer-core renderer as production. In a
+// local workstation environment, prefer an explicitly configured browser and
+// otherwise discover a standard installed browser. Linux CI can continue to
+// use the bundled serverless Chromium path when no system browser is present.
+const testBrowserExecutable = resolveTestBrowserExecutable();
+if (testBrowserExecutable) {
+  process.env.PUPPETEER_EXECUTABLE_PATH = testBrowserExecutable;
+}
 
 // Ensure NEXT_PUBLIC variants are set for client-side code
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_URL) {
