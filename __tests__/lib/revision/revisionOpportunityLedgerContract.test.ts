@@ -24,6 +24,7 @@ function opportunity(id: string) {
 function ledger(opportunities: unknown[]) {
   return {
     job_id: 'job-123',
+    evaluation_project_id: 'project-123',
     manuscript_id: 6074,
     manuscript_version_hash: 'manuscript_6074_job-123',
     artifact_id: 'revision_opportunity_ledger_v1:123',
@@ -54,6 +55,19 @@ describe('revision opportunity ledger contract', () => {
     expect(validateRevisionOpportunityLedgerPayload(ledger([opportunity('opp-1'), opportunity('opp-2')]))).toMatchObject({
       valid: true,
       opportunityCount: 2,
+    });
+  });
+
+  it('requires the canonical evaluation project envelope field while allowing an explicit null', () => {
+    const missing = ledger([]) as Record<string, unknown>;
+    delete missing.evaluation_project_id;
+    expect(validateRevisionOpportunityLedgerPayload(missing).issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'LEDGER_FIELD_INVALID', path: '$.evaluation_project_id' }),
+    ]));
+
+    expect(validateRevisionOpportunityLedgerPayload({ ...ledger([]), evaluation_project_id: null })).toMatchObject({
+      valid: true,
+      opportunityCount: 0,
     });
   });
 

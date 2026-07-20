@@ -587,6 +587,7 @@ describe('read-only Supabase held recovery loaders', () => {
       artifact_type: 'revision_opportunity_ledger_v1',
       content: {
         job_id: 'job-1',
+        evaluation_project_id: null,
         manuscript_id: 1,
         manuscript_version_hash: 'manuscript-1',
         artifact_id: 'revision_opportunity_ledger_v1:current',

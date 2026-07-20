@@ -6,6 +6,7 @@
   "additionalProperties": true,
   "required": [
     "job_id",
+    "evaluation_project_id",
     "manuscript_id",
     "manuscript_version_hash",
     "artifact_id",

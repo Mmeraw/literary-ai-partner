@@ -94,6 +94,17 @@ export function validateRevisionOpportunityLedgerPayload(
     requireNonEmptyString(value, field, '$', issues, 'LEDGER_FIELD_MISSING');
   }
 
+  if (
+    !Object.prototype.hasOwnProperty.call(value, 'evaluation_project_id') ||
+    (value.evaluation_project_id !== null && !isNonEmptyString(value.evaluation_project_id))
+  ) {
+    issues.push({
+      code: 'LEDGER_FIELD_INVALID',
+      path: '$.evaluation_project_id',
+      message: '$.evaluation_project_id must be present and contain a non-empty string or null.',
+    });
+  }
+
   if (value.artifact_type !== REVISION_OPPORTUNITY_LEDGER_CONTRACT_VERSION) {
     issues.push({
       code: 'LEDGER_FIELD_INVALID',
