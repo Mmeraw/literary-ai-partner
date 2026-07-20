@@ -66,7 +66,11 @@ $$;
 -- exposed to unauthenticated clients; it is called only by a server-side route
 -- that has already verified the session. Authorization inside the function uses
 -- row-level locks and an exact requested-vs-owned count comparison.
-CREATE OR REPLACE FUNCTION public.delete_manuscripts_permanently(
+
+-- Drop the previous signature so the return type can change from the v1 contract.
+DROP FUNCTION IF EXISTS public.delete_manuscripts_permanently(uuid, bigint[]) CASCADE;
+
+CREATE FUNCTION public.delete_manuscripts_permanently(
   p_user_id uuid,
   p_manuscript_ids bigint[]
 )
