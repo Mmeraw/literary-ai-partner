@@ -89,6 +89,41 @@ describe('canonical opportunity duplicate collapse', () => {
     expect(ledger.metrics.source_recommendation_count).toBe(4);
     expect(ledger.metrics.disposition_count).toBe(4);
     expect(ledger.metrics.disposition_coverage_ratio).toBe(1);
+    expect(ledger.metrics.disposition_counts).toEqual({
+      admitted: 2,
+      held_recoverable: 0,
+      suppressed_governed: 1,
+      informational_non_actionable: 1,
+    });
+    expect(ledger.metrics.validation_counts).toEqual({
+      accepted: 2,
+      missing_revision_directive: 1,
+      missing_verifiable_anchor: 1,
+    });
+    expect(ledger.metrics.governing_rule_counts).toEqual({
+      canonical_opportunity_admission: 2,
+      no_revision_directive: 1,
+      verifiable_manuscript_anchor_required: 1,
+    });
+    expect(ledger.metrics.admitted_authority_count).toBe(2);
+    expect(ledger.metrics.admitted_authority_coverage_ratio).toBe(1);
+    expect(ledger.metrics.post_canonicalization_suppression_count).toBe(0);
+    expect(ledger.metrics.criterion_disposition_counts).toEqual({
+      narrativeDrive: {
+        source_count: 3,
+        admitted: 1,
+        held_recoverable: 0,
+        suppressed_governed: 1,
+        informational_non_actionable: 1,
+      },
+      stakesPressure: {
+        source_count: 1,
+        admitted: 1,
+        held_recoverable: 0,
+        suppressed_governed: 0,
+        informational_non_actionable: 0,
+      },
+    });
     expect(ledger.recommendation_dispositions.map((item) => item.disposition)).toEqual(
       expect.arrayContaining(['admitted', 'suppressed_governed', 'informational_non_actionable']),
     );
@@ -97,6 +132,32 @@ describe('canonical opportunity duplicate collapse', () => {
     const suppressed = ledger.recommendation_dispositions.find((item) => item.disposition === 'suppressed_governed');
     expect(suppressed?.canonical_opportunity_id).toBeUndefined();
     expect(ledger.opportunities.some((item) => item.deduped_from.includes(suppressed?.source_id ?? ''))).toBe(false);
+  });
+
+  it('reports zero-source and all-suppressed outcomes without inventing queue authority', () => {
+    const empty = buildCanonicalOpportunityLedger({ criteria: [] });
+    expect(empty.metrics.disposition_counts).toEqual({
+      admitted: 0,
+      held_recoverable: 0,
+      suppressed_governed: 0,
+      informational_non_actionable: 0,
+    });
+    expect(empty.metrics.admitted_authority_coverage_ratio).toBe(1);
+
+    const suppressedResult = buildResultWithDuplicateOpportunities();
+    for (const criterion of suppressedResult.criteria ?? []) {
+      for (const recommendation of criterion.recommendations ?? []) {
+        recommendation.anchor_snippet = '';
+      }
+    }
+    const suppressed = buildCanonicalOpportunityLedger(suppressedResult);
+    expect(suppressed.opportunities).toEqual([]);
+    expect(suppressed.metrics.disposition_counts.suppressed_governed).toBe(2);
+    expect(suppressed.metrics.admitted_authority_count).toBe(0);
+    expect(suppressed.metrics.admitted_authority_coverage_ratio).toBe(1);
+    expect(suppressed.metrics.governing_rule_counts).toEqual({
+      verifiable_manuscript_anchor_required: 2,
+    });
   });
 
   it('derives stable content identities independent of recommendation ordering', () => {
@@ -186,6 +247,10 @@ describe('canonical opportunity duplicate collapse', () => {
     unknownVersion.canonicalOpportunityLedger.disposition_contract_version = 'recommendation_disposition_v2';
     expect(isUnifiedEvaluationDocument(unknownVersion)).toBe(false);
 
+    const unknownForensicsVersion = JSON.parse(JSON.stringify(ued));
+    unknownForensicsVersion.canonicalOpportunityLedger.forensics_contract_version = 'recommendation_suppression_forensics_v2';
+    expect(isUnifiedEvaluationDocument(unknownForensicsVersion)).toBe(false);
+
     const malformedSourceIds = JSON.parse(JSON.stringify(ued));
     malformedSourceIds.canonicalOpportunityLedger.source_recommendation_ids = [42];
     expect(isUnifiedEvaluationDocument(malformedSourceIds)).toBe(false);
@@ -195,6 +260,7 @@ describe('canonical opportunity duplicate collapse', () => {
     delete legacy.canonicalOpportunityLedger.source_identity_version;
     delete legacy.canonicalOpportunityLedger.source_recommendation_ids;
     delete legacy.canonicalOpportunityLedger.recommendation_dispositions;
+    delete legacy.canonicalOpportunityLedger.forensics_contract_version;
     expect(isUnifiedEvaluationDocument(legacy)).toBe(true);
   });
 });

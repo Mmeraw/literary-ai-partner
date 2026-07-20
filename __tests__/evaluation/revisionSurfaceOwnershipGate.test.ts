@@ -478,6 +478,79 @@ describe('REVISION_SURFACE_OWNERSHIP_GATE', () => {
     expect(result.failures.some((f) => f.failure_code === 'RECOMMENDATION_DISPOSITION_VERSION_UNKNOWN')).toBe(true);
   });
 
+  test('accepts missing suppression-forensics version as legacy and rejects unknown explicit versions', () => {
+    const legacy = makeMinimalDoc() as unknown as Record<string, any>;
+    expect(runRevisionSurfaceOwnershipGate(legacy as never).status).toBe('pass');
+
+    const unknown = makeMinimalDoc() as unknown as Record<string, any>;
+    unknown.canonicalOpportunityLedger.forensics_contract_version = 'recommendation_suppression_forensics_v2';
+    expect(runRevisionSurfaceOwnershipGate(unknown as never).failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ failure_code: 'RECOMMENDATION_SUPPRESSION_FORENSICS_VERSION_UNKNOWN' }),
+      ]),
+    );
+  });
+
+  test('fails closed when versioned suppression-forensics metrics do not match persisted dispositions', () => {
+    const sourceId = 'plot:0123456789abcdefabcd:1';
+    const doc = makeMinimalDoc() as unknown as Record<string, any>;
+    Object.assign(doc.canonicalOpportunityLedger, {
+      disposition_contract_version: 'recommendation_disposition_v1',
+      source_identity_version: 'criterion_content_fingerprint_v1',
+      forensics_contract_version: 'recommendation_suppression_forensics_v1',
+      source_recommendation_ids: [sourceId],
+      recommendation_dispositions: [{
+        source_id: sourceId,
+        criterion: 'Plot',
+        disposition: 'suppressed_governed',
+        validation: 'missing_verifiable_anchor',
+        governing_rule: 'verifiable_manuscript_anchor_required',
+      }],
+      metrics: {
+        source_recommendation_count: 1,
+        disposition_count: 1,
+        disposition_coverage_ratio: 1,
+        admitted_authority_count: 0,
+        admitted_authority_coverage_ratio: 1,
+        post_canonicalization_suppression_count: 0,
+        disposition_counts: {
+          admitted: 0,
+          held_recoverable: 0,
+          suppressed_governed: 1,
+          informational_non_actionable: 0,
+        },
+        validation_counts: {
+          accepted: 0,
+          missing_revision_directive: 0,
+          missing_verifiable_anchor: 1,
+        },
+        governing_rule_counts: { verifiable_manuscript_anchor_required: 1 },
+        criterion_disposition_counts: {
+          Plot: {
+            source_count: 1,
+            admitted: 0,
+            held_recoverable: 0,
+            suppressed_governed: 1,
+            informational_non_actionable: 0,
+          },
+        },
+      },
+    });
+
+    expect(runRevisionSurfaceOwnershipGate(doc as never).failures).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ failure_code: 'RECOMMENDATION_SUPPRESSION_FORENSICS_INCONSISTENT' }),
+      ]),
+    );
+    doc.canonicalOpportunityLedger.metrics.disposition_counts.admitted = 1;
+
+    expect(runRevisionSurfaceOwnershipGate(doc as never).failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ failure_code: 'RECOMMENDATION_SUPPRESSION_FORENSICS_INCONSISTENT' }),
+      ]),
+    );
+  });
+
   test('rejects held_recoverable until a neutral recovery-authority proof exists', () => {
     const sourceId = 'pacing:0123456789abcdefabcd:1';
     const makeVersioned = () => {
