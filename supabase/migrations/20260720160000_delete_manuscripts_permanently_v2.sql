@@ -237,7 +237,7 @@ BEGIN
   IF to_regclass('public.revision_events') IS NOT NULL THEN
     DELETE FROM public.revision_events
     WHERE manuscript_id = ANY(v_to_delete)
-       OR evaluation_job_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
+       OR evaluation_run_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
     GET DIAGNOSTICS v_count = ROW_COUNT;
     v_counts := jsonb_set(v_counts, ARRAY['revision_events'], to_jsonb(v_count));
   END IF;
