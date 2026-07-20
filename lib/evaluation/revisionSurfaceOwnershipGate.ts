@@ -19,6 +19,11 @@
  */
 
 import type { UnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
+import {
+  RECOMMENDATION_DISPOSITION_CONTRACT_VERSION,
+  RECOMMENDATION_FINAL_DISPOSITIONS,
+  RECOMMENDATION_SOURCE_IDENTITY_VERSION,
+} from '@/lib/evaluation/canonicalOpportunityLedger';
 
 export type RevisionSurfaceOwnershipFailure = {
   failure_code: string;
@@ -144,6 +149,126 @@ function checkCanonicalOpportunityAuthority(
       : 'canonicalOpportunityLedger is missing or malformed',
     remediation_hint: 'Build and preserve the canonical opportunity ledger before author-exposure certification. Do not use legacy recommendation fallback.',
   }];
+}
+
+/**
+ * New UEDs carry a closed disposition for every source recommendation. This is
+ * deliberately a coverage invariant rather than a minimum-card-count rule:
+ * an all-held or all-suppressed result may be safe, but silent disappearance is
+ * never certifiable. Older certified UEDs remain readable because they predate
+ * the version marker.
+ */
+function checkRecommendationDispositionCompleteness(
+  document: UnifiedEvaluationDocument,
+): RevisionSurfaceOwnershipFailure[] {
+  const ledger = (document as unknown as Record<string, unknown>).canonicalOpportunityLedger;
+  if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) return [];
+  const record = ledger as Record<string, unknown>;
+  const version = record.disposition_contract_version;
+  if (version == null) return [];
+  if (version !== RECOMMENDATION_DISPOSITION_CONTRACT_VERSION) {
+    return [{
+      failure_code: 'RECOMMENDATION_DISPOSITION_VERSION_UNKNOWN',
+      section: 'canonicalOpportunityLedger',
+      field: 'canonicalOpportunityLedger.disposition_contract_version',
+      expected_behavior: `Missing version for a legacy UED or ${RECOMMENDATION_DISPOSITION_CONTRACT_VERSION} for a current UED`,
+      actual_behavior: `Unknown disposition contract version ${String(version)}`,
+      remediation_hint: 'Add an explicit compatibility validator before certifying a new recommendation disposition contract version.',
+    }];
+  }
+
+  const dispositions = record.recommendation_dispositions;
+  const expectedSourceIds = record.source_recommendation_ids;
+  const metrics = record.metrics && typeof record.metrics === 'object' && !Array.isArray(record.metrics)
+    ? record.metrics as Record<string, unknown>
+    : null;
+  const sourceCount = metrics?.source_recommendation_count;
+  const dispositionCount = metrics?.disposition_count;
+  const coverageRatio = metrics?.disposition_coverage_ratio;
+  const allowed = new Set<string>(RECOMMENDATION_FINAL_DISPOSITIONS);
+  const failures: RevisionSurfaceOwnershipFailure[] = [];
+
+  if (
+    record.source_identity_version !== RECOMMENDATION_SOURCE_IDENTITY_VERSION ||
+    !Array.isArray(expectedSourceIds) ||
+    !expectedSourceIds.every((value) => typeof value === 'string')
+  ) {
+    failures.push({
+      failure_code: 'RECOMMENDATION_SOURCE_AUTHORITY_MISSING',
+      section: 'canonicalOpportunityLedger',
+      field: 'canonicalOpportunityLedger.source_recommendation_ids',
+      expected_behavior: `Authoritative source identities use ${RECOMMENDATION_SOURCE_IDENTITY_VERSION} and are persisted as an array`,
+      actual_behavior: `identity_version=${String(record.source_identity_version)} source_ids=${Array.isArray(expectedSourceIds) ? 'array' : typeof expectedSourceIds}`,
+      remediation_hint: 'Enumerate source criterion recommendations before classification and persist their deterministic content-fingerprint identities.',
+    });
+  }
+
+  if (!Array.isArray(dispositions)) {
+    failures.push({
+      failure_code: 'RECOMMENDATION_DISPOSITION_AUTHORITY_MISSING',
+      section: 'canonicalOpportunityLedger',
+      field: 'canonicalOpportunityLedger.recommendation_dispositions',
+      expected_behavior: 'Every source recommendation has exactly one governed final disposition',
+      actual_behavior: `recommendation_dispositions is ${typeof dispositions}`,
+      remediation_hint: 'Rebuild the canonical opportunity ledger from the complete criterion recommendation supply.',
+    });
+    return failures;
+  }
+
+  const sourceIds = new Set<string>();
+  for (const [index, value] of dispositions.entries()) {
+    const item = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+    const sourceId = typeof item?.source_id === 'string' ? item.source_id.trim() : '';
+    const sourceIdentityValid = /^[^:]+:[a-f0-9]{20}:[1-9]\d*$/.test(sourceId);
+    const disposition = typeof item?.disposition === 'string' ? item.disposition : '';
+    const admittedWithoutAuthority = disposition === 'admitted' &&
+      (typeof item?.canonical_opportunity_id !== 'string' || !item.canonical_opportunity_id.trim());
+    // v1 does not import or duplicate the downstream Revision executor registry.
+    // Until a neutral, versioned recovery-authority proof exists, Evaluate may
+    // preserve a recommendation as suppressed but may not certify it as Held.
+    const heldWithoutRecognizedRecovery = disposition === 'held_recoverable';
+    if (!sourceId || !sourceIdentityValid || sourceIds.has(sourceId) || !allowed.has(disposition) || admittedWithoutAuthority || heldWithoutRecognizedRecovery) {
+      failures.push({
+        failure_code: 'RECOMMENDATION_DISPOSITION_INVALID',
+        section: 'canonicalOpportunityLedger',
+        field: `canonicalOpportunityLedger.recommendation_dispositions[${index}]`,
+        expected_behavior: 'A unique source identity, closed governed disposition, and canonical identity for admitted recommendations',
+        actual_behavior: !sourceId ? 'source identity missing' : !sourceIdentityValid ? `source identity does not match ${RECOMMENDATION_SOURCE_IDENTITY_VERSION}: ${sourceId}` : sourceIds.has(sourceId) ? `duplicate source identity ${sourceId}` : admittedWithoutAuthority ? 'admitted recommendation has no canonical opportunity identity' : heldWithoutRecognizedRecovery ? 'held_recoverable is not certifiable by recommendation_disposition_v1 without a neutral recovery-authority proof' : `invalid disposition ${disposition}`,
+        remediation_hint: 'Preserve the recommendation lineage and assign exactly one final governed disposition.',
+      });
+    }
+    if (sourceId) sourceIds.add(sourceId);
+  }
+
+  const expectedIds = new Set(Array.isArray(expectedSourceIds) ? expectedSourceIds.filter((value): value is string => typeof value === 'string') : []);
+  const missingSourceIds = [...expectedIds].filter((id) => !sourceIds.has(id));
+  const unexpectedSourceIds = [...sourceIds].filter((id) => !expectedIds.has(id));
+  const duplicateExpectedIds = Array.isArray(expectedSourceIds)
+    ? expectedSourceIds.filter((id, index) => expectedSourceIds.indexOf(id) !== index)
+    : [];
+  if (
+    typeof sourceCount !== 'number' ||
+    typeof dispositionCount !== 'number' ||
+    dispositionCount !== dispositions.length ||
+    coverageRatio !== 1 ||
+    sourceCount !== dispositions.length ||
+    sourceCount !== expectedIds.size ||
+    sourceIds.size !== dispositions.length ||
+    missingSourceIds.length > 0 ||
+    unexpectedSourceIds.length > 0 ||
+    duplicateExpectedIds.length > 0
+  ) {
+    failures.push({
+      failure_code: 'RECOMMENDATION_DISPOSITION_COVERAGE_INCOMPLETE',
+      section: 'canonicalOpportunityLedger',
+      field: 'canonicalOpportunityLedger.metrics.source_recommendation_count',
+      expected_behavior: 'Source recommendation count, unique identities, and disposition count must match exactly',
+      actual_behavior: `source_count=${String(sourceCount)} metric_disposition_count=${String(dispositionCount)} actual_disposition_count=${dispositions.length} coverage_ratio=${String(coverageRatio)} unique_source_count=${sourceIds.size} missing_source_ids=${missingSourceIds.join('|') || 'none'} unexpected_source_ids=${unexpectedSourceIds.join('|') || 'none'} duplicate_expected_ids=${[...new Set(duplicateExpectedIds)].join('|') || 'none'}`,
+      remediation_hint: 'Block certification and reconstruct the missing recommendation disposition records.',
+    });
+  }
+
+  return failures;
 }
 
 /**
@@ -379,6 +504,7 @@ export function runRevisionSurfaceOwnershipGate(
 
   failures.push(
     ...checkCanonicalOpportunityAuthority(document),
+    ...checkRecommendationDispositionCompleteness(document),
     ...checkForbiddenSectionsInUED(document),
     ...checkOpportunityTraceability(document),
     ...checkCountParity(document),

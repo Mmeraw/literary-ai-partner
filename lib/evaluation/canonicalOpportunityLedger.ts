@@ -1,5 +1,6 @@
 import { getCriterionDisplayLabel } from '@/schemas/criteria-keys';
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 
 export type CanonicalOpportunitySeverity = 'high' | 'medium' | 'low';
 
@@ -29,6 +30,9 @@ export type CanonicalOpportunityLedgerItem = {
 };
 
 export type CanonicalOpportunityLedgerMetrics = {
+  source_recommendation_count: number;
+  disposition_count: number;
+  disposition_coverage_ratio: number;
   raw_opportunity_count: number;
   canonical_opportunity_count: number;
   deduplication_ratio: number;
@@ -42,9 +46,39 @@ export type CanonicalOpportunityLedgerMetrics = {
   };
 };
 
+export const RECOMMENDATION_DISPOSITION_CONTRACT_VERSION = 'recommendation_disposition_v1' as const;
+export const RECOMMENDATION_SOURCE_IDENTITY_VERSION = 'criterion_content_fingerprint_v1' as const;
+export const RECOMMENDATION_FINAL_DISPOSITIONS = [
+  'admitted',
+  // Reserved vocabulary only in v1. Evaluate cannot certify this value until
+  // a neutral, versioned recovery-authority proof replaces downstream runtime
+  // coupling; revisionSurfaceOwnershipGate therefore rejects it today.
+  'held_recoverable',
+  'suppressed_governed',
+  'informational_non_actionable',
+] as const;
+export type RecommendationFinalDisposition = typeof RECOMMENDATION_FINAL_DISPOSITIONS[number];
+
+export type CanonicalRecommendationDisposition = {
+  recommendation_id: string;
+  source_id: string;
+  criterion: string;
+  materiality: 'material' | 'informational';
+  validation: 'accepted' | 'missing_revision_directive' | 'missing_verifiable_anchor';
+  owner: 'criterion_recommendation';
+  disposition: RecommendationFinalDisposition;
+  governing_rule: string;
+  author_explanation: string;
+  canonical_opportunity_id?: string;
+};
+
 export type CanonicalOpportunityLedger = {
+  disposition_contract_version: typeof RECOMMENDATION_DISPOSITION_CONTRACT_VERSION;
+  source_identity_version: typeof RECOMMENDATION_SOURCE_IDENTITY_VERSION;
+  source_recommendation_ids: string[];
   opportunities: CanonicalOpportunityLedgerItem[];
   rendered_opportunities: CanonicalOpportunityLedgerItem[];
+  recommendation_dispositions: CanonicalRecommendationDisposition[];
   metrics: CanonicalOpportunityLedgerMetrics;
 };
 
@@ -339,20 +373,71 @@ function issueSortRank(opp: CanonicalOpportunityLedgerItem): number {
   return (SEVERITY_RANK[opp.severity] * 1000) + issueRank + specificityScore(opp.fix_direction);
 }
 
-function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
+function collectRawOpportunities(result: EvaluationLike): {
+  raw: RawOpportunity[];
+  dispositions: CanonicalRecommendationDisposition[];
+  sourceIds: string[];
+} {
   const raw: RawOpportunity[] = [];
+  const dispositions: CanonicalRecommendationDisposition[] = [];
+  const sourceIds: string[] = [];
   const criteria = Array.isArray(result.criteria) ? result.criteria : [];
+  const fingerprintOccurrences = new Map<string, number>();
 
   for (const criterion of criteria) {
     const criterionKey = typeof criterion.key === 'string' && criterion.key.trim() ? criterion.key.trim() : 'general';
     const recommendations = Array.isArray(criterion.recommendations) ? criterion.recommendations : [];
 
-    recommendations.forEach((rec, index) => {
+    recommendations.forEach((rec) => {
       const action = cleanOptional(rec.action);
       const symptom = cleanOptional(rec.symptom);
       const evidence = cleanOptional(rec.anchor_snippet);
-      if (!action && !symptom) return;
-      if (!evidenceLooksLikeQuote(evidence, action, symptom)) return;
+      const fingerprint = canonicalJsonSha256({
+        criterion: criterionKey,
+        action,
+        symptom,
+        evidence,
+        fix: cleanOptional(rec.specific_fix) || cleanOptional(rec.fix_direction),
+        impact: cleanOptional(rec.reader_effect) || cleanOptional(rec.expected_impact),
+      }).slice(0, 20);
+      const occurrence = (fingerprintOccurrences.get(fingerprint) ?? 0) + 1;
+      fingerprintOccurrences.set(fingerprint, occurrence);
+      // Exact content duplicates are intentionally equivalent. Their ordinal
+      // set (1..n) is stable even if indistinguishable duplicates reorder; if a
+      // producer later needs distinct identity it must supply a durable UUID.
+      const sourceId = `${criterionKey}:${fingerprint}:${occurrence}`;
+      const recommendationId = `REC-${fingerprint}-${occurrence}`;
+      // Enumeration occurs before classification. This is the authoritative
+      // source supply against which final disposition coverage is certified.
+      sourceIds.push(sourceId);
+      if (!action && !symptom) {
+        dispositions.push({
+          recommendation_id: recommendationId,
+          source_id: sourceId,
+          criterion: criterionKey,
+          materiality: 'informational',
+          validation: 'missing_revision_directive',
+          owner: 'criterion_recommendation',
+          disposition: 'informational_non_actionable',
+          governing_rule: 'no_revision_directive',
+          author_explanation: 'This observation does not request a manuscript change.',
+        });
+        return;
+      }
+      if (!evidenceLooksLikeQuote(evidence, action, symptom)) {
+        dispositions.push({
+          recommendation_id: recommendationId,
+          source_id: sourceId,
+          criterion: criterionKey,
+          materiality: 'material',
+          validation: 'missing_verifiable_anchor',
+          owner: 'criterion_recommendation',
+          disposition: 'suppressed_governed',
+          governing_rule: 'verifiable_manuscript_anchor_required',
+          author_explanation: 'This recommendation was not promoted because its supporting manuscript passage could not be verified.',
+        });
+        return;
+      }
 
       const cause = cleanOptional(rec.mechanism) || cleanOptional(rec.cause);
       const fix = cleanOptional(rec.specific_fix) || cleanOptional(rec.fix_direction) || action;
@@ -368,7 +453,7 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
       });
 
       raw.push({
-        sourceId: `${criterionKey}:${index + 1}`,
+        sourceId,
         criterion: criterionKey,
         severity: severityFromPriority(rec.priority),
         evidence,
@@ -390,10 +475,21 @@ function collectRawOpportunities(result: EvaluationLike): RawOpportunity[] {
         issue_type: issueType,
         source_priority: typeof rec.priority === 'string' ? rec.priority : undefined,
       });
+      dispositions.push({
+        recommendation_id: recommendationId,
+        source_id: sourceId,
+        criterion: criterionKey,
+        materiality: 'material',
+        validation: 'accepted',
+        owner: 'criterion_recommendation',
+        disposition: 'admitted',
+        governing_rule: 'canonical_opportunity_admission',
+        author_explanation: 'This recommendation passed the canonical opportunity requirements.',
+      });
     });
   }
 
-  return raw;
+  return { raw, dispositions, sourceIds };
 }
 
 function hasAnyCandidate(item: RawOpportunity | undefined): boolean {
@@ -504,7 +600,8 @@ function capRenderedOpportunities(items: CanonicalOpportunityLedgerItem[], wordC
 }
 
 export function buildCanonicalOpportunityLedger(result: EvaluationLike): CanonicalOpportunityLedger {
-  const raw = collectRawOpportunities(result);
+  const collected = collectRawOpportunities(result);
+  const raw = collected.raw;
   const clusters: RawOpportunity[][] = [];
   const clusterByKey = new Map<string, RawOpportunity[]>();
 
@@ -542,6 +639,21 @@ export function buildCanonicalOpportunityLedger(result: EvaluationLike): Canonic
     ? result.metrics.manuscript.word_count
     : null;
   const rendered = capRenderedOpportunities(opportunities, wordCount);
+  const opportunityIdBySource = new Map<string, string>();
+  for (const opportunity of opportunities) {
+    for (const sourceId of opportunity.deduped_from) opportunityIdBySource.set(sourceId, opportunity.id);
+  }
+  const recommendationDispositions = collected.dispositions.map((item) => {
+    if (item.disposition !== 'admitted') return item;
+    const canonicalOpportunityId = opportunityIdBySource.get(item.source_id);
+    if (canonicalOpportunityId) return { ...item, canonical_opportunity_id: canonicalOpportunityId };
+    return {
+      ...item,
+      disposition: 'suppressed_governed' as const,
+      governing_rule: 'canonical_opportunity_completeness_gate',
+      author_explanation: 'The recommendation could not be preserved as a complete canonical revision opportunity.',
+    };
+  });
   const duplicateClusters = clusters.filter((cluster) => cluster.length > 1).length;
   const repeatedPairs = rendered.reduce((count, item, index) =>
     count + rendered.slice(index + 1).filter((other) => sameFinalIssue(item, other)).length,
@@ -549,9 +661,18 @@ export function buildCanonicalOpportunityLedger(result: EvaluationLike): Canonic
   const repeatedRatio = rendered.length <= 1 ? 0 : repeatedPairs / rendered.length;
 
   return {
+    disposition_contract_version: RECOMMENDATION_DISPOSITION_CONTRACT_VERSION,
+    source_identity_version: RECOMMENDATION_SOURCE_IDENTITY_VERSION,
+    source_recommendation_ids: collected.sourceIds,
     opportunities,
     rendered_opportunities: rendered,
+    recommendation_dispositions: recommendationDispositions,
     metrics: {
+      source_recommendation_count: collected.sourceIds.length,
+      disposition_count: recommendationDispositions.length,
+      disposition_coverage_ratio: collected.sourceIds.length === 0
+        ? 1
+        : recommendationDispositions.length / collected.sourceIds.length,
       raw_opportunity_count: raw.length,
       canonical_opportunity_count: opportunities.length,
       deduplication_ratio: raw.length === 0 ? 0 : 1 - (opportunities.length / raw.length),

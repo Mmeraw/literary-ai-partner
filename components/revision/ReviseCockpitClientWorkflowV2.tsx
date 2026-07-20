@@ -13,6 +13,7 @@ import type { CopyPasteCandidateKey } from "./workbenchCardModels";
 import ResetQueueButton from "./ResetQueueButton";
 import TrustedPathWorkbenchButton from "./TrustedPathWorkbenchButton";
 import HardResetRestartButton from "@/components/evaluation/HardResetRestartButton";
+import { buildAuthorSafeHeldPresentation } from "@/lib/revision/authorSafeHeldPresentation";
 
 type Decision = "accepted_a" | "accepted_b" | "accepted_c" | "custom" | "keep_original" | "reject" | "deferred";
 
@@ -146,26 +147,8 @@ function getHeldReason(item: WorkbenchOpportunity): string {
     ...(item.preflightReasons ?? []),
     ...(item.hydrationFailureReasons ?? []),
     ...(item.resBlockerReasons ?? []),
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  if (/evidence|anchor|grounding|excerpt|manuscript match/.test(reasons)) {
-    return "Evidence could not be verified against the manuscript.";
-  }
-  if (/coordinate|location|target|placeholder/.test(reasons)) {
-    return "The revision location is not precise enough.";
-  }
-  if (/context|before_after|hydration|local context/.test(reasons)) {
-    return "More surrounding manuscript context is required.";
-  }
-  if (/canon|continuity|voice|pov|testimony|metaphor/.test(reasons)) {
-    return "The proposed change may affect canon, continuity, voice, or point of view.";
-  }
-  if (/candidate|quality|rewrite|prose|copy-paste/.test(reasons)) {
-    return "The suggested wording did not pass the revision quality checks.";
-  }
-  return item.groundingNote ?? item.adminRepairReason ?? item.readinessReason ?? "This revision requires re-analysis before it can be used safely.";
+  ];
+  return buildAuthorSafeHeldPresentation(reasons).holdReason;
 }
 
 function asClassifiedOpportunity(item: WorkbenchOpportunity): ClassifiedWorkbenchOpportunity {

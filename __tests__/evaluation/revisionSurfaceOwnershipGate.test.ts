@@ -458,6 +458,64 @@ describe('REVISION_SURFACE_OWNERSHIP_GATE', () => {
     expect(result.failures).toEqual([]);
   });
 
+  test('blocks a versioned ledger when recommendation disposition coverage is missing', () => {
+    const doc = makeMinimalDoc() as unknown as Record<string, any>;
+    doc.canonicalOpportunityLedger.disposition_contract_version = 'recommendation_disposition_v1';
+    doc.canonicalOpportunityLedger.metrics = { source_recommendation_count: 1 };
+
+    const result = runRevisionSurfaceOwnershipGate(doc as never);
+    expect(result.status).toBe('fail');
+    expect(result.failures.some((f) => f.failure_code === 'RECOMMENDATION_DISPOSITION_AUTHORITY_MISSING')).toBe(true);
+  });
+
+  test('treats a missing version as legacy but blocks an unknown future version', () => {
+    const legacy = makeMinimalDoc() as unknown as Record<string, any>;
+    expect(runRevisionSurfaceOwnershipGate(legacy as never).status).toBe('pass');
+
+    const unknown = makeMinimalDoc() as unknown as Record<string, any>;
+    unknown.canonicalOpportunityLedger.disposition_contract_version = 'recommendation_disposition_v2';
+    const result = runRevisionSurfaceOwnershipGate(unknown as never);
+    expect(result.failures.some((f) => f.failure_code === 'RECOMMENDATION_DISPOSITION_VERSION_UNKNOWN')).toBe(true);
+  });
+
+  test('rejects held_recoverable until a neutral recovery-authority proof exists', () => {
+    const sourceId = 'pacing:0123456789abcdefabcd:1';
+    const makeVersioned = () => {
+      const doc = makeMinimalDoc() as unknown as Record<string, any>;
+      Object.assign(doc.canonicalOpportunityLedger, {
+        disposition_contract_version: 'recommendation_disposition_v1',
+        source_identity_version: 'criterion_content_fingerprint_v1',
+        source_recommendation_ids: [sourceId],
+        metrics: { source_recommendation_count: 1, disposition_count: 1, disposition_coverage_ratio: 1 },
+      });
+      return doc;
+    };
+
+    const invalid = makeVersioned();
+    invalid.canonicalOpportunityLedger.recommendation_dispositions = [{ source_id: sourceId, disposition: 'held_recoverable' }];
+    expect(runRevisionSurfaceOwnershipGate(invalid as never).failures.some((f) =>
+      f.actual_behavior.includes('neutral recovery-authority proof'),
+    )).toBe(true);
+  });
+
+  test('blocks duplicate or unbound recommendation dispositions', () => {
+    const doc = makeMinimalDoc() as unknown as Record<string, any>;
+    doc.canonicalOpportunityLedger.disposition_contract_version = 'recommendation_disposition_v1';
+    doc.canonicalOpportunityLedger.metrics = { source_recommendation_count: 2 };
+    doc.canonicalOpportunityLedger.recommendation_dispositions = [
+      { source_id: 'criterion:1', disposition: 'admitted' },
+      { source_id: 'criterion:1', disposition: 'suppressed_governed' },
+    ];
+
+    const result = runRevisionSurfaceOwnershipGate(doc as never);
+    expect(result.status).toBe('fail');
+    expect(result.failures.map((f) => f.failure_code)).toEqual(expect.arrayContaining([
+      'RECOMMENDATION_DISPOSITION_INVALID',
+      'RECOMMENDATION_DISPOSITION_COVERAGE_INCOMPLETE',
+    ]));
+  });
+
+
   test('fails when recommendation is missing opportunity_id', () => {
     const doc = makeMinimalDoc();
     (doc.criterionDetails[0].recommendations[0] as Record<string, unknown>).opportunity_id = '';
