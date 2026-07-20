@@ -143,6 +143,8 @@ jobs:
           # Map Supabase CLI names → Next.js expected names
           echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
           # Optional: add CRON_SECRET for proof endpoint auth
           echo "CRON_SECRET=test-cron-secret-for-flow1-proof" >> "$GITHUB_ENV"
 
@@ -161,6 +163,15 @@ jobs:
         env:
           FLOW1_BASE_URL: http://127.0.0.1:3002
           CRON_SECRET: test-cron-secret-for-flow1-proof
+
+      # Run the DB-backed manuscript deletion proof against the local Supabase so the
+      # destructive RPC is exercised on a freshly migrated database.
+      - name: Run manuscript deletion DB proof
+        if: steps.scope.outputs.skip != 'true'
+        run: npx jest tests/manuscripts/deleteManuscript.test.ts --runInBand --testTimeout=120000 --no-coverage
+        env:
+          LOCAL_DB: '1'
+          CI: true
 
       - name: Stop Supabase
         if: always() && steps.scope.outputs.skip != 'true'
