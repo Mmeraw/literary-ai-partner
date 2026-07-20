@@ -6,6 +6,7 @@ import type {
   WithheldCardViewModel,
   WorkbenchCardViewModel,
 } from './workbenchCardModels';
+import { buildAuthorSafeHeldPresentation } from '@/lib/revision/authorSafeHeldPresentation';
 
 const ILLUSTRATIVE_DISCLAIMER = 'Illustrative phrasing only—not a replacement passage' as const;
 
@@ -68,6 +69,7 @@ function toStrategyCard(item: ClassifiedWorkbenchOpportunity): StrategyCardUiVie
     'Preserve established facts, point of view, and voice unless the recommendation explicitly requires a controlled change.',
   ]);
   const illustrativeText = normalize(item.strategyCardViewModel?.illustrativeExamples?.[0]?.text);
+  const authorSafeSafetyExplanation = buildAuthorSafeHeldPresentation(item.executabilityReasons ?? []);
 
   return {
     opportunityId: item.id,
@@ -78,7 +80,7 @@ function toStrategyCard(item: ClassifiedWorkbenchOpportunity): StrategyCardUiVie
     recommendedStrategy:
       recommendedStrategy || 'Review the evidence and complete the repair at the smallest defensible narrative scope.',
     whyDirectCopyPasteUnsafe:
-      normalize(scaffold?.reasonCopyPasteIsUnsafe || item.executabilityReasons?.join('; ')) ||
+      normalize(scaffold?.reasonCopyPasteIsUnsafe) || authorSafeSafetyExplanation.holdReason ||
       'This repair requires author review across more context than a bounded replacement can safely change.',
     evidenceAnchor: normalize(scaffold?.evidenceAnchor || sourceTextOf(item)) || 'No exact passage is available.',
     implementationSequence,
@@ -98,6 +100,7 @@ function toWithheldCard(item: ClassifiedWorkbenchOpportunity): WithheldCardViewM
     ...(item.preflightReasons ?? []),
     ...(item.resBlockerReasons ?? []),
   ].map(normalize).filter(Boolean);
+  const presentation = buildAuthorSafeHeldPresentation(reasons);
 
   return {
     opportunityId: item.id,
@@ -106,9 +109,9 @@ function toWithheldCard(item: ClassifiedWorkbenchOpportunity): WithheldCardViewM
     severity: item.severity,
     criterion: item.criterion,
     title: item.title,
-    holdReason: reasons.join('; ') || 'RevisionGrade could not verify a safe revision path for this opportunity.',
-    missingContext: reasons.length ? reasons : undefined,
-    recoveryAction: 'Request re-analysis after the missing grounding or context is available.',
+    holdReason: presentation.holdReason,
+    missingContext: presentation.missingContext,
+    recoveryAction: presentation.recoveryAction,
     evidenceAnchor: sourceTextOf(item) || undefined,
   };
 }

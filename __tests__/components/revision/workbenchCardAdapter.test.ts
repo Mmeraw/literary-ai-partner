@@ -1,4 +1,5 @@
 import { adaptWorkbenchOpportunityToCard } from '@/components/revision/workbenchCardAdapter';
+import { buildAuthorSafeHeldPresentation } from '@/lib/revision/authorSafeHeldPresentation';
 import type { WorkbenchOpportunity } from '@/lib/revision/workbenchQueue';
 import type { ClassifiedWorkbenchOpportunity } from '@/lib/revision/workbenchQueueProjection';
 import { buildClassifiedWorkbenchOpportunity, classifyWorkbenchExecutabilityDetailed } from '@/lib/revision/workbenchQueueProjection';
@@ -126,8 +127,30 @@ describe('adaptWorkbenchOpportunityToCard', () => {
     }, 'withheld'));
     expect(result.cardType).toBe('withheld');
     if (result.cardType !== 'withheld') throw new Error('wrong card type');
-    expect(result.holdReason).toMatch(/canon_unclear/);
+    expect(result.holdReason).toMatch(/does not establish this detail/i);
+    expect(result.holdReason).not.toMatch(/canon_unclear|blocked_context/);
+    expect(result.missingContext).toEqual(expect.arrayContaining([
+      expect.stringMatching(/story fact|continuity/i),
+      expect.stringMatching(/surrounding passage/i),
+    ]));
     expect('candidates' in result).toBe(false);
+  });
+
+  it('deduplicates internal diagnostics and never exposes unknown codes verbatim', () => {
+    const result = adaptWorkbenchOpportunityToCard(makeClassified({
+      executabilityReasons: ['insufficient_anchor_grounding', 'insufficient_anchor_grounding', 'future_internal_code_47'],
+    }, 'withheld'));
+    if (result.cardType !== 'withheld') throw new Error('wrong card type');
+
+    expect(result.holdReason).toMatch(/safe revision/i);
+    expect(new Set(result.missingContext).size).toBe(result.missingContext?.length);
+    expect(JSON.stringify(result)).not.toMatch(/insufficient_anchor_grounding|future_internal_code_47/);
+  });
+
+  it('maps unknown diagnostic codes to generic author-safe prose', () => {
+    const result = buildAuthorSafeHeldPresentation(['future_internal_code_47']);
+    expect(result.holdReason).toMatch(/could not verify a safe revision path/i);
+    expect(JSON.stringify(result)).not.toMatch(/future_internal_code_47/);
   });
 
   it('follows finalDecision.cardType when mirrored raw cardType is contradictory', () => {

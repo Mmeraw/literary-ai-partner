@@ -6,6 +6,7 @@ import {
 import { normalizeEvaluationReportViewModel } from '@/lib/evaluation/evaluationReportViewModel';
 import { buildUnifiedEvaluationDocument } from '@/lib/evaluation/unifiedEvaluationDocument';
 import type { ShortFormResultLike } from '@/lib/evaluation/shortFormReportDocument';
+import { isUnifiedEvaluationDocument } from '@/lib/evaluation/persistedUnifiedEvaluationDocument';
 
 function buildResultWithDuplicateOpportunities(): ShortFormResultLike {
   return {
@@ -74,6 +75,47 @@ function buildResultWithDuplicateOpportunities(): ShortFormResultLike {
 }
 
 describe('canonical opportunity duplicate collapse', () => {
+  it('records one governed disposition for every source recommendation, including held and informational advice', () => {
+    const result = buildResultWithDuplicateOpportunities();
+    result.criteria![0]!.recommendations!.push(
+      { action: 'Clarify the transition.', anchor_snippet: 'Premise remains abstract.' },
+      { expected_impact: 'Background observation only.' },
+    );
+
+    const ledger = buildCanonicalOpportunityLedger(result);
+
+    expect(ledger.disposition_contract_version).toBe('recommendation_disposition_v1');
+    expect(ledger.recommendation_dispositions).toHaveLength(4);
+    expect(ledger.metrics.source_recommendation_count).toBe(4);
+    expect(ledger.metrics.disposition_count).toBe(4);
+    expect(ledger.metrics.disposition_coverage_ratio).toBe(1);
+    expect(ledger.recommendation_dispositions.map((item) => item.disposition)).toEqual(
+      expect.arrayContaining(['admitted', 'suppressed_governed', 'informational_non_actionable']),
+    );
+    expect(ledger.recommendation_dispositions.filter((item) => item.disposition === 'admitted'))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ canonical_opportunity_id: expect.stringMatching(/^OPP-/) })]));
+    const suppressed = ledger.recommendation_dispositions.find((item) => item.disposition === 'suppressed_governed');
+    expect(suppressed?.canonical_opportunity_id).toBeUndefined();
+    expect(ledger.opportunities.some((item) => item.deduped_from.includes(suppressed?.source_id ?? ''))).toBe(false);
+  });
+
+  it('derives stable content identities independent of recommendation ordering', () => {
+    const first = buildResultWithDuplicateOpportunities();
+    first.criteria![0]!.recommendations!.push({
+      action: 'Compress the setup before the bridge scene.',
+      anchor_snippet: 'Mara folded the map and returned it to the drawer.',
+      specific_fix: 'Remove the repeated setup beat before the bridge scene.',
+    });
+    const reordered = JSON.parse(JSON.stringify(first)) as ShortFormResultLike;
+    reordered.criteria![0]!.recommendations!.reverse();
+
+    const originalIds = buildCanonicalOpportunityLedger(first).source_recommendation_ids.slice().sort();
+    const reorderedIds = buildCanonicalOpportunityLedger(reordered).source_recommendation_ids.slice().sort();
+
+    expect(reorderedIds).toEqual(originalIds);
+    expect(originalIds.every((id) => /^[^:]+:[a-f0-9]{20}:[1-9]\d*$/.test(id))).toBe(true);
+  });
+
   it('formats top recommendation criterion citations without raw internal keys', () => {
     const baseOpportunity = {
       id: 'OPP-001',
@@ -138,6 +180,22 @@ describe('canonical opportunity duplicate collapse', () => {
 
     expect(vm.revisionOpportunitySummary.total).toBe(1);
     expect(renderedOpportunityIds).toEqual(new Set(['OPP-001']));
+    expect(isUnifiedEvaluationDocument(ued)).toBe(true);
+
+    const unknownVersion = JSON.parse(JSON.stringify(ued));
+    unknownVersion.canonicalOpportunityLedger.disposition_contract_version = 'recommendation_disposition_v2';
+    expect(isUnifiedEvaluationDocument(unknownVersion)).toBe(false);
+
+    const malformedSourceIds = JSON.parse(JSON.stringify(ued));
+    malformedSourceIds.canonicalOpportunityLedger.source_recommendation_ids = [42];
+    expect(isUnifiedEvaluationDocument(malformedSourceIds)).toBe(false);
+
+    const legacy = JSON.parse(JSON.stringify(ued));
+    delete legacy.canonicalOpportunityLedger.disposition_contract_version;
+    delete legacy.canonicalOpportunityLedger.source_identity_version;
+    delete legacy.canonicalOpportunityLedger.source_recommendation_ids;
+    delete legacy.canonicalOpportunityLedger.recommendation_dispositions;
+    expect(isUnifiedEvaluationDocument(legacy)).toBe(true);
   });
 });
 

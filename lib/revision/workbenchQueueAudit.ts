@@ -15,6 +15,7 @@ import {
 } from './workbenchQueueProjection'
 import type { RecommendationExecutabilityDecision } from './recommendationExecutability'
 import type { AdmissionGateResult } from './reviseAdmissionGate'
+import { buildAuthorSafeHeldPresentation } from './authorSafeHeldPresentation'
 import { adaptWorkbenchOpportunityToCard } from '@/components/revision/workbenchCardAdapter'
 
 export type WorkbenchAdmissionDetails = {
@@ -76,7 +77,7 @@ export type DiagnosticCollection =
   | 'executability_output'
   | 'withheld_adapter_input'
   | 'strategy_unsafe_reasons_input'
-  | 'withheld_adapter_output'
+  | 'withheld_raw_code_leakage'
   | 'strategy_unsafe_reasons_output'
 
 export type DiagnosticOccurrence = {
@@ -199,8 +200,20 @@ export type WorkbenchOpportunityTelemetry = {
     executabilityReasons: string[]
   }
   presentationDiagnostics: {
-    withheldAdapterInput: string[]
-    withheldAdapterOutput: string[]
+    withheldDiagnosticInput: string[]
+    withheldInputDiagnosticFamilies: string[]
+    withheldDistinctDiagnosticFamilies: string[]
+    withheldAuthorSafeExplanations: string[]
+    withheldAuthorSafeMissingContext: string[]
+    withheldRawCodeLeakage: string[]
+    withheldPresentationContractMatches: boolean
+    withheldCounts: {
+      rawDiagnosticInputCount: number
+      distinctDiagnosticFamilyCount: number
+      authorSafeExplanationCount: number
+      authorSafeContextCount: number
+      rawDiagnosticLeakageCount: number
+    }
     strategyUnsafeReasonsInput: string[]
     strategyUnsafeReasonsOutput: string[]
   }
@@ -393,8 +406,20 @@ function collectPresentationBoundary(
   opportunity: WorkbenchOpportunity,
   classification: WorkbenchExecutabilityClassification,
 ): {
-  withheldAdapterInput: string[]
-  withheldAdapterOutput: string[]
+  withheldDiagnosticInput: string[]
+  withheldInputDiagnosticFamilies: string[]
+  withheldDistinctDiagnosticFamilies: string[]
+  withheldAuthorSafeExplanations: string[]
+  withheldAuthorSafeMissingContext: string[]
+  withheldRawCodeLeakage: string[]
+  withheldPresentationContractMatches: boolean
+  withheldCounts: {
+    rawDiagnosticInputCount: number
+    distinctDiagnosticFamilyCount: number
+    authorSafeExplanationCount: number
+    authorSafeContextCount: number
+    rawDiagnosticLeakageCount: number
+  }
   strategyUnsafeReasonsInput: string[]
   strategyUnsafeReasonsOutput: string[]
 } {
@@ -406,17 +431,51 @@ function collectPresentationBoundary(
   })
 
   if (card.cardType === 'withheld') {
-    const withheldAdapterInput = [
+    const withheldDiagnosticInput = [
       ...(opportunity.executabilityReasons ?? []),
       ...(opportunity.preflightReasons ?? []),
       ...(opportunity.resBlockerReasons ?? []),
     ]
       .map((s) => s?.trim())
       .filter((s): s is string => Boolean(s))
+    const expectedPresentation = buildAuthorSafeHeldPresentation(withheldDiagnosticInput)
+    const withheldInputDiagnosticFamilies = withheldDiagnosticInput.map(
+      (reason) => buildAuthorSafeHeldPresentation([reason]).diagnosticFamilies[0],
+    )
+    const withheldAuthorSafeExplanations = expectedPresentation.diagnosticFamilies.map((family) => {
+      const firstInputForFamily = withheldDiagnosticInput.find(
+        (_reason, index) => withheldInputDiagnosticFamilies[index] === family,
+      )
+      return buildAuthorSafeHeldPresentation(
+        firstInputForFamily == null ? [] : [firstInputForFamily],
+      ).holdReason
+    })
+    const authorFacingHeldText = [
+      card.holdReason,
+      ...card.missingContext,
+      card.recoveryAction,
+    ].join(' ')
+    const withheldRawCodeLeakage =
+      authorFacingHeldText.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g) ?? []
 
     return {
-      withheldAdapterInput,
-      withheldAdapterOutput: parseRenderedDiagnosticCodes(card.holdReason),
+      withheldDiagnosticInput,
+      withheldInputDiagnosticFamilies,
+      withheldDistinctDiagnosticFamilies: expectedPresentation.diagnosticFamilies,
+      withheldAuthorSafeExplanations,
+      withheldAuthorSafeMissingContext: card.missingContext,
+      withheldRawCodeLeakage,
+      withheldPresentationContractMatches:
+        card.holdReason === expectedPresentation.holdReason &&
+        card.recoveryAction === expectedPresentation.recoveryAction &&
+        JSON.stringify(card.missingContext) === JSON.stringify(expectedPresentation.missingContext),
+      withheldCounts: {
+        rawDiagnosticInputCount: withheldDiagnosticInput.length,
+        distinctDiagnosticFamilyCount: expectedPresentation.diagnosticFamilies.length,
+        authorSafeExplanationCount: withheldAuthorSafeExplanations.length,
+        authorSafeContextCount: card.missingContext.length,
+        rawDiagnosticLeakageCount: withheldRawCodeLeakage.length,
+      },
       strategyUnsafeReasonsInput: [],
       strategyUnsafeReasonsOutput: [],
     }
@@ -429,16 +488,40 @@ function collectPresentationBoundary(
       : parseRenderedDiagnosticCodes((opportunity.executabilityReasons ?? []).join('; '))
 
     return {
-      withheldAdapterInput: [],
-      withheldAdapterOutput: [],
+      withheldDiagnosticInput: [],
+      withheldInputDiagnosticFamilies: [],
+      withheldDistinctDiagnosticFamilies: [],
+      withheldAuthorSafeExplanations: [],
+      withheldAuthorSafeMissingContext: [],
+      withheldRawCodeLeakage: [],
+      withheldPresentationContractMatches: true,
+      withheldCounts: {
+        rawDiagnosticInputCount: 0,
+        distinctDiagnosticFamilyCount: 0,
+        authorSafeExplanationCount: 0,
+        authorSafeContextCount: 0,
+        rawDiagnosticLeakageCount: 0,
+      },
       strategyUnsafeReasonsInput,
       strategyUnsafeReasonsOutput: parseRenderedDiagnosticCodes(card.whyDirectCopyPasteUnsafe),
     }
   }
 
   return {
-    withheldAdapterInput: [],
-    withheldAdapterOutput: [],
+    withheldDiagnosticInput: [],
+    withheldInputDiagnosticFamilies: [],
+    withheldDistinctDiagnosticFamilies: [],
+    withheldAuthorSafeExplanations: [],
+    withheldAuthorSafeMissingContext: [],
+    withheldRawCodeLeakage: [],
+    withheldPresentationContractMatches: true,
+    withheldCounts: {
+      rawDiagnosticInputCount: 0,
+      distinctDiagnosticFamilyCount: 0,
+      authorSafeExplanationCount: 0,
+      authorSafeContextCount: 0,
+      rawDiagnosticLeakageCount: 0,
+    },
     strategyUnsafeReasonsInput: [],
     strategyUnsafeReasonsOutput: [],
   }
@@ -512,7 +595,7 @@ export function analyzeDiagnosticDuplication(
 
   occurrences.push(
     ...collectOccurrences(
-      presentationBoundary.withheldAdapterInput,
+      presentationBoundary.withheldDiagnosticInput,
       'withheld_adapter_input',
       'presentation_input',
     ),
@@ -526,8 +609,8 @@ export function analyzeDiagnosticDuplication(
   )
   occurrences.push(
     ...collectOccurrences(
-      presentationBoundary.withheldAdapterOutput,
-      'withheld_adapter_output',
+      presentationBoundary.withheldRawCodeLeakage,
+      'withheld_raw_code_leakage',
       'presentation_output',
     ),
   )
@@ -703,8 +786,14 @@ export function buildWorkbenchOpportunityTelemetry(
       executabilityReasons,
     },
     presentationDiagnostics: {
-      withheldAdapterInput: presentationBoundary.withheldAdapterInput,
-      withheldAdapterOutput: presentationBoundary.withheldAdapterOutput,
+      withheldDiagnosticInput: presentationBoundary.withheldDiagnosticInput,
+      withheldInputDiagnosticFamilies: presentationBoundary.withheldInputDiagnosticFamilies,
+      withheldDistinctDiagnosticFamilies: presentationBoundary.withheldDistinctDiagnosticFamilies,
+      withheldAuthorSafeExplanations: presentationBoundary.withheldAuthorSafeExplanations,
+      withheldAuthorSafeMissingContext: presentationBoundary.withheldAuthorSafeMissingContext,
+      withheldRawCodeLeakage: presentationBoundary.withheldRawCodeLeakage,
+      withheldPresentationContractMatches: presentationBoundary.withheldPresentationContractMatches,
+      withheldCounts: presentationBoundary.withheldCounts,
       strategyUnsafeReasonsInput: presentationBoundary.strategyUnsafeReasonsInput,
       strategyUnsafeReasonsOutput: presentationBoundary.strategyUnsafeReasonsOutput,
     },

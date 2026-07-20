@@ -212,7 +212,7 @@ describe('workbenchQueueAudit', () => {
 })
 
 describe('workbenchQueueAudit telemetry and duplication', () => {
-  it('uses actual withheld adapter output and preserves healthy propagation counts', () => {
+  it('keeps internal Held diagnostics auditable while exposing only author-safe output', () => {
     const opportunity = makeOpportunity({
       preflightReasons: ['context_missing'],
       groundingStatus: 'unsupported_blocked',
@@ -225,14 +225,117 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
     opportunity.executabilityReasons = classification.finalDecision.reasons
 
     const telemetry = buildWorkbenchOpportunityTelemetry(opportunity, classification, 'withheldUnsupported')
+    const presentation = telemetry.presentationDiagnostics
 
     expect(opportunity.cardType).toBe('withheld')
-    expect(telemetry.presentationDiagnostics.withheldAdapterInput.length).toBeGreaterThan(0)
-    expect(normalizedCounts(telemetry.presentationDiagnostics.withheldAdapterOutput)).toEqual(
-      normalizedCounts(telemetry.presentationDiagnostics.withheldAdapterInput),
+    expect(presentation.withheldDiagnosticInput.length).toBeGreaterThan(0)
+    expect(presentation.withheldInputDiagnosticFamilies).toHaveLength(
+      presentation.withheldDiagnosticInput.length,
     )
+    expect(presentation.withheldDistinctDiagnosticFamilies).toEqual(
+      Array.from(new Set(presentation.withheldInputDiagnosticFamilies)),
+    )
+    expect(presentation.withheldCounts.rawDiagnosticInputCount).toBeGreaterThanOrEqual(
+      presentation.withheldCounts.distinctDiagnosticFamilyCount,
+    )
+    expect(presentation.withheldCounts.authorSafeExplanationCount).toBe(
+      presentation.withheldCounts.distinctDiagnosticFamilyCount,
+    )
+    expect(presentation.withheldCounts.authorSafeContextCount).toBeLessThanOrEqual(
+      presentation.withheldCounts.distinctDiagnosticFamilyCount,
+    )
+    expect(presentation.withheldCounts.rawDiagnosticLeakageCount).toBe(0)
+    expect(presentation.withheldAuthorSafeExplanations.join(' ')).not.toContain('context_missing')
+    expect(presentation.withheldRawCodeLeakage).toEqual([])
+    expect(presentation.withheldPresentationContractMatches).toBe(true)
     expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput).toEqual([])
     expect(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput).toEqual([])
+  })
+
+  it('collapses duplicate families and maps unknown Held codes without verbatim leakage', () => {
+    const opportunity = makeOpportunity({
+      preflightReasons: ['context_missing', 'context_missing', 'future_internal_reason'],
+      groundingStatus: 'unsupported_blocked',
+      contextQuality: 'blocked',
+      preflightStatus: 'blocked',
+    })
+    const classification = classifyWorkbenchExecutabilityDetailed(opportunity)
+    opportunity.cardType = classification.finalDecision.cardType
+    opportunity.trustedPathStatus = classification.finalDecision.trustedPathStatus
+    opportunity.executabilityReasons = classification.finalDecision.reasons
+
+    const presentation = buildWorkbenchOpportunityTelemetry(
+      opportunity,
+      classification,
+      'withheldUnsupported',
+    ).presentationDiagnostics
+
+    expect(
+      presentation.withheldInputDiagnosticFamilies.filter((family) => family === 'context').length,
+    ).toBeGreaterThanOrEqual(2)
+    expect(presentation.withheldDistinctDiagnosticFamilies).toContain('context')
+    expect(presentation.withheldDistinctDiagnosticFamilies).toContain('unknown')
+    expect(presentation.withheldCounts.rawDiagnosticInputCount).toBeGreaterThan(
+      presentation.withheldCounts.distinctDiagnosticFamilyCount,
+    )
+    expect(presentation.withheldCounts.authorSafeExplanationCount).toBe(
+      presentation.withheldCounts.distinctDiagnosticFamilyCount,
+    )
+    expect(new Set(presentation.withheldAuthorSafeExplanations).size).toBe(
+      presentation.withheldAuthorSafeExplanations.length,
+    )
+    expect(presentation.withheldAuthorSafeExplanations.join(' ')).toContain(
+      'RevisionGrade could not verify a safe revision path',
+    )
+    expect(
+      JSON.stringify({
+        explanations: presentation.withheldAuthorSafeExplanations,
+        context: presentation.withheldAuthorSafeMissingContext,
+      }),
+    ).not.toContain('future_internal_reason')
+    expect(presentation.withheldCounts.rawDiagnosticLeakageCount).toBe(0)
+    expect(presentation.withheldPresentationContractMatches).toBe(true)
+  })
+
+  it('uses the safe unknown fallback when a withheld card has no diagnostic input', () => {
+    const opportunity = makeOpportunity({
+      executabilityReasons: [],
+      preflightReasons: [],
+      resBlockerReasons: [],
+    })
+    const classified = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const classification = {
+      ...classified,
+      finalDecision: {
+        ...classified.finalDecision,
+        cardType: 'withheld' as const,
+        trustedPathStatus: 'impossible' as const,
+        reasons: [],
+      },
+    }
+    opportunity.cardType = 'withheld'
+    opportunity.trustedPathStatus = 'impossible'
+    opportunity.executabilityReasons = []
+
+    const presentation = buildWorkbenchOpportunityTelemetry(
+      opportunity,
+      classification,
+      'withheldUnsupported',
+    ).presentationDiagnostics
+
+    expect(presentation.withheldCounts).toEqual({
+      rawDiagnosticInputCount: 0,
+      distinctDiagnosticFamilyCount: 1,
+      authorSafeExplanationCount: 1,
+      authorSafeContextCount: 1,
+      rawDiagnosticLeakageCount: 0,
+    })
+    expect(presentation.withheldDistinctDiagnosticFamilies).toEqual(['unknown'])
+    expect(presentation.withheldAuthorSafeExplanations).toEqual([
+      'RevisionGrade could not verify a safe revision path for this opportunity.',
+    ])
+    expect(presentation.withheldRawCodeLeakage).toEqual([])
+    expect(presentation.withheldPresentationContractMatches).toBe(true)
   })
 
   it('uses actual strategy adapter output and preserves healthy propagation counts', () => {
@@ -256,8 +359,16 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
     expect(normalizedCounts(telemetry.presentationDiagnostics.strategyUnsafeReasonsOutput)).toEqual(
       normalizedCounts(telemetry.presentationDiagnostics.strategyUnsafeReasonsInput),
     )
-    expect(telemetry.presentationDiagnostics.withheldAdapterInput).toEqual([])
-    expect(telemetry.presentationDiagnostics.withheldAdapterOutput).toEqual([])
+    expect(telemetry.presentationDiagnostics.withheldDiagnosticInput).toEqual([])
+    expect(telemetry.presentationDiagnostics.withheldAuthorSafeExplanations).toEqual([])
+    expect(telemetry.presentationDiagnostics.withheldRawCodeLeakage).toEqual([])
+    expect(telemetry.presentationDiagnostics.withheldCounts).toEqual({
+      rawDiagnosticInputCount: 0,
+      distinctDiagnosticFamilyCount: 0,
+      authorSafeExplanationCount: 0,
+      authorSafeContextCount: 0,
+      rawDiagnosticLeakageCount: 0,
+    })
   })
 
   it('preserves unknown routing labels in audit telemetry without altering provenance', () => {
@@ -431,7 +542,7 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
       classificationInputCount: 0,
       classificationOutputCount: 0,
       presentationInputCount: 1,
-      presentationOutputCount: 1,
+      presentationOutputCount: 0,
     })
     expect(duplicate!.boundary.conditions).toEqual({
       withinSourceDuplicate: false,
@@ -479,7 +590,7 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
       classificationInputCount: 0,
       classificationOutputCount: 0,
       presentationInputCount: 2,
-      presentationOutputCount: 2,
+      presentationOutputCount: 0,
     })
     expect(duplicate!.boundary.conditions).toEqual({
       withinSourceDuplicate: true,
