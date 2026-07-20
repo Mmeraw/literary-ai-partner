@@ -515,6 +515,7 @@ function findOpportunity(content: Record<string, unknown>, opportunityId: string
 
 export type CanonicalRevisionOpportunityRecord = {
   readonly ledgerSourceHash: string
+  readonly manuscriptVersionSha: string
   readonly opportunity: Readonly<Record<string, unknown>>
 }
 
@@ -551,7 +552,13 @@ export async function loadCanonicalRevisionOpportunityRecord(
   if (!ledgerSourceHash) {
     return { status: 'invalid', reason: 'canonical ledger source hash is missing' }
   }
-  return { status: 'loaded', value: { ledgerSourceHash, opportunity } }
+  const manuscriptVersionSha = isNonEmptyString(artifact.content.manuscript_version_hash)
+    ? artifact.content.manuscript_version_hash
+    : null
+  if (!manuscriptVersionSha) {
+    return { status: 'invalid', reason: 'canonical manuscript version hash is missing' }
+  }
+  return { status: 'loaded', value: { ledgerSourceHash, manuscriptVersionSha, opportunity } }
 }
 
 export async function loadCanonicalRevisionOpportunityIdsForJob(

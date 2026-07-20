@@ -10,6 +10,7 @@ import {
 } from './heldRecoveryReconstructionReadmissionCaller'
 import { createSupabaseReconstructedAnchorLoader } from './heldRecoveryReconstructedAnchorLoader'
 import {
+  fingerprintReconstructedAnchorAuthority,
   runHeldRecoveryReconstructionWorkerOnce,
   type ReconstructedAnchorAuthority,
   type RunReconstructionWorkerOnceResult,
@@ -28,15 +29,36 @@ import {
 import { sourceHashForCanonicalChunkContent } from './heldRecoveryRuntimeInputs'
 import { revisionOpportunityVersionFor, sourceHashFor } from './heldRecoveryVersioning'
 import { getWorkbenchQueueForHeldRecoveryReadmission } from './workbenchQueue'
+import {
+  completeHeldRecoveryProductionAuthority,
+  type CompleteHeldRecoveryProductionAuthorityResult,
+} from './heldRecoveryProductionCompletionAuthority'
+import { loadHeldRecoveryProofJobContext } from './heldRecoveryProofJobAuthority'
+
+type ProductionReconstructionWork = Pick<
+  ClaimedReconstructionWork,
+  | 'workItemId'
+  | 'heldItemId'
+  | 'opportunityId'
+  | 'manuscriptId'
+  | 'manuscriptVersionSha'
+  | 'heldItemPersistedVersion'
+  | 'sourceHash'
+  | 'sourceStartOffset'
+  | 'sourceEndOffset'
+  | 'recoveryMethod'
+>
 
 export type HeldRecoveryProductionContinuationResult =
   | { readonly status: 'target_disabled' }
+  | { readonly status: 'proof_job_not_ready' }
   | { readonly status: 'ledger_unavailable'; readonly reason: string }
   | { readonly status: 'worker_finished'; readonly worker: Exclude<RunReconstructionWorkerOnceResult, { status: 'completed' }> }
   | {
       readonly status: 'readmission_finished'
       readonly worker: Extract<RunReconstructionWorkerOnceResult, { status: 'completed' }>
       readonly readmission: PersistedReconstructionReadmissionResult
+      readonly completionAuthority: CompleteHeldRecoveryProductionAuthorityResult | null
     }
 
 function isTargetJob(
@@ -65,7 +87,7 @@ function captureClaim(
 }
 
 function canonicalHeldItemFor(
-  work: ClaimedReconstructionWork,
+  work: ProductionReconstructionWork,
   attempts: Awaited<ReturnType<ReturnType<typeof createSupabaseHeldRecoveryAttemptPersistenceAdapter>['findByHeldItemAndOpportunity']>>,
 ): CanonicalHeldItem | null {
   const matching = attempts
@@ -91,6 +113,90 @@ function canonicalHeldItemFor(
   }
 }
 
+export async function loadResumableCompletedWork(
+  supabase: Pick<SupabaseClient, 'rpc'>,
+  jobId: string,
+  opportunityIds: readonly string[],
+): Promise<
+  | null
+  | {
+      readonly work: ProductionReconstructionWork
+      readonly authority: ReconstructedAnchorAuthority
+    }
+> {
+  const { data, error } = await supabase.rpc(
+    'get_completed_held_recovery_reconstruction_for_opportunities',
+    {
+      p_evaluation_job_id: jobId,
+      p_opportunity_ids: [...opportunityIds],
+    },
+  )
+  if (error) throw new Error(`completed Held Recovery handoff read failed: ${error.message}`)
+  const row = data && typeof data === 'object' && !Array.isArray(data)
+    ? data as Record<string, unknown>
+    : null
+  if (!row) throw new Error('completed Held Recovery handoff returned a malformed payload')
+  if (row.status === 'no_completed_work') return null
+  if (row.status !== 'loaded') {
+    throw new Error(`completed Held Recovery handoff failed closed: ${String(row.status)}`)
+  }
+
+  const integer = (value: unknown, field: string): number => {
+    if (typeof value !== 'number' || !Number.isInteger(value)) {
+      throw new Error(`completed Held Recovery handoff ${field} is invalid`)
+    }
+    return value
+  }
+  const work: ProductionReconstructionWork = {
+    workItemId: nonEmpty(row.work_item_id) ?? '',
+    heldItemId: nonEmpty(row.held_item_id) ?? '',
+    opportunityId: nonEmpty(row.opportunity_id) ?? '',
+    manuscriptId: nonEmpty(row.manuscript_id) ?? '',
+    manuscriptVersionSha: nonEmpty(row.manuscript_version_sha) ?? '',
+    heldItemPersistedVersion: nonEmpty(row.held_item_persisted_version) ?? '',
+    sourceHash: nonEmpty(row.source_hash) ?? '',
+    sourceStartOffset: integer(row.source_start_offset, 'source_start_offset'),
+    sourceEndOffset: integer(row.source_end_offset, 'source_end_offset'),
+    recoveryMethod: row.recovery_method === 'source_text_location_only'
+      ? row.recovery_method
+      : (() => { throw new Error('completed Held Recovery handoff recovery_method is invalid') })(),
+  }
+  if (
+    !work.workItemId ||
+    !work.heldItemId ||
+    !work.opportunityId ||
+    !work.manuscriptId ||
+    !work.manuscriptVersionSha ||
+    !work.heldItemPersistedVersion ||
+    !work.sourceHash
+  ) {
+    throw new Error('completed Held Recovery handoff identity is incomplete')
+  }
+  if (!opportunityIds.includes(work.opportunityId)) {
+    throw new Error('completed Held Recovery handoff returned a foreign opportunity')
+  }
+  const authorityWithoutFingerprint = {
+    manuscriptId: work.manuscriptId,
+    manuscriptVersionSha: work.manuscriptVersionSha,
+    heldItemPersistedVersion: work.heldItemPersistedVersion,
+    sourceHash: work.sourceHash,
+    sourceStartOffset: work.sourceStartOffset,
+    sourceEndOffset: work.sourceEndOffset,
+    recoveryMethod: work.recoveryMethod,
+  }
+  const completionFingerprint = nonEmpty(row.completion_fingerprint)
+  if (
+    !completionFingerprint ||
+    completionFingerprint !== fingerprintReconstructedAnchorAuthority(authorityWithoutFingerprint)
+  ) {
+    throw new Error('completed Held Recovery handoff fingerprint mismatch')
+  }
+  return {
+    work,
+    authority: { ...authorityWithoutFingerprint, completionFingerprint },
+  }
+}
+
 async function authorityVersionFor(
   supabase: Pick<SupabaseClient, 'from'>,
   heldItemId: string,
@@ -106,20 +212,6 @@ async function authorityVersionFor(
   return data.authority_version
 }
 
-async function proofJobUserIdFor(
-  supabase: Pick<SupabaseClient, 'from'>,
-  jobId: string,
-): Promise<string> {
-  const { data, error } = await supabase
-    .from('evaluation_jobs')
-    .select('user_id')
-    .eq('id', jobId)
-    .maybeSingle()
-  const userId = data && nonEmpty(data.user_id)
-  if (error || !userId) throw new Error('evaluation job user identity is unavailable')
-  return userId
-}
-
 /**
  * Production-reachable, exact-job continuation. The evaluation worker supplies
  * the generated job id; the default-off environment target must already match.
@@ -133,6 +225,8 @@ export async function runHeldRecoveryReconstructionProductionContinuation(
   if (!isTargetJob(input.jobId)) return { status: 'target_disabled' }
 
   const supabase = dependencies.supabase ?? createAdminClient()
+  const proofContext = await loadHeldRecoveryProofJobContext(supabase, input.jobId)
+  if (!proofContext) return { status: 'proof_job_not_ready' }
   const ledgerIds = await loadCanonicalRevisionOpportunityIdsForJob({
     jobId: input.jobId,
     supabase,
@@ -148,12 +242,23 @@ export async function runHeldRecoveryReconstructionProductionContinuation(
   )
   const persistence = captureClaim(basePersistence, (work) => { claimedWork = work })
 
-  const worker = await runHeldRecoveryReconstructionWorkerOnce({
-    persistence,
-    workerId: input.workerId,
-    leaseSeconds: 90,
-    enabled: true,
-    async reconstructAnchorAuthority(work) {
+  const resumable = await loadResumableCompletedWork(
+    supabase,
+    input.jobId,
+    ledgerIds.opportunityIds,
+  )
+  const worker: RunReconstructionWorkerOnceResult = resumable
+    ? {
+        status: 'completed',
+        workItemId: resumable.work.workItemId,
+        authority: resumable.authority,
+      }
+    : await runHeldRecoveryReconstructionWorkerOnce({
+        persistence,
+        workerId: input.workerId,
+        leaseSeconds: 90,
+        enabled: true,
+        async reconstructAnchorAuthority(work) {
       const canonical = await loadCanonicalRevisionOpportunityRecord({
         jobId: input.jobId,
         opportunityId: work.opportunityId,
@@ -180,12 +285,15 @@ export async function runHeldRecoveryReconstructionProductionContinuation(
         sourceEndOffset: work.sourceEndOffset,
         recoveryMethod: 'source_text_location_only' as const,
       }
-    },
-  })
+        },
+      })
 
   if (worker.status !== 'completed') return { status: 'worker_finished', worker }
-  const work = claimedWork
+  const work: ProductionReconstructionWork | null = resumable?.work ?? claimedWork
   if (!work) throw new Error('reconstruction completed without a captured canonical claim')
+  if (work.manuscriptId !== proofContext.manuscriptId) {
+    throw new Error('reconstruction work manuscript identity does not match proof authority')
+  }
 
   const canonical = await loadCanonicalRevisionOpportunityRecord({
     jobId: input.jobId,
@@ -211,7 +319,7 @@ export async function runHeldRecoveryReconstructionProductionContinuation(
     supabase,
     jobId: input.jobId,
   })
-  const proofJobUserId = await proofJobUserIdFor(supabase, input.jobId)
+  const proofJobUserId = proofContext.userId
   const readmission = await persistReconstructedAnchorAndReadmit({
     jobId: input.jobId,
     persistence: {
@@ -276,12 +384,24 @@ export async function runHeldRecoveryReconstructionProductionContinuation(
     },
   })
 
+  const completionAuthority = readmission.status === 'readmission_completed'
+    ? await completeHeldRecoveryProductionAuthority({
+        jobId: input.jobId,
+        heldItemId: work.heldItemId,
+        opportunityId: work.opportunityId,
+        manuscriptId: work.manuscriptId,
+        userId: proofJobUserId,
+        readmission: readmission.readmission,
+      }, { supabase })
+    : null
+
   logger.info('Held Recovery targeted production continuation finished', {
     event: 'held_recovery.production_continuation.finished',
     job_id: input.jobId,
     held_item_id: work.heldItemId,
     opportunity_id: work.opportunityId,
     readmission_status: readmission.status,
+    completion_authority_status: completionAuthority?.status ?? null,
   })
-  return { status: 'readmission_finished', worker, readmission }
+  return { status: 'readmission_finished', worker, readmission, completionAuthority }
 }

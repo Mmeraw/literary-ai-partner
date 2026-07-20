@@ -249,7 +249,13 @@ export async function createJob(input: {
       phase_status: JOB_STATUS.QUEUED,
       message: "Job created — awaiting gold-standard calibration",
       ...(input.hold_for_dispatch
-        ? { held_recovery_proof_hold: true }
+        ? {
+            held_recovery_proof_hold: true,
+            // Durable proof identity survives release; the hold bit does not.
+            // Targeted Held Recovery runtime requires both this marker and the
+            // exact deployed job-id flag before mutating recovery authorities.
+            held_recovery_proof_target: true,
+          }
         : {}),
     },
     policy_family: input.sensitivity_mode === "TRANSGRESSIVE" ? "transgressive" : input.sensitivity_mode === "TESTIMONY" ? "testimony" : "standard",

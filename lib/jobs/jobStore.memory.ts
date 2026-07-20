@@ -74,7 +74,12 @@ export function createJob(input: { manuscript_id: string; manuscript_version_id?
       // CANON counters: total_units, completed_units (matching phase writers)
       phase: "phase_0",
       phase_status: "queued",
-      ...(input.hold_for_dispatch ? { held_recovery_proof_hold: true } : {}),
+      ...(input.hold_for_dispatch
+        ? {
+            held_recovery_proof_hold: true,
+            held_recovery_proof_target: true,
+          }
+        : {}),
       total_units: null,
       completed_units: null,
     },
