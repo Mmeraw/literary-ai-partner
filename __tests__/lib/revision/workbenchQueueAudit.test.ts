@@ -275,6 +275,12 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
     ).toBeGreaterThanOrEqual(2)
     expect(presentation.withheldDistinctDiagnosticFamilies).toContain('context')
     expect(presentation.withheldDistinctDiagnosticFamilies).toContain('unknown')
+    expect(presentation.withheldCounts.rawDiagnosticInputCount).toBeGreaterThan(
+      presentation.withheldCounts.distinctDiagnosticFamilyCount,
+    )
+    expect(presentation.withheldCounts.authorSafeExplanationCount).toBe(
+      presentation.withheldCounts.distinctDiagnosticFamilyCount,
+    )
     expect(new Set(presentation.withheldAuthorSafeExplanations).size).toBe(
       presentation.withheldAuthorSafeExplanations.length,
     )
@@ -288,6 +294,47 @@ describe('workbenchQueueAudit telemetry and duplication', () => {
       }),
     ).not.toContain('future_internal_reason')
     expect(presentation.withheldCounts.rawDiagnosticLeakageCount).toBe(0)
+    expect(presentation.withheldPresentationContractMatches).toBe(true)
+  })
+
+  it('uses the safe unknown fallback when a withheld card has no diagnostic input', () => {
+    const opportunity = makeOpportunity({
+      executabilityReasons: [],
+      preflightReasons: [],
+      resBlockerReasons: [],
+    })
+    const classified = classifyWorkbenchExecutabilityDetailed(opportunity)
+    const classification = {
+      ...classified,
+      finalDecision: {
+        ...classified.finalDecision,
+        cardType: 'withheld' as const,
+        trustedPathStatus: 'impossible' as const,
+        reasons: [],
+      },
+    }
+    opportunity.cardType = 'withheld'
+    opportunity.trustedPathStatus = 'impossible'
+    opportunity.executabilityReasons = []
+
+    const presentation = buildWorkbenchOpportunityTelemetry(
+      opportunity,
+      classification,
+      'withheldUnsupported',
+    ).presentationDiagnostics
+
+    expect(presentation.withheldCounts).toEqual({
+      rawDiagnosticInputCount: 0,
+      distinctDiagnosticFamilyCount: 1,
+      authorSafeExplanationCount: 1,
+      authorSafeContextCount: 1,
+      rawDiagnosticLeakageCount: 0,
+    })
+    expect(presentation.withheldDistinctDiagnosticFamilies).toEqual(['unknown'])
+    expect(presentation.withheldAuthorSafeExplanations).toEqual([
+      'RevisionGrade could not verify a safe revision path for this opportunity.',
+    ])
+    expect(presentation.withheldRawCodeLeakage).toEqual([])
     expect(presentation.withheldPresentationContractMatches).toBe(true)
   })
 
