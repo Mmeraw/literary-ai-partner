@@ -41,38 +41,39 @@ describe("ManuscriptLibraryClient", () => {
     const dataRow = rows.find((row) => row.textContent?.includes("Criminality V2"));
     expect(dataRow).toBeDefined();
     const cells = dataRow?.querySelectorAll("td");
-    expect(cells?.[0]?.querySelector('input[type="checkbox"]')).toBeInTheDocument();
+    expect(cells?.[0]?.querySelector('input[type="checkbox"]')).toBeTruthy();
     expect(cells?.[cells.length - 1]?.textContent).toMatch(/Delete/);
   });
 
   it("keeps bulk delete disabled until rows are selected", () => {
     render(<ManuscriptLibraryClient manuscripts={manuscripts} />);
-    const bulkButton = screen.getByRole("button", { name: /Delete selected/i });
-    expect(bulkButton).toBeDisabled();
+    const bulkButton = screen.getByRole("button", { name: /Delete selected/i }) as HTMLButtonElement;
+    expect(bulkButton.disabled).toBe(true);
 
     const rowCheckbox = screen.getByLabelText(/Select Criminality V2/i);
     fireEvent.click(rowCheckbox);
 
-    expect(bulkButton).toBeEnabled();
+    expect(bulkButton.disabled).toBe(false);
   });
 
   it("opens a confirmation modal and requires typing DELETE for bulk deletion", async () => {
     render(<ManuscriptLibraryClient manuscripts={manuscripts} />);
 
-    const checkboxes = screen.getAllByRole("checkbox");
-    fireEvent.click(checkboxes[1]); // select first data row
+    const rowCheckbox = screen.getByLabelText(/Select Criminality V2/i);
+    fireEvent.click(rowCheckbox);
 
     const bulkButton = screen.getByRole("button", { name: /Delete selected/i });
     fireEvent.click(bulkButton);
 
-    expect(screen.getByText(/Permanently delete 1 manuscript/i)).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: /Permanently delete 1 manuscript/i });
+    expect(heading).toBeTruthy();
 
-    const confirmInput = screen.getByLabelText(/Type DELETE to continue/i);
-    const confirmButton = screen.getByRole("button", { name: /Delete permanently/i });
-    expect(confirmButton).toBeDisabled();
+    const confirmInput = screen.getByLabelText(/Type DELETE to continue/i) as HTMLInputElement;
+    const confirmButton = screen.getByRole("button", { name: /Delete permanently/i }) as HTMLButtonElement;
+    expect(confirmButton.disabled).toBe(true);
 
     fireEvent.change(confirmInput, { target: { value: "DELETE" } });
-    expect(confirmButton).toBeEnabled();
+    expect(confirmButton.disabled).toBe(false);
 
     fireEvent.click(confirmButton);
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
@@ -84,10 +85,11 @@ describe("ManuscriptLibraryClient", () => {
   it("performs single deletion without typed confirmation", async () => {
     render(<ManuscriptLibraryClient manuscripts={manuscripts} />);
 
-    const deleteButtons = screen.getAllByRole("button", { name: /Delete$/i });
+    const deleteButtons = screen.getAllByRole("button", { name: /^Delete$/i });
     fireEvent.click(deleteButtons[0]);
 
-    expect(screen.getByText(/Permanently delete manuscript\?/i)).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: /Permanently delete manuscript\?/i });
+    expect(heading).toBeTruthy();
 
     const confirmButton = screen.getByRole("button", { name: /Delete permanently/i });
     fireEvent.click(confirmButton);
