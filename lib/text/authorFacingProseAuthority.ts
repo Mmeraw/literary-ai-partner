@@ -31,6 +31,8 @@ export interface AuthorFacingFieldContract {
 export interface AuthorFacingPathContract extends AuthorFacingFieldContract {
   pattern: RegExp;
   name: string;
+  /** Leaf keys governed by this path contract; consumed by writable-field ownership. */
+  fieldKeys: readonly string[];
 }
 
 /**
@@ -44,6 +46,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'overview paragraph summary',
     pattern: /(?:^|\.)overview\.one_paragraph_summary$/u,
+    fieldKeys: ['one_paragraph_summary'],
     kind: 'paragraph',
     required: true,
     repairPolicy: 'regenerate',
@@ -52,6 +55,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'overview one-sentence pitch',
     pattern: /(?:^|\.)overview\.one_sentence_pitch$/u,
+    fieldKeys: ['one_sentence_pitch'],
     kind: 'sentence',
     required: true,
     repairPolicy: 'regenerate',
@@ -60,6 +64,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'overview paragraph pitch',
     pattern: /(?:^|\.)overview\.one_paragraph_pitch$/u,
+    fieldKeys: ['one_paragraph_pitch'],
     kind: 'paragraph',
     required: true,
     repairPolicy: 'regenerate',
@@ -68,6 +73,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'overview strengths and risks',
     pattern: /(?:^|\.)overview\.top_3_(?:strengths|risks)\[\d+\]$/u,
+    fieldKeys: ['top_3_strengths', 'top_3_risks'],
     kind: 'sentence',
     required: true,
     repairPolicy: 'regenerate',
@@ -75,7 +81,16 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   },
   {
     name: 'criterion rationale and summaries',
-    pattern: /(?:^|\.)criteria\[\d+\]\.(?:rationale|final_rationale|fit_summary|gap_summary|delta_explanation|deferred_consequence_risk)$/u,
+    pattern: /(?:^|\.)criteria\[\d+\]\.(?:rationale|final_rationale|fit_summary|gap_summary|recommendation_status_rationale|delta_explanation|deferred_consequence_risk)$/u,
+    fieldKeys: [
+      'rationale',
+      'final_rationale',
+      'fit_summary',
+      'gap_summary',
+      'recommendation_status_rationale',
+      'delta_explanation',
+      'deferred_consequence_risk',
+    ],
     kind: 'paragraph',
     required: true,
     repairPolicy: 'regenerate',
@@ -84,6 +99,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'criterion pressure and decision points',
     pattern: /(?:^|\.)criteria\[\d+\]\.(?:pressure_points|decision_points)\[\d+\]$/u,
+    fieldKeys: ['pressure_points', 'decision_points'],
     kind: 'sentence',
     required: true,
     repairPolicy: 'regenerate',
@@ -92,6 +108,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'canonical recommendation prose - sentence',
     pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.(?:action|symptom|cause|fix_direction|expected_impact|why)$/u,
+    fieldKeys: ['action', 'symptom', 'cause', 'fix_direction', 'expected_impact', 'why'],
     kind: 'sentence',
     required: true,
     repairPolicy: 'regenerate',
@@ -100,6 +117,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'canonical recommendation prose - phrase',
     pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.(?:mechanism|specific_fix|reader_effect|mistake_proofing|rationale)$/u,
+    fieldKeys: ['mechanism', 'specific_fix', 'reader_effect', 'mistake_proofing', 'rationale'],
     kind: 'phrase',
     required: true,
     repairPolicy: 'regenerate',
@@ -108,6 +126,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'criterion technical-defect author-facing reason',
     pattern: /(?:^|\.)criteria\[\d+\]\.technical_defects\[\d+\]\.author_facing_reason$/u,
+    fieldKeys: ['author_facing_reason'],
     kind: 'sentence',
     required: true,
     repairPolicy: 'regenerate',
@@ -116,6 +135,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'candidate recommendation prose',
     pattern: /(?:^|\.)criteria\[\d+\]\.recommendations\[\d+\]\.candidate_text_[abc]$/u,
+    fieldKeys: ['candidate_text_a', 'candidate_text_b', 'candidate_text_c'],
     kind: 'candidate',
     required: false,
     repairPolicy: 'candidate_regenerate_or_quarantine',
@@ -124,6 +144,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'derived quick-win and strategic-revision prose - sentence',
     pattern: /(?:^|\.)recommendations\.(?:quick_wins|strategic_revisions)\[\d+\]\.(?:action|why|candidate_text_[abc])$/u,
+    fieldKeys: ['action', 'why', 'candidate_text_a', 'candidate_text_b', 'candidate_text_c'],
     kind: 'sentence',
     required: true,
     repairPolicy: 'regenerate',
@@ -132,6 +153,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'derived quick-win and strategic-revision prose - phrase',
     pattern: /(?:^|\.)recommendations\.(?:quick_wins|strategic_revisions)\[\d+\]\.(?:mechanism|reader_effect)$/u,
+    fieldKeys: ['mechanism', 'reader_effect'],
     kind: 'phrase',
     required: true,
     repairPolicy: 'regenerate',
@@ -140,6 +162,7 @@ export const AUTHOR_FACING_PATH_CONTRACTS: readonly AuthorFacingPathContract[] =
   {
     name: 'source quotations and evidence',
     pattern: /(?:^|\.)(?:evidence\[\d+\]\.snippet|anchor_snippet|original_passage|manuscript_excerpt)$/u,
+    fieldKeys: ['snippet', 'anchor_snippet', 'original_passage', 'manuscript_excerpt'],
     kind: 'excluded',
     required: false,
     repairPolicy: 'none',

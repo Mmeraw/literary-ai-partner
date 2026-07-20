@@ -11,43 +11,21 @@
  * the registry-invariant test to fail.
  */
 
+import { AUTHOR_FACING_PATH_CONTRACTS } from '@/lib/text/authorFacingProseAuthority';
+
+function fieldsOwnedBy(ownership: 'canonical' | 'derived'): Set<string> {
+  return new Set(
+    AUTHOR_FACING_PATH_CONTRACTS.filter((contract) => contract.ownership === ownership).flatMap(
+      (contract) => contract.fieldKeys,
+    ),
+  );
+}
+
 /**
  * Canonical fields that live directly on SynthesisOutput and are normalized and
  * repaired by normalizeArtifact / regenerateRequiredProse.
  */
-export const CANONICAL_AUTHOR_FACING_FIELDS = new Set([
-  // overview
-  'one_paragraph_summary',
-  'one_sentence_pitch',
-  'one_paragraph_pitch',
-  'top_3_strengths',
-  'top_3_risks',
-  // criterion body
-  'rationale',
-  'final_rationale',
-  'fit_summary',
-  'gap_summary',
-  'delta_explanation',
-  'deferred_consequence_risk',
-  'pressure_points',
-  'decision_points',
-  // recommendation / action item prose
-  'action',
-  'why',
-  'symptom',
-  'cause',
-  'mechanism',
-  'fix_direction',
-  'specific_fix',
-  'reader_effect',
-  'expected_impact',
-  'mistake_proofing',
-  'candidate_text_a',
-  'candidate_text_b',
-  'candidate_text_c',
-  // technical defect surface
-  'author_facing_reason',
-]);
+export const CANONICAL_AUTHOR_FACING_FIELDS = fieldsOwnedBy('canonical');
 
 /**
  * Fields that appear only inside derived quick_wins / strategic_revisions
@@ -55,15 +33,7 @@ export const CANONICAL_AUTHOR_FACING_FIELDS = new Set([
  * tracked by `ActionItemSource` (`_source` on internal enriched items) and
  * repaired by regenerating the canonical source field.
  */
-export const DERIVED_AUTHOR_FACING_FIELDS = new Set([
-  'action',
-  'why',
-  'mechanism',
-  'reader_effect',
-  'candidate_text_a',
-  'candidate_text_b',
-  'candidate_text_c',
-]);
+export const DERIVED_AUTHOR_FACING_FIELDS = fieldsOwnedBy('derived');
 
 /**
  * Path fragments that identify manuscript evidence, internal telemetry, status
