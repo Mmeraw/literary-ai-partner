@@ -13,7 +13,8 @@ import { getSupabaseAdminClient } from "@/lib/supabase";
 import { createTestManuscript, createTestManuscriptWithChunks } from "../test-helpers/manuscript-factory";
 
 const supabase = getSupabaseAdminClient();
-const run = supabase ? describe : describe.skip;
+// These tests need a running local Supabase/Postgres (set LOCAL_DB=1).
+const run = process.env.LOCAL_DB ? describe : describe.skip;
 
 async function getOrCreateTestUser(): Promise<string> {
   const email = `${randomUUID()}@test.devin.local`;
