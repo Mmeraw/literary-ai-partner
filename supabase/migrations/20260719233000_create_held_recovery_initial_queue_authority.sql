@@ -224,6 +224,7 @@ stable
 as $$
 declare
   v_count integer;
+  v_candidates jsonb;
   v_work public.held_recovery_reconstruction_work_items%rowtype;
   v_completion_fingerprint text;
 begin
@@ -234,39 +235,44 @@ begin
     return jsonb_build_object('status', 'no_completed_work');
   end if;
 
-  select count(*) into v_count
-  from public.held_recovery_reconstruction_work_items w
-  join public.held_recovery_queue_items q on q.held_item_id = w.held_item_id
-  where q.evaluation_job_id = btrim(p_evaluation_job_id)
-    and w.opportunity_id = any(p_opportunity_ids)
-    and q.opportunity_id = w.opportunity_id
-    and q.manuscript_id = w.manuscript_id
-    and q.manuscript_version_sha = w.manuscript_version_sha
-    and q.held_item_persisted_version = w.held_item_persisted_version
-    and w.status = 'completed'
-    and q.queue_state <> 'reclassified';
+  -- Materialize at most two complete candidate rows in one READ COMMITTED
+  -- statement. This makes none/one/ambiguous classification immune to a
+  -- rowset change between a count and a later SELECT INTO.
+  select coalesce(jsonb_agg(candidate.row_payload order by candidate.work_item_id), '[]'::jsonb)
+  into v_candidates
+  from (
+    select w.id as work_item_id, to_jsonb(w) as row_payload
+    from public.held_recovery_reconstruction_work_items w
+    join public.held_recovery_queue_items q on q.held_item_id = w.held_item_id
+    where q.evaluation_job_id = btrim(p_evaluation_job_id)
+      and w.opportunity_id = any(p_opportunity_ids)
+      and q.opportunity_id = w.opportunity_id
+      and q.manuscript_id = w.manuscript_id
+      and q.manuscript_version_sha = w.manuscript_version_sha
+      and q.held_item_persisted_version = w.held_item_persisted_version
+      and w.status = 'completed'
+      and q.queue_state <> 'reclassified'
+    order by w.id
+    limit 2
+  ) candidate;
+
+  v_count := jsonb_array_length(v_candidates);
 
   if v_count = 0 then
     return jsonb_build_object('status', 'no_completed_work');
   end if;
-  if v_count <> 1 then
+  if v_count > 1 then
     return jsonb_build_object(
       'status', 'ambiguous_completed_work',
       'completed_work_count', v_count
     );
   end if;
 
-  select w.* into v_work
-  from public.held_recovery_reconstruction_work_items w
-  join public.held_recovery_queue_items q on q.held_item_id = w.held_item_id
-  where q.evaluation_job_id = btrim(p_evaluation_job_id)
-    and w.opportunity_id = any(p_opportunity_ids)
-    and q.opportunity_id = w.opportunity_id
-    and q.manuscript_id = w.manuscript_id
-    and q.manuscript_version_sha = w.manuscript_version_sha
-    and q.held_item_persisted_version = w.held_item_persisted_version
-    and w.status = 'completed'
-    and q.queue_state <> 'reclassified';
+  select * into v_work
+  from jsonb_populate_record(
+    null::public.held_recovery_reconstruction_work_items,
+    v_candidates -> 0
+  );
 
   v_completion_fingerprint := nullif(btrim(v_work.details ->> 'completion_fingerprint'), '');
   if v_completion_fingerprint is null then

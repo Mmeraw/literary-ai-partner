@@ -13,7 +13,7 @@ function recordOf(value: unknown): Record<string, unknown> | null {
 }
 
 function nonEmpty(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value : null
+  return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 /**
@@ -26,9 +26,10 @@ export async function loadHeldRecoveryProofJobContext(
   supabase: Pick<SupabaseClient, 'rpc'>,
   jobId: string,
 ): Promise<HeldRecoveryProofJobContext | null> {
-  if (!nonEmpty(jobId)) return null
+  const normalizedJobId = nonEmpty(jobId)
+  if (!normalizedJobId) return null
   const { data, error } = await supabase.rpc('get_held_recovery_proof_job_context', {
-    p_job_id: jobId,
+    p_job_id: normalizedJobId,
   })
   if (error) throw new Error(`Held Recovery proof job context failed: ${error.message}`)
   const row = recordOf(data)
@@ -41,6 +42,6 @@ export async function loadHeldRecoveryProofJobContext(
   const loadedJobId = nonEmpty(row.job_id)
   const manuscriptId = nonEmpty(row.manuscript_id)
   const userId = nonEmpty(row.user_id)
-  if (loadedJobId !== jobId || !manuscriptId || !userId) return null
-  return { jobId, manuscriptId, userId }
+  if (loadedJobId !== normalizedJobId || !manuscriptId || !userId) return null
+  return { jobId: normalizedJobId, manuscriptId, userId }
 }

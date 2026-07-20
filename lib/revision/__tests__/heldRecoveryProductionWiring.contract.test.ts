@@ -104,6 +104,30 @@ describe('Held Recovery production reachability', () => {
       })
   })
 
+  it('normalizes the proof job identity once before the RPC and equality checks', async () => {
+    const rpc = jest.fn(async () => ({
+      error: null,
+      data: {
+        status: 'loaded',
+        job_id: 'job-1',
+        job_status: 'complete',
+        phase_status: 'complete',
+        manuscript_id: '9007199254740993',
+        user_id: 'proof-user',
+        proof_target: true,
+      },
+    }))
+    await expect(loadHeldRecoveryProofJobContext({ rpc } as never, '  job-1  '))
+      .resolves.toEqual({
+        jobId: 'job-1',
+        manuscriptId: '9007199254740993',
+        userId: 'proof-user',
+      })
+    expect(rpc).toHaveBeenCalledWith('get_held_recovery_proof_job_context', {
+      p_job_id: 'job-1',
+    })
+  })
+
   it('creates the proof job atomically non-claimable and releases only after exact-job deployment', () => {
     expect(store).toContain('phase_status: JOB_STATUS.QUEUED')
     expect(store).toContain("phase_status: 'awaiting_approval'")
