@@ -27,7 +27,8 @@ ALTER TABLE public.manuscript_deletion_log ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
-    GRANT SELECT, INSERT, DELETE ON TABLE public.manuscript_deletion_log TO service_role;
+    REVOKE DELETE ON TABLE public.manuscript_deletion_log FROM service_role;
+    GRANT SELECT, INSERT ON TABLE public.manuscript_deletion_log TO service_role;
   END IF;
 END
 $$;
@@ -168,8 +169,7 @@ BEGIN
 
   UPDATE public.revenue_events
   SET manuscript_id = NULL, job_id = NULL
-  WHERE manuscript_id::text = ANY(v_text_ids)
-     OR job_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
+  WHERE job_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
 
   UPDATE public.free_diagnostic_claims
   SET manuscript_id = NULL, job_id = NULL
@@ -227,7 +227,7 @@ BEGIN
 
   IF to_regclass('public.held_recovery_reconstructed_anchors') IS NOT NULL THEN
     DELETE FROM public.held_recovery_reconstructed_anchors
-    WHERE attempt_id IN (SELECT id::text FROM public.held_recovery_attempts WHERE manuscript_id = ANY(v_to_delete));
+    WHERE manuscript_id = ANY(v_to_delete);
     GET DIAGNOSTICS v_count = ROW_COUNT;
     v_counts := jsonb_set(v_counts, ARRAY['held_recovery_reconstructed_anchors'], to_jsonb(v_count));
   END IF;

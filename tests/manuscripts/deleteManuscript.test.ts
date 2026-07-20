@@ -55,47 +55,43 @@ async function insertJob(manuscriptId: number) {
   return data.id as string;
 }
 
-async function insertHeldRecoveryAttempt(manuscriptId: number) {
-  const { data, error } = await supabase
-    .from("held_recovery_attempts")
-    .insert({
-      idempotency_key: randomUUID(),
-      held_item_id: `held-${manuscriptId}`,
-      opportunity_id: `opp-${manuscriptId}`,
-      manuscript_id: manuscriptId,
-      manuscript_version_sha: "sha-1",
-      held_item_persisted_version: "v1",
-      runtime_outcome_status: "deferred",
-      executor_result: {},
-      series_key: {},
-      recovery_input_fingerprint: "fp-1",
-      attempt_number: 1,
-      max_attempts: 3,
-      status: "held",
-      outcome: "pending",
-      snapshot: {},
-    })
-    .select("id")
-    .single();
-  if (error || !data) throw new Error(`Failed to insert held recovery attempt: ${error?.message}`);
-  return data.id as string;
-}
-
-async function insertHeldRecoveryWorkItem(attemptId: string, manuscriptId: number) {
-  const { error } = await supabase.from("held_recovery_reconstruction_work_items").insert({
-    originating_attempt_id: attemptId,
-    originating_attempt_idempotency_key: randomUUID(),
-    held_item_id: `held-${manuscriptId}`,
-    opportunity_id: `opp-${manuscriptId}`,
-    manuscript_id: String(manuscriptId),
-    manuscript_version_sha: "sha-1",
-    held_item_persisted_version: "v1",
-    source_hash: "sha-source",
-    source_start_offset: 0,
-    source_end_offset: 10,
-    recovery_method: "source_text_location_only",
-  });
-  if (error) throw new Error(`Failed to insert held recovery work item: ${error.message}`);
+async function enqueueHeldRecoveryReconstruction(manuscriptId: number) {
+  const idempotencyKey = randomUUID();
+  const heldItemId = `held-${manuscriptId}`;
+  const { data, error } = await supabase.rpc(
+    "record_held_recovery_deferred_attempt_and_enqueue_reconstruction_atomic",
+    {
+      p_request: {
+        attempt: {
+          idempotency_key: idempotencyKey,
+          held_item_id: heldItemId,
+          opportunity_id: `opp-${manuscriptId}`,
+          manuscript_id: String(manuscriptId),
+          manuscript_version_sha: "sha-1",
+          held_item_persisted_version: "v1",
+          runtime_outcome_status: "deferred",
+          executor_result: { kind: "deferred_work", code: "ANCHOR_RECONSTRUCTION_REQUIRED" },
+          recovery_input_fingerprint: "fp-1",
+          attempt_number: 1,
+          max_attempts: 3,
+          status: "held",
+          outcome: "pending",
+          series_key: {},
+          snapshot: {},
+        },
+        continuation: {
+          source_hash: "sha-source",
+          source_start_offset: 0,
+          source_end_offset: 10,
+          recovery_method: "source_text_location_only",
+        },
+      },
+    },
+  );
+  if (error) throw new Error(`Failed to enqueue held recovery reconstruction: ${error.message}`);
+  const attemptId = (data as any)?.attempt_id;
+  if (!attemptId) throw new Error("Held recovery RPC did not return attempt_id");
+  return attemptId as string;
 }
 
 async function insertHeldRecoveryQueueItem(manuscriptId: number) {
@@ -110,10 +106,10 @@ async function insertHeldRecoveryQueueItem(manuscriptId: number) {
   return heldItemId;
 }
 
-async function insertHeldRecoveryRetrySchedule(attemptId: string) {
+async function insertHeldRecoveryRetrySchedule(attemptId: string, manuscriptId: number) {
   const { error } = await supabase.from("held_recovery_retry_schedules").insert({
     schedule_idempotency_key: randomUUID(),
-    held_item_id: "held-1",
+    held_item_id: `held-${manuscriptId}`,
     attempt_id: attemptId,
     transition_event_id: "evt-1",
     retry_at: new Date().toISOString(),
@@ -254,10 +250,9 @@ run("delete_manuscripts_permanently RPC", () => {
     const manuscriptId = await createTestManuscript({ userId });
     const versionId = await insertVersion(manuscriptId);
     const jobId = await insertJob(manuscriptId);
-    const attemptId = await insertHeldRecoveryAttempt(manuscriptId);
-    await insertHeldRecoveryWorkItem(attemptId, manuscriptId);
+    const attemptId = await enqueueHeldRecoveryReconstruction(manuscriptId);
     await insertHeldRecoveryQueueItem(manuscriptId);
-    await insertHeldRecoveryRetrySchedule(attemptId);
+    await insertHeldRecoveryRetrySchedule(attemptId, manuscriptId);
     await insertDocumentGenerationEvent(jobId);
     const costId = await insertCostEvent(manuscriptId, jobId);
     const revenueId = await insertRevenueEvent(jobId);
@@ -315,10 +310,9 @@ run("delete_manuscripts_permanently RPC", () => {
   test("held recovery dependencies are removed in correct order", async () => {
     const userId = await getOrCreateTestUser();
     const manuscriptId = await createTestManuscript({ userId });
-    const attemptId = await insertHeldRecoveryAttempt(manuscriptId);
-    await insertHeldRecoveryWorkItem(attemptId, manuscriptId);
+    const attemptId = await enqueueHeldRecoveryReconstruction(manuscriptId);
     await insertHeldRecoveryQueueItem(manuscriptId);
-    await insertHeldRecoveryRetrySchedule(attemptId);
+    await insertHeldRecoveryRetrySchedule(attemptId, manuscriptId);
 
     const { data, error } = await deleteManuscripts(userId, [manuscriptId]);
     expect(error).toBeNull();
