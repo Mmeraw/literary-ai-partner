@@ -11,7 +11,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { spawnSync } = require("child_process");
 
 const CANON_JSON = "lib/canon/nomenclature_canon.v1.json";
 const VOCABULARY_DETECTION_ALLOW_MARKER = "canon-audit-allow: vocabulary-detection";
@@ -51,10 +51,12 @@ function parseSearchOutput(output) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const firstColon = line.indexOf(":");
-      const secondColon = line.indexOf(":", firstColon + 1);
+      // ripgrep emits <path>:<line>:<text>. Match the numeric line delimiter
+      // instead of the first colon so Windows drive roots (C:\\...) remain
+      // part of the path and text may still contain arbitrary colons.
+      const match = line.match(/^(.+?):(\d+):(.*)$/);
 
-      if (firstColon === -1 || secondColon === -1) {
+      if (!match) {
         return {
           filePath: line,
           lineNumber: null,
@@ -64,9 +66,9 @@ function parseSearchOutput(output) {
       }
 
       return {
-        filePath: line.slice(0, firstColon),
-        lineNumber: Number.parseInt(line.slice(firstColon + 1, secondColon), 10),
-        lineText: line.slice(secondColon + 1),
+        filePath: match[1],
+        lineNumber: Number.parseInt(match[2], 10),
+        lineText: match[3],
         raw: line,
       };
     });
@@ -105,19 +107,33 @@ function formatMatches(matches) {
 
 function searchAliasMatches(alias) {
   const searchPattern = `"${alias}"`;
+  const result = spawnSync(
+    "rg",
+    [
+      "-n",
+      "--fixed-strings",
+      "--hidden",
+      "--glob", "!**/node_modules/**",
+      "--glob", "!**/.next/**",
+      "--glob", "!**/dist/**",
+      "--glob", "!**/.git/**",
+      "--glob", "!**/archive/**",
+      "--glob", "!lib/canon/nomenclature_canon.v1.json",
+      "--glob", "!docs/NOMENCLATURE_CANON_v1.md",
+      searchPattern,
+      "app/", "lib/", "tests/", "scripts/",
+    ],
+    { encoding: "utf8", stdio: "pipe" },
+  );
 
-  try {
-    const cmd = `rg -n --hidden --glob '!**/node_modules/**' --glob '!**/.next/**' --glob '!**/dist/**' --glob '!**/.git/**' --glob '!**/archive/**' --glob '!lib/canon/nomenclature_canon.v1.json' --glob '!docs/NOMENCLATURE_CANON_v1.md' '${searchPattern}' app/ lib/ tests/ scripts/ 2>/dev/null || true`;
-    return execSync(cmd, { encoding: "utf8", stdio: "pipe" }).trim();
-  } catch {
-    try {
-      const grepCmd = `grep -rn --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist --exclude-dir=.git --exclude-dir=archive --exclude=nomenclature_canon.v1.json --exclude=NOMENCLATURE_CANON_v1.md '${searchPattern}' app/ lib/ tests/ scripts/ 2>/dev/null || true`;
-      return execSync(grepCmd, { encoding: "utf8", stdio: "pipe" }).trim();
-    } catch {
-      console.warn(`⚠️  Could not search for alias "${alias}" (ripgrep and grep unavailable)`);
-      return "";
-    }
+  // ripgrep uses 0 for matches and 1 for a clean no-match result. Any other
+  // status means enforcement did not run and must fail closed.
+  if (!result.error && (result.status === 0 || result.status === 1)) {
+    return (result.stdout || "").trim();
   }
+
+  const reason = result.error?.message || (result.stderr || "").trim() || `exit ${result.status}`;
+  throw new Error(`Nomenclature scan could not execute for alias "${alias}": ${reason}`);
 }
 
 function run() {
