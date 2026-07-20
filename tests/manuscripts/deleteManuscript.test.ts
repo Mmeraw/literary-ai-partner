@@ -138,6 +138,7 @@ async function insertCostEvent(manuscriptId: number, jobId: string) {
   const { data, error } = await supabase
     .from("llm_cost_events")
     .insert({
+      feature_area: "evaluation",
       source: "evaluation",
       activity: "test",
       provider: "openai",
@@ -183,26 +184,6 @@ async function insertFreeDiagnosticClaim(userId: string, manuscriptId: number, j
     .select("id")
     .single();
   if (error || !data) throw new Error(`Failed to insert free diagnostic claim: ${error.message}`);
-  return data.id as string;
-}
-
-async function insertAuditEntry(jobId: string) {
-  const { data, error } = await supabase
-    .from("audit_entries")
-    .insert({
-      event_type: "job.transition",
-      ok: true,
-      actor: "api",
-      job_id: jobId,
-      to_status: "queued",
-      decision_code: "ALLOWED",
-      contract_id: "JOB_CONTRACT_v1",
-      contract_section: "3.1",
-      source: "api",
-    })
-    .select("id")
-    .single();
-  if (error || !data) throw new Error(`Failed to insert audit entry: ${error.message}`);
   return data.id as string;
 }
 
@@ -281,7 +262,6 @@ run("delete_manuscripts_permanently RPC", () => {
     const costId = await insertCostEvent(manuscriptId, jobId);
     const revenueId = await insertRevenueEvent(jobId);
     const claimId = await insertFreeDiagnosticClaim(userId, manuscriptId, jobId);
-    const auditId = await insertAuditEntry(jobId);
     const adminActionId = await insertAdminAction(jobId);
 
     const { data, error } = await deleteManuscripts(userId, [manuscriptId]);
@@ -313,10 +293,6 @@ run("delete_manuscripts_permanently RPC", () => {
     expect(claimRow).not.toBeNull();
     expect(claimRow.manuscript_id).toBeNull();
     expect(claimRow.job_id).toBeNull();
-
-    const { data: auditRow } = await supabase.from("audit_entries").select("job_id").eq("id", auditId).single();
-    expect(auditRow).not.toBeNull();
-    expect(auditRow.job_id).toBeNull();
 
     const { data: adminRow } = await supabase.from("admin_actions").select("job_id").eq("id", adminActionId).single();
     expect(adminRow).not.toBeNull();

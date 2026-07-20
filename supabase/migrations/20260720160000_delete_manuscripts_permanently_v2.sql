@@ -176,9 +176,11 @@ BEGIN
   WHERE manuscript_id = ANY(v_text_ids)
      OR job_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
 
-  UPDATE public.audit_entries
-  SET job_id = NULL
-  WHERE job_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
+  IF to_regclass('public.audit_entries') IS NOT NULL THEN
+    UPDATE public.audit_entries
+    SET job_id = NULL
+    WHERE job_id IN (SELECT id FROM public.evaluation_jobs WHERE manuscript_id = ANY(v_to_delete));
+  END IF;
 
   UPDATE public.admin_actions
   SET job_id = NULL
