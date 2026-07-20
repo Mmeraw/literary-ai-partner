@@ -101,7 +101,64 @@ async function renderAllFormats(vm: any) {
   return { txt, html, docxText, pdfBuffer };
 }
 
+function countPdfPages(pdfBuffer: Buffer): number {
+  const source = pdfBuffer.toString('latin1');
+  return (source.match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
+}
+
 describe('report presentation pipeline E2E', () => {
+  test('long title-page content occupies exactly one generated PDF page before report body', async () => {
+    const result = makeBaseResult();
+    result.metrics.manuscript.title = 'Criminality V2';
+    result.metrics.manuscript.genre = 'Literary Fiction';
+    result.metrics.manuscript.target_audience =
+      'Readers of literary and upmarket fiction who appreciate morally complex first-person narratives, documentary texture, and slow-burn psychological tension in works that require patient attention to layered testimony.';
+    result.governance = {
+      transparency: {
+        genre_expectation_context: {
+          diagnosed_genre: 'literary fiction',
+          shelf_target_audience: result.metrics.manuscript.target_audience,
+          dominant_craft_engine: 'voice',
+          expectation_profiles: ['voice_forward', 'reflection_forward', 'mood_forward'],
+          genre_expectation_ids: ['literary_upmarket_fiction', 'contemplative_slow_burn_fiction'],
+          genre_expectation_labels: ['Literary / Upmarket Fiction', 'Contemplative / Slow-burn Fiction'],
+          resolution_notes: ['Voice focus governs the presentation contract.'],
+        },
+      },
+    };
+    const criterionKeys = [
+      'concept', 'narrativeDrive', 'character', 'voice', 'sceneConstruction',
+      'dialogue', 'theme', 'worldbuilding', 'pacing', 'proseControl', 'tone',
+      'narrativeClosure', 'marketability',
+    ];
+    result.criteria = criterionKeys.map((key, index) => makeCriterion({
+      key,
+      score_0_10: [7, 6, 8, 8, 6, 7, 8, 7, 5, 6, 7, 5, 6][index],
+      recommendations: key === 'proseControl' ? [makeRecommendation()] : [],
+    }));
+
+    const vm = buildVm(result, 'short_form_evaluation');
+    const routeModule = await import('../../../app/api/reports/[jobId]/download/route');
+    const testing = routeModule.__testingDownload;
+    const html = testing.renderHtmlFromViewModel(vm, '27aeb0e8-94aa-4d60-a96f-6a7a9d58ec5d');
+    const dashboard = html.match(/<div class="dashboard">([\s\S]*?)<\/div>\s*<div class="grid title-metadata-grid">/)?.[1] ?? '';
+    expect(dashboard).not.toContain('Target Audience');
+    expect(html).toContain('<div class="cover-wide"><strong>Target Audience</strong>');
+
+    const fullPdf = await testing.buildChromiumPdf(html);
+    const bodyOnlyHtml = html.replace(/<header class="cover[^>]*>[\s\S]*?<\/header>/, '');
+    const bodyOnlyPdf = await testing.buildChromiumPdf(bodyOnlyHtml);
+
+    expect(fullPdf.subarray(0, 4).toString('ascii')).toBe('%PDF');
+    expect(countPdfPages(fullPdf)).toBe(countPdfPages(bodyOnlyPdf) + 1);
+    expect(countPdfPages(fullPdf)).toBeLessThanOrEqual(10);
+
+    if (process.env.REPORT_PDF_PROOF_PATH) {
+      const { writeFileSync } = await import('fs');
+      writeFileSync(process.env.REPORT_PDF_PROOF_PATH, fullPdf);
+    }
+  }, 30_000);
+
   test('canonical result -> UED -> VM -> TXT/HTML/DOCX/PDF/Web parity for a normal short-form report', async () => {
     const result = makeBaseResult();
     result.criteria = [makeCriterion()];
