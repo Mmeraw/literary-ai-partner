@@ -2,6 +2,12 @@
 
 This matrix certifies the author journey from Revise Workbench through Final Review and revised-version creation. It does not grant semantic authority to UI or renderer code.
 
+Cross-cutting production findings, owners, proof gaps, and exit criteria are governed by [REVISIONGRADE_PRODUCTION_CORRECTIVE_ACTION_REGISTER.md](./REVISIONGRADE_PRODUCTION_CORRECTIVE_ACTION_REGISTER.md). This matrix is a capability-specific proof view; it must not redefine or close a corrective action independently.
+
+## Evidence classification
+
+Each captured result must be labelled as one of: **Static Contract**, **CI Verification**, **Production Deployment**, or **Live Production Proof**. A capability is production proven only by Live Production Proof on an exact deployed SHA; green CI or deployment alone is insufficient.
+
 ## Required proof states
 
 | State | Required proof | Expected result |
@@ -20,6 +26,16 @@ This matrix certifies the author journey from Revise Workbench through Final Rev
 | Apply failure | Preflight or runtime rejects | No revised version is created; author-safe error is visible |
 | Identity | Navigate Workbench → Final Review → Workbench | manuscriptId and evaluationJobId remain unchanged |
 | Responsive | Desktop and tablet widths | Queue, cards, Final Review, banners, and controls remain usable without overflow |
+
+## Explicitly open proof boundaries
+
+The following are not certified by the matrix above until their dedicated register exit criteria pass:
+
+- Held Recovery initial authority creation, reconstruction, canonical anchor verification, and identity-only Readmission (RCA-001).
+- Recommendation-suppression editorial calibration and zero-card adjudication (RCA-002 and RCA-005).
+- Complete producer → persistence → validator → consumer reconciliation for every registered artifact (RCA-003).
+- Cross-version deterministic replay and duplicate prevention beyond the captured proof targets (RCA-006).
+- Phase 3 latency attribution and truncation-retry optimization (RCA-007 and RCA-012).
 
 ## Automated contracts
 
