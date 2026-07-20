@@ -49,6 +49,67 @@ export type DecideHeldQueueTransitionInput = {
   readonly expectedAuthorityVersion?: string
 }
 
+export type DecideHeldQueueTransitionFromAuthorityInput = {
+  readonly from: HeldQueueState
+  readonly requestedTo: HeldQueueState
+  readonly authorityVersion: string
+}
+
+/**
+ * Canonical state-machine decision for an authority already verified by its
+ * owning runtime boundary. This keeps non-attempt authorities (for example,
+ * verified reconstructed-anchor Readmission) on the same transition graph
+ * without manufacturing a RecoveryAttempt record.
+ */
+export function decideHeldQueueTransitionFromAuthority(
+  input: DecideHeldQueueTransitionFromAuthorityInput,
+): HeldQueueTransitionDecision {
+  const { from, requestedTo, authorityVersion } = input
+  if (!authorityVersion) {
+    return {
+      allowed: false,
+      from,
+      requestedTo,
+      reason: 'authority_version_mismatch',
+      authorityVersion,
+    }
+  }
+  if (from === requestedTo) {
+    return {
+      allowed: false,
+      from,
+      requestedTo,
+      reason: 'no_state_change',
+      authorityVersion,
+    }
+  }
+  if (HELD_RECOVERY_STATE_TRANSITIONS[from].includes(requestedTo)) {
+    return {
+      allowed: true,
+      from,
+      to: requestedTo,
+      reason: 'canonical_state_machine_allows_transition',
+      authorityVersion,
+    }
+  }
+  if (isTerminalRecoveryState(from)) {
+    return {
+      allowed: false,
+      from,
+      requestedTo,
+      reason: 'terminal_state_has_no_outgoing_transition',
+      authorityVersion,
+    }
+  }
+  return {
+    allowed: false,
+    from,
+    requestedTo,
+    reason: 'canonical_state_machine_denies_transition',
+    authorityVersion,
+  }
+}
+
 export function heldQueueTransitionAuthorityVersionFor(
   recordedAttempt: HeldRecoveryAttemptRecord,
 ): string {
@@ -86,41 +147,9 @@ export function decideHeldQueueTransition(
     }
   }
 
-  if (input.from === input.requestedTo) {
-    return {
-      allowed: false,
-      from: input.from,
-      requestedTo: input.requestedTo,
-      reason: 'no_state_change',
-      authorityVersion,
-    }
-  }
-
-  if (HELD_RECOVERY_STATE_TRANSITIONS[input.from].includes(input.requestedTo)) {
-    return {
-      allowed: true,
-      from: input.from,
-      to: input.requestedTo,
-      reason: 'canonical_state_machine_allows_transition',
-      authorityVersion,
-    }
-  }
-
-  if (isTerminalRecoveryState(input.from)) {
-    return {
-      allowed: false,
-      from: input.from,
-      requestedTo: input.requestedTo,
-      reason: 'terminal_state_has_no_outgoing_transition',
-      authorityVersion,
-    }
-  }
-
-  return {
-    allowed: false,
+  return decideHeldQueueTransitionFromAuthority({
     from: input.from,
     requestedTo: input.requestedTo,
-    reason: 'canonical_state_machine_denies_transition',
     authorityVersion,
-  }
+  })
 }

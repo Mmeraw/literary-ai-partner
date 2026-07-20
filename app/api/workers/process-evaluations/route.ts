@@ -29,6 +29,8 @@ import { getConfiguredAppBaseUrl } from '@/lib/jobs/triggerWorker';
 import { enforceApiRateLimit } from '@/lib/security/apiRateLimit';
 import { requireWorkerSecret } from '@/lib/security/apiGuards';
 import { runHeldRecoveryReconstructionProductionContinuation } from '@/lib/revision/heldRecoveryReconstructionProductionCaller';
+import { runHeldRecoveryProductionInitiation } from '@/lib/revision/heldRecoveryProductionInitiationCaller';
+import { HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG } from '@/lib/revision/heldRecoveryReconstructionReadmissionCaller';
 
 // Force Node.js runtime (required for crypto module)
 export const runtime = 'nodejs';
@@ -500,7 +502,13 @@ export async function GET(request: NextRequest) {
     }
 
     const workerId = buildWorkerId(traceId);
-    const targetJobId = request.headers.get('x-job-id')?.trim() || undefined;
+    // Evaluation dispatch targeting and the post-completion Held Recovery proof
+    // target are separate authorities. The env flag must never pin ordinary
+    // cron queue claims to a completed proof job.
+    const evaluationTargetJobId = request.headers.get('x-job-id')?.trim() || undefined;
+    const heldRecoveryTargetJobId =
+      process.env[HELD_RECOVERY_RECONSTRUCTION_READMISSION_TARGET_JOB_FLAG]?.trim() ||
+      undefined;
     // GUARD: Auto-kill stale/over-retried jobs before claiming new work
   // 75min wall-clock limit, 8 retry cap -- configurable via env vars
   const supabaseForKill = createClient(
@@ -520,19 +528,23 @@ export async function GET(request: NextRequest) {
       workerId,
       batchSize: workerConfig.batchSize,
       leaseMs: workerConfig.leaseMs,
-      targetJobId,
+      targetJobId: evaluationTargetJobId,
     });
+    let heldRecoveryInitiation: Awaited<ReturnType<typeof runHeldRecoveryProductionInitiation>> | null = null;
     let heldRecoveryContinuation: Awaited<ReturnType<typeof runHeldRecoveryReconstructionProductionContinuation>> | null = null;
-    if (targetJobId) {
+    if (heldRecoveryTargetJobId) {
       try {
+        heldRecoveryInitiation = await runHeldRecoveryProductionInitiation({
+          jobId: heldRecoveryTargetJobId,
+        });
         heldRecoveryContinuation = await runHeldRecoveryReconstructionProductionContinuation({
-          jobId: targetJobId,
+          jobId: heldRecoveryTargetJobId,
           workerId: `${workerId}:held-recovery`,
         });
       } catch (error) {
         console.error('[HeldRecovery] Targeted continuation failed closed', {
           traceId,
-          targetJobId,
+          targetJobId: heldRecoveryTargetJobId,
           error: error instanceof Error ? error.name : 'UnknownError',
         });
       }
@@ -546,7 +558,10 @@ export async function GET(request: NextRequest) {
       if (cronSecret) {
         void fetch(selfUrl, {
           method: 'GET',
-          headers: { Authorization: `Bearer ${cronSecret}` },
+          headers: {
+            Authorization: `Bearer ${cronSecret}`,
+            ...(evaluationTargetJobId ? { 'x-job-id': evaluationTargetJobId } : {}),
+          },
           signal: AbortSignal.timeout(5_000),
         }).catch(() => {
           // Non-fatal — cron will pick up on next tick
@@ -570,6 +585,7 @@ export async function GET(request: NextRequest) {
         targetJobId: results.targetJobId,
         targetClaimed: results.targetClaimed,
         batchSize: workerConfig.batchSize,
+        heldRecoveryInitiation: heldRecoveryInitiation?.status ?? null,
         heldRecoveryContinuation: heldRecoveryContinuation?.status ?? null,
       },
       service: 'process-evaluations-worker',
@@ -589,6 +605,7 @@ export async function GET(request: NextRequest) {
       targetClaimed: results.targetClaimed,
       batchSize: workerConfig.batchSize,
       errors: results.errors,
+      heldRecoveryInitiation,
       heldRecoveryContinuation,
       timestamp: new Date().toISOString(),
     }, { status: 200 });
