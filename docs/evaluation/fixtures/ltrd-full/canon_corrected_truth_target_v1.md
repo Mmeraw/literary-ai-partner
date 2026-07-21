@@ -9,8 +9,7 @@
 **Evaluation type:** Complete corrected evaluation — NOT a fit-gap. This is the Truth Target.
 
 **Merge policy applied:**
-- DREAM long-form gold-standard evaluation (`docs/benchmarks/let-the-river-decide-dream.md`) = primary complete corrected base
-- DREAM v2 governed-ledger addendum (`docs/benchmarks/let-the-river-decide-dream-v2-governed-ledger-addendum.md`) = ledger validation layer
+- DREAM long-form gold-standard evaluation (`docs/benchmarks/let-the-river-decide-dream-longform-multilayer-gold-standard.md`) = primary complete corrected base with governed-ledger validation
 - 9-layer ideal Story Ledger benchmark = structural-lane validation
 - Hypothetical offending specimen (`b841e72d`) = negative specimen only (not used as source here)
 
