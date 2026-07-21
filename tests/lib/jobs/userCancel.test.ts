@@ -199,6 +199,30 @@ describe('cancelEvaluationAsUser', () => {
     );
   });
 
+  test('records an owner emergency halt as checkpoint-restartable rather than a user cancellation', async () => {
+    const { operations } = setupAdmin([
+      { data: job({ status: 'running', phase_status: 'running' }), error: null },
+      { data: { id: 'job-1', status: 'failed', progress: {} }, error: null },
+    ]);
+
+    const result = await cancelEvaluationAsUser({
+      jobId: 'job-1',
+      userId: 'manuscript-owner',
+      actor: { id: 'owner-admin-id', kind: 'owner_emergency' },
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 'cancelled' });
+    const update = updateOperations(operations)[0];
+    expect(update.payload).toMatchObject({ failure_code: 'ADMIN_EMERGENCY_CANCELLED' });
+    expect(update.payload?.progress).toMatchObject({
+      cancelled_by_user: false,
+      cancelled_by_admin: true,
+      resume_eligible: true,
+      resume_policy: 'checkpoint_restart_required',
+      cancellation_actor_id: 'owner-admin-id',
+    });
+  });
+
   test('does not overwrite a non-cancelled failed job as user-cancelled', async () => {
     const { operations } = setupAdmin([
       { data: job({ status: 'failed', phase_status: 'failed', progress: { phase_status: 'failed' } }), error: null },

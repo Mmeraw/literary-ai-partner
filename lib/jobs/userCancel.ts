@@ -3,6 +3,12 @@ import { randomUUID } from 'node:crypto';
 
 type CancelReason = 'wrong_file' | 'wrong_mode' | 'user_cancelled' | 'other';
 
+export type CancellationActor = {
+  /** The authenticated actor writing the cancellation, not necessarily the manuscript owner. */
+  id: string;
+  kind: 'user' | 'owner_emergency';
+};
+
 const ALLOWED_REASONS = new Set<CancelReason>([
   'wrong_file',
   'wrong_mode',
@@ -36,14 +42,17 @@ function normalizeReason(value: unknown): CancelReason {
 function buildPhaseLogEntry(args: {
   nowIso: string;
   reason: CancelReason;
+  actor: CancellationActor;
   fromStatus: string;
   fromPhase: string | null;
   fromPhaseStatus: string | null;
 }) {
   return {
-    event: 'user_cancelled',
+    event: args.actor.kind === 'owner_emergency' ? 'admin_emergency_cancelled' : 'user_cancelled',
     at: args.nowIso,
     reason: args.reason,
+    actor_kind: args.actor.kind,
+    actor_id: args.actor.id,
     from_status: args.fromStatus,
     from_phase: args.fromPhase,
     from_phase_status: args.fromPhaseStatus,
@@ -57,6 +66,8 @@ function buildCancelledProgress(args: {
   fromStatus: string;
   fromPhase: string | null;
   fromPhaseStatus: string | null;
+  actor: CancellationActor;
+  failureCode: 'USER_CANCELLED' | 'ADMIN_EMERGENCY_CANCELLED';
 }): Record<string, unknown> {
   const phaseLog = Array.isArray(args.existingProgress.phase_log)
     ? [...args.existingProgress.phase_log]
@@ -69,6 +80,7 @@ function buildCancelledProgress(args: {
       fromStatus: args.fromStatus,
       fromPhase: args.fromPhase,
       fromPhaseStatus: args.fromPhaseStatus,
+      actor: args.actor,
     }),
   );
 
@@ -76,18 +88,27 @@ function buildCancelledProgress(args: {
     ...args.existingProgress,
     phase: args.fromPhase,
     phase_status: 'failed',
-    message: 'Evaluation cancelled by user',
+    message: args.actor.kind === 'owner_emergency'
+      ? 'Evaluation cancelled by the owner emergency control'
+      : 'Evaluation cancelled by user',
     canceled_at: args.nowIso,
     cancelled_at: args.nowIso,
     canceled_reason: args.reason,
-    cancelled_by_user: true,
+    cancelled_by_user: args.actor.kind === 'user',
+    cancelled_by_admin: args.actor.kind === 'owner_emergency',
+    cancellation_actor_id: args.actor.id,
+    cancellation_actor_kind: args.actor.kind,
     dashboard_status: 'cancelled',
-    error_code: 'USER_CANCELLED',
+    error_code: args.failureCode,
     finished_at: args.nowIso,
     retry_requested_at: null,
     resume_requested_at: null,
     retry_eligible: false,
-    resume_eligible: false,
+    // Owner emergency halt preserves completed checkpoints. A later normal
+    // resume request selects the canonical checkpoint; it never resumes a
+    // partially executing worker in place.
+    resume_eligible: args.actor.kind === 'owner_emergency',
+    resume_policy: args.actor.kind === 'owner_emergency' ? 'checkpoint_restart_required' : null,
     recoverable: false,
     lease_id: null,
     lease_expires_at: null,
@@ -100,10 +121,12 @@ function buildFailureEnvelope(args: {
   jobPhase: unknown;
   nowIso: string;
   reason: CancelReason;
+  actor: CancellationActor;
+  failureCode: 'USER_CANCELLED' | 'ADMIN_EMERGENCY_CANCELLED';
 }) {
   return {
-    error_code: 'USER_CANCELLED',
-    code: 'USER_CANCELLED',
+    error_code: args.failureCode,
+    code: args.failureCode,
     message: args.cancelMessage,
     retryable: false,
     phase: args.jobPhase ?? null,
@@ -111,7 +134,10 @@ function buildFailureEnvelope(args: {
     occurred_at: args.nowIso,
     context: {
       reason: args.reason,
-      cancelled_by_user: true,
+      cancelled_by_user: args.actor.kind === 'user',
+      cancelled_by_admin: args.actor.kind === 'owner_emergency',
+      actor_kind: args.actor.kind,
+      actor_id: args.actor.id,
     },
   };
 }
@@ -122,18 +148,22 @@ function buildTerminalCancellationUpdate(args: {
   nowIso: string;
   reason: CancelReason;
   jobPhase: unknown;
+  actor: CancellationActor;
+  failureCode: 'USER_CANCELLED' | 'ADMIN_EMERGENCY_CANCELLED';
 }) {
   return {
     status: 'failed',
     phase_status: 'failed',
     progress: args.nextProgress,
     last_error: args.cancelMessage,
-    failure_code: 'USER_CANCELLED',
+    failure_code: args.failureCode,
     failure_envelope: buildFailureEnvelope({
       cancelMessage: args.cancelMessage,
       jobPhase: args.jobPhase,
       nowIso: args.nowIso,
       reason: args.reason,
+      actor: args.actor,
+      failureCode: args.failureCode,
     }),
     claimed_by: null,
     claimed_at: null,
@@ -151,8 +181,13 @@ export async function cancelEvaluationAsUser(args: {
   jobId: string;
   userId: string;
   reason?: string;
+  actor?: CancellationActor;
 }): Promise<UserCancelResult> {
   const reason = normalizeReason(args.reason);
+  const actor: CancellationActor = args.actor ?? { id: args.userId, kind: 'user' };
+  const failureCode = actor.kind === 'owner_emergency'
+    ? 'ADMIN_EMERGENCY_CANCELLED' as const
+    : 'USER_CANCELLED' as const;
   const admin = createAdminClient();
 
   const { data: job, error: jobError } = await admin
@@ -241,7 +276,6 @@ export async function cancelEvaluationAsUser(args: {
   }
 
   const nowIso = new Date().toISOString();
-  const cancelMessage = `User cancelled evaluation: ${reason}`;
   const nextProgress = buildCancelledProgress({
     existingProgress,
     nowIso,
@@ -249,13 +283,20 @@ export async function cancelEvaluationAsUser(args: {
     fromStatus: job.status,
     fromPhase: typeof job.phase === 'string' ? job.phase : null,
     fromPhaseStatus: typeof job.phase_status === 'string' ? job.phase_status : null,
+    actor,
+    failureCode,
   });
+  const cancelMessage = actor.kind === 'owner_emergency'
+    ? 'Owner emergency cancellation'
+    : `User cancelled evaluation: ${reason}`;
   const terminalUpdate = buildTerminalCancellationUpdate({
     cancelMessage,
     nextProgress,
     nowIso,
     reason,
     jobPhase: job.phase,
+    actor,
+    failureCode,
   });
 
   if (job.status === 'queued') {
@@ -281,7 +322,9 @@ export async function cancelEvaluationAsUser(args: {
       }
     }
 
-    const cancellationClaimId = `user-cancel:${args.userId}`;
+    const cancellationClaimId = actor.kind === 'owner_emergency'
+      ? `owner-emergency-cancel:${actor.id}`
+      : `user-cancel:${args.userId}`;
     const cancellationLeaseToken = randomUUID();
     const cancellationLeaseUntil = new Date(Date.parse(nowIso) + 60_000).toISOString();
     const { data: claimedForCancellation, error: claimError } = await admin

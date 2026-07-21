@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { OwnerEmergencyCancelAllJobs } from "@/components/admin/OwnerEmergencyCancelAllJobs";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +165,8 @@ export default async function AdminDashboard() {
             </Link>
           </div>
         </header>
+
+        <OwnerEmergencyCancelAllJobs />
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {adminCards.map((card) => (
