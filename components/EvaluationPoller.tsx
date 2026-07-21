@@ -508,7 +508,7 @@ export function EvaluationPoller({
   }, [initialJob, jobId, userId, refreshInterval]);
 
   const formatUserSafeError = (value: string) =>
-    value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 600);
+    value.replace(/[^\x20-\x7E]/g, '').trim().slice(0, 600);
 
   // ========================================
   // Render
@@ -655,13 +655,17 @@ export function EvaluationPoller({
             ? 100
             : isCompletingAnimation
             ? safeAnimated
+            : job.status === 'complete'
+            ? effectivePd.percentage ?? 0
             : Math.max(safeAnimated, effectivePd.percentage ?? 0) + refreshBump;
           // Apply monotonic ratchet — only ever advance forward
           if (rawBarWidth > highWaterMarkRef.current) {
             highWaterMarkRef.current = rawBarWidth;
           }
           const barWidth = Math.max(rawBarWidth, highWaterMarkRef.current);
-          const displayedPercent = Math.max(0, Math.min(100, Math.round(barWidth)));
+          // 100% is reserved for the terminal, customer-facing report-ready state.
+          const isReportReady = job.status === 'complete' && dreamIsReady;
+          const displayedPercent = Math.max(0, Math.min(isReportReady ? 100 : 99, Math.round(barWidth)));
           return (
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">

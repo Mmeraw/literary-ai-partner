@@ -152,18 +152,35 @@ function allocateCompletedUnitsToPhaseFractions(completedUnits: number): Partial
 }
 
 function timestampCompletedTarget(persisted: Record<string, unknown>): number {
+  // If the persisted snapshot is already terminal, reconstruct full completion.
+  if (persisted.status === 'complete' || persisted.phase_status === 'complete') {
+    return 100;
+  }
+
   const phase0Done = isNonEmptyString(persisted.phase0_completed_at) || isNonEmptyString(persisted.phase1_started_at);
   const phase1aDone =
     isNonEmptyString(persisted.phase1_completed_at) ||
     isNonEmptyString(persisted.phase2_started_at) ||
     isNonEmptyString(persisted.phase2_completed_at) ||
     isNonEmptyString(persisted.phase3_started_at) ||
+    isNonEmptyString(persisted.phase3_completed_at) ||
     persisted.phase === 'phase_3';
   const pass3aDone = phase1aDone;
-  const phase2Done = isNonEmptyString(persisted.phase2_completed_at) || isNonEmptyString(persisted.phase3_started_at) || persisted.phase === 'phase_3';
-  const phase3Done = isNonEmptyString(persisted.phase3_started_at) || (isNonEmptyString(persisted.phase2_completed_at) && persisted.phase === 'phase_3');
-  const waveDone = isNonEmptyString(persisted.phase2_completed_at) && persisted.phase === 'phase_3';
-  const finalizationDone = waveDone;
+  const phase2Done =
+    isNonEmptyString(persisted.phase2_completed_at) ||
+    isNonEmptyString(persisted.phase3_started_at) ||
+    isNonEmptyString(persisted.phase3_completed_at) ||
+    persisted.phase === 'phase_3';
+  // Phase 3 (Pass 3B synthesis) is only complete when its result is durably persisted,
+  // not merely when it has started. Starting phase_3 must not jump the bar to 100%.
+  const phase3Done =
+    isNonEmptyString(persisted.phase3_completed_at) ||
+    isNonEmptyString(persisted.pass3_completed_at) ||
+    (persisted.phase === 'phase_3' && persisted.phase_status === 'complete');
+  // Wave and finalization have no durable timestamp before the terminal complete event;
+  // reserve their weight for the explicit 'complete' report.
+  const waveDone = false;
+  const finalizationDone = false;
 
   let target = 0;
   if (phase0Done) target += PHASE_WEIGHTS.phase_0;
@@ -176,7 +193,7 @@ function timestampCompletedTarget(persisted: Record<string, unknown>): number {
   return target;
 }
 
-function defaultMessage(phase: ProgressPhase | undefined, part: ProgressPartName | null): string {
+function defaultMessage(phase: ProgressPhase | undefined, _part: ProgressPartName | null): string {
   if (!phase) return 'Preparing your evaluation…';
   switch (phase) {
     case 'phase_0':
@@ -267,6 +284,14 @@ export class ProgressAuthority {
       }
       if (typeof persisted.active_part === 'string') {
         snapshot.active_part = persisted.active_part as ProgressPartName;
+      }
+      // Honor a terminal persisted snapshot so recompute doesn't re-cap a completed job.
+      if (persisted.status === 'complete' || persisted.phase_status === 'complete') {
+        snapshot.status = 'complete';
+        snapshot.part1.status = 'complete';
+        snapshot.part1.completed_units = 100;
+        snapshot.part2.status = 'complete';
+        snapshot.part2.completed_units = 100;
       }
     }
     const authority = new ProgressAuthority(snapshot);
@@ -420,6 +445,11 @@ export class ProgressAuthority {
 
     // During finalization, cap at 99% until we have proven durable completion.
     if (this.snapshot.phase === 'finalization' && this.snapshot.status !== 'complete') {
+      nextOverall = Math.min(nextOverall, 99);
+    }
+
+    // Safety cap: the overall bar must never reach 100% until the terminal complete event.
+    if (this.snapshot.status !== 'complete') {
       nextOverall = Math.min(nextOverall, 99);
     }
 

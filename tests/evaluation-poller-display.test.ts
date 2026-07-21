@@ -163,6 +163,16 @@ describe("getProgressDisplay: canonical state mapping", () => {
     expect(pd!.percentage).toBe(86);
   });
 
+  test("stale 100% high-water mark is capped at 99% while running", () => {
+    const pd = getProgressDisplay({
+      status: "running",
+      phase: "phase_3",
+      progress_high_water: 100,
+    });
+    expect(pd!.percentage).toBe(99);
+    expect(pd!.valueLabel).toBe("99%");
+  });
+
   // ── Cross-check / Final QA ────────────────────────────────────────────────
 
   test("cross_check_status=running -> finalizing report, 97%", () => {

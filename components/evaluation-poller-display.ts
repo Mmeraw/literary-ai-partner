@@ -108,10 +108,13 @@ export function getProgressDisplay(
   // never drops below it. Kicks and retries are invisible to the user.
   const highWater = typeof job.progress_high_water === "number" ? job.progress_high_water : 0;
   if (highWater > 0 && result.percentage < highWater) {
+    // Never ratchet to 100% before the job is truly complete; 99% is the highest
+    // non-terminal display so stale high-water marks can't claim completion.
+    const ratcheted = job.status === "complete" ? highWater : Math.min(highWater, 99);
     return {
       ...result,
-      percentage: highWater,
-      valueLabel: `${highWater}%`,
+      percentage: ratcheted,
+      valueLabel: `${ratcheted}%`,
     };
   }
   return result;

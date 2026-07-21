@@ -1,7 +1,6 @@
 import {
   ProgressAuthority,
   createProgressAuthority,
-  createInitialProgressSnapshot,
 } from '@/lib/evaluation/progressAuthority';
 
 describe('ProgressAuthority', () => {
@@ -125,5 +124,45 @@ describe('ProgressAuthority', () => {
     expect(part1Complete.part2.status).toBe('running');
     expect(part1Complete.status).toBe('running');
     expect(part1Complete.overall.completed_units).toBeLessThan(100);
+  });
+
+  it('does not reach 100% when phase_3 has started but not completed', () => {
+    // Regression: a long-form job entering Pass 3B synthesis must not jump the
+    // overall bar to 100% just because phase2 is done and phase3 has started.
+    const authority = ProgressAuthority.fromPersisted({
+      phase: 'phase_3',
+      phase_status: 'running',
+      phase0_completed_at: '2026-07-21T04:24:27.000Z',
+      phase1_completed_at: '2026-07-21T04:33:05.000Z',
+      phase2_completed_at: '2026-07-21T04:33:55.000Z',
+      phase3_started_at: '2026-07-21T04:39:33.000Z',
+      pass3_started_at: '2026-07-21T04:33:56.000Z',
+      completed_units: 70,
+      progress_high_water: 70,
+    });
+
+    const snapshot = authority.toSnapshot();
+    expect(snapshot.overall.completed_units).toBeLessThan(100);
+    expect(snapshot.part2.status).toBe('pending');
+  });
+
+  it('rehydrates a terminal snapshot at 100%', () => {
+    const authority = ProgressAuthority.fromPersisted({
+      status: 'complete',
+      phase: 'phase_3',
+      phase_status: 'complete',
+      phase0_completed_at: '2026-07-21T04:24:27.000Z',
+      phase1_completed_at: '2026-07-21T04:33:05.000Z',
+      phase2_completed_at: '2026-07-21T04:33:55.000Z',
+      phase3_completed_at: '2026-07-21T04:39:33.000Z',
+      pass3_completed_at: '2026-07-21T04:38:34.000Z',
+      completed_units: 100,
+      progress_high_water: 100,
+    });
+
+    const snapshot = authority.toSnapshot();
+    expect(snapshot.status).toBe('complete');
+    expect(snapshot.overall.completed_units).toBe(100);
+    expect(snapshot.part2.status).toBe('complete');
   });
 });
