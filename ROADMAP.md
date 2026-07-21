@@ -205,6 +205,24 @@ Do not wire a due-schedule consumer into production until this audit is complete
 4. Keep strategy and withheld paths outside direct manuscript mutation.
 5. Only then decide whether the due-schedule claim/dispatcher lane is the next implementation priority.
 
+### Current Operational Release Gate — 2026-07-21
+
+The next bounded release is the Pass 2 → Pass 3 recommendation-lineage correction at local commit `b8283c13`.
+
+```text
+Pass 2 discovered source IDs
+↓
+Pass 3 materializes, names a consolidation target, or records governed suppression
+↓
+Canonical evaluation transparency persists the accounting
+↓
+Canonical ledger and Revise consume only certified authority
+```
+
+The correction is locally certified (603 suites / 6,961 tests, TypeScript, scoped ESLint, critical-test guard, FIPOC export, and diff hygiene). It is **not** deployed or live proven until the exact head is published, deployed, and a controlled Diamonds Aren't Forever run reconciles source IDs, ledger outcomes, Workbench visibility, reload, and isolation evidence.
+
+This adds no recommendation quota, score threshold, confidence admission rule, synthetic Held item, or report-summary queue producer. Missing, duplicate, unknown, or unresolved source outcomes use the existing registered S07 Pass 3 bounded kickback; exhausted or mixed defects block persistence and Revise exposure.
+
 ---
 
 ## Phase 0 — Complete Integrity
