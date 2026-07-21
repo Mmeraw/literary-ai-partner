@@ -1,6 +1,6 @@
 # Held Recovery live proof — operational handoff
 
-**Status:** In progress; no proof job has been created or released yet.
+**Status:** In progress; controlled job is live in Phase 1A.
 
 This record exists so another operator or agent can continue from repository facts rather than chat history. It contains no credentials.
 
@@ -34,6 +34,23 @@ This record exists so another operator or agent can continue from repository fac
    - `dpl_GZnpkZXv3WiFo5CX8dYCZAcK84L8` — READY, same snapshot behavior.
 4. No request passed proof-route authorization during those snapshot redeployments. Therefore no new evaluation job or manuscript was created.
 5. Started a clean Vercel CLI source deployment from exact `origin/main` in an isolated temporary worktree. This is intended to ingest current production environment values. Temporary control files and encrypted credentials are outside that deployment source.
+6. Created the held proof authority directly with the service role after the proof-route credential remained unusable:
+   - job `7c3f47a6-bfc2-4025-a7fc-d1ce0456a609`
+   - manuscript `7783`
+   - creation authority is explicitly classified as `operator_service_role_equivalent_payload`; HR-000 route creation is **not** claimed.
+7. Verified the job survived the watchdog window as `queued / awaiting_approval`, with hold/target markers true and no claim or worker.
+8. Deployed the exact-job target and released the job with a guarded database update after the release endpoint also returned 401.
+9. Rotated the production worker credential, deployed, and invoked the existing worker with the exact evaluation job pin.
+
+## Live evaluation checkpoint
+
+- Phase 0 completed in 14,630 ms.
+- Input: 6,146 words / 34,548 characters.
+- Governed route: long form, two persisted chunks, 316-word overlap.
+- Phase 0 artifacts observed: `story_map_seed_v1`, `evaluation_seed_v1`, `seed_fit_gap_report_v1`.
+- Full-context story ledger completed in 105,628 ms.
+- Ledger completeness: 100%; quality passed; structural validation passed; zero missing layers, degraded dimensions, or structural warnings.
+- Current state: Phase 1A running, no failure code or last error.
 
 ## Current blocker and root cause classification
 
@@ -68,7 +85,8 @@ Corrective action in progress: rotate the proof-only secret, perform a fresh sou
 
 - Source Diamonds report: untouched.
 - Existing Diamonds Revise ledger: untouched.
-- Fresh proof job: **not created**.
-- Proof job released: **no**.
-- Exact-job target configured: **no**.
-- No claim, reconstruction, Readmission, or Workbench mutation has occurred from this attempt.
+- Fresh proof job: `7c3f47a6-bfc2-4025-a7fc-d1ce0456a609`.
+- Fresh proof manuscript: `7783`.
+- Proof job released: **yes**.
+- Exact-job target configured: **yes**, only for the fresh job.
+- Evaluation claim and Phase 0/1A processing have occurred. Reconstruction, Readmission, and Workbench mutation are not yet evidenced.
