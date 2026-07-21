@@ -16,6 +16,7 @@
  */
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
 
@@ -38,6 +39,21 @@ export const CHECKPOINT_UNCHECKED: CheckpointInfo = {
   resumeMode: null,
   checked: false,
 };
+
+const RESUME_REQUEST_TIMEOUT_MS = 8_000;
+const AUTO_RESUME_STORAGE_PREFIX = "revisiongrade:auto-resume-attempted:";
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "AbortError"
+  );
+}
+
+function autoResumeStorageKey(jobId: string): string {
+  return `${AUTO_RESUME_STORAGE_PREFIX}${jobId}`;
+}
 
 /**
  * Derive checkpoint info from a job's progress JSONB when raw progress is
@@ -114,13 +130,25 @@ export function useFailedJobRecovery(
     setCheckpoint(deriveCheckpointFromProgress(jobProgress));
   }, [jobStatus, jobProgress, checkpoint.checked]);
 
+  useEffect(() => {
+    if (jobStatus === "failed") return;
+    try {
+      window.sessionStorage.removeItem(autoResumeStorageKey(jobId));
+    } catch {
+      // Session storage is best-effort only. Polling still reconciles state.
+    }
+  }, [jobId, jobStatus]);
+
   const handleResume = useCallback(async () => {
     setResumeLoading(true);
     setResumeError(null);
+    const abortController = new AbortController();
+    const timeoutId = window.setTimeout(() => abortController.abort(), RESUME_REQUEST_TIMEOUT_MS);
     try {
       const res = await fetch(`/api/jobs/${jobId}/resume`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abortController.signal,
       });
       const data = (await res.json()) as {
         success?: boolean;
@@ -142,8 +170,16 @@ export function useFailedJobRecovery(
       }
     } catch (err) {
       console.error("[FailedJobRecovery] Continue failed:", err);
-      setResumeError("An unexpected error occurred. Please try again or start a new evaluation.");
+      if (isAbortError(err)) {
+        setResumed(true);
+        setCheckpoint(CHECKPOINT_UNCHECKED);
+        onResumed?.();
+        window.setTimeout(() => window.location.reload(), 350);
+      } else {
+        setResumeError("An unexpected error occurred. Please try again or start a new evaluation.");
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setResumeLoading(false);
     }
   }, [jobId, onResumed]);
@@ -163,10 +199,21 @@ export function useFailedJobRecovery(
     // Only auto-resume when there's a real checkpoint (handoff or chunk cache).
     // full_restart mode requires operator judgment — don't auto-fire it.
     if (checkpoint.hasCheckpoint || checkpoint.hasPhase2Handoff) {
+      try {
+        const storageKey = autoResumeStorageKey(jobId);
+        if (window.sessionStorage.getItem(storageKey) === "true") {
+          setAutoResumeAttempted(true);
+          return;
+        }
+        window.sessionStorage.setItem(storageKey, "true");
+      } catch {
+        // If session storage is unavailable, the in-memory guard still prevents
+        // repeated submits during this mount.
+      }
       setAutoResumeAttempted(true);
       void handleResume();
     }
-  }, [jobStatus, checkpoint, autoResumeAttempted, resumed, resumeLoading, handleResume]);
+  }, [jobId, jobStatus, checkpoint, autoResumeAttempted, resumed, resumeLoading, handleResume]);
 
   return { checkpoint, resumeLoading, resumeError, resumed, handleResume };
 }
@@ -290,7 +337,7 @@ export function FailedJobRecovery({
     );
   }
 
-  const bodyText: React.ReactNode = !checked ? (
+  const bodyText: ReactNode = !checked ? (
     <span className="text-amber-700">Checking for saved progress…</span>
   ) : hasPhase2Handoff ? (
     <span>

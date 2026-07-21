@@ -16,6 +16,8 @@ import {
   startLatencyStage,
 } from '@/lib/observability/latencyTrace';
 
+const WORKER_KICKOFF_TIMEOUT_MS = 5_000;
+
 export interface TriggerWorkerArgs {
   /** Originating request — used to derive the worker base URL. */
   req: Request;
@@ -187,6 +189,9 @@ export async function triggerEvaluationWorker(
     return { ok: false, reason: 'no_trusted_base_url' };
   }
 
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), WORKER_KICKOFF_TIMEOUT_MS);
+
   try {
     const response = await fetch(workerUrl, {
       method: 'GET',
@@ -197,6 +202,7 @@ export async function triggerEvaluationWorker(
         'x-trace-id': trace_id,
       },
       cache: 'no-store',
+      signal: abortController.signal,
     });
 
     const body = await response.json().catch(() => null) as Record<string, unknown> | null;
@@ -336,5 +342,7 @@ export async function triggerEvaluationWorker(
       reason: 'network_or_timeout',
       error: error instanceof Error ? error.message : String(error),
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
