@@ -1275,6 +1275,137 @@ function defaultCreateCompletion(openaiApiKey?: string, openAiTimeoutMs?: number
     }>;
 }
 
+/**
+ * Deterministic fallback: if the Pass 3 LLM output omitted the
+ * recommendation_lineage / source_recommendation_ids linkage, try to match
+ * surviving Pass 3 recommendations to Pass 2 discoveries by criterion,
+ * issue_family, and strategic_lever plus action/anchor overlap. Only
+ * strong matches are materialized; unmatched sources are left missing so the
+ * lineage contract continues to fail closed rather than silently suppressing
+ * durable Pass 2 discoveries.
+ */
+function materializePass2LineageFromSynthesis(
+  pass2: SinglePassOutput,
+  currentCriteria: SynthesizedCriterion[],
+  existingLineage: RecommendationLineageOutcome[],
+): RecommendationLineageOutcome[] {
+  const existingSourceIds = new Set(existingLineage.map((outcome) => outcome.source_id));
+
+  const pass2SourceEntries = pass2.criteria.flatMap((criterion) => {
+    const meaningful = criterion.recommendations.filter(isMeaningfulOpportunityRecommendation);
+    const identities = buildRecommendationSourceIdentities(
+      meaningful.map((recommendation) => ({ ...recommendation, criterion: criterion.key })),
+    );
+    return identities.map((identity, index) => ({
+      ...identity,
+      recommendation: meaningful[index],
+    }));
+  });
+
+  const missing = pass2SourceEntries.filter((entry) => !existingSourceIds.has(entry.source_id));
+  if (missing.length === 0) return [];
+
+  type FinalRecRef = {
+    criterionIndex: number;
+    recIndex: number;
+    rec: SynthesizedCriterion["recommendations"][number];
+  };
+
+  const finalRecs: FinalRecRef[] = [];
+  for (let ci = 0; ci < currentCriteria.length; ci++) {
+    const criterion = currentCriteria[ci];
+    for (let ri = 0; ri < criterion.recommendations.length; ri++) {
+      const rec = criterion.recommendations[ri];
+      if (isMeaningfulOpportunityRecommendation(rec)) {
+        finalRecs.push({ criterionIndex: ci, recIndex: ri, rec });
+      }
+    }
+  }
+
+  const normalize = (value: unknown): string =>
+    String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+  const sharedWordOverlap = (a: string, b: string, minLength = 5): boolean => {
+    for (const word of a.split(/\s+/)) {
+      if (word.length >= minLength && b.includes(word)) return true;
+    }
+    return false;
+  };
+
+  const scoreMatch = (
+    pass2Rec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
+    finalRec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
+  ): number => {
+    if (String(pass2Rec.issue_family) !== String(finalRec.issue_family)) return 0;
+    if (String(pass2Rec.strategic_lever) !== String(finalRec.strategic_lever)) return 0;
+    let score = 3; // criterion already matched by lookup; issue+lever matched
+    const p2Action = normalize(pass2Rec.action);
+    const fAction = normalize(finalRec.action);
+    const p2Impact = normalize(pass2Rec.expected_impact);
+    const fImpact = normalize(finalRec.expected_impact);
+    const p2Anchor = normalize(pass2Rec.anchor_snippet);
+    const fAnchor = normalize(finalRec.anchor_snippet);
+    if (
+      fAction.includes(p2Action.slice(0, 80)) ||
+      p2Action.includes(fAction.slice(0, 80)) ||
+      sharedWordOverlap(p2Action, fAction, 5)
+    ) {
+      score += 2;
+    }
+    if (
+      fImpact.includes(p2Impact.slice(0, 60)) ||
+      p2Impact.includes(fImpact.slice(0, 60))
+    ) {
+      score += 1;
+    }
+    if (
+      fAnchor.includes(p2Anchor.slice(0, 100)) ||
+      p2Anchor.includes(fAnchor.slice(0, 100)) ||
+      sharedWordOverlap(fAnchor, p2Anchor, 5)
+    ) {
+      score += 2;
+    }
+    return score;
+  };
+
+  const fallbackOutcomes: RecommendationLineageOutcome[] = [];
+  for (const entry of missing) {
+    const p2Rec = entry.recommendation;
+    const criterionKey = entry.criterion;
+    let best: FinalRecRef | null = null;
+    let bestScore = 0;
+    for (const ref of finalRecs) {
+      if (currentCriteria[ref.criterionIndex].key !== criterionKey) continue;
+      const score = scoreMatch(p2Rec, ref.rec);
+      if (score > bestScore) {
+        bestScore = score;
+        best = ref;
+      }
+    }
+    const threshold = 5; // criterion + issue + lever + at least one textual match
+    if (best && bestScore >= threshold) {
+      const rec = currentCriteria[best.criterionIndex].recommendations[best.recIndex];
+      if (!rec.source_recommendation_ids) rec.source_recommendation_ids = [];
+      if (!rec.source_recommendation_ids.includes(entry.source_id)) {
+        rec.source_recommendation_ids.push(entry.source_id);
+      }
+      fallbackOutcomes.push({
+        source_id: entry.source_id,
+        outcome: "materialized",
+        canonical_opportunity_id: entry.recommendation_id,
+      });
+    }
+  }
+
+  if (fallbackOutcomes.length > 0) {
+    console.info(
+      `[Pass3-LineageFallback] materialized ${fallbackOutcomes.length}/${missing.length} missing Pass 2 source(s) from synthesis output.`,
+    );
+  }
+
+  return fallbackOutcomes;
+}
+
 export function parsePass3Response(
   raw: string,
   pass1: SinglePassOutput,
@@ -1329,7 +1460,7 @@ export function parsePass3Response(
   }
 
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
-  const recommendationLineage = parseRecommendationLineage(obj["recommendation_lineage"]);
+  let recommendationLineage = parseRecommendationLineage(obj["recommendation_lineage"]);
 
   // Build a lookup from key → pass outputs (deterministic fallback)
   const p1Map = new Map(pass1.criteria.map((c) => [c.key, c]));
@@ -1944,6 +2075,16 @@ export function parsePass3Response(
       context: `pass3_parser_output:${criterion.key}`,
     }),
   );
+
+  // Deterministic fallback: try to repair an omitted recommendation_lineage
+  // by matching surviving Pass 3 recommendations to durable Pass 2 identities.
+  // Unmatched sources are left missing so the contract fails closed.
+  if (requireRecommendationLineage) {
+    const fallbackOutcomes = materializePass2LineageFromSynthesis(pass2, currentCriteria, recommendationLineage);
+    if (fallbackOutcomes.length > 0) {
+      recommendationLineage = [...recommendationLineage, ...fallbackOutcomes];
+    }
+  }
 
   // Pass 2 discoveries are durable process inputs. Pass 3 may safely
   // materialize, consolidate, or suppress them, but it must account for each
