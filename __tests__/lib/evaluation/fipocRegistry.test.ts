@@ -35,6 +35,22 @@ function expectUnique(values: string[], _label: string): void {
   expect([...dupes]).toEqual([]);
 }
 
+function csvEscape(value: unknown): string {
+  const raw = Array.isArray(value) ? value.join('; ') : String(value ?? '');
+  return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+}
+
+function renderRegistryCsv(rows: readonly unknown[], columns: readonly string[]): string {
+  const lines = [
+    columns.map(csvEscape).join(','),
+    ...rows.map((unknownRow) => {
+      const row = unknownRow as Record<string, unknown>;
+      return columns.map((column) => csvEscape(row[column])).join(',');
+    }),
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
 describe('executable FIPOC registry', () => {
   test('registers every active/pr_required process with immutable IDs and no duplicates', () => {
     expect(PROCESS_REGISTRY.length).toBeGreaterThanOrEqual(20);
@@ -301,6 +317,7 @@ describe('executable FIPOC registry', () => {
       'docs/governance/DREAM_STATE_LONG_FORM_MULTI_LAYER_CANON.md',
       'docs/governance/seed-phase-template-alignment-contract.md',
       'docs/governance/phase-2-calibration-template.md',
+      'docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md',
       'docs/GOLDEN_SPINE.md',
       'docs/VERIFICATION_GOLD_STANDARD.md',
       'docs/canon/intake/_md/Normalized Gold Standard CANONICAL ACCEPTANCE COMPARATOR v1.md',
@@ -334,29 +351,99 @@ describe('executable FIPOC registry', () => {
     }
   });
 
-  test('CSV mirrors exist and have row counts matching executable registry arrays', () => {
+  test('CSV mirrors are byte-identical deterministic projections of executable registries', () => {
     const registryDir = path.join(process.cwd(), 'docs/registries');
-    const expectedCounts: Record<string, number> = {
-      'process_registry.csv': PROCESS_REGISTRY.length,
-      'artifact_registry.csv': ARTIFACT_REGISTRY.length,
-      'field_registry.csv': FIELD_REGISTRY.length,
-      'kick_matrix.csv': KICK_MATRIX.length,
-      'renderer_consumption_matrix.csv': RENDERER_CONSUMPTION_MATRIX.length,
-      'authority_source_registry.csv': AUTHORITY_SOURCE_REGISTRY.length,
+    const specifications: Record<string, { rows: readonly unknown[]; columns: readonly string[] }> = {
+      'process_registry.csv': {
+        rows: PROCESS_REGISTRY,
+        columns: ['sequence', 'phase', 'stageId', 'processName', 'activeState', 'supplier', 'inputArtifacts', 'inputRequiredFields', 'inputMetrics', 'codeSurfaces', 'processContract', 'outputArtifacts', 'outputRequiredFields', 'outputMetrics', 'forwardKick', 'backwardKick', 'dirtyDataRules', 'retryBudget', 'failureCodes', 'failureRecoveryContracts', 'consumers', 'uiExposed', 'reviseHandoff', 'certificationStatus', 'fitGapStatus', 'notes'],
+      },
+      'artifact_registry.csv': {
+        rows: ARTIFACT_REGISTRY,
+        columns: ['artifact', 'producerStageId', 'consumerStageIds', 'requiredFields', 'completenessMetric', 'accuracyMetric', 'dirtyDataRule', 'regenerationOwnerStageId', 'requiredForAuthorExposure', 'fitGapStatus'],
+      },
+      'field_registry.csv': {
+        rows: FIELD_REGISTRY,
+        columns: ['field', 'artifact', 'canonicalPath', 'unifiedDocumentPath', 'required', 'nullable', 'sourceStageId', 'validatorStageId', 'consumers', 'uiRendered', 'rendererMustUseUnifiedDocument', 'rendererMayDerive', 'parityRequired'],
+      },
+      'kick_matrix.csv': {
+        rows: KICK_MATRIX,
+        columns: ['dirtyDataDetectedAt', 'failure', 'kickBackTo', 'redoAction', 'retryLimit', 'ifRetryFails', 'failureCode', 'blocksAuthorExposure'],
+      },
+      'renderer_consumption_matrix.csv': {
+        rows: RENDERER_CONSUMPTION_MATRIX,
+        columns: ['surface', 'stageId', 'codeSurface', 'canonicalInput', 'forbiddenInputs', 'mayFormatOnly', 'rendererMayDerive', 'parityRequiredFields', 'currentFitGapStatus', 'remediationPr'],
+      },
+      'authority_source_registry.csv': {
+        rows: AUTHORITY_SOURCE_REGISTRY,
+        columns: ['authorityId', 'family', 'title', 'path', 'appliesToStageIds', 'appliesToArtifacts', 'runtimeBinding', 'surfacedInSipocUi', 'executionUse', 'notes'],
+      },
     };
 
-    for (const [filename, rowCount] of Object.entries(expectedCounts)) {
+    for (const [filename, specification] of Object.entries(specifications)) {
       const fullPath = path.join(registryDir, filename);
       expect(fs.existsSync(fullPath)).toBe(true);
-      const lines = fs.readFileSync(fullPath, 'utf8').trim().split('\n');
-      expect(lines.length - 1).toBe(rowCount);
+      expect(fs.readFileSync(fullPath, 'utf8')).toBe(
+        renderRegistryCsv(specification.rows, specification.columns),
+      );
     }
   });
 
   test('failureCodes are derived from stage-owned failureDefinitions', () => {
     for (const stage of PROCESS_REGISTRY) {
       expect(stage.failureCodes).toEqual(stage.failureDefinitions.map((definition) => definition.failureCode));
+      expect(stage.failureRecoveryContracts).toEqual(stage.failureDefinitions.map((definition) =>
+        `${definition.failureCode}:${definition.recoveryPolicy.mode}:retry=${definition.recoveryPolicy.retryLimit}:escalation=${definition.recoveryPolicy.escalation}`,
+      ));
     }
+  });
+
+  test('mistake-proofs Pass 2 cache, Pass 3 kick, and persistence-block ownership', () => {
+    const pass2 = getProcess('S06_PASS2');
+    const pass3 = getProcess('S07_PASS3');
+    const persistence = getProcess('S10_PERSISTENCE');
+    const pass2Cache = getArtifact('pass2_chunk_cache_v1');
+    const coverageKick = lookupKickForFailure('CRITERION_OPPORTUNITY_COVERAGE_INVALID');
+    const policyAuthority = AUTHORITY_SOURCE_REGISTRY.find(
+      (entry) => entry.authorityId === 'OPPORTUNITY_DISCOVERY_POLICY_V1',
+    );
+
+    expect(pass2?.inputArtifacts).toContain('pass2_chunk_cache_v1');
+    expect(pass2?.codeSurfaces).toContain('lib/evaluation/policy/opportunityDiscoveryPolicy.ts');
+    expect(pass2?.dirtyDataRules.join(' ')).toMatch(/source_hash mismatch|prompt_version mismatch|disposition contract/i);
+    expect(pass2?.outputMetrics.join(' ')).toMatch(/regenerated from the same source chunk/i);
+    expect(pass2Cache?.consumerStageIds).toEqual(expect.arrayContaining(['S06_PASS2', 'S06b_HANDOFF_GATE']));
+    expect(pass2Cache?.requiredFields).toEqual(expect.arrayContaining([
+      'source_hash',
+      'chunks.<chunk_index>.result.prompt_version',
+      'chunks.<chunk_index>.result.criteria[].recommendation_status',
+    ]));
+
+    expect(pass3?.backwardKick).toMatch(/S07_PASS3 once/);
+    expect(pass3?.notes).toMatch(/progress\.kick_attempts/);
+    expect(pass3?.notes).toMatch(/mixed\/unrelated template defects fail terminally/);
+    expect(pass3?.failureRecoveryContracts).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^CRITERION_OPPORTUNITY_COVERAGE_INVALID:rollback_to_certified_checkpoint:retry=1:/),
+      expect.stringMatching(/^TEMPLATE_COMPLETENESS_GATE_FAILED:terminal_block:retry=0:/),
+    ]));
+    expect(coverageKick).toEqual(expect.objectContaining({
+      kickBackTo: 'S07_PASS3',
+      retryLimit: 1,
+      blocksAuthorExposure: true,
+    }));
+    expect(coverageKick?.redoAction).toMatch(/progress\.kick_attempts/);
+
+    expect(persistence?.inputRequiredFields).toEqual(expect.arrayContaining([
+      'template_completeness_passed=true',
+      'opportunity_coverage_consistent=true',
+    ]));
+    expect(persistence?.outputMetrics.join(' ')).toMatch(/persist_evaluation_v2_atomic call count = 0/);
+    expect(persistence?.outputMetrics.join(' ')).toMatch(/Revise projection call count = 0/);
+
+    expect(policyAuthority).toEqual(expect.objectContaining({
+      path: 'docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md',
+      runtimeBinding: 'binding',
+    }));
   });
 });
 

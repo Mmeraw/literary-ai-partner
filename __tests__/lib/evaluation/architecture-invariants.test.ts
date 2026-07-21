@@ -40,6 +40,206 @@ describe("evaluation architecture invariants", () => {
     }
   });
 
+  test("recommendation-disposition runtime has one authority and no purged fallbacks", () => {
+    const collectLiveRuntimeFiles = (relativeRoot: string): string[] => {
+      const absoluteRoot = path.join(repoRoot, relativeRoot);
+      if (!fs.existsSync(absoluteRoot)) return [];
+
+      const collected: string[] = [];
+      const visit = (absolutePath: string) => {
+        for (const entry of fs.readdirSync(absolutePath, { withFileTypes: true })) {
+          const child = path.join(absolutePath, entry.name);
+          if (entry.isDirectory()) {
+            if (entry.name === "__tests__") continue;
+            visit(child);
+            continue;
+          }
+          if (!/\.(?:ts|tsx)$/.test(entry.name)) continue;
+          if (/\.(?:test|spec)\.(?:ts|tsx)$/.test(entry.name)) continue;
+          collected.push(path.relative(repoRoot, child).replaceAll("\\", "/"));
+        }
+      };
+      visit(absoluteRoot);
+      return collected;
+    };
+
+    const protectedRuntimeFiles = [
+      ...collectLiveRuntimeFiles("lib/evaluation"),
+      ...collectLiveRuntimeFiles("workers"),
+      ...collectLiveRuntimeFiles("app/api"),
+    ];
+
+    const purgedAuthorityPatterns = [
+      /\blegacy_read\b/,
+      /\bcontractMode\b/,
+      /\brecoverHandoffRecommendationsFromChunkCache\b/,
+      /\bMISSING_TOP_RECOMMENDATIONS\b/,
+      /\bNO_RECOMMENDATIONS\b/,
+      /\bINVALID_HIGH_SCORE_RECOMMENDATIONS\b/,
+      /\bisMeaningfulRecommendation\b/,
+      /\bcountMeaningfulRecommendations\b/,
+    ];
+
+    const violations: Array<{ file: string; authority: string }> = [];
+    for (const relativePath of protectedRuntimeFiles) {
+      const code = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+      for (const pattern of purgedAuthorityPatterns) {
+        if (pattern.test(code)) {
+          violations.push({ file: relativePath, authority: pattern.source });
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+
+    const canonicalConsumers: Record<string, string[]> = {
+      "lib/evaluation/artifactConsistencyGate.ts": [
+        "countMeaningfulOpportunityRecommendations",
+        "hasGovernedOpportunityCoverage",
+      ],
+      "lib/evaluation/pipeline/evaluationCertificationGate.ts": [
+        "analyzeGovernedOpportunityCoverage",
+        "countMeaningfulOpportunityRecommendations",
+      ],
+      "lib/evaluation/pipeline/runPass2.ts": [
+        "analyzeGovernedOpportunityCoverage",
+        "countMeaningfulOpportunityRecommendations",
+      ],
+      "lib/evaluation/pipeline/runPass3Synthesis.ts": [
+        "analyzeGovernedOpportunityCoverage",
+        "countMeaningfulOpportunityRecommendations",
+        "reconcileRecommendationDispositionAfterMutation",
+      ],
+      "lib/evaluation/pipeline/runPipeline.ts": [
+        "countMeaningfulOpportunityRecommendations",
+        "reconcileRecommendationDispositionAfterMutation",
+      ],
+      "lib/evaluation/pipeline/templateCompletenessGate.ts": [
+        "analyzeGovernedOpportunityCoverage",
+        "countMeaningfulOpportunityRecommendations",
+      ],
+      "lib/evaluation/persistEvaluationResultV2.ts": [
+        "analyzeGovernedOpportunityCoverage",
+        "countMeaningfulOpportunityRecommendations",
+      ],
+      "lib/evaluation/signal/criterionObservability.ts": [
+        "analyzeGovernedOpportunityCoverage",
+        "countMeaningfulOpportunityRecommendations",
+        "reconcileRecommendationDispositionAfterMutation",
+      ],
+    };
+
+    for (const [relativePath, requiredAuthorities] of Object.entries(canonicalConsumers)) {
+      const code = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+      expect(code).toContain("@/lib/evaluation/policy/opportunityDiscoveryPolicy");
+      for (const authority of requiredAuthorities) {
+        expect(code).toMatch(new RegExp(`\\b${authority}\\s*\\(`));
+      }
+    }
+  });
+
+  test("current recommendation writes cross the sole canonical narrowing bridge", () => {
+    const strictTypeAuthorities: Record<string, string[]> = {
+      "lib/evaluation/pipeline/types.ts": [
+        "CurrentPass2Output",
+        "CurrentSynthesisOutput",
+      ],
+      "schemas/evaluation-result-v2.ts": ["CurrentEvaluationResultV2"],
+      "lib/evaluation/pipeline/runPass2.ts": [
+        "CurrentPass2Output",
+        "requireCurrentRecommendationDisposition",
+      ],
+      "lib/evaluation/pipeline/runPass3Synthesis.ts": [
+        "CurrentSynthesisOutput",
+        "requireCurrentRecommendationDisposition",
+      ],
+      "lib/evaluation/pipeline/runPipeline.ts": [
+        "CurrentEvaluationResultV2",
+        "requireCurrentRecommendationDisposition",
+      ],
+      "lib/evaluation/persistEvaluationResultV2.ts": [
+        "CurrentEvaluationResultV2",
+        "requireCurrentRecommendationDisposition",
+      ],
+      "lib/evaluation/processor.ts": ["requireCurrentEvaluationResultWrite"],
+    };
+
+    for (const [relativePath, requiredAuthorities] of Object.entries(strictTypeAuthorities)) {
+      const code = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+      for (const authority of requiredAuthorities) {
+        expect(code).toContain(authority);
+      }
+      expect(code).not.toMatch(/\bas\s+(?:unknown\s+as\s+)?Current(?:Pass2|Synthesis|EvaluationResult|RecommendationDisposition)/);
+    }
+
+    const policyCode = fs.readFileSync(
+      path.join(repoRoot, "lib/evaluation/policy/opportunityDiscoveryPolicy.ts"),
+      "utf8",
+    );
+    expect(policyCode.match(/as unknown as WithCurrentRecommendationDisposition/g)).toHaveLength(1);
+  });
+
+  test("current-write result integration suites cannot bypass the strict fixture", () => {
+    const processorSuites = [
+      "__tests__/lib/evaluation/processor.canonical-pipeline.test.ts",
+      "__tests__/lib/evaluation/processor.chunk-routing.test.ts",
+      "__tests__/lib/evaluation/processor.contamination-guard.test.ts",
+      "__tests__/smoke/short-form-kickback.submit-smoke.test.ts",
+    ];
+
+    for (const relativePath of processorSuites) {
+      const code = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+      expect(code).toContain("makeCurrentProcessorEvaluationResult");
+      expect(code).toContain("currentProcessorEvaluationResult");
+    }
+
+    const canonicalSuite = fs.readFileSync(
+      path.join(repoRoot, processorSuites[0]),
+      "utf8",
+    );
+    expect(canonicalSuite).toMatch(
+      /synthesisToEvaluationResultV2:[\s\S]*mockCurrentProcessorEvaluationResult\(synthesisToEvaluationResultV2Mock/,
+    );
+  });
+
+  test("current-write integration suites share strict current synthesis authority", () => {
+    const realSynthesisSuites = [
+      "__tests__/lib/config/evaluation-pass-routing.test.ts",
+      "__tests__/lib/evaluation/criminality-v2-regression.test.ts",
+      "__tests__/lib/evaluation/englishVariantResolved.test.ts",
+      "__tests__/lib/evaluation/pipeline/confidenceLevelPolicy.test.ts",
+      "__tests__/lib/evaluation/pipeline/external-adjudication-status.test.ts",
+      "__tests__/lib/evaluation/pipeline/long-form-certification-hardening.test.ts",
+      "__tests__/lib/evaluation/pipeline/yellowWallpaperSynthesisToResultV2.test.ts",
+      "__tests__/lib/evaluation/processor.real-gate.test.ts",
+      "__tests__/lib/evaluation/processor.adjudication-ecg-failure-codes.test.ts",
+      "tests/evaluation/pipeline/pipeline-independence.test.ts",
+    ];
+
+    for (const relativePath of realSynthesisSuites) {
+      const code = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+      expect(code).toContain("makeCurrentProcessorSynthesisOutput");
+      expect(code).not.toContain("makeRealSynthesisOutput");
+    }
+  });
+
+  test("raw Pass 3 success fixtures cannot bypass canonical disposition construction", () => {
+    const rawPass3Suites = [
+      "__tests__/lib/evaluation/pipeline/pass3-backfill-quality.test.ts",
+      "__tests__/lib/evaluation/pipeline/pass3-editorial-specificity-triple.test.ts",
+      "__tests__/lib/evaluation/pipeline/prose-control-anchor-floor.test.ts",
+      "tests/lib/evaluation/packet-evidence-consumption.test.ts",
+      "tests/lib/evaluation/pipeline/pass3-clamp-stranded-connector.test.ts",
+      "tests/lib/evaluation/pipeline/pass3-recommendation-length.test.ts",
+      "tests/lib/evaluation/pipeline/surface-integrity.test.ts",
+    ];
+
+    for (const relativePath of rawPass3Suites) {
+      const code = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+      expect(code).toMatch(/buildCurrentRawPass3(?:Response|Criterion|Json)/);
+      expect(code).toContain("currentPass3Response");
+    }
+  });
+
   test("run-phase2 API routes are pure queue triggers (no inline execution)", () => {
     const runPhase2Routes = [
       "app/api/admin/jobs/[jobId]/run-phase2/route.ts",
@@ -229,11 +429,11 @@ describe("evaluation architecture invariants", () => {
     for (const filePath of runtimeFiles) {
       const code = fs.readFileSync(filePath, "utf8");
 
-      if (/status\s*:\s*['\"]completed['\"]/.test(code)) {
+      if (/status\s*:\s*['"]completed['"]/.test(code)) {
         violations.push({ file: path.relative(repoRoot, filePath), reason: "contains status: 'completed'" });
       }
 
-      if (/phase_status\s*:\s*['\"]completed['\"]/.test(code)) {
+      if (/phase_status\s*:\s*['"]completed['"]/.test(code)) {
         violations.push({ file: path.relative(repoRoot, filePath), reason: "contains phase_status: 'completed'" });
       }
     }

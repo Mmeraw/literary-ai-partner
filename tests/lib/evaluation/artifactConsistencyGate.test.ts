@@ -7,6 +7,9 @@ function criterion(
   score: number,
   recommendations: EvaluationCriterionV2['recommendations'] = [],
 ): EvaluationCriterionV2 {
+  const hasMeaningfulRecommendation = recommendations.some(
+    (recommendation) => recommendation.action.trim().length > 0,
+  );
   return {
     key,
     scorable: true,
@@ -20,6 +23,12 @@ function criterion(
     rationale: `${key} rationale`,
     evidence: [{ snippet: `${key} evidence` }],
     recommendations,
+    recommendation_status: hasMeaningfulRecommendation
+      ? 'recommendation_provided'
+      : 'no_recommendation_warranted',
+    recommendation_status_rationale: hasMeaningfulRecommendation
+      ? undefined
+      : `The ${key} criterion has no distinct evidence-backed revision beyond the governed evaluation.`,
   };
 }
 
@@ -121,7 +130,7 @@ describe('artifactConsistencyGateV1', () => {
     expect(gate.checks.every((check) => check.status === 'pass')).toBe(true);
   });
 
-  test('blocks when a bottom weakness lacks any traceable recommendation or action item', () => {
+  test('blocks when a bottom weakness has neither a recommendation nor a governed disposition', () => {
     const effective = resultWith({
       overview: {
         verdict: 'conditional',
@@ -132,7 +141,11 @@ describe('artifactConsistencyGateV1', () => {
         top_3_risks: ['Theme is underdeveloped'],
       },
       criteria: [
-        criterion('theme', 4, []),
+        {
+          ...criterion('theme', 4, []),
+          recommendation_status: undefined,
+          recommendation_status_rationale: undefined,
+        },
         criterion('voice', 8),
       ],
     });
@@ -148,6 +161,31 @@ describe('artifactConsistencyGateV1', () => {
       status: 'fail',
       affected_criteria: ['theme'],
     }));
+  });
+
+  test('accepts a bottom weakness with an explicit governed zero-recommendation disposition', () => {
+    const effective = resultWith({
+      overview: {
+        verdict: 'conditional',
+        overall_score_0_100: 60,
+        scored_criteria_count: 2,
+        one_paragraph_summary: 'The manuscript has strong voice, but the main weakness is theme clarity.',
+        top_3_strengths: ['Voice is engaging'],
+        top_3_risks: ['Theme is underdeveloped'],
+      },
+      criteria: [
+        criterion('theme', 4, []),
+        criterion('voice', 8),
+      ],
+    });
+
+    const gate = evaluateArtifactConsistencyGateV1({
+      sourceResult: effective,
+      effectiveQGResult: effective,
+    });
+
+    expect(gate.status).toBe('pass');
+    expect(gate.blocking_reasons).not.toContain('recommendation_criterion_traceability');
   });
 
   test('blocks a recommendation paired with an explicit zero-recommendation disposition', () => {

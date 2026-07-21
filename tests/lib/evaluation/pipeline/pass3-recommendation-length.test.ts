@@ -1,5 +1,13 @@
-import { parsePass3Response } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { parsePass3Response as parsePass3ResponseUnchecked } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import { runQualityGate } from "@/lib/evaluation/pipeline/qualityGate";
+import { buildCurrentRawPass3Json } from "@/tests/evaluation/pipeline/test-fixtures/currentPass3Response";
+
+function parsePass3Response(
+  ...args: Parameters<typeof parsePass3ResponseUnchecked>
+): ReturnType<typeof parsePass3ResponseUnchecked> {
+  args[0] = buildCurrentRawPass3Json(JSON.parse(args[0]));
+  return parsePass3ResponseUnchecked(...args);
+}
 
 describe("Pass3 recommendation length contract", () => {
   const basePass = {

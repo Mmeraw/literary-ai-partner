@@ -8,8 +8,14 @@
 
 import { describe, it, expect } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
-import { parsePass2Response, runPass2 } from "@/lib/evaluation/pipeline/runPass2";
+import {
+  aggregatePass2ChunkResults,
+  assertPass2OutputDispositionContract,
+  parsePass2Response,
+  runPass2,
+} from "@/lib/evaluation/pipeline/runPass2";
 import type { RunPass2Options, CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass2";
+import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { getCanonicalPipelineModel } from "@/lib/evaluation/policy";
 
@@ -30,8 +36,30 @@ function makePass2Fixture() {
           anchor_snippet: '"trembling"',
         },
       ],
+      recommendation_status: "recommendation_provided",
     })),
   };
+}
+
+function makePass2Chunk(options: {
+  anchor: string;
+  recommendationStatus?: "recommendation_provided" | "insufficient_evidence" | "no_recommendation_warranted";
+  recommendationStatusRationale?: string;
+  withRecommendation?: boolean;
+}): SinglePassOutput {
+  const fixture = makePass2Fixture();
+  const concept = fixture.criteria[0];
+  concept.recommendations = options.withRecommendation === false
+    ? []
+    : [{
+        ...concept.recommendations[0],
+        anchor_snippet: options.anchor,
+      }];
+  concept.recommendation_status = options.recommendationStatus
+    ?? (concept.recommendations.length > 0 ? "recommendation_provided" : "insufficient_evidence");
+  (concept as typeof concept & { recommendation_status_rationale?: string }).recommendation_status_rationale =
+    options.recommendationStatusRationale;
+  return parsePass2Response(JSON.stringify({ criteria: [concept] }));
 }
 
 /** Helper: build a mock completion function that returns the given JSON string. */
@@ -75,6 +103,15 @@ describe("parsePass2Response", () => {
       expect.arrayContaining(CRITERIA_KEYS as unknown as string[]),
     );
     expect(result.temperature).toBe(0.3);
+  });
+
+  it("fails current output without disposition metadata even when parser options are omitted", () => {
+    const fixture = makePass2Fixture();
+    delete (fixture.criteria[0] as Partial<typeof fixture.criteria[number]>).recommendation_status;
+
+    expect(() => parsePass2Response(JSON.stringify(fixture))).toThrow(
+      "OPPORTUNITY_COVERAGE_MISSING",
+    );
   });
 
   it("rejects out-of-range scores to null sentinel (PR-D)", () => {
@@ -157,6 +194,73 @@ describe("parsePass2Response", () => {
 
   it("throws on empty criteria array", () => {
     expect(() => parsePass2Response(JSON.stringify({ criteria: [] }))).toThrow("no criteria");
+  });
+});
+
+describe("aggregatePass2ChunkResults disposition authority", () => {
+  it("preserves selected recommendations and emits recommendation_provided without mutating inputs", () => {
+    const first = makePass2Chunk({ anchor: "First canonical anchor" });
+    const second = makePass2Chunk({ anchor: "Second canonical anchor" });
+    const before = JSON.stringify([first, second]);
+
+    const aggregate = aggregatePass2ChunkResults([first, second]);
+
+    expect(aggregate.criteria[0].recommendations.map((recommendation) => recommendation.anchor_snippet))
+      .toEqual(["First canonical anchor", "Second canonical anchor"]);
+    expect(aggregate.criteria[0].recommendation_status).toBe("recommendation_provided");
+    expect(aggregate.criteria[0].recommendation_status_rationale).toBeUndefined();
+    expect(JSON.stringify([first, second])).toBe(before);
+  });
+
+  it("preserves a unanimous governed zero disposition and deterministic rationale evidence", () => {
+    const first = makePass2Chunk({
+      anchor: "unused-one",
+      withRecommendation: false,
+      recommendationStatus: "insufficient_evidence",
+      recommendationStatusRationale: "Chunk one lacks a safe intervention.",
+    });
+    const second = makePass2Chunk({
+      anchor: "unused-two",
+      withRecommendation: false,
+      recommendationStatus: "insufficient_evidence",
+      recommendationStatusRationale: "Chunk two lacks a safe intervention.",
+    });
+
+    const aggregate = aggregatePass2ChunkResults([first, second]);
+
+    expect(aggregate.criteria[0].recommendations).toEqual([]);
+    expect(aggregate.criteria[0].recommendation_status).toBe("insufficient_evidence");
+    expect(aggregate.criteria[0].recommendation_status_rationale).toBe(
+      "Chunk one lacks a safe intervention. | Chunk two lacks a safe intervention.",
+    );
+  });
+
+  it("fails closed when zero-recommendation chunks disagree on governed disposition", () => {
+    const first = makePass2Chunk({
+      anchor: "unused-one",
+      withRecommendation: false,
+      recommendationStatus: "insufficient_evidence",
+      recommendationStatusRationale: "The evidence is insufficient.",
+    });
+    const second = makePass2Chunk({
+      anchor: "unused-two",
+      withRecommendation: false,
+      recommendationStatus: "no_recommendation_warranted",
+      recommendationStatusRationale: "No distinct intervention is warranted.",
+    });
+
+    expect(() => aggregatePass2ChunkResults([first, second])).toThrow(
+      "PASS2_CHUNK_AGGREGATE_DISPOSITION_CONFLICT",
+    );
+  });
+
+  it("rejects stale cache contract versions independently of content validity", () => {
+    const current = makePass2Chunk({ anchor: "Current canonical anchor" });
+    const stale = { ...current, prompt_version: "pass2-editorial-obsolete" };
+
+    expect(() => assertPass2OutputDispositionContract(stale, "test-cache")).toThrow(
+      "PASS2_CACHE_CONTRACT_VERSION_MISMATCH",
+    );
   });
 });
 

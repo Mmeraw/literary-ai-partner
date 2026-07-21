@@ -13,17 +13,22 @@ import OpenAI from "openai";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS3_SYSTEM_PROMPT, PASS3_PROMPT_VERSION, buildPass3UserPrompt } from "./prompts/pass3-synthesis";
 import { sanitizeCMOSCriterion, sanitizeCMOSOverall } from "../cmosSanitizer";
-import { isMeaningfulRecommendation } from "./templateCompletenessGate";
 import {
+  analyzeGovernedOpportunityCoverage,
+  countMeaningfulOpportunityRecommendations,
   getOpportunityScoreGuidance,
   getProductOpportunityCeiling,
   getShortFormPerCriterionCeiling,
-  isGovernedRecommendationStatus,
+  normalizeRecommendationStatusInput,
+  RecommendationDispositionContractError,
+  reconcileRecommendationDispositionAfterMutation,
+  requireCurrentRecommendationDisposition,
   type EvaluationOpportunityMode,
 } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import type {
   SinglePassOutput,
   SynthesisOutput,
+  CurrentSynthesisOutput,
   SynthesizedCriterion,
   EvidenceAnchor,
   CompletionUsage,
@@ -514,6 +519,9 @@ function applyExpectationProfileRecommendationGuard(args: {
       }).allowed,
     );
 
+    // Preserve the pre-existing editorial policy exactly: partial suppression
+    // is advisory here, and only an all-recommendations decision mutates the
+    // collection. This change synchronizes disposition metadata only.
     if (kept.length > 0 || criterion.recommendations.length === 0) {
       return criterion;
     }
@@ -521,27 +529,29 @@ function applyExpectationProfileRecommendationGuard(args: {
     const blockedByProtectedProfile = args.expectationContext.expectation_profiles.some((profile) =>
       protectedProfiles.has(profile),
     );
-
-    if (!blockedByProtectedProfile) {
-      return {
-        ...criterion,
-        recommendations: kept,
-      };
-    }
-
-    return {
-      ...criterion,
-      recommendations: kept,
-      technical_defects: [
-        ...(criterion.technical_defects ?? []),
-        {
+    const filteredCriterion: SynthesizedCriterion = blockedByProtectedProfile
+      ? {
+          ...criterion,
+          recommendations: kept,
+          technical_defects: dedupeTechnicalDefects([
+            ...(criterion.technical_defects ?? []),
+            {
           code: "RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED",
           author_facing_reason:
-            "Recommendation guard suppressed unsafe momentum/hook directives for the resolved expectation profile because explicit malfunction evidence was not present.",
+                  "Recommendation guard suppressed unsafe momentum/hook directives for the resolved expectation profile because explicit malfunction evidence was not present.",
           retryable: false,
-        },
-      ],
-    };
+            },
+          ]),
+        }
+      : { ...criterion, recommendations: kept };
+
+    return reconcileRecommendationDispositionAfterMutation(filteredCriterion, {
+      previousMeaningfulCount: countMeaningfulOpportunityRecommendations(criterion.recommendations),
+      mutationCause: "expectation_profile_safety_filter",
+      emptyStatus: "gate_suppressed_no_safe_recommendation",
+      emptyRationale:
+        "The expectation-profile guard removed every proposed intervention under the existing genre-protection policy because none carried the required malfunction evidence.",
+    });
   });
 }
 
@@ -728,11 +738,17 @@ function applyDiagnosticSpineRecommendationGuard(args: {
       });
     }
 
-    return {
+    return reconcileRecommendationDispositionAfterMutation({
       ...criterion,
       recommendations: kept,
       technical_defects: dedupeTechnicalDefects([...(criterion.technical_defects ?? []), ...newDefects]),
-    };
+    }, {
+      previousMeaningfulCount: countMeaningfulOpportunityRecommendations(criterion.recommendations),
+      mutationCause: "diagnostic_spine_safety_filter",
+      emptyStatus: "gate_suppressed_no_safe_recommendation",
+      emptyRationale:
+        "The diagnostic-spine guard removed every proposed intervention under the existing reader-promise policy because each one contradicted the manuscript's primary argument.",
+    });
   });
 }
 
@@ -811,7 +827,7 @@ function assertPass2aStructuredContext(context: Pass2aStructuredContext | undefi
  * Receives both axis outputs and reconciles into a SynthesisOutput.
  * Throws on OpenAI error or unparseable response.
  */
-export async function runPass3Synthesis(opts: RunPass3Options): Promise<SynthesisOutput> {
+export async function runPass3Synthesis(opts: RunPass3Options): Promise<CurrentSynthesisOutput> {
   if (!opts.registry || opts.registry.size === 0) {
     throw new Error("[Pass3] Canonical registry binding missing");
   }
@@ -1149,6 +1165,10 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   // also verifies post-filter. Admin/debug sees quarantined metadata only.
   let quarantinedRecCount = 0;
   for (const criterion of synthesis.criteria) {
+    const previousMeaningfulCount = countMeaningfulOpportunityRecommendations(
+      criterion.recommendations,
+    );
+    const previousRawCount = criterion.recommendations.length;
     const accepted: typeof criterion.recommendations = [];
     for (const rec of criterion.recommendations) {
       const intResult = checkRecommendationIntegrity({
@@ -1174,6 +1194,18 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
       }
     }
     criterion.recommendations = accepted;
+    if (accepted.length !== previousRawCount) {
+      Object.assign(
+        criterion,
+        reconcileRecommendationDispositionAfterMutation(criterion, {
+          previousMeaningfulCount,
+          mutationCause: "recommendation_integrity_quarantine",
+          emptyStatus: "gate_suppressed_no_safe_recommendation",
+          emptyRationale:
+            "The recommendation-integrity gate removed every proposed intervention because none satisfied the existing author-facing specificity and evidence contract.",
+        }),
+      );
+    }
   }
   if (quarantinedRecCount > 0) {
     console.info(
@@ -1196,8 +1228,15 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<Synthesi
   }
 
   // Truth enforcement: attach coverage metadata proving whether evaluation was complete or partial
+  const currentCriteria = synthesis.criteria.map((criterion) =>
+    requireCurrentRecommendationDisposition(criterion, {
+      score: criterion.final_score_0_10,
+      context: `pass3_output:${criterion.key}`,
+    }),
+  );
   return {
     ...synthesis,
+    criteria: currentCriteria,
     partial_evaluation: coverage.truncated,
     coverage_scope: {
       sourceChars: coverage.sourceChars,
@@ -1238,7 +1277,7 @@ export function parsePass3Response(
   manuscriptText?: string,
   expectationContext?: ResolvedExpectationContext,
   scopeProfile?: SubmissionScopeProfile,
-): SynthesisOutput {
+): CurrentSynthesisOutput {
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
@@ -1316,6 +1355,9 @@ export function parsePass3Response(
     const delta = Math.abs(craftScore - editorialScore);
 
     let evidence: EvidenceAnchor[] = parseEvidenceArray(rawEntry?.["evidence"]);
+    const rawMeaningfulRecommendationCount = countMeaningfulOpportunityRecommendations(
+      rawEntry?.["recommendations"],
+    );
     let recommendations = parseRecommendations(rawEntry?.["recommendations"], key);
     const technicalDefects: NonNullable<SynthesizedCriterion["technical_defects"]> = [];
     if (hasTruncatedRecommendationAction(rawEntry?.["recommendations"])) {
@@ -1416,10 +1458,47 @@ export function parsePass3Response(
     // Score 9-10 recs are "craft-elevation" opportunities, not corrections.
     const suppressedRecommendations = recommendations;
 
-    const rawRecStatus = rawEntry?.["recommendation_status"];
+    const recommendationStatusInput = normalizeRecommendationStatusInput(
+      rawEntry?.["recommendation_status"],
+    );
+    if (recommendationStatusInput.kind === "invalid") {
+      throw new RecommendationDispositionContractError(
+        `Pass 3 emitted an unknown recommendation_status for ${key}.`,
+        {
+          criterion: key,
+          field_path: `criteria.${key}.recommendation_status`,
+          invariant_id: "criterion_recommendation_status_known",
+          issues: ["invalid_recommendation_status"],
+          received_status: recommendationStatusInput.value,
+        },
+      );
+    }
+    const recommendationStatus = recommendationStatusInput.kind === "valid"
+      ? recommendationStatusInput.value
+      : undefined;
     const rawRecStatusRationale = rawEntry?.["recommendation_status_rationale"];
+    const recommendationStatusRationale =
+      typeof rawRecStatusRationale === "string" ? String(rawRecStatusRationale).trim() : undefined;
+    const sourceDisposition = analyzeGovernedOpportunityCoverage({
+      score: finalScore,
+      meaningfulOpportunityCount: rawMeaningfulRecommendationCount,
+      recommendationStatus,
+      recommendationStatusRationale,
+    });
+    if (!sourceDisposition.covered) {
+      throw new RecommendationDispositionContractError(
+        `Pass 3 emitted contradictory recommendation/disposition data for ${key}.`,
+        {
+          criterion: key,
+          field_path: `criteria.${key}.recommendation_status`,
+          invariant_id: "criterion_recommendation_status_cardinality_consistent",
+          issues: sourceDisposition.issues,
+          raw_meaningful_recommendation_count: rawMeaningfulRecommendationCount,
+        },
+      );
+    }
 
-    criteria.push({
+    let parsedCriterion: SynthesizedCriterion = {
       key,
       // PR-D: canonical scores are 1..10; never emit 0.
       craft_score: Math.min(10, Math.max(1, craftScore)),
@@ -1437,11 +1516,23 @@ export function parsePass3Response(
       deferred_consequence_risk: deferredRisk,
       evidence,
       recommendations: suppressedRecommendations,
-      recommendation_status: isGovernedRecommendationStatus(rawRecStatus) ? rawRecStatus : undefined,
-      recommendation_status_rationale:
-        typeof rawRecStatusRationale === "string" ? String(rawRecStatusRationale).trim() : undefined,
+      recommendation_status: recommendationStatus,
+      recommendation_status_rationale: recommendationStatusRationale,
       technical_defects: technicalDefects.length > 0 ? dedupeTechnicalDefects(technicalDefects) : undefined,
-    });
+    };
+    const parsedMeaningfulRecommendationCount = countMeaningfulOpportunityRecommendations(
+      suppressedRecommendations,
+    );
+    if (parsedMeaningfulRecommendationCount !== rawMeaningfulRecommendationCount) {
+      parsedCriterion = reconcileRecommendationDispositionAfterMutation(parsedCriterion, {
+        previousMeaningfulCount: rawMeaningfulRecommendationCount,
+        mutationCause: "pass3_parser_safety_filter",
+        emptyStatus: "gate_suppressed_no_safe_recommendation",
+        emptyRationale:
+          "The existing Pass 3 parser safety filters removed every proposed intervention because none satisfied the canonical recommendation-content contract.",
+      });
+    }
+    criteria.push(parsedCriterion);
   }
 
   const guardedCriteria = expectationContext
@@ -1474,7 +1565,7 @@ export function parsePass3Response(
     const mode: EvaluationOpportunityMode =
       manuscriptWordCount !== undefined && manuscriptWordCount < 25_000 ? "short_form" : "long_form_multi_layer";
     const guidance = getOpportunityScoreGuidance(mode, c.final_score_0_10);
-    const meaningful = c.recommendations.filter((r) => isMeaningfulRecommendation(r)).length;
+    const meaningful = countMeaningfulOpportunityRecommendations(c.recommendations);
     if (meaningful < guidance.expectedMin) {
       console.info(
         `[Pass3-CoverageTelemetry] ${c.key} score=${c.final_score_0_10} has ${meaningful} meaningful recommendation(s); expected ~${guidance.expectedMin}. No synthetic backfill will be added.`,
@@ -1576,9 +1667,25 @@ export function parsePass3Response(
     // Remove collapsed duplicates (iterate in reverse to preserve indices)
     if (removeSet.size > 0) {
       for (let ci = finalCriteria.length - 1; ci >= 0; ci--) {
-        finalCriteria[ci].recommendations = finalCriteria[ci].recommendations.filter(
+        const criterion = finalCriteria[ci];
+        const previousMeaningfulCount = countMeaningfulOpportunityRecommendations(
+          criterion.recommendations,
+        );
+        const retained = criterion.recommendations.filter(
           (_, ri) => !removeSet.has(`${ci}:${ri}`),
         );
+        if ((removalsPerCriterion.get(ci) ?? 0) > 0) {
+          finalCriteria[ci] = reconcileRecommendationDispositionAfterMutation({
+            ...criterion,
+            recommendations: retained,
+          }, {
+            previousMeaningfulCount,
+            mutationCause: "cross_criterion_consolidation",
+            emptyStatus: "no_recommendation_warranted",
+            emptyRationale:
+              "No separate recommendation remains for this criterion because its intervention was consolidated into an equivalent, higher-priority cross-criterion opportunity.",
+          });
+        }
       }
       console.info(`[Pass3-P4-Dedup] Collapsed ${removeSet.size} cross-criterion duplicate(s) across ${groups.size} strategic lever group(s)`);
     }
@@ -1641,9 +1748,25 @@ export function parsePass3Response(
     const keepSet = new Set(allRecs.slice(0, totalRecCap).map((r) => `${r.criterionIdx}:${r.recIdx}`));
 
     for (let ci = 0; ci < finalCriteria.length; ci++) {
-      finalCriteria[ci].recommendations = finalCriteria[ci].recommendations.filter(
+      const criterion = finalCriteria[ci];
+      const previousMeaningfulCount = countMeaningfulOpportunityRecommendations(
+        criterion.recommendations,
+      );
+      const retained = criterion.recommendations.filter(
         (_, ri) => keepSet.has(`${ci}:${ri}`),
       );
+      if (retained.length !== criterion.recommendations.length) {
+        finalCriteria[ci] = reconcileRecommendationDispositionAfterMutation({
+          ...criterion,
+          recommendations: retained,
+        }, {
+          previousMeaningfulCount,
+          mutationCause: "product_ceiling",
+          emptyStatus: "no_recommendation_warranted",
+          emptyRationale:
+            "No separate recommendation remains for this criterion because the existing product ceiling retained higher-priority interventions in the canonical report.",
+        });
+      }
     }
 
     console.info(
@@ -1807,8 +1930,15 @@ export function parsePass3Response(
     }
   }
 
+  const currentCriteria = sanitizedCriteria.map((criterion) =>
+    requireCurrentRecommendationDisposition(criterion, {
+      score: criterion.final_score_0_10,
+      context: `pass3_parser_output:${criterion.key}`,
+    }),
+  );
+
   return {
-    criteria: sanitizedCriteria,
+    criteria: currentCriteria,
     overall: sanitizedOverall,
     metadata: {
       // PR-I (2026-05-16): Provenance must reflect the model that actually executed,

@@ -32,6 +32,7 @@ function makePassOutput(pass: 1 | 2): SinglePassOutput {
           revision_granularity: "scene",
         },
       ],
+      ...(pass === 2 ? { recommendation_status: "recommendation_provided" as const } : {}),
     })),
   };
 }
@@ -79,6 +80,7 @@ function buildRawWithPacingAction(action: string, mechanism = "the passage stall
                 reader_effect: "clearer progression",
               },
             ],
+      recommendation_status: "recommendation_provided",
     })),
     overall: {
       overall_score_0_100: 70,
@@ -122,6 +124,7 @@ describe("expectation profile recommendation guard", () => {
     // no synthetic backfill is added, so the recommendation list is empty.
     expect(pacing?.recommendations).toHaveLength(0);
     expect(pacing?.recommendations?.some((r) => /increase momentum/i.test(r.action))).toBe(false);
+    expect(pacing?.recommendation_status).toBe("gate_suppressed_no_safe_recommendation");
   });
 
   test("does not over-suppress thriller/commercial suspense propulsion diagnostics", () => {
@@ -146,6 +149,10 @@ describe("expectation profile recommendation guard", () => {
     const pacing = parsed.criteria.find((c) => c.key === "pacing");
     expect(pacing).toBeDefined();
     expect((pacing?.recommendations.length ?? 0)).toBeGreaterThan(0);
+    expect(pacing?.recommendations[0]?.action).toBe(
+      "In chapter 3, increase momentum by adding a decision beat and a clearer next step.",
+    );
+    expect(pacing?.recommendation_status).toBe("recommendation_provided");
   });
 
   test("protects suspense slow-burn pacing but allows action-thriller velocity guidance", () => {

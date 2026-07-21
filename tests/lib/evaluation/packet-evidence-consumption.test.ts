@@ -6,6 +6,8 @@ import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synth
 import type { Pass3ReducerTelemetry, SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
+import { PASS2_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass2-editorial";
+import { buildCurrentRawPass3Response } from "../../evaluation/pipeline/test-fixtures/currentPass3Response";
 
 function makePass(pass: 1 | 2, axis: "craft_execution" | "editorial_literary"): SinglePassOutput {
   return {
@@ -17,16 +19,23 @@ function makePass(pass: 1 | 2, axis: "craft_execution" | "editorial_literary"): 
       rationale: `${axis} rationale for ${key}`,
       evidence: [{ snippet: `Evidence for ${key}.`, char_start: 0, char_end: 10 }],
       recommendations: [],
+      ...(pass === 2
+        ? {
+            recommendation_status: "no_recommendation_warranted" as const,
+            recommendation_status_rationale:
+              `The current Pass 2 packet fixture has no separate evidence-supported intervention for ${key}.`,
+          }
+        : {}),
     })),
     model: "gpt-4o",
-    prompt_version: pass === 1 ? "pass1-v1" : "pass2-v1",
+    prompt_version: pass === 1 ? "pass1-v1" : PASS2_PROMPT_VERSION,
     temperature: 0.2,
     generated_at: new Date().toISOString(),
   };
 }
 
 function makePass3Completion(): CreateCompletionFn {
-  const payload = {
+  const payload = buildCurrentRawPass3Response({
     diagnostic_spine: {
       central_argument:
         "Institutional pressure turns private grief into a public test of whether memory can survive political convenience.",
@@ -71,7 +80,7 @@ function makePass3Completion(): CreateCompletionFn {
       pass2_model: "gpt-4o",
       pass3_model: "gpt-4o",
     },
-  };
+  });
 
   return async () => ({
     choices: [{ message: { content: JSON.stringify(payload) } }],

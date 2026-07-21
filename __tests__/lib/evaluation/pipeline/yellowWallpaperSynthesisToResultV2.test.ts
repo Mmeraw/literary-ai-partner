@@ -15,7 +15,7 @@ import { inspectAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
 import { normalizeArtifact } from '@/lib/evaluation/pipeline/normalizeArtifact';
 import { buildEnrichedActionItems, toPublicActionItem } from '@/lib/evaluation/actionItemQualityGate';
 import { buildWritableAuthorFieldResolver } from '@/lib/evaluation/pipeline/derivedFieldResolver';
-import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import { makeCurrentProcessorSynthesisOutput } from '@/__tests__/lib/evaluation/test-fixtures/currentProcessorSynthesisOutput';
 
 import * as requiredProseRegeneration from '@/lib/evaluation/pipeline/requiredProseRegeneration';
 
@@ -28,8 +28,8 @@ const mockedRegenerateRequiredProse = jest.mocked(
   requiredProseRegeneration.regenerateRequiredProse,
 );
 
-function makeYellowWallpaperSynthesis(): SynthesisOutput {
-  return {
+function makeYellowWallpaperSynthesis() {
+  return makeCurrentProcessorSynthesisOutput({
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
       craft_score: 7,
@@ -82,7 +82,7 @@ function makeYellowWallpaperSynthesis(): SynthesisOutput {
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false,
-  } as SynthesisOutput;
+  });
 }
 
 beforeEach(() => {

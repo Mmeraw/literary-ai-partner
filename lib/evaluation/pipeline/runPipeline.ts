@@ -14,7 +14,10 @@
  */
 
 import { runPass1 as defaultRunPass1 } from "./runPass1";
-import { runPass2 as defaultRunPass2 } from "./runPass2";
+import {
+  assertPass2OutputDispositionContract,
+  runPass2 as defaultRunPass2,
+} from "./runPass2";
 import {
   runPass3Synthesis as defaultRunPass3,
   buildCriterionAwareMechanismDefault,
@@ -54,6 +57,8 @@ import type {
   PipelineResult,
   SinglePassOutput,
   SynthesisOutput,
+  CurrentPass2Output,
+  CurrentSynthesisOutput,
   QualityGateResult,
   ManuscriptChunkEvidence,
   QualityGateCriterionDiagnostic,
@@ -61,7 +66,10 @@ import type {
   CoverageStrategy,
 } from "./types";
 import type { EvaluationResultV1 } from "@/schemas/evaluation-result-v1";
-import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import type {
+  CurrentEvaluationResultV2,
+  EvaluationResultV2,
+} from "@/schemas/evaluation-result-v2";
 import { detectModeFromManuscript } from "@/lib/evaluation/modeDetection";
 import { CRITERIA_KEYS, getCriterionDisplayLabel } from "@/schemas/criteria-keys";
 import { PASS1_PROMPT_VERSION } from "./prompts/pass1-craft";
@@ -113,6 +121,12 @@ import {
   startLatencyStage,
 } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
+import {
+  countMeaningfulOpportunityRecommendations,
+  RecommendationDispositionContractError,
+  reconcileRecommendationDispositionAfterMutation,
+  requireCurrentRecommendationDisposition,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import { buildPass2aStructuredContext } from "./buildPass2aStructuredContext";
 import { runPass1a } from "./runPass1a";
 import type { RunPass1aResult } from "./runPass1a";
@@ -831,8 +845,23 @@ function mergeRecommendationContext(
   };
 }
 
+function requireCurrentSynthesisOutput(
+  synthesis: SynthesisOutput,
+  context: string,
+): CurrentSynthesisOutput {
+  return {
+    ...synthesis,
+    criteria: synthesis.criteria.map((criterion) =>
+      requireCurrentRecommendationDisposition(criterion, {
+        score: criterion.final_score_0_10,
+        context: `${context}:${criterion.key}`,
+      }),
+    ),
+  };
+}
+
 export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
-  synthesis: SynthesisOutput;
+  synthesis: CurrentSynthesisOutput;
   removedCount: number;
 } {
   const seenActions = new Map<string, { criterionIdx: number; recommendationIdx: number }>();
@@ -845,6 +874,10 @@ export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
 
   for (let criterionIdx = 0; criterionIdx < criteria.length; criterionIdx++) {
     const criterion = criteria[criterionIdx];
+    const previousMeaningfulCount = countMeaningfulOpportunityRecommendations(
+      criterion.recommendations,
+    );
+    const previousRawCount = criterion.recommendations.length;
     const dedupedRecommendations: typeof criterion.recommendations = [];
 
     for (const rec of criterion.recommendations) {
@@ -876,13 +909,25 @@ export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
     }
 
     criterion.recommendations = dedupedRecommendations;
+    if (dedupedRecommendations.length !== previousRawCount) {
+      criteria[criterionIdx] = reconcileRecommendationDispositionAfterMutation(
+        criterion,
+        {
+          previousMeaningfulCount,
+          mutationCause: "pre_gate_deduplication",
+          emptyStatus: "no_recommendation_warranted",
+          emptyRationale:
+            "No separate recommendation remains for this criterion because the existing pre-gate deduplication rule consolidated it into an equivalent canonical intervention.",
+        },
+      );
+    }
   }
 
   return {
-    synthesis: {
+    synthesis: requireCurrentSynthesisOutput({
       ...synthesis,
       criteria,
-    },
+    }, "pre_gate_deduplication_output"),
     removedCount,
   };
 }
@@ -902,7 +947,7 @@ export function dedupeRecommendationsPreGate(synthesis: SynthesisOutput): {
  * identify truly generic content.
  */
 function enforceEditorialSpecificityBeforeGate(synthesis: SynthesisOutput): {
-  synthesis: SynthesisOutput;
+  synthesis: CurrentSynthesisOutput;
   repairedCount: number;
 } {
   let repairedCount = 0;
@@ -942,7 +987,10 @@ function enforceEditorialSpecificityBeforeGate(synthesis: SynthesisOutput): {
   });
 
   return {
-    synthesis: { ...synthesis, criteria },
+    synthesis: requireCurrentSynthesisOutput(
+      { ...synthesis, criteria },
+      "editorial_specificity_output",
+    ),
     repairedCount,
   };
 }
@@ -1471,6 +1519,16 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
             normalized_tail: reason.normalized.slice(-250),
             candidate_tail: reason.candidate?.slice(-250),
           },
+        },
+      } as const;
+    }
+    if (reason instanceof RecommendationDispositionContractError) {
+      return {
+        message,
+        errorCode: reason.failureCode,
+        failedAt: pass,
+        failureDetails: {
+          recommendation_disposition_contract: reason.details,
         },
       } as const;
     }
@@ -2174,6 +2232,19 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
   }
 
   // ── Pass 3: Synthesis & Reconciliation ─────────────────────────────────
+  let currentPass2Output: CurrentPass2Output;
+  try {
+    assertPass2OutputDispositionContract(pass2Output, "run_pipeline_pass3_handoff");
+    currentPass2Output = pass2Output;
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      error_code: "PASS2_DISPOSITION_CONTRACT_INVALID",
+      failed_at: "pass2",
+    };
+  }
+
   const pass3StartMs = nowMs();
   const pass3StartedAt = startLatencyStage({
     jobId: latencyJobId,
@@ -2199,7 +2270,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     pass3Output = await withTimeout(
       _runPass3({
         pass1: pass1Output,
-        pass2: pass2Output,
+        pass2: currentPass2Output,
         pass2aStructuredContext,
         characterLedger: characterLedger,
         characterLedgerV2: characterLedgerV2,
@@ -2665,7 +2736,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
 
   return {
     ok: true,
-    synthesis: pass3Output,
+    synthesis: requireCurrentSynthesisOutput(pass3Output, "pipeline_success_output"),
     quality_gate: qualityGate,
     cross_check: crossCheckResult,
     pass4_governance: pass4Governance,
@@ -2675,7 +2746,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<PipelineRes
     characterLedgerV2: characterLedgerV2,
     pass3PreflightDraft: opts._prebuiltPreflightDraft ?? null,
     pass1Output: pass1Output ?? null,
-    pass2Output: pass2Output ?? null,
+    pass2Output: currentPass2Output,
   };
 }
 
@@ -2971,7 +3042,7 @@ export function toReportVerdict(
  */
 export function synthesisToEvaluationResultV2(
   opts: SynthesisToEvaluationResultOptions,
-): EvaluationResultV2 {
+): CurrentEvaluationResultV2 {
   const {
     synthesis,
     ids,
@@ -3167,6 +3238,14 @@ export function synthesisToEvaluationResultV2(
       rationale: buildFallbackCriterionRationale(criterion.key, criterion.score_0_10),
     };
   });
+  const currentGovernedCriteria = governedCriteriaWithTemplateFallbacks.map((criterion) =>
+    requireCurrentRecommendationDisposition(criterion, {
+      score: criterion.score_0_10,
+      scorable: criterion.scorable,
+      criterionStatus: criterion.status,
+      context: `evaluation_result_v2_write:${criterion.key}`,
+    }),
+  );
 
   const criteriaSortedByScore = [...governedCriteriaWithTemplateFallbacks].sort((a, b) => {
     const aScore = typeof a.score_0_10 === "number" ? a.score_0_10 : -1;
@@ -3341,7 +3420,7 @@ export function synthesisToEvaluationResultV2(
   // ── Assemble the candidate EvaluationResultV2 artifact before certification ─
   // ECG will certify this exact object; after certification we will add the ECG
   // warning annotations immutably. No other representation is built after this point.
-  const candidateResult: EvaluationResultV2 = {
+  const candidateResult: CurrentEvaluationResultV2 = {
     schema_version: "evaluation_result_v2",
     score_denominator_policy: "full_canonical",
     ids,
@@ -3355,7 +3434,7 @@ export function synthesisToEvaluationResultV2(
     confirmed_mode: null,
     mode_telemetry: [],
     overview: finalOverview,
-    criteria: governedCriteriaWithTemplateFallbacks,
+    criteria: currentGovernedCriteria,
     recommendations: {
       quick_wins: quickWins.map(toPublicActionItem),
       strategic_revisions: strategicRevisions.map(toPublicActionItem),
@@ -3492,7 +3571,7 @@ export function synthesisToEvaluationResultV2(
         ]
       : [];
 
-  const finalEvaluationResult: EvaluationResultV2 = {
+  const finalEvaluationResult: CurrentEvaluationResultV2 = {
     ...candidateResult,
     governance: {
       ...candidateResult.governance,

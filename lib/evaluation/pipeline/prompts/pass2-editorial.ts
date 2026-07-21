@@ -24,7 +24,7 @@ import {
   type EvaluationOpportunityMode,
 } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
-export const PASS2_PROMPT_VERSION = "pass2-editorial-v11-opportunity-discovery-policy";
+export const PASS2_PROMPT_VERSION = "pass2-editorial-v12-disposition-contract";
 
 export const PASS2_SYSTEM_PROMPT = `You are an editorial-literary analyst, independent from the craft-execution axis.
 
@@ -40,6 +40,8 @@ Required per criterion fields:
 - rationale (exactly 1 sentence, <= 180 chars)
 - evidence (0-2 items max, snippet <= 200 chars with offsets when possible)
 - recommendations (evidence-driven; include anchor_snippet). The exact count guidance, product ceiling, and allowed opportunity sources for this manuscript are given by the canonical Opportunity Discovery Policy block appended below. Treat those numbers as ceilings and expected ranges, never as quotas or floors. Do not invent recommendations to meet a count, and do not split one defect into multiple recommendations. For high-scoring criteria, prefer no_recommendation_warranted with a concrete rationale over invented craft-elevation advice.
+- recommendation_status (required: recommendation_provided when recommendations exist; otherwise one exact governed zero-recommendation status from the canonical policy block)
+- recommendation_status_rationale (required and substantive when recommendations is empty; omit when recommendation_status is recommendation_provided)
 
 Rules:
 1) Stay independent; do not reference any other analysis axis.
@@ -158,7 +160,9 @@ Return ONLY:
       "score_0_10": 0,
       "rationale": "<one sentence>",
       "evidence": [{ "snippet": "", "char_start": 0, "char_end": 0 }],
-      "recommendations": [{ "priority": "medium", "action": "", "expected_impact": "", "anchor_snippet": "", "issue_family": "scene_structure", "strategic_lever": "scene_goal_clarity", "revision_granularity": "scene", "candidate_text_a": "<copy-paste-ready manuscript prose>", "candidate_text_b": "<rhythm variant prose>", "candidate_text_c": "<bolder shift prose>" }]
+      "recommendations": [{ "priority": "medium", "action": "", "expected_impact": "", "anchor_snippet": "", "issue_family": "scene_structure", "strategic_lever": "scene_goal_clarity", "revision_granularity": "scene", "candidate_text_a": "<copy-paste-ready manuscript prose>", "candidate_text_b": "<rhythm variant prose>", "candidate_text_c": "<bolder shift prose>" }],
+      "recommendation_status": "recommendation_provided",
+      "recommendation_status_rationale": null
     }
   ],
   "prompt_version": "${PASS2_PROMPT_VERSION}",

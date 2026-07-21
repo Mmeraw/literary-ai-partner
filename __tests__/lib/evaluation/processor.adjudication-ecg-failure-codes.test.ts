@@ -27,9 +27,13 @@
 
 export {};
 
-import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { EvaluationCertificationFailedError } from "@/lib/evaluation/pipeline/evaluationCertificationGate";
 import type { ECGResult } from "@/lib/evaluation/pipeline/evaluationCertificationGate";
+import {
+  buildProcessorSynthesisManuscriptContent,
+  buildProcessorSynthesisRecommendations,
+  makeCurrentProcessorSynthesisOutput,
+} from "./test-fixtures/currentProcessorSynthesisOutput";
 
 // ── Mock ONLY external I/O ────────────────────────────────────────────────────
 
@@ -73,101 +77,13 @@ jest.mock("@supabase/supabase-js", () => ({
 
 // ── Fixture helpers ─────────────────────────────────────────────────────────
 
-const CRITERION_TERMS: Record<(typeof CRITERIA_KEYS)[number], string> = {
-  concept: "premise",
-  narrativeDrive: "propulsion",
-  character: "motivation",
-  voice: "voice",
-  sceneConstruction: "scene",
-  dialogue: "dialogue",
-  theme: "theme",
-  worldbuilding: "world",
-  pacing: "pacing",
-  proseControl: "prose",
-  tone: "tone",
-  narrativeClosure: "closure",
-  marketability: "market",
-};
-
-function criterionAnchorSet(key: (typeof CRITERIA_KEYS)[number]) {
-  const term = CRITERION_TERMS[key];
-  return {
-    a: `In chapter two, the ${term} signal around ${key} escalates through concrete beat-level evidence.`,
-    b: `Later in chapter two, the ${term} pattern for ${key} shifts with explicit consequence and reader-facing pressure.`,
-    c: `By chapter three, the ${term} execution for ${key} resolves into a clear causal outcome on the page.`,
-  };
-}
-
-function buildFixtureManuscriptContent(): string {
-  return CRITERIA_KEYS.flatMap((key) => {
-    const anchors = criterionAnchorSet(key);
-    return [anchors.a, anchors.b, anchors.c];
-  }).join(" ");
-}
-
-function makeRealSynthesisOutput() {
-  return {
-    criteria: CRITERIA_KEYS.map((key) => ({
-      key,
-      final_score_0_10: key === "pacing" || key === "theme" ? 4 : 5,
-      final_rationale:
-        `The ${CRITERION_TERMS[key]} handling for ${key} is observable because the manuscript shows causal movement between setup, pressure, and consequence in distinct scene anchors.`,
-      evidence: [
-        { snippet: criterionAnchorSet(key).a },
-        { snippet: criterionAnchorSet(key).b },
-        { snippet: criterionAnchorSet(key).c },
-      ],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Because the ${CRITERION_TERMS[key]} beat for ${key} currently resolves too quickly, stage one additional line-level turn at the second anchor to preserve causal pressure for the reader.`,
-          expected_impact: `Improves ${key} specificity while sustaining momentum, clarity, and reader trust through the revision beat.`,
-          anchor_snippet: criterionAnchorSet(key).b,
-        },
-        {
-          priority: "low" as const,
-          action: `Strengthen the ${CRITERION_TERMS[key]} foundation for ${key} by adding a preparatory beat at the first anchor to establish stakes before the escalation.`,
-          expected_impact: `Deepens ${key} grounding through earlier setup, giving the reader more context for the payoff.`,
-          anchor_snippet: criterionAnchorSet(key).a,
-        },
-      ],
-    })),
-    overall: {
-      overall_score_0_100: 74,
-      verdict: "conditional" as const,
-      one_sentence_pitch:
-        "A craft-focused manuscript tests whether scene-level pressure can sustain reader trust across all thirteen criteria.",
-      one_paragraph_pitch:
-        "A craft-focused manuscript follows scene-by-scene pressure shifts, character decisions, and consequence tracking to test whether execution can support a complete RevisionGrade evaluation. As weaknesses in pacing and theme emerge, the revision path asks whether targeted evidence-anchored repairs can convert promising material into submission-ready narrative coherence.",
-      one_paragraph_summary:
-        "The manuscript demonstrates measurable craft with targeted revision opportunities, with pacing and theme as the weakest criteria requiring focused revision.",
-      top_3_strengths: [
-        "Distinctive authorial voice with tonal authority across scenes.",
-        "Character motivation is grounded in concrete scene-level decisions.",
-        "Dialogue carries subtext and advances conflict naturally.",
-      ],
-      top_3_risks: [
-        "Pacing stalls in mid-section transitions between major scenes.",
-        "Thematic integration relies on repetition rather than escalation.",
-        "Narrative closure leaves key causal threads unresolved for the reader.",
-      ],
-    },
-    metadata: {
-      pass1_model: "gpt-4o",
-      pass2_model: "o3",
-      pass3_model: "o3",
-      generated_at: new Date().toISOString(),
-    },
-    enrichment: {
-      premise: "A manuscript exploring craft fundamentals across thirteen criteria with targeted revision opportunities in pacing and thematic integration.",
-      diagnosed_genre: "literary fiction",
-      target_audience: "Adult readers of character-driven literary fiction with interest in craft-forward narrative.",
-    },
-  };
-}
-
 function makeDirtySynthesisOutput() {
-  const s = makeRealSynthesisOutput();
+  const s = makeCurrentProcessorSynthesisOutput({
+    criteria: (["narrativeDrive", "voice", "worldbuilding"] as const).map((key) => ({
+      key,
+      recommendations: buildProcessorSynthesisRecommendations(key),
+    })),
+  });
   // Required-prose integrity failures
   s.criteria[2].fit_summary = 'The voice works because the concrete details…';
   s.criteria[4].gap_summary = 'The middle stalls during the step-by-step sequence…';
@@ -237,7 +153,7 @@ function makeSupabaseStub() {
   const manuscript = {
     id: 789,
     title: "Adjudication + ECG Test Manuscript",
-    content: buildFixtureManuscriptContent(),
+    content: buildProcessorSynthesisManuscriptContent(),
     work_type: "novel",
     user_id: "00000000-0000-0000-0000-000000000002",
   };
@@ -428,7 +344,7 @@ describe("processEvaluationJob — external adjudication gate + ECG typed failur
 
     runPipelineMock.mockResolvedValue({
       ok: true,
-      synthesis: makeRealSynthesisOutput(),
+      synthesis: makeCurrentProcessorSynthesisOutput(),
       quality_gate: { pass: true, checks: [], warnings: [] },
       pass4_governance: { ok: true },
       // Retired field is undefined — the gate must NOT depend on it.
@@ -459,7 +375,7 @@ describe("processEvaluationJob — external adjudication gate + ECG typed failur
 
     runPipelineMock.mockResolvedValue({
       ok: true,
-      synthesis: makeRealSynthesisOutput(),
+      synthesis: makeCurrentProcessorSynthesisOutput(),
       quality_gate: { pass: true, checks: [], warnings: [] },
       pass4_governance: { ok: true },
       cross_check: undefined,
@@ -488,7 +404,7 @@ describe("processEvaluationJob — external adjudication gate + ECG typed failur
 
     runPipelineMock.mockResolvedValue({
       ok: true,
-      synthesis: makeRealSynthesisOutput(),
+      synthesis: makeCurrentProcessorSynthesisOutput(),
       quality_gate: { pass: true, checks: [], warnings: [] },
       pass4_governance: { ok: true },
       cross_check: undefined,
@@ -517,7 +433,7 @@ describe("processEvaluationJob — external adjudication gate + ECG typed failur
 
     runPipelineMock.mockResolvedValue({
       ok: true,
-      synthesis: makeRealSynthesisOutput(),
+      synthesis: makeCurrentProcessorSynthesisOutput(),
       quality_gate: { pass: true, checks: [], warnings: [] },
       pass4_governance: { ok: true },
       cross_check: undefined,
@@ -544,7 +460,7 @@ describe("processEvaluationJob — external adjudication gate + ECG typed failur
 
     runPipelineMock.mockResolvedValue({
       ok: true,
-      synthesis: makeRealSynthesisOutput(),
+      synthesis: makeCurrentProcessorSynthesisOutput(),
       quality_gate: { pass: true, checks: [], warnings: [] },
       pass4_governance: { ok: true },
       cross_check: undefined,

@@ -33,6 +33,7 @@ function makeCriterion(key: CriterionKey, recommendation: ReturnType<typeof make
     consequence_status: "landed",
     evidence: [{ snippet: `Evidence snippet for ${key}` }],
     recommendations: [recommendation],
+    recommendation_status: "recommendation_provided",
   };
 }
 
@@ -96,6 +97,10 @@ describe("dedupeRecommendationsPreGate", () => {
 
     expect(conceptRec).toBeDefined();
     expect(pacingRecs).toHaveLength(0);
+    expect(result.synthesis.criteria.find((c) => c.key === "concept")?.recommendation_status)
+      .toBe("recommendation_provided");
+    expect(result.synthesis.criteria.find((c) => c.key === "pacing")?.recommendation_status)
+      .toBe("no_recommendation_warranted");
 
     expect(conceptRec?.collapsed_from_criteria).toContain("pacing");
     expect(conceptRec?.anchor_snippet).toContain("Concept anchor excerpt");
@@ -118,7 +123,7 @@ describe("dedupeRecommendationsPreGate", () => {
     const baseAction =
       "replace one abstract reaction line with a concrete decision beat before the consequence turn.";
     const leadInAction =
-      `In the section where \"Chapter 9 — The Bell\", ${baseAction}`;
+      `In the section where "Chapter 9 — The Bell", ${baseAction}`;
 
     const synthesis = makeSynthesis({
       concept: makeRecommendation("concept", leadInAction, "Concept anchor excerpt"),

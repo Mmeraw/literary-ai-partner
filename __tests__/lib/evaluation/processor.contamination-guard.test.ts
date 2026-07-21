@@ -9,6 +9,7 @@
 export {};
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import { makeCurrentProcessorEvaluationResult } from "./test-fixtures/currentProcessorEvaluationResult";
 
 // ── Mock pipeline and synthesis ──────────────────────────────────────────────
 const runPipelineMock = jest.fn();
@@ -259,7 +260,7 @@ function makeSupabaseStub() {
 }
 
 function makeEvaluationResult() {
-  return {
+  return makeCurrentProcessorEvaluationResult({
     schema_version: "evaluation_result_v2",
     ids: {
       evaluation_run_id: "run-contamination",
@@ -325,7 +326,7 @@ function makeEvaluationResult() {
     metrics: { manuscript: {}, processing: {} },
     artifacts: [],
     governance: { confidence: 0.8, warnings: [], limitations: [], policy_family: "standard" },
-  };
+  });
 }
 
 describe("processEvaluationJob contamination guard enforcement", () => {
@@ -484,7 +485,7 @@ describe("processEvaluationJob contamination guard enforcement", () => {
       "../../../lib/evaluation/processor"
     );
 
-    const result = await processEvaluationJob("job-contamination-test");
+    const _result = await processEvaluationJob("job-contamination-test");
 
     // Guard was invoked
     expect(detectContextContaminationMock).toHaveBeenCalledTimes(1);

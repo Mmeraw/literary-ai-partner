@@ -22,6 +22,7 @@ import { buildDiagnosticSpinePromptBlock } from "@/lib/evaluation/diagnosticSpin
 import { buildEnglishVariantPromptBlock } from "@/lib/evaluation/englishVariant";
 import {
   buildOpportunityDiscoveryPromptBlock,
+  buildRecommendationStatusPromptList,
   type EvaluationOpportunityMode,
 } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
@@ -186,12 +187,7 @@ When recommendations is empty, emit BOTH fields on the criterion object:
 - recommendation_status_rationale
 
 Allowed recommendation_status values (exact spellings):
-- recommendation_provided
-- no_recommendation_warranted
-- genre_appropriate_no_revision_warranted
-- criterion_not_applicable
-- insufficient_evidence
-- gate_suppressed_no_safe_recommendation
+${buildRecommendationStatusPromptList()}
 
 Canonical/exemplary protection rules:
 - 10/10 defaults to recommendation_status = "no_recommendation_warranted" unless a specific evidence-grounded modernization/adaptation note is truly necessary.
@@ -475,122 +471,6 @@ function buildPerplexityPacketSummary(packet: SinglePassOutput): string {
 // This helper is retained for legacy reference only; do not call from the live
 // Pass 3B prompt path.
 
-// @deprecated — removed from live Pass 3B; Pass 3A is now the independent reader
-function buildReadAheadPrimerBlock(readAhead?: Pass3ReadAheadResult): string {
-  if (!readAhead || readAhead.is_fallback) return "";
-
-  // ── 1. Narrative structure ──────────────────────────────────────────────
-  const nsm = readAhead.narrative_structure_map;
-  const actImp = nsm.act_impressions as Record<string, string>;
-  const structureLines = [
-    `POV: ${nsm.pov_architecture}`,
-    `Tone: ${nsm.dominant_tone} | Setting: ${nsm.dominant_setting} | Scope: ${nsm.temporal_scope}`,
-    `Structural risk: ${nsm.structural_risk ?? "none flagged"}`,
-    `Opening: ${actImp.opening_register ?? "—"}`,
-    `Mid-early: ${actImp.mid_early_register ?? "—"}`,
-    `Mid-act pivot: ${actImp.mid_act_pivot ?? "—"}`,
-    `Mid-late: ${actImp.mid_late_register ?? "—"}`,
-    `Late-act: ${actImp.late_act_pressure ?? "—"}`,
-    `Close: ${actImp.close_register ?? "—"}`,
-  ].join("\n");
-
-  // ── 2. Act-zone map ─────────────────────────────────────────────────────
-  const actZoneMap = Array.isArray(readAhead.act_zone_map) && readAhead.act_zone_map.length > 0
-    ? `\n\nACT-ZONE MAP (read-ahead assignment — use for Gate 5 zone validation):\n` +
-      readAhead.act_zone_map.map((e) => {
-        const conf = e.confidence !== "HIGH" ? ` [${e.confidence}]` : "";
-        return `  ${e.window_label} → ${e.act_zone_assigned}${conf}: ${e.zone_signal}`;
-      }).join("\n")
-    : "";
-
-  // ── 3. Characters ────────────────────────────────────────────────────────
-  const charList = readAhead.character_first_impressions.slice(0, 12).map((c) => {
-    const demo = c.demographic_signals.length > 0 ? ` [${c.demographic_signals.slice(0, 3).join(", ")}]` : "";
-    const age = c.age_if_stated !== null ? ` age ${c.age_if_stated}` : c.life_stage !== "unknown" ? ` (${c.life_stage})` : "";
-    const syms = c.symbolic_objects_attached.length > 0 ? ` | symbols: ${c.symbolic_objects_attached.join(", ")}` : "";
-    const gap = c.arc_gap_risk && c.arc_gap_risk !== "none"
-      ? `\n    ⚠ gap-risk: ${c.arc_gap_risk}`
-      : "";
-    return `  ${c.name}${demo}${age} — ${c.role_impression} — arc: ${c.arc_impression}\n    predict: ${c.arc_prediction}${syms} [${c.present_in.join(", ")}]${gap}`;
-  }).join("\n");
-
-  // ── 4. Symbols ───────────────────────────────────────────────────────────
-  const symList = Array.isArray(readAhead.symbol_register) && readAhead.symbol_register.length > 0
-    ? readAhead.symbol_register.map((s) => {
-        const sym = s as unknown as Record<string, unknown>;
-        const chars = Array.isArray(sym.attached_characters)
-          ? ` | chars: ${(sym.attached_characters as string[]).join(", ")}`
-          : "";
-        const payoff = typeof sym.payoff_prediction === "string" ? sym.payoff_prediction : "unclear";
-        const traj = typeof sym.trajectory === "string" ? sym.trajectory : "";
-        const flag = payoff === "at_risk" || payoff === "unresolved" ? " ⚠" : "";
-        return `  ${s.object}: ${s.first_window}→${s.last_window_seen} | ${traj} | payoff: ${payoff}${flag}${chars}`;
-      }).join("\n")
-    : "  (none detected)";
-
-  // ── 5. Relationships ─────────────────────────────────────────────────────
-  const relList = Array.isArray(readAhead.relationship_spine_impressions) && readAhead.relationship_spine_impressions.length > 0
-    ? readAhead.relationship_spine_impressions.map((r) => {
-        const zone = (r as Record<string, string>).first_shared_zone ?? "not_confirmed";
-        const traj = (r as Record<string, string>).trajectory_prediction ?? "";
-        return `  ${r.pair}: ${r.dynamic_impression} | first together: ${zone} | predict: ${traj}`;
-      }).join("\n")
-    : "  (none detected)";
-
-  // ── 6. Criterion hypotheses ──────────────────────────────────────────────
-  // Only render WATCH-flagged hypotheses in full + a summary table for all.
-  const hypotheses = Array.isArray(readAhead.criterion_hypotheses) ? readAhead.criterion_hypotheses : [];
-  const watchHypotheses = hypotheses.filter((h) => h.reconciliation_flag === "WATCH");
-  const hypothesisSummary = hypotheses.length > 0
-    ? `\n\nCRITERION HYPOTHESIS SUMMARY (pre-scoring predictions — reconcile against inbound packets):\n` +
-      hypotheses.map((h) => {
-        const range = h.predicted_score_range ? ` (${h.predicted_score_range})` : "";
-        const flag = h.reconciliation_flag === "WATCH" ? " ⚑ WATCH" : "";
-        return `  ${h.key}: ${h.predicted_band}${range}${flag} — ${h.hypothesis_rationale.slice(0, 100)}`;
-      }).join("\n")
-    : "";
-  const watchDetail = watchHypotheses.length > 0
-    ? `\n\nWATCH-FLAGGED HYPOTHESES (Pass 3 MUST address each of these explicitly):\n` +
-      watchHypotheses.map((h) => {
-        const zones = h.hypothesis_evidence_zones.join(", ");
-        return `  ⚑ ${h.key} [${h.predicted_band}${h.predicted_score_range ? ` ${h.predicted_score_range}` : ""}]\n    Evidence zones: ${zones}\n    Hypothesis: ${h.hypothesis_rationale}`;
-      }).join("\n")
-    : "";
-
-  // ── 7. Coverage concerns ──────────────────────────────────────────────────
-  const concerns = Array.isArray(readAhead.coverage_concerns) && readAhead.coverage_concerns.length > 0
-    ? `\n\nCOVERAGE CONCERNS:\n${readAhead.coverage_concerns.map((c) => `  ⚠ ${c}`).join("\n")}`
-    : "";
-
-  // ── 8. Reconciliation instructions (MANDATORY) ────────────────────────────
-  const reconcile = Array.isArray(readAhead.reconciliation_instructions) && readAhead.reconciliation_instructions.length > 0
-    ? `\n\nRECONCILIATION INSTRUCTIONS (MANDATORY — Pass 3 must address EACH of these):\n` +
-      readAhead.reconciliation_instructions.map((r, i) => `  ${i + 1}. ${r}`).join("\n")
-    : "";
-
-  return `\n\n${"━".repeat(72)}
-## PASS 3 READ-AHEAD ANALYSIS (v2 — Pre-scoring analytical pre-analysis)
-${"━".repeat(72)}
-⚠ RECONCILIATION REQUIRED: Pass 3 must explicitly compare the inbound scored
-  packets against the parked hypotheses below. For each ⚑ WATCH criterion,
-  state whether the inbound evidence confirms, revises, or contradicts the
-  read-ahead prediction — and why.
-${"━".repeat(72)}
-
-NARRATIVE STRUCTURE:
-${structureLines}${actZoneMap}
-
-CHARACTERS (pre-scoring impressions + arc predictions):
-${charList || "  (none detected)"}
-
-SYMBOL REGISTER (with payoff predictions):
-${symList}
-
-RELATIONSHIPS:
-${relList}${hypothesisSummary}${watchDetail}${concerns}${reconcile}
-${"━".repeat(72)}`;
-}
-
 /**
  * Builds the PREFLIGHT DRAFT block for Pass 3B prompt injection.
  * When compactPreflightSummary is absent, emits an UNAVAILABLE notice so Pass 3B
@@ -772,10 +652,10 @@ Execution mode: ${executionMode}
 ${englishVariantBlock}
 
 OUTPUT BUDGET BY STATE (STRICT):
-- agree (score_delta <= 1): emit { key, final_score_0_10, final_rationale (1-3 substantive sentences—NOT "Confirmed."), recommendations[] (with semantic fields) }
-- soft_divergence (score_delta 2-3): emit { key, final_score_0_10, final_rationale (1 sentence) }
-- hard_divergence (score_delta >= 4): emit { key, final_score_0_10, final_rationale (2 sentences), disputed=true }
-- missing_or_invalid: emit concise corrective rationale, no long prose
+- agree (score_delta <= 1): emit { key, final_score_0_10, final_rationale (1-3 substantive sentences—NOT "Confirmed."), recommendations[] (with semantic fields), recommendation_status, recommendation_status_rationale }
+- soft_divergence (score_delta 2-3): emit { key, final_score_0_10, final_rationale (1 sentence), recommendations[], recommendation_status, recommendation_status_rationale }
+- hard_divergence (score_delta >= 4): emit { key, final_score_0_10, final_rationale (2 sentences), disputed=true, recommendations[], recommendation_status, recommendation_status_rationale }
+- missing_or_invalid: emit concise corrective rationale, recommendations[], recommendation_status, and recommendation_status_rationale; no long prose
 - overall: verdict + overall_score_0_100 + one_paragraph_summary (max 5 sentences — be substantive; name weak criteria, summarize strengths, state revision posture) + one_sentence_pitch (1 sentence, market hook) + one_paragraph_pitch (2-4 sentences, story synopsis) + top_3_strengths + top_3_risks + submission_readiness
 
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.

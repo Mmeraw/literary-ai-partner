@@ -30,6 +30,7 @@ import { runGate15Audit, type Gate15AuditArtifact } from './gate15';
 import { runGoldenSpineAudit, type GoldenSpineArtifact } from './goldenSpine/goldenSpineAudit';
 import { runDialogueCanonAudit, type DialogueCanonAuditArtifact } from './dialogueCanon/dialogueCanonAudit';
 import { buildRevisionCanonMetadata, type RevisionCanonMetadata } from './revisionCanonMetadata';
+import { withManagedTimeout } from './managedTimeout';
 
 const CANON_GOVERNANCE_TIMEOUT_MS = 30_000;
 
@@ -65,7 +66,7 @@ export async function runCanonGovernance(
     errors: [],
   };
 
-  const { manuscriptText, jobId, manuscriptId, userId } = input;
+  const { manuscriptText, jobId, manuscriptId } = input;
 
   // Run all three layers in parallel (they're independent, deterministic, CPU-only)
   const [gate15Result, goldenSpineResult, dialogueResult] = await Promise.allSettled([
@@ -186,10 +187,11 @@ export async function runCanonGovernance(
 }
 
 async function runWithTimeout<T>(fn: () => T, label: string): Promise<T> {
-  return Promise.race([
-    Promise.resolve(fn()),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label}_TIMEOUT`)), CANON_GOVERNANCE_TIMEOUT_MS)
-    ),
-  ]);
+  return withManagedTimeout(
+    Promise.resolve().then(fn),
+    CANON_GOVERNANCE_TIMEOUT_MS,
+    () => {
+      throw new Error(`${label}_TIMEOUT`);
+    },
+  );
 }

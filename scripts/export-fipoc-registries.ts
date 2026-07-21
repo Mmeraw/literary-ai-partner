@@ -75,6 +75,7 @@ writeCsv('process_registry.csv', PROCESS_REGISTRY, [
   'dirtyDataRules',
   'retryBudget',
   'failureCodes',
+  'failureRecoveryContracts',
   'consumers',
   'uiExposed',
   'reviseHandoff',

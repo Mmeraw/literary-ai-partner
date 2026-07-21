@@ -3,6 +3,7 @@
 **Status:** Canonical governance authority  
 **Applies to:** Short-Form Evaluation, Long-Form Multi-Layer Evaluation, WAVE discovery, UED assembly, revision opportunity ledgers, web/PDF/DOCX/TXT rendering, quality gates, forensic diagnostics, and AI-agent implementation work.  
 **Authority:** This document is the controlling policy for opportunity discovery and rendering. Where any prompt, validator, fallback, repair, renderer, WAVE component, diagnostic, or agent instruction conflicts with this document, this document prevails.
+**Executable authority:** `lib/evaluation/policy/opportunityDiscoveryPolicy.ts`, registered by `OPPORTUNITY_DISCOVERY_POLICY_V1` in `lib/evaluation/fipocRegistry.ts`. All live Pass 2, Pass 3, certification, and persistence consumers must call the executable authority rather than recreate its status vocabulary, meaningful-recommendation predicate, or cardinality rules.
 
 ## 1. Governing principle
 
@@ -178,9 +179,33 @@ The status/cardinality contract is:
 | `insufficient_evidence` | Yes | No | Yes | One bounded Pass 3 retry |
 | `gate_suppressed_no_safe_recommendation` | Yes | No | Yes | One bounded Pass 3 retry |
 
-An omitted status remains legacy-compatible only when a recommendation exists, or when a strong criterion legitimately contains no recommendation. An unknown explicit status always fails closed.
+An omitted or unknown status always fails closed at every live producer, replay, certification, and persistence boundary. Historical payloads may be rendered only through non-authoritative archival readers; they cannot re-enter evaluation or Revise authority without explicit migration to the current contract.
 
 `confidence_level` describes confidence in the criterion diagnosis. It is not intervention confidence and MUST NOT grant recommendation admission, invalidate an otherwise governed `insufficient_evidence` disposition, or manufacture queue work. Evidence-anchor counts and snippet length are likewise observational unless a separate grounding contract proves source membership and actionability.
+
+### 7.1 Pass 2 cache and aggregation authority
+
+`pass2_chunk_cache_v1` is resumable execution evidence, not timeless recommendation authority.
+
+- The cache-level `source_hash` MUST match the current job/manuscript/chunk identity before any entry is offered for reuse.
+- A reused entry MUST carry the current `PASS2_PROMPT_VERSION` and satisfy this policy's disposition contract for every criterion.
+- A cache-level source mismatch invalidates the cache. A prompt-version or disposition mismatch invalidates only the affected entry.
+- An invalid entry MUST be regenerated from the same source chunk. The processor MUST NOT repair it by copying recommendations from another artifact or bypassing the canonical validator.
+- Chunk aggregation MUST preserve the governed status and required rationale. Conflicting zero-recommendation statuses fail closed before the Pass 1/2 handoff.
+
+Required Pass 2 observability includes cache hits/misses, source-hash rejection, prompt-version rejection, disposition rejection, source-chunk regeneration, and aggregate disposition conflict count.
+
+### 7.2 Kickback, exhaustion, and terminal ownership
+
+A pure recommendation-status/cardinality defect is classified as `CRITERION_OPPORTUNITY_COVERAGE_INVALID`. It may requeue the full Pass 3 synthesis exactly once. The durable retry owner is:
+
+```text
+evaluation_jobs.progress.kick_attempts.CRITERION_OPPORTUNITY_COVERAGE_INVALID
+```
+
+That counter survives worker re-entry and replay. When it reaches one, the defect is exhausted and MUST NOT fall through to the separate generic Phase 3 crash-retry path.
+
+If any unrelated critical template defect is present alongside an opportunity-coverage defect, the combined failure remains `TEMPLATE_COMPLETENESS_GATE_FAILED`, is terminal, and receives no specialized recommendation retry. Exhausted, mixed, and unrelated template failures MUST invoke neither canonical evaluation persistence nor Revise projection.
 
 ## 8. Opportunity-budget accounting
 

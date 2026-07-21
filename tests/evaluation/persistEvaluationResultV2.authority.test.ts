@@ -1,12 +1,15 @@
 import { describe, expect, test } from "@jest/globals";
 
-import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import type {
+  CurrentEvaluationResultV2,
+  EvaluationResultV2,
+} from "@/schemas/evaluation-result-v2";
 import { persistEvaluationResultV2 } from "@/lib/evaluation/persistEvaluationResultV2";
 
 function makeBaseResult(
   overall: number,
   scores: { voice: number; proseControl: number; tone: number },
-): EvaluationResultV2 {
+): CurrentEvaluationResultV2 {
   const makeCriterion = (key: string, score: number): any => ({
     key,
     scorable: true,
@@ -17,6 +20,8 @@ function makeBaseResult(
     rationale: "Criterion rationale with concrete evidence.",
     evidence: [{ snippet: "Concrete manuscript evidence." }],
     recommendations: [],
+    recommendation_status: "no_recommendation_warranted",
+    recommendation_status_rationale: "This authority-cap fixture intentionally exercises score persistence without editorial recommendations.",
     score_0_10: score,
   });
 
@@ -86,7 +91,7 @@ function mockSupabaseWithCapture() {
   };
 }
 
-async function persistAndCapture(evaluationResult: EvaluationResultV2) {
+async function persistAndCapture(evaluationResult: CurrentEvaluationResultV2) {
   const { supabase, getCapturedPayload } = mockSupabaseWithCapture();
 
   const result = await persistEvaluationResultV2({

@@ -2,34 +2,35 @@ import { describe, expect, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { maxLowConfidenceScore } from "@/lib/evaluation/pipeline/criterionConfidence";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
-import type { SynthesisOutput } from "@/lib/evaluation/pipeline/types";
+import type { CurrentSynthesisOutput } from "@/lib/evaluation/pipeline/types";
+import { makeCurrentProcessorSynthesisOutput } from "../test-fixtures/currentProcessorSynthesisOutput";
 
 function makeSynthesis(
-  overrideCriteria?: SynthesisOutput["criteria"],
-): SynthesisOutput {
-  return {
-    criteria:
-      overrideCriteria ??
-      CRITERIA_KEYS.map((key) => ({
-        key,
+  overrideCriteria?: CurrentSynthesisOutput["criteria"],
+): CurrentSynthesisOutput {
+  return makeCurrentProcessorSynthesisOutput({
+    criteria: overrideCriteria,
+    mutateCriterion: overrideCriteria
+      ? undefined
+      : (criterion) => ({
         craft_score: 7,
         editorial_score: 7,
         final_score_0_10: 7,
         score_delta: 0,
         final_rationale:
-          `Strong ${key} execution shows adequate craft support, visible manuscript evidence, and reader-facing consequence across the evaluated scene material.`,
+          `Strong ${criterion.key} execution shows adequate craft support, visible manuscript evidence, and reader-facing consequence across the evaluated scene material.`,
         pressure_points: ["Clear pressure and stakes remain visible throughout."],
         decision_points: ["A visible turn lands in the middle of the manuscript."],
         consequence_status: "landed" as const,
         evidence: [
-          { snippet: `The ${key} beat lands clearly in the opening chapter.` },
+          { snippet: `The ${criterion.key} beat lands clearly in the opening chapter.` },
         ],
         recommendations: [
           {
             priority: "medium" as const,
-            action: `In chapter 2, tighten the ${key} turn by adding one concrete consequence beat so the reader can track the causal movement through the scene.`,
-            expected_impact: `This creates a clearer ${key} arc across the manuscript and gives the reader stronger confidence in the revised scene logic.`,
-            anchor_snippet: `The ${key} beat lands clearly in the opening chapter.`,
+            action: `In chapter 2, tighten the ${criterion.key} turn by adding one concrete consequence beat so the reader can track the causal movement through the scene.`,
+            expected_impact: `This creates a clearer ${criterion.key} arc across the manuscript and gives the reader stronger confidence in the revised scene logic.`,
+            anchor_snippet: `The ${criterion.key} beat lands clearly in the opening chapter.`,
             source_pass: 3 as const,
             issue_family: "scene_structure" as const,
             strategic_lever: "scene_goal_clarity" as const,
@@ -45,10 +46,10 @@ function makeSynthesis(
           "Three or more evidence anchors support this criterion.",
         ],
         scorability_status: "scorable" as const,
-      })),
+      }),
     overall: {
       overall_score_0_100: 72,
-      verdict: "conditional" as unknown as SynthesisOutput["overall"]["verdict"],
+      verdict: "revise",
       one_sentence_pitch:
         "A craft-focused manuscript needs targeted scene revision to strengthen evidence, pacing, and reader confidence.",
       one_paragraph_pitch:
@@ -74,7 +75,7 @@ function makeSynthesis(
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false,
-  };
+  });
 }
 
 const BASE_IDS = {
@@ -96,7 +97,7 @@ const ECG_ENRICHMENT = {
   target_audience: "adult literary fiction readers",
 };
 
-function adapt(synthesis: SynthesisOutput) {
+function adapt(synthesis: CurrentSynthesisOutput) {
   return synthesisToEvaluationResultV2({
     synthesis,
     ids: BASE_IDS,

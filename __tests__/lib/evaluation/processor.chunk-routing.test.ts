@@ -1,5 +1,7 @@
 export {};
 
+import { makeCurrentProcessorEvaluationResult } from "./test-fixtures/currentProcessorEvaluationResult";
+
 const runPipelineMock = jest.fn();
 const synthesisToEvaluationResultV2Mock = jest.fn();
 const runQualityGateV2Mock = jest.fn();
@@ -73,7 +75,7 @@ jest.mock("@supabase/supabase-js", () => ({
 }));
 
 function buildEvaluationResult() {
-  return {
+  return makeCurrentProcessorEvaluationResult({
     schema_version: "evaluation_result_v2",
     ids: {
       evaluation_run_id: "run-long-form-1",
@@ -151,7 +153,7 @@ function buildEvaluationResult() {
       limitations: [],
       policy_family: "multi-pass-dual-axis",
     },
-  };
+  });
 }
 
 function makeSupabaseStub(

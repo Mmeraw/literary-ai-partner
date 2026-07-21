@@ -48,6 +48,7 @@ function makePassOutput(pass: 1 | 2): SinglePassOutput {
           revision_granularity: "scene",
         },
       ],
+      ...(pass === 2 ? { recommendation_status: "recommendation_provided" as const } : {}),
     })),
   };
 }
@@ -185,6 +186,7 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
             reader_effect: "clearer momentum",
           },
         ],
+        recommendation_status: "recommendation_provided",
       })),
       overall: {
         overall_score_0_100: 72,
@@ -314,6 +316,7 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
                   reader_effect: "clearer progression",
                 },
               ],
+        recommendation_status: "recommendation_provided",
       })),
       overall: {
         overall_score_0_100: 72,
@@ -341,6 +344,7 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
     // backfill is added, so the criterion carries a technical defect instead.
     expect(pacing?.recommendations).toHaveLength(0);
     expect(pacing?.technical_defects?.some((d) => d.code === "DIAGNOSTIC_SPINE_PROMISE_MISMATCH")).toBe(true);
+    expect(pacing?.recommendation_status).toBe("gate_suppressed_no_safe_recommendation");
   });
 
   test("ACCEPTANCE: recommendation inconsistent with central_argument is suppressed", () => {
@@ -394,6 +398,7 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
                   reader_effect: "clearer progression",
                 },
               ],
+        recommendation_status: "recommendation_provided",
       })),
       overall: {
         overall_score_0_100: 72,
@@ -420,6 +425,7 @@ describe("parsePass3Response — diagnostic_spine integration", () => {
     // Governance suppression removes the unsafe LLM rec. Under ODP no synthetic
     // backfill is added, so the criterion carries a technical defect instead.
     expect(pacing?.recommendations).toHaveLength(0);
+    expect(pacing?.recommendation_status).toBe("gate_suppressed_no_safe_recommendation");
     expect(
       pacing?.technical_defects?.some((d) => d.code === "DIAGNOSTIC_SPINE_CENTRAL_ARGUMENT_MISMATCH"),
     ).toBe(true);

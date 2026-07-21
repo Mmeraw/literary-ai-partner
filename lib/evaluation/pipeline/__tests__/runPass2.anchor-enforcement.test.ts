@@ -1,5 +1,24 @@
 import { describe, expect, test } from "@jest/globals";
-import { parsePass2Response, runPass2 } from "@/lib/evaluation/pipeline/runPass2";
+import { parsePass2Response as parsePass2ResponseRaw, runPass2 } from "@/lib/evaluation/pipeline/runPass2";
+
+function parsePass2Response(raw: string) {
+  const payload = JSON.parse(raw) as {
+    criteria?: Array<Record<string, unknown> & { recommendations?: unknown[] }>;
+  };
+  for (const criterion of payload.criteria ?? []) {
+    const recommendationCount = Array.isArray(criterion.recommendations)
+      ? criterion.recommendations.length
+      : 0;
+    criterion.recommendation_status = recommendationCount > 0
+      ? "recommendation_provided"
+      : "insufficient_evidence";
+    if (recommendationCount === 0) {
+      criterion.recommendation_status_rationale =
+        "This anchor-focused fixture does not prescribe a separate evidence-backed intervention.";
+    }
+  }
+  return parsePass2ResponseRaw(JSON.stringify(payload));
+}
 
 describe("runPass2 textual anchor enforcement", () => {
   test("caps score and emits NO_TEXTUAL_ANCHOR when rationale/evidence lack quoted anchors", () => {
@@ -33,6 +52,9 @@ describe("runPass2 textual anchor enforcement", () => {
             'The central hook is explicit in "She opened the sealed letter" and escalates stakes immediately.',
           evidence: [{ snippet: '"She opened the sealed letter"' }],
           recommendations: [],
+          recommendation_status: "insufficient_evidence",
+          recommendation_status_rationale:
+            "This retry fixture does not prescribe a separate evidence-backed intervention.",
         },
       ],
     });
@@ -322,6 +344,9 @@ describe("runPass2 truncated JSON retry", () => {
           rationale: 'The premise is anchored by "She opened the sealed letter" and escalates cleanly.',
           evidence: [{ snippet: '"She opened the sealed letter"' }],
           recommendations: [],
+          recommendation_status: "insufficient_evidence",
+          recommendation_status_rationale:
+            "This retry fixture does not prescribe a separate evidence-backed intervention.",
         },
       ],
     });

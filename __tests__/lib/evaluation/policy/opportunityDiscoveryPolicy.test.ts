@@ -7,7 +7,10 @@ import {
   getProductOpportunityCeiling,
   getShortFormPerCriterionCeiling,
   hasGovernedOpportunityCoverage,
+  countMeaningfulOpportunityRecommendations,
+  isMeaningfulOpportunityRecommendation,
   isOpportunitySourceAllowed,
+  normalizeRecommendationStatusInput,
 } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 
 describe('opportunityDiscoveryPolicy', () => {
@@ -66,15 +69,15 @@ describe('opportunityDiscoveryPolicy', () => {
     })).toBe(false);
   });
 
-  it('keeps legacy outputs readable when their pre-contract shape is unambiguous', () => {
+  it('does not allow missing disposition authority for any new or replayed output', () => {
     expect(hasGovernedOpportunityCoverage({
       score: 6,
       meaningfulOpportunityCount: 1,
-    })).toBe(true);
+    })).toBe(false);
     expect(hasGovernedOpportunityCoverage({
       score: 9,
       meaningfulOpportunityCount: 0,
-    })).toBe(true);
+    })).toBe(false);
   });
 
   it('accepts explicit insufficient-evidence coverage without fabricated advice', () => {
@@ -84,6 +87,22 @@ describe('opportunityDiscoveryPolicy', () => {
       recommendationStatus: 'insufficient_evidence',
       recommendationStatusRationale: 'The submitted passage is too brief to support a distinct and safe mechanism-level recommendation.',
     })).toBe(true);
+  });
+
+  it('normalizes producer whitespace without repairing unknown canonical authority', () => {
+    expect(normalizeRecommendationStatusInput('  insufficient_evidence\r\n')).toEqual({
+      kind: 'valid',
+      value: 'insufficient_evidence',
+    });
+    expect(normalizeRecommendationStatusInput('   ')).toEqual({ kind: 'absent' });
+    expect(normalizeRecommendationStatusInput(' future_status ')).toEqual({
+      kind: 'invalid',
+      value: 'future_status',
+    });
+    expect(normalizeRecommendationStatusInput({ status: 'insufficient_evidence' })).toEqual({
+      kind: 'invalid',
+      value: { status: 'insufficient_evidence' },
+    });
   });
 
   it('keeps diagnostic confidence and evidence outside disposition authority', () => {
@@ -99,6 +118,21 @@ describe('opportunityDiscoveryPolicy', () => {
     expect(analyzeGovernedOpportunityCoverage(highDiagnosticConfidence))
       .toEqual(analyzeGovernedOpportunityCoverage(lowDiagnosticConfidence));
     expect(hasGovernedOpportunityCoverage(base)).toBe(true);
+  });
+
+  it('requires structural diagnostic support instead of counting action-only records', () => {
+    const actionOnly = {
+      action: 'Tighten the middle scene.',
+    };
+    const supported = {
+      ...actionOnly,
+      expected_impact: 'The scene will reach its consequence turn without losing reader momentum.',
+    };
+
+    expect(isMeaningfulOpportunityRecommendation(actionOnly)).toBe(false);
+    expect(countMeaningfulOpportunityRecommendations([actionOnly])).toBe(0);
+    expect(isMeaningfulOpportunityRecommendation(supported)).toBe(true);
+    expect(countMeaningfulOpportunityRecommendations([supported])).toBe(1);
   });
 
   it.each([

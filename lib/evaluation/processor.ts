@@ -62,7 +62,11 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { EvaluationResultV1 } from '@/schemas/evaluation-result-v1';
 import { CRITERIA_KEYS, type CriterionKey } from '@/schemas/criteria-keys';
 import { stableSourceHash, upsertEvaluationArtifact } from './artifactPersistence';
-import { persistEvaluationResultV2 } from './persistEvaluationResultV2';
+import { withManagedTimeout } from './managedTimeout';
+import {
+  persistEvaluationResultV2,
+  requireCurrentEvaluationResultWrite,
+} from './persistEvaluationResultV2';
 import {
   ProgressAuthority,
   type EvaluationProgressEvent,
@@ -639,14 +643,6 @@ export function shouldRequeueReviewGateBlock(blockCode: string, gateValidity: un
     gateValidity === 'not_ready' &&
     (blockCode === 'PASS3A_NOT_READY' || blockCode === 'PASS3A_HALF_WRITTEN')
   );
-}
-
-interface EvaluationJob {
-  id: string;
-  manuscript_id: number;
-  job_type: string;
-  status: string;
-  created_at: string;
 }
 
 interface Manuscript {
@@ -1242,15 +1238,6 @@ function normalizeEffortOrImpact(value: unknown): 'low' | 'medium' | 'high' {
   return 'medium';
 }
 
-function firstNonEmpty(...candidates: Array<string | null | undefined>): string | null {
-  for (const candidate of candidates) {
-    if (typeof candidate !== 'string') continue;
-    const trimmed = candidate.trim();
-    if (trimmed.length > 0) return trimmed;
-  }
-  return null;
-}
-
 export function getCalibrationProfile(workType: string | null): CalibrationProfile {
   const normalized = (workType || '').toLowerCase();
 
@@ -1844,49 +1831,6 @@ export function normalizeCriteria(
   evalDebugLog(`[Processor] Criteria normalization success (${normalized.length} canonical keys)`);
   return normalized;
 }
-
-
-/**
- * Extract criteria data from AI response, handling multiple response formats.
- * The AI may return criteria as:
- * 1. aiResult.criteria (object or array)
- * 2. Top-level keys matching CRITERIA_KEYS
- * 3. Nested under aiResult.evaluation.criteria
- */
-function extractCriteriaFromAIResult(aiResult: Record<string, unknown>): unknown {
-  // Case 1: criteria field exists
-  if (aiResult.criteria !== undefined && aiResult.criteria !== null) {
-    return aiResult.criteria;
-  }
-
-  // Case 2: criteria keys are at the top level of the response
-  const topLevelCriteria: Record<string, unknown> = {};
-  let foundCount = 0;
-  for (const key of CRITERIA_KEYS) {
-    if (key in aiResult && typeof aiResult[key] === 'object' && aiResult[key] !== null) {
-      topLevelCriteria[key] = aiResult[key];
-      foundCount++;
-    }
-  }
-  if (foundCount >= 5) { // At least 5 criteria found at top level
-    evalDebugLog(`[Processor] Extracted ${foundCount} criteria from top-level keys`);
-    return topLevelCriteria;
-  }
-
-  // Case 3: nested under evaluation or results
-  const nested = aiResult.evaluation || aiResult.results || aiResult.result;
-  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-    const nestedObj = nested as Record<string, unknown>;
-    if (nestedObj.criteria !== undefined) {
-      evalDebugLog('[Processor] Extracted criteria from nested evaluation object');
-      return nestedObj.criteria;
-    }
-  }
-
-  console.warn('[Processor] Could not find criteria in AI response. Keys:', Object.keys(aiResult));
-  return undefined;
-}
-
 /**
  * Canonical failure-code classification for the watchdog and resume route.
  *
@@ -2356,85 +2300,6 @@ async function attemptBackwardKickToSynthesis(params: {
     kickCount: nextKickCount,
     reason: `kicked back to phase_3 for re-synthesis (${params.failureCode})`,
   };
-}
-
-/**
- * SIPOC content-level mistake-proofing: recover missing recommendations in a
- * handoff's pass2Output by reading the upstream pass2_chunk_cache_v1 artifact.
- *
- * When the chunk aggregator (or any upstream bug) produces a pass2Output with
- * empty recommendations arrays, this function reads the chunk cache and merges
- * the per-chunk recommendations back into the criteria, preserving candidate
- * prose fields (candidate_text_a/b/c).
- *
- * Returns true if any recommendations were recovered.
- */
-async function recoverHandoffRecommendationsFromChunkCache(
-  supabase: SupabaseClient<any, any, any>,
-  jobId: string,
-  pass2Output: SinglePassOutput,
-): Promise<boolean> {
-  const totalRecs = pass2Output.criteria.reduce(
-    (sum, c) => sum + (c.recommendations?.length ?? 0), 0,
-  );
-  if (totalRecs > 0) return false; // Nothing to recover
-
-  const { data: cacheRow } = await supabase
-    .from('evaluation_artifacts')
-    .select('content')
-    .eq('job_id', jobId)
-    .eq('artifact_type', 'pass2_chunk_cache_v1')
-    .maybeSingle();
-
-  if (!cacheRow?.content) {
-    console.warn(`[SIPOC recovery] ${jobId}: pass2_chunk_cache_v1 not found — cannot recover recommendations`);
-    return false;
-  }
-
-  const chunks = (cacheRow.content as Record<string, unknown>).chunks as
-    Record<string, { result?: { criteria?: Array<{ key?: string; recommendations?: unknown[] }> } }> | undefined;
-  if (!chunks) return false;
-
-  // Build a map of criterion key → merged recommendations from all chunks
-  const recoveredRecs = new Map<string, unknown[]>();
-  for (const chunkData of Object.values(chunks)) {
-    const criteria = chunkData?.result?.criteria;
-    if (!Array.isArray(criteria)) continue;
-    for (const crit of criteria) {
-      if (!crit.key || !Array.isArray(crit.recommendations)) continue;
-      const existing = recoveredRecs.get(crit.key) ?? [];
-      existing.push(...crit.recommendations);
-      recoveredRecs.set(crit.key, existing);
-    }
-  }
-
-  if (recoveredRecs.size === 0) return false;
-
-  // Merge recovered recommendations into pass2Output criteria (deduplicate by anchor_snippet)
-  let totalRecovered = 0;
-  for (const criterion of pass2Output.criteria) {
-    const chunkRecs = recoveredRecs.get(criterion.key);
-    if (!chunkRecs || chunkRecs.length === 0) continue;
-
-    const seenAnchors = new Set(
-      criterion.recommendations.map(r => (r.anchor_snippet ?? '').trim().toLowerCase()),
-    );
-    for (const rec of chunkRecs) {
-      const r = rec as typeof criterion.recommendations[number];
-      const anchor = (r.anchor_snippet ?? '').trim().toLowerCase();
-      if (anchor && !seenAnchors.has(anchor)) {
-        criterion.recommendations.push(r);
-        seenAnchors.add(anchor);
-        totalRecovered++;
-      }
-    }
-  }
-
-  if (totalRecovered > 0) {
-    console.log(`[SIPOC recovery] ${jobId}: recovered ${totalRecovered} recommendations from pass2_chunk_cache_v1 into pass2Output`);
-  }
-
-  return totalRecovered > 0;
 }
 
 type UpstreamArtifactRow = {
@@ -3205,7 +3070,6 @@ export async function failStaleRunningJobs(): Promise<{
           //     based on evaluation_result_v2 presence) → honor it
               //   - phase_1a frozen → rescue to phase_2 (Pass 3 will re-run Pass 1A if ledger missing)
           //   - phase_2+ frozen → rescue to phase_2 (safe retry)
-          const currentPhaseForRescue = (currentProgress.phase as string | undefined) ?? 'phase_1a';
           // Default rescue target:
           //   chunk_cache checkpoint → back to phase_1a (ledger rebuild, no OpenAI)
           //   anything else in phase_1a, or phase_2+ → phase_2
@@ -5366,7 +5230,6 @@ export async function processEvaluationJob(
     runtimeConfig,
     openaiApiKey,
     perplexityApiKey,
-    evalDebugEnabled,
     evalMinManuscriptWords,
     openAiModel,
     evalPassTimeoutMs,
@@ -6833,12 +6696,6 @@ export async function processEvaluationJob(
         const cachedPass1 = handoff.pass1Output;
         const cachedPass2 = handoff.pass2Output;
 
-        // SIPOC mistake-proofing: if handoff pass2Output has empty recommendations
-        // (upstream aggregator bug or data corruption), recover from chunk cache.
-        if (cachedPass2) {
-          await recoverHandoffRecommendationsFromChunkCache(supabase, String(job.id), cachedPass2);
-        }
-
         const phase3Runners = cachedPass2 !== null
           ? {
               runPass1: async () => cachedPass1,
@@ -6942,25 +6799,10 @@ export async function processEvaluationJob(
           metadata: { model: getCanonicalPipelineModel(openAiModel), phase: 'phase_3_synthesis' },
         });
 
-        const leaseRenewalIntervalMsP3synth = 30_000;
-        const leaseRenewalLoopP3synth = setInterval(() => {
-          void renewEvaluationJobLease({
-            supabase,
-            jobId,
-            leaseMs: runtimeConfig.worker.leaseMs,
-            stage: 'phase_3_pass3b_renewal',
-            hardDeadlineMs,
-          }).catch((err: unknown) => {
-            console.warn('[phase_3] lease renewal failed (non-fatal)',
-              err instanceof Error ? err.message : String(err));
-          });
-        }, leaseRenewalIntervalMsP3synth);
-
         // ── Vercel budget gate: self-chain if insufficient time for Pass 3 synthesis ──
         const budgetBeforeP3Ms = getVercelBudgetRemainingMs();
         if (budgetBeforeP3Ms < BUDGET_SAFETY_MARGIN_MS) {
           console.warn(`[phase_3] ${jobId}: budget exhausted before synthesis (remaining=${budgetBeforeP3Ms}ms < margin=${BUDGET_SAFETY_MARGIN_MS}ms) — self-chaining`);
-          clearInterval(leaseRenewalLoopP3synth);
           const selfChainNow = new Date().toISOString();
           const { error: budgetChainErr } = await supabase
             .from('evaluation_jobs')
@@ -7066,6 +6908,23 @@ export async function processEvaluationJob(
             });
           }
         }
+
+        // Own the renewal timer only while the protected operation is active.
+        // Budget/provider preflight returns happen before timer creation; the
+        // finally block covers every pipeline success and failure path.
+        const leaseRenewalIntervalMsP3synth = 30_000;
+        const leaseRenewalLoopP3synth = setInterval(() => {
+          void renewEvaluationJobLease({
+            supabase,
+            jobId,
+            leaseMs: runtimeConfig.worker.leaseMs,
+            stage: 'phase_3_pass3b_renewal',
+            hardDeadlineMs,
+          }).catch((err: unknown) => {
+            console.warn('[phase_3] lease renewal failed (non-fatal)',
+              err instanceof Error ? err.message : String(err));
+          });
+        }, leaseRenewalIntervalMsP3synth);
 
         let pipelineResultP3;
         try {
@@ -7238,12 +7097,13 @@ export async function processEvaluationJob(
         const waveStartMs = Date.now();
         let waveResult: import('@/lib/evaluation/waveRevision').WaveRevisionResult | null = null;
         try {
-          waveResult = await Promise.race([
+          waveResult = await withManagedTimeout(
             (await import('@/lib/evaluation/waveRevision')).executeWaveRevision(waveHandoff),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('WAVE_TIMEOUT')), 60_000)
-            ),
-          ]);
+            60_000,
+            () => {
+              throw new Error('WAVE_TIMEOUT');
+            },
+          );
         } catch (waveErr) {
           const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
           const isTimeout = errMsg === 'WAVE_TIMEOUT';
@@ -7328,7 +7188,7 @@ export async function processEvaluationJob(
           const evalCriteria = Array.isArray(evalArtifactRow?.content?.criteria)
             ? (evalArtifactRow.content.criteria as Array<{ key?: string }>).map(c => c.key).filter((k): k is string => typeof k === 'string')
             : [];
-          canonGovernanceResult = await Promise.race([
+          canonGovernanceResult = await withManagedTimeout(
             runCanonGovernance({
               manuscriptText: manuscriptWithContent.content || '',
               jobId,
@@ -7337,8 +7197,9 @@ export async function processEvaluationJob(
               criteriaKeys: evalCriteria,
               wordCount,
             }, supabase),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 30_000)),
-          ]);
+            30_000,
+            () => null,
+          );
           if (canonGovernanceResult) {
             const layers = [
               canonGovernanceResult.gate15 ? `Gate15=${canonGovernanceResult.gate15.overallStatus}` : null,
@@ -7361,7 +7222,6 @@ export async function processEvaluationJob(
         // (Gate 15, artifact consistency, template completeness) run pre-RPC.
         // TODO: Migrate remaining checks (density, ledger, rec count) to the
         // pre-persistence boundary so all blocking is pre-terminal.
-        clearInterval(leaseRenewalLoopP3);
         const phase3Now = new Date().toISOString();
         const qualityViolations: Array<{ code: string; detail: string }> = [];
 
@@ -7412,19 +7272,6 @@ export async function processEvaluationJob(
           });
         }
 
-        // ODP telemetry: zero total recommendations is not a defect when every criterion
-        // is already strong. Density floors are replaced by evidence-and-length-aware policy.
-        if (allRecs.length === 0) {
-          const lowScoringCriteria = finalCriteria.filter(
-            (c) => typeof c.score === 'number' && c.score <= 7,
-          );
-          if (lowScoringCriteria.length > 0) {
-            console.warn(
-              `[Processor][WAVE] Zero recommendations in deliverable but ${lowScoringCriteria.length} criteria scored ≤7 — template completeness gate should have caught this.`,
-            );
-          }
-        }
-
         // NOTE: Gate 15 blocking is enforced pre-RPC (before persistEvaluationResultV2).
         // If the job reached phase_3 WAVE-only path, Gate 15 already PASSED in phase_2.
         // The Canon Governance Runner above is advisory only (persists audit artifacts).
@@ -7470,7 +7317,6 @@ export async function processEvaluationJob(
         console.log(`[Processor] ${jobId}: phase_3 WAVE complete — evaluation already finalized via atomic RPC`);
         return { success: true };
       } catch (phase3Err) {
-        clearInterval(leaseRenewalLoopP3);
         const errMsg = phase3Err instanceof Error ? phase3Err.message : String(phase3Err);
         console.error(`[Processor] ${jobId}: phase_3 fatal error — evaluation already finalized by atomic RPC`, errMsg);
         // Phase_3 fatal error after evaluation already persisted from phase_2. Do NOT attempt re-completion.
@@ -7497,6 +7343,12 @@ export async function processEvaluationJob(
           console.warn(`[Processor] ${jobId}: WAVE error diagnostics patch failed (non-fatal)`, diagnosticsPatchErr.message);
         }
         return { success: true };
+      } finally {
+        // The WAVE-only path has several intentional early returns (including
+        // the already-finalized/missing-synthesis case). Cleanup must belong to
+        // the whole ownership scope so no success, failure, or fallback can
+        // leave the lease-renewal timer alive and stall the worker or Jest.
+        clearInterval(leaseRenewalLoopP3);
       }
       } // end WAVE-only else
     } // end phase_3 execution
@@ -8352,12 +8204,11 @@ export async function processEvaluationJob(
             // If Track C was fired in parallel, settle it now (non-blocking on batch).
             if (trackCParallelPromise) {
               try {
-                const trackCResult = await Promise.race([
+                const trackCResult = await withManagedTimeout(
                   trackCParallelPromise,
-                  new Promise<{ __trackCTimedOut: true }>(r =>
-                    setTimeout(() => r({ __trackCTimedOut: true }), 120_000),
-                  ),
-                ]);
+                  120_000,
+                  () => ({ __trackCTimedOut: true }) as const,
+                );
                 if (trackCResult && '__trackCTimedOut' in trackCResult) {
                   normalizedPreflightStatus = 'SELF_CHAINED';
                   console.log(`[track_c] ${jobId}: parallel Pass 3A timed out (120s) — will resume on next invocation`);
@@ -8490,7 +8341,7 @@ export async function processEvaluationJob(
 
               // Race Pass 3A against remaining budget.
               //
-              // Promise.race note: if the timeout wins, the underlying
+              // Managed-timeout note: if the timeout wins, the underlying
               // runPass3Preflight promise is NOT cancelled (JS has no native
               // cancellation). However this is safe because:
               //   1. runPass3Preflight writes to artifacts (pass3_preflight_draft_v1)
@@ -8502,11 +8353,8 @@ export async function processEvaluationJob(
               //      track_c_status='running', so the next invocation won't
               //      treat the job as Track C terminal.
               type TrackCTimeoutSentinel = { __trackCTimedOut: true };
-              const trackCTimeout = new Promise<TrackCTimeoutSentinel>(r =>
-                setTimeout(() => r({ __trackCTimedOut: true }), Math.max(1_000, remainingAfterBatchMs)),
-              );
               try {
-                const raceResult = await Promise.race([
+                const raceResult = await withManagedTimeout(
                   runPass3Preflight({
                     manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
                     title: manuscriptWithContent.title,
@@ -8518,8 +8366,9 @@ export async function processEvaluationJob(
                     _chunkConcurrency: phase1aConfig.preflightConcurrency,
                     _onChunkHeartbeat: () => pulseWorker('phase1a/track-c-race'),
                   }),
-                  trackCTimeout,
-                ]);
+                  Math.max(1_000, remainingAfterBatchMs),
+                  (): TrackCTimeoutSentinel => ({ __trackCTimedOut: true }),
+                );
 
                 const isTimeout = raceResult && typeof raceResult === 'object' && '__trackCTimedOut' in raceResult;
                 if (isTimeout) {
@@ -8809,7 +8658,7 @@ export async function processEvaluationJob(
           // The soft budget caused 109K-word manuscripts to self-chain
           // repeatedly at exactly 225s — never completing synthesis.
           //
-          // Promise.race note: if the timeout wins, runPass3Preflight is NOT
+          // Managed-timeout note: if the timeout wins, runPass3Preflight is NOT
           // cancelled (JS has no native cancellation). This is safe because
           // runPass3Preflight writes are keyed by jobId (idempotent), the next
           // invocation re-runs from scratch overwriting any late writes, and
@@ -8823,17 +8672,13 @@ export async function processEvaluationJob(
           );
 
           type PreflightTimeoutSentinel = { __preflightTimedOut: true };
-          const timeoutPromise = new Promise<PreflightTimeoutSentinel>(r =>
-            setTimeout(() => r({ __preflightTimedOut: true }), preflightBudgetMs),
-          );
-
           let raceResult:
             | Awaited<ReturnType<typeof runPass3Preflight>>
             | PreflightTimeoutSentinel
             | null = null;
           let preflightThrew: unknown = null;
           try {
-            raceResult = await Promise.race([
+            raceResult = await withManagedTimeout(
               runPass3Preflight({
                 manuscriptChunks: Array.isArray(allChunks) ? allChunks : [],
                 title: manuscriptWithContent.title,
@@ -8845,8 +8690,9 @@ export async function processEvaluationJob(
                 _chunkConcurrency: phase1aConfig.preflightConcurrency,
                 _onChunkHeartbeat: () => pulseWorker('phase1a/track-c-standalone'),
               }),
-              timeoutPromise,
-            ]);
+              preflightBudgetMs,
+              (): PreflightTimeoutSentinel => ({ __preflightTimedOut: true }),
+            );
           } catch (err) {
             preflightThrew = err;
           }
@@ -10432,10 +10278,6 @@ export async function processEvaluationJob(
           const pass1ResultP2: SinglePassOutput = capturedPass1;
           const pass2ResultP2: SinglePassOutput = capturedPass2 ?? capturedPass1; // Pass 2 present when ok=true
 
-          // SIPOC mistake-proofing: if aggregator produced empty recommendations,
-          // recover from upstream chunk cache before writing handoff.
-          await recoverHandoffRecommendationsFromChunkCache(supabase, String(job.id), pass2ResultP2);
-
           // Write pass12_handoff_v1
           const handoffContentP2 = {
             pass1Output: pass1ResultP2,
@@ -10529,7 +10371,7 @@ export async function processEvaluationJob(
               ledgerV2: ledgerArtifactP2Short.content.ledger_v2 as CharacterLedgerV2,
             };
           }
-        } catch (_ledgerErrShort) { /* non-fatal */ }
+        } catch { /* non-fatal */ }
 
         pulseWorker('phase2/before-pass12-recovery-shortform');
         const leaseRenewalLoopP2Short = setInterval(() => {
@@ -10556,9 +10398,7 @@ export async function processEvaluationJob(
           return { success: false, error: 'phase_2 short: Pass 1 output not captured' };
         }
 
-        // SIPOC mistake-proofing: recover empty recommendations from chunk cache
         const pass2ResultP2Short: SinglePassOutput = capturedPass2Short ?? capturedPass1Short;
-        await recoverHandoffRecommendationsFromChunkCache(supabase, String(job.id), pass2ResultP2Short);
 
         const handoffContentP2Short = {
           pass1Output: capturedPass1Short,
@@ -10699,7 +10539,35 @@ export async function processEvaluationJob(
       const PHASE_3_MAX_RETRIES = 2;
       const phase3RetryCount = (progressState as Record<string, unknown>).phase_3_retry_count as number ?? 0;
       const failedInPhase3 = pipelineResult.failed_at === 'pass3';
-      if (executionPhase === 'phase_3' && failedInPhase3 && phase3RetryCount < PHASE_3_MAX_RETRIES) {
+      const isDispositionContractFailure =
+        pipelineResult.error_code === 'CRITERION_OPPORTUNITY_COVERAGE_INVALID';
+
+      // Semantic recommendation/disposition failures use the single durable
+      // FIPOC kick authority. They must never fall through to the separate
+      // generic crash-retry counter and accidentally receive extra attempts.
+      if (executionPhase === 'phase_3' && failedInPhase3 && isDispositionContractFailure) {
+        const kickResult = await attemptBackwardKickToSynthesis({
+          supabase,
+          jobId,
+          progressState,
+          failureCode: pipelineResult.error_code,
+          violationSummary: pipelineResult.error,
+        });
+        if (kickResult.kicked) {
+          return { success: false, error: `[FIPOC-KICK] ${kickResult.reason}` };
+        }
+        console.warn(
+          `[Processor] ${jobId}: disposition-contract kick declined — ${kickResult.reason}; ` +
+          'generic Phase 3 crash retry is intentionally disabled for this failure class',
+        );
+      }
+
+      if (
+        executionPhase === 'phase_3'
+        && failedInPhase3
+        && !isDispositionContractFailure
+        && phase3RetryCount < PHASE_3_MAX_RETRIES
+      ) {
         const nextRetry = phase3RetryCount + 1;
         console.warn(`[Processor] ${jobId}: Phase 3 failed (attempt ${nextRetry}/${PHASE_3_MAX_RETRIES}), re-queuing for retry`, {
           error_code: pipelineResult.error_code,
@@ -11596,8 +11464,10 @@ export async function processEvaluationJob(
       enforcementMode: 'enforce' as const,
     };
 
-    const effectiveEvaluationResult =
-      qualityGateV2.downgradedResult ?? evaluationResult;
+    const effectiveEvaluationResult = requireCurrentEvaluationResultWrite(
+      qualityGateV2.downgradedResult ?? evaluationResult,
+      'processor_post_quality_gate',
+    );
 
     const effectiveArtifactCriteria = mapArtifactCriteria(effectiveEvaluationResult.criteria);
     const effectiveScoreLedger =
@@ -11787,8 +11657,6 @@ export async function processEvaluationJob(
       phase: executionPhase === 'phase_3' ? 'phase_3' : 'phase_2',
       message: 'Preparing your completed evaluation…',
     });
-
-    const existingProgress = { ...progressState };
 
     // 5. Persist canonical artifact with idempotent upsert (fail-closed)
     const manuscriptText = manuscriptWithContent.content || '(No content provided)';
@@ -12358,12 +12226,13 @@ export async function processEvaluationJob(
             const waveStartMsP3 = Date.now();
             let waveResultP3: import('@/lib/evaluation/waveRevision').WaveRevisionResult | null = null;
             try {
-              waveResultP3 = await Promise.race([
+              waveResultP3 = await withManagedTimeout(
                 (await import('@/lib/evaluation/waveRevision')).executeWaveRevision(waveHandoffP3),
-                new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error('WAVE_TIMEOUT')), 60_000)
-                ),
-              ]);
+                60_000,
+                () => {
+                  throw new Error('WAVE_TIMEOUT');
+                },
+              );
             } catch (waveErr) {
               const errMsg = waveErr instanceof Error ? waveErr.message : String(waveErr);
               const isTimeout = errMsg === 'WAVE_TIMEOUT';
@@ -12442,7 +12311,7 @@ export async function processEvaluationJob(
             const inlineCriteriaKeys = Array.isArray(finalScores)
               ? (finalScores as Array<{ key?: string }>).map(c => c.key).filter((k): k is string => typeof k === 'string')
               : [];
-            const canonResult = await Promise.race([
+            const canonResult = await withManagedTimeout(
               runCanonGovernance({
                 manuscriptText: manuscriptWithContent.content || '',
                 jobId: job.id,
@@ -12451,8 +12320,9 @@ export async function processEvaluationJob(
                 criteriaKeys: inlineCriteriaKeys,
                 wordCount: coverageWords,
               }, supabase),
-              new Promise<null>((resolve) => setTimeout(() => resolve(null), 30_000)),
-            ]);
+              30_000,
+              () => null,
+            );
             if (canonResult) {
               const layers = [
                 canonResult.gate15 ? `Gate15=${canonResult.gate15.overallStatus}` : null,

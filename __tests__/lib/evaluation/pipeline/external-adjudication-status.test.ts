@@ -19,10 +19,10 @@
 
 import { describe, expect, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
-import type { SynthesisOutput } from "@/lib/evaluation/pipeline/types";
 import type { ExternalAdjudicationStatus } from "@/lib/evaluation/pipeline/types";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
 import type { SubmissionScopeProfile } from "@/lib/evaluation/pipeline/submissionScope";
+import { makeCurrentProcessorSynthesisOutput } from "@/__tests__/lib/evaluation/test-fixtures/currentProcessorSynthesisOutput";
 
 function makeFullManuscriptScopeProfile(): SubmissionScopeProfile {
   // Froggin Noggin-shaped fixture: 127k-word full manuscript run, 34 chunks.
@@ -36,8 +36,8 @@ function makeFullManuscriptScopeProfile(): SubmissionScopeProfile {
   };
 }
 
-function makeFullCoverageLongFormSynthesis(): SynthesisOutput {
-  return {
+function makeFullCoverageLongFormSynthesis() {
+  return makeCurrentProcessorSynthesisOutput({
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
       craft_score: 7,
@@ -71,7 +71,7 @@ function makeFullCoverageLongFormSynthesis(): SynthesisOutput {
     })),
     overall: {
       overall_score_0_100: 72,
-      verdict: "conditional" as unknown as SynthesisOutput["overall"]["verdict"],
+      verdict: "revise",
       one_sentence_pitch:
         "A long-form literary manuscript tested through full chunk-map coverage shows promising craft with targeted revision needs.",
       one_paragraph_pitch:
@@ -110,7 +110,7 @@ function makeFullCoverageLongFormSynthesis(): SynthesisOutput {
       analyzedWords: 127_036,
       strategy: "full_chunk_map_reduce",
     },
-  };
+  });
 }
 
 function makeShortFormScopeProfile(): SubmissionScopeProfile {

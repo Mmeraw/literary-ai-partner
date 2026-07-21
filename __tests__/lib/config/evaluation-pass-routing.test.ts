@@ -11,8 +11,14 @@
  */
 
 import { afterAll, beforeAll } from "@jest/globals";
+import {
+  buildProcessorSynthesisManuscriptContent,
+  makeCurrentProcessorSynthesisOutput,
+} from "@/__tests__/lib/evaluation/test-fixtures/currentProcessorSynthesisOutput";
 import { resolveEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
+import { requireCurrentRecommendationDisposition } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import { runPipeline } from "@/lib/evaluation/pipeline/runPipeline";
+import { PASS2_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass2-editorial";
 import type { SynthesisOutput, SinglePassOutput } from "@/lib/evaluation/pipeline/types";
 
 // policy.ts reads from process.env directly so we need to set it before importing.
@@ -116,79 +122,55 @@ function makeStubPass(pass: 1 | 2): SinglePassOutput {
   return {
     pass,
     axis: pass === 1 ? "craft_execution" : "editorial_literary",
-    criteria: CRITERIA_KEYS.map((key) => ({
-      key,
-      score_0_10: 7,
-      rationale:
-        pass === 1
-          ? `Craft analysis of ${key} shows competent structure with targeted execution.`
-          : `Editorial review of ${key} highlights thematic depth requiring development.`,
-      evidence: [{ snippet: "The text demonstrates measurable progress." }],
-      recommendations: [
+    criteria: CRITERIA_KEYS.map((key) => {
+      const criterion = {
+        key,
+        score_0_10: 7,
+        rationale:
+          pass === 1
+            ? `Craft analysis of ${key} shows competent structure with targeted execution.`
+            : `Editorial review of ${key} highlights thematic depth requiring development.`,
+        evidence: [{ snippet: "The text demonstrates measurable progress." }],
+        recommendations: [
+          {
+            priority: "medium" as const,
+            action: `In the scene for ${key}, clarify the cause-and-effect move because the current phrasing lacks tension.`,
+            expected_impact: "Improves specificity.",
+            anchor_snippet: "The text demonstrates measurable progress.",
+            issue_family: "scene_structure",
+            strategic_lever: "scene_goal_clarity",
+            revision_granularity: "scene",
+          },
+        ],
+      };
+      if (pass === 1) return criterion;
+
+      return requireCurrentRecommendationDisposition(
         {
-          priority: "medium" as const,
-          action: `In the scene for ${key}, clarify the cause-and-effect move because the current phrasing lacks tension.`,
-          expected_impact: "Improves specificity.",
-          anchor_snippet: "The text demonstrates measurable progress.",
-          issue_family: "scene_structure",
-          strategic_lever: "scene_goal_clarity",
-          revision_granularity: "scene",
+          ...criterion,
+          recommendation_status: "recommendation_provided" as const,
         },
-      ],
-    })),
+        {
+          score: criterion.score_0_10,
+          context: `evaluation_pass_routing_pass2_fixture:${key}`,
+        },
+      );
+    }),
     model: "gpt-5-mini",
-    prompt_version: pass === 1 ? "pass1-v1" : "pass2-v1",
+    prompt_version: pass === 1 ? "pass1-v1" : PASS2_PROMPT_VERSION,
     temperature: 0.3,
     generated_at: new Date().toISOString(),
   };
 }
 
 function makeStubSynthesis(): SynthesisOutput {
-  return {
-    criteria: CRITERIA_KEYS.map((key) => ({
-      key,
-      craft_score: 7,
-      editorial_score: 6,
-      final_score_0_10: 7,
-      score_delta: 1,
-      final_rationale: `Synthesized: ${key} analysis converges on strong execution.`,
-      pressure_points: ["Tension accumulates here."],
-      decision_points: ["A concrete decision is made."],
-      consequence_status: "landed" as const,
-      evidence: [{ snippet: "The text demonstrates measurable progress." }],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `In the opening scene for ${key}, replace the abstract transition with a concrete cause-and-effect move because the current phrasing blunts tension.`,
-          expected_impact: "Improves specificity and reader connection.",
-          anchor_snippet: "The text demonstrates measurable progress.",
-          source_pass: 3 as const,
-          issue_family: "scene_structure",
-          strategic_lever: "scene_goal_clarity",
-          revision_granularity: "scene",
-          mechanism: "current phrasing blunts tension",
-          specific_fix: "replace the abstract transition with a concrete cause-and-effect move",
-          reader_effect: "clearer escalation chain",
-        },
-      ],
-    })),
-    overall: {
-      overall_score_0_100: 70,
-      verdict: "revise",
-      one_paragraph_summary:
-        "This manuscript demonstrates solid craft and distinctive literary sensibility.",
-      top_3_strengths: ["Strong narrative voice", "Clear structural arc", "Vivid sensory imagery"],
-      top_3_risks: ["Pacing inconsistencies", "Thin character motivation", "World-building gaps"],
-      submission_readiness: "nearly_ready",
-    },
+  return makeCurrentProcessorSynthesisOutput({
     metadata: {
       pass1_model: "gpt-5-mini",
       pass2_model: "gpt-5-mini",
       pass3_model: "gpt-5",
-      generated_at: new Date().toISOString(),
     },
-    partial_evaluation: false,
-  };
+  });
 }
 
 describe("runPipeline routing field in pipeline_result", () => {
@@ -198,7 +180,8 @@ describe("runPipeline routing field in pipeline_result", () => {
     const stub3 = makeStubSynthesis();
 
     const result = await runPipeline({
-      manuscriptText: "The text demonstrates measurable progress. A short test manuscript with enough words to pass minimum validation checks.",
+      manuscriptText:
+        `${buildProcessorSynthesisManuscriptContent()} The text demonstrates measurable progress.`,
       workType: "novel_chapter",
       title: "Routing Proof Test",
       model: "gpt-5-mini",
@@ -222,7 +205,7 @@ describe("runPipeline routing field in pipeline_result", () => {
       },
     });
 
-    expect(result.ok).toBe(true);
+    expect(result).toMatchObject({ ok: true });
     if (result.ok) {
       expect(result.routing).toBeDefined();
       expect(typeof result.routing?.pass1Model).toBe("string");

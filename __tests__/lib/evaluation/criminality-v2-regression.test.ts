@@ -25,8 +25,10 @@ import {
 import { runShortFormFinalSanityCheck } from '@/lib/evaluation/pipeline/shortFormFinalSanityCheck';
 import { toReportVerdict, synthesisToEvaluationResultV2 } from '@/lib/evaluation/pipeline/runPipeline';
 import { endsMidSentence } from '@/lib/text/authorFacingProse';
-import type { SynthesisOutput } from '@/lib/evaluation/pipeline/types';
+import type { CurrentSynthesisOutput, SynthesisOutput } from '@/lib/evaluation/pipeline/types';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
+import type { CriterionKey } from '@/schemas/criteria-keys';
+import { makeCurrentProcessorSynthesisOutput } from './test-fixtures/currentProcessorSynthesisOutput';
 
 const fixture = require('../../fixtures/evaluation/criminality-v2-quarantine-pass3.json') as EvaluationResultV2;
 
@@ -91,7 +93,7 @@ function sanitizeRecommendationForTest(r: any, key: string) {
 
 function fixtureCriterionToSynthesized(c: any) {
   return {
-    key: c.key,
+    key: c.key as CriterionKey,
     final_score_0_10: typeof c.score_0_10 === 'number' ? c.score_0_10 : null,
     final_rationale: c.rationale,
     evidence: (c.evidence ?? []).map((e: any) => ({
@@ -104,9 +106,11 @@ function fixtureCriterionToSynthesized(c: any) {
   };
 }
 
-function buildSynthesisFromFixture(overrides?: Partial<SynthesisOutput['overall']>): SynthesisOutput {
-  return {
-    criteria: fixture.criteria.map(fixtureCriterionToSynthesized) as any,
+function buildSynthesisFromFixture(
+  overrides?: Partial<SynthesisOutput['overall']>,
+): CurrentSynthesisOutput {
+  return makeCurrentProcessorSynthesisOutput({
+    criteria: fixture.criteria.map(fixtureCriterionToSynthesized),
     overall: {
       overall_score_0_100: fixture.overview.overall_score_0_100 ?? 70,
       verdict: 'revise' as const,
@@ -125,7 +129,7 @@ function buildSynthesisFromFixture(overrides?: Partial<SynthesisOutput['overall'
       generated_at: fixture.generated_at,
     },
     partial_evaluation: false,
-  } as SynthesisOutput;
+  });
 }
 
 describe('Criminality V2 regression', () => {

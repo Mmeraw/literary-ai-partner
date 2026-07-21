@@ -628,26 +628,36 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 
 ### `S06_PASS2` — Pass 2
 
-- **Supplier:** Pipeline orchestrator
-- **Input:** Manuscript/chunk payload + canonical registry
+- **Supplier:** Pipeline orchestrator, Pass 2 runner, and the current-source checkpoint cache
+- **Input:** Manuscript/chunk payload + canonical registry + optional `pass2_chunk_cache_v1`
 - **Input acceptance metrics:**
   - no Pass 1 payload as input
   - timeout budget set
+  - a resumable cache has the current job/manuscript/chunk `source_hash`
+  - each reused cache entry has the current `PASS2_PROMPT_VERSION`
+  - every reused criterion has a valid canonical `recommendation_status` and required `recommendation_status_rationale`
 - **Process / runtime code surface:**
   - `lib/evaluation/pipeline/runPipeline.ts`
   - `lib/evaluation/pipeline/runPass2.ts`
   - `lib/evaluation/pipeline/pass2IndependenceGuard.ts`
-- **Output:** Pass 2 structured artifact
+  - `lib/evaluation/policy/opportunityDiscoveryPolicy.ts`
+  - `lib/evaluation/processor.ts` (cache source-identity validation and durable checkpoint loading)
+- **Output:** Pass 2 structured artifact and `pass2_chunk_cache_v1`
 - **Output acceptance metrics:**
   - output parseable
   - lexical independence guard passes
+  - all selected chunks are represented by validated current-contract results
+  - canonical meaningful-recommendation counting is used everywhere
+  - chunk aggregation preserves `recommendation_status` and required rationale
+  - contradictory zero-recommendation statuses do not reach the handoff
+  - an incompatible cache entry is regenerated from the same source chunk rather than trusted or backfilled from another artifact
 - **Customer / downstream stage:** `S06b_HANDOFF_GATE`
-- **Gates / invariants:** pass independence mandatory
+- **Gates / invariants:** pass independence mandatory. A cache `source_hash` mismatch invalidates the cache. `PASS2_CACHE_CONTRACT_VERSION_MISMATCH` or `PASS2_DISPOSITION_CONTRACT_INVALID` invalidates only the affected cache entry and forces source-chunk regeneration. `PASS2_CHUNK_AGGREGATE_DISPOSITION_CONFLICT` blocks aggregation. These are Pass 2 diagnostic subcodes owned by `PASS2_FAILED` until explicitly registered as global recovery codes.
 - **Failure codes:** `PASS2_TIMEOUT`, `PASS2_FAILED`, `PASS2_INDEPENDENCE_REWRITE_FAILED`, `QG_INDEPENDENCE_VIOLATION`
-- **Required telemetry:** pass2 timing, independence diagnostics
-- **Required evidence artifact:** pass2 output + independence diagnostic trace
+- **Required telemetry:** pass2 timing, independence diagnostics, cache hit/miss count, source-hash rejection count, prompt-version rejection count, disposition-contract rejection count, regenerated-entry count, aggregate status-conflict count
+- **Required evidence artifact:** pass2 output + independence diagnostic trace + checkpoint validation/regeneration trace
 - **Canon refs:** Volume III pass architecture/state model
-- **Spec refs:** `docs/EVALUATION_CRITICAL_FILE_PATH.md`
+- **Spec refs:** `docs/EVALUATION_CRITICAL_FILE_PATH.md`, `docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md`
 - **Runtime refs:** `lib/evaluation/pipeline/runPipeline.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Partial
@@ -690,9 +700,13 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 - **Input acceptance metrics:**
   - both upstream passes succeed
   - convergence input consistency
+  - Pass 2 recommendation cardinality, governed status, and required rationale are canonical before synthesis
 - **Process / runtime code surface:**
   - `lib/evaluation/pipeline/runPipeline.ts`
   - `lib/evaluation/pipeline/runPass3Synthesis.ts`
+  - `lib/evaluation/pipeline/templateCompletenessGate.ts`
+  - `lib/evaluation/policy/opportunityDiscoveryPolicy.ts`
+  - `lib/evaluation/processor.ts` (durable kick/exhaustion and pre-persistence blocking owner)
 - **Output:** Synthesis output with recommendation integrity certification
 - **Output acceptance metrics:**
   - synthesis object present
@@ -703,12 +717,12 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
   - **Recommendation Integrity Gate passes:** no FAIL-tier recommendations reach persistence (malformed, garbled, generic, or evidence-free recommendations are quarantined)
   - Every recommendation has: complete sentences, specific manuscript evidence anchor, actionable language (not generic workshop advice)
 - **Customer / downstream stage:** `S08_ER2_NORMALIZATION`
-- **Gates / invariants:** stages fail closed; no partial success promoted as final. No malformed recommendation may reach the author (Runtime Doctrine #11). A recommendation elsewhere in the report cannot mask invalid coverage on another criterion. Opportunity cardinality/status contradictions kick back once through `CRITERION_OPPORTUNITY_COVERAGE_INVALID`; unrelated `TEMPLATE_COMPLETENESS_GATE_FAILED` defects remain terminal.
+- **Gates / invariants:** stages fail closed; no partial success promoted as final. No malformed recommendation may reach the author (Runtime Doctrine #11). A recommendation elsewhere in the report cannot mask invalid coverage on another criterion. A **pure** opportunity cardinality/status contradiction selects `CRITERION_OPPORTUNITY_COVERAGE_INVALID` and may requeue all of Pass 3 exactly once. The retry owner is durable `evaluation_jobs.progress.kick_attempts.CRITERION_OPPORTUNITY_COVERAGE_INVALID`, so replay/re-entry cannot reset the budget. An exhausted coverage kick cannot fall through to the separate generic Phase 3 crash retry. A coverage contradiction mixed with any unrelated critical template defect selects `TEMPLATE_COMPLETENESS_GATE_FAILED`, remains terminal, and receives no specialized retry.
 - **Failure codes:** `PASS3_TIMEOUT`, `PASS3_FAILED`, `CRITERION_OPPORTUNITY_COVERAGE_INVALID`, `TEMPLATE_COMPLETENESS_GATE_FAILED`
-- **Required telemetry:** pass3 timing + convergence diagnostics + per-criterion recommendation count, governed status, diagnostic confidence, evidence-anchor count, coverage result, selected failure code, and kick attempt/outcome
+- **Required telemetry:** pass3 timing + convergence diagnostics + per-criterion recommendation count, governed status, diagnostic confidence, evidence-anchor count, coverage result, selected failure code, durable kick attempt count/outcome, exhaustion reason, generic-retry-bypass proof, persistence call count, and Revise projection call count
 - **Required evidence artifact:** pass3 output snapshot
 - **Canon refs:** Volume III pass/convergence canon
-- **Spec refs:** `docs/EVALUATION_CRITICAL_FILE_PATH.md`
+- **Spec refs:** `docs/EVALUATION_CRITICAL_FILE_PATH.md`, `docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md`
 - **Runtime refs:** `lib/evaluation/pipeline/runPipeline.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** High-risk
@@ -771,25 +785,34 @@ These are the **first manuscript-understanding stages**. Phase 0 only binds auth
 
 ### `S10_PERSISTENCE` — Persistence
 
-- **Supplier:** Quality gate pass result + EvaluationResultV2
-- **Input:** gate pass and normalized result
+- **Supplier:** Quality gate pass result + template-completeness/disposition certification + EvaluationResultV2
+- **Input:** all deterministic gates passed and normalized result
 - **Input acceptance metrics:**
   - no persist if gate fails
+  - template completeness passed
+  - recommendation cardinality and governed disposition are consistent
+  - a pure coverage kick has either succeeded and returned through Pass 3 cleanly or has not been needed
+  - mixed/unrelated template defects and exhausted coverage defects are absent
   - atomic persistence function available
 - **Process / runtime code surface:**
+  - `lib/evaluation/processor.ts`
+  - `lib/evaluation/pipeline/templateCompletenessGate.ts`
+  - `lib/evaluation/policy/opportunityDiscoveryPolicy.ts`
   - `lib/evaluation/persistEvaluationResultV2.ts`
   - atomic RPC `persist_evaluation_v2_atomic` (invoked by runtime)
 - **Output:** persisted artifact + terminal status update
 - **Output acceptance metrics:**
   - artifact ID returned
   - terminal status written canonically
+  - `persist_evaluation_v2_atomic` call count is zero after an exhausted, mixed, or unrelated recommendation/template failure
+  - Revise projection call count is zero after an exhausted, mixed, or unrelated recommendation/template failure
 - **Customer / downstream stage:** `S10b_PHASE5_AUTHOR_EXPOSURE_GATE`
-- **Gates / invariants:** no artifact persists after failed deterministic gate
+- **Gates / invariants:** no artifact persists after a failed deterministic gate. The only recovery exit for a pure opportunity-coverage defect is the single durable Pass 3 kick. Exhausted, mixed, and unrelated defects terminally finalize before canonical persistence and before any Revise projection.
 - **Failure codes:** `EVALUATION_ARTIFACT_VALIDATION_FAILED`, `EVALUATION_GATE_REJECTED`
-- **Required telemetry:** persistence gate trace + confidence derivation + reason codes
+- **Required telemetry:** persistence gate trace + confidence derivation + reason codes + selected template/disposition failure code + durable kick state + atomic persistence call count + Revise projection call count
 - **Required evidence artifact:** persisted `evaluation_artifacts` row and completion/failure envelope
 - **Canon refs:** Phase 0.1–0.3 governance enforcement
-- **Spec refs:** `docs/JOB_CONTRACT_v1.md`
+- **Spec refs:** `docs/JOB_CONTRACT_v1.md`, `docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md`
 - **Runtime refs:** `lib/evaluation/persistEvaluationResultV2.ts`
 - **Authority priority:** Canon > Spec > Runtime > Telemetry
 - **Certification status:** Partial

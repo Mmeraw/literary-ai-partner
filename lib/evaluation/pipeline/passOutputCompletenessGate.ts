@@ -13,7 +13,7 @@
  *   - score_0_10 is present and in range [1, 10]
  *   - rationale is non-empty (at least 20 chars of meaningful text)
  *   - evidence has at least 1 entry with a non-empty snippet
- *   - (Pass 2 only) recommendations have at least 1 entry with non-empty action
+ *   - recommendation records, when present, have structurally valid actions
  *
  * Returns: { ok, violations, repaired } — violations are logged, repaired
  * fields are backfilled from available context where possible. If critical
@@ -23,7 +23,7 @@
  * quality and completeness; no dirty data passes forward"
  */
 
-import type { SinglePassOutput, AxisCriterionResult, SynthesisOutput, SynthesizedCriterion } from "./types";
+import type { SinglePassOutput, SynthesisOutput } from "./types";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -42,7 +42,6 @@ export type CompletenessFailureCode =
   | "EMPTY_RATIONALE"
   | "NO_EVIDENCE"
   | "EMPTY_EVIDENCE_SNIPPET"
-  | "NO_RECOMMENDATIONS"
   | "EMPTY_RECOMMENDATION_ACTION"
   | "MISSING_CRITERION"
   | "MISSING_ANCHOR_SNIPPET";
@@ -235,16 +234,9 @@ export function validatePass2OutputCompleteness(pass2: SinglePassOutput): Comple
       }
     }
 
-    // Recommendation validation (Pass 2 specific)
-    if (!criterion.recommendations || criterion.recommendations.length === 0) {
-      violations.push({
-        code: "NO_RECOMMENDATIONS",
-        criterion_key: criterion.key,
-        field: "recommendations",
-        detail: `No recommendations for "${criterion.key}" (score: ${score ?? "null"})`,
-        severity: "warning",
-      });
-    } else {
+    // Structural recommendation validation only. Empty/cardinality semantics
+    // belong exclusively to the canonical disposition analyzer.
+    if (criterion.recommendations && criterion.recommendations.length > 0) {
       for (let i = 0; i < criterion.recommendations.length; i++) {
         const rec = criterion.recommendations[i];
         if (!rec.action || rec.action.trim().length < MIN_RECOMMENDATION_ACTION_LENGTH) {
@@ -360,19 +352,9 @@ export function validatePass3OutputCompleteness(pass3: SynthesisOutput): Pass3Co
       });
     }
 
-    // Recommendation presence validation
-    if (!criterion.recommendations || criterion.recommendations.length === 0) {
-      // Only warn if score indicates improvement is needed (score <= 8)
-      if (score !== null && score !== undefined && score <= 8) {
-        violations.push({
-          code: "NO_RECOMMENDATIONS",
-          criterion_key: criterion.key,
-          field: "recommendations",
-          detail: `No recommendations for "${criterion.key}" despite score ${score} <= 8`,
-          severity: "warning",
-        });
-      }
-    } else {
+    // Structural recommendation validation only. Score never creates a
+    // recommendation floor; disposition/cardinality is enforced elsewhere.
+    if (criterion.recommendations && criterion.recommendations.length > 0) {
       for (let i = 0; i < criterion.recommendations.length; i++) {
         const rec = criterion.recommendations[i];
         if (!rec.action || rec.action.trim().length < MIN_RECOMMENDATION_ACTION_LENGTH) {

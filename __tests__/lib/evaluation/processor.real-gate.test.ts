@@ -28,6 +28,10 @@
 export {};
 
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+import {
+  buildProcessorSynthesisManuscriptContent,
+  makeCurrentProcessorSynthesisOutput,
+} from "./test-fixtures/currentProcessorSynthesisOutput";
 
 // ── Mock ONLY external I/O ────────────────────────────────────────────────────
 
@@ -72,100 +76,6 @@ jest.mock("@supabase/supabase-js", () => ({
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const CRITERION_TERMS: Record<(typeof CRITERIA_KEYS)[number], string> = {
-  concept: "premise",
-  narrativeDrive: "propulsion",
-  character: "motivation",
-  voice: "voice",
-  sceneConstruction: "scene",
-  dialogue: "dialogue",
-  theme: "theme",
-  worldbuilding: "world",
-  pacing: "pacing",
-  proseControl: "prose",
-  tone: "tone",
-  narrativeClosure: "closure",
-  marketability: "market",
-};
-
-function criterionAnchorSet(key: (typeof CRITERIA_KEYS)[number]) {
-  const term = CRITERION_TERMS[key];
-  return {
-    a: `In chapter two, the ${term} signal around ${key} escalates through concrete beat-level evidence.`,
-    b: `Later in chapter two, the ${term} pattern for ${key} shifts with explicit consequence and reader-facing pressure.`,
-    c: `By chapter three, the ${term} execution for ${key} resolves into a clear causal outcome on the page.`,
-  };
-}
-
-function buildFixtureManuscriptContent(): string {
-  return CRITERIA_KEYS.flatMap((key) => {
-    const anchors = criterionAnchorSet(key);
-    return [anchors.a, anchors.b, anchors.c];
-  }).join(" ");
-}
-
-/** Build a minimal valid SynthesisOutput that the real synthesisToEvaluationResultV2 can map. */
-function makeRealSynthesisOutput() {
-  return {
-    criteria: CRITERIA_KEYS.map((key) => ({
-      key,
-      final_score_0_10: key === "pacing" || key === "theme" ? 4 : 5,
-      final_rationale:
-        `The ${CRITERION_TERMS[key]} handling for ${key} is observable because the manuscript shows causal movement between setup, pressure, and consequence in distinct scene anchors.`,
-      evidence: [
-        { snippet: criterionAnchorSet(key).a },
-        { snippet: criterionAnchorSet(key).b },
-        { snippet: criterionAnchorSet(key).c },
-      ],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Because the ${CRITERION_TERMS[key]} beat for ${key} currently resolves too quickly, stage one additional line-level turn at the second anchor to preserve causal pressure for the reader.`,
-          expected_impact: `Improves ${key} specificity while sustaining momentum, clarity, and reader trust through the revision beat.`,
-          anchor_snippet: criterionAnchorSet(key).b,
-        },
-        {
-          priority: "low" as const,
-          action: `Strengthen the ${CRITERION_TERMS[key]} foundation for ${key} by adding a preparatory beat at the first anchor to establish stakes before the escalation.`,
-          expected_impact: `Deepens ${key} grounding through earlier setup, giving the reader more context for the payoff.`,
-          anchor_snippet: criterionAnchorSet(key).a,
-        },
-      ],
-    })),
-    overall: {
-      overall_score_0_100: 74,
-      verdict: "conditional" as const,
-      one_sentence_pitch:
-        "A craft-focused manuscript tests whether scene-level pressure can sustain reader trust across all thirteen criteria.",
-      one_paragraph_pitch:
-        "A craft-focused manuscript follows scene-by-scene pressure shifts, character decisions, and consequence tracking to test whether execution can support a complete RevisionGrade evaluation. As weaknesses in pacing and theme emerge, the revision path asks whether targeted evidence-anchored repairs can convert promising material into submission-ready narrative coherence.",
-      one_paragraph_summary:
-        "The manuscript demonstrates measurable craft with targeted revision opportunities, with pacing and theme as the weakest criteria requiring focused revision.",
-      top_3_strengths: [
-        "Distinctive authorial voice with tonal authority across scenes.",
-        "Character motivation is grounded in concrete scene-level decisions.",
-        "Dialogue carries subtext and advances conflict naturally.",
-      ],
-      top_3_risks: [
-        "Pacing stalls in mid-section transitions between major scenes.",
-        "Thematic integration relies on repetition rather than escalation.",
-        "Narrative closure leaves key causal threads unresolved for the reader.",
-      ],
-    },
-    metadata: {
-      pass1_model: "gpt-4o",
-      pass2_model: "o3",
-      pass3_model: "o3",
-      generated_at: new Date().toISOString(),
-    },
-    enrichment: {
-      premise: "A manuscript exploring craft fundamentals across thirteen criteria with targeted revision opportunities in pacing and thematic integration.",
-      diagnosed_genre: "literary fiction",
-      target_audience: "Adult readers of character-driven literary fiction with interest in craft-forward narrative.",
-    },
-  };
-}
 
 function makeSupabaseStub() {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
@@ -225,7 +135,7 @@ function makeSupabaseStub() {
   const manuscript = {
     id: 789,
     title: "Real Gate Test Manuscript",
-    content: buildFixtureManuscriptContent(),
+    content: buildProcessorSynthesisManuscriptContent(),
     work_type: "novel",
     user_id: "00000000-0000-0000-0000-000000000002",
   };
@@ -376,7 +286,7 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     // runPipeline returns a real synthesis shape — real synthesisToEvaluationResultV2 will map it.
     runPipelineMock.mockResolvedValue({
       ok: true,
-      synthesis: makeRealSynthesisOutput(),
+      synthesis: makeCurrentProcessorSynthesisOutput(),
       quality_gate: { pass: true, checks: [], warnings: [] },
       pass4_governance: { ok: true },
     });
@@ -425,7 +335,13 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
 
     // Produce a synthesis with non-scorable criteria carrying numeric scores.
     // The real runQualityGateV2 should catch this and fail.
-    const brokenSynthesis = makeRealSynthesisOutput();
+    const brokenSynthesis = makeCurrentProcessorSynthesisOutput({
+      mutateCriterion: () => ({
+        evidence: [],
+        final_rationale: "x",
+        recommendations: [],
+      }),
+    });
     // Remove all evidence from the first criterion to make the real gate reject it.
     // Synthesis still has score=7 but will be classified as NOT_SCORABLE by the real
     // gate's signal checks (insufficient rationale detail combined with score present
@@ -492,11 +408,10 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     createClientMock.mockReturnValue(supabaseStub);
     upsertEvaluationArtifactMock.mockResolvedValue("artifact-real-gate-pass");
 
-    const lowConfidenceSynthesis = makeRealSynthesisOutput();
-    lowConfidenceSynthesis.criteria = lowConfidenceSynthesis.criteria.map((c, index) =>
-      index < 3
-        ? {
-            ...c,
+    const lowConfidenceSynthesis = makeCurrentProcessorSynthesisOutput({
+      mutateCriterion: (_criterion, index) =>
+        index < 3
+          ? {
             // Score 9 with weak evidence (snippet "x") forces low confidence via
             // enforceTextualAnchorConfidence — the snippet is < 20 chars so
             // hasTextualAnchorSignal returns false. Score 9 means missing evidence
@@ -506,11 +421,13 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
             evidence: [{ snippet: "x" }],
             recommendations: [],
             final_rationale: "Overall this generally works but could be improved across the full manuscript with more concrete anchoring.",
-          }
-        : c,
-    );
-    lowConfidenceSynthesis.overall.one_paragraph_summary =
-      "The manuscript demonstrates baseline craft strengths, but concept and narrative drive remain the weakest areas and need focused revision.";
+            }
+          : undefined,
+      overall: {
+        one_paragraph_summary:
+          "The manuscript demonstrates baseline craft strengths, but concept and narrative drive remain the weakest areas and need focused revision.",
+      },
+    });
 
     runPipelineMock.mockResolvedValue({
       ok: true,
@@ -562,28 +479,16 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     const supabaseStub = makeSupabaseStub();
     createClientMock.mockReturnValue(supabaseStub);
 
-    const underAnchoredSynthesis = makeRealSynthesisOutput();
-    underAnchoredSynthesis.criteria = underAnchoredSynthesis.criteria.map((c) => ({
-      ...c,
+    const underAnchoredSynthesis = makeCurrentProcessorSynthesisOutput({
+      mutateCriterion: (criterion) => ({
       // Exactly one anchor: 1 short of threshold (typically 2). Borderline soft-fail
       // allows completeness bridge to pass — criteria with valid score + rationale
       // that are only 1 anchor short do NOT hard-fail the evaluation.
-      evidence: [{ snippet: `Single anchor for ${c.key} (intentionally below threshold).` }],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Refine ${c.key} with a focused revision tied to this excerpt and its reader effect.`,
-          expected_impact: `Improves ${c.key} specificity and coherence.`,
-        },
-        {
-          priority: "low" as const,
-          action: `Add a second anchor for ${c.key} to strengthen the evidentiary base for this criterion.`,
-          expected_impact: `Deepens ${c.key} grounding through additional manuscript evidence.`,
-        },
-      ],
+      evidence: [{ snippet: `Single anchor for ${criterion.key} (intentionally below threshold).` }],
       final_rationale:
-        `Criterion ${c.key} is supported by one concrete anchor with explicit mechanism and reader-effect analysis.`,
-    }));
+        `Criterion ${criterion.key} is supported by one concrete anchor with explicit mechanism and reader-effect analysis.`,
+      }),
+    });
 
     runPipelineMock.mockResolvedValue({
       ok: true,
@@ -609,21 +514,14 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     createClientMock.mockReturnValue(supabaseStub);
     upsertEvaluationArtifactMock.mockResolvedValue(undefined);
 
-    const zeroAnchorSynthesis = makeRealSynthesisOutput();
-    zeroAnchorSynthesis.criteria = zeroAnchorSynthesis.criteria.map((c) => ({
-      ...c,
+    const zeroAnchorSynthesis = makeCurrentProcessorSynthesisOutput({
+      mutateCriterion: (criterion) => ({
       // Zero anchors: more than 1 short of threshold. Must still hard-fail.
       evidence: [],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Refine ${c.key} with a focused revision tied to this excerpt and its reader effect.`,
-          expected_impact: `Improves ${c.key} specificity and coherence.`,
-        },
-      ],
       final_rationale:
-        `Criterion ${c.key} has no concrete anchors.`,
-    }));
+        `Criterion ${criterion.key} has no concrete anchors.`,
+      }),
+    });
 
     runPipelineMock.mockResolvedValue({
       ok: true,
@@ -672,11 +570,10 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
     //   alignment as the sole failure.
     // ──────────────────────────────────────────────────────────────────────────
 
-    const scoreConfidenceSynthesis = makeRealSynthesisOutput();
-    scoreConfidenceSynthesis.criteria = scoreConfidenceSynthesis.criteria.map((c) =>
-      c.key === "proseControl"
-        ? {
-            ...c,
+    const scoreConfidenceSynthesis = makeCurrentProcessorSynthesisOutput({
+      criteria: [
+        {
+          key: "proseControl",
             // score=8 with single snippet "x" (1 char) deterministically forces
             // confidence_level="low" via enforceTextualAnchorConfidence.
             // score=8 > cap=7 → v2_fidelity_score_confidence_alignment always fails.
@@ -684,14 +581,16 @@ describe("processEvaluationJob — real synthesisToEvaluationResultV2 + real run
             evidence: [{ snippet: "x" }],
             final_rationale:
               "Overall prose is generally fine and works most of the time with some variety.",
-          }
-        : c,
-    );
+        },
+      ],
     // Mention "pacing" and "theme" so v2_summary_weakness_presence passes.
     // This isolates the v2_fidelity_score_confidence_alignment check as the sole trip.
     // Note: "prose control" is the keyToReadableToken() representation of "proseControl".
-    scoreConfidenceSynthesis.overall.one_paragraph_summary =
-      "The manuscript demonstrates measurable craft; pacing and theme are the weakest criteria requiring focused revision, while proseControl exhibits a score-confidence tension that warrants investigation.";
+      overall: {
+        one_paragraph_summary:
+          "The manuscript demonstrates measurable craft; pacing and theme are the weakest criteria requiring focused revision, while proseControl exhibits a score-confidence tension that warrants investigation.",
+      },
+    });
 
     runPipelineMock.mockResolvedValue({
       ok: true,

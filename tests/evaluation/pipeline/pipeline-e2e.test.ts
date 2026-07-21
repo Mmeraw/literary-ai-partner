@@ -23,11 +23,12 @@ import type {
 import type { RunPass1Options } from "@/lib/evaluation/pipeline/runPass1";
 import type { RunPass1aOptions, RunPass1aResult } from "@/lib/evaluation/pipeline/runPass1a";
 import type { RunPass2Options } from "@/lib/evaluation/pipeline/runPass2";
+import { PASS2_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass2-editorial";
 import type { RunPass3Options } from "@/lib/evaluation/pipeline/runPass3Synthesis";
 import type { LessonsLearnedReport, RuleStage, RuleEvaluationInput } from "@/lib/governance/lessonsLearned";
 import { JsonBoundaryError } from "@/lib/llm/jsonParseBoundary";
 import type { LongformDreamDocument } from "@/lib/evaluation/pipeline/runPass3bLongform";
-import type { CrossCheckOutput, CriterionKey } from "@/lib/evaluation/pipeline/perplexityCrossCheck";
+import type { CriterionKey } from "@/lib/evaluation/pipeline/perplexityCrossCheck";
 
 function isPipelineFailure(result: PipelineResult): result is Extract<PipelineResult, { ok: false }> {
   return result.ok === false;
@@ -62,9 +63,10 @@ function makeSinglePassOutput(pass: 1 | 2): SinglePassOutput {
           revision_granularity: "scene",
         },
       ],
+      recommendation_status: "recommendation_provided" as const,
     })),
     model: "gpt-4o-mini",
-    prompt_version: pass === 1 ? "pass1-v1" : "pass2-v1",
+    prompt_version: pass === 1 ? "pass1-v1" : PASS2_PROMPT_VERSION,
     temperature: 0.3,
     generated_at: new Date().toISOString(),
   };
@@ -118,6 +120,7 @@ function makeSynthesisOutput(): SynthesisOutput {
           symptom: "Test symptom: craft issue identified at this location.",
         },
       ],
+      recommendation_status: "recommendation_provided" as const,
     })),
     overall: {
       overall_score_0_100: 70,
@@ -611,7 +614,6 @@ describe("runPipeline (e2e with injected runners)", () => {
       expect(recs0).toHaveLength(1);
       // Dedupe removes the duplicate action from criteria[1]. Under ODP no
       // synthetic backfill is added, so recs1 is empty and the duplicate is gone.
-      expect(recs1.some((r) => r.action === recs0[0].action)).toBe(false);
       expect(recs1).toHaveLength(0);
     }
   });
@@ -975,158 +977,6 @@ describe("runPipeline (e2e with injected runners)", () => {
 
 // ── Pass 3b DREAM long-form synthesis tests ─────────────────────────────────
 
-function makeLongformDreamDocument(): LongformDreamDocument {
-  const criterionAnalysis = (key: string) => ({
-    key,
-    score: 7,
-    confidence: "Moderate-High" as const,
-    fit_evidence: [`${key} shows clear strength in the opening sequence.`],
-    gap_evidence: [`${key} loses focus in the middle act transitions.`],
-    revision_queue: [`Compress the ${key} digression in chapter 12.`],
-  });
-
-  return {
-    executive_verdict:
-      "A structurally ambitious long-form manuscript with strong premise and distinct voice. " +
-      "Primary revision task is architectural before stylistic: clarify the collision spine and " +
-      "tighten the payoff ledger across the five major structural layers.",
-    dream_scores: { quality: 66, readiness: 58, commercial: 71, literary: 74 },
-    market_shelf: {
-      best_shelf: "Literary eco-fable / weird satirical fantasy",
-      shelf_neighbors: ["Adult literary fiction", "Weird fiction"],
-      comparison_space: ["Environmental literary fiction"],
-      marketable_hook: "An amphibian civilization destabilized by human addiction and ecological violence.",
-      market_danger: "Could be misread as a children's animal fantasy without strong adult positioning.",
-    },
-    what_not_to_become: [
-      "It should not become a sanitized children's animal fantasy.",
-      "It should not over-explain the toadstone mythology before the reader needs it.",
-    ],
-    structural_stack: [
-      {
-        layer_name: "Human damage layer",
-        function: "Introduces ecological harm and the casual violence that destabilizes Aqua World",
-        status: "strong",
-        revision_note: "Compress the campsite scenes without losing the grotesque comic-horror register.",
-      },
-    ],
-    arc_map: [
-      {
-        act_name: "Opening collision setup",
-        chapter_range: "Ch. 1–3",
-        primary_function: "Establishes premise, characters, and shard mythology",
-        revision_priority: "Reduce density — reader needs the governing spine before the worldbuilding.",
-      },
-    ],
-    criterion_analyses: CRITERIA_KEYS.map((key) => criterionAnalysis(key)),
-    layer_analyses: [
-      { layer_name: "Human damage layer", status: "strong", needed_revision: "Compress campsite scenes." },
-    ],
-    cross_layer_integration: [
-      {
-        motif: "Toadstone / shard complex",
-        description: "Joins ecology, power, reproduction, and human predation into one symbolic object.",
-        integration_quality: "strong",
-        revision_note: "Clarify the object rules before chapter 4.",
-      },
-    ],
-    symbolic_audit: {
-      preserved_symbols: [
-        {
-          symbol: "Toadstone",
-          current_function: "Object of power and ecological contamination",
-          revision_instruction: "Do not simplify to a MacGuffin — its ambivalence is the book's moral center.",
-        },
-      ],
-      doctrine_strengths: ["Gorf / Rancient Code system is internally consistent."],
-      doctrine_risks: ["Sanctuary obligations remain underpaid in the final act."],
-      audit_conclusion: "Preserve the doctrine. Reduce the exposition delivering it.",
-    },
-    reader_experience: {
-      first_act: {
-        reader_question: "What is the shard and what will it cost?",
-        emotional_state: "Curious, slightly disoriented by the dual-world structure.",
-        risk: "Worldbuilding density may overwhelm before the governing story spine is clear.",
-      },
-      middle: {
-        reader_question: "Who will survive the collision between Hyla's rule and Zimeon's knowledge?",
-        emotional_state: "Invested in Zimeon and Newton but uncertain where the pressure line runs.",
-        risk: "Reform arc can feel like a second book if not tied to the shard crisis.",
-      },
-      final_act: {
-        reader_question: "Does the New World promise pay off the ecological and political debts?",
-        emotional_state: "Moved but uncertain whether the ending has fully resolved the ledger.",
-        risk: "Closure is open rather than earned if the shard and New World arcs are not aligned.",
-      },
-      aftertaste:
-        "A strange, ambitious, adult eco-fable that stays with the reader precisely because its moral ecology is not tidy.",
-    },
-    revision_plan: [
-      {
-        priority: 1,
-        title: "Resolve manuscript integrity issues",
-        goal: "Ensure no duplicate chapter bodies before architectural revision begins.",
-        actions: ["Audit chapter list against table of contents.", "Remove or differentiate duplicated chapter bodies."],
-        acceptance_check:
-          "Zero entries in manuscript_integrity_issues with severity === 'blocking' after revision.",
-      },
-      {
-        priority: 2,
-        title: "Clarify the collision spine",
-        goal: "Make the shard / toadstone / human predation line the unambiguous primary pressure.",
-        actions: ["Seed the shard's rules in chapter 1.", "Ensure every council scene changes state."],
-        acceptance_check: "Reader can articulate the central conflict by the end of chapter 3.",
-      },
-      {
-        priority: 3,
-        title: "Compress the worldbuilding",
-        goal: "Information release should follow need, not geography.",
-        actions: ["Cut or defer any doctrine block that arrives before its narrative question."],
-        acceptance_check: "No chapter contains more than one primary worldbuilding payload.",
-      },
-    ],
-    releasability: [
-      { dimension: "Premise", current_status: "Distinctive and strong", verdict: "Ready" },
-      { dimension: "Publication readiness", current_status: "Strong beta candidate after integrity pass", verdict: "Revise" },
-    ],
-    acceptance_checks: {
-      required_detection: [
-        "Duplicate chapter bodies must be flagged as manuscript_integrity_issues.",
-        "All 13 criterion analyses must be present with fit_evidence and gap_evidence.",
-      ],
-      failure_conditions: [
-        "Evaluation that calls the manuscript 'ready' without addressing the integrity issues.",
-        "Evaluation that omits the symbolic audit section.",
-      ],
-    },
-    calibration_notes: [
-      "A manuscript can be worldbuilding-rich and architecturally weak at the same time.",
-      "Voice strength is not a substitute for a clear collision spine.",
-    ],
-    repo_summary: {
-      benchmark_name: "froggin-noggin-dream",
-      source: "docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md",
-      evaluation_type: "long_form_dream",
-      overall_score: 66,
-      readiness_score: 58,
-      primary_strengths: ["Distinctive premise", "World-building depth", "Thematic integration"],
-      primary_blockers: ["Pacing / compression", "Collision spine legibility", "Narrative closure"],
-      gold_standard_requirement:
-        "All 16 DREAM sections present. Criterion analyses expand Pass 3 scores without contradiction.",
-    },
-    manuscript_integrity_issues: [
-      {
-        kind: "duplicate_chapter_body",
-        description: "Chapter 4 and Chapter 16 bodies are identical.",
-        severity: "blocking",
-      },
-    ],
-    prompt_version: "pass3b-longform-v1-dream-benchmark",
-    generated_at: new Date().toISOString(),
-    model: "gpt-4o-mini",
-  };
-}
-
 describe("Pass 3b — long-form DREAM synthesis (pipeline integration)", () => {
   let mockRunPass1: jest.Mock<(opts: RunPass1Options) => Promise<SinglePassOutput>>;
   let mockRunPass2: jest.Mock<(opts: RunPass2Options) => Promise<SinglePassOutput>>;
@@ -1315,6 +1165,7 @@ describe("synthesisToEvaluationResult adapter", () => {
             symptom: "Test symptom: craft issue identified at this location.",
           },
         ],
+        recommendation_status: "recommendation_provided" as const,
       })),
       overall: {
         overall_score_0_100: 70,
@@ -1386,6 +1237,9 @@ describe("synthesisToEvaluationResult adapter", () => {
           "The chapter did not provide a specific score or analysis for this criterion based on available evidence.",
         evidence: [],
         recommendations: [],
+        recommendation_status: "insufficient_evidence" as const,
+        recommendation_status_rationale:
+          "The placeholder criterion contains no manuscript evidence for a safe recommendation.",
       };
     });
 
@@ -1507,45 +1361,6 @@ describe("synthesisToEvaluationResult adapter", () => {
 // For LONG_FORM manuscripts it co-fires with Pass 3b and enriches the same
 // ok=true result — both longform_document AND cross_check must be present.
 // Pass 4 is always fail-soft: a Perplexity failure does not block the main job.
-
-function makeCrossCheckOutput(): CrossCheckOutput {
-  const criteriaMap = {} as Record<CriterionKey, CrossCheckOutput["criteria"][CriterionKey]>;
-  for (const key of [...CRITERIA_KEYS] as CriterionKey[]) {
-    criteriaMap[key] = {
-      openaiScore: 7,
-      openaiRationale: `Pass 3 evaluated ${key} as competent with targeted revision areas.`,
-      openaiEvidence: [`${key} evidence from Pass 3.`],
-      openaiDetectedSignals: [`${key}_signal`],
-      openaiScoringBand: "7-8" as const,
-      invalidOpenaiCriterion: false,
-      missingFromOpenai: false,
-      perplexityScore: 7,
-      perplexityRationale: `Perplexity adjudication of ${key} confirms Pass 3 assessment.`,
-      perplexityEvidence: [{ quote: "The river moved slowly.", explanation: `Signals ${key} strength.` }],
-      perplexityDetectedSignals: [`${key}_pplx_signal`],
-      perplexityScoringBand: "7-8" as const,
-      perplexityDoctrineTrace: ["Artifact-based evaluation", "No author-intent privilege"],
-      delta: 0,
-      disputed: false,
-      missingFromPerplexity: false,
-      invalidPerplexityCriterion: false,
-      canonValidity: { valid: true, reasons: [] },
-      direction: "MATCH" as const,
-    };
-  }
-  return {
-    model: "sonar-reasoning-pro",
-    crossCheckedAt: new Date().toISOString(),
-    overallAgreement: "STRONG",
-    disputedCriteria: [],
-    invalidCriteria: [],
-    criteria: criteriaMap,
-    perplexitySynthesisNote: "Perplexity adjudication confirms Pass 3 synthesis across all 13 criteria.",
-    canonValid: true,
-    packetChars: 29568,
-    packetCompressionRatio: 0.0479,
-  };
-}
 
 describe("Pass 4 — Perplexity DREAM adjudication (pipeline integration)", () => {
   const permissiveLessonsLearned = {

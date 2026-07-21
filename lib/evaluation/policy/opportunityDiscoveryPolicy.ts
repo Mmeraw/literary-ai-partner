@@ -26,6 +26,43 @@ export type RecommendationStatus =
   | 'insufficient_evidence'
   | 'gate_suppressed_no_safe_recommendation';
 
+export type GovernedEmptyRecommendationStatus = Exclude<
+  RecommendationStatus,
+  'recommendation_provided'
+>;
+
+/**
+ * Compile-time contract for every newly produced recommendation carrier.
+ *
+ * Historical persisted readers intentionally keep their permissive shapes.
+ * Current writers must cross `requireCurrentRecommendationDisposition`, which
+ * is the sole runtime-to-current-write narrowing boundary.
+ */
+export type CurrentRecommendationDisposition<TRecommendation> =
+  | {
+      recommendations: [TRecommendation, ...TRecommendation[]];
+      recommendation_status: 'recommendation_provided';
+      recommendation_status_rationale?: string;
+    }
+  | {
+      recommendations: [];
+      recommendation_status: GovernedEmptyRecommendationStatus;
+      recommendation_status_rationale: string;
+    };
+
+export type WithCurrentRecommendationDisposition<
+  T extends {
+    recommendations: unknown[];
+    recommendation_status?: RecommendationStatus;
+    recommendation_status_rationale?: string;
+  },
+> = T extends unknown
+  ? Omit<
+      T,
+      'recommendations' | 'recommendation_status' | 'recommendation_status_rationale'
+    > & CurrentRecommendationDisposition<T['recommendations'][number]>
+  : never;
+
 export type OpportunityScoreGuidance = {
   expectedMin: number;
   expectedMax: number;
@@ -109,6 +146,13 @@ export const RECOMMENDATION_STATUS_CONTRACT: Record<
     invalidCombinationRecovery: 'pass3_once',
   },
 };
+
+/** Prompt rendering generated from the same runtime vocabulary. */
+export function buildRecommendationStatusPromptList(): string {
+  return OPPORTUNITY_DISCOVERY_POLICY.governedStatuses
+    .map((status) => `- ${status}`)
+    .join('\n');
+}
 
 const SHORT_FORM_GUIDANCE: Record<number, OpportunityScoreGuidance> = {
   10: {
@@ -236,6 +280,98 @@ export function isGovernedRecommendationStatus(value: unknown): value is Recomme
     && (OPPORTUNITY_DISCOVERY_POLICY.governedStatuses as readonly string[]).includes(value);
 }
 
+export type NormalizedRecommendationStatusInput =
+  | { kind: 'absent' }
+  | { kind: 'valid'; value: RecommendationStatus }
+  | { kind: 'invalid'; value: unknown };
+
+/**
+ * Normalize recommendation-status tokens only at an untrusted producer
+ * boundary. Persisted/canonical validators deliberately remain strict so
+ * malformed stored authority cannot be repaired silently on read.
+ */
+export function normalizeRecommendationStatusInput(
+  value: unknown,
+): NormalizedRecommendationStatusInput {
+  if (value === undefined || value === null) return { kind: 'absent' };
+
+  const normalized = typeof value === 'string' ? value.trim() : value;
+  if (normalized === '') return { kind: 'absent' };
+  if (isGovernedRecommendationStatus(normalized)) {
+    return { kind: 'valid', value: normalized };
+  }
+  return { kind: 'invalid', value: normalized };
+}
+
+export type OpportunityRecommendationInput = {
+  action?: unknown;
+  specific_fix?: unknown;
+  anchor_snippet?: unknown;
+  evidence_anchor?: unknown;
+  symptom?: unknown;
+  mechanism?: unknown;
+  why?: unknown;
+  reader_effect?: unknown;
+  expected_impact?: unknown;
+  mistake_proofing?: unknown;
+};
+
+const RECOMMENDATION_PLACEHOLDER_RE = /\b(?:n\/?a|none|not specified|tbd|todo|placeholder|example|lorem ipsum|\[location|\[operation|\[priority|\[severity|\[confidence)\b/i;
+const GENERIC_RECOMMENDATION_RE = /\b(?:improve|strengthen|clarify|develop|enhance|expand|tighten|revise)\s+(?:the\s+)?(?:writing|story|manuscript|novel|chapter|section|piece)\b/i;
+
+function meaningfulRecommendationText(value: unknown, minLength = 12): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.length < minLength || RECOMMENDATION_PLACEHOLDER_RE.test(trimmed)) return null;
+  return trimmed;
+}
+
+/**
+ * Canonical structural recommendation predicate shared by every coverage gate.
+ * This establishes only that an intervention and supporting diagnostic content
+ * exist; grounding, executability, and queue admission remain separate gates.
+ */
+export function isMeaningfulOpportunityRecommendation(
+  value: unknown,
+): value is OpportunityRecommendationInput {
+  if (!value || typeof value !== 'object') return false;
+  const recommendation = value as OpportunityRecommendationInput;
+  const action = meaningfulRecommendationText(recommendation.specific_fix)
+    ?? meaningfulRecommendationText(recommendation.action);
+  if (!action) return false;
+
+  const supportingFields = [
+    recommendation.anchor_snippet,
+    recommendation.evidence_anchor,
+    recommendation.symptom,
+    recommendation.mechanism,
+    recommendation.why,
+    recommendation.reader_effect,
+    recommendation.expected_impact,
+    recommendation.mistake_proofing,
+  ];
+  const meaningfulSupportingFields = supportingFields
+    .map((field) => meaningfulRecommendationText(field))
+    .filter((field): field is string => Boolean(field));
+  if (meaningfulSupportingFields.length === 0) return false;
+
+  if (GENERIC_RECOMMENDATION_RE.test(action)) {
+    const manuscriptSpecificSupport = meaningfulRecommendationText(recommendation.anchor_snippet, 20)
+      ?? meaningfulRecommendationText(recommendation.evidence_anchor, 20)
+      ?? meaningfulRecommendationText(recommendation.symptom, 20)
+      ?? meaningfulRecommendationText(recommendation.why, 20)
+      ?? meaningfulRecommendationText(recommendation.expected_impact, 20);
+    return Boolean(manuscriptSpecificSupport);
+  }
+
+  return true;
+}
+
+export function countMeaningfulOpportunityRecommendations(values: unknown): number {
+  if (!Array.isArray(values)) return 0;
+  return values.filter(isMeaningfulOpportunityRecommendation).length;
+}
+
 /**
  * A low opportunity count is not itself a defect. This helper answers only
  * whether an empty criterion is governed. Semantic recommendation validation
@@ -246,13 +382,19 @@ export interface GovernedOpportunityCoverageInput {
   meaningfulOpportunityCount: number;
   recommendationStatus?: unknown;
   recommendationStatusRationale?: unknown;
+  /** Canonical scorability when available. A numeric score implies scorable. */
+  scorable?: boolean | null;
+  /** Persisted criterion status (for example SCORABLE or NOT_APPLICABLE). */
+  criterionStatus?: unknown;
 }
 
 export type OpportunityCoverageIssue =
   | 'invalid_recommendation_status'
   | 'recommendation_status_cardinality_mismatch'
   | 'missing_governed_disposition'
-  | 'missing_disposition_rationale';
+  | 'missing_disposition_rationale'
+  | 'orphan_disposition_rationale'
+  | 'criterion_applicability_mismatch';
 
 export interface GovernedOpportunityCoverageAnalysis {
   covered: boolean;
@@ -279,9 +421,29 @@ export function analyzeGovernedOpportunityCoverage(
   const statusContract = statusValid
     ? RECOMMENDATION_STATUS_CONTRACT[recommendationStatus]
     : null;
+  const hasRationale = typeof args.recommendationStatusRationale === 'string'
+    && args.recommendationStatusRationale.trim().length > 0;
+  const criterionStatus = typeof args.criterionStatus === 'string'
+    ? args.criterionStatus.trim().toUpperCase()
+    : null;
+  const isScorable = args.scorable === true
+    || (args.scorable !== false && args.score !== null);
+  const isNotApplicable = args.scorable === false
+    || criterionStatus === 'NOT_APPLICABLE';
 
   if (hasExplicitStatus && !statusValid) {
     issues.push('invalid_recommendation_status');
+  }
+
+  if (!hasExplicitStatus && hasRationale) {
+    issues.push('orphan_disposition_rationale');
+  }
+
+  if (
+    (recommendationStatus === 'criterion_not_applicable' && isScorable)
+    || (isNotApplicable && hasRecommendations)
+  ) {
+    issues.push('criterion_applicability_mismatch');
   }
 
   if (
@@ -291,16 +453,11 @@ export function analyzeGovernedOpportunityCoverage(
     issues.push('recommendation_status_cardinality_mismatch');
   }
 
-  // Legacy producers may omit status when they emitted a real recommendation.
-  // An explicit incompatible or unknown status is never treated as legacy.
   if (hasRecommendations) {
+    if (!hasExplicitStatus) {
+      issues.push('missing_governed_disposition');
+    }
     return { covered: issues.length === 0, issues };
-  }
-
-  // Strong criteria may legitimately produce no recommendation. Explicit
-  // malformed or incompatible metadata still fails closed when present.
-  if (args.score !== null && args.score >= 8 && !hasExplicitStatus) {
-    return { covered: true, issues };
   }
 
   if (!statusValid) {
@@ -319,6 +476,192 @@ export function analyzeGovernedOpportunityCoverage(
 
 export function hasGovernedOpportunityCoverage(args: GovernedOpportunityCoverageInput): boolean {
   return analyzeGovernedOpportunityCoverage(args).covered;
+}
+
+/**
+ * The only bridge from a permissive producer/read carrier to the strict
+ * current-write disposition type. The runtime analysis remains authoritative
+ * for semantic content; the returned union prevents later current-write code
+ * from omitting or contradicting status/rationale structurally.
+ */
+export function requireCurrentRecommendationDisposition<
+  const T extends {
+    recommendations: unknown[];
+    recommendation_status?: RecommendationStatus;
+    recommendation_status_rationale?: string;
+  },
+>(
+  criterion: T,
+  args: {
+    score: number | null;
+    scorable?: boolean | null;
+    criterionStatus?: unknown;
+    context: string;
+  },
+): WithCurrentRecommendationDisposition<T> {
+  const meaningfulOpportunityCount = countMeaningfulOpportunityRecommendations(
+    criterion.recommendations,
+  );
+  const analysis = analyzeGovernedOpportunityCoverage({
+    score: args.score,
+    meaningfulOpportunityCount,
+    recommendationStatus: criterion.recommendation_status,
+    recommendationStatusRationale: criterion.recommendation_status_rationale,
+    scorable: args.scorable,
+    criterionStatus: args.criterionStatus,
+  });
+
+  if (
+    meaningfulOpportunityCount !== criterion.recommendations.length
+    || !analysis.covered
+  ) {
+    throw new RecommendationDispositionContractError(
+      'Current-write recommendation disposition is structurally invalid.',
+      {
+        context: args.context,
+        meaningful_recommendation_count: meaningfulOpportunityCount,
+        raw_recommendation_count: criterion.recommendations.length,
+        issues: analysis.issues,
+      },
+    );
+  }
+
+  // The cast is intentionally centralized here. Callers receive a required,
+  // discriminated write type only after the canonical runtime contract passes.
+  return criterion as unknown as WithCurrentRecommendationDisposition<T>;
+}
+
+export type RecommendationDispositionMutationCause =
+  | 'pass3_parser_safety_filter'
+  | 'expectation_profile_safety_filter'
+  | 'diagnostic_spine_safety_filter'
+  | 'recommendation_integrity_quarantine'
+  | 'cross_criterion_consolidation'
+  | 'pre_gate_deduplication'
+  | 'criterion_observability_filter'
+  | 'product_ceiling';
+
+export class RecommendationDispositionContractError extends Error {
+  public readonly failureCode = 'CRITERION_OPPORTUNITY_COVERAGE_INVALID' as const;
+  public readonly code = 'CRITERION_OPPORTUNITY_COVERAGE_INVALID' as const;
+  public readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown>) {
+    super(message);
+    this.name = 'RecommendationDispositionContractError';
+    this.details = details;
+  }
+}
+
+type RecommendationDispositionCarrier = {
+  key?: unknown;
+  recommendations: unknown[];
+  recommendation_status?: RecommendationStatus;
+  recommendation_status_rationale?: string;
+};
+
+/**
+ * Reconcile status metadata after a deterministic, governed mutation changes
+ * recommendation cardinality. This is not an ingestion repair: callers must
+ * supply the exact mutation cause and the authorized empty-state disposition.
+ */
+export function reconcileRecommendationDispositionAfterMutation<
+  T extends RecommendationDispositionCarrier,
+>(
+  criterion: T,
+  args: {
+    previousMeaningfulCount: number;
+    mutationCause: RecommendationDispositionMutationCause;
+    emptyStatus: Extract<RecommendationStatus,
+      'gate_suppressed_no_safe_recommendation' | 'no_recommendation_warranted'>;
+    emptyRationale: string;
+  },
+): WithCurrentRecommendationDisposition<T> {
+  const priorAnalysis = analyzeGovernedOpportunityCoverage({
+    score: null,
+    meaningfulOpportunityCount: args.previousMeaningfulCount,
+    recommendationStatus: criterion.recommendation_status,
+    recommendationStatusRationale: criterion.recommendation_status_rationale,
+  });
+  if (!priorAnalysis.covered) {
+    throw new RecommendationDispositionContractError(
+      'A recommendation mutation cannot repair an already-invalid source disposition.',
+      {
+        criterion: criterion.key ?? null,
+        mutation_cause: args.mutationCause,
+        issues: priorAnalysis.issues,
+      },
+    );
+  }
+
+  const meaningfulCount = countMeaningfulOpportunityRecommendations(criterion.recommendations);
+  const rawCount = criterion.recommendations.length;
+
+  if (rawCount > 0 && meaningfulCount === 0) {
+    throw new RecommendationDispositionContractError(
+      'A deterministic recommendation mutation retained records that do not satisfy the canonical recommendation predicate.',
+      {
+        criterion: criterion.key ?? null,
+        mutation_cause: args.mutationCause,
+        raw_recommendation_count: rawCount,
+        meaningful_recommendation_count: meaningfulCount,
+        issues: ['recommendation_status_cardinality_mismatch'],
+      },
+    );
+  }
+
+  if (meaningfulCount > 0) {
+    return requireCurrentRecommendationDisposition({
+      ...criterion,
+      recommendation_status: 'recommendation_provided',
+      recommendation_status_rationale: undefined,
+    }, {
+      score: null,
+      context: `recommendation_mutation:${args.mutationCause}:non_empty`,
+    });
+  }
+
+  if (args.previousMeaningfulCount > 0) {
+    if (args.emptyRationale.trim().length < 20) {
+      throw new RecommendationDispositionContractError(
+        'A deterministic recommendation mutation did not provide a substantive empty-state rationale.',
+        {
+          criterion: criterion.key ?? null,
+          mutation_cause: args.mutationCause,
+          issues: ['missing_disposition_rationale'],
+        },
+      );
+    }
+    return requireCurrentRecommendationDisposition({
+      ...criterion,
+      recommendation_status: args.emptyStatus,
+      recommendation_status_rationale: args.emptyRationale.trim(),
+    }, {
+      score: null,
+      context: `recommendation_mutation:${args.mutationCause}:empty`,
+    });
+  }
+
+  const analysis = analyzeGovernedOpportunityCoverage({
+    score: null,
+    meaningfulOpportunityCount: 0,
+    recommendationStatus: criterion.recommendation_status,
+    recommendationStatusRationale: criterion.recommendation_status_rationale,
+  });
+  if (!analysis.covered) {
+    throw new RecommendationDispositionContractError(
+      'A recommendation mutation received an already-contradictory disposition.',
+      {
+        criterion: criterion.key ?? null,
+        mutation_cause: args.mutationCause,
+        issues: analysis.issues,
+      },
+    );
+  }
+  return requireCurrentRecommendationDisposition(criterion, {
+    score: null,
+    context: `recommendation_mutation:${args.mutationCause}:unchanged_empty`,
+  });
 }
 
 /**
@@ -341,6 +684,8 @@ export function buildOpportunityDiscoveryPromptBlock(mode: EvaluationOpportunity
     'For weak criteria, provide at least one evidence-supported opportunity or a concrete insufficient-evidence/safety status rationale.',
     'Criterion confidence describes diagnostic support, not confidence that a safe intervention can be prescribed. Never use confidence alone to admit, suppress, or manufacture a recommendation.',
     'When recommendations are present, use recommendation_provided. When none are present, use a governed non-recommendation status with a concrete rationale; do not emit contradictory status/cardinality metadata.',
+    'Allowed recommendation_status values (exact spellings):',
+    buildRecommendationStatusPromptList(),
     'Every retained opportunity must have exact evidence, evidence-to-symptom entailment, a cause distinct from the symptom, an aligned fix, a plausible reader effect, and a harm guardrail.',
     'Short Form must never receive WAVE or cross-WAVE opportunities.',
   ].join('\n');

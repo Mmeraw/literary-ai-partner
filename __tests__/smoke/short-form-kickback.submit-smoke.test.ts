@@ -11,6 +11,7 @@ import { triggerEvaluationWorker } from "@/lib/jobs/triggerWorker";
 import { persistEvaluationResultV2 } from "@/lib/evaluation/persistEvaluationResultV2";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { EvaluationResultV2 } from "@/schemas/evaluation-result-v2";
+import { makeCurrentProcessorEvaluationResult } from "@/__tests__/lib/evaluation/test-fixtures/currentProcessorEvaluationResult";
 
 jest.mock("@/lib/jobs/store", () => ({
   createJob: jest.fn(),
@@ -139,15 +140,13 @@ function makeAdminClientForSubmissionSmoke() {
 }
 
 function makeLeakedShortFormEvaluationResult(jobId: string): EvaluationResultV2 {
-  return {
-    schema_version: "evaluation_result_v2",
+  return makeCurrentProcessorEvaluationResult({
     ids: {
       evaluation_run_id: "run-short-form-submit-smoke",
       job_id: jobId,
       manuscript_id: 9090,
       user_id: "user-smoke",
     },
-    generated_at: new Date().toISOString(),
     engine: {
       model: "smoke-injected-pass3",
       provider: "test",
@@ -164,11 +163,6 @@ function makeLeakedShortFormEvaluationResult(jobId: string): EvaluationResultV2 
     },
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
-      scorable: true as const,
-      status: "SCORABLE" as const,
-      signal_present: true,
-      signal_strength: "SUFFICIENT" as const,
-      confidence_band: "MEDIUM" as const,
       score_0_10: 6,
       rationale: `Criterion ${key}: supported by concrete evidence from the submitted short-form text.`,
       evidence: [
@@ -183,15 +177,6 @@ function makeLeakedShortFormEvaluationResult(jobId: string): EvaluationResultV2 
         },
       ],
     })),
-    recommendations: {
-      quick_wins: [],
-      strategic_revisions: [],
-    },
-    metrics: {
-      manuscript: {},
-      processing: {},
-    },
-    artifacts: [],
     governance: {
       confidence: 0.75,
       confidence_label: "medium",
@@ -202,7 +187,7 @@ function makeLeakedShortFormEvaluationResult(jobId: string): EvaluationResultV2 
       observability_warnings: [],
       transparency: {},
     },
-  };
+  });
 }
 
 function makePersistenceSupabaseStub() {

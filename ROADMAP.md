@@ -6,6 +6,12 @@
 
 All older roadmap ledgers, CSV mirrors, spreadsheets, phase notes, session summaries, archived planning artifacts, and stale branch audits are non-authoritative. They must not be used to determine current execution order.
 
+### Evaluate-to-Revise Forensic Workbook
+
+The maintained forensic workbook is [`docs/forensics/RevisionGrade_E2E_Evaluate_to_Revise_Forensics.xlsx`](docs/forensics/RevisionGrade_E2E_Evaluate_to_Revise_Forensics.xlsx). It is the repository-owned reporting and evidence companion to this roadmap.
+
+The workbook is a **derived governance artifact**. Repository TypeScript registries, executable process contracts, and their generated SIPOC/FIPOC mirrors remain authoritative for runtime ownership, inputs, outputs, metrics, kickbacks, and gates. Workbook updates must preserve that authority direction and cite the repository evidence used for every status change.
+
 ---
 
 ## Governing Principle

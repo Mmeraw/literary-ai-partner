@@ -1,7 +1,11 @@
 import { buildPhaseLogPatch } from '@/lib/evaluation/phaseLog';
 import { getGateFailurePolicy, buildRetryContext, buildQuarantineArtifact } from '@/lib/evaluation/pipeline/selfCorrectionPolicy';
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { EvaluationResultV2, ScoreAdjustmentV2 } from "@/schemas/evaluation-result-v2";
+import type {
+  CurrentEvaluationResultV2,
+  EvaluationResultV2,
+  ScoreAdjustmentV2,
+} from "@/schemas/evaluation-result-v2";
 import { JOB_STATUS, type JobStatus } from "@/lib/jobs/types";
 import {
   normalizeEvaluationJobStatus,
@@ -23,6 +27,11 @@ import { applyShortFormEvidenceGate, runShortFormEvidenceGate } from "@/lib/eval
 import { runShortFormFinalSanityCheck } from "@/lib/evaluation/pipeline/shortFormFinalSanityCheck";
 import { mistakeProofText } from "@/lib/evaluation/reportRenderSafety";
 import { FORBIDDEN_PATTERNS, getForbiddenCodes } from "@/lib/evaluation/reportForbiddenPatterns";
+import {
+  analyzeGovernedOpportunityCoverage,
+  countMeaningfulOpportunityRecommendations,
+  requireCurrentRecommendationDisposition,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 function assertPersistableEvaluationResultShape(evaluationResult: EvaluationResultV2): void {
   const missing: string[] = [];
@@ -38,6 +47,24 @@ function assertPersistableEvaluationResultShape(evaluationResult: EvaluationResu
   }
   if (!Array.isArray(evaluationResult.criteria)) {
     missing.push("criteria[]");
+  } else {
+    for (const criterion of evaluationResult.criteria) {
+      const coverage = analyzeGovernedOpportunityCoverage({
+        score: criterion.score_0_10,
+        meaningfulOpportunityCount: countMeaningfulOpportunityRecommendations(
+          criterion.recommendations,
+        ),
+        recommendationStatus: criterion.recommendation_status,
+        recommendationStatusRationale: criterion.recommendation_status_rationale,
+        scorable: criterion.scorable,
+        criterionStatus: criterion.status,
+      });
+      if (!coverage.covered) {
+        missing.push(
+          `criteria.${criterion.key}.recommendation_disposition[${coverage.issues.join("|")}]`,
+        );
+      }
+    }
   }
   if (!evaluationResult.governance || !Array.isArray(evaluationResult.governance.warnings)) {
     missing.push("governance.warnings");
@@ -48,6 +75,23 @@ function assertPersistableEvaluationResultShape(evaluationResult: EvaluationResu
       `[PersistEvalV2] Refusing to persist incomplete evaluation_result_v2 payload; missing=${missing.join(",")}`,
     );
   }
+}
+
+export function requireCurrentEvaluationResultWrite(
+  evaluationResult: EvaluationResultV2,
+  context: string,
+): CurrentEvaluationResultV2 {
+  return {
+    ...evaluationResult,
+    criteria: evaluationResult.criteria.map((criterion) =>
+      requireCurrentRecommendationDisposition(criterion, {
+        score: criterion.score_0_10,
+        scorable: criterion.scorable,
+        criterionStatus: criterion.status,
+        context: `${context}:${criterion.key}`,
+      }),
+    ),
+  };
 }
 
 type PipelineFailureEnvelope = {
@@ -440,7 +484,7 @@ export async function persistEvaluationResultV2(params: {
   supabase: SupabaseClient;
   jobId: string;
   manuscriptId: number;
-  evaluationResult: EvaluationResultV2;
+  evaluationResult: CurrentEvaluationResultV2;
   sourceHash: string;
   progressSnapshot: Record<string, unknown>;
   totalUnits: number;
@@ -971,7 +1015,10 @@ export async function persistEvaluationResultV2(params: {
   const completionTime = new Date().toISOString();
   const completionStatus = normalizeEvaluationJobStatus(JOB_STATUS.COMPLETE) as JobStatus;
   const validValidity = normalizeEvaluationValidityStatus("valid");
-  const persistedEvaluationResult = attachBackwardRelookMetadata(evaluationResult, backwardRelook);
+  const persistedEvaluationResult = requireCurrentEvaluationResultWrite(
+    attachBackwardRelookMetadata(evaluationResult, backwardRelook),
+    "persist_evaluation_v2_atomic",
+  );
 
   const gateTrace = {
     validation_result: validation.result,

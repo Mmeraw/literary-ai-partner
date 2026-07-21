@@ -14,7 +14,15 @@ import OpenAI from "openai";
 import type { EnglishVariant } from "@/lib/evaluation/englishVariant";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import { PASS2_SYSTEM_PROMPT, PASS2_PROMPT_VERSION, buildPass2UserPrompt } from "./prompts/pass2-editorial";
-import type { SinglePassOutput, AxisCriterionResult, EvidenceAnchor, CompletionUsage, PassCompletionCapture, ManuscriptChunkEvidence } from "./types";
+import type {
+  SinglePassOutput,
+  CurrentPass2Output,
+  AxisCriterionResult,
+  EvidenceAnchor,
+  CompletionUsage,
+  PassCompletionCapture,
+  ManuscriptChunkEvidence,
+} from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
   buildOpenAIOutputTokenParam,
@@ -31,7 +39,11 @@ import { summarizePromptCoverage } from "./promptInput";
 import { countWords } from "./submissionScope";
 import {
   analyzeGovernedOpportunityCoverage,
-  isGovernedRecommendationStatus,
+  countMeaningfulOpportunityRecommendations,
+  normalizeRecommendationStatusInput,
+  reconcileRecommendationDispositionAfterMutation,
+  RECOMMENDATION_STATUS_CONTRACT,
+  requireCurrentRecommendationDisposition,
 } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import { getConfiguredChunkCap } from "./chunkCap";
 import {
@@ -281,24 +293,60 @@ export type CreateCompletionFn = (params: {
   response_format: { type: string };
 }) => Promise<{ choices: CompletionChoice[]; usage?: CompletionUsage; id?: string; request_id?: string }>;
 
+export function assertPass2OutputDispositionContract(
+  output: SinglePassOutput,
+  context: string,
+): asserts output is CurrentPass2Output {
+  if (output.pass !== 2 || output.axis !== "editorial_literary") {
+    throw new Error(
+      `PASS2_OUTPUT_IDENTITY_INVALID ${JSON.stringify({
+        context,
+        pass: output.pass,
+        axis: output.axis,
+      })}`,
+    );
+  }
+  if (output.prompt_version !== PASS2_PROMPT_VERSION) {
+    throw new Error(
+      `PASS2_CACHE_CONTRACT_VERSION_MISMATCH ${JSON.stringify({
+        context,
+        expected_prompt_version: PASS2_PROMPT_VERSION,
+        received_prompt_version: output.prompt_version,
+      })}`,
+    );
+  }
+
+  for (const criterion of output.criteria) {
+    requireCurrentRecommendationDisposition(criterion, {
+      score: criterion.score_0_10,
+      context: `${context}:${criterion.key}`,
+    });
+  }
+}
+
 /**
  * Aggregates multiple SinglePassOutput results from chunk evaluations (Pass 2 variant).
  * Combines evidence, averages scores, and deduplicates recommendations.
  */
-function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
+export function aggregatePass2ChunkResults(results: SinglePassOutput[]): CurrentPass2Output {
   if (results.length === 0) {
     throw new Error("[Pass2] No chunk results to aggregate");
   }
+
+  const currentResults = results.map((result, index) => {
+    assertPass2OutputDispositionContract(result, `chunk_aggregate_input:${index}`);
+    return result;
+  });
   
-  if (results.length === 1) {
-    return results[0];
+  if (currentResults.length === 1) {
+    return currentResults[0];
   }
 
   // Build aggregated criteria
   const aggregatedCriteria: AxisCriterionResult[] = [];
   
   for (const key of CRITERIA_KEYS) {
-    const criteriaForKey = results
+    const criteriaForKey = currentResults
       .flatMap((r) => r.criteria)
       .filter((c) => c.key === key);
     
@@ -357,6 +405,45 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
       }
     }
 
+    const emittedStatuses = criteriaForKey
+      .map((criterion) => criterion.recommendation_status)
+      .filter((status): status is NonNullable<AxisCriterionResult["recommendation_status"]> =>
+        status !== undefined,
+      );
+    const distinctStatuses = Array.from(new Set(emittedStatuses));
+    const invalidZeroStatus = mergedRecs.length === 0
+      ? distinctStatuses.find((status) =>
+          !RECOMMENDATION_STATUS_CONTRACT[status].zeroRecommendationsAllowed,
+        )
+      : undefined;
+    if (
+      emittedStatuses.length !== criteriaForKey.length
+      || invalidZeroStatus
+      || (mergedRecs.length === 0 && distinctStatuses.length !== 1)
+    ) {
+      throw new Error(
+        `PASS2_CHUNK_AGGREGATE_DISPOSITION_CONFLICT ${JSON.stringify({
+          code: "PASS2_CHUNK_AGGREGATE_DISPOSITION_CONFLICT",
+          criterion: key,
+          statuses: distinctStatuses,
+          chunks_total: criteriaForKey.length,
+          chunks_with_status: emittedStatuses.length,
+        })}`,
+      );
+    }
+
+    const recommendationStatus = mergedRecs.length > 0
+      ? "recommendation_provided" as const
+      : distinctStatuses[0];
+    const distinctRationales = Array.from(new Set(
+      criteriaForKey
+        .map((criterion) => criterion.recommendation_status_rationale?.trim())
+        .filter((rationale): rationale is string => Boolean(rationale)),
+    ));
+    const recommendationStatusRationale = mergedRecs.length === 0
+      ? distinctRationales.join(" | ")
+      : undefined;
+
     aggregatedCriteria.push({
       key,
       // PR-D: canonical floor is 1, never 0
@@ -364,18 +451,22 @@ function aggregateChunkResults(results: SinglePassOutput[]): SinglePassOutput {
       rationale: firstRationale,
       evidence: mergedEvidence,
       recommendations: mergedRecs,
+      recommendation_status: recommendationStatus,
+      recommendation_status_rationale: recommendationStatusRationale,
     });
   }
 
-  return {
+  const output: SinglePassOutput = {
     pass: 2,
     axis: "editorial_literary",
     criteria: aggregatedCriteria,
-    model: results[0].model,
+    model: currentResults[0].model,
     prompt_version: PASS2_PROMPT_VERSION,
     temperature: PASS2_TEMPERATURE,
     generated_at: new Date().toISOString(),
   };
+  assertPass2OutputDispositionContract(output, "chunk_aggregate_output");
+  return output;
 }
 
 import type { SubmissionScopeProfile } from "./submissionScope";
@@ -466,7 +557,7 @@ export interface RunPass2Options {
    *
    * Fail-soft: errors thrown by this callback are logged but do NOT fail the chunk.
    */
-  _onChunkComplete?: (chunk_index: number, result: SinglePassOutput) => Promise<void>;
+  _onChunkComplete?: (chunk_index: number, result: CurrentPass2Output) => Promise<void>;
   /**
    * Internal override for max output tokens. When set, takes precedence over
    * the runtime config default. Only used by runPipeline.ts when retrying
@@ -528,7 +619,7 @@ export function normalizeRecommendationAction(action: string): string | null {
  * Returns a validated SinglePassOutput with axis="editorial_literary".
  * Throws on OpenAI error or unparseable response.
  */
-export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput> {
+export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Output> {
   // Fail fast if no OpenAI API key is available (even when completion is injected)
   const effectiveApiKey =
     opts.openaiApiKey ||
@@ -607,18 +698,32 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
         // Checkpoint resume: return cached result immediately if available.
         if (chunkCache && chunkCache.has(chunk.chunk_index)) {
           const cached = chunkCache.get(chunk.chunk_index)!;
-          console.log(`[Pass2] Chunk ${chunk.chunk_index} served from checkpoint cache`);
-          if (onChunkComplete) {
-            try {
-              await onChunkComplete(chunk.chunk_index, cached);
-            } catch (cbErr) {
-              console.warn(
-                `[Pass2] _onChunkComplete (cache hit) threw for chunk ${chunk.chunk_index} (non-fatal)`,
-                cbErr instanceof Error ? cbErr.message : String(cbErr),
-              );
+          try {
+            assertPass2OutputDispositionContract(
+              cached,
+              `checkpoint_cache:${chunk.chunk_index}`,
+            );
+            console.log(`[Pass2] Chunk ${chunk.chunk_index} served from validated checkpoint cache`);
+            if (onChunkComplete) {
+              try {
+                await onChunkComplete(chunk.chunk_index, cached);
+              } catch (cbErr) {
+                console.warn(
+                  `[Pass2] _onChunkComplete (cache hit) threw for chunk ${chunk.chunk_index} (non-fatal)`,
+                  cbErr instanceof Error ? cbErr.message : String(cbErr),
+                );
+              }
             }
+            return cached;
+          } catch (cacheError) {
+            // Contract/version drift invalidates only this checkpoint entry.
+            // Regenerate from the same source chunk instead of allowing stale
+            // authority downstream or failing the whole job without recovery.
+            console.warn(
+              `[Pass2] Ignoring incompatible checkpoint cache entry for chunk ${chunk.chunk_index}`,
+              cacheError instanceof Error ? cacheError.message : String(cacheError),
+            );
           }
-          return cached;
         }
 
         let attempt = 0;
@@ -767,7 +872,7 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
       );
     }
 
-    const aggregated = aggregateChunkResults(chunkResults);
+    const aggregated = aggregatePass2ChunkResults(chunkResults);
     console.log(`[Pass2] Chunk aggregation complete: ${aggregated.criteria.length} criteria`);
     return {
       ...aggregated,
@@ -1047,13 +1152,15 @@ export async function runPass2(opts: RunPass2Options): Promise<SinglePassOutput>
 
   const promptCoverage = summarizePromptCoverage(opts.manuscriptText);
 
-  return {
+  const output: SinglePassOutput = {
     ...parsedOutput,
     coverage_summary: {
       route: "direct_window",
       fully_evaluated: !promptCoverage.truncated,
     },
   };
+  assertPass2OutputDispositionContract(output, "pass2_direct_window_output");
+  return output;
 }
 
 /**
@@ -1103,8 +1210,8 @@ function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolea
 export function parsePass2Response(
   raw: string,
   fallbackModel?: string,
-  opts?: { manuscriptWordCount?: number },
-): SinglePassOutput {
+  _opts?: { manuscriptWordCount?: number },
+): CurrentPass2Output {
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
       ? fallbackModel
@@ -1172,6 +1279,9 @@ export function parsePass2Response(
         })
       : [];
 
+    const meaningfulRecommendationsBeforeNormalization =
+      countMeaningfulOpportunityRecommendations(recommendations);
+
     // ── Normalizer: filter/tidy recommendation actions before cache/persist ──
     const normalizedRecommendations = recommendations
       .map((rec) => {
@@ -1189,20 +1299,16 @@ export function parsePass2Response(
         ? Math.round(parsedScore)
         : null;
     const rationale = String(c["rationale"] ?? "");
-    const rawRecommendationStatus = c["recommendation_status"];
-    const hasExplicitRecommendationStatus = rawRecommendationStatus !== undefined
-      && rawRecommendationStatus !== null
-      && rawRecommendationStatus !== "";
-    if (
-      hasExplicitRecommendationStatus
-      && !isGovernedRecommendationStatus(rawRecommendationStatus)
-    ) {
+    const recommendationStatusInput = normalizeRecommendationStatusInput(
+      c["recommendation_status"],
+    );
+    if (recommendationStatusInput.kind === "invalid") {
       throw new Error(
         `[Pass2] RECOMMENDATION_STATUS_INVALID: ${key} emitted an unknown recommendation_status.`,
       );
     }
-    const recommendationStatus = isGovernedRecommendationStatus(rawRecommendationStatus)
-      ? rawRecommendationStatus
+    const recommendationStatus = recommendationStatusInput.kind === "valid"
+      ? recommendationStatusInput.value
       : undefined;
     const recommendationStatusRationale = typeof c["recommendation_status_rationale"] === "string"
       ? c["recommendation_status_rationale"].trim()
@@ -1218,7 +1324,7 @@ export function parsePass2Response(
       boundedScore = Math.max(1, Math.min(boundedScore, 5));
     }
 
-    criteria.push({
+    const criterion: AxisCriterionResult = {
       key: key as AxisCriterionResult["key"],
       // null sentinel for invalid scores; downstream aggregator filters these out
       score_0_10: (boundedScore as unknown) as number,
@@ -1228,39 +1334,52 @@ export function parsePass2Response(
       recommendation_status_rationale: recommendationStatusRationale,
       evidence,
       recommendations: normalizedRecommendations,
-    });
-  }
+    };
 
-  // ── ODP coverage check: weak criteria must either have genuine recommendations
-  // or an explicit governed status rationale. High-scoring empty criteria are allowed.
-  const manuscriptWordCount = opts?.manuscriptWordCount ?? 0;
-  if (manuscriptWordCount > 0) {
-    for (const criterion of criteria) {
-      const score = criterion.score_0_10;
-      if (score === null) continue;
-
-      const meaningful = criterion.recommendations.filter((r) =>
-        typeof r.action === "string" && r.action.trim().length > 0 &&
-        typeof r.anchor_snippet === "string" && r.anchor_snippet.trim().length > 0,
-      ).length;
-
-      const coverage = analyzeGovernedOpportunityCoverage({
-        score,
-        meaningfulOpportunityCount: meaningful,
-        recommendationStatus: criterion.recommendation_status,
-        recommendationStatusRationale: criterion.recommendation_status_rationale,
-      });
-
-      if (!coverage.covered) {
-        throw new Error(
-          `[Pass2] OPPORTUNITY_COVERAGE_MISSING: ${criterion.key} score=${score} ` +
-            `has ${meaningful} meaningful recommendation(s); issues=${coverage.issues.join(",")}.`,
-        );
-      }
+    const meaningfulRecommendationsAfterNormalization =
+      countMeaningfulOpportunityRecommendations(normalizedRecommendations);
+    if (
+      meaningfulRecommendationsAfterNormalization
+      !== meaningfulRecommendationsBeforeNormalization
+    ) {
+      criteria.push(reconcileRecommendationDispositionAfterMutation(criterion, {
+        previousMeaningfulCount: meaningfulRecommendationsBeforeNormalization,
+        mutationCause: "recommendation_integrity_quarantine",
+        emptyStatus: "gate_suppressed_no_safe_recommendation",
+        emptyRationale:
+          "No recommendation was retained because the proposed action was incomplete or not safely actionable.",
+      }));
+    } else {
+      criteria.push(criterion);
     }
   }
 
-  return {
+  // ── ODP coverage check: weak criteria must either have genuine recommendations
+  // or an explicit governed zero-recommendation disposition, regardless of score.
+  for (const criterion of criteria) {
+    const score = criterion.score_0_10;
+    if (score === null) continue;
+
+    const meaningful = countMeaningfulOpportunityRecommendations(
+      criterion.recommendations,
+    );
+
+    const coverage = analyzeGovernedOpportunityCoverage({
+      score,
+      meaningfulOpportunityCount: meaningful,
+      recommendationStatus: criterion.recommendation_status,
+      recommendationStatusRationale: criterion.recommendation_status_rationale,
+    });
+
+    if (!coverage.covered) {
+      throw new Error(
+        `[Pass2] OPPORTUNITY_COVERAGE_MISSING: ${criterion.key} score=${score} ` +
+          `has ${meaningful} meaningful recommendation(s); issues=${coverage.issues.join(",")}.`,
+      );
+    }
+  }
+
+  const output: SinglePassOutput = {
     pass: 2,
     axis: "editorial_literary",
     criteria,
@@ -1273,4 +1392,6 @@ export function parsePass2Response(
     temperature: PASS2_TEMPERATURE,
     generated_at: new Date().toISOString(),
   };
+  assertPass2OutputDispositionContract(output, "pass2_parser_output");
+  return output;
 }

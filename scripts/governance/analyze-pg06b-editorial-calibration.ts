@@ -115,12 +115,27 @@ function classifyCriterion(args: {
   if (args.issues.includes('invalid_recommendation_status')) return 'invalid_disposition_metadata';
   if (args.issues.includes('recommendation_status_cardinality_mismatch')) return 'status_cardinality_mismatch';
   if (args.issues.includes('missing_disposition_rationale')) return 'missing_disposition_rationale';
+  // PG-06B also reads pre-disposition-contract evidence. Preserve the strict
+  // current-write issue in `coverageIssues`, but classify these two proven
+  // historical shapes without inflating the propagation-gap count. Weak empty
+  // criteria remain structural gaps and are handled by the branch below.
+  const onlyMissingDisposition = args.issues.length === 1
+    && args.issues[0] === 'missing_governed_disposition';
+  if (args.recommendationCount > 0 && args.status === 'missing' && onlyMissingDisposition) {
+    return 'recommendation_present';
+  }
+  if (
+    args.recommendationCount === 0
+    && args.status === 'missing'
+    && args.score !== null
+    && args.score >= 8
+    && onlyMissingDisposition
+  ) {
+    return 'strong_criterion_empty_legacy_compatible';
+  }
   if (args.issues.includes('missing_governed_disposition')) return 'propagation_gap_missing_disposition';
   if (args.recommendationCount === 0 && args.status !== 'missing' && args.status !== 'invalid' && args.rationalePresent) {
     return 'valid_governed_suppression_requires_editorial_adjudication';
-  }
-  if (args.recommendationCount === 0 && args.status === 'missing' && args.score !== null && args.score >= 8) {
-    return 'strong_criterion_empty_legacy_compatible';
   }
   return 'not_scored_or_not_applicable';
 }

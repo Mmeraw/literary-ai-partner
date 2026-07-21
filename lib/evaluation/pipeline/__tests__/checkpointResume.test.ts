@@ -5,6 +5,7 @@
 import { describe, expect, jest, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SinglePassOutput, AxisCriterionResult } from "@/lib/evaluation/pipeline/types";
+import { PASS2_PROMPT_VERSION } from "@/lib/evaluation/pipeline/prompts/pass2-editorial";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -21,8 +22,12 @@ function makeSinglePassOutput(chunkIndex: number): SinglePassOutput {
       rationale: `rationale for ${key} chunk ${chunkIndex}`,
       evidence: [{ snippet: `"evidence for chunk ${chunkIndex}"` }],
       recommendations: [],
+      recommendation_status: "insufficient_evidence",
+      recommendation_status_rationale:
+        "The chunk supports diagnosis but not a separate evidence-backed intervention.",
     })),
     metadata: { chunk_index: chunkIndex },
+    prompt_version: PASS2_PROMPT_VERSION,
   } as unknown as SinglePassOutput;
 }
 
@@ -101,6 +106,47 @@ describe("Pass 2 checkpoint resume", () => {
     // _onChunkComplete should have been called for ALL chunks (cached + fresh).
     expect(onChunkComplete).toHaveBeenCalledTimes(3);
     expect(completedChunks).toContain(0);
+  });
+
+  test("regenerates a stale disposition-contract cache entry from the same source chunk", async () => {
+    const { runPass2 } = await import("@/lib/evaluation/pipeline/runPass2");
+    const { loadCanonicalRegistry } = await import("@/lib/governance/canonRegistry");
+    const registry = loadCanonicalRegistry();
+    const stale = {
+      ...makeSinglePassOutput(0),
+      prompt_version: "pass2-editorial-obsolete",
+    };
+    const chunkCache = new Map<number, SinglePassOutput>([[0, stale]]);
+    let openAiCallCount = 0;
+
+    const result = await runPass2({
+      manuscriptText: "full manuscript text ".repeat(50),
+      manuscriptChunks: [{
+        chunk_index: 0,
+        content: `canonical chunk source ${"x".repeat(200)}`,
+      }],
+      workType: "novel",
+      title: "Stale Cache Regeneration",
+      executionMode: "TRUSTED_PATH",
+      openaiApiKey: "test-key",
+      jobId: "test-job-stale-cache",
+      registry,
+      _chunkCache: chunkCache,
+      _createCompletion: async () => {
+        openAiCallCount += 1;
+        const output = makeSinglePassOutput(0);
+        return {
+          choices: [{
+            message: { role: "assistant", content: JSON.stringify({ criteria: output.criteria }) },
+            finish_reason: "stop",
+          }],
+        };
+      },
+    });
+
+    expect(openAiCallCount).toBe(1);
+    expect(result.prompt_version).toBe(PASS2_PROMPT_VERSION);
+    expect(result.criteria.every((criterion) => criterion.recommendation_status !== undefined)).toBe(true);
   });
 
   test("_onChunkComplete failure is fail-soft — does not fail the chunk", async () => {
@@ -203,11 +249,8 @@ describe("Perplexity checkpoint resume", () => {
     const chunkCache = new Map<number, AxisCriterionResult[]>();
     chunkCache.set(0, cachedResults);
 
-    let fetchCallCount = 0;
-    const fetchSpy: typeof fetch = (async () => {
-      fetchCallCount++;
-      return pplxSuccessResponse();
-    }) as unknown as typeof fetch;
+    const fetchSpy: typeof fetch = (async () =>
+      pplxSuccessResponse()) as unknown as typeof fetch;
 
     const completedChunks: number[] = [];
     const onChunkComplete = jest.fn(async (idx: number) => {
@@ -227,13 +270,6 @@ describe("Perplexity checkpoint resume", () => {
     });
 
     expect(result).not.toBeNull();
-    // Chunk 0 was cached. The pre-warm probe is 1 fetch call, the probe gate
-    // uses chunk 0 (which is cached, so no fetch). Chunks 1 and 2 are fresh.
-    // Total fetches = 1 (pre-warm) + 2 (fresh chunks) = 3.
-    // But the probe gate picks the first chunk — if it's cached, probe gate
-    // is skipped and only the sample/main batches run the fresh chunks.
-    // Fresh chunks 1 and 2 each need 1 fetch call.
-    // So: 1 (pre-warm) + 2 (fresh) = 3 max, but chunk 0 is NOT fetched.
     expect(completedChunks).toContain(0);
     expect(onChunkComplete).toHaveBeenCalled();
   });

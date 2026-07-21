@@ -1,15 +1,24 @@
 export {};
 
+import {
+  makeCurrentProcessorEvaluationResult,
+  type ProcessorEvaluationResultFixtureOverrides,
+} from "./test-fixtures/currentProcessorEvaluationResult";
+
 const runPipelineMock = jest.fn();
 const synthesisToEvaluationResultV2Mock = jest.fn();
 const runQualityGateV2Mock = jest.fn();
 const mapEvaluationResultV2ToGovernanceEnvelopeMock = jest.fn();
 const evaluateArtifactConsistencyGateV1Mock = jest.fn();
 const validateTemplateCompletenessMock = jest.fn();
+const mockCurrentProcessorEvaluationResult = (
+  value: ProcessorEvaluationResultFixtureOverrides,
+) => makeCurrentProcessorEvaluationResult(value);
 
 jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
   runPipeline: (...args: any[]) => runPipelineMock(...args),
-  synthesisToEvaluationResultV2: (...args: any[]) => synthesisToEvaluationResultV2Mock(...args),
+  synthesisToEvaluationResultV2: (...args: any[]) =>
+    mockCurrentProcessorEvaluationResult(synthesisToEvaluationResultV2Mock(...args)),
 }));
 
 jest.mock("@/lib/evaluation/pipeline/qualityGate", () => ({
@@ -199,7 +208,10 @@ const acceptedStoryLedgerContent = {
   story_layer: {},
 };
 
-function makeSupabaseStub(options?: { progress?: Record<string, unknown> }) {
+function makeSupabaseStub(options?: {
+  progress?: Record<string, unknown>;
+  existingEvaluationResultContent?: Record<string, unknown>;
+}) {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
   const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
   const providerCallUpserts: Array<Record<string, unknown>> = [];
@@ -318,7 +330,7 @@ function makeSupabaseStub(options?: { progress?: Record<string, unknown> }) {
 
       if (table === "evaluation_artifacts") {
         return {
-          select: () => {
+          select: (selectedColumns?: string) => {
             let artifactType = "";
             const query: any = {
               eq: (col?: string, val?: any) => {
@@ -353,6 +365,14 @@ function makeSupabaseStub(options?: { progress?: Record<string, unknown> }) {
                   };
                 }
                 if (artifactType === "evaluation_result_v2") {
+                  if (options?.existingEvaluationResultContent) {
+                    return selectedColumns === "job_id"
+                      ? { data: { job_id: queuedJob.id }, error: null }
+                      : {
+                          data: { content: options.existingEvaluationResultContent },
+                          error: null,
+                        };
+                  }
                   return { data: null, error: null };
                 }
                 return { data: { id: "artifact-canonical-pass" }, error: null };
@@ -602,6 +622,46 @@ describe("processEvaluationJob canonical pipeline integration", () => {
     expect(
       mixedFailure.rpcCalls.some((call) => call.fn === "persist_evaluation_v2_atomic"),
     ).toBe(false);
+  });
+
+  test("clears the WAVE lease-renewal interval when an existing evaluation artifact has no synthesis", async () => {
+    const supabaseStub = makeSupabaseStub({
+      existingEvaluationResultContent: {
+        schema_version: "evaluation_result_v2",
+        criteria: [],
+      },
+    });
+    createClientMock.mockReturnValue(supabaseStub);
+
+    const setIntervalSpy = jest.spyOn(global, "setInterval");
+    const clearIntervalSpy = jest.spyOn(global, "clearInterval");
+
+    try {
+      const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+      const result = await processEvaluationJob("job-canonical-pipeline");
+
+      expect(result).toEqual({ success: true });
+      expect(upsertEvaluationArtifactMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          artifactType: "wave_revision_plan_v1",
+          content: expect.objectContaining({
+            status: "failed",
+            reason_code: "PHASE3_SYNTHESIS_MISSING",
+          }),
+        }),
+      );
+
+      const waveLeaseCallIndex = setIntervalSpy.mock.calls.findIndex(
+        ([, intervalMs]) => intervalMs === 30_000,
+      );
+      expect(waveLeaseCallIndex).toBeGreaterThanOrEqual(0);
+      const waveLeaseHandle = setIntervalSpy.mock.results[waveLeaseCallIndex]?.value;
+      expect(waveLeaseHandle).toBeDefined();
+      expect(clearIntervalSpy).toHaveBeenCalledWith(waveLeaseHandle);
+    } finally {
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+    }
   });
 
   test("uses runPipeline as the evaluation engine and does not directly invoke OpenAI", async () => {
@@ -1193,7 +1253,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       pass4_governance: { ok: true },
     });
 
-    const baseEvaluationResult = {
+    const baseEvaluationResult = makeCurrentProcessorEvaluationResult({
       schema_version: "evaluation_result_v2",
       ids: {
         evaluation_run_id: "run-1",
@@ -1207,49 +1267,27 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         prompt_version: "test",
       },
       overview: {
-        verdict: "pass",
+        verdict: "conditional",
         overall_score_0_100: 82,
         one_paragraph_summary: "Summary.",
         top_3_strengths: ["Clear narrative throughline"],
         top_3_risks: ["Secondary character arc needs deepening"],
       },
-      criteria: new Array(13).fill(null).map((_, idx) => ({
-        key: [
-          "concept",
-          "narrativeDrive",
-          "character",
-          "voice",
-          "sceneConstruction",
-          "dialogue",
-          "theme",
-          "worldbuilding",
-          "pacing",
-          "proseControl",
-          "tone",
-          "narrativeClosure",
-          "marketability",
-        ][idx],
-        scorable: true,
-        status: "SCORABLE",
-        signal_present: true,
-        signal_strength: "SUFFICIENT",
-        confidence_band: "MEDIUM",
-        score_0_10: 7,
-        rationale: "Criterion is supported by manuscript evidence and synthesis.",
-        evidence: [{ snippet: "Evidence snippet with sufficient detail for quality gate checks." }],
-        recommendations: [],
-      })),
       recommendations: {
         quick_wins: [
           {
             action: "Sharpen scene transitions for momentum.",
             why: "Smoother transitions preserve narrative drive between beats.",
+            effort: "low",
+            impact: "medium",
           },
         ],
         strategic_revisions: [
           {
             action: "Strengthen secondary character arc continuity.",
             why: "Consistent subplot escalation reinforces emotional payoff.",
+            effort: "medium",
+            impact: "high",
           },
         ],
       },
@@ -1264,7 +1302,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         limitations: [],
         policy_family: "multi-pass-dual-axis",
       },
-    };
+    });
 
     synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
 
@@ -1383,9 +1421,9 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       "tone",
       "narrativeClosure",
       "marketability",
-    ];
+    ] as const;
 
-    const baseEvaluationResult = {
+    const baseEvaluationResult = makeCurrentProcessorEvaluationResult({
       schema_version: "evaluation_result_v2",
       ids: {
         evaluation_run_id: "run-cartel-babies-fail",
@@ -1399,7 +1437,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         prompt_version: "test",
       },
       overview: {
-        verdict: "revise",
+        verdict: "conditional",
         overall_score_0_100: 70,
         one_paragraph_summary: "The manuscript has strong voice and scene momentum.",
         top_3_strengths: ["voice"],
@@ -1438,7 +1476,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         limitations: [],
         policy_family: "multi-pass-dual-axis",
       },
-    };
+    });
 
     synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
 
@@ -1584,9 +1622,9 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       "tone",
       "narrativeClosure",
       "marketability",
-    ];
+    ] as const;
 
-    const baseEvaluationResult = {
+    const baseEvaluationResult = makeCurrentProcessorEvaluationResult({
       schema_version: "evaluation_result_v2",
       ids: {
         evaluation_run_id: "run-cartel-babies-pass",
@@ -1600,7 +1638,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         prompt_version: "test",
       },
       overview: {
-        verdict: "revise",
+        verdict: "conditional",
         overall_score_0_100: 70,
         one_paragraph_summary: "Theme remains the primary weakness and needs revision.",
         top_3_strengths: ["voice"],
@@ -1639,7 +1677,7 @@ describe("processEvaluationJob canonical pipeline integration", () => {
         limitations: [],
         policy_family: "multi-pass-dual-axis",
       },
-    };
+    });
 
     synthesisToEvaluationResultV2Mock.mockReturnValue(baseEvaluationResult);
 

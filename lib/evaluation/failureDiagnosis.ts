@@ -325,11 +325,17 @@ function templateViolationFieldPath(code: string, criterion?: string | null): st
     case 'INVALID_CONFIDENCE_LEVEL':
       return criterion ? `criteria.${criterion}.confidence_level` : 'criteria.confidence_level';
     case 'OPPORTUNITY_COVERAGE_MISSING':
-    case 'RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED':
-    case 'INVALID_HIGH_SCORE_RECOMMENDATIONS':
+    case 'RECOMMENDATION_STATUS_INVALID':
+    case 'RECOMMENDATION_STATUS_CARDINALITY_MISMATCH':
+    case 'RECOMMENDATION_STATUS_APPLICABILITY_MISMATCH':
+      return criterion ? `criteria.${criterion}.recommendation_status` : 'criteria.recommendation_status';
+    case 'RECOMMENDATION_STATUS_RATIONALE_MISSING':
+    case 'RECOMMENDATION_STATUS_RATIONALE_ORPHANED':
+      return criterion
+        ? `criteria.${criterion}.recommendation_status_rationale`
+        : 'criteria.recommendation_status_rationale';
+    case 'RECOMMENDATION_CONTENT_INVALID':
       return criterion ? `criteria.${criterion}.recommendations` : 'criteria.recommendations';
-    case 'MISSING_TOP_RECOMMENDATIONS':
-      return 'recommendations';
     default:
       return 'template';
   }
@@ -356,12 +362,19 @@ function templateViolationInvariantId(code: string): string {
     case 'INVALID_CONFIDENCE_LEVEL':
       return 'criterion_confidence_level_valid';
     case 'OPPORTUNITY_COVERAGE_MISSING':
-    case 'RECOMMENDATION_GUARD_EXPECTATION_PROFILE_SUPPRESSED':
       return 'criterion_opportunity_coverage_governed';
-    case 'INVALID_HIGH_SCORE_RECOMMENDATIONS':
+    case 'RECOMMENDATION_STATUS_INVALID':
+      return 'criterion_recommendation_status_known';
+    case 'RECOMMENDATION_STATUS_CARDINALITY_MISMATCH':
+      return 'criterion_recommendation_status_cardinality_consistent';
+    case 'RECOMMENDATION_STATUS_RATIONALE_MISSING':
+      return 'criterion_recommendation_status_rationale_present';
+    case 'RECOMMENDATION_STATUS_RATIONALE_ORPHANED':
+      return 'criterion_recommendation_status_rationale_owned';
+    case 'RECOMMENDATION_STATUS_APPLICABILITY_MISMATCH':
+      return 'criterion_recommendation_status_applicability_consistent';
+    case 'RECOMMENDATION_CONTENT_INVALID':
       return 'criterion_recommendation_content_valid';
-    case 'MISSING_TOP_RECOMMENDATIONS':
-      return 'top_recommendations_present_for_low_scores';
     default:
       return 'template_completeness_invariant';
   }

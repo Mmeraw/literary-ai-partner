@@ -1,8 +1,8 @@
-# FIPOC Kick Matrix Addendum — Short-Form Self-Correction Codes
+# FIPOC Kick Matrix Addendum — Short-Form and Criterion-Coverage Self-Correction Codes
 
-> **Status:** Active — shipped in commit 8ebbd66  
-> **Registry source:** `lib/evaluation/fipocRegistry.ts` — `KICK_MATRIX` (line ~1922)  
-> **Self-correction policy:** `lib/evaluation/pipeline/selfCorrectionPolicy.ts`  
+> **Status:** Active registry contract. The original three `SHORT_FORM_*` entries shipped in commit 8ebbd66; this version also governs `CRITERION_OPPORTUNITY_COVERAGE_INVALID`.
+> **Registry source:** `lib/evaluation/fipocRegistry.ts` — `KICK_MATRIX`
+> **Self-correction authorities:** `lib/evaluation/pipeline/selfCorrectionPolicy.ts`, `lib/governance/failureRecoveryPolicy.ts`, and the durable processor kick owner
 > **Parent FIPOC:** `docs/SIPOC_EVALUATION_PROCESS.md`  
 > **Full kickback mechanics:** `docs/SIPOC_SHORT_FORM_KICKBACK_ADDENDUM.md`
 
@@ -10,11 +10,11 @@
 
 ## Purpose
 
-Documents the three `SHORT_FORM_*` entries added to `KICK_MATRIX` in `fipocRegistry.ts`. These entries make the short-form self-correction system **machine-checkable**: test suites and the FIPOC registry test can verify that every kickable code has a registered entry, a stated retry limit, and a documented recovery action.
+Documents four bounded `KICK_MATRIX` entries in `fipocRegistry.ts`: one recommendation-disposition consistency code and the three original `SHORT_FORM_*` sanity codes. These entries make self-correction **machine-checkable**: tests and the FIPOC registry can verify that every kickable code has a registered entry, a stated retry limit, a durable owner, and a documented recovery or terminal action.
 
 ---
 
-## New KICK_MATRIX Entries
+## Registered KICK_MATRIX Entries Covered Here
 
 ### `CRITERION_OPPORTUNITY_COVERAGE_INVALID` — contradictory recommendation coverage
 
@@ -23,7 +23,7 @@ Documents the three `SHORT_FORM_*` entries added to `KICK_MATRIX` in `fipocRegis
 | `dirtyDataDetectedAt` | `S07_TEMPLATE_COMPLETENESS_GATE` |
 | `failure` | A scored criterion lacks governed opportunity coverage, or explicit recommendation status contradicts recommendation cardinality |
 | `kickBackTo` | `S07_PASS3` |
-| `redoAction` | Regenerate the affected criterion so recommendation cardinality, governed status, and required rationale agree |
+| `redoAction` | Requeue and rerun Pass 3 synthesis once using the affected-criterion diagnostics so recommendation cardinality, governed status, and required rationale agree |
 | `retryLimit` | 1 |
 | `ifRetryFails` | Fail closed; preserve diagnostics and block certification, persistence, and Revise projection |
 | `failureCode` | `CRITERION_OPPORTUNITY_COVERAGE_INVALID` |
@@ -32,6 +32,8 @@ Documents the three `SHORT_FORM_*` entries added to `KICK_MATRIX` in `fipocRegis
 This entry measures status/cardinality consistency rather than recommendation quantity. It does not require a minimum number of opportunities and does not authorize queue creation. Diagnostic confidence and evidence counts remain observational. One recommendation on another criterion cannot hide invalid coverage.
 
 Generic `TEMPLATE_COMPLETENESS_GATE_FAILED` remains terminal because structural/template defects may require a code or contract correction rather than model re-synthesis.
+
+The retry is owned by `evaluation_jobs.progress.kick_attempts.CRITERION_OPPORTUNITY_COVERAGE_INVALID`. It survives worker re-entry and replay. Exhaustion cannot fall through to the generic Phase 3 crash-retry path. A coverage violation mixed with any unrelated critical template violation remains `TEMPLATE_COMPLETENESS_GATE_FAILED`, receives no specialized kick, and blocks certification, persistence, and Revise projection.
 
 ### `SHORT_FORM_LONGFORM_ARTIFACT_LEAK`
 
@@ -92,7 +94,9 @@ Note: `"PHASE"` alone is intentionally excluded — it is common editorial prose
 
 ---
 
-## Self-Correction Policy for All Three Codes
+## Self-Correction Policies
+
+### Original three `SHORT_FORM_*` codes
 
 Source: `lib/evaluation/pipeline/selfCorrectionPolicy.ts` — `getGateFailurePolicy(errorCode)`
 
@@ -111,6 +115,10 @@ Source: `lib/evaluation/pipeline/selfCorrectionPolicy.ts` — `getGateFailurePol
 | `persist_quarantine_artifact` | `true` | Failing output written to `evaluation_artifacts` before kick |
 | `severity` | `"high"` | Surfaces in admin diagnostics as high-severity defect |
 | `user_safe_message` | Quality correction message | Safe to surface in author-facing error if needed |
+
+### `CRITERION_OPPORTUNITY_COVERAGE_INVALID`
+
+This code is registered as `rollback_to_certified_checkpoint` with a retry limit of 1 in `lib/governance/failureRecoveryPolicy.ts`, while `lib/evaluation/processor.ts` owns the concrete Phase 3 requeue and durable `progress.kick_attempts` update. The actual synthesis input authority remains the certified Pass 1/2 handoff. The failed Pass 3 output is diagnostic evidence only and never persistence or Revise authority.
 
 ---
 
@@ -131,11 +139,12 @@ For these codes: the gate fires, `blocking=true`, no kick path → terminal fail
 
 ## PROCESSOR.TS Integration: `KICK_ELIGIBLE_FAILURE_CODES`
 
-The three kickable codes are also registered in `processor.ts`:
+All four codes covered by this addendum are registered in `processor.ts`:
 
 ```typescript
 const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
   // ... existing codes ...
+  'CRITERION_OPPORTUNITY_COVERAGE_INVALID',
   'SHORT_FORM_LONGFORM_ARTIFACT_LEAK',
   'SHORT_FORM_INTERNAL_PROCESS_LEAK',
   'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM',
@@ -159,9 +168,10 @@ This invariant is enforced by the test: `persistEvaluationResultV2.short-form-ki
 
 ## Relation to Prior KICK_MATRIX
 
-These three entries extend the existing `KICK_MATRIX` in `fipocRegistry.ts`. They do not modify any existing entry. The matrix as of 2026-07-08 contains:
+The original three short-form entries extended the existing `KICK_MATRIX` in commit 8ebbd66. The current registry contract covered by this addendum contains:
 
 - All pre-existing handoff/ledger kick entries (unchanged)
+- `CRITERION_OPPORTUNITY_COVERAGE_INVALID`
 - `SHORT_FORM_LONGFORM_ARTIFACT_LEAK` (new)
 - `SHORT_FORM_INTERNAL_PROCESS_LEAK` (new)
 - `SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM` (new)

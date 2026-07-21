@@ -16,6 +16,7 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { SynthesisOutput } from "@/lib/evaluation/pipeline/types";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
 import type { SubmissionScopeProfile } from "@/lib/evaluation/pipeline/submissionScope";
+import { RecommendationDispositionContractError } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -69,6 +70,7 @@ function makeNaiveSynthesis(): SynthesisOutput {
           reader_effect: "clearer causal movement and stronger reader confidence",
         },
       ],
+      recommendation_status: "recommendation_provided" as const,
       confidence_score_0_100: 80,
       confidence_level: "moderate" as const,
       confidence_reasons: ["evidence_present"],
@@ -111,6 +113,22 @@ function makeNaiveSynthesis(): SynthesisOutput {
   };
 }
 
+function makeScopeAlignedSynthesis(naKeys: string[]): SynthesisOutput {
+  const synthesis = makeNaiveSynthesis();
+  synthesis.criteria = synthesis.criteria.map((criterion) =>
+    naKeys.includes(criterion.key)
+      ? {
+          ...criterion,
+          recommendations: [],
+          recommendation_status: "criterion_not_applicable" as const,
+          recommendation_status_rationale:
+            "The repository-owned criteria plan marks this criterion as outside the submitted scope.",
+        }
+      : criterion,
+  );
+  return synthesis;
+}
+
 const ECG_ENRICHMENT = {
   premise:
     "A prose excerpt at micro-excerpt scale provides sufficient craft evidence to evaluate voice, concept, and character, while narrative closure and marketability remain scope-constrained.",
@@ -130,9 +148,20 @@ const BASE_IDS = {
 // ---------------------------------------------------------------------------
 
 describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfile", () => {
-  it("micro_excerpt: narrativeClosure must be NOT_APPLICABLE even when Pass 3B scored it", () => {
-    const result = synthesisToEvaluationResultV2({
+  it("micro_excerpt: fails closed when an inapplicable criterion still carries recommendations", () => {
+    expect(() => synthesisToEvaluationResultV2({
       synthesis: makeNaiveSynthesis(),
+      ids: BASE_IDS,
+      llmEnrichment: ECG_ENRICHMENT,
+      scopeProfile: makeScopeProfile("micro_excerpt", 263),
+      sourceText: "Short lighthouse excerpt.",
+      manuscriptText: "Short lighthouse excerpt.",
+    })).toThrow(RecommendationDispositionContractError);
+  });
+
+  it("micro_excerpt: narrativeClosure remains NOT_APPLICABLE when producer cardinality is aligned", () => {
+    const result = synthesisToEvaluationResultV2({
+      synthesis: makeScopeAlignedSynthesis(["narrativeClosure", "marketability"]),
       ids: BASE_IDS,
       llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("micro_excerpt", 263),
@@ -148,9 +177,9 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
     expect(nc!.signal_present).toBe(false);
   });
 
-  it("micro_excerpt: marketability must be NOT_APPLICABLE even when Pass 3B scored it", () => {
+  it("micro_excerpt: marketability remains NOT_APPLICABLE when producer cardinality is aligned", () => {
     const result = synthesisToEvaluationResultV2({
-      synthesis: makeNaiveSynthesis(),
+      synthesis: makeScopeAlignedSynthesis(["narrativeClosure", "marketability"]),
       ids: BASE_IDS,
       llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("micro_excerpt", 263),
@@ -168,7 +197,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
 
   it("micro_excerpt: remaining 11 criteria remain SCORABLE", () => {
     const result = synthesisToEvaluationResultV2({
-      synthesis: makeNaiveSynthesis(),
+      synthesis: makeScopeAlignedSynthesis(["narrativeClosure", "marketability"]),
       ids: BASE_IDS,
       llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("micro_excerpt", 263),
@@ -221,7 +250,7 @@ describe("synthesisToEvaluationResultV2 — NA scope enforcement via scopeProfil
   it("explicit criteriaPlan takes precedence over scopeProfile", () => {
     // If caller passes criteriaPlan explicitly, it wins — scopeProfile is ignored for plan resolution.
     const result = synthesisToEvaluationResultV2({
-      synthesis: makeNaiveSynthesis(),
+      synthesis: makeScopeAlignedSynthesis(["narrativeClosure", "marketability"]),
       ids: BASE_IDS,
       llmEnrichment: ECG_ENRICHMENT,
       scopeProfile: makeScopeProfile("light_chapter", 1200), // would normally score all 13

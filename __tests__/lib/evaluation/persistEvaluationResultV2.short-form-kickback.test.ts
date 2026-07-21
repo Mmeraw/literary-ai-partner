@@ -69,6 +69,7 @@ function makeShortFormEvalResult(overrides: Partial<EvaluationResultV2> = {}): E
           expected_impact: `Improves ${key} execution and consistency.`,
         },
       ],
+      recommendation_status: "recommendation_provided" as const,
     })),
     recommendations: {
       quick_wins: [],

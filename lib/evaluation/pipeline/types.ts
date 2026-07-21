@@ -9,7 +9,10 @@
 
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
-import type { RecommendationStatus } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
+import type {
+  RecommendationStatus,
+  WithCurrentRecommendationDisposition,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 // ── Recommendation semantic vocabulary ───────────────────────────────────────
 
@@ -183,6 +186,18 @@ export type SinglePassOutput = {
   coverage_summary?: PassCoverageSummary;
 };
 
+/** Strict shape emitted by the current Pass 2 producer and checkpoint writer. */
+export type CurrentPass2Criterion = WithCurrentRecommendationDisposition<AxisCriterionResult>;
+
+export type CurrentPass2Output = Omit<
+  SinglePassOutput,
+  'pass' | 'axis' | 'criteria'
+> & {
+  pass: 2;
+  axis: 'editorial_literary';
+  criteria: CurrentPass2Criterion[];
+};
+
 // ── Pass 3: Synthesized criterion ────────────────────────────────────────────
 
 export type SynthesizedCriterion = {
@@ -312,13 +327,7 @@ export type SynthesizedCriterion = {
    * ODP-governed status when a criterion produces no recommendations.
    * Required for weak scores unless insufficient evidence or suppression is documented.
    */
-  recommendation_status?:
-    | "recommendation_provided"
-    | "no_recommendation_warranted"
-    | "genre_appropriate_no_revision_warranted"
-    | "criterion_not_applicable"
-    | "insufficient_evidence"
-    | "gate_suppressed_no_safe_recommendation";
+  recommendation_status?: RecommendationStatus;
   /** Concrete rationale for recommendation_status, ≥20 chars when status is set. */
   recommendation_status_rationale?: string;
 };
@@ -392,6 +401,13 @@ export type SynthesisOutput = {
    * Absent when Pass 3 did not produce a usable spine.
    */
   diagnostic_spine?: import("@/lib/evaluation/diagnosticSpine").DiagnosticSpine;
+};
+
+/** Strict shape emitted by the current Pass 3 producer. */
+export type CurrentSynthesizedCriterion = WithCurrentRecommendationDisposition<SynthesizedCriterion>;
+
+export type CurrentSynthesisOutput = Omit<SynthesisOutput, 'criteria'> & {
+  criteria: CurrentSynthesizedCriterion[];
 };
 
 // ── Pass 4: Quality gate result ──────────────────────────────────────────────
@@ -702,7 +718,7 @@ export type PipelineResultRouting = {
 export type PipelineResult =
   | {
       ok: true;
-      synthesis: SynthesisOutput;
+      synthesis: CurrentSynthesisOutput;
       quality_gate: QualityGateResult;
       /** Populated when perplexityApiKey provided and cross-check succeeded */
       cross_check?: import("./perplexityCrossCheck").CrossCheckOutput;
@@ -735,7 +751,7 @@ export type PipelineResult =
        * regeneration so pass1_findings / pass2_findings carry real provenance.
        */
       pass1Output?: SinglePassOutput | null;
-      pass2Output?: SinglePassOutput | null;
+      pass2Output?: CurrentPass2Output | null;
       /** Recovery metadata: retry counts and fallback usage per pass. */
       recovery?: {
         retry_counts?: Partial<Record<"pass1" | "pass2" | "pass3", number>>;

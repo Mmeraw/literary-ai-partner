@@ -62,6 +62,7 @@ function makeValidEvaluationResultV2(): EvaluationResultV2 {
           expected_impact: `Improves ${key} clarity and execution consistency.`,
         },
       ],
+      recommendation_status: "recommendation_provided" as const,
     })),
     recommendations: {
       quick_wins: [],
@@ -158,6 +159,52 @@ describe("persistEvaluationResultV2 Step 1 boundary gate", () => {
         completedUnits: 4,
       }),
     ).rejects.toThrow(/Refusing to persist incomplete evaluation_result_v2 payload/i);
+
+    expect(supabase.rpcCalls).toHaveLength(0);
+    expect(supabase.evaluationJobUpdates).toHaveLength(0);
+  });
+
+  test("missing recommendation disposition is rejected before any persistence write", async () => {
+    const supabase = makeSupabaseStub();
+    const invalid = makeValidEvaluationResultV2();
+    delete invalid.criteria[0].recommendation_status;
+
+    await expect(
+      persistEvaluationResultV2({
+        supabase: supabase as unknown as SupabaseClient,
+        jobId: "job-disposition-missing",
+        manuscriptId: 101,
+        evaluationResult: invalid,
+        sourceHash: "sha256:disposition-missing",
+        progressSnapshot: { phase: "phase_3", phase_status: "running" },
+        totalUnits: 5,
+        completedUnits: 4,
+      }),
+    ).rejects.toThrow(/recommendation_disposition\[missing_governed_disposition\]/i);
+
+    expect(supabase.rpcCalls).toHaveLength(0);
+    expect(supabase.evaluationJobUpdates).toHaveLength(0);
+  });
+
+  test("contradictory recommendation disposition is rejected before any persistence write", async () => {
+    const supabase = makeSupabaseStub();
+    const invalid = makeValidEvaluationResultV2();
+    invalid.criteria[0].recommendation_status = "insufficient_evidence";
+    invalid.criteria[0].recommendation_status_rationale =
+      "The fixture claims insufficient evidence despite retaining a concrete recommendation.";
+
+    await expect(
+      persistEvaluationResultV2({
+        supabase: supabase as unknown as SupabaseClient,
+        jobId: "job-disposition-contradictory",
+        manuscriptId: 101,
+        evaluationResult: invalid,
+        sourceHash: "sha256:disposition-contradictory",
+        progressSnapshot: { phase: "phase_3", phase_status: "running" },
+        totalUnits: 5,
+        completedUnits: 4,
+      }),
+    ).rejects.toThrow(/recommendation_status_cardinality_mismatch/i);
 
     expect(supabase.rpcCalls).toHaveLength(0);
     expect(supabase.evaluationJobUpdates).toHaveLength(0);

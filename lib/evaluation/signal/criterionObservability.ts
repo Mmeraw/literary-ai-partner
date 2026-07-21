@@ -9,11 +9,21 @@
 import type {
   CriterionTechnicalDefect,
   CriterionStatus,
+  CurrentEvaluationCriterionV2,
   EvaluationCriterionV2,
   InsufficientSignalReason,
   SignalStrength,
 } from "@/schemas/evaluation-result-v2";
 import type { CriterionKey } from "@/schemas/criteria-keys";
+import {
+  analyzeGovernedOpportunityCoverage,
+  countMeaningfulOpportunityRecommendations,
+  normalizeRecommendationStatusInput,
+  RecommendationDispositionContractError,
+  reconcileRecommendationDispositionAfterMutation,
+  requireCurrentRecommendationDisposition,
+  type RecommendationStatus,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import { computeCriterionConfidence } from "@/lib/evaluation/pipeline/criterionConfidence";
 import {
   confidenceCapToMaxScore,
@@ -63,13 +73,7 @@ export type RawCriterionInput = {
   }>;
   technical_defects?: CriterionTechnicalDefect[];
   insufficient_signal_reason?: InsufficientSignalReason;
-  recommendation_status?:
-    | "recommendation_provided"
-    | "no_recommendation_warranted"
-    | "genre_appropriate_no_revision_warranted"
-    | "criterion_not_applicable"
-    | "insufficient_evidence"
-    | "gate_suppressed_no_safe_recommendation";
+  recommendation_status?: RecommendationStatus;
   recommendation_status_rationale?: string;
 };
 
@@ -313,14 +317,15 @@ export function normalizeCriterion(
     sentenceCount?: number;
     sourceText?: string;
   },
-): EvaluationCriterionV2 {
+): CurrentEvaluationCriterionV2 {
   const evidence = dedupeAnchors(raw.evidence ?? []).map((e) => ({
     snippet: e.snippet,
     location: e.location,
     note: e.note,
   }));
 
-  const recommendations = (raw.recommendations ?? [])
+  const rawRecommendations = raw.recommendations ?? [];
+  let recommendations = rawRecommendations
     .filter((r) => (r.action ?? "").trim().length > 0)
     .map((r) => ({
       priority: (r.priority ?? "medium") as "high" | "medium" | "low",
@@ -343,6 +348,26 @@ export function normalizeCriterion(
       ...(r.strategic_lever ? { strategic_lever: r.strategic_lever } : {}),
       ...(r.revision_granularity ? { revision_granularity: r.revision_granularity } : {}),
     }));
+
+  let recommendationStatus = raw.recommendation_status;
+  let recommendationStatusRationale = raw.recommendation_status_rationale;
+  if (recommendations.length !== rawRecommendations.length) {
+    const reconciled = reconcileRecommendationDispositionAfterMutation({
+      key: raw.key,
+      recommendations,
+      recommendation_status: recommendationStatus,
+      recommendation_status_rationale: recommendationStatusRationale,
+    }, {
+      previousMeaningfulCount: countMeaningfulOpportunityRecommendations(rawRecommendations),
+      mutationCause: "criterion_observability_filter",
+      emptyStatus: "gate_suppressed_no_safe_recommendation",
+      emptyRationale:
+        "The criterion-normalization boundary removed every proposed intervention because none retained a structurally valid author-facing action.",
+    });
+    recommendations = reconciled.recommendations as typeof recommendations;
+    recommendationStatus = reconciled.recommendation_status;
+    recommendationStatusRationale = reconciled.recommendation_status_rationale;
+  }
 
   const technical_defects = Array.isArray(raw.technical_defects)
     ? raw.technical_defects
@@ -394,7 +419,27 @@ export function normalizeCriterion(
 
   // GOVERNED NOT_APPLICABLE path (model must not invent this)
   if (opts?.criteriaPlan?.[raw.key] === "NA") {
-    return {
+    const normalizedStatus = normalizeRecommendationStatusInput(recommendationStatus);
+    const conflictingStatus = normalizedStatus.kind === "invalid"
+      || (normalizedStatus.kind === "valid" && normalizedStatus.value !== "criterion_not_applicable");
+    if (recommendations.length > 0 || conflictingStatus) {
+      throw new RecommendationDispositionContractError(
+        `Criterion normalization received recommendations or conflicting disposition for inapplicable criterion ${raw.key}.`,
+        {
+          criterion: raw.key,
+          field_path: `criteria.${raw.key}.recommendation_status`,
+          invariant_id: "criterion_not_applicable_has_no_recommendations",
+          issues: ["criterion_applicability_mismatch"],
+          recommendation_count: recommendations.length,
+          received_status: normalizedStatus.kind === "valid"
+            ? normalizedStatus.value
+            : normalizedStatus.kind === "invalid"
+              ? normalizedStatus.value
+              : null,
+        },
+      );
+    }
+    return requireCurrentRecommendationDisposition({
       key: raw.key,
       scorable: false,
       status: "NOT_APPLICABLE",
@@ -410,13 +455,38 @@ export function normalizeCriterion(
       gap_summary: raw.gap_summary,
       rationale,
       evidence,
-      recommendations,
-      recommendation_status: raw.recommendation_status,
-      recommendation_status_rationale: raw.recommendation_status_rationale,
+      recommendations: [],
+      recommendation_status: "criterion_not_applicable",
+      recommendation_status_rationale:
+        "The repository-owned criteria plan marks this criterion as not applicable to the submitted manuscript scope.",
       technical_defects,
-    };
+    }, {
+      score: null,
+      scorable: false,
+      criterionStatus: "NOT_APPLICABLE",
+      context: `criterion_normalization:${raw.key}:not_applicable`,
+    });
   }
   const hasNumericScore = typeof raw.score_0_10 === "number" && Number.isFinite(raw.score_0_10);
+  const dispositionAnalysis = analyzeGovernedOpportunityCoverage({
+    score: hasNumericScore ? raw.score_0_10 as number : null,
+    meaningfulOpportunityCount: countMeaningfulOpportunityRecommendations(recommendations),
+    recommendationStatus,
+    recommendationStatusRationale,
+    scorable: hasNumericScore,
+    criterionStatus: hasNumericScore ? "SCORABLE" : undefined,
+  });
+  if (!dispositionAnalysis.covered) {
+    throw new RecommendationDispositionContractError(
+      `Criterion normalization received invalid recommendation disposition for ${raw.key}.`,
+      {
+        criterion: raw.key,
+        field_path: `criteria.${raw.key}.recommendation_status`,
+        invariant_id: "criterion_recommendation_status_cardinality_consistent",
+        issues: dispositionAnalysis.issues,
+      },
+    );
+  }
 
   // Scorability semantics: thin support lowers confidence, it does not erase a scorable score.
   if (hasNumericScore) {
@@ -424,7 +494,7 @@ export function normalizeCriterion(
     const normalizedSignal: "SUFFICIENT" | "STRONG" =
       signalStrength === "STRONG" ? "STRONG" : "SUFFICIENT";
 
-    return {
+    return requireCurrentRecommendationDisposition({
       key: raw.key,
       scorable: true,
       status: "SCORABLE",
@@ -444,16 +514,21 @@ export function normalizeCriterion(
       rationale,
       evidence,
       recommendations,
-      recommendation_status: raw.recommendation_status,
-      recommendation_status_rationale: raw.recommendation_status_rationale,
+      recommendation_status: recommendationStatus,
+      recommendation_status_rationale: recommendationStatusRationale,
       technical_defects,
-    };
+    }, {
+      score: rounded,
+      scorable: true,
+      criterionStatus: "SCORABLE",
+      context: `criterion_normalization:${raw.key}:scorable`,
+    });
   }
 
   const status: "NO_SIGNAL" | "INSUFFICIENT_SIGNAL" =
     signalStrength === "NONE" ? "NO_SIGNAL" : "INSUFFICIENT_SIGNAL";
 
-  return {
+  return requireCurrentRecommendationDisposition({
     key: raw.key,
     scorable: false,
     status,
@@ -470,11 +545,16 @@ export function normalizeCriterion(
     rationale,
     evidence,
     recommendations,
-    recommendation_status: raw.recommendation_status,
-    recommendation_status_rationale: raw.recommendation_status_rationale,
+    recommendation_status: recommendationStatus,
+    recommendation_status_rationale: recommendationStatusRationale,
     technical_defects,
     insufficient_signal_reason: buildStructuredReason(status, raw.insufficient_signal_reason),
-  };
+  }, {
+    score: null,
+    scorable: false,
+    criterionStatus: status,
+    context: `criterion_normalization:${raw.key}:non_scorable`,
+  });
 }
 
 export function isCriterionComplete(c: EvaluationCriterionV2): boolean {

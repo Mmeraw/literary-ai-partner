@@ -60,6 +60,7 @@ function makeValidShortFormEvaluationResult(): EvaluationResultV2 {
           expected_impact: `Improves ${key} clarity and execution consistency.`,
         },
       ],
+      recommendation_status: "recommendation_provided" as const,
     })),
     recommendations: {
       quick_wins: [],

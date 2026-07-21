@@ -179,12 +179,12 @@ describe("validatePass2OutputCompleteness", () => {
     expect(result.violations.some((v) => v.code === "MISSING_SCORE")).toBe(true);
   });
 
-  it("warns when recommendations are empty", () => {
+  it("does not infer editorial meaning from an empty recommendation collection", () => {
     const pass2 = buildValidPass2Output();
     pass2.criteria[0].recommendations = [];
     const result = validatePass2OutputCompleteness(pass2);
-    expect(result.ok).toBe(true); // Non-critical
-    expect(result.violations.some((v) => v.code === "NO_RECOMMENDATIONS")).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.violations).toEqual([]);
   });
 
   it("warns when recommendation action is too short", () => {
@@ -253,13 +253,13 @@ describe("validatePass3OutputCompleteness", () => {
     expect(result.violations.some((v) => v.code === "EMPTY_RATIONALE")).toBe(true);
   });
 
-  it("warns when recommendations empty for low-scoring criterion", () => {
+  it("does not use score as authority for an empty recommendation collection", () => {
     const pass3 = buildValidPass3Output();
     pass3.criteria[0].recommendations = [];
     (pass3.criteria[0] as any).final_score_0_10 = 5;
     const result = validatePass3OutputCompleteness(pass3);
-    expect(result.ok).toBe(true); // Non-critical
-    expect(result.violations.some((v) => v.code === "NO_RECOMMENDATIONS")).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.violations.some((v) => v.criterion_key === pass3.criteria[0].key)).toBe(false);
   });
 
   it("does NOT warn about missing recommendations for high-scoring criterion (9-10)", () => {

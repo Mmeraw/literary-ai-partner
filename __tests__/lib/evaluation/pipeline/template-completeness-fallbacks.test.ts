@@ -8,6 +8,7 @@ import {
   selectTemplateCompletenessFailureCode,
   validateTemplateCompleteness,
 } from "@/lib/evaluation/pipeline/templateCompletenessGate";
+import { RecommendationDispositionContractError } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 function makeTemplateReadySynthesis(): SynthesisOutput {
   return {
@@ -26,14 +27,15 @@ function makeTemplateReadySynthesis(): SynthesisOutput {
       recommendations: [{
         action: `Strengthen the ${key} dimension by refining the underlying craft mechanics for deeper reader engagement.`,
         priority: "Optional" as const,
-        evidence_anchor: `"Quoted anchor for ${key}" establishes concrete manuscript evidence.`,
-        reader_consequence: "Deepens the reader's sense of consequence and emotional investment.",
+        anchor_snippet: `"Quoted anchor for ${key}" establishes concrete manuscript evidence.`,
+        expected_impact: "Deepens the reader's sense of consequence and emotional investment.",
       }, {
         action: `Elevate the ${key} criterion further by tightening the precision of scene-level execution across the middle act.`,
         priority: "Optional" as const,
-        evidence_anchor: `"Second anchor for ${key}" provides additional evidence grounding.`,
-        reader_consequence: "Sharpens the reader's experience of craft intentionality.",
+        anchor_snippet: `"Second anchor for ${key}" provides additional evidence grounding.`,
+        expected_impact: "Sharpens the reader's experience of craft intentionality.",
       }],
+      recommendation_status: "recommendation_provided" as const,
       confidence_score_0_100: 86,
       confidence_level: "high" as const,
       confidence_reasons: ["evidence_density_strong"],
@@ -208,7 +210,7 @@ describe("synthesisToEvaluationResultV2 template completeness fallbacks", () => 
     expect(gate.violations.filter((v) => v.code === "INCOMPLETE_TOP_RISKS")).toHaveLength(0);
   });
 
-  test("preserves and rejects contradictory recommendation status through the real synthesis adapter", () => {
+  test("rejects contradictory recommendation status at both synthesis and certification boundaries", () => {
     const synthesis = makeTemplateReadySynthesis();
     const firstAnchor = "A complete scene-level evidence anchor from the submitted manuscript.";
     const secondAnchor = "A second complete evidence anchor supporting the same weak criterion.";
@@ -230,7 +232,7 @@ describe("synthesisToEvaluationResultV2 template completeness fallbacks", () => 
         : criterion,
     );
 
-    const result = synthesisToEvaluationResultV2({
+    expect(() => synthesisToEvaluationResultV2({
       synthesis,
       ids: {
         evaluation_run_id: "run-contradictory-suppression",
@@ -242,9 +244,27 @@ describe("synthesisToEvaluationResultV2 template completeness fallbacks", () => 
       sourceText: `${firstAnchor} ${secondAnchor} ${"word ".repeat(3872)}`,
       title: "Contradictory Suppression Regression",
       llmEnrichment: { trigger_warnings: [] },
-    });
+    })).toThrow(RecommendationDispositionContractError);
 
+    const result = synthesisToEvaluationResultV2({
+      synthesis: makeTemplateReadySynthesis(),
+      ids: {
+        evaluation_run_id: "run-downstream-contradiction",
+        job_id: "job-downstream-contradiction",
+        manuscript_id: 102,
+        user_id: "00000000-0000-0000-0000-000000000102",
+      },
+      manuscriptText: `${firstAnchor} ${secondAnchor} ${"word ".repeat(3872)}`,
+      sourceText: `${firstAnchor} ${secondAnchor} ${"word ".repeat(3872)}`,
+      title: "Downstream Contradiction Regression",
+      llmEnrichment: { trigger_warnings: [] },
+    });
     const scene = result.criteria.find((criterion) => criterion.key === "sceneConstruction");
+    expect(scene).toBeDefined();
+    scene!.recommendations = [];
+    scene!.recommendation_status = "recommendation_provided";
+    scene!.recommendation_status_rationale =
+      "This explicit status contradicts the empty recommendation collection.";
     expect(scene?.recommendation_status).toBe("recommendation_provided");
     expect(scene?.recommendations).toHaveLength(0);
     const gate = validateTemplateCompleteness(result);

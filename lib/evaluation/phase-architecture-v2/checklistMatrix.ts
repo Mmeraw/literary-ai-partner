@@ -270,7 +270,8 @@ export const CHECKLIST_MATRIX: readonly ChecklistMatrixRow[] = [
   // ── Phase 2 — Pass 1 + Pass 2 (Parallel Criteria Analysis) ──────────
   // SIPOC: S05_PASS1, S06_PASS2, S08_ER2_NORMALIZATION
   // Code: runPass1() + runPass2() via Promise.allSettled
-  //       aggregateChunkResults() + recoverHandoffRecommendationsFromChunkCache()
+  //       aggregatePass2ChunkResults() with lossless disposition propagation;
+  //       Phase 3 consumes the certified handoff verbatim (no cache backfill)
   //       in processor.ts:8604-9300+
   // Input: accepted_story_ledger_v1 (governance authority)
   // Outputs: pass1_chunk_cache_v1, pass2_chunk_cache_v1, pass12_handoff_v1

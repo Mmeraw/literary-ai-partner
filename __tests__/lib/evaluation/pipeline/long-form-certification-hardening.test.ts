@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
-import type { SynthesisOutput } from "@/lib/evaluation/pipeline/types";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
 import type { SubmissionScopeProfile } from "@/lib/evaluation/pipeline/submissionScope";
+import { makeCurrentProcessorSynthesisOutput } from "@/__tests__/lib/evaluation/test-fixtures/currentProcessorSynthesisOutput";
 
 function makeFullManuscriptScopeProfile(): SubmissionScopeProfile {
   return {
@@ -15,8 +15,8 @@ function makeFullManuscriptScopeProfile(): SubmissionScopeProfile {
   };
 }
 
-function makeSampledLongFormSynthesis(): SynthesisOutput {
-  return {
+function makeSampledLongFormSynthesis() {
+  return makeCurrentProcessorSynthesisOutput({
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
       craft_score: 7,
@@ -28,21 +28,6 @@ function makeSampledLongFormSynthesis(): SynthesisOutput {
       decision_points: ["A visible turn lands in the sampled packet."],
       consequence_status: "landed" as const,
       evidence: [{ snippet: `Sampled evidence for ${key}.` }],
-      recommendations: [
-        {
-          priority: "medium" as const,
-          action: `Revise ${key} in the sampled section with a more concrete beat.`,
-          expected_impact: `Improves ${key} clarity in the analyzed sample.`,
-          anchor_snippet: `Anchor for ${key}.`,
-          source_pass: 3 as const,
-          issue_family: "scene_structure" as const,
-          strategic_lever: "scene_goal_clarity" as const,
-          revision_granularity: "scene" as const,
-          mechanism: "sampled reasoning only",
-          specific_fix: "add a concrete beat",
-          reader_effect: "clearer local consequence",
-        },
-      ],
       confidence_score_0_100: 72,
       confidence_level: "moderate" as const,
       confidence_reasons: ["sampled_packet_support"],
@@ -70,7 +55,7 @@ function makeSampledLongFormSynthesis(): SynthesisOutput {
       analyzedWords: 6_263,
       strategy: "sampled_beginning_middle_end",
     },
-  };
+  });
 }
 
 describe("synthesisToEvaluationResultV2 long-form certification hardening", () => {

@@ -15,6 +15,7 @@ import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synth
 import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
+import { RecommendationDispositionContractError } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,13 @@ function makePassOutput(pass: 1 | 2, axis: string): SinglePassOutput {
       rationale: `Analysis of ${key} for pass ${pass}.`,
       evidence: [{ snippet: "The river moved slowly." }],
       recommendations: [],
+      ...(pass === 2
+        ? {
+            recommendation_status: "insufficient_evidence" as const,
+            recommendation_status_rationale:
+              "The pass supports diagnosis but not a separate evidence-backed intervention.",
+          }
+        : {}),
     })),
     model: "gpt-4o-mini",
     prompt_version: pass === 1 ? "pass1-v1" : "pass2-v1",
@@ -83,6 +91,8 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
             revision_granularity: "scene",
           },
         ],
+        recommendation_status: "recommendation_provided",
+        recommendation_status_rationale: undefined as string | undefined,
       };
     }),
     overall: {
@@ -474,7 +484,7 @@ describe("parsePass3Response", () => {
 
   // ── Opportunity Discovery Policy coverage tests ──────────────────────────────
 
-  it("ODP: low-scoring criterion with no recs and no governed status is not backfilled", () => {
+  it("ODP: low-scoring criterion with no recs and no governed status fails at the producer boundary", () => {
     const fixture = makePass3Fixture();
     fixture.criteria[0] = {
       ...fixture.criteria[0],
@@ -486,17 +496,9 @@ describe("parsePass3Response", () => {
       final_rationale: "The concept fails to establish a clear thematic premise by the first act, leaving the central dramatic question implicit.",
     };
 
-    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
-
-    // No deterministic backfill is performed to meet obsolete floors.
-    expect(result.criteria[0].recommendations).toHaveLength(0);
-
-    // The missing coverage surfaces as a template-completeness defect.
-    const gate = validateTemplateCompleteness(toEvaluationResultLike(result));
-    const missing = gate.violations.filter(
-      (v) => v.code === "OPPORTUNITY_COVERAGE_MISSING" && v.criterion === "concept",
+    expect(() => parsePass3Response(JSON.stringify(fixture), pass1, pass2)).toThrow(
+      RecommendationDispositionContractError,
     );
-    expect(missing.length).toBeGreaterThan(0);
   });
 
   it("ODP: weak criterion with governed insufficient_evidence status passes without recs", () => {
@@ -523,6 +525,53 @@ describe("parsePass3Response", () => {
       (v) => v.code === "OPPORTUNITY_COVERAGE_MISSING" && v.criterion === "narrativeDrive",
     );
     expect(missing).toHaveLength(0);
+  });
+
+  it("ODP: trims a governed disposition token at the Pass 3 producer boundary", () => {
+    const fixture = makePass3Fixture();
+    (fixture.criteria[1] as Record<string, unknown>) = {
+      ...fixture.criteria[1],
+      craft_score: 6,
+      editorial_score: 6,
+      final_score_0_10: 6,
+      recommendations: [],
+      recommendation_status: "  insufficient_evidence\r\n",
+      recommendation_status_rationale:
+        "  The passage supports diagnosis but cannot support a separate safe intervention.  ",
+      evidence: [{ snippet: "Zimeon opened the door and stared at the empty room." }],
+    };
+
+    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    expect(result.criteria[1]).toEqual(expect.objectContaining({
+      recommendation_status: "insufficient_evidence",
+      recommendation_status_rationale:
+        "The passage supports diagnosis but cannot support a separate safe intervention.",
+      recommendations: [],
+    }));
+  });
+
+  it("ODP: rejects an unknown explicit disposition with the narrow recovery code", () => {
+    const fixture = makePass3Fixture();
+    (fixture.criteria[1] as Record<string, unknown>) = {
+      ...fixture.criteria[1],
+      recommendations: [],
+      recommendation_status: " future_unregistered_status ",
+      recommendation_status_rationale:
+        "A future status cannot silently inherit current recommendation authority.",
+    };
+
+    let thrown: unknown;
+    try {
+      parsePass3Response(JSON.stringify(fixture), pass1, pass2);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(RecommendationDispositionContractError);
+    expect(thrown).toMatchObject({
+      failureCode: "CRITERION_OPPORTUNITY_COVERAGE_INVALID",
+      details: expect.objectContaining({ criterion: "narrativeDrive" }),
+    });
   });
 
   it("ODP: high-scoring criterion with zero recs is allowed and not backfilled", () => {
@@ -560,6 +609,49 @@ describe("parsePass3Response", () => {
     expect(dialogueRecs.length).toBeLessThanOrEqual(1);
   });
 
+  it("ODP: existing score-derived priority normalization and short-form cap retain the same first record", () => {
+    const fixture = makePass3Fixture();
+    const base = fixture.criteria[0].recommendations[0];
+    fixture.criteria[0].recommendations = [
+      {
+        ...base,
+        priority: "low",
+        action: "Replace the low-priority concept summary with one concrete causal beat at the opening turn.",
+        anchor_snippet: "Low-priority concept anchor.",
+        strategic_lever: "market_signal_clarity",
+      },
+      {
+        ...base,
+        priority: "high",
+        action: "Replace the high-priority concept summary with one concrete causal beat at the opening turn.",
+        anchor_snippet: "High-priority concept anchor.",
+        strategic_lever: "tension_escalation",
+      },
+      {
+        ...base,
+        priority: "medium",
+        action: "Replace the medium-priority concept summary with one concrete causal beat at the opening turn.",
+        anchor_snippet: "Medium-priority concept anchor.",
+        strategic_lever: "scene_goal_clarity",
+      },
+    ];
+
+    const result = parsePass3Response(
+      JSON.stringify(fixture),
+      pass1,
+      pass2,
+      "o3",
+      "word ".repeat(200),
+    );
+    const concept = result.criteria.find((criterion) => criterion.key === "concept");
+
+    expect(concept?.recommendations.map((recommendation) => recommendation.action)).toEqual([
+      "Replace the low-priority concept summary with one concrete causal beat at the opening turn.",
+    ]);
+    expect(concept?.recommendations[0]?.priority).toBe("medium");
+    expect(concept?.recommendation_status).toBe("recommendation_provided");
+  });
+
   it("ODP: criterion with no evidence anchors does not receive fabricated recs", () => {
     const fixture = makePass3Fixture();
     fixture.criteria[4] = {
@@ -568,6 +660,9 @@ describe("parsePass3Response", () => {
       editorial_score: 4,
       final_score_0_10: 4,
       recommendations: [],
+      recommendation_status: "insufficient_evidence",
+      recommendation_status_rationale:
+        "Without a manuscript evidence anchor, the system cannot authorize a specific intervention.",
       evidence: [],
       final_rationale: "",
     };
@@ -950,7 +1045,7 @@ describe("consequence tracking contract", () => {
   // legitimately report zero recommendations when the LLM cannot find evidence.
   // No deterministic density backfill is performed.
 
-  it("ODP: governance-suppressed narrativeClosure (score=7) does not get backfilled", () => {
+  it("ODP: an implicit governance suppression is rejected rather than backfilled", () => {
     const fixture = makePass3Fixture();
     const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
     (fixture.criteria[ncIdx] as Record<string, unknown>) = {
@@ -966,10 +1061,9 @@ describe("consequence tracking contract", () => {
       ],
     };
 
-    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
-    const nc = result.criteria.find((c) => c.key === "narrativeClosure");
-    expect(nc).toBeDefined();
-    expect(nc!.recommendations).toHaveLength(0);
+    expect(() => parsePass3Response(JSON.stringify(fixture), pass1, pass2)).toThrow(
+      RecommendationDispositionContractError,
+    );
   });
 
   it("ODP: narrativeClosure passes template completeness gate with governed status", () => {
@@ -1008,7 +1102,7 @@ describe("consequence tracking contract", () => {
     expect(coverageViolations).toHaveLength(0);
   });
 
-  it("ODP: zero-rec narrativeClosure (score=7) without status emits coverage defect", () => {
+  it("ODP: zero-rec narrativeClosure without status fails before downstream projection", () => {
     const fixture = makePass3Fixture();
     const ncIdx = fixture.criteria.findIndex((c: { key: string }) => c.key === "narrativeClosure");
     fixture.criteria[ncIdx] = {
@@ -1017,15 +1111,8 @@ describe("consequence tracking contract", () => {
       recommendations: [],
     };
 
-    const result = parsePass3Response(JSON.stringify(fixture), pass1, pass2);
-    const nc = result.criteria.find((c) => c.key === "narrativeClosure");
-    expect(nc).toBeDefined();
-    expect(nc!.recommendations).toHaveLength(0);
-
-    const gate = validateTemplateCompleteness(toEvaluationResultLike(result));
-    const coverageViolation = gate.violations.find(
-      (v) => v.code === "OPPORTUNITY_COVERAGE_MISSING" && v.criterion === "narrativeClosure",
+    expect(() => parsePass3Response(JSON.stringify(fixture), pass1, pass2)).toThrow(
+      RecommendationDispositionContractError,
     );
-    expect(coverageViolation).toBeDefined();
   });
 });

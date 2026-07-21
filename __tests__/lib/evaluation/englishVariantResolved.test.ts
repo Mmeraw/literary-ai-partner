@@ -15,30 +15,13 @@
  */
 import { beforeAll, afterAll } from "@jest/globals";
 import { synthesisToEvaluationResultV2 } from "@/lib/evaluation/pipeline/runPipeline";
-import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
-import type { SynthesisOutput, SynthesizedCriterion } from "@/lib/evaluation/pipeline/types";
+import type { CurrentSynthesisOutput } from "@/lib/evaluation/pipeline/types";
+import { makeCurrentProcessorSynthesisOutput } from "./test-fixtures/currentProcessorSynthesisOutput";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function baseCriterion(key: CriterionKey): SynthesizedCriterion {
-  return {
-    key,
-    craft_score: 7,
-    editorial_score: 7,
-    final_score_0_10: 7,
-    score_delta: 0,
-    final_rationale: `Criterion ${key} grounded in textual evidence.`,
-    pressure_points: ["Scene transition pressure."],
-    decision_points: ["Chapter-level consequential choice."],
-    consequence_status: "landed",
-    evidence: [{ snippet: `Evidence for ${key}.` }],
-    recommendations: [],
-  };
-}
-
-function makeSynthesis(): SynthesisOutput {
-  return {
-    criteria: CRITERIA_KEYS.map(baseCriterion),
+function makeSynthesis(): CurrentSynthesisOutput {
+  return makeCurrentProcessorSynthesisOutput({
     overall: {
       overall_score_0_100: 70,
       verdict: "revise",
@@ -54,7 +37,7 @@ function makeSynthesis(): SynthesisOutput {
       generated_at: new Date().toISOString(),
     },
     partial_evaluation: false,
-  };
+  });
 }
 
 const BASE_IDS = {

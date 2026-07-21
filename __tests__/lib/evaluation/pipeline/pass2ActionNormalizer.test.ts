@@ -151,6 +151,7 @@ describe("normalizeRecommendationAction", () => {
             score_0_10: 6,
             rationale: "The concept demonstrates thematic depth through its exploration of familial obligation and loss.",
             evidence: [{ snippet: "Sister's shadow hung over everything.", char_start: 100, char_end: 140 }],
+            recommendation_status: "recommendation_provided",
             recommendations: [
               {
                 priority: "medium",
@@ -272,6 +273,30 @@ describe("normalizeRecommendationAction", () => {
       }));
     });
 
+    it("trims a governed disposition token at the Pass 2 producer boundary", () => {
+      const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
+      const rawResponse = JSON.stringify({
+        criteria: [{
+          key: "concept",
+          score_0_10: 4,
+          rationale: "The concept diagnosis is grounded in the manuscript's recurring conflict.",
+          evidence: [{ snippet: "Sister's shadow hung over everything.", char_start: 100, char_end: 140 }],
+          recommendations: [],
+          recommendation_status: "  insufficient_evidence\r\n",
+          recommendation_status_rationale:
+            "  The excerpt supports diagnosis but cannot support a separate safe intervention.  ",
+        }],
+      });
+
+      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 });
+      expect(result.criteria[0]).toEqual(expect.objectContaining({
+        recommendation_status: "insufficient_evidence",
+        recommendation_status_rationale:
+          "The excerpt supports diagnosis but cannot support a separate safe intervention.",
+        recommendations: [],
+      }));
+    });
+
     it("fails Pass 2 closed on an unknown explicit recommendation status", () => {
       const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
       const rawResponse = JSON.stringify({
@@ -290,7 +315,7 @@ describe("normalizeRecommendationAction", () => {
         .toThrow("RECOMMENDATION_STATUS_INVALID");
     });
 
-    it("does NOT throw coverage error for high-scoring short submission (201 words) when all recs are stripped", () => {
+    it("does not use a high score or short submission as authority to repair a missing disposition", () => {
       const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
       const rawResponse = JSON.stringify({
         pass: 2,
@@ -319,9 +344,47 @@ describe("normalizeRecommendationAction", () => {
         generated_at: "2026-06-09T00:00:00.000Z",
       });
 
-      // With 201-word scope, a high-scoring criterion with zero genuine recommendations is governed and acceptable
+      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 201 }))
+        .toThrow("OPPORTUNITY_COVERAGE_MISSING");
+    });
+
+    it("synchronizes a valid producer disposition when the action-integrity filter removes the final recommendation", () => {
+      const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
+      const rawResponse = JSON.stringify({
+        pass: 2,
+        axis: "editorial_literary",
+        criteria: [
+          {
+            key: "concept",
+            score_0_10: 9,
+            rationale: "The concept diagnosis is supported by the recurring shadow image.",
+            evidence: [{ snippet: "Sister's shadow hung over everything.", char_start: 100, char_end: 140 }],
+            recommendation_status: "recommendation_provided",
+            recommendations: [
+              {
+                priority: "high",
+                action: "Because the scene needs a clearer dramatic question",
+                expected_impact: "A clearer question would strengthen reader orientation and narrative momentum.",
+                anchor_snippet: "Sister's shadow hung over everything.",
+                issue_family: "scene_structure",
+                strategic_lever: "scene_goal_clarity",
+                revision_granularity: "scene",
+              },
+            ],
+          },
+        ],
+        prompt_version: "pass2-editorial-v10-candidate-prose",
+        temperature: 0.3,
+        generated_at: "2026-06-09T00:00:00.000Z",
+      });
+
       const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 201 });
-      expect(result.criteria[0].recommendations).toHaveLength(0);
+      expect(result.criteria[0]).toEqual(expect.objectContaining({
+        recommendations: [],
+        recommendation_status: "gate_suppressed_no_safe_recommendation",
+        recommendation_status_rationale:
+          "No recommendation was retained because the proposed action was incomplete or not safely actionable.",
+      }));
     });
   });
 
@@ -340,6 +403,7 @@ describe("normalizeRecommendationAction", () => {
             score_0_10: 7,
             rationale: "The concept demonstrates thematic depth through its exploration of familial obligation and loss.",
             evidence: [{ snippet: "Sister's shadow hung over everything.", char_start: 100, char_end: 140 }],
+            recommendation_status: "recommendation_provided",
             recommendations: [
               {
                 priority: "high",

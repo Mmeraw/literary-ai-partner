@@ -23,6 +23,7 @@ import { REVISIONGRADE_SUPPORT_EMAIL } from '@/lib/evaluation/hardStopGovernance
 import { CRITERIA_KEYS } from '@/schemas/criteria-keys';
 import {
   analyzeGovernedOpportunityCoverage,
+  countMeaningfulOpportunityRecommendations,
   type OpportunityCoverageIssue,
 } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 
@@ -41,18 +42,6 @@ export type TemplateCompletenessResult = {
   summary: string;
 };
 
-type RecommendationLike = {
-  action?: unknown;
-  why?: unknown;
-  expected_impact?: unknown;
-  anchor_snippet?: unknown;
-  symptom?: unknown;
-  mechanism?: unknown;
-  specific_fix?: unknown;
-  reader_effect?: unknown;
-  mistake_proofing?: unknown;
-};
-
 type CriterionLike = {
   key: string;
   score_0_10?: number | null;
@@ -60,6 +49,8 @@ type CriterionLike = {
   evidence?: { snippet?: string }[];
   recommendations?: unknown[];
   confidence_level?: string;
+  scorable?: boolean;
+  status?: string;
   technical_defects?: { code: string; author_facing_reason: string }[];
   recommendation_status?: unknown;
   recommendation_status_rationale?: unknown;
@@ -116,35 +107,57 @@ const OPPORTUNITY_COVERAGE_VIOLATION_CODES = new Set([
   'RECOMMENDATION_STATUS_INVALID',
   'RECOMMENDATION_STATUS_CARDINALITY_MISMATCH',
   'RECOMMENDATION_STATUS_RATIONALE_MISSING',
+  'RECOMMENDATION_STATUS_RATIONALE_ORPHANED',
+  'RECOMMENDATION_STATUS_APPLICABILITY_MISMATCH',
 ]);
 
 const OPPORTUNITY_COVERAGE_ISSUE_DIAGNOSTICS: Record<
   OpportunityCoverageIssue,
-  { code: string; invariantId: string; summary: string }
+  {
+    code: string;
+    invariantId: string;
+    field: 'recommendations' | 'recommendation_status' | 'recommendation_status_rationale';
+    summary: string;
+  }
 > = {
   invalid_recommendation_status: {
     code: 'RECOMMENDATION_STATUS_INVALID',
     invariantId: 'criterion_recommendation_status_known',
+    field: 'recommendation_status',
     summary: 'recommendation_status is unknown or malformed',
   },
   recommendation_status_cardinality_mismatch: {
     code: 'RECOMMENDATION_STATUS_CARDINALITY_MISMATCH',
     invariantId: 'criterion_recommendation_status_cardinality_consistent',
+    field: 'recommendation_status',
     summary: 'recommendation_status contradicts recommendation cardinality',
   },
   missing_governed_disposition: {
     code: 'OPPORTUNITY_COVERAGE_MISSING',
     invariantId: 'criterion_opportunity_coverage_governed',
+    field: 'recommendation_status',
     summary: 'no recommendation or governed disposition exists',
   },
   missing_disposition_rationale: {
     code: 'RECOMMENDATION_STATUS_RATIONALE_MISSING',
     invariantId: 'criterion_recommendation_status_rationale_present',
+    field: 'recommendation_status_rationale',
     summary: 'the governed zero-recommendation status lacks a substantive rationale',
+  },
+  orphan_disposition_rationale: {
+    code: 'RECOMMENDATION_STATUS_RATIONALE_ORPHANED',
+    invariantId: 'criterion_recommendation_status_rationale_owned',
+    field: 'recommendation_status_rationale',
+    summary: 'recommendation_status_rationale exists without a governed status',
+  },
+  criterion_applicability_mismatch: {
+    code: 'RECOMMENDATION_STATUS_APPLICABILITY_MISMATCH',
+    invariantId: 'criterion_recommendation_status_applicability_consistent',
+    field: 'recommendation_status',
+    summary: 'recommendation status or cardinality contradicts criterion applicability',
   },
 };
 const PLACEHOLDER_RE = /\b(?:n\/?a|none|not specified|tbd|todo|placeholder|example|lorem ipsum|\[location|\[operation|\[priority|\[severity|\[confidence)\b/i;
-const GENERIC_RE = /\b(?:improve|strengthen|clarify|develop|enhance|expand|tighten|revise)\s+(?:the\s+)?(?:writing|story|manuscript|novel|chapter|section|piece)\b/i;
 
 function nonEmptyText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -173,50 +186,6 @@ function normalizedGenre(value: unknown): string | null {
   const normalized = trimmed.toLowerCase().replace(/[\s\-_/]+/g, ' ').trim();
   if (FORMAT_WORDS.has(normalized)) return null;
   return trimmed;
-}
-
-export function isMeaningfulRecommendation(value: unknown): value is RecommendationLike {
-  if (!value || typeof value !== 'object') return false;
-  const rec = value as RecommendationLike;
-  const fields = [
-    rec.anchor_snippet,
-    rec.symptom,
-    rec.mechanism,
-    rec.specific_fix,
-    rec.action,
-    rec.why,
-    rec.reader_effect,
-    rec.expected_impact,
-    rec.mistake_proofing,
-  ];
-  const meaningfulFields = fields
-    .map((field) => meaningfulText(field))
-    .filter((field): field is string => Boolean(field));
-
-  if (meaningfulFields.some((field) => PLACEHOLDER_RE.test(field))) return false;
-
-  const actionish = meaningfulText(rec.specific_fix) ?? meaningfulText(rec.action);
-  if (!actionish) return false;
-
-  // Relaxed rule: action (12+ chars) + at least 1 supporting field is sufficient.
-  // This matches what the LLM actually produces for short-form evaluations
-  // (action + anchor_snippet + expected_impact) without demanding 2+ additional fields.
-  if (meaningfulFields.length < 1) return false;
-
-  // A generic action can pass only when paired with manuscript-specific evidence/reasoning.
-  if (GENERIC_RE.test(actionish)) {
-    const anchor = meaningfulText(rec.anchor_snippet, 20);
-    const symptom = meaningfulText(rec.symptom, 20);
-    const why = meaningfulText(rec.why, 20) ?? meaningfulText(rec.expected_impact, 20);
-    return Boolean(anchor || symptom || why);
-  }
-
-  return true;
-}
-
-function countMeaningfulRecommendations(values: unknown): number {
-  if (!Array.isArray(values)) return 0;
-  return values.filter(isMeaningfulRecommendation).length;
 }
 
 function pushViolation(violations: TemplateViolation[], violation: TemplateViolation): void {
@@ -318,12 +287,11 @@ export function validateTemplateCompleteness(
     });
   }
 
-  let hasAnyDensityViolation = false;
   for (const c of result.criteria) {
     const score = c.score_0_10;
 
-    // Non-scorable/NA criteria may carry null scores in v2; they still need rationale/evidence/confidence,
-    // but recommendation density only applies to numeric scorable criteria.
+    // Non-scorable/NA criteria may carry null scores in v2. Disposition
+    // consistency still applies to all criteria; score does not grant authority.
     const hasNumericScore = typeof score === 'number' && Number.isFinite(score);
     if (score !== null && !hasNumericScore) {
       pushViolation(violations, {
@@ -381,60 +349,40 @@ export function validateTemplateCompleteness(
       });
     }
 
-    if (hasNumericScore) {
-      const recCount = countMeaningfulRecommendations(c.recommendations);
-      const coverage = analyzeGovernedOpportunityCoverage({
-        score,
-        meaningfulOpportunityCount: recCount,
-        recommendationStatus: c.recommendation_status,
-        recommendationStatusRationale: c.recommendation_status_rationale,
-      });
+    const recCount = countMeaningfulOpportunityRecommendations(c.recommendations);
+    const coverage = analyzeGovernedOpportunityCoverage({
+      score: hasNumericScore ? score : null,
+      meaningfulOpportunityCount: recCount,
+      recommendationStatus: c.recommendation_status,
+      recommendationStatusRationale: c.recommendation_status_rationale,
+      scorable: c.scorable,
+      criterionStatus: c.status,
+    });
 
-      if (!coverage.covered) {
-        for (const issue of coverage.issues) {
-          const diagnostic = OPPORTUNITY_COVERAGE_ISSUE_DIAGNOSTICS[issue];
-          pushViolation(violations, {
-            code: diagnostic.code,
-            criterion: c.key,
-            field_path: `criteria.${c.key}.recommendations`,
-            invariant_id: diagnostic.invariantId,
-            message: `Criterion "${c.key}" scored ${score}/10 with ${recCount} meaningful recommendation(s): ${diagnostic.summary}.`,
-            severity: 'critical',
-          });
-        }
-        hasAnyDensityViolation = true;
-      } else if (Array.isArray(c.recommendations)) {
-        const rawCount = c.recommendations.length;
-        const meaningfulCount = countMeaningfulRecommendations(c.recommendations);
-        if (rawCount > 0 && meaningfulCount === 0) {
-          pushViolation(violations, {
-            code: 'INVALID_HIGH_SCORE_RECOMMENDATIONS',
-            criterion: c.key,
-            field_path: `criteria.${c.key}.recommendations`,
-            invariant_id: 'criterion_recommendation_content_valid',
-            message: `Criterion "${c.key}" has recommendations, but none contain usable diagnostic content.`,
-            severity: 'warning',
-          });
-        }
+    if (!coverage.covered) {
+      for (const issue of coverage.issues) {
+        const diagnostic = OPPORTUNITY_COVERAGE_ISSUE_DIAGNOSTICS[issue];
+        pushViolation(violations, {
+          code: diagnostic.code,
+          criterion: c.key,
+          field_path: `criteria.${c.key}.${diagnostic.field}`,
+          invariant_id: diagnostic.invariantId,
+          message: `Criterion "${c.key}" has ${recCount} meaningful recommendation(s): ${diagnostic.summary}.`,
+          severity: 'critical',
+        });
       }
-    }
-  }
-
-  const hasLowScoring = result.criteria.some(
-    (c) => typeof c.score_0_10 === 'number' && c.score_0_10 <= 7,
-  );
-  if (hasLowScoring) {
-    const quickWins = countMeaningfulRecommendations(result.recommendations?.quick_wins);
-    const strategic = countMeaningfulRecommendations(result.recommendations?.strategic_revisions);
-    if (quickWins === 0 && strategic === 0) {
-      pushViolation(violations, {
-        code: 'MISSING_TOP_RECOMMENDATIONS',
-        field_path: 'recommendations',
-        invariant_id: 'top_recommendations_present_for_low_scores',
-        message:
-          'Criteria scoring ≤7 exist but no meaningful quick_wins or strategic_revisions were generated.',
-        severity: hasAnyDensityViolation ? 'critical' : 'warning',
-      });
+    } else if (Array.isArray(c.recommendations)) {
+      const rawCount = c.recommendations.length;
+      if (rawCount > 0 && recCount === 0) {
+        pushViolation(violations, {
+          code: 'RECOMMENDATION_CONTENT_INVALID',
+          criterion: c.key,
+          field_path: `criteria.${c.key}.recommendations`,
+          invariant_id: 'criterion_recommendation_content_valid',
+          message: `Criterion "${c.key}" has recommendation records, but none contain usable diagnostic content.`,
+          severity: 'warning',
+        });
+      }
     }
   }
 

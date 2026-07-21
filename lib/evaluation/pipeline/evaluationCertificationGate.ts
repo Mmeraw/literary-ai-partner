@@ -47,7 +47,10 @@
  */
 
 import { getECGMode, type ECGMode } from '@/lib/evaluation/policy';
-import { analyzeGovernedOpportunityCoverage } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
+import {
+  analyzeGovernedOpportunityCoverage,
+  countMeaningfulOpportunityRecommendations,
+} from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import {
   trimAtSentenceBoundary as trimAtSentenceBoundaryShared,
@@ -471,6 +474,8 @@ export interface ECGCriterion {
   key?: string | null;
   final_score_0_10?: number | null;
   final_rationale?: string | null;
+  scorable?: boolean | null;
+  status?: string | null;
   recommendation_status?: string | null;
   recommendation_status_rationale?: string | null;
   recommendation_count?: number | null;
@@ -1185,16 +1190,15 @@ function checkCompleteness(input: ECGInput): ECGViolation[] {
 
   // ODP coverage is per criterion. A recommendation on one criterion cannot
   // mask missing or contradictory disposition authority on another.
-  const scoredCriteria = (input.criteria ?? []).filter(
-    (c) => c.final_score_0_10 !== null && c.final_score_0_10 !== undefined,
-  );
-  const criteriaCoverage = scoredCriteria.map((criterion) => ({
+  const criteriaCoverage = (input.criteria ?? []).map((criterion) => ({
     criterion,
     analysis: analyzeGovernedOpportunityCoverage({
         score: criterion.final_score_0_10 ?? null,
         meaningfulOpportunityCount: criterion.recommendation_count ?? 0,
         recommendationStatus: criterion.recommendation_status,
         recommendationStatusRationale: criterion.recommendation_status_rationale,
+        scorable: criterion.scorable,
+        criterionStatus: criterion.status,
       }),
   }));
   const criteriaWithoutCoverage = criteriaCoverage.filter(({ analysis }) => !analysis.covered);
@@ -1206,7 +1210,7 @@ function checkCompleteness(input: ECGInput): ECGViolation[] {
     vs.push(
       violation(
         'ECG_ART_MISSING_RECOMMENDATIONS',
-        `${criteriaWithoutCoverage.length} scored criterion/criteria lack valid governed opportunity coverage: ${diagnostics.join('; ')}. Under ODP, every scored criterion must carry a supported recommendation or a cardinality-consistent governed disposition.`,
+        `${criteriaWithoutCoverage.length} criterion/criteria lack valid governed opportunity coverage: ${diagnostics.join('; ')}. Under ODP, every criterion must carry a supported recommendation or a cardinality- and applicability-consistent governed disposition.`,
       ),
     );
   }
@@ -1398,11 +1402,13 @@ export function buildECGInputFromEvaluationResult(
       key: c.key,
       final_score_0_10: (c as unknown as { score_0_10?: number | null }).score_0_10 ?? null,
       final_rationale: (c as unknown as { rationale?: string | null }).rationale ?? null,
+      scorable: (c as unknown as { scorable?: boolean | null }).scorable ?? null,
+      status: (c as unknown as { status?: string | null }).status ?? null,
       recommendation_status: (c as unknown as { recommendation_status?: string | null }).recommendation_status ?? null,
       recommendation_status_rationale: (c as unknown as { recommendation_status_rationale?: string | null }).recommendation_status_rationale ?? null,
-      recommendation_count: Array.isArray((c as unknown as { recommendations?: unknown[] }).recommendations)
-        ? ((c as unknown as { recommendations?: unknown[] }).recommendations ?? []).length
-        : 0,
+      recommendation_count: countMeaningfulOpportunityRecommendations(
+        (c as unknown as { recommendations?: unknown[] }).recommendations,
+      ),
     })),
     governance: {
       confidence: result.governance.confidence,

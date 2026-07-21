@@ -20,6 +20,10 @@ import type {
 import type { ModeTelemetryEvent } from '@/lib/evaluation/modeGate';
 import type { SlaeGroundingStatus } from '@/lib/revision/slae';
 import type { GenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
+import type {
+  RecommendationStatus,
+  WithCurrentRecommendationDisposition,
+} from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 
 export type ScoreDenominatorPolicy = "full_canonical" | "scorable_only";
 
@@ -122,13 +126,7 @@ type CriterionBase = {
   }>;
   technical_defects?: CriterionTechnicalDefect[];
   /** ODP-governed status when a criterion produces no recommendations. */
-  recommendation_status?:
-    | "recommendation_provided"
-    | "no_recommendation_warranted"
-    | "genre_appropriate_no_revision_warranted"
-    | "criterion_not_applicable"
-    | "insufficient_evidence"
-    | "gate_suppressed_no_safe_recommendation";
+  recommendation_status?: RecommendationStatus;
   /** Concrete rationale for recommendation_status, required when status is set. */
   recommendation_status_rationale?: string;
 };
@@ -160,6 +158,17 @@ export type EvaluationCriterionV2 =
   | ScorableCriterionV2
   | NonScorableCriterionV2
   | NotApplicableCriterionV2;
+
+type CurrentCriterionDisposition<T extends EvaluationCriterionV2> =
+  T extends EvaluationCriterionV2
+    ? WithCurrentRecommendationDisposition<T>
+    : never;
+
+/**
+ * Strict current-write criterion. `EvaluationCriterionV2` remains permissive
+ * so historical persisted artifacts can still be read.
+ */
+export type CurrentEvaluationCriterionV2 = CurrentCriterionDisposition<EvaluationCriterionV2>;
 
 export type EvaluationResultV2 = {
   schema_version: "evaluation_result_v2";
@@ -399,6 +408,11 @@ export type EvaluationResultV2 = {
     };
     provider_telemetry?: unknown;
   };
+};
+
+/** Strict artifact type accepted by the current canonical persistence writer. */
+export type CurrentEvaluationResultV2 = Omit<EvaluationResultV2, 'criteria'> & {
+  criteria: CurrentEvaluationCriterionV2[];
 };
 
 export function isEvaluationResultV2(obj: unknown): obj is EvaluationResultV2 {

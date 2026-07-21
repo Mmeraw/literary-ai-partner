@@ -163,6 +163,10 @@ function makeCleanInput(overrides: Partial<ECGInput> = {}): ECGInput {
         final_score_0_10: 8,
         final_rationale:
           "The concept linking diamond industry collapse to cobalt mining and personal ethics is fresh.",
+        recommendation_count: 0,
+        recommendation_status: "no_recommendation_warranted",
+        recommendation_status_rationale:
+          "The criterion is already effective and no separate evidence-backed revision is warranted.",
       },
       {
         key: "narrativeDrive",

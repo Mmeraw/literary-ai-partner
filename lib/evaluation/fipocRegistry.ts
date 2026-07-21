@@ -34,6 +34,7 @@ export interface ProcessRegistryEntry {
   retryBudget: number | 'none' | 'fail_closed';
   failureDefinitions: FailureRecoveryDefinition[];
   failureCodes: string[];
+  failureRecoveryContracts: string[];
   consumers: string[];
   uiExposed: boolean;
   reviseHandoff: boolean;
@@ -42,7 +43,7 @@ export interface ProcessRegistryEntry {
   notes: string;
 }
 
-type ProcessRegistryEntrySource = Omit<ProcessRegistryEntry, 'failureCodes'>;
+type ProcessRegistryEntrySource = Omit<ProcessRegistryEntry, 'failureCodes' | 'failureRecoveryContracts'>;
 
 export interface ArtifactRegistryEntry {
   artifact: string;
@@ -256,6 +257,18 @@ export const AUTHORITY_SOURCE_REGISTRY: AuthoritySourceRegistryEntry[] = [
     surfacedInSipocUi: true,
     executionUse: 'Quality bar for author-facing recommendations and revision opportunities.',
     notes: 'Recommendation is the product; weak/generic recommendations must be quarantined.',
+  },
+  {
+    authorityId: 'OPPORTUNITY_DISCOVERY_POLICY_V1',
+    family: 'governance',
+    title: 'Opportunity Discovery and Recommendation Disposition Policy',
+    path: 'docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md',
+    appliesToStageIds: ['S06_PASS2', 'S07_PASS3', 'S08_ER2_NORMALIZATION', 'S09_QUALITYGATEV2', 'S10_PERSISTENCE', 'ADJACENT_REVISION_LEDGER'],
+    appliesToArtifacts: ['pass2_chunk_cache_v1', 'pass3_synthesis_v1', 'evaluation_result_v2', 'revision_opportunity_ledger_v1'],
+    runtimeBinding: 'binding',
+    surfacedInSipocUi: true,
+    executionUse: 'Canonical recommendation-status vocabulary, meaningful-recommendation predicate, cardinality/disposition consistency, and non-quota opportunity authority.',
+    notes: 'Runtime authority is centralized in lib/evaluation/policy/opportunityDiscoveryPolicy.ts. Scores, confidence, and evidence counts remain diagnostic and never manufacture recommendations or queue identities.',
   },
   {
     authorityId: 'LENGTH_POLICY_GOVERNANCE',
@@ -695,18 +708,18 @@ const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
     stageId: 'S06_PASS2',
     processName: 'Pass 2 Craft Diagnosis',
     activeState: 'active',
-    supplier: 'Pipeline orchestrator and Pass 2 runner',
-    inputArtifacts: ['phase1a_chunk_routing_manifest_v1', 'accepted_story_ledger_v1'],
-    inputRequiredFields: ['chunks', 'criteria_registry'],
-    inputMetrics: ['no Pass 1 payload as input', 'independence guard active'],
-    codeSurfaces: ['lib/evaluation/pipeline/runPipeline.ts', 'lib/evaluation/pipeline/runPass2.ts', 'lib/evaluation/pipeline/pass2IndependenceGuard.ts'],
-    processContract: 'Produce independent craft diagnosis and candidate recommendations.',
+    supplier: 'Pipeline orchestrator, Pass 2 runner, and current-source checkpoint cache',
+    inputArtifacts: ['phase1a_chunk_routing_manifest_v1', 'accepted_story_ledger_v1', 'pass2_chunk_cache_v1'],
+    inputRequiredFields: ['chunks', 'criteria_registry', 'optional cache.source_hash', 'optional cache.chunks[].result.prompt_version', 'criteria[].recommendation_status', 'criteria[].recommendation_status_rationale when required'],
+    inputMetrics: ['no Pass 1 payload as input', 'independence guard active', 'cache source_hash matches current job/manuscript/chunk identity before reuse', 'cached result prompt_version equals current PASS2_PROMPT_VERSION', 'every cached criterion satisfies the canonical disposition contract'],
+    codeSurfaces: ['lib/evaluation/pipeline/runPipeline.ts', 'lib/evaluation/pipeline/runPass2.ts', 'lib/evaluation/pipeline/pass2IndependenceGuard.ts', 'lib/evaluation/policy/opportunityDiscoveryPolicy.ts', 'lib/evaluation/processor.ts'],
+    processContract: 'Produce independent craft diagnosis and candidate recommendations. Reuse only current-source, current-version checkpoint entries that satisfy the canonical recommendation-disposition contract; regenerate an incompatible entry from the same source chunk.',
     outputArtifacts: ['pass2_chunk_cache_v1'],
-    outputRequiredFields: ['criteria', 'diagnostics', 'recommendations'],
-    outputMetrics: ['output parseable', 'lexical independence passes'],
+    outputRequiredFields: ['job_id', 'source_hash', 'chunks', 'total_expected', 'cached_at', 'chunks[].result.prompt_version', 'chunks[].result.criteria[].recommendations', 'chunks[].result.criteria[].recommendation_status', 'chunks[].result.criteria[].recommendation_status_rationale when required'],
+    outputMetrics: ['output parseable', 'lexical independence passes', 'all selected chunks represented by validated current-contract results', 'meaningful recommendation count computed canonically', 'recommendation_status and rationale preserved through aggregation', 'aggregate disposition conflicts = 0', 'invalid cache entries regenerated from the same source chunk'],
     forwardKick: 'S06b_HANDOFF_GATE',
     backwardKick: 'S06_PASS2',
-    dirtyDataRules: ['Pass 1 contamination', 'generic recommendations', 'malformed output'],
+    dirtyDataRules: ['Pass 1 contamination', 'generic recommendations', 'malformed output', 'cache source_hash mismatch invalidates the cache', 'cached prompt_version mismatch invalidates that entry', 'cached disposition contract violation invalidates that entry', 'conflicting chunk-level zero-recommendation statuses block aggregation'],
     retryBudget: 1,
     failureDefinitions: getFailureRecoveryDefinitionsForCodes(['PASS2_TIMEOUT', 'PASS2_FAILED', 'PASS2_INDEPENDENCE_REWRITE_FAILED', 'QG_INDEPENDENCE_VIOLATION']),
     consumers: ['S06b_HANDOFF_GATE', 'S07_PASS3'],
@@ -714,7 +727,7 @@ const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
     reviseHandoff: false,
     certificationStatus: 'partial',
     fitGapStatus: 'gap',
-    notes: 'Independence is mandatory.',
+    notes: 'Independence is mandatory. PASS2_CACHE_CONTRACT_VERSION_MISMATCH, PASS2_DISPOSITION_CONTRACT_INVALID, and PASS2_CHUNK_AGGREGATE_DISPOSITION_CONFLICT are stage-local diagnostics owned by PASS2_FAILED until deliberately promoted into the global failure-recovery taxonomy.',
   },
   {
     sequence: 130,
@@ -751,16 +764,16 @@ const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
     activeState: 'active',
     supplier: 'Certified Pass 1/2 handoff',
     inputArtifacts: ['pass12_handoff_v1', 'accepted_story_ledger_v1'],
-    inputRequiredFields: ['schema_version', 'pass1Output', 'pass2Output'],
-    inputMetrics: ['schema_version = pass12_handoff_v1', 'Pass 1 and Pass 2 payloads present', 'upstream passes succeeded', 'convergence input consistency'],
-    codeSurfaces: ['lib/evaluation/pipeline/runPipeline.ts', 'lib/evaluation/pipeline/runPass3Synthesis.ts'],
+    inputRequiredFields: ['schema_version', 'pass1Output', 'pass2Output', 'pass2Output.criteria[].recommendation_status', 'pass2Output.criteria[].recommendation_status_rationale when required'],
+    inputMetrics: ['schema_version = pass12_handoff_v1', 'Pass 1 and Pass 2 payloads present', 'upstream passes succeeded', 'convergence input consistency', 'Pass 2 recommendation cardinality and governed dispositions are canonical before synthesis'],
+    codeSurfaces: ['lib/evaluation/pipeline/runPipeline.ts', 'lib/evaluation/pipeline/runPass3Synthesis.ts', 'lib/evaluation/pipeline/templateCompletenessGate.ts', 'lib/evaluation/policy/opportunityDiscoveryPolicy.ts', 'lib/evaluation/processor.ts'],
     processContract: 'Synthesize final evaluation while preserving evidence, specificity, score hierarchy, and ledger name authority.',
     outputArtifacts: ['pass3_preflight_draft_v1', 'pass3_synthesis_v1'],
-    outputRequiredFields: ['overview', 'criteria', 'recommendations', 'submission_readiness'],
-    outputMetrics: ['no generic recommendations', 'banned names absent', 'score-10 rec suppression', 'every scored criterion has a recommendation or valid governed disposition', 'recommendation/status cardinality contradictions = 0'],
+    outputRequiredFields: ['overview', 'criteria', 'recommendations', 'submission_readiness', 'criteria[].recommendation_status', 'criteria[].recommendation_status_rationale when required'],
+    outputMetrics: ['no generic recommendations', 'banned names absent', 'score-10 rec suppression', 'every scored criterion has a recommendation or valid governed disposition', 'recommendation/status cardinality contradictions = 0', 'pure coverage failure selects CRITERION_OPPORTUNITY_COVERAGE_INVALID', 'mixed coverage plus unrelated critical failure selects TEMPLATE_COMPLETENESS_GATE_FAILED', 'durable kick_attempts for CRITERION_OPPORTUNITY_COVERAGE_INVALID <= 1', 'persistence and Revise projection calls after terminal disposition failure = 0'],
     forwardKick: 'S08_ER2_NORMALIZATION',
-    backwardKick: 'S06b_HANDOFF_GATE',
-    dirtyDataRules: ['missing overview field', 'banned character name', 'generic prescription', 'duplicate strategic lever', 'scored criterion lacks recommendations and a governed disposition', 'recommendation cardinality contradicts explicit recommendation_status', 'unknown recommendation_status or required rationale missing', 'long-form artifact terms in short-form output (WAVE / Golden Spine / Phase 5)', 'internal pipeline process labels in user-facing text', 'whole-manuscript claim unsupportable from submitted excerpt', 'mid-sentence author-facing prose', 'short-form copy defect', 'recommendation field integrity defect'],
+    backwardKick: 'S07_PASS3 once for pure CRITERION_OPPORTUNITY_COVERAGE_INVALID; S06b_HANDOFF_GATE for handoff-owned defects; no kick for mixed/unrelated template defects',
+    dirtyDataRules: ['missing overview field', 'banned character name', 'generic prescription', 'duplicate strategic lever', 'scored criterion lacks recommendations and a governed disposition', 'recommendation cardinality contradicts explicit recommendation_status', 'unknown recommendation_status or required rationale missing', 'coverage violation mixed with an unrelated critical template defect is terminal', 'exhausted coverage kick cannot fall through to generic Phase 3 retry', 'long-form artifact terms in short-form output (WAVE / Golden Spine / Phase 5)', 'internal pipeline process labels in user-facing text', 'whole-manuscript claim unsupportable from submitted excerpt', 'mid-sentence author-facing prose', 'short-form copy defect', 'recommendation field integrity defect'],
     retryBudget: 1,
     failureDefinitions: getFailureRecoveryDefinitionsForCodes(['PASS3_TIMEOUT', 'PASS3_FAILED', 'REC_INTEGRITY_GENERIC', 'REC_INTEGRITY_NO_EVIDENCE', 'CRITERION_OPPORTUNITY_COVERAGE_INVALID', 'TEMPLATE_COMPLETENESS_GATE_FAILED', 'SHORT_FORM_LONGFORM_ARTIFACT_LEAK', 'SHORT_FORM_INTERNAL_PROCESS_LEAK', 'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM', 'SHORT_FORM_MIDSENTENCE_TERMINATION', 'SHORT_FORM_COPY_DEFECT', 'HANDOFF_MIDSENTENCE_TERMINATION', 'REC_INTEGRITY_LOWERCASE_OPENING', 'REC_INTEGRITY_FUSED_FIELDS']),
     consumers: ['S08_ER2_NORMALIZATION', 'ADJACENT_WAVE'],
@@ -768,7 +781,7 @@ const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
     reviseHandoff: false,
     certificationStatus: 'high_risk',
     fitGapStatus: 'critical',
-    notes: 'No malformed or generic recommendation may reach author-facing output. Recommendation cardinality and explicit disposition metadata must agree per criterion. Diagnostic confidence and evidence counts remain observational and never grant admission authority. Coverage contradictions kick back under a specific failure code; unrelated template defects remain terminal.',
+    notes: 'No malformed or generic recommendation may reach author-facing output. Recommendation cardinality and explicit disposition metadata must agree per criterion. Diagnostic confidence and evidence counts remain observational and never grant admission authority. A pure coverage contradiction receives one durable Pass 3 kick recorded in progress.kick_attempts; exhaustion and mixed/unrelated template defects fail terminally without generic retry, canonical persistence, or Revise projection.',
   },
   {
     sequence: 150,
@@ -830,18 +843,18 @@ const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
     stageId: 'S10_PERSISTENCE',
     processName: 'Atomic Evaluation Persistence',
     activeState: 'active',
-    supplier: 'QualityGate pass plus EvaluationResultV2',
+    supplier: 'QualityGate pass, template-completeness/disposition certification, and EvaluationResultV2',
     inputArtifacts: ['evaluation_result_v2', 'quality_gate_diagnostics_v1'],
-    inputRequiredFields: ['gate_passed=true', 'normalized_result'],
-    inputMetrics: ['no persist if gate fails', 'atomic RPC available'],
-    codeSurfaces: ['lib/evaluation/persistEvaluationResultV2.ts'],
-    processContract: 'Persist canonical evaluation artifact and terminal job state atomically.',
+    inputRequiredFields: ['gate_passed=true', 'template_completeness_passed=true', 'opportunity_coverage_consistent=true', 'normalized_result'],
+    inputMetrics: ['no persist if any deterministic gate fails', 'pure coverage kick resolved before entry', 'mixed/unrelated template failure absent', 'atomic RPC available'],
+    codeSurfaces: ['lib/evaluation/processor.ts', 'lib/evaluation/pipeline/templateCompletenessGate.ts', 'lib/evaluation/policy/opportunityDiscoveryPolicy.ts', 'lib/evaluation/persistEvaluationResultV2.ts'],
+    processContract: 'Persist the canonical evaluation artifact and terminal job state atomically only after quality, template-completeness, and recommendation-disposition authority all pass.',
     outputArtifacts: ['evaluation_artifact_row', 'artifact_quality_manifest_v1'],
     outputRequiredFields: ['artifact_type=evaluation_result_v2', 'content', 'created_at', 'artifact_quality_manifest_v1'],
-    outputMetrics: ['artifact ID returned', 'terminal status canonical', 'SIPOC artifact completeness and accuracy metrics emitted'],
+    outputMetrics: ['artifact ID returned', 'terminal status canonical', 'SIPOC artifact completeness and accuracy metrics emitted', 'persist_evaluation_v2_atomic call count = 0 after exhausted or mixed disposition/template failure', 'Revise projection call count = 0 after exhausted or mixed disposition/template failure'],
     forwardKick: 'ADJACENT_WAVE or S10b_PHASE5_AUTHOR_EXPOSURE_GATE for short-form',
-    backwardKick: 'S09_QUALITYGATEV2',
-    dirtyDataRules: ['gate failed but persist attempted', 'artifact validation failed'],
+    backwardKick: 'S07_PASS3 only for a pure, unexhausted CRITERION_OPPORTUNITY_COVERAGE_INVALID; terminal otherwise',
+    dirtyDataRules: ['gate failed but persist attempted', 'artifact validation failed', 'template-completeness or recommendation-disposition failure reached persistence', 'mixed template failure requeued', 'exhausted coverage failure requeued', 'Revise projection invoked after terminal pre-persistence failure'],
     retryBudget: 'fail_closed',
     failureDefinitions: getFailureRecoveryDefinitionsForCodes(['EVALUATION_ARTIFACT_VALIDATION_FAILED', 'EVALUATION_GATE_REJECTED']),
     consumers: ['ADJACENT_WAVE', 'S10b_PHASE5_AUTHOR_EXPOSURE_GATE', 'S11a_RENDERER_WEBPAGE', 'S11b_DOWNLOAD_PIPELINE'],
@@ -849,7 +862,7 @@ const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
     reviseHandoff: false,
     certificationStatus: 'partial',
     fitGapStatus: 'gap',
-    notes: 'No artifact persists after failed deterministic gate.',
+    notes: 'No artifact persists after a failed deterministic gate. Pure opportunity-coverage defects may leave this boundary only by the single durable Pass 3 kick; exhausted, mixed, and unrelated defects terminate before canonical persistence and Revise projection.',
   },
   {
     sequence: 180,
@@ -1126,6 +1139,9 @@ const PROCESS_REGISTRY_SOURCE: ProcessRegistryEntrySource[] = [
 export const PROCESS_REGISTRY: ProcessRegistryEntry[] = PROCESS_REGISTRY_SOURCE.map((stage) => ({
   ...stage,
   failureCodes: stage.failureDefinitions.map((definition) => definition.failureCode),
+  failureRecoveryContracts: stage.failureDefinitions.map((definition) =>
+    `${definition.failureCode}:${definition.recoveryPolicy.mode}:retry=${definition.recoveryPolicy.retryLimit}:escalation=${definition.recoveryPolicy.escalation}`,
+  ),
 }));
 
 export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
@@ -1360,11 +1376,11 @@ export const ARTIFACT_REGISTRY: ArtifactRegistryEntry[] = [
   {
     artifact: 'pass2_chunk_cache_v1',
     producerStageId: 'S06_PASS2',
-    consumerStageIds: ['S06b_HANDOFF_GATE'],
-    requiredFields: ['criteria', 'diagnostics', 'recommendations'],
-    completenessMetric: 'all chunks represented',
-    accuracyMetric: 'recommendations are specific and evidence-backed',
-    dirtyDataRule: 'generic recommendation kicks back to Pass 2',
+    consumerStageIds: ['S06_PASS2', 'S06b_HANDOFF_GATE'],
+    requiredFields: ['job_id', 'source_hash', 'chunks', 'total_expected', 'cached_at', 'chunks.<chunk_index>.result', 'chunks.<chunk_index>.result.prompt_version', 'chunks.<chunk_index>.result.criteria[].recommendations', 'chunks.<chunk_index>.result.criteria[].recommendation_status', 'chunks.<chunk_index>.result.criteria[].recommendation_status_rationale when required', 'chunks.<chunk_index>.completed_at'],
+    completenessMetric: 'all expected chunks represented by current-contract results with governed recommendation disposition metadata',
+    accuracyMetric: 'source_hash matches current job/manuscript/chunk identity; prompt_version is current; recommendations are specific/evidence-backed; status and rationale agree with canonical meaningful recommendation count',
+    dirtyDataRule: 'source-hash mismatch invalidates the cache; prompt-version or disposition-contract mismatch invalidates and regenerates only that entry from the same source chunk; aggregation conflict blocks handoff',
     regenerationOwnerStageId: 'S06_PASS2',
     requiredForAuthorExposure: false,
     fitGapStatus: 'ok',
@@ -1934,7 +1950,7 @@ export const KICK_MATRIX: KickMatrixEntry[] = [
     dirtyDataDetectedAt: 'S07_TEMPLATE_COMPLETENESS_GATE',
     failure: 'Scored criterion lacks governed opportunity coverage or its explicit recommendation_status contradicts recommendation cardinality',
     kickBackTo: 'S07_PASS3',
-    redoAction: 'Regenerate Pass 3 synthesis for the affected criterion so recommendation cardinality, governed status, and required rationale agree.',
+    redoAction: 'Requeue and rerun Pass 3 synthesis once using the affected-criterion diagnostics; persist progress.kick_attempts for this failure code so recommendation cardinality, governed status, and required rationale agree.',
     retryLimit: 1,
     ifRetryFails: 'Fail closed; preserve the violation diagnostics and block certification, persistence, and Revise projection.',
     failureCode: 'CRITERION_OPPORTUNITY_COVERAGE_INVALID',

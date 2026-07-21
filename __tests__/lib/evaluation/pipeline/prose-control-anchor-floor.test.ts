@@ -1,7 +1,15 @@
 import { describe, expect, it } from "@jest/globals";
 import { CRITERIA_KEYS, type CriterionKey } from "@/schemas/criteria-keys";
 import type { SinglePassOutput } from "@/lib/evaluation/pipeline/types";
-import { parsePass3Response } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { parsePass3Response as parsePass3ResponseUnchecked } from "@/lib/evaluation/pipeline/runPass3Synthesis";
+import { buildCurrentRawPass3Json } from "@/tests/evaluation/pipeline/test-fixtures/currentPass3Response";
+
+function parsePass3Response(
+  ...args: Parameters<typeof parsePass3ResponseUnchecked>
+): ReturnType<typeof parsePass3ResponseUnchecked> {
+  args[0] = buildCurrentRawPass3Json(JSON.parse(args[0]));
+  return parsePass3ResponseUnchecked(...args);
+}
 
 function makePass(pass: 1 | 2): SinglePassOutput {
   return {
@@ -79,7 +87,7 @@ describe("prose control anchor floor hardening", () => {
             recommendations: [
               {
                 priority: "medium",
-                action: "Anchor/location: paragraph starting 'The cycle is not a circle; it\'s a network.'; Specific revision move: merge 'The cycle is not a circle; it\'s a network.' with the.",
+                action: "Anchor/location: paragraph starting 'The cycle is not a circle; it's a network.'; Specific revision move: merge 'The cycle is not a circle; it's a network.' with the.",
                 expected_impact: "Reduces reiteration and improves flow.",
                 anchor_snippet: "",
                 source_pass: 3,

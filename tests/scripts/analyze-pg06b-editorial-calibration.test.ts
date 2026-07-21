@@ -24,6 +24,18 @@ describe('analyzePg06bDocuments', () => {
     expect(result.aggregateClassificationCounts.propagation_gap_missing_disposition).toBe(1);
     expect(result.aggregateClassificationCounts.strong_criterion_empty_legacy_compatible).toBe(1);
     expect(result.aggregateClassificationCounts.valid_governed_suppression_requires_editorial_adjudication).toBe(0);
+    expect(result.cases[0]?.criteria).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        criterionKey: 'voice',
+        classification: 'recommendation_present',
+        coverageIssues: ['missing_governed_disposition'],
+      }),
+      expect.objectContaining({
+        criterionKey: 'theme',
+        classification: 'strong_criterion_empty_legacy_compatible',
+        coverageIssues: ['missing_governed_disposition'],
+      }),
+    ]));
   });
 
   it('routes valid governed zero-recommendation weak criteria to editorial adjudication', () => {

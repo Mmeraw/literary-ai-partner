@@ -1,6 +1,9 @@
 import type { EvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import type { CriterionKey } from '@/schemas/criteria-keys';
-import { hasGovernedOpportunityCoverage } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
+import {
+  countMeaningfulOpportunityRecommendations,
+  hasGovernedOpportunityCoverage,
+} from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import {
   missingBottomWeaknessCriteria,
@@ -36,19 +39,22 @@ function criterionHasRecommendation(result: EvaluationResultV2, key: CriterionKe
   const criterion = result.criteria.find((item) => item.key === key);
   if (!criterion) return false;
 
-  const hasRec =
-    criterion.recommendations?.some((rec) => rec.action.trim().length > 0) ||
-    [...result.recommendations.quick_wins, ...result.recommendations.strategic_revisions].some(
-      (rec) => rec.criterion_key === key && rec.action.trim().length > 0,
-    );
+  // Report summaries are presentation projections, not criterion disposition
+  // authority. Only the criterion-owned recommendation collection can satisfy
+  // this per-criterion contract.
+  const meaningfulRecommendationCount = countMeaningfulOpportunityRecommendations(
+    criterion.recommendations,
+  );
 
   // ODP: a weak criterion without recommendations is still covered if it carries
   // a governed zero-opportunity status with concrete rationale.
   return hasGovernedOpportunityCoverage({
     score: (criterion as { score_0_10?: number | null }).score_0_10 ?? null,
-    meaningfulOpportunityCount: hasRec ? Math.max(1, criterion.recommendations?.length ?? 0) : 0,
+    meaningfulOpportunityCount: meaningfulRecommendationCount,
     recommendationStatus: criterion.recommendation_status,
     recommendationStatusRationale: criterion.recommendation_status_rationale,
+    scorable: criterion.scorable,
+    criterionStatus: criterion.status,
   });
 }
 

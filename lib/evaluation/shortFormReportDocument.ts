@@ -19,6 +19,7 @@ import {
   type CanonicalConfidenceLabel,
 } from '@/lib/evaluation/confidenceFieldPolicy';
 import type { GenreExpectationMetadata } from '@/lib/evaluation/genreExpectationProfiles';
+import type { RecommendationStatus } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 import {
   buildGenreExpectationHeader,
   getReportHeaderContract,
@@ -72,13 +73,7 @@ export type ShortFormCriterion = {
   status?: 'NOT_APPLICABLE' | 'NO_SIGNAL' | 'INSUFFICIENT_SIGNAL' | 'SCORABLE';
   scorable?: boolean;
   scorability_status?: 'scorable' | 'scorable_low_confidence' | 'non_scorable';
-  recommendation_status?:
-    | 'recommendation_provided'
-    | 'no_recommendation_warranted'
-    | 'genre_appropriate_no_revision_warranted'
-    | 'criterion_not_applicable'
-    | 'insufficient_evidence'
-    | 'gate_suppressed_no_safe_recommendation';
+  recommendation_status?: RecommendationStatus;
   recommendation_status_rationale?: string;
   confidence_score_0_100?: number;
   confidence_reasons?: string[];

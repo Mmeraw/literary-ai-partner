@@ -7,6 +7,10 @@ function makeScorable(key: any, evidenceCount: number) {
     score_0_10: 5,
     rationale: "test rationale",
     evidence: Array.from({ length: evidenceCount }).map((_, i) => ({ snippet: `e${i}` })),
+    recommendations: [],
+    recommendation_status: "no_recommendation_warranted",
+    recommendation_status_rationale:
+      "This fixture intentionally has no recommendation because it isolates evidence-anchor observability.",
   });
 }
 

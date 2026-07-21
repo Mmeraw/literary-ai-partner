@@ -45,6 +45,7 @@ function makePassOutput(pass: 1 | 2): SinglePassOutput {
           revision_granularity: "scene",
         },
       ],
+      ...(pass === 2 ? { recommendation_status: "recommendation_provided" as const } : {}),
     })),
   };
 }
@@ -76,6 +77,7 @@ function buildPass3WithDialogueRec(dialogueRec: object) {
                 reader_effect: "clearer progression",
               },
             ],
+      recommendation_status: "recommendation_provided",
     })),
     overall: {
       overall_score_0_100: 70,

@@ -32,9 +32,21 @@ describe('Issue #737 — WAVE Revision post-evaluation wiring verification', () 
     });
 
     it('WAVE has a 60-second timeout cap (non-fatal)', () => {
-      const timeoutMatch = processorSource.match(/WAVE_TIMEOUT.*?(\d+)_000/);
-      expect(timeoutMatch).not.toBeNull();
-      expect(timeoutMatch![1]).toBe('60');
+      const waveExecutions = Array.from(
+        processorSource.matchAll(/executeWaveRevision\(/g),
+        match => match.index,
+      );
+
+      expect(waveExecutions).toHaveLength(2);
+      for (const executionIndex of waveExecutions) {
+        const managedCall = processorSource.slice(
+          Math.max(0, executionIndex - 150),
+          executionIndex + 350,
+        );
+        expect(managedCall).toContain('withManagedTimeout(');
+        expect(managedCall).toContain('60_000');
+        expect(managedCall).toContain("throw new Error('WAVE_TIMEOUT')");
+      }
     });
 
     it('WAVE failure never fails the evaluation — base evaluation is the paid product', () => {
@@ -73,10 +85,6 @@ describe('Issue #737 — WAVE Revision post-evaluation wiring verification', () 
 
   describe('3. WAVE persists wave_revision_plan_v1 artifact', () => {
     it('persists artifact on success', () => {
-      const successSection = processorSource.slice(
-        processorSource.indexOf('[WAVE/Phase3] Artifacts persisted'),
-        processorSource.indexOf('[WAVE/Phase3] Artifacts persisted') + 500
-      );
       // The persist call is nearby (within the block)
       const persistIdx = processorSource.indexOf("artifactType: 'wave_revision_plan_v1'");
       expect(persistIdx).toBeGreaterThan(-1);
