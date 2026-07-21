@@ -116,6 +116,17 @@ Sections marked `where applicable` are omitted entirely when the canonical repor
 
 ---
 
+## Internal Pass 2 Recommendation Provenance Contract (Non-Rendered)
+
+This section is not displayed to the author. It governs the Pass 3B synthesis output contract.
+
+- Every final recommendation that retains or consolidates a Pass 2 discovery MUST populate `source_recommendation_ids` with the matching `pass2_recommendation_candidates.source_id` value(s).
+- The top-level output MUST contain a `recommendation_lineage` array with exactly one entry per `pass2_recommendation_candidates.source_id`.
+- Allowed `recommendation_lineage` outcomes: `materialized` (survives in final recommendations), `consolidated` (merged into another surviving source_id), `suppressed` (dropped with a `governing_rule`, `rationale`, and `evidence`).
+- A missing `recommendation_lineage` or missing `source_recommendation_ids` is a contract violation and the synthesis cannot be certified.
+
+---
+
 ## Title Block Metadata Contract
 
 The Title Block fields above are required for every completed long-form multi-layer evaluation.
