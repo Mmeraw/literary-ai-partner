@@ -197,7 +197,7 @@ describe("normalizeRecommendationAction", () => {
         generated_at: "2026-06-09T00:00:00.000Z",
       });
 
-      const result = parsePass2Response(rawResponse, "gpt-4.1");
+      const result = parsePass2Response(rawResponse, "gpt-4.1", { isChunkUnit: true });
       const recs = result.criteria[0].recommendations;
 
       // Only the valid action should survive (repaired with period)
@@ -246,7 +246,7 @@ describe("normalizeRecommendationAction", () => {
       });
 
       // With 5000-word scope, coverage enforcement fires for weak criteria with no governed status
-      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 })).toThrow("OPPORTUNITY_COVERAGE_MISSING");
+      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000, isChunkUnit: true })).toThrow("OPPORTUNITY_COVERAGE_MISSING");
     });
 
     it("preserves a valid governed disposition so Pass 2 can accept zero safe recommendations", () => {
@@ -264,7 +264,7 @@ describe("normalizeRecommendationAction", () => {
         }],
       });
 
-      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 });
+      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000, isChunkUnit: true });
       expect(result.criteria[0]).toEqual(expect.objectContaining({
         recommendation_status: "insufficient_evidence",
         recommendation_status_rationale:
@@ -288,7 +288,7 @@ describe("normalizeRecommendationAction", () => {
         }],
       });
 
-      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 });
+      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000, isChunkUnit: true });
       expect(result.criteria[0]).toEqual(expect.objectContaining({
         recommendation_status: "insufficient_evidence",
         recommendation_status_rationale:
@@ -311,7 +311,7 @@ describe("normalizeRecommendationAction", () => {
         }],
       });
 
-      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 }))
+      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000, isChunkUnit: true }))
         .toThrow("RECOMMENDATION_STATUS_INVALID");
     });
 
@@ -344,7 +344,7 @@ describe("normalizeRecommendationAction", () => {
         generated_at: "2026-06-09T00:00:00.000Z",
       });
 
-      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 201 }))
+      expect(() => parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 201, isChunkUnit: true }))
         .toThrow("OPPORTUNITY_COVERAGE_MISSING");
     });
 
@@ -378,7 +378,7 @@ describe("normalizeRecommendationAction", () => {
         generated_at: "2026-06-09T00:00:00.000Z",
       });
 
-      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 201 });
+      const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 201, isChunkUnit: true });
       expect(result.criteria[0]).toEqual(expect.objectContaining({
         recommendations: [],
         recommendation_status: "gate_suppressed_no_safe_recommendation",
@@ -450,7 +450,7 @@ describe("normalizeRecommendationAction", () => {
       });
 
       // Step 1: parsePass2Response normalizes/filters
-      const parsed = parsePass2Response(rawResponse, "gpt-4.1");
+      const parsed = parsePass2Response(rawResponse, "gpt-4.1", { isChunkUnit: true });
       const survivingRecs = parsed.criteria[0].recommendations;
 
       // Only the valid long imperative survives (with period appended)

@@ -426,8 +426,17 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
       validScoreEntries.reduce((sum, c) => sum + c.score_0_10, 0) / validScoreEntries.length
     );
 
-    // Merge rationales (use first)
-    const firstRationale = criteriaForKey[0]?.rationale || "";
+    // Merge rationales (prefer a real scored entry over a null-score placeholder).
+    const firstRationale =
+      criteriaForKey.find(
+        (c) =>
+          typeof c.score_0_10 === "number" &&
+          c.score_0_10 >= 1 &&
+          c.score_0_10 <= 10 &&
+          c.rationale?.trim(),
+      )?.rationale ??
+      criteriaForKey[0]?.rationale ??
+      "";
 
     // Merge recommendations from all chunks, deduplicate by anchor_snippet
     const mergedRecs: AxisCriterionResult["recommendations"] = [];
@@ -442,7 +451,11 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
       }
     }
 
-    const emittedStatuses = criteriaForKey
+    // Resolve disposition only from entries that contributed a score. Null-score
+    // placeholders (e.g., criterion_not_applicable backfills) must not override
+    // sibling chunks that actually evaluated this criterion.
+    const statusSourceEntries = validScoreEntries.length > 0 ? validScoreEntries : criteriaForKey;
+    const emittedStatuses = statusSourceEntries
       .map((criterion) => criterion.recommendation_status)
       .filter((status): status is NonNullable<AxisCriterionResult["recommendation_status"]> =>
         status !== undefined,
@@ -454,7 +467,7 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
         )
       : undefined;
     if (
-      emittedStatuses.length !== criteriaForKey.length
+      emittedStatuses.length !== statusSourceEntries.length
       || invalidZeroStatus
       || (mergedRecs.length === 0 && distinctStatuses.length !== 1)
     ) {
@@ -464,7 +477,7 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
           criterion: key,
           statuses: distinctStatuses,
           chunks_total: criteriaForKey.length,
-          chunks_with_status: emittedStatuses.length,
+          status_source_entries: statusSourceEntries.length,
         })}`,
       );
     }
@@ -473,7 +486,7 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
       ? "recommendation_provided" as const
       : distinctStatuses[0];
     const distinctRationales = Array.from(new Set(
-      criteriaForKey
+      statusSourceEntries
         .map((criterion) => criterion.recommendation_status_rationale?.trim())
         .filter((rationale): rationale is string => Boolean(rationale)),
     ));
@@ -1166,7 +1179,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
 
   let parsedOutput: SinglePassOutput;
   try {
-    parsedOutput = parsePass2Response(responseText, selectedModel);
+    parsedOutput = parsePass2Response(responseText, selectedModel, { isChunkUnit: opts.isChunkUnit });
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ")) {
       console.warn("[Pass2] Completion rejected by criterion completeness contract", {
@@ -1217,7 +1230,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
         generated_at: new Date().toISOString(),
       });
 
-      parsedOutput = parsePass2Response(responseText, selectedModel);
+      parsedOutput = parsePass2Response(responseText, selectedModel, { isChunkUnit: opts.isChunkUnit });
     } else {
     console.error("[Pass2] Parse boundary diagnostic", {
       job_id: opts.jobId ?? null,
@@ -1316,7 +1329,7 @@ function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolea
 export function parsePass2Response(
   raw: string,
   fallbackModel?: string,
-  _opts?: { manuscriptWordCount?: number },
+  _opts?: { manuscriptWordCount?: number; isChunkUnit?: boolean },
 ): CurrentPass2Output {
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
@@ -1482,6 +1495,34 @@ export function parsePass2Response(
         `[Pass2] OPPORTUNITY_COVERAGE_MISSING: ${criterion.key} score=${score} ` +
           `has ${meaningful} meaningful recommendation(s); issues=${coverage.issues.join(",")}.`,
       );
+    }
+  }
+
+  // ── Chunk-only missing-criterion backfill ────────────────────────────────────
+  // A chunk unit may legitimately have no evaluable signal for a criterion
+  // (e.g., marketability in an early chunk). Fill in a governed
+  // criterion_not_applicable placeholder so the chunk checkpoint is structurally
+  // complete and aggregation can source the criterion from sibling chunks.
+  // Short-form / direct-window calls still fail closed at
+  // assertPass2OutputDispositionContract when criteria are missing.
+  const presentKeys = new Set(criteria.map((criterion) => criterion.key));
+  const missingKeys = CRITERIA_KEYS.filter((key) => !presentKeys.has(key));
+  if (missingKeys.length > 0 && _opts?.isChunkUnit) {
+    console.warn("[Pass2] Backfilling missing chunk criteria with not-applicable placeholder", {
+      missing_criteria: missingKeys,
+      is_chunk_unit: true,
+    });
+    for (const key of missingKeys) {
+      criteria.push({
+        key: key as AxisCriterionResult["key"],
+        score_0_10: null as unknown as number,
+        rationale: `No evaluable signal for ${key} in this manuscript window.`,
+        evidence: [],
+        recommendations: [],
+        recommendation_status: "criterion_not_applicable",
+        recommendation_status_rationale:
+          "This criterion has no evaluable signal in the current chunk; it will be sourced from other chunks or marked not applicable during aggregation.",
+      } as AxisCriterionResult);
     }
   }
 

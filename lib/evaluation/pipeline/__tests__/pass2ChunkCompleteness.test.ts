@@ -58,18 +58,6 @@ function options(overrides: Partial<Parameters<typeof runPass2>[0]> = {}) {
   };
 }
 
-function withRetryLimit(limit: string): () => void {
-  const original = process.env.EVAL_CHUNK_RETRY_MAX;
-  process.env.EVAL_CHUNK_RETRY_MAX = limit;
-  return () => {
-    if (original === undefined) {
-      delete process.env.EVAL_CHUNK_RETRY_MAX;
-    } else {
-      process.env.EVAL_CHUNK_RETRY_MAX = original;
-    }
-  };
-}
-
 describe("Pass 2 chunk completeness SIPOC kickback", () => {
   test.each(CRITERIA_KEYS)("rejects any missing canonical criterion before a checkpoint can persist: %s", (missingKey) => {
     expect(() =>
@@ -77,14 +65,12 @@ describe("Pass 2 chunk completeness SIPOC kickback", () => {
     ).toThrow(new RegExp(`PASS2_OUTPUT_INCOMPLETE.*${missingKey}`));
   });
 
-  test("missing marketability triggers a fresh completion and succeeds without persisting the discarded result", async () => {
-    const onChunkComplete = jest.fn(async () => undefined);
+  test("missing marketability is backfilled with criterion_not_applicable and the chunk checkpoint persists", async () => {
+    const onChunkComplete = jest.fn(async (_chunkIndex: number, _result: SinglePassOutput) => undefined);
     const captures: Array<{ request_id?: string }> = [];
-    const responses = [
-      responseFor(makeOutput("marketability"), "discarded-marketability"),
-      responseFor(makeOutput(), "fresh-marketability-repair"),
-    ];
-    const completion = jest.fn(async () => responses.shift()!) as unknown as CreateCompletionFn;
+    const completion = jest.fn(async () =>
+      responseFor(makeOutput("marketability"), "incomplete-marketability")
+    ) as unknown as CreateCompletionFn;
 
     const result = await runPass2(options({
       _createCompletion: completion,
@@ -92,27 +78,32 @@ describe("Pass 2 chunk completeness SIPOC kickback", () => {
       _onChunkComplete: onChunkComplete,
     }));
 
-    expect(completion).toHaveBeenCalledTimes(2);
+    expect(completion).toHaveBeenCalledTimes(1);
     expect(captures.map((capture) => capture.request_id)).toEqual([
-      "discarded-marketability",
-      "fresh-marketability-repair",
+      "incomplete-marketability",
     ]);
     expect(result.criteria).toHaveLength(CRITERIA_KEYS.length);
     expect(onChunkComplete).toHaveBeenCalledTimes(1);
     expect(onChunkComplete.mock.calls[0][1].criteria).toHaveLength(CRITERIA_KEYS.length);
+
+    const marketability = result.criteria.find((criterion) => criterion.key === "marketability")!;
+    expect(marketability.score_0_10).toBeNull();
+    expect(marketability.recommendation_status).toBe("criterion_not_applicable");
   });
 
-  test("missing voice follows the same fresh retry path", async () => {
-    const responses = [
-      responseFor(makeOutput("voice"), "discarded-voice"),
-      responseFor(makeOutput(), "fresh-voice-repair"),
-    ];
-    const completion = jest.fn(async () => responses.shift()!) as unknown as CreateCompletionFn;
+  test("missing voice is backfilled with criterion_not_applicable and the chunk checkpoint persists", async () => {
+    const completion = jest.fn(async () =>
+      responseFor(makeOutput("voice"), "incomplete-voice")
+    ) as unknown as CreateCompletionFn;
 
     const result = await runPass2(options({ _createCompletion: completion }));
 
-    expect(completion).toHaveBeenCalledTimes(2);
+    expect(completion).toHaveBeenCalledTimes(1);
     expect(result.criteria.map((criterion) => criterion.key).sort()).toEqual([...CRITERIA_KEYS].sort());
+
+    const voice = result.criteria.find((criterion) => criterion.key === "voice")!;
+    expect(voice.score_0_10).toBeNull();
+    expect(voice.recommendation_status).toBe("criterion_not_applicable");
   });
 
   test("incomplete cached output is rejected and regenerated, while complete cached output is reused", async () => {
@@ -129,21 +120,27 @@ describe("Pass 2 chunk completeness SIPOC kickback", () => {
     expect(reused.criteria).toHaveLength(CRITERIA_KEYS.length);
   });
 
-  test("a second incomplete response fails closed after the bounded retry and never invokes checkpoint persistence", async () => {
-    const restore = withRetryLimit("1");
-    const onChunkComplete = jest.fn(async () => undefined);
-    const completion = jest.fn(async () => responseFor(makeOutput("marketability"), "still-incomplete")) as unknown as CreateCompletionFn;
-    try {
-      await expect(runPass2(options({ _createCompletion: completion, _onChunkComplete: onChunkComplete })))
-        .rejects.toThrow(/PASS2_OUTPUT_INCOMPLETE/);
-    } finally {
-      restore();
-    }
-    expect(completion).toHaveBeenCalledTimes(2);
-    expect(onChunkComplete).not.toHaveBeenCalled();
+  test("a persistently incomplete chunk response is backfilled with criterion_not_applicable and the checkpoint persists", async () => {
+    const onChunkComplete = jest.fn(async (_chunkIndex: number, _result: SinglePassOutput) => undefined);
+    const completion = jest.fn(async () =>
+      responseFor(makeOutput("marketability"), "still-incomplete")
+    ) as unknown as CreateCompletionFn;
+
+    const result = await runPass2(options({
+      _createCompletion: completion,
+      _onChunkComplete: onChunkComplete,
+    }));
+
+    expect(completion).toHaveBeenCalledTimes(1);
+    expect(onChunkComplete).toHaveBeenCalledTimes(1);
+    expect(onChunkComplete.mock.calls[0][1].criteria).toHaveLength(CRITERIA_KEYS.length);
+
+    const marketability = result.criteria.find((criterion) => criterion.key === "marketability")!;
+    expect(marketability.score_0_10).toBeNull();
+    expect(marketability.recommendation_status).toBe("criterion_not_applicable");
   });
 
-  test("two complete chunks aggregate all canonical criteria, while an incomplete sibling prevents aggregate output", async () => {
+  test("two complete chunks aggregate all canonical criteria, while an incomplete sibling is backfilled and aggregated", async () => {
     const twoChunks = [
       { chunk_index: 0, content: "First complete chunk." },
       { chunk_index: 1, content: "Second complete chunk." },
@@ -156,23 +153,19 @@ describe("Pass 2 chunk completeness SIPOC kickback", () => {
     const aggregate = await runPass2(options({ manuscriptChunks: twoChunks, _createCompletion: completeProvider }));
     expect(aggregate.criteria.map((criterion) => criterion.key).sort()).toEqual([...CRITERIA_KEYS].sort());
 
-    const restore = withRetryLimit("0");
     const completed = jest.fn(async () => undefined);
     const mixedResponses = [
       responseFor(makeOutput(), "complete-before-failure"),
       responseFor(makeOutput("marketability"), "incomplete-sibling"),
     ];
     const mixedProvider = jest.fn(async () => mixedResponses.shift()!) as unknown as CreateCompletionFn;
-    try {
-      await expect(runPass2(options({
-        manuscriptChunks: twoChunks,
-        _createCompletion: mixedProvider,
-        _onChunkComplete: completed,
-      }))).rejects.toThrow(/PASS2_OUTPUT_INCOMPLETE/);
-    } finally {
-      restore();
-    }
-    expect(completed).toHaveBeenCalledTimes(1);
+    const mixedAggregate = await runPass2(options({
+      manuscriptChunks: twoChunks,
+      _createCompletion: mixedProvider,
+      _onChunkComplete: completed,
+    }));
+    expect(mixedAggregate.criteria.map((criterion) => criterion.key).sort()).toEqual([...CRITERIA_KEYS].sort());
+    expect(completed).toHaveBeenCalledTimes(2);
   });
 
   test("duplicate canonical keys fail closed, and unknown provider keys are ignored without displacing a required criterion", () => {

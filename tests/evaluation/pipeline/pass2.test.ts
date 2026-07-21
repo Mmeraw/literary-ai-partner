@@ -59,7 +59,7 @@ function makePass2Chunk(options: {
     ?? (concept.recommendations.length > 0 ? "recommendation_provided" : "insufficient_evidence");
   (concept as typeof concept & { recommendation_status_rationale?: string }).recommendation_status_rationale =
     options.recommendationStatusRationale;
-  return parsePass2Response(JSON.stringify({ criteria: [concept] }));
+  return parsePass2Response(JSON.stringify({ criteria: fixture.criteria }));
 }
 
 /** Helper: build a mock completion function that returns the given JSON string. */

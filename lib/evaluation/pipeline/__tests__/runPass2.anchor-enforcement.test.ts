@@ -5,6 +5,7 @@ function parsePass2Response(raw: string) {
   const payload = JSON.parse(raw) as {
     criteria?: Array<Record<string, unknown> & { recommendations?: unknown[] }>;
   };
+  const providedKeys = new Set((payload.criteria ?? []).map((criterion) => String(criterion.key)));
   for (const criterion of payload.criteria ?? []) {
     const recommendationCount = Array.isArray(criterion.recommendations)
       ? criterion.recommendations.length
@@ -17,7 +18,11 @@ function parsePass2Response(raw: string) {
         "This anchor-focused fixture does not prescribe a separate evidence-backed intervention.";
     }
   }
-  return parsePass2ResponseRaw(JSON.stringify(payload));
+  const full = parsePass2ResponseRaw(JSON.stringify(payload), "gpt-4.1", { isChunkUnit: true });
+  return {
+    ...full,
+    criteria: full.criteria.filter((criterion) => providedKeys.has(criterion.key)),
+  };
 }
 
 describe("runPass2 textual anchor enforcement", () => {
@@ -353,6 +358,7 @@ describe("runPass2 truncated JSON retry", () => {
 
     const result = await runPass2({
       manuscriptText: "She opened the sealed letter and stepped into the rain.",
+      manuscriptChunks: [{ chunk_index: 0, content: "She opened the sealed letter and stepped into the rain." }],
       workType: "fiction",
       title: "Retry Fixture",
       registry: new Map([["concept", {}]]) as any,
@@ -388,7 +394,8 @@ describe("runPass2 truncated JSON retry", () => {
     });
 
     expect(completionCalls).toHaveLength(2);
-    expect(result.criteria).toHaveLength(1);
-    expect(result.criteria[0].key).toBe("concept");
+    const concept = result.criteria.find((criterion) => criterion.key === "concept");
+    expect(concept?.key).toBe("concept");
+    expect(concept?.score_0_10).toBe(8);
   });
 });
