@@ -16,6 +16,7 @@ import type { CreateCompletionFn } from "@/lib/evaluation/pipeline/runPass3Synth
 import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/pipeline/types";
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
+import { buildCurrentRawPass3Response } from "@/tests/evaluation/pipeline/test-fixtures/currentPass3Response";
 
 function makePassOutput(pass: 1 | 2, axis: string): SinglePassOutput {
   return {
@@ -35,11 +36,8 @@ function makePassOutput(pass: 1 | 2, axis: string): SinglePassOutput {
   };
 }
 
-function makePass3Fixture(
-  recommendationAction: string,
-  overrides: Record<string, unknown> = {},
-) {
-  return {
+function makePass3Fixture(recommendationAction: string) {
+  return buildCurrentRawPass3Response({
     criteria: CRITERIA_KEYS.map((key) => ({
       key,
       craft_score: 7,
@@ -76,8 +74,7 @@ function makePass3Fixture(
       pass2_model: "gpt-4o-mini",
       pass3_model: "gpt-4o-mini",
     },
-    ...overrides,
-  };
+  });
 }
 
 const TRUNCATED_ACTION =

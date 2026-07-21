@@ -226,6 +226,7 @@ describe("evaluation architecture invariants", () => {
     const rawPass3Suites = [
       "__tests__/lib/evaluation/pipeline/pass3-backfill-quality.test.ts",
       "__tests__/lib/evaluation/pipeline/pass3-editorial-specificity-triple.test.ts",
+      "lib/evaluation/pipeline/__tests__/pass3-truncation-retry.test.ts",
       "__tests__/lib/evaluation/pipeline/prose-control-anchor-floor.test.ts",
       "tests/lib/evaluation/packet-evidence-consumption.test.ts",
       "tests/lib/evaluation/pipeline/pass3-clamp-stranded-connector.test.ts",
