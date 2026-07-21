@@ -12,6 +12,7 @@
  */
 
 import { AUTHOR_FACING_PATH_CONTRACTS } from '@/lib/text/authorFacingProseAuthority';
+import { isInternalNonRenderableFieldPath } from '@/lib/text/authorFacingInternalFieldRegistry';
 
 function fieldsOwnedBy(ownership: 'canonical' | 'derived'): Set<string> {
   return new Set(
@@ -84,6 +85,7 @@ export function isDerivedAuthorFacingField(key: string): boolean {
 }
 
 export function isExcludedAuthorFacingPath(path: string): boolean {
+  if (isInternalNonRenderableFieldPath(path)) return true;
   for (const fragment of EXCLUDED_AUTHOR_FACING_PATH_FRAGMENTS) {
     if (path.includes(fragment)) return true;
   }
