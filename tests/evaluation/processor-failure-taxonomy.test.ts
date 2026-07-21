@@ -65,7 +65,8 @@ describe('Terminal failure codes — must not auto-retry', () => {
     'PASS1_FAILED',
     'PASS2_FAILED',
     'PASS3_FAILED',
-    // TEMPLATE_COMPLETENESS_GATE_FAILED moved to kick-eligible (FIPOC KICK_MATRIX)
+    'TEMPLATE_COMPLETENESS_GATE_FAILED',
+    // CRITERION_OPPORTUNITY_COVERAGE_INVALID is the only template-gate condition eligible for a bounded kick.
     'SCOPE_CLASSIFICATION_FAILED',
     'MANUSCRIPT_CHUNK_COVERAGE_INCOMPLETE',
     'CHUNK_BUDGET_OVERFLOW',
@@ -184,7 +185,7 @@ describe('Self-recovery attempt count policy', () => {
   });
 
   it('FIPOC kick-eligible codes get exactly 1 retry (backward kick budget)', () => {
-    expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(1);
+    expect(maxSelfRecoveryAttemptsForFailureCode('CRITERION_OPPORTUNITY_COVERAGE_INVALID')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_RATIONALE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_MISSING_EVIDENCE')).toBe(1);
     expect(maxSelfRecoveryAttemptsForFailureCode('QG_ARTIFACT_GATE_FAIL')).toBe(1);
@@ -375,11 +376,16 @@ describe('Governance anti-regression: critical category invariants', () => {
     expect(isRescuable('PASS3_FAILED')).toBe(false);
   });
 
-  it('TEMPLATE_COMPLETENESS_GATE_FAILED is kick-eligible — FIPOC backward kick to re-synthesis', () => {
-    expect(isTerminalFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(false);
-    expect(isKickEligibleFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(true);
-    expect(isRescuable('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(true);
-    expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(1);
+  it('only criterion opportunity coverage receives the bounded template-gate kick', () => {
+    expect(isTerminalFailureCode('CRITERION_OPPORTUNITY_COVERAGE_INVALID')).toBe(false);
+    expect(isKickEligibleFailureCode('CRITERION_OPPORTUNITY_COVERAGE_INVALID')).toBe(true);
+    expect(isRescuable('CRITERION_OPPORTUNITY_COVERAGE_INVALID')).toBe(true);
+    expect(maxSelfRecoveryAttemptsForFailureCode('CRITERION_OPPORTUNITY_COVERAGE_INVALID')).toBe(1);
+
+    expect(isTerminalFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(true);
+    expect(isKickEligibleFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(false);
+    expect(isRescuable('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(false);
+    expect(maxSelfRecoveryAttemptsForFailureCode('TEMPLATE_COMPLETENESS_GATE_FAILED')).toBe(0);
   });
 
   it('PASS2_INDEPENDENCE_REWRITE_FAILED retries once then terminal-blocks — deterministic editorial repair budget', () => {

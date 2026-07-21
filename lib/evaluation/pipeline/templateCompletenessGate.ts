@@ -22,7 +22,8 @@
 import { REVISIONGRADE_SUPPORT_EMAIL } from '@/lib/evaluation/hardStopGovernance';
 import { CRITERIA_KEYS } from '@/schemas/criteria-keys';
 import {
-  hasGovernedOpportunityCoverage,
+  analyzeGovernedOpportunityCoverage,
+  type OpportunityCoverageIssue,
 } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 
 export type TemplateViolation = {
@@ -110,6 +111,38 @@ const FORMAT_WORDS = new Set([
 ]);
 
 const VALID_CONFIDENCE_LEVELS = new Set(['high', 'moderate', 'medium', 'low']);
+const OPPORTUNITY_COVERAGE_VIOLATION_CODES = new Set([
+  'OPPORTUNITY_COVERAGE_MISSING',
+  'RECOMMENDATION_STATUS_INVALID',
+  'RECOMMENDATION_STATUS_CARDINALITY_MISMATCH',
+  'RECOMMENDATION_STATUS_RATIONALE_MISSING',
+]);
+
+const OPPORTUNITY_COVERAGE_ISSUE_DIAGNOSTICS: Record<
+  OpportunityCoverageIssue,
+  { code: string; invariantId: string; summary: string }
+> = {
+  invalid_recommendation_status: {
+    code: 'RECOMMENDATION_STATUS_INVALID',
+    invariantId: 'criterion_recommendation_status_known',
+    summary: 'recommendation_status is unknown or malformed',
+  },
+  recommendation_status_cardinality_mismatch: {
+    code: 'RECOMMENDATION_STATUS_CARDINALITY_MISMATCH',
+    invariantId: 'criterion_recommendation_status_cardinality_consistent',
+    summary: 'recommendation_status contradicts recommendation cardinality',
+  },
+  missing_governed_disposition: {
+    code: 'OPPORTUNITY_COVERAGE_MISSING',
+    invariantId: 'criterion_opportunity_coverage_governed',
+    summary: 'no recommendation or governed disposition exists',
+  },
+  missing_disposition_rationale: {
+    code: 'RECOMMENDATION_STATUS_RATIONALE_MISSING',
+    invariantId: 'criterion_recommendation_status_rationale_present',
+    summary: 'the governed zero-recommendation status lacks a substantive rationale',
+  },
+};
 const PLACEHOLDER_RE = /\b(?:n\/?a|none|not specified|tbd|todo|placeholder|example|lorem ipsum|\[location|\[operation|\[priority|\[severity|\[confidence)\b/i;
 const GENERIC_RE = /\b(?:improve|strengthen|clarify|develop|enhance|expand|tighten|revise)\s+(?:the\s+)?(?:writing|story|manuscript|novel|chapter|section|piece)\b/i;
 
@@ -350,22 +383,25 @@ export function validateTemplateCompleteness(
 
     if (hasNumericScore) {
       const recCount = countMeaningfulRecommendations(c.recommendations);
-      const governed = hasGovernedOpportunityCoverage({
+      const coverage = analyzeGovernedOpportunityCoverage({
         score,
         meaningfulOpportunityCount: recCount,
         recommendationStatus: c.recommendation_status,
         recommendationStatusRationale: c.recommendation_status_rationale,
       });
 
-      if (!governed) {
-        pushViolation(violations, {
-          code: 'OPPORTUNITY_COVERAGE_MISSING',
-          criterion: c.key,
-          field_path: `criteria.${c.key}.recommendations`,
-          invariant_id: 'criterion_opportunity_coverage_governed',
-          message: `Criterion "${c.key}" scored ${score}/10 and has ${recCount} meaningful recommendation(s) without a governed status rationale. Weak criteria must either provide opportunities or an explicit insufficient_evidence / gate_suppressed status.`,
-          severity: 'critical',
-        });
+      if (!coverage.covered) {
+        for (const issue of coverage.issues) {
+          const diagnostic = OPPORTUNITY_COVERAGE_ISSUE_DIAGNOSTICS[issue];
+          pushViolation(violations, {
+            code: diagnostic.code,
+            criterion: c.key,
+            field_path: `criteria.${c.key}.recommendations`,
+            invariant_id: diagnostic.invariantId,
+            message: `Criterion "${c.key}" scored ${score}/10 with ${recCount} meaningful recommendation(s): ${diagnostic.summary}.`,
+            severity: 'critical',
+          });
+        }
         hasAnyDensityViolation = true;
       } else if (Array.isArray(c.recommendations)) {
         const rawCount = c.recommendations.length;
@@ -465,3 +501,18 @@ export const TEMPLATE_COMPLETENESS_USER_MESSAGE =
   "analysis have been preserved — no action is needed on your part.";
 
 export const TEMPLATE_COMPLETENESS_FAILURE_CODE = 'TEMPLATE_COMPLETENESS_GATE_FAILED';
+export const OPPORTUNITY_COVERAGE_FAILURE_CODE = 'CRITERION_OPPORTUNITY_COVERAGE_INVALID';
+
+export function selectTemplateCompletenessFailureCode(
+  result: TemplateCompletenessResult,
+): typeof TEMPLATE_COMPLETENESS_FAILURE_CODE | typeof OPPORTUNITY_COVERAGE_FAILURE_CODE {
+  const criticalViolations = result.violations.filter(
+    (violation) => violation.severity === 'critical',
+  );
+  const opportunityCoverageOnly = criticalViolations.length > 0
+    && criticalViolations.every((violation) => OPPORTUNITY_COVERAGE_VIOLATION_CODES.has(violation.code));
+
+  return opportunityCoverageOnly
+    ? OPPORTUNITY_COVERAGE_FAILURE_CODE
+    : TEMPLATE_COMPLETENESS_FAILURE_CODE;
+}

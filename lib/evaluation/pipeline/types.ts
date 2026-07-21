@@ -9,6 +9,7 @@
 
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
+import type { RecommendationStatus } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 // ── Recommendation semantic vocabulary ───────────────────────────────────────
 
@@ -142,6 +143,10 @@ export type AxisCriterionResult = {
   /** Deterministic parser/validator reason codes from pass boundary enforcement. */
   reason_codes?: string[];
   rationale: string;
+  /** ODP-owned disposition; required when this pass emits zero safe recommendations for a weak criterion. */
+  recommendation_status?: RecommendationStatus;
+  /** Concrete reason for a governed zero-recommendation disposition. */
+  recommendation_status_rationale?: string;
   evidence: EvidenceAnchor[];
   recommendations: {
     priority: "high" | "medium" | "low";

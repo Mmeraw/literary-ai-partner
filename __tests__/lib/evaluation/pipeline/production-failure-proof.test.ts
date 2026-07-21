@@ -127,7 +127,7 @@ describe("PROOF: Evaluation KICK_MATRIX is wired to runtime", () => {
   });
 
   const kickEligibleCodes = [
-    "TEMPLATE_COMPLETENESS_GATE_FAILED",
+    "CRITERION_OPPORTUNITY_COVERAGE_INVALID",
     "QG_EVIDENCE_FABRICATION",
     "QG_MISSING_RATIONALE",
     "QG_MISSING_EVIDENCE",
@@ -148,6 +148,7 @@ describe("PROOF: Evaluation KICK_MATRIX is wired to runtime", () => {
   });
 
   it("non-kick codes return false", () => {
+    expect(isKickEligibleFailureCode("TEMPLATE_COMPLETENESS_GATE_FAILED")).toBe(false);
     expect(isKickEligibleFailureCode("PIPELINE_GLOBAL_SLA_EXCEEDED")).toBe(false);
     expect(isKickEligibleFailureCode("EVALUATION_FAILED")).toBe(false);
     expect(isKickEligibleFailureCode(null)).toBe(false);
@@ -198,4 +199,3 @@ describe("PROOF: Post-LLM anchor enforcement catches editorial diagnosis", () =>
     }
   });
 });
-

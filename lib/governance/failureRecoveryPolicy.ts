@@ -144,6 +144,7 @@ const ROLLBACK_TO_CERTIFIED_CHECKPOINT_FAILURE_CODES = [
   'SHORT_FORM_LONGFORM_ARTIFACT_LEAK', // Pass 3 short-form output leaked long-form artifact terms (WAVE/Golden Spine/Phase 5); kick-eligible re-synthesis (S07_PASS3, 1 retry).
   'SHORT_FORM_MIDSENTENCE_TERMINATION', // Short-form diagnostic prose ended mid-sentence; kick-eligible Pass 3 re-synthesis.
   'SHORT_FORM_UNSUPPORTED_GLOBAL_CLAIM', // Pass 3 short-form output made whole-manuscript claims unsupportable from the excerpt; kick-eligible re-synthesis (S07_PASS3, 1 retry).
+  'CRITERION_OPPORTUNITY_COVERAGE_INVALID', // Pass 3 recommendation cardinality/disposition contradiction; kick once to synthesis before terminal block.
   'STRUCTURED_AUDIT_FIELDS_MISSING',
   'TRUSTEDPATH_INELIGIBLE_VERDICT',
   'TRUSTEDPATH_LEDGER_WRITE_FAIL',
@@ -228,6 +229,7 @@ const TERMINAL_BLOCK_FAILURE_CODES = [
   'REVISION_LEDGER_EMPTY',
   'SECTION_NOT_FOUND',
   'SEED_AUTHORITY_PROOF_MISSING',
+  'TEMPLATE_COMPLETENESS_GATE_FAILED', // Generic structural/template defect; a code fix is required rather than model re-synthesis.
   'TRUSTEDPATH_ALREADY_DECIDED',
   'VIEWMODEL_SANITIZATION_INCOMPLETE',
   'WAVE_PLAN_FAILED',

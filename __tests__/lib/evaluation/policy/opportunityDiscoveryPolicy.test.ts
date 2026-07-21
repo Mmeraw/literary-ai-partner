@@ -1,5 +1,7 @@
 import {
   OPPORTUNITY_DISCOVERY_POLICY,
+  RECOMMENDATION_STATUS_CONTRACT,
+  analyzeGovernedOpportunityCoverage,
   buildOpportunityDiscoveryPromptBlock,
   getOpportunityScoreGuidance,
   getProductOpportunityCeiling,
@@ -64,6 +66,17 @@ describe('opportunityDiscoveryPolicy', () => {
     })).toBe(false);
   });
 
+  it('keeps legacy outputs readable when their pre-contract shape is unambiguous', () => {
+    expect(hasGovernedOpportunityCoverage({
+      score: 6,
+      meaningfulOpportunityCount: 1,
+    })).toBe(true);
+    expect(hasGovernedOpportunityCoverage({
+      score: 9,
+      meaningfulOpportunityCount: 0,
+    })).toBe(true);
+  });
+
   it('accepts explicit insufficient-evidence coverage without fabricated advice', () => {
     expect(hasGovernedOpportunityCoverage({
       score: 6,
@@ -73,11 +86,87 @@ describe('opportunityDiscoveryPolicy', () => {
     })).toBe(true);
   });
 
+  it('keeps diagnostic confidence and evidence outside disposition authority', () => {
+    const base = {
+      score: 6,
+      meaningfulOpportunityCount: 0,
+      recommendationStatus: 'insufficient_evidence',
+      recommendationStatusRationale: 'The diagnosis is supported, but a safe and specific intervention is not supported.',
+    } as const;
+    const highDiagnosticConfidence = { ...base, confidenceLevel: 'high', evidenceCount: 3 };
+    const lowDiagnosticConfidence = { ...base, confidenceLevel: 'low', evidenceCount: 0 };
+
+    expect(analyzeGovernedOpportunityCoverage(highDiagnosticConfidence))
+      .toEqual(analyzeGovernedOpportunityCoverage(lowDiagnosticConfidence));
+    expect(hasGovernedOpportunityCoverage(base)).toBe(true);
+  });
+
+  it.each([
+    'insufficient_evidence',
+    'gate_suppressed_no_safe_recommendation',
+    'no_recommendation_warranted',
+  ] as const)('rejects recommendation/status cardinality mismatch for %s', (recommendationStatus) => {
+    const analysis = analyzeGovernedOpportunityCoverage({
+      score: 6,
+      meaningfulOpportunityCount: 1,
+      recommendationStatus,
+      recommendationStatusRationale: 'This explicit zero-opportunity status contradicts the emitted recommendation.',
+    });
+
+    expect(analysis.covered).toBe(false);
+    expect(analysis.issues).toContain('recommendation_status_cardinality_mismatch');
+  });
+
+  it('rejects recommendation_provided when no recommendation exists', () => {
+    expect(analyzeGovernedOpportunityCoverage({
+      score: 6,
+      meaningfulOpportunityCount: 0,
+      recommendationStatus: 'recommendation_provided',
+    })).toMatchObject({
+      covered: false,
+      issues: expect.arrayContaining(['recommendation_status_cardinality_mismatch']),
+    });
+  });
+
+  it('fails closed on unknown explicit status', () => {
+    expect(analyzeGovernedOpportunityCoverage({
+      score: 9,
+      meaningfulOpportunityCount: 0,
+      recommendationStatus: 'future_status',
+      recommendationStatusRationale: 'An unknown explicit status cannot be treated as legacy authority.',
+    })).toMatchObject({
+      covered: false,
+      issues: expect.arrayContaining(['invalid_recommendation_status']),
+    });
+  });
+
+  it('defines status cardinality in one authoritative table', () => {
+    expect(RECOMMENDATION_STATUS_CONTRACT.recommendation_provided).toEqual({
+      recommendationsAllowed: true,
+      zeroRecommendationsAllowed: false,
+      rationaleRequired: false,
+      invalidCombinationRecovery: 'pass3_once',
+    });
+    expect(RECOMMENDATION_STATUS_CONTRACT.insufficient_evidence).toEqual({
+      recommendationsAllowed: false,
+      zeroRecommendationsAllowed: true,
+      rationaleRequired: true,
+      invalidCombinationRecovery: 'pass3_once',
+    });
+    expect(Object.keys(RECOMMENDATION_STATUS_CONTRACT).sort())
+      .toEqual([...OPPORTUNITY_DISCOVERY_POLICY.governedStatuses].sort());
+    expect(Object.values(RECOMMENDATION_STATUS_CONTRACT).every(
+      (contract) => contract.invalidCombinationRecovery === 'pass3_once',
+    )).toBe(true);
+  });
+
   it('emits prompt text that forbids quota filling', () => {
     const prompt = buildOpportunityDiscoveryPromptBlock('short_form');
     expect(prompt).toContain('discoveries, not quotas');
     expect(prompt).toContain('Product ceiling: 50');
     expect(prompt).toContain('Short Form must never receive WAVE');
+    expect(prompt).toContain('diagnostic support, not confidence that a safe intervention can be prescribed');
+    expect(prompt).toContain('do not emit contradictory status/cardinality metadata');
     expect(prompt).not.toContain('25–50');
   });
 

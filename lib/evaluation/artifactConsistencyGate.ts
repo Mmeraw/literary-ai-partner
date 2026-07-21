@@ -42,13 +42,11 @@ function criterionHasRecommendation(result: EvaluationResultV2, key: CriterionKe
       (rec) => rec.criterion_key === key && rec.action.trim().length > 0,
     );
 
-  if (hasRec) return true;
-
   // ODP: a weak criterion without recommendations is still covered if it carries
   // a governed zero-opportunity status with concrete rationale.
   return hasGovernedOpportunityCoverage({
     score: (criterion as { score_0_10?: number | null }).score_0_10 ?? null,
-    meaningfulOpportunityCount: criterion.recommendations?.length ?? 0,
+    meaningfulOpportunityCount: hasRec ? Math.max(1, criterion.recommendations?.length ?? 0) : 0,
     recommendationStatus: criterion.recommendation_status,
     recommendationStatusRationale: criterion.recommendation_status_rationale,
   });

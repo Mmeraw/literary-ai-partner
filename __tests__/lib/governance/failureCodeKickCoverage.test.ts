@@ -188,6 +188,7 @@ const EVALUATION_UNMAPPED_FAILURE_CODES = [
   'REVISION_LEDGER_EMPTY',
   'SEED_AUTHORITY_PROOF_MISSING',
   'SEED_GENERATION_FAILED',
+  'TEMPLATE_COMPLETENESS_GATE_FAILED',
   'VIEWMODEL_SANITIZATION_INCOMPLETE',
   'WAVE_EXECUTION_TIMEOUT',
   'WAVE_PLAN_FAILED',
@@ -254,14 +255,14 @@ const FAMILY_AUDITS: readonly FamilyAudit[] = [
       'release-blocking': 12,
       'author-facing': 18,
       persistence: 5,
-      'certification/governance': 26,
+      'certification/governance': 27,
       'terminal/expected': 18,
       'diagnostic-only': 34,
     },
     expectedNonKickRecoveryPolicyCounts: {
       rollback_to_certified_checkpoint: 0,
       retry_then_terminal_block: 18,
-      terminal_block: 40,
+      terminal_block: 41,
       log_only: 4,
     },
   },
@@ -335,7 +336,7 @@ describe('failure-code → kick-matrix coverage audit', () => {
   test('failure recovery definitions are unique and declaration-based', () => {
     const definitionCodes = FAILURE_RECOVERY_DEFINITIONS.map((definition) => definition.failureCode);
     expect(definitionCodes).toHaveLength(new Set(definitionCodes).size);
-    expect(definitionCodes.length).toBe(189);
+    expect(definitionCodes.length).toBe(191);
   });
 
   test.each(FAMILY_AUDITS)('$family stages declare input metrics, output metrics, dirty-data rules, and failure codes', (audit) => {
@@ -383,7 +384,7 @@ describe('failure-code → kick-matrix coverage audit', () => {
     const totalUnmapped = FAMILY_AUDITS.reduce((total, audit) => total + audit.expectedUnmappedFailureCodes.length, 0);
 
     expect(totalUnmapped).toBeGreaterThan(0);
-    expect(totalUnmapped).toBe(103);
+    expect(totalUnmapped).toBe(104);
   });
 
   test.each(FAMILY_AUDITS)('$family unmapped failure codes have severity/risk classification counts', (audit) => {
@@ -451,7 +452,7 @@ describe('failure-code → kick-matrix coverage audit', () => {
     expect(totals['release-blocking']).toBe(17);
     expect(totals['author-facing']).toBe(27);
     expect(totals.persistence).toBe(12);
-    expect(totals['certification/governance']).toBe(34);
+    expect(totals['certification/governance']).toBe(35);
   });
 });
 

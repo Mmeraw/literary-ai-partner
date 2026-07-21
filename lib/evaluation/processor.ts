@@ -82,7 +82,7 @@ import {
 import {
   validateTemplateCompleteness,
   TEMPLATE_COMPLETENESS_USER_MESSAGE,
-  TEMPLATE_COMPLETENESS_FAILURE_CODE,
+  selectTemplateCompletenessFailureCode,
 } from '@/lib/evaluation/pipeline/templateCompletenessGate';
 import { evaluateArtifactConsistencyGateV1 } from '@/lib/evaluation/artifactConsistencyGate';
 import { runSummaryCriterionConsistencyGate } from '@/lib/evaluation/pipeline/summaryCriterionConsistencyGate';
@@ -1956,7 +1956,7 @@ const TERMINAL_FAILURE_EXACT = new Set<string>([
  * Corresponds to KICK_MATRIX entries at S09_QUALITYGATEV2 and S07_PASS3.
  */
 const KICK_ELIGIBLE_FAILURE_CODES = new Set<string>([
-  'TEMPLATE_COMPLETENESS_GATE_FAILED',
+  'CRITERION_OPPORTUNITY_COVERAGE_INVALID',
   // QG_DUPLICATE_REC removed: recovery policy is log_only, which short-circuits isKickEligibleFailureCode()
   // before this set is ever consulted. Entry was unreachable dead code.
   'QG_MISSING_RATIONALE',
@@ -11854,23 +11854,35 @@ export async function processEvaluationJob(
     // kick to re-run synthesis before terminal failure.
     const templateCompletenessCheck = validateTemplateCompleteness(effectiveEvaluationResult);
     if (!templateCompletenessCheck.pass) {
+      const templateFailureCode = selectTemplateCompletenessFailureCode(templateCompletenessCheck);
+      let backwardKickDecision = {
+        attempted: false,
+        kicked: false,
+        reason: `${templateFailureCode} is not eligible for bounded Pass 3 recovery.`,
+      };
+
       console.error(
         `[Processor] ${jobId}: Template completeness gate FAILED — ${templateCompletenessCheck.violations.length} violation(s)`,
         templateCompletenessCheck.summary,
       );
 
       // ── FIPOC backward kick: re-queue for synthesis if budget allows ──
-      if (isKickEligibleFailureCode(TEMPLATE_COMPLETENESS_FAILURE_CODE)) {
+      if (isKickEligibleFailureCode(templateFailureCode)) {
         const kickResult = await attemptBackwardKickToSynthesis({
           supabase,
           jobId,
           progressState,
-          failureCode: TEMPLATE_COMPLETENESS_FAILURE_CODE,
+          failureCode: templateFailureCode,
           violationSummary: templateCompletenessCheck.summary,
         });
         if (kickResult.kicked) {
           return { success: false, error: `[FIPOC-KICK] ${kickResult.reason}` };
         }
+        backwardKickDecision = {
+          attempted: true,
+          kicked: false,
+          reason: kickResult.reason,
+        };
         console.warn(
           `[Processor] ${jobId}: backward kick declined — ${kickResult.reason}; falling through to terminal failure`,
         );
@@ -11878,12 +11890,13 @@ export async function processEvaluationJob(
 
       await markFailed(
         TEMPLATE_COMPLETENESS_USER_MESSAGE,
-        TEMPLATE_COMPLETENESS_FAILURE_CODE,
+        templateFailureCode,
         {
           pipelineStage: 'template_completeness_gate',
           reasonCodes: templateCompletenessCheck.violations.map((violation) => violation.code),
           diagnostics: {
             gate: 'template_completeness',
+            backward_kick: backwardKickDecision,
             summary: templateCompletenessCheck.summary,
             critical_count: templateCompletenessCheck.violations.filter(
               (violation) => violation.severity === 'critical',

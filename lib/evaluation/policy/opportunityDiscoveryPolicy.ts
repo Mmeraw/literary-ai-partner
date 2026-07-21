@@ -63,6 +63,53 @@ export const OPPORTUNITY_DISCOVERY_POLICY = {
   ] as const satisfies readonly RecommendationStatus[],
 } as const;
 
+export const RECOMMENDATION_STATUS_CONTRACT: Record<
+  RecommendationStatus,
+  {
+    recommendationsAllowed: boolean;
+    zeroRecommendationsAllowed: boolean;
+    rationaleRequired: boolean;
+    invalidCombinationRecovery: 'pass3_once';
+  }
+> = {
+  recommendation_provided: {
+    recommendationsAllowed: true,
+    zeroRecommendationsAllowed: false,
+    rationaleRequired: false,
+    invalidCombinationRecovery: 'pass3_once',
+  },
+  no_recommendation_warranted: {
+    recommendationsAllowed: false,
+    zeroRecommendationsAllowed: true,
+    rationaleRequired: true,
+    invalidCombinationRecovery: 'pass3_once',
+  },
+  genre_appropriate_no_revision_warranted: {
+    recommendationsAllowed: false,
+    zeroRecommendationsAllowed: true,
+    rationaleRequired: true,
+    invalidCombinationRecovery: 'pass3_once',
+  },
+  criterion_not_applicable: {
+    recommendationsAllowed: false,
+    zeroRecommendationsAllowed: true,
+    rationaleRequired: true,
+    invalidCombinationRecovery: 'pass3_once',
+  },
+  insufficient_evidence: {
+    recommendationsAllowed: false,
+    zeroRecommendationsAllowed: true,
+    rationaleRequired: true,
+    invalidCombinationRecovery: 'pass3_once',
+  },
+  gate_suppressed_no_safe_recommendation: {
+    recommendationsAllowed: false,
+    zeroRecommendationsAllowed: true,
+    rationaleRequired: true,
+    invalidCombinationRecovery: 'pass3_once',
+  },
+};
+
 const SHORT_FORM_GUIDANCE: Record<number, OpportunityScoreGuidance> = {
   10: {
     expectedMin: 0,
@@ -194,25 +241,84 @@ export function isGovernedRecommendationStatus(value: unknown): value is Recomme
  * whether an empty criterion is governed. Semantic recommendation validation
  * remains the responsibility of grounding/integrity gates.
  */
-export function hasGovernedOpportunityCoverage(args: {
+export interface GovernedOpportunityCoverageInput {
   score: number | null;
   meaningfulOpportunityCount: number;
   recommendationStatus?: unknown;
   recommendationStatusRationale?: unknown;
-}): boolean {
-  if (args.meaningfulOpportunityCount > 0) return true;
-  if (args.score === null) return isGovernedRecommendationStatus(args.recommendationStatus);
+}
 
-  // Scores 8+ may legitimately produce zero evidence-backed recommendations.
-  // The policy still prefers explicit status metadata, but the absence of
-  // opportunities on a strong criterion is not a pipeline defect.
-  if (args.score >= 8) return true;
+export type OpportunityCoverageIssue =
+  | 'invalid_recommendation_status'
+  | 'recommendation_status_cardinality_mismatch'
+  | 'missing_governed_disposition'
+  | 'missing_disposition_rationale';
 
-  const statusValid = isGovernedRecommendationStatus(args.recommendationStatus);
+export interface GovernedOpportunityCoverageAnalysis {
+  covered: boolean;
+  issues: OpportunityCoverageIssue[];
+}
+
+/**
+ * Canonical semantic analysis for recommendation cardinality and disposition.
+ *
+ * Criterion confidence is deliberately excluded. It is diagnostic confidence,
+ * not confidence that a safe intervention can be prescribed, and therefore
+ * cannot grant or deny recommendation coverage or queue authority.
+ */
+export function analyzeGovernedOpportunityCoverage(
+  args: GovernedOpportunityCoverageInput,
+): GovernedOpportunityCoverageAnalysis {
+  const issues: OpportunityCoverageIssue[] = [];
+  const hasExplicitStatus = args.recommendationStatus !== undefined
+    && args.recommendationStatus !== null
+    && args.recommendationStatus !== '';
+  const recommendationStatus = args.recommendationStatus;
+  const statusValid = isGovernedRecommendationStatus(recommendationStatus);
+  const hasRecommendations = args.meaningfulOpportunityCount > 0;
+  const statusContract = statusValid
+    ? RECOMMENDATION_STATUS_CONTRACT[recommendationStatus]
+    : null;
+
+  if (hasExplicitStatus && !statusValid) {
+    issues.push('invalid_recommendation_status');
+  }
+
+  if (
+    (hasRecommendations && statusContract !== null && !statusContract.recommendationsAllowed)
+    || (!hasRecommendations && statusContract !== null && !statusContract.zeroRecommendationsAllowed)
+  ) {
+    issues.push('recommendation_status_cardinality_mismatch');
+  }
+
+  // Legacy producers may omit status when they emitted a real recommendation.
+  // An explicit incompatible or unknown status is never treated as legacy.
+  if (hasRecommendations) {
+    return { covered: issues.length === 0, issues };
+  }
+
+  // Strong criteria may legitimately produce no recommendation. Explicit
+  // malformed or incompatible metadata still fails closed when present.
+  if (args.score !== null && args.score >= 8 && !hasExplicitStatus) {
+    return { covered: true, issues };
+  }
+
+  if (!statusValid) {
+    if (!hasExplicitStatus) issues.push('missing_governed_disposition');
+    return { covered: false, issues };
+  }
+
   const rationaleValid = typeof args.recommendationStatusRationale === 'string'
     && args.recommendationStatusRationale.trim().length >= 20;
+  if (statusContract?.rationaleRequired && !rationaleValid) {
+    issues.push('missing_disposition_rationale');
+  }
 
-  return statusValid && rationaleValid;
+  return { covered: issues.length === 0, issues };
+}
+
+export function hasGovernedOpportunityCoverage(args: GovernedOpportunityCoverageInput): boolean {
+  return analyzeGovernedOpportunityCoverage(args).covered;
 }
 
 /**
@@ -233,6 +339,8 @@ export function buildOpportunityDiscoveryPromptBlock(mode: EvaluationOpportunity
     'A lower-than-expected count requires another evidence search, not deterministic filler.',
     'Scores 9–10 may correctly return zero recommendations with substantive governed status metadata.',
     'For weak criteria, provide at least one evidence-supported opportunity or a concrete insufficient-evidence/safety status rationale.',
+    'Criterion confidence describes diagnostic support, not confidence that a safe intervention can be prescribed. Never use confidence alone to admit, suppress, or manufacture a recommendation.',
+    'When recommendations are present, use recommendation_provided. When none are present, use a governed non-recommendation status with a concrete rationale; do not emit contradictory status/cardinality metadata.',
     'Every retained opportunity must have exact evidence, evidence-to-symptom entailment, a cause distinct from the symptom, an aligned fix, a plausible reader effect, and a harm guardrail.',
     'Short Form must never receive WAVE or cross-WAVE opportunities.',
   ].join('\n');

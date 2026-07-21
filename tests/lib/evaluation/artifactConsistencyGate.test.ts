@@ -150,6 +150,42 @@ describe('artifactConsistencyGateV1', () => {
     }));
   });
 
+  test('blocks a recommendation paired with an explicit zero-recommendation disposition', () => {
+    const contradictory = {
+      ...criterion('theme', 4, [{
+        priority: 'high' as const,
+        action: 'Clarify the thematic turn at the scene pivot.',
+        expected_impact: 'Readers can follow how the event changes the governing idea.',
+      }]),
+      recommendation_status: 'insufficient_evidence' as const,
+      recommendation_status_rationale:
+        'This explicit zero-recommendation disposition contradicts the emitted recommendation.',
+    };
+    const effective = resultWith({
+      overview: {
+        verdict: 'conditional',
+        overall_score_0_100: 60,
+        scored_criteria_count: 2,
+        one_paragraph_summary: 'Theme is the principal weakness while voice remains controlled.',
+        top_3_strengths: ['Voice is engaging'],
+        top_3_risks: ['Theme is underdeveloped'],
+      },
+      criteria: [contradictory, criterion('voice', 8)],
+    });
+
+    const gate = evaluateArtifactConsistencyGateV1({
+      sourceResult: effective,
+      effectiveQGResult: effective,
+    });
+
+    expect(gate.status).toBe('fail');
+    expect(gate.checks).toContainEqual(expect.objectContaining({
+      check_id: 'recommendation_criterion_traceability',
+      status: 'fail',
+      affected_criteria: ['theme'],
+    }));
+  });
+
   test('records different source/effective hashes when QG normalization changes criteria', () => {
     const source = resultWith({
       criteria: [

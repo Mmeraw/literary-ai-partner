@@ -5,6 +5,7 @@ const synthesisToEvaluationResultV2Mock = jest.fn();
 const runQualityGateV2Mock = jest.fn();
 const mapEvaluationResultV2ToGovernanceEnvelopeMock = jest.fn();
 const evaluateArtifactConsistencyGateV1Mock = jest.fn();
+const validateTemplateCompletenessMock = jest.fn();
 
 jest.mock("@/lib/evaluation/pipeline/runPipeline", () => ({
   runPipeline: (...args: any[]) => runPipelineMock(...args),
@@ -53,7 +54,22 @@ jest.mock("openai", () => ({
 }));
 
 jest.mock("@/lib/evaluation/pipeline/templateCompletenessGate", () => ({
-  validateTemplateCompleteness: () => ({ pass: true, violations: [], warnings: [], summary: "ok" }),
+  validateTemplateCompleteness: (...args: any[]) => validateTemplateCompletenessMock(...args),
+  selectTemplateCompletenessFailureCode: (result: {
+    violations: Array<{ code: string; severity: string }>;
+  }) => {
+    const opportunityCoverageCodes = new Set([
+      "RECOMMENDATION_STATUS_INVALID",
+      "RECOMMENDATION_STATUS_CARDINALITY_MISMATCH",
+      "OPPORTUNITY_COVERAGE_MISSING",
+      "RECOMMENDATION_STATUS_RATIONALE_MISSING",
+    ]);
+    const critical = result.violations.filter((violation) => violation.severity === "critical");
+    return critical.length > 0 && critical.every((violation) => opportunityCoverageCodes.has(violation.code))
+      ? "CRITERION_OPPORTUNITY_COVERAGE_INVALID"
+      : "TEMPLATE_COMPLETENESS_GATE_FAILED";
+  },
+  TEMPLATE_COMPLETENESS_USER_MESSAGE: "quality issue",
 }));
 
 jest.mock("@/lib/evaluation/artifactConsistencyGate", () => ({
@@ -153,7 +169,37 @@ jest.mock("@supabase/supabase-js", () => ({
   createClient: (...args: any[]) => createClientMock(...args),
 }));
 
-function makeSupabaseStub() {
+const pass12HandoffContent = {
+  schema_version: "pass12_handoff_v1",
+  pass1Output: { criteria: [], overall: {}, metadata: {} },
+  pass2Output: { criteria: [], overall: {}, metadata: {} },
+  chunk_count: 1,
+  partial_capture: false,
+};
+
+const acceptedStoryLedgerContent = {
+  schema_version: "accepted_story_ledger_v1",
+  governance_rail: {
+    mode: "accepted",
+    accepted_at: new Date().toISOString(),
+    source: "canonical-pipeline-test",
+    layer_decisions: {
+      identity: { decision: "accept" },
+      structure: { decision: "accept" },
+      character: { decision: "accept" },
+      pressure: { decision: "accept" },
+      scene: { decision: "accept" },
+      voice: { decision: "accept" },
+      theme: { decision: "accept" },
+      continuity: { decision: "accept" },
+      source_integrity: { decision: "accept" },
+    },
+  },
+  corrections: [],
+  story_layer: {},
+};
+
+function makeSupabaseStub(options?: { progress?: Record<string, unknown> }) {
   const evaluationJobUpdates: Array<Record<string, unknown>> = [];
   const rpcCalls: Array<{ fn: string; args?: Record<string, unknown> }> = [];
   const providerCallUpserts: Array<Record<string, unknown>> = [];
@@ -176,37 +222,7 @@ function makeSupabaseStub() {
     heartbeat_at: now.toISOString(),
     started_at: now.toISOString(),
     created_at: now.toISOString(),
-    progress: { phase: "phase_3", phase_status: "running" },
-  };
-
-  const pass12HandoffContent = {
-    schema_version: "pass12_handoff_v1",
-    pass1Output: { criteria: [], overall: {}, metadata: {} },
-    pass2Output: { criteria: [], overall: {}, metadata: {} },
-    chunk_count: 1,
-    partial_capture: false,
-  };
-
-  const acceptedStoryLedgerContent = {
-    schema_version: "accepted_story_ledger_v1",
-    governance_rail: {
-      mode: "accepted",
-      accepted_at: new Date().toISOString(),
-      source: "canonical-pipeline-test",
-      layer_decisions: {
-        identity: { decision: "accept" },
-        structure: { decision: "accept" },
-        character: { decision: "accept" },
-        pressure: { decision: "accept" },
-        scene: { decision: "accept" },
-        voice: { decision: "accept" },
-        theme: { decision: "accept" },
-        continuity: { decision: "accept" },
-        source_integrity: { decision: "accept" },
-      },
-    },
-    corrections: [],
-    story_layer: {},
+    progress: options?.progress ?? { phase: "phase_3", phase_status: "running" },
   };
 
   const manuscript = {
@@ -379,6 +395,13 @@ describe("processEvaluationJob canonical pipeline integration", () => {
       qg_normalized: true,
     });
 
+    validateTemplateCompletenessMock.mockReturnValue({
+      pass: true,
+      violations: [],
+      warnings: [],
+      summary: "ok",
+    });
+
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
@@ -411,6 +434,174 @@ describe("processEvaluationJob canonical pipeline integration", () => {
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
+  });
+
+  function configureOpportunityCoverageViolationPath(options?: { includeUnrelatedTemplateDefect?: boolean }) {
+    runPipelineMock.mockResolvedValue({
+      ok: true,
+      synthesis: {
+        criteria: [],
+        overall: {
+          overall_score_0_100: 72,
+          verdict: "revise",
+          one_paragraph_summary: "Summary.",
+          top_3_strengths: ["Clear premise"],
+          top_3_risks: ["Scene progression needs revision"],
+        },
+        metadata: {
+          pass1_model: "gpt-4o",
+          pass2_model: "o3",
+          pass3_model: "o3",
+          generated_at: new Date().toISOString(),
+        },
+      },
+      quality_gate: { pass: true, checks: [], warnings: [] },
+      pass4_governance: { ok: true },
+    });
+
+    synthesisToEvaluationResultV2Mock.mockReturnValue({
+      schema_version: "evaluation_result_v2",
+      ids: {
+        evaluation_run_id: "run-opportunity-coverage",
+        manuscript_id: 456,
+        user_id: "00000000-0000-0000-0000-000000000001",
+      },
+      generated_at: new Date().toISOString(),
+      engine: { model: "o3", provider: "openai", prompt_version: "test" },
+      overview: {
+        verdict: "revise",
+        overall_score_0_100: 72,
+        one_paragraph_summary: "Summary.",
+        top_3_strengths: ["Clear premise"],
+        top_3_risks: ["Scene progression needs revision"],
+      },
+      criteria: [],
+      recommendations: { quick_wins: [], strategic_revisions: [] },
+      metrics: { manuscript: {}, processing: {} },
+      artifacts: [],
+      governance: {
+        confidence: 0.8,
+        warnings: [],
+        limitations: [],
+        policy_family: "multi-pass-dual-axis",
+      },
+    });
+
+    runQualityGateV2Mock.mockReturnValue({ pass: true, checks: [], warnings: [] });
+    mapEvaluationResultV2ToGovernanceEnvelopeMock.mockReturnValue({
+      evaluation_run_id: "run-opportunity-coverage",
+      criteria: [],
+    });
+    upsertEvaluationArtifactMock.mockResolvedValue("artifact-observability-only");
+    const violations = [
+      {
+        code: "RECOMMENDATION_STATUS_CARDINALITY_MISMATCH",
+        criterion: "sceneConstruction",
+        field_path: "criteria.sceneConstruction.recommendation_status",
+        invariant_id: "OPPORTUNITY_COVERAGE_STATUS_CARDINALITY",
+        severity: "critical",
+        message: "recommendation_provided cannot accompany zero recommendations",
+      },
+    ];
+    if (options?.includeUnrelatedTemplateDefect) {
+      violations.push({
+        code: "MISSING_ONE_SENTENCE_PITCH",
+        criterion: "",
+        field_path: "enrichment.premise",
+        invariant_id: "required_template_field_present",
+        severity: "critical",
+        message: "Template requires a substantive one-sentence pitch.",
+      });
+    }
+
+    validateTemplateCompletenessMock.mockReturnValue({
+      pass: false,
+      violations,
+      warnings: [],
+      summary: "One criterion has contradictory recommendation status and cardinality.",
+    });
+  }
+
+  test("opportunity coverage contradiction kicks Pass 3 once, then fails closed without canonical persistence", async () => {
+    configureOpportunityCoverageViolationPath();
+
+    const firstAttempt = makeSupabaseStub();
+    createClientMock.mockReturnValue(firstAttempt);
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const kicked = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(kicked).toEqual(expect.objectContaining({ success: false }));
+    expect(kicked.error).toContain("[FIPOC-KICK]");
+    expect(firstAttempt.evaluationJobUpdates).toContainEqual(
+      expect.objectContaining({
+        status: "queued",
+        phase: "phase_3",
+        phase_status: "queued",
+        progress: expect.objectContaining({
+          kick_attempts: {
+            CRITERION_OPPORTUNITY_COVERAGE_INVALID: 1,
+          },
+          last_kick_failure_code: "CRITERION_OPPORTUNITY_COVERAGE_INVALID",
+        }),
+      }),
+    );
+    expect(
+      firstAttempt.rpcCalls.some((call) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(false);
+    expect(
+      firstAttempt.rpcCalls.some((call) => call.fn === "finalize_job_failure_atomic"),
+    ).toBe(false);
+
+    configureOpportunityCoverageViolationPath();
+    const exhaustedAttempt = makeSupabaseStub({
+      progress: {
+        phase: "phase_3",
+        phase_status: "running",
+        kick_attempts: { CRITERION_OPPORTUNITY_COVERAGE_INVALID: 1 },
+      },
+    });
+    createClientMock.mockReturnValue(exhaustedAttempt);
+
+    const exhausted = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(exhausted).toEqual(expect.objectContaining({ success: false }));
+    expect(
+      exhaustedAttempt.rpcCalls.some((call) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(false);
+    expect(exhaustedAttempt.rpcCalls).toContainEqual(
+      expect.objectContaining({
+        fn: "finalize_job_failure_atomic",
+        args: expect.objectContaining({
+          p_failure_code: "CRITERION_OPPORTUNITY_COVERAGE_INVALID",
+        }),
+      }),
+    );
+  });
+
+  test("mixed opportunity coverage and unrelated template defects remain terminal and never requeue or persist", async () => {
+    configureOpportunityCoverageViolationPath({ includeUnrelatedTemplateDefect: true });
+    const mixedFailure = makeSupabaseStub();
+    createClientMock.mockReturnValue(mixedFailure);
+
+    const { processEvaluationJob } = require("../../../lib/evaluation/processor");
+    const result = await processEvaluationJob("job-canonical-pipeline");
+
+    expect(result).toEqual(expect.objectContaining({ success: false }));
+    expect(mixedFailure.evaluationJobUpdates).not.toContainEqual(
+      expect.objectContaining({ status: "queued", phase: "phase_3" }),
+    );
+    expect(mixedFailure.rpcCalls).toContainEqual(
+      expect.objectContaining({
+        fn: "finalize_job_failure_atomic",
+        args: expect.objectContaining({
+          p_failure_code: "TEMPLATE_COMPLETENESS_GATE_FAILED",
+        }),
+      }),
+    );
+    expect(
+      mixedFailure.rpcCalls.some((call) => call.fn === "persist_evaluation_v2_atomic"),
+    ).toBe(false);
   });
 
   test("uses runPipeline as the evaluation engine and does not directly invoke OpenAI", async () => {

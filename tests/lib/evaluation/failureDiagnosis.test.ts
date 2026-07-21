@@ -216,6 +216,64 @@ describe('failureDiagnosis', () => {
         field_path: 'enrichment.premise',
       }),
     );
+    expect(packet.backward_kick_status).toEqual({
+      triggered: false,
+      reason: expect.stringContaining('terminal/no-retry'),
+      retry_policy: {
+        retryable: false,
+        classification: 'terminal',
+      },
+    });
+  });
+
+  it('classifies exhausted criterion opportunity coverage recovery with its specific diagnosis', () => {
+    const packet = buildFailureDiagnosisV1({
+      jobId: 'job-opportunity-coverage',
+      createdAt: '2026-07-20T12:05:00.000Z',
+      phase: 'phase_3',
+      phaseStatus: 'failed',
+      failureCode: 'CRITERION_OPPORTUNITY_COVERAGE_INVALID',
+      errorMessage: 'Criterion recommendation status and cardinality remain contradictory after one Pass 3 retry.',
+      failureContext: {
+        pipelineStage: 'template_completeness_gate',
+        reasonCodes: ['RECOMMENDATION_STATUS_CARDINALITY_MISMATCH'],
+        diagnostics: {
+          gate: 'template_completeness',
+          backward_kick: {
+            attempted: true,
+            kicked: false,
+            reason: 'kick budget exhausted for CRITERION_OPPORTUNITY_COVERAGE_INVALID (1/1)',
+          },
+          summary: 'One criterion has contradictory recommendation status and cardinality.',
+          critical_count: 1,
+          warning_count: 0,
+          violations: [
+            {
+              code: 'RECOMMENDATION_STATUS_CARDINALITY_MISMATCH',
+              criterion: 'sceneConstruction',
+              field_path: 'criteria.sceneConstruction.recommendation_status',
+              invariant_id: 'OPPORTUNITY_COVERAGE_STATUS_CARDINALITY',
+              severity: 'critical',
+              message: 'recommendation_provided cannot accompany zero recommendations',
+            },
+          ],
+        },
+      },
+      artifacts: [],
+    });
+
+    expect(packet.failure_class).toBe('governance_blocked');
+    expect(packet.failure_point.gate).toBe('TemplateCompletenessGate');
+    expect(packet.failed_checks).toContain('RECOMMENDATION_STATUS_CARDINALITY_MISMATCH');
+    expect(packet.backward_kick_status).toEqual({
+      triggered: false,
+      reason: expect.stringContaining('kick budget exhausted'),
+      retry_policy: {
+        max_retries: 1,
+        retryable: false,
+        classification: 'recoverable_exhausted',
+      },
+    });
   });
 
   it('classifies exhausted handoff repair as recoverable_exhausted and renders operator guidance', () => {

@@ -107,6 +107,11 @@ function countPdfPages(pdfBuffer: Buffer): number {
 }
 
 describe('report presentation pipeline E2E', () => {
+  // Chromium PDF and DOCX rendering share constrained CI workers with the full
+  // suite. The product assertions are deterministic; use the repository's
+  // established rendering budget rather than Jest's unrelated 5-second default.
+  jest.setTimeout(30_000);
+
   test('long title-page content occupies exactly one generated PDF page before report body', async () => {
     const result = makeBaseResult();
     result.metrics.manuscript.title = 'Criminality V2';

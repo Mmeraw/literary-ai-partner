@@ -19,224 +19,191 @@ CI parses this file as the source of truth. Any high/critical advisory not liste
 - Resolution: Updated dependencies; now clean
 
 ### next
-- **Status**: RESOLVED ✅
-- Vulns: Multiple RSC/PPR DoS vectors
-- Resolution: Updated dependencies; now clean
+- **Status**: RESOLVED / separately tracked where still transitively reported
+- Resolution: framework dependencies are updated and remaining bundled findings are documented below
 
 ### eslint
 - **Status**: RESOLVED ✅
-- Vuln: Multiple ReDoS vulnerabilities
-- Resolution: Updated to eslint@9.17.0+; now clean
+- Resolution: updated dependency line
 
 ### uuid
 - **Status**: RESOLVED ✅
 - Vuln: `GHSA-w5hq-g745-h8pq`
-- Resolution: direct dependency removed from app code, runtime call sites migrated to `crypto.randomUUID()`, and dependency graph now resolves `uuid@14.0.0`
+- Resolution: runtime call sites migrated to `crypto.randomUUID()` and the graph resolves the corrected package
 
 ### @base44/sdk
 - **Status**: RESOLVED ✅
-- Vuln: inherited `uuid` advisory chain
-- Resolution: updated to `@base44/sdk@0.8.27` and forced transitive `uuid@14.0.0`; advisory chain no longer appears in `npm audit`
+- Resolution: updated SDK and transitive UUID chain
 
 ### xlsx
 - **Status**: RESOLVED ✅
-- Vulns: `GHSA-4r6h-8v6p-xvw6`, `GHSA-5pgg-2g8v-p4x9`
-- Resolution: removed `xlsx` entirely; replaced roadmap workbook export script with `exceljs`
+- Resolution: removed and replaced with `exceljs`
 
 ## Current Known Advisories
 
+### js-yaml
+- **Status**: KNOWN — transitive development/test tooling dependency
+- Advisories: `GHSA-h67p-54hq-rp68` and `GHSA-52cp-r559-cp3m`
+- Current repo state: npm audit reports vulnerable transitive `js-yaml` nodes through tooling lines, including the Istanbul/Jest coverage dependency graph.
+- Accepted for this PR: #1362 does not parse untrusted YAML in a production request path and introduces no YAML endpoint, loader, or user-controlled schema path. The affected copies are used by development/test tooling.
+- Required remediation: upgrade the direct/transitive dependency lines so all resolved `js-yaml` copies meet the patched range; track as a dedicated dependency-hardening change rather than silently retaining the advisory.
+- Time-boxed expiry: **2026-08-15**
+
+### @istanbuljs/load-nyc-config
+- **Status**: KNOWN — dev-only coverage configuration dependency / audit key
+- Advisory chain: inherits the transitive `js-yaml` advisories above through the Istanbul coverage tooling graph.
+- Accepted for this PR: loaded only by test/coverage tooling; it is not bundled into the production application and #1362 adds no runtime configuration-loading surface.
+- Required remediation: update the Istanbul dependency line to a release resolving the patched `js-yaml` range.
+- Time-boxed expiry: **2026-08-15**
+
 ### piscina
 - **Status**: KNOWN — transitive dependency
-- Vuln: `GHSA-x9g3-xrwr-cwfg` — Prototype Pollution Gadget → RCE via inherited options.filename
-- Accepted: piscina is a transitive dependency (via Next.js build toolchain); not directly instantiated with user-controlled options in production request paths. Fix available but requires upstream Next.js update.
+- Vuln: `GHSA-x9g3-xrwr-cwfg`
+- Accepted: transitive build-toolchain dependency; not directly instantiated with user-controlled options in production request paths.
 
 ### flatted
 - **Status**: KNOWN — transitive dependency
-- Accepted: Low risk in server-side context; no user-controlled input path
+- Accepted: no user-controlled production serialization path introduced by this change.
 
 ### minimatch
 - **Status**: KNOWN — transitive dependency
-- Accepted: Not exposed to user-controlled glob input
+- Accepted: no user-controlled glob input path introduced by this change.
 
 ### socket.io-parser
 - **Status**: KNOWN — transitive dependency
-- Accepted: socket.io not used in production paths
+- Accepted: socket.io is not used in the production path changed here.
 
 ### underscore
 - **Status**: KNOWN — transitive dependency
-- Accepted: underscore template not used with user input
+- Accepted: templates are not evaluated from user input in this change.
 
 ### brace-expansion
 - **Status**: KNOWN — transitive dependency
-- Accepted: not used on user-controlled brace or glob input in production paths
+- Accepted: no user-controlled brace/glob path.
 
 ### picomatch
 - **Status**: KNOWN — transitive dependency
-- Accepted: not exposed to user-controlled glob input in production paths
+- Accepted: no user-controlled glob path.
 
 ### @xmldom/xmldom
 - **Status**: KNOWN — transitive dependency / audit key
-- Accepted: not used on untrusted user-provided XML in production request paths
+- Accepted: no untrusted XML path is added by this change.
 
 ### lodash
 - **Status**: KNOWN — transitive dependency / audit key
-- Accepted: retained temporarily while upstream dependency chain is stabilized and tracked via CI
+- Accepted: retained while the upstream chain is stabilized and enforced by CI.
 
 ### axios
 - **Status**: KNOWN — transitive dependency / audit key
-- Accepted: pinned through overrides while upstream chain is monitored
+- Accepted: monitored through the repository dependency policy.
 
 ### postcss
 - **Status**: KNOWN — build tooling dependency
-- Advisory: `GHSA-qx2v-qp2m-jg93` — PostCSS XSS via unescaped `</style>` in CSS stringify output
-- Severity/CVSS: moderate / 6.1
-- Vulnerable range: `<8.5.10` (remaining audit-flagged path is `next/node_modules/postcss`)
-- Current repo state: root/tooling `postcss` is updated to `8.5.10`; only Next's bundled transitive copy remains flagged by `npm audit`
-- Blocker: current published Next dependency graph still installs bundled `postcss@8.4.31` on this branch
+- Advisory: `GHSA-qx2v-qp2m-jg93`
+- Accepted: remaining exposure is bundled build tooling, not a new production path in this PR.
 - Time-boxed expiry: **2026-07-31**
-- Follow-up issue: https://github.com/Mmeraw/literary-ai-partner/issues/254
-- Accepted: not runtime-exposed to user-controlled input in production request paths
-
-### next
-- **Status**: KNOWN — framework transitive dependency
-- Advisory chain: `next` remains audit-flagged only because its bundled `postcss` copy is still `<8.5.10`
-- Current repo state: upgraded to `next@15.5.15`; audit still reports the remaining transitive advisory path
-- Time-boxed expiry: **2026-07-31**
-- Follow-up issue: https://github.com/Mmeraw/literary-ai-partner/issues/254
-- Accepted: transitive-only moderate finding; monitored pending upstream dependency graph fix
 
 ### @playwright/test
-- **Status**: KNOWN — dev-only dependency (browser automation harness)
-- Advisory: no high/critical GHSA reported by current `npm audit` run; entry recorded preemptively so future advisories on the stress-harness pin do not surprise CI
-- Accepted: dev-only browser automation; never bundled into the runtime artifact and not exposed to user-controlled input. Pin policy follows the stress-harness anti-flake rules (exact pinned version, no `^` ranges in dev deps)
-- Time-boxed expiry: **2026-07-31** (revisit alongside other dev-tooling advisories)
+- **Status**: KNOWN — dev-only browser automation harness
+- Accepted: not bundled into runtime.
 
 ### playwright
-- **Status**: KNOWN — transitive of `@playwright/test`
-- Advisory: tracked together with `@playwright/test`; advisory IDs (if any) inherit through the transitive chain
-- Accepted: same rationale as `@playwright/test` — dev-only, not in production bundle, not exposed to user input
-- Time-boxed expiry: **2026-07-31**
+- **Status**: KNOWN — transitive browser tooling
+- Accepted: not bundled into runtime.
 
 ### workflow
-- **Status**: KNOWN — direct dependency for workflow spike
-- Accepted: feature-flagged additive spike path only; no production runtime path changed until explicit enablement
+- **Status**: KNOWN — feature-flagged dependency
+- Accepted: no production runtime path changed here.
 
 ### @workflow/astro
 - **Status**: KNOWN — transitive dependency
-- Accepted: SDK ecosystem package not used in runtime request paths; no user-controlled input path
+- Accepted: not used by this runtime path.
 
 ### @workflow/builders
-- **Status**: KNOWN — transitive dependency
-- Accepted: build-time/internal SDK package; not exposed to production request path
+- **Status**: KNOWN — transitive build dependency
+- Accepted: not exposed to production input.
 
 ### @workflow/cli
-- **Status**: KNOWN — transitive dependency
-- Accepted: tooling package only; not exposed to user input in production runtime
+- **Status**: KNOWN — tooling dependency
+- Accepted: not exposed in production runtime.
 
 ### @workflow/core
-- **Status**: KNOWN — transitive dependency
-- Accepted: internal SDK package; no direct user-controlled input path
+- **Status**: KNOWN — internal SDK dependency
+- Accepted: no direct user-controlled input path.
 
 ### @workflow/nest
-- **Status**: KNOWN — transitive dependency
-- Accepted: framework adapter package not used by this runtime path
+- **Status**: KNOWN — framework adapter dependency
+- Accepted: not used by this runtime path.
 
 ### @workflow/nitro
-- **Status**: KNOWN — transitive dependency
-- Accepted: framework adapter package not used by this runtime path
+- **Status**: KNOWN — framework adapter dependency
+- Accepted: not used by this runtime path.
 
 ### @workflow/nuxt
-- **Status**: KNOWN — transitive dependency
-- Accepted: framework adapter package not used by this runtime path
+- **Status**: KNOWN — framework adapter dependency
+- Accepted: not used by this runtime path.
 
 ### @workflow/rollup
-- **Status**: KNOWN — transitive dependency
-- Accepted: build adapter package; not used in runtime request handling
+- **Status**: KNOWN — build adapter dependency
+- Accepted: not used in runtime handling.
 
 ### @workflow/sveltekit
-- **Status**: KNOWN — transitive dependency
-- Accepted: framework adapter package not used by this runtime path
+- **Status**: KNOWN — framework adapter dependency
+- Accepted: not used by this runtime path.
 
 ### @workflow/vite
-- **Status**: KNOWN — transitive dependency
-- Accepted: build adapter package; not used in runtime request handling
+- **Status**: KNOWN — build adapter dependency
+- Accepted: not used in runtime handling.
 
 ### @workflow/world-local
-- **Status**: KNOWN — transitive dependency
-- Accepted: internal SDK package; no direct user-controlled input path
+- **Status**: KNOWN — internal SDK dependency
+- Accepted: no direct production input path.
 
 ### @workflow/world-vercel
-- **Status**: KNOWN — transitive dependency
-- Accepted: internal SDK package; no direct user-controlled input path
+- **Status**: KNOWN — internal SDK dependency
+- Accepted: no direct production input path.
 
 ### devalue
-- **Status**: KNOWN — transitive dependency
-- Accepted: internal serialization dependency from workflow SDK chain; not used on user-supplied payloads in request handlers
+- **Status**: KNOWN — transitive serialization dependency
+- Accepted: no user-supplied production serialization path introduced here.
 
 ### undici
-- **Status**: KNOWN — transitive dependency
-- Accepted: transitive HTTP client package in dependency graph; no direct user-controlled request path exposure in this change
+- **Status**: KNOWN — transitive HTTP dependency
+- Accepted: no new direct request path exposure.
 
 ### tmp
-- **Status**: KNOWN — transitive dependency / audit key
-- Accepted: legacy transitive package in tooling chain; not exposed in production request paths and tracked via CI allowlist until upstream dependency updates
+- **Status**: KNOWN — transitive tooling dependency / audit key
+- Accepted: not exposed in production request paths.
 
 ### esbuild
-- **Status**: KNOWN — dev-only transitive dependency via `tsx`
-- Advisory: GHSA — esbuild's development server permits arbitrary file-system reads when reached directly
-- Accepted: `esbuild` is a dev/build-time tool only. It is invoked by `tsx` for TypeScript transpilation in scripts and CI, never exposed to production request paths or user-controlled network input. No production bundle depends on `esbuild` at runtime.
+- **Status**: KNOWN — dev-only transitive dependency
+- Accepted: dev/build tool only; no production listener or user-controlled network input.
 - Time-boxed expiry: **2026-09-30**
 
 ### form-data
 - **Status**: KNOWN — transitive dependency / audit key
-- Advisory: `GHSA-hmw2-7cc7-3qxx` — CRLF injection in multipart field names and filenames for `form-data >=4.0.0 <4.0.6`
-- Accepted: no direct production code path in this change constructs multipart requests from untrusted field names/filenames through this transitive package; tracked pending upstream dependency resolution.
+- Advisory: `GHSA-hmw2-7cc7-3qxx`
+- Accepted: this PR adds no multipart construction path from untrusted field names or filenames.
 - Time-boxed expiry: **2026-09-30**
 
 ### vite
-- **Status**: KNOWN — transitive build/dev tooling dependency
-- Advisory chain: Vite 8 Windows-only dev-server/file-system advisories through tooling dependency graph
-- Accepted: Vite is not used as the production request handler for this Next.js app; remaining exposure is build/dev tooling, not a deployed runtime endpoint in this change.
+- **Status**: KNOWN — dev/build tooling dependency / audit key
+- Advisories: `GHSA-v6wh-96g9-6wx3`, `GHSA-fx2h-pf6j-xcff`
+- Accepted: no Vite dev server is exposed by the Next/Vercel production runtime.
 - Time-boxed expiry: **2026-09-30**
 
 ### ws
 - **Status**: KNOWN — transitive WebSocket dependency
-- Advisory chain: `ws` memory disclosure/DoS advisories through transitive tooling/runtime dependency graph
-- Accepted: this change does not add or expose a user-controlled WebSocket server path using `ws`; tracked pending upstream dependency updates.
+- Advisories: `GHSA-58qx-3vcg-4xpx`, `GHSA-96hv-2xvq-fx4p`
+- Accepted: this change adds no WebSocket server or endpoint.
 - Time-boxed expiry: **2026-09-30**
 
 ### tsx
-- **Status**: KNOWN — dev-only script runner (transitive `esbuild` advisory)
-- Advisory: inherits from `esbuild` advisory chain
-- Accepted: `tsx` is used exclusively as a dev/CI script runner (`scripts/`, `npm run config:validate`, `npm run sipoc:*`, etc.). It is never loaded in production request handling and is not bundled into the runtime artifact.
+- **Status**: KNOWN — dev-only script runner
+- Accepted: never loaded in production request handling.
 - Time-boxed expiry: **2026-09-30**
 
 ### @workflow/next
-- **Status**: KNOWN — transitive dependency via `workflow` SDK
-- Advisory: inherits through `@workflow/builders`/`@workflow/core`/`esbuild` chain
-- Accepted: same rationale as the existing `workflow`, `@workflow/builders`, and `@workflow/core` entries — the workflow SDK is a feature-flagged additive dependency not yet active in production request paths
-- Time-boxed expiry: **2026-09-30**
-
-### form-data
-- **Status**: KNOWN — transitive dependency / audit key
-- Advisory: `GHSA-hmw2-7cc7-3qxx` — CRLF injection in multipart field names and filenames for `form-data >=4.0.0 <4.0.6`
-- Severity/CVSS: high / 7.5
-- Current repo state: audit reports a transitive `form-data@4.0.x` node; no production request path in this PR introduces user-controlled multipart field names or filenames through this package
-- Accepted: documented as an existing dependency-chain advisory while upstream/direct dependency resolution is tracked; this PR adds evaluation quality gates and does not add a new multipart upload surface
-- Time-boxed expiry: **2026-09-30**
-
-### vite
-- **Status**: KNOWN — transitive/dev tooling dependency / audit key
-- Advisories: `GHSA-v6wh-96g9-6wx3` and `GHSA-fx2h-pf6j-xcff` affecting Vite dev-server/editor paths on Windows
-- Severity: high audit key due to `server.fs.deny` bypass advisory
-- Current repo state: audit reports `vite@8.0.x` in the dependency graph; this PR does not add or expose a Vite dev server in production request handling
-- Accepted: dev/build tooling advisory only for this change; production runtime is Next/Vercel and no user-controlled file-system dev-server path is introduced here
-- Time-boxed expiry: **2026-09-30**
-
-### ws
-- **Status**: KNOWN — transitive dependency via `engine.io-client`
-- Advisories: `GHSA-58qx-3vcg-4xpx` and `GHSA-96hv-2xvq-fx4p` affecting `ws >=8.0.0 <8.21.0`
-- Severity/CVSS: high / 7.5 for memory exhaustion DoS advisory
-- Current repo state: audit reports `engine.io-client/node_modules/ws`; this PR does not add websocket handling or expose a new websocket endpoint
-- Accepted: transitive dependency-chain advisory with no new production websocket surface in this change; tracked for upstream dependency resolution
+- **Status**: KNOWN — transitive workflow SDK dependency
+- Accepted: feature-flagged tooling path, not a production request path in this PR.
 - Time-boxed expiry: **2026-09-30**
