@@ -655,11 +655,47 @@ ${englishVariantBlock}
 PASS 2 LINEAGE (hard): for every packet pass2_recommendation_candidates.source_id, emit exactly one top-level recommendation_lineage entry. Use materialized only when the final recommendation lists source_recommendation_ids; use consolidated only with a surviving consolidated_into_source_id; use suppressed only with governing_rule, rationale, and evidence. This is provenance, not a quota: never invent or retain unsafe advice.
 
 OUTPUT BUDGET BY STATE (STRICT):
-- agree (score_delta <= 1): emit { key, final_score_0_10, final_rationale (1-3 substantive sentences—NOT "Confirmed."), recommendations[] (with semantic fields), recommendation_status, recommendation_status_rationale }
-- soft_divergence (score_delta 2-3): emit { key, final_score_0_10, final_rationale (1 sentence), recommendations[], recommendation_status, recommendation_status_rationale }
-- hard_divergence (score_delta >= 4): emit { key, final_score_0_10, final_rationale (2 sentences), disputed=true, recommendations[], recommendation_status, recommendation_status_rationale }
+- agree (score_delta <= 1): emit { key, final_score_0_10, final_rationale (1-3 substantive sentences—NOT "Confirmed."), recommendations[] (each with source_recommendation_ids when retaining/consolidating Pass 2 discoveries), recommendation_status, recommendation_status_rationale }
+- soft_divergence (score_delta 2-3): emit { key, final_score_0_10, final_rationale (1 sentence), recommendations[] (each with source_recommendation_ids when retaining/consolidating Pass 2 discoveries), recommendation_status, recommendation_status_rationale }
+- hard_divergence (score_delta >= 4): emit { key, final_score_0_10, final_rationale (2 sentences), disputed=true, recommendations[] (each with source_recommendation_ids when retaining/consolidating Pass 2 discoveries), recommendation_status, recommendation_status_rationale }
 - missing_or_invalid: emit concise corrective rationale, recommendations[], recommendation_status, and recommendation_status_rationale; no long prose
 - overall: verdict + overall_score_0_100 + one_paragraph_summary (max 5 sentences — be substantive; name weak criteria, summarize strengths, state revision posture) + one_sentence_pitch (1 sentence, market hook) + one_paragraph_pitch (2-4 sentences, story synopsis) + top_3_strengths + top_3_risks + submission_readiness
+- top-level: recommendation_lineage[] (one entry per pass2_recommendation_candidates.source_id)
+
+OUTPUT JSON SKELETON (MANDATORY — include exactly these top-level keys):
+{
+  "criteria": [
+    {
+      "key": "<criterion_key>",
+      "craft_score": 0,
+      "editorial_score": 0,
+      "final_score_0_10": 0,
+      "final_rationale": "...",
+      "recommendations": [
+        {
+          "priority": "high|medium|low",
+          "action": "...",
+          "expected_impact": "...",
+          "anchor_snippet": "...",
+          "source_pass": 2,
+          "issue_family": "...",
+          "strategic_lever": "...",
+          "revision_granularity": "...",
+          "mechanism": "...",
+          "specific_fix": "...",
+          "reader_effect": "...",
+          "source_recommendation_ids": ["<criterion>:<fingerprint>:<occurrence>"]
+        }
+      ],
+      "recommendation_status": "recommendation_provided|no_recommendation_warranted|...",
+      "recommendation_status_rationale": "..."
+    }
+  ],
+  "recommendation_lineage": [
+    { "source_id": "<criterion>:<fingerprint>:<occurrence>", "outcome": "materialized|consolidated|suppressed", "canonical_opportunity_id": "...", "consolidated_into_source_id": "...", "governing_rule": "...", "rationale": "...", "evidence": "..." }
+  ],
+  "overall": { ... }
+}
 
 Do NOT emit "Confirmed." as complete rationale for agree criteria. State what was confirmed, the evidence basis, and why it matters.
 Do NOT open any final_rationale with "Agreement", "Agreement sustained", "Agreement held", "Both passes", "Both evaluations", or any internal arbitration prefix. Rationale is read directly by the author — write it as craft feedback, not as a process log. Start with the craft observation (e.g. "The opening ambush establishes...", "Tonal register stays...", "Scene construction is anchored by...").
@@ -715,5 +751,7 @@ Mandatory behavior:
 - For each criterion, identify concrete pressure, then the chapter-level decision (or non-decision), then the resulting consequence.
 - If consequence is deferred, name the risk and expected downstream cost explicitly.
 - Populate pressure_points, decision_points, consequence_status, and (when deferred) deferred_consequence_risk for every criterion.
+FINAL REMINDER: The comparison packet lists every pass2_recommendation_candidates.source_id. Your output MUST contain one recommendation_lineage entry per source_id and every surviving recommendation MUST list the source_recommendation_ids it represents. If a Pass 2 discovery is not reflected in any final recommendation, emit a suppressed lineage entry with a governing_rule and rationale. Do not return the JSON without a populated recommendation_lineage array.
+
 Return the synthesis JSON object as specified.`;
 }
