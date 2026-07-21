@@ -197,9 +197,14 @@ function getProgressDisplayRaw(
   if (job.status === "complete") {
     const isLongForm = isLongFormJob(job);
     const hasPass3 = typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+    const expectsFinal = expectsFinalExternalAudit(job);
     const hasFinalAudit = hasFinalExternalAudit(job);
 
-    if (isLongForm && !hasPass3) {
+    // Long-form report is not ready until Pass 3 narrative synthesis is done AND
+    // the final external audit verdict is known. If the caller has not yet supplied
+    // final-audit fields (older API response), fall back to the 92% synthesis-pending
+    // state instead of jumping to 100% or 96%.
+    if (isLongForm && (!hasPass3 || !expectsFinal)) {
       return {
         label: "Finalizing your report in progress",
         valueLabel: "92%",
@@ -224,7 +229,7 @@ function getProgressDisplayRaw(
       };
     }
 
-    if (isLongForm && expectsFinalExternalAudit(job) && !hasFinalAudit) {
+    if (isLongForm && expectsFinal && !hasFinalAudit) {
       return {
         label: "Final verification in progress.",
         valueLabel: "96%",
