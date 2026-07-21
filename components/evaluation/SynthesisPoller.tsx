@@ -20,22 +20,24 @@ import {
 import { SynthesisArtifactControls } from "./SynthesisArtifactControls";
 
 const POLL_INTERVAL_MS = 15_000;
+const SYNTHESIS_DURATION_LABEL = "15–20 minutes";
 
-function estimateSynthesisMinutes(wordCount: number): string {
-  if (wordCount >= 100_000) return "5–10";
-  if (wordCount >= 60_000) return "4–8";
-  if (wordCount >= 30_000) return "3–6";
-  return "2–5";
-}
+const ACTIVITY_MESSAGES = [
+  "Connecting structural evidence across the manuscript…",
+  "Reviewing character consistency and narrative arcs…",
+  "Evaluating pacing, propulsion, and reader experience…",
+  "Ranking revision priorities by reader impact…",
+  "Preparing a publication-quality editorial narrative…",
+] as const;
 
 // Recovery is deliberately later than the published estimate. A customer
 // should never be asked to intervene while synthesis is still inside its
 // normal operating window.
 function stalledAfterMs(wordCount: number): number {
-  if (wordCount >= 100_000) return 12 * 60_000;
-  if (wordCount >= 60_000) return 10 * 60_000;
-  if (wordCount >= 30_000) return 8 * 60_000;
-  return 7 * 60_000;
+  if (wordCount >= 100_000) return 25 * 60_000;
+  if (wordCount >= 60_000) return 22 * 60_000;
+  if (wordCount >= 30_000) return 20 * 60_000;
+  return 18 * 60_000;
 }
 
 type Props = {
@@ -116,7 +118,6 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
   }, [jobId, onReady]);
 
   useEffect(() => {
-    // Already terminal — nothing to poll
     if (dreamDoc || synthesisStatus === "skipped" || synthesisStatus === "failed") return;
 
     elapsedRef.current = setInterval(() => {
@@ -169,8 +170,6 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
   }
 
   if (synthesisStatus === "skipped") {
-    // skipped = operator-disabled or explicit operator skip request.
-    // Polling has stopped; the retry control lets the user request a new attempt.
     return (
       <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
         <p className="text-sm font-medium text-amber-900">
@@ -194,22 +193,87 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
     );
   }
 
-  // ── Synthesis pending ─────────────────────────────────────────────────────
-  const rangeLabel = estimateSynthesisMinutes(wordCount);
-  const elapsedMin = Math.floor(elapsedMs / 60_000);
   const showRecovery = elapsedMs >= stalledAfterMs(wordCount);
+  const activityIndex = Math.floor(elapsedMs / 12_000) % ACTIVITY_MESSAGES.length;
+  const activeMessage = ACTIVITY_MESSAGES[activityIndex];
 
   const topStatus = topStatusHost ? createPortal(
-    <section className="mb-4 rounded-sm border border-[#D9D0C3] border-l-4 border-l-[#8B2E2E] bg-[#FFF6E8] px-4 py-3 shadow-sm print-hidden" aria-live="polite">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#8B2E2E] border-t-transparent" aria-hidden />
+    <section
+      className="mb-6 overflow-hidden rounded-lg border-2 border-[#D9A441] bg-[#FFF5E5] px-5 py-6 shadow-sm sm:px-8 sm:py-8 print-hidden"
+      aria-live="polite"
+      aria-labelledby="narrative-synthesis-heading"
+    >
+      <div className="flex flex-col gap-3 border-b border-[#D9A441]/30 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#B8791A]">
+          <span className="relative flex h-3 w-3" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#B8791A] opacity-30" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-[#B8791A]" />
+          </span>
+          Building your final editorial assessment
+        </div>
+        <span className="w-fit rounded-full border border-[#D9A441]/40 bg-[#FAF0E1] px-3 py-1 text-xs font-medium text-[#4D463D]">
+          Deep editorial synthesis typically completes within {SYNTHESIS_DURATION_LABEL}
+        </span>
+      </div>
+
+      <div className="mx-auto mt-6 max-w-3xl text-center">
+        <h2 id="narrative-synthesis-heading" className="font-serif text-3xl font-semibold leading-tight text-[#6F4A1F] sm:text-4xl">
+          Building Your Final Editorial Assessment
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-[#4D463D] sm:text-lg">
+          RevisionGrade is combining your completed scoring, evidence review, market analysis, and revision planning into one coherent, publication-quality editorial narrative.
+        </p>
+      </div>
+
+      <div className="mt-7 grid gap-4 rounded-md border border-[#D9A441]/20 bg-[#FAF0E1] p-5 md:grid-cols-[0.9fr_1.25fr_0.85fr]">
         <div>
-          <p className="text-sm font-semibold text-[#1C1814]">Evidence Review ready · Narrative Synthesis generating…</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-[#5C5549]">
-            Your scores, criterion analyses, and revision plan are ready. Narrative Synthesis is being prepared below and will appear automatically in approximately {rangeLabel} minutes. No refresh needed.
-          </p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#6F4A1F]">Completed</p>
+          <ul className="space-y-1.5 text-sm text-[#4D463D]">
+            <li>✓ Evidence Review</li>
+            <li>✓ Criteria Analysis</li>
+            <li>✓ Market Assessment</li>
+            <li>✓ Revision Planning</li>
+          </ul>
+        </div>
+
+        <div className="rounded-md border border-[#D9A441]/35 bg-[#FFF9EF] p-4 shadow-sm">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#B8791A]">Now writing</p>
+          <div className="flex items-center gap-3">
+            <span className="h-3 w-3 shrink-0 animate-pulse rounded-full bg-[#B8791A]" aria-hidden />
+            <p className="font-serif text-xl font-semibold text-[#6F4A1F]">Editorial Narrative</p>
+          </div>
+          <p className="mt-2 min-h-10 text-sm italic leading-relaxed text-[#4D463D]">{activeMessage}</p>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#4D463D]/60">Up next</p>
+          <ul className="space-y-1.5 text-sm text-[#4D463D]/65">
+            <li>○ Final Report Formatting</li>
+            <li>○ Downloadable Report Preparation</li>
+          </ul>
         </div>
       </div>
+
+      <details className="group mt-6 border-t border-[#D9A441]/30 pt-4 text-sm text-[#4D463D]">
+        <summary className="cursor-pointer font-semibold text-[#6F4A1F] marker:text-[#B8791A] hover:underline">
+          Why does editorial synthesis take time?
+        </summary>
+        <div className="mt-3 space-y-3 leading-relaxed">
+          <p>
+            RevisionGrade is transforming hundreds of individual findings into a single editorial narrative rather than producing a simple summary.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>✓ Connects evidence across every evaluation criterion</div>
+            <div>✓ Explains why each strength and weakness matters</div>
+            <div>✓ Prioritizes revisions by reader impact</div>
+            <div>✓ Produces a publication-quality editorial assessment</div>
+          </div>
+        </div>
+      </details>
+
+      <p className="mt-5 text-center text-xs text-[#4D463D]/80">
+        This page updates automatically when the assessment is ready. No refresh required.
+      </p>
     </section>,
     topStatusHost,
   ) : null;
@@ -218,14 +282,15 @@ export function SynthesisPoller({ jobId, wordCount, initialDreamDoc = null, onRe
     <>
       {topStatus}
       <div className="space-y-4">
-        <div className="flex items-center gap-3 py-4">
-          <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent shrink-0" aria-hidden />
-          <div>
-            <p className="text-sm text-gray-700 font-medium">Narrative Synthesis is generating automatically.</p>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Your Evidence Review, including scores, criterion analyses, and revision plan, is ready above. Narrative Synthesis will appear here in approximately {rangeLabel} minutes
-              {elapsedMin > 0 ? ` — ${elapsedMin} min elapsed` : ""}. This page will update automatically — no refresh needed.
-            </p>
+        <div className="rounded-md border border-[#D9A441]/30 bg-[#FFF9EF] px-4 py-5">
+          <div className="flex items-start gap-3">
+            <span className="mt-1 h-3 w-3 shrink-0 animate-pulse rounded-full bg-[#B8791A]" aria-hidden />
+            <div>
+              <p className="font-serif text-lg font-semibold text-[#6F4A1F]">Your editorial narrative is being written here.</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#4D463D]">
+                {activeMessage} The completed synthesis will appear automatically in this reserved section.
+              </p>
+            </div>
           </div>
         </div>
 
