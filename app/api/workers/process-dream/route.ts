@@ -1034,8 +1034,9 @@ async function processDreamJob(
 
   console.log(`[DreamWorker] ${jobId}: persisted final_external_audit_v1 artifact verdict=${finalAudit.verdict}`);
 
-  // 7. Set pass3_completed_at so the poller promotes progress to 100%.
-  // Without this, long-form jobs stay at 92% even after narrative synthesis finishes.
+  // 7. Record durable completion timestamps so the progress authority and UI
+  // know WAVE and finalization are finished. Always update — pass3_completed_at
+  // may already be set by the main worker, but final audit only happens here.
   const { data: currentJob } = await supabase
     .from('evaluation_jobs')
     .select('progress')
@@ -1047,23 +1048,43 @@ async function processDreamJob(
       ? (currentJob.progress as Record<string, unknown>)
       : {};
 
-  if (!existingProgress.pass3_completed_at) {
-    const now = new Date().toISOString();
-    await supabase
-      .from('evaluation_jobs')
-      .update({
-        progress: {
-          ...existingProgress,
-          pass3_completed_at: now,
-          final_external_audit_completed_at: finalAudit.generated_at,
-          final_external_audit_verdict: finalAudit.verdict,
-          final_external_audit_blocking: finalAudit.blocking,
-          completed_units: finalAudit.blocking ? existingProgress.completed_units ?? 96 : existingProgress.total_units ?? 100,
-        },
-      })
-      .eq('id', jobId);
-    console.log(`[DreamWorker] ${jobId}: set pass3_completed_at=${now} — progress bar will show 100%`);
-  }
+  const waveRow = artifactMap.get('wave_revision_plan_v1') as { created_at?: string } | undefined;
+  const waveCompletedAt = waveRow?.created_at ?? existingProgress.phase3_completed_at ?? finalAudit.generated_at;
+  const terminal = !finalAudit.blocking;
+  const totalUnits = typeof existingProgress.total_units === 'number' ? existingProgress.total_units : 100;
+  const completedUnits = terminal ? totalUnits : (typeof existingProgress.completed_units === 'number' ? existingProgress.completed_units : 96);
+  const now = new Date().toISOString();
+
+  const nextPart2 = {
+    ...(typeof existingProgress.part2 === 'object' && existingProgress.part2 !== null
+      ? (existingProgress.part2 as Record<string, unknown>)
+      : {}),
+    status: terminal ? 'complete' : 'running',
+    completed_units: terminal ? 100 : 96,
+    completed_at: terminal ? finalAudit.generated_at : undefined,
+  };
+
+  await supabase
+    .from('evaluation_jobs')
+    .update({
+      progress: {
+        ...existingProgress,
+        pass3_completed_at: existingProgress.pass3_completed_at ?? finalAudit.generated_at,
+        wave_completed_at: waveCompletedAt,
+        final_external_audit_completed_at: finalAudit.generated_at,
+        final_external_audit_verdict: finalAudit.verdict,
+        final_external_audit_blocking: finalAudit.blocking,
+        completed_units: completedUnits,
+        progress_high_water: completedUnits,
+        status: 'complete',
+        active_part: terminal ? null : 'part2',
+        part2: nextPart2,
+        message: terminal ? 'Evaluation complete' : 'Final verification blocked — awaiting review',
+      },
+      updated_at: now,
+    })
+    .eq('id', jobId);
+  console.log(`[DreamWorker] ${jobId}: finalized progress — completed_units=${completedUnits}, verdict=${finalAudit.verdict}, blocking=${finalAudit.blocking}`);
 
   return { success: true };
 }

@@ -82,6 +82,11 @@ export interface JobState {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  /** Final external audit (Pass 3b / WAVE / non-WAVE verification) — long-form report-ready gate. */
+  final_external_audit_started_at?: string | null;
+  final_external_audit_completed_at?: string | null;
+  final_external_audit_verdict?: 'PASS' | 'WARN' | 'BLOCK' | 'SKIP' | null;
+  final_external_audit_blocking?: boolean | null;
   /** Authoritative Phase 0 telemetry — from progress JSONB, not column delta */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
@@ -508,7 +513,7 @@ export function EvaluationPoller({
   }, [initialJob, jobId, userId, refreshInterval]);
 
   const formatUserSafeError = (value: string) =>
-    value.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 600);
+    value.replace(/[^\x20-\x7E]/g, '').trim().slice(0, 600);
 
   // ========================================
   // Render
@@ -617,6 +622,9 @@ export function EvaluationPoller({
             phase2_started_at: job.phase2_started_at ?? null,
             phase3_started_at: job.pass3_started_at ?? null,
             pass3_completed_at: job.pass3_completed_at ?? null,
+            final_external_audit_completed_at: job.final_external_audit_completed_at ?? null,
+            final_external_audit_verdict: job.final_external_audit_verdict ?? null,
+            final_external_audit_blocking: job.final_external_audit_blocking ?? null,
             manuscript_word_count: job.manuscript_word_count ?? null,
             phase_message: job.phase_message ?? null,
             heartbeat_age_seconds: job.heartbeat_age_seconds ?? null,
@@ -655,13 +663,17 @@ export function EvaluationPoller({
             ? 100
             : isCompletingAnimation
             ? safeAnimated
+            : job.status === 'complete'
+            ? effectivePd.percentage ?? 0
             : Math.max(safeAnimated, effectivePd.percentage ?? 0) + refreshBump;
           // Apply monotonic ratchet — only ever advance forward
           if (rawBarWidth > highWaterMarkRef.current) {
             highWaterMarkRef.current = rawBarWidth;
           }
           const barWidth = Math.max(rawBarWidth, highWaterMarkRef.current);
-          const displayedPercent = Math.max(0, Math.min(100, Math.round(barWidth)));
+          // 100% is reserved for the terminal, customer-facing report-ready state.
+          const isReportReady = job.status === 'complete' && dreamIsReady;
+          const displayedPercent = Math.max(0, Math.min(isReportReady ? 100 : 99, Math.round(barWidth)));
           return (
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">

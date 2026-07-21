@@ -42,6 +42,30 @@ describe("getProgressDisplay: canonical state mapping", () => {
     expect(pd!.indeterminate).toBe(false);
   });
 
+  test("long-form status=complete without final audit stays at 92% (narrative synthesis pending)", () => {
+    const pd = getProgressDisplay({
+      status: "complete",
+      manuscript_word_count: 64465,
+      pass3_completed_at: "2026-07-21T04:38:34.000Z",
+    });
+    expect(pd).not.toBeNull();
+    expect(pd!.percentage).toBeLessThan(100);
+    expect(pd!.label).toBe("Finalizing your report in progress");
+  });
+
+  test("long-form status=complete with final audit shows 100%", () => {
+    const pd = getProgressDisplay({
+      status: "complete",
+      manuscript_word_count: 64465,
+      pass3_completed_at: "2026-07-21T04:38:34.000Z",
+      final_external_audit_completed_at: "2026-07-21T04:41:00.000Z",
+      final_external_audit_verdict: "PASS",
+    });
+    expect(pd).not.toBeNull();
+    expect(pd!.percentage).toBe(100);
+    expect(pd!.label).toBe("Evaluation finalized — full report ready");
+  });
+
   // ── Phase 1A ─────────────────────────────────────────────────────────────
 
   test("phase_1a/running, no fraction -> late position (35%)", () => {
@@ -161,6 +185,16 @@ describe("getProgressDisplay: canonical state mapping", () => {
     });
     expect(pd!.label).toBe("Finalizing your report...");
     expect(pd!.percentage).toBe(86);
+  });
+
+  test("stale 100% high-water mark is capped at 99% while running", () => {
+    const pd = getProgressDisplay({
+      status: "running",
+      phase: "phase_3",
+      progress_high_water: 100,
+    });
+    expect(pd!.percentage).toBe(99);
+    expect(pd!.valueLabel).toBe("99%");
   });
 
   // ── Cross-check / Final QA ────────────────────────────────────────────────

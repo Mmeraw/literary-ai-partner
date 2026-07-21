@@ -55,8 +55,15 @@ function isLongFormJob(job: Pick<PhaseInputs, "manuscript_word_count">): boolean
     && job.manuscript_word_count >= LONGFORM_WORD_COUNT_THRESHOLD;
 }
 
-function hasLongFormNarrativeSynthesis(job: Pick<PhaseInputs, "pass3_completed_at">): boolean {
-  return typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+function hasLongFormNarrativeSynthesis(
+  job: Pick<PhaseInputs, "pass3_completed_at" | "final_external_audit_completed_at" | "final_external_audit_verdict">,
+): boolean {
+  const hasPass3 = typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+  const hasFinalAudit =
+    job.final_external_audit_verdict === "SKIP" ||
+    (typeof job.final_external_audit_completed_at === "string" &&
+      job.final_external_audit_completed_at.trim().length > 0);
+  return hasPass3 && hasFinalAudit;
 }
 
 function hasFinalExternalAudit(job: Pick<PhaseInputs, "final_external_audit_completed_at" | "final_external_audit_verdict">): boolean {
@@ -108,10 +115,13 @@ export function getProgressDisplay(
   // never drops below it. Kicks and retries are invisible to the user.
   const highWater = typeof job.progress_high_water === "number" ? job.progress_high_water : 0;
   if (highWater > 0 && result.percentage < highWater) {
+    // Never ratchet to 100% before the job is truly complete; 99% is the highest
+    // non-terminal display so stale high-water marks can't claim completion.
+    const ratcheted = job.status === "complete" ? highWater : Math.min(highWater, 99);
     return {
       ...result,
-      percentage: highWater,
-      valueLabel: `${highWater}%`,
+      percentage: ratcheted,
+      valueLabel: `${ratcheted}%`,
     };
   }
   return result;
@@ -186,9 +196,15 @@ function getProgressDisplayRaw(
 
   if (job.status === "complete") {
     const isLongForm = isLongFormJob(job);
-    const hasSynthesis = hasLongFormNarrativeSynthesis(job);
+    const hasPass3 = typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+    const expectsFinal = expectsFinalExternalAudit(job);
+    const hasFinalAudit = hasFinalExternalAudit(job);
 
-    if (isLongForm && !hasSynthesis) {
+    // Long-form report is not ready until Pass 3 narrative synthesis is done AND
+    // the final external audit verdict is known. If the caller has not yet supplied
+    // final-audit fields (older API response), fall back to the 92% synthesis-pending
+    // state instead of jumping to 100% or 96%.
+    if (isLongForm && (!hasPass3 || !expectsFinal)) {
       return {
         label: "Finalizing your report in progress",
         valueLabel: "92%",
@@ -213,7 +229,7 @@ function getProgressDisplayRaw(
       };
     }
 
-    if (isLongForm && expectsFinalExternalAudit(job) && !hasFinalExternalAudit(job)) {
+    if (isLongForm && expectsFinal && !hasFinalAudit) {
       return {
         label: "Final verification in progress.",
         valueLabel: "96%",

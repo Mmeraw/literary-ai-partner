@@ -63,7 +63,13 @@ describe('EvaluationPoller complete handoff', () => {
     render(
       <EvaluationPoller
         jobId="024fd7d4-e5ef-4f32-9ad2-e63a237d7525"
-        initialJob={makeCompleteJob({ manuscript_word_count: 84007 })}
+        initialJob={makeCompleteJob({
+          manuscript_word_count: 84007,
+          pass3_completed_at: '2026-05-24T12:10:00.000Z',
+          final_external_audit_completed_at: '2026-05-24T12:12:00.000Z',
+          final_external_audit_verdict: 'PASS',
+          dream_ready: true,
+        })}
         redirectOnComplete
         reportNavigator={reportNavigator}
       />,

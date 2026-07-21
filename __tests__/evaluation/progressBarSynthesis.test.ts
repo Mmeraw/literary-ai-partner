@@ -53,6 +53,8 @@ describe('Progress bar — synthesis-aware display', () => {
         status: 'complete',
         manuscript_word_count: 50000,
         pass3_completed_at: '2026-01-01T00:00:00Z',
+        final_external_audit_completed_at: '2026-01-01T00:00:01Z',
+        final_external_audit_verdict: 'PASS',
       });
       expect(pd).not.toBeNull();
       expect(pd!.percentage).toBe(100);

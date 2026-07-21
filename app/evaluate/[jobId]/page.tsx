@@ -118,19 +118,32 @@ export default async function EvaluationReportPage({ params }: PageProps) {
 
   // Issue #1011 — Long-form report-ready hold.
   // For long-form evaluations (≥25K words), hold the redirect until the DREAM
-  // worker has persisted the longform_document_v1 artifact. Short-form jobs
-  // redirect immediately because they have no DREAM phase.
+  // worker has persisted a long-form artifact (longform_document_v1 preferred,
+  // unified_evaluation_document_v1 / report_render_manifest_v1 as fallback)
+  // and the final external audit is non-blocking. Short-form jobs redirect
+  // immediately because they have no DREAM phase.
   const LONG_FORM_WORD_THRESHOLD = 25_000;
   const isLongForm = typeof wordCount === "number" && wordCount >= LONG_FORM_WORD_THRESHOLD;
   let dreamReady = true;
   if (job.status === "complete" && isLongForm) {
     const admin = createAdminClient();
-    const { count } = await admin
+    const { count: longformCount } = await admin
       .from("evaluation_artifacts")
       .select("id", { count: "exact", head: true })
       .eq("job_id", jobId)
-      .eq("artifact_type", "longform_document_v1");
-    dreamReady = typeof count === "number" && count > 0;
+      .in("artifact_type", ["longform_document_v1", "unified_evaluation_document_v1", "report_render_manifest_v1"]);
+    const hasLongformArtifact = typeof longformCount === "number" && longformCount > 0;
+
+    const { data: auditRow } = await admin
+      .from("evaluation_artifacts")
+      .select("content")
+      .eq("job_id", jobId)
+      .eq("artifact_type", "final_external_audit_v1")
+      .maybeSingle();
+    const auditContent = auditRow?.content as { blocking?: boolean } | null;
+    const auditBlocking = auditContent?.blocking === true;
+
+    dreamReady = hasLongformArtifact && !auditBlocking;
   }
 
   const isTerminal = (job.status === "complete" && dreamReady) || job.status === "failed";

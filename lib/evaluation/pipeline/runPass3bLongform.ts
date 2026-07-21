@@ -169,11 +169,21 @@ export function sanitizeAuthorFacingRevisionPlanInPass3b(
   const kept: Array<Record<string, unknown>> = [];
 
   for (const entry of plan) {
-    const obj = asObject(entry);
+    // Normalize string-form priorities into the canonical object shape so the
+    // prompt-only "5–6 numbered priorities" output is accepted author-side.
+    let obj = asObject(entry);
+    if (typeof entry === "string" && entry.trim().length > 0) {
+      obj = {
+        title: entry.trim(),
+        goal: "",
+        acceptance_check: "",
+        actions: [],
+      };
+    }
     if (!obj) continue;
-    const title = asText(obj.title);
-    const goal = asText(obj.goal);
-    const acceptance = asText(obj.acceptance_check);
+    const title = asText(obj.title) || asText(obj.name) || asText(obj.priority) || asText(obj.recommendation);
+    const goal = asText(obj.goal) || asText(obj.description) || asText(obj.details);
+    const acceptance = asText(obj.acceptance_check) || asText(obj.acceptance) || asText(obj.criteria);
     const originalActions = Array.isArray(obj.actions) ? obj.actions : [];
     const filteredActions = filterAuthorFacingTextListForPass3b(originalActions);
     const originalActionCount = originalActions.filter((a) => typeof a === "string" && a.trim().length > 0).length;
@@ -184,7 +194,7 @@ export function sanitizeAuthorFacingRevisionPlanInPass3b(
       report.removed_entries.push(title || goal || acceptance || "(untitled internal diagnostic item)");
       continue;
     }
-    kept.push({ ...obj, actions: filteredActions });
+    kept.push({ ...obj, title, goal, acceptance_check: acceptance, actions: filteredActions });
   }
 
   const calibrationNotes = Array.isArray(raw.calibration_notes)

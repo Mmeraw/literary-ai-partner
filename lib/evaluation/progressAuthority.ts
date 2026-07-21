@@ -151,19 +151,59 @@ function allocateCompletedUnitsToPhaseFractions(completedUnits: number): Partial
   return fractions;
 }
 
+function isLongFormPersisted(persisted: Record<string, unknown>): boolean {
+  const wordCount =
+    typeof persisted.manuscript_word_count === 'number'
+      ? persisted.manuscript_word_count
+      : typeof persisted.word_count === 'number'
+        ? persisted.word_count
+        : null;
+  if (typeof wordCount === 'number' && wordCount >= 25000) return true;
+  return (
+    isNonEmptyString(persisted.wave_started_at) ||
+    isNonEmptyString(persisted.wave_completed_at) ||
+    isNonEmptyString(persisted.final_external_audit_completed_at)
+  );
+}
+
 function timestampCompletedTarget(persisted: Record<string, unknown>): number {
+  const isLongForm = isLongFormPersisted(persisted);
+
+  // Short-form jobs are fully complete at the terminal event.
+  if (!isLongForm && (persisted.status === 'complete' || persisted.phase_status === 'complete')) {
+    return 100;
+  }
+
   const phase0Done = isNonEmptyString(persisted.phase0_completed_at) || isNonEmptyString(persisted.phase1_started_at);
   const phase1aDone =
     isNonEmptyString(persisted.phase1_completed_at) ||
     isNonEmptyString(persisted.phase2_started_at) ||
     isNonEmptyString(persisted.phase2_completed_at) ||
     isNonEmptyString(persisted.phase3_started_at) ||
-    persisted.phase === 'phase_3';
+    isNonEmptyString(persisted.phase3_completed_at) ||
+    isNonEmptyString(persisted.pass3_completed_at) ||
+    (persisted.phase === 'phase_3' && persisted.phase_status === 'complete') ||
+    (persisted.phase === 'phase_2' && persisted.phase_status === 'complete');
   const pass3aDone = phase1aDone;
-  const phase2Done = isNonEmptyString(persisted.phase2_completed_at) || isNonEmptyString(persisted.phase3_started_at) || persisted.phase === 'phase_3';
-  const phase3Done = isNonEmptyString(persisted.phase3_started_at) || (isNonEmptyString(persisted.phase2_completed_at) && persisted.phase === 'phase_3');
-  const waveDone = isNonEmptyString(persisted.phase2_completed_at) && persisted.phase === 'phase_3';
-  const finalizationDone = waveDone;
+  const phase2Done =
+    isNonEmptyString(persisted.phase2_completed_at) ||
+    isNonEmptyString(persisted.phase3_started_at) ||
+    isNonEmptyString(persisted.phase3_completed_at) ||
+    isNonEmptyString(persisted.pass3_completed_at) ||
+    (persisted.phase === 'phase_3' && persisted.phase_status === 'complete') ||
+    (persisted.phase === 'phase_2' && persisted.phase_status === 'complete');
+  // Phase 3 (Pass 3B synthesis) is only complete when its result is durably persisted,
+  // not merely when it has started. Starting phase_3 must not jump the bar to 100%.
+  const phase3Done =
+    isNonEmptyString(persisted.phase3_completed_at) ||
+    isNonEmptyString(persisted.pass3_completed_at) ||
+    (persisted.phase === 'phase_3' && persisted.phase_status === 'complete');
+  // WAVE is complete when its revision plan artifact timestamp is recorded.
+  const waveDone = isNonEmptyString(persisted.wave_completed_at) || isNonEmptyString(persisted.final_external_audit_completed_at);
+  // Finalization is complete when the final external audit has finished (or was skipped).
+  const finalizationDone =
+    isNonEmptyString(persisted.final_external_audit_completed_at) ||
+    persisted.final_external_audit_verdict === 'SKIP';
 
   let target = 0;
   if (phase0Done) target += PHASE_WEIGHTS.phase_0;
@@ -176,7 +216,7 @@ function timestampCompletedTarget(persisted: Record<string, unknown>): number {
   return target;
 }
 
-function defaultMessage(phase: ProgressPhase | undefined, part: ProgressPartName | null): string {
+function defaultMessage(phase: ProgressPhase | undefined, _part: ProgressPartName | null): string {
   if (!phase) return 'Preparing your evaluation…';
   switch (phase) {
     case 'phase_0':
@@ -238,14 +278,26 @@ export class ProgressAuthority {
   private snapshot: EvaluationProgressSnapshot;
   private phaseStartTimes: Partial<Record<ProgressPhase, string>> = {};
   private phaseFractions: Partial<Record<ProgressPhase, number>> = {};
+  /** True when the manuscript is long-form (>=25k words) and has a Part 2 (WAVE + finalization). */
+  private isLongForm: boolean = false;
 
-  constructor(initial?: Partial<EvaluationProgressSnapshot>) {
+  constructor(initial?: Partial<EvaluationProgressSnapshot>, context?: { manuscriptWordCount?: number }) {
     this.snapshot = createInitialProgressSnapshot(initial);
+    if (context?.manuscriptWordCount && context.manuscriptWordCount >= 25000) {
+      this.isLongForm = true;
+    }
   }
 
   /** Merge an existing progress JSONB snapshot (e.g. from a resumed job). */
-  static fromPersisted(persisted: Record<string, unknown>): ProgressAuthority {
+  static fromPersisted(
+    persisted: Record<string, unknown>,
+    context?: { manuscriptWordCount?: number },
+  ): ProgressAuthority {
     const snapshot = createInitialProgressSnapshot();
+    const isLongForm =
+      Boolean(context?.manuscriptWordCount && context.manuscriptWordCount >= 25000) ||
+      isLongFormPersisted(persisted);
+
     if (persisted && typeof persisted === 'object') {
       if (persisted.part1 && typeof persisted.part1 === 'object') {
         snapshot.part1 = { ...snapshot.part1, ...(persisted.part1 as Record<string, unknown>) } as ProgressPart;
@@ -268,26 +320,63 @@ export class ProgressAuthority {
       if (typeof persisted.active_part === 'string') {
         snapshot.active_part = persisted.active_part as ProgressPartName;
       }
-    }
-    const authority = new ProgressAuthority(snapshot);
 
-    // Reconstruct weighted phase fractions from durable phase timestamps so
-    // resumed jobs do not reset the part bars to zero. Prefer any persisted
-    // completed_units / progress_high_water; fall back to completed timestamps.
-    const persistedCompletedUnits =
-      typeof persisted.completed_units === 'number'
-        ? persisted.completed_units
-        : (persisted.overall as Record<string, unknown> | undefined)?.completed_units as number | undefined;
-    const persistedHighWater = typeof persisted.progress_high_water === 'number' ? persisted.progress_high_water : undefined;
-    const timestampTarget = timestampCompletedTarget(persisted);
-    const targetCompletedUnits = Math.max(
-      0,
-      persistedCompletedUnits ?? 0,
-      persistedHighWater ?? 0,
-      timestampTarget,
-    );
-    const phaseFractions = allocateCompletedUnitsToPhaseFractions(targetCompletedUnits);
-    authority.replacePhaseFractions(phaseFractions);
+      const timestampTarget = timestampCompletedTarget(persisted);
+      const isTerminal = persisted.status === 'complete' || persisted.phase_status === 'complete';
+
+      // Honor a terminal persisted snapshot, but long-form jobs are only truly
+      // finished once WAVE and finalization have durable timestamps.
+      if (isTerminal) {
+        snapshot.status = 'complete';
+        snapshot.part1.status = 'complete';
+        snapshot.part1.completed_units = 100;
+        if (!isLongForm || timestampTarget >= 100) {
+          snapshot.part2.status = 'complete';
+          snapshot.part2.completed_units = 100;
+          snapshot.active_part = null;
+        } else {
+          snapshot.part2.status = 'running';
+          snapshot.active_part = 'part2';
+          snapshot.message = 'Diagnostic Evaluation complete — preparing Narrative Synthesis…';
+        }
+      }
+
+      const authority = new ProgressAuthority(snapshot, context);
+      authority.isLongForm = isLongForm;
+
+      // Reconstruct weighted phase fractions from durable phase timestamps so
+      // resumed jobs do not reset the part bars to zero. Prefer any persisted
+      // completed_units / progress_high_water; fall back to completed timestamps.
+      const persistedCompletedUnits =
+        typeof persisted.completed_units === 'number'
+          ? persisted.completed_units
+          : (persisted.overall as Record<string, unknown> | undefined)?.completed_units as number | undefined;
+      const persistedHighWater = typeof persisted.progress_high_water === 'number' ? persisted.progress_high_water : undefined;
+
+      let targetCompletedUnits = Math.max(
+        0,
+        persistedCompletedUnits ?? 0,
+        persistedHighWater ?? 0,
+        timestampTarget,
+      );
+
+      // Guard against stale completed_units/high_water that claimed 100% before WAVE/finalization.
+      if (isTerminal && isLongForm && timestampTarget < 100) {
+        targetCompletedUnits = Math.min(targetCompletedUnits, timestampTarget);
+        snapshot.part2.completed_at = null;
+      }
+
+      // Rebuild the ratchet from the reconstructed target so a stale 100% high-water
+      // mark cannot re-lock the bar before WAVE/finalization are durably complete.
+      snapshot.progress_high_water = targetCompletedUnits;
+
+      const phaseFractions = allocateCompletedUnitsToPhaseFractions(targetCompletedUnits);
+      authority.replacePhaseFractions(phaseFractions);
+      return authority;
+    }
+
+    const authority = new ProgressAuthority(snapshot, context);
+    authority.isLongForm = isLongForm;
     return authority;
   }
 
@@ -338,13 +427,27 @@ export class ProgressAuthority {
       this.snapshot.part1.status = 'complete';
       this.snapshot.part1.completed_units = 100;
       this.snapshot.part1.completed_at = at;
-      this.snapshot.part2.status = 'complete';
-      this.snapshot.part2.completed_units = 100;
-      this.snapshot.part2.completed_at = at;
-      this.snapshot.overall.completed_units = 100;
-      this.snapshot.message = event.message ?? 'Evaluation complete';
-      this.snapshot.active_part = null;
-      this.snapshot.phase = null;
+
+      const waveDone = (this.phaseFractions.wave ?? 0) >= 1;
+      const finalizationDone = (this.phaseFractions.finalization ?? 0) >= 1;
+
+      // Short-form jobs (or long-form jobs where WAVE + finalization have already
+      // been recorded) can claim 100%. Otherwise the terminal complete event marks
+      // Part 1 done and leaves Part 2 running for the DREAM worker to finish.
+      if (!this.isLongForm || (waveDone && finalizationDone)) {
+        this.snapshot.part2.status = 'complete';
+        this.snapshot.part2.completed_units = 100;
+        this.snapshot.part2.completed_at = at;
+        this.snapshot.overall.completed_units = 100;
+        this.snapshot.message = event.message ?? 'Evaluation complete';
+        this.snapshot.active_part = null;
+        this.snapshot.phase = null;
+      } else {
+        this.snapshot.part2.status = 'running';
+        this.snapshot.active_part = 'part2';
+        this.snapshot.message = event.message ?? 'Diagnostic Evaluation complete — preparing Narrative Synthesis…';
+        this.recompute(at);
+      }
       return this.toSnapshot();
     }
 
@@ -420,6 +523,15 @@ export class ProgressAuthority {
 
     // During finalization, cap at 99% until we have proven durable completion.
     if (this.snapshot.phase === 'finalization' && this.snapshot.status !== 'complete') {
+      nextOverall = Math.min(nextOverall, 99);
+    }
+
+    // Safety cap: the overall bar must never reach 100% until the terminal complete event
+    // AND, for long-form jobs, WAVE + finalization are actually complete.
+    if (
+      this.snapshot.status !== 'complete' ||
+      (this.isLongForm && this.snapshot.part2.status !== 'complete')
+    ) {
       nextOverall = Math.min(nextOverall, 99);
     }
 
