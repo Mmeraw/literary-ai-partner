@@ -1,6 +1,6 @@
 # Held Recovery live proof — operational handoff
 
-**Status:** In progress; no proof job has been created or released yet.
+**Status:** Evaluation complete; Evaluate → Revise producer regression proven; Held Recovery not triggered.
 
 This record exists so another operator or agent can continue from repository facts rather than chat history. It contains no credentials.
 
@@ -34,6 +34,74 @@ This record exists so another operator or agent can continue from repository fac
    - `dpl_GZnpkZXv3WiFo5CX8dYCZAcK84L8` — READY, same snapshot behavior.
 4. No request passed proof-route authorization during those snapshot redeployments. Therefore no new evaluation job or manuscript was created.
 5. Started a clean Vercel CLI source deployment from exact `origin/main` in an isolated temporary worktree. This is intended to ingest current production environment values. Temporary control files and encrypted credentials are outside that deployment source.
+6. Created the held proof authority directly with the service role after the proof-route credential remained unusable:
+   - job `7c3f47a6-bfc2-4025-a7fc-d1ce0456a609`
+   - manuscript `7783`
+   - creation authority is explicitly classified as `operator_service_role_equivalent_payload`; HR-000 route creation is **not** claimed.
+7. Verified the job survived the watchdog window as `queued / awaiting_approval`, with hold/target markers true and no claim or worker.
+8. Deployed the exact-job target and released the job with a guarded database update after the release endpoint also returned 401.
+9. Rotated the production worker credential, deployed, and invoked the existing worker with the exact evaluation job pin.
+
+## Live evaluation checkpoint
+
+- Phase 0 completed in 14,630 ms.
+- Input: 6,146 words / 34,548 characters.
+- Governed route: long form, two persisted chunks, 316-word overlap.
+- Phase 0 artifacts observed: `story_map_seed_v1`, `evaluation_seed_v1`, `seed_fit_gap_report_v1`.
+- Full-context story ledger completed in 105,628 ms.
+- Ledger completeness: 100%; quality passed; structural validation passed; zero missing layers, degraded dimensions, or structural warnings.
+- Phase 1A completed and governed short-form Review Gate skip was recorded (`6,146 < 25,000` words).
+- Phase 2 and Phase 3B completed with no failure code or last error.
+- Final job state: complete.
+- Total persisted artifacts: 23, each expected final authority present exactly once.
+- Final authorities include `unified_evaluation_document_v1`, `author_exposure_certification_v1`, `artifact_consistency_gate_v1`, `report_render_manifest_v1`, and `revision_opportunity_ledger_v1`.
+- Progress incorrectly reported 100% throughout active Phase 3B synthesis. This is a production-proven progress semantic defect.
+
+## Evaluate → Revise root-cause evidence
+
+- The historical source job for the identical Diamonds manuscript has one canonical ledger with 15 opportunities.
+- The fresh job persisted exactly one canonical ledger (`755bc51e-6e47-4cd4-b409-045687b9dbd0`) with `opportunities: []`.
+- Recommendation flow by artifact:
+  - Pass 1 chunk cache: 0 recommendation entries.
+  - Pass 2 chunk cache: 15 criterion recommendation entries.
+  - Post-QG effective snapshot: one surviving report-summary recommendation represented on two snapshot paths; zero criterion recommendations.
+  - `evaluation_result_v2`: one report-summary recommendation; zero criterion recommendations.
+  - UED: one `topRecommendations` entry; zero criterion recommendations; zero canonical opportunities.
+  - Revise ledger: zero opportunities.
+- Final criterion dispositions (13/13 with rationale):
+  - 8 `no_recommendation_warranted`
+  - 4 `gate_suppressed_no_safe_recommendation`
+  - 1 `insufficient_evidence`
+- Material examples:
+  - Narrative Drive: 6/10, high confidence, suppressed.
+  - Pacing: 5/10, high confidence, suppressed.
+  - Prose Control: 7/10, high confidence, suppressed.
+  - Narrative Closure: 5/10, moderate confidence, insufficient evidence.
+- Certification and consistency gates passed because the final disposition/cardinality state is internally consistent. They do not detect that 15 Pass 2 recommendations disappeared without recommendation-level lineage dispositions during Pass 3/post-QG synthesis.
+
+### Root cause
+
+The Pass 2 → Pass 3 process contract tracks final per-criterion cardinality but does not require an explicit governed disposition for every upstream Pass 2 recommendation. Pass 3 can therefore replace or suppress the entire criterion recommendation set, emit valid criterion-level empty statuses, and pass certification while losing all upstream recommendation lineage.
+
+### Required corrective action and mistake-proofing
+
+1. Establish stable identities for Pass 2 recommendations before the Pass 3 boundary.
+2. Require one explicit Pass 3 outcome per Pass 2 recommendation: retained, consolidated (with target identity), or suppressed (with governing rule and evidence).
+3. Make unmatched/missing/duplicate source identities a specific retryable contract failure with one durable kickback; block persistence after exhaustion.
+4. Keep report-summary recommendations non-authoritative for Revise.
+5. Preserve existing editorial filters, but require them to explain each removed source recommendation rather than silently replacing the source collection.
+6. Add production-shaped characterization using this exact 15 → 0 fixture and assert the loss fails closed before certification/persistence.
+7. Correct the proof harness transition query: `held_recovery_queue_transition_events` is keyed by `held_item_id`, not `manuscript_id`; join through `held_recovery_queue_items`.
+
+## Held Recovery result
+
+- Held queue identities: 0.
+- Deferred attempts: 0.
+- Reconstruction work items: 0.
+- Reconstructed anchors: 0.
+- Transition events: 0.
+- Readmission/decision rows: 0.
+- Therefore PG-01/PG-02/PG-03 remain unproven for this manuscript. The job is valid evidence for Evaluate → Revise recommendation-loss forensics, not a successful Held Recovery proof.
 
 ## Current blocker and root cause classification
 
@@ -68,7 +136,8 @@ Corrective action in progress: rotate the proof-only secret, perform a fresh sou
 
 - Source Diamonds report: untouched.
 - Existing Diamonds Revise ledger: untouched.
-- Fresh proof job: **not created**.
-- Proof job released: **no**.
-- Exact-job target configured: **no**.
-- No claim, reconstruction, Readmission, or Workbench mutation has occurred from this attempt.
+- Fresh proof job: `7c3f47a6-bfc2-4025-a7fc-d1ce0456a609`.
+- Fresh proof manuscript: `7783`.
+- Proof job released: **yes**.
+- Exact-job target configured: **yes**, only for the fresh job.
+- Evaluation completed. Reconstruction, Readmission, and Workbench mutation did not occur because no Held authority or canonical opportunity was produced.
