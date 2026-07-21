@@ -42,7 +42,12 @@ The local and remote branch inventory was inspected before attempting reconstruc
 | `feature/held-recovery-initial-authority-v1` | `3f0ab350` | 16 behind / 3 ahead | Pre-squash initial-authority implementation history; not a current causal-chain proof harness. |
 | `origin/proof/evaluate-revise-e2e` | `2214696c` | 78 behind / 8 ahead | Historical Workbench queue proof work; not the current Held Recovery production causal-chain runner. |
 
-Repository search found current Held Recovery runtime, contracts, production initiation/completion callers, and governance acceptance criteria, but no committed current runner that executes and captures the complete production chain:
+The historical branches above contain no unpublished current harness that should be rebased. While this audit was being recorded, PR #1367 advanced `main` at `9268e06a` and added the current bounded harness:
+
+- `scripts/revision/held-recovery-causal-chain-proof.ts`
+- `tests/scripts/held-recovery-causal-chain-proof.test.ts`
+
+The harness observes the deployed public/runtime and persisted-authority boundaries and captures the complete production chain:
 
 ```text
 recoverable condition
@@ -60,5 +65,4 @@ recoverable condition
 
 The recommendation-disposition, evaluation lifecycle, current-write fixture, timeout ownership, and purge-mistake-proofing unit is certified at `837a1995`.
 
-Held Recovery runtime implementation exists on `main`, but the full production causal-chain proof remains open. The next implementation unit must build a bounded current-main proof runner and evidence collector; it must not redesign the existing runtime or misrepresent historical branches as current proof evidence.
-
+Held Recovery runtime implementation and the bounded PG-01 through PG-03 proof harness now exist on `main`. The full controlled live causal-chain proof remains open until that harness produces a successful production evidence pack. Historical branches must not be misrepresented as current proof evidence.
