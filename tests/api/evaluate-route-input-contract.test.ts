@@ -550,6 +550,7 @@ describe("POST /api/evaluate input contract", () => {
       {
         method: "GET",
         cache: "no-store",
+        signal: expect.any(AbortSignal),
         headers: {
           Authorization: "Bearer cron-secret",
           "x-trigger-source": "api.evaluate.create",

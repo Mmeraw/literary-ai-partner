@@ -29,6 +29,10 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
     delete process.env.WORKER_KICKOFF_BASE_URL;
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   afterAll(() => {
     global.fetch = originalFetch;
     Object.assign(process.env, { NODE_ENV: originalNodeEnv });
@@ -53,6 +57,7 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
       'https://www.revisiongrade.com/api/workers/process-evaluations',
       expect.objectContaining({
         method: 'GET',
+        signal: expect.any(AbortSignal),
         headers: expect.objectContaining({
           Authorization: 'Bearer cron-secret',
           'x-trigger-source': 'api.jobs.create',
@@ -79,12 +84,51 @@ describe('triggerEvaluationWorker trusted origin behavior', () => {
       'https://literary-ai-partner.vercel.app/api/workers/process-evaluations',
       expect.objectContaining({
         method: 'GET',
+        signal: expect.any(AbortSignal),
         headers: expect.objectContaining({
           Authorization: 'Bearer cron-secret',
           'x-trigger-source': 'api.jobs.create',
           'x-job-id': 'job-2',
           'x-trace-id': 'trace-2',
         }),
+      }),
+    );
+  });
+
+  test('aborts worker kickoff after timeout and resolves as network_or_timeout', async () => {
+    jest.useFakeTimers();
+    Object.assign(process.env, { NODE_ENV: 'production' });
+    process.env.VERCEL_URL = 'literary-ai-partner.vercel.app';
+
+    global.fetch = jest.fn((_url, init) => new Promise((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!(signal instanceof AbortSignal)) {
+        reject(new Error('missing abort signal'));
+        return;
+      }
+      signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    })) as typeof fetch;
+
+    const resultPromise = triggerEvaluationWorker({
+      req: new Request('https://ignored.example/api/jobs'),
+      jobId: 'job-timeout',
+      trace_id: 'trace-timeout',
+      request_id: 'request-timeout',
+      source: 'api.jobs.create',
+    });
+
+    await jest.advanceTimersByTimeAsync(5_000);
+    const result = await resultPromise;
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      reason: 'network_or_timeout',
+    }));
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Worker kickoff failed (network/timeout)',
+      expect.objectContaining({
+        event: 'worker.kickoff.failed',
+        job_id: 'job-timeout',
       }),
     );
   });

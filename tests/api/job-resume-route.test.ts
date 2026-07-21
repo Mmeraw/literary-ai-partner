@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isTerminalFailureCode } from '@/lib/evaluation/processor';
 import { triggerEvaluationWorker } from '@/lib/jobs/triggerWorker';
+import { logger } from '@/lib/observability/logger';
 
 jest.mock('@/lib/supabase/server', () => ({
   getAuthenticatedUser: jest.fn(),
@@ -42,10 +43,19 @@ jest.mock('@/lib/jobs/triggerWorker', () => ({
   isTriggerWorkerFailure: jest.fn((result: { ok: boolean }) => !result.ok),
 }));
 
+jest.mock('@/lib/observability/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 const mockGetAuthenticatedUser = getAuthenticatedUser as jest.MockedFunction<typeof getAuthenticatedUser>;
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<typeof createAdminClient>;
 const mockTriggerEvaluationWorker = triggerEvaluationWorker as jest.MockedFunction<typeof triggerEvaluationWorker>;
 const mockIsTerminalFailureCode = isTerminalFailureCode as jest.MockedFunction<typeof isTerminalFailureCode>;
+const mockLogger = logger as jest.Mocked<typeof logger>;
 
 function makeJob(overrides: Record<string, unknown> = {}) {
   return {
@@ -63,14 +73,26 @@ function makeJob(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeAdminMock(job: Record<string, unknown>) {
+function makeAdminMock(
+  job: Record<string, unknown>,
+  options: { requeueData?: Record<string, unknown> | null; requeueError?: { message: string } | null } = {},
+) {
+  const requeueData = options.requeueData === undefined
+    ? { id: job.id, status: 'queued' }
+    : options.requeueData;
+  const requeueError = options.requeueError ?? null;
   const updateEq = jest.fn().mockReturnThis();
-  const updateChain = { eq: updateEq, error: null };
+  const updateChain = {
+    eq: updateEq,
+    select: jest.fn().mockReturnThis(),
+    maybeSingle: jest.fn(async () => ({ data: requeueData, error: requeueError })),
+  };
   const update = jest.fn(() => updateChain);
 
   const admin = {
     update,
     updateEq,
+    updateChain,
     from: jest.fn((table: string) => {
       if (table === 'evaluation_jobs') {
         return {
@@ -103,6 +125,11 @@ function makeAdminMock(job: Record<string, unknown>) {
   };
 
   return admin;
+}
+
+async function flushDetachedWorkerLogs() {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 function makeRequest() {
@@ -157,6 +184,32 @@ describe('POST /api/jobs/[jobId]/resume', () => {
       jobId: 'job-resume-1',
       source: 'api.jobs.resume',
     }));
+    expect(admin.updateEq.mock.calls).toEqual([
+      ['id', 'job-resume-1'],
+      ['status', 'failed'],
+    ]);
+    expect(admin.updateChain.select).toHaveBeenCalledWith('id, status');
+    expect(admin.updateChain.maybeSingle).toHaveBeenCalledTimes(1);
+    expect(admin.updateEq).toHaveBeenCalledWith('status', 'failed');
+    expect(admin.updateEq).not.toHaveBeenCalledWith('status', 'recoverable');
+
+    await flushDetachedWorkerLogs();
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      'Evaluation resume request accepted after durable requeue',
+      expect.objectContaining({
+        event: 'api.jobs.resume.accepted_requeued',
+        job_id: 'job-resume-1',
+        status: 'queued',
+        pickup_fallback: 'cron_or_worker_queue',
+      }),
+    );
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      'Worker kickoff accepted resumed evaluation asynchronously',
+      expect.objectContaining({
+        event: 'api.jobs.resume.worker_kickoff_async_ok',
+        job_id: 'job-resume-1',
+      }),
+    );
   });
 
   test('requeues max-age kill-switch job from selected checkpoint instead of requiring re-upload', async () => {
@@ -287,7 +340,7 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     expect(mockTriggerEvaluationWorker).not.toHaveBeenCalled();
   });
 
-  test('queued recovery request kicks the worker instead of returning a dead already-active conflict', async () => {
+  test('queued recovery request returns idempotent accepted response without requeueing', async () => {
     const admin = makeAdminMock(makeJob({ status: 'queued', phase_status: 'queued', failure_code: null }));
     mockCreateAdminClient.mockReturnValue(admin as never);
 
@@ -296,14 +349,69 @@ describe('POST /api/jobs/[jobId]/resume', () => {
 
     expect(response.status).toBe(202);
     expect(json.success).toBe(true);
-    expect(json.message).toBe('Evaluation recovery has been restarted.');
+    expect(json.message).toBe('Evaluation recovery is queued. The worker/cron path will pick it up shortly.');
+    expect(admin.update).not.toHaveBeenCalled();
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      'Evaluation resume request accepted for already queued job',
+      expect.objectContaining({
+        event: 'api.jobs.resume.accepted_existing_queued',
+        job_id: 'job-resume-1',
+        pickup_fallback: 'cron_or_worker_queue',
+      }),
+    );
     expect(mockTriggerEvaluationWorker).toHaveBeenCalledWith(expect.objectContaining({
       jobId: 'job-resume-1',
       source: 'api.jobs.resume.active_queued',
     }));
   });
 
-  test('keeps resumed job queued when worker does not claim exact job immediately', async () => {
+  test('running recovery request is accepted idempotently without requeueing or worker kickoff', async () => {
+    const admin = makeAdminMock(makeJob({ status: 'running', phase_status: 'running', failure_code: null }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { success: boolean; current_status: string };
+
+    expect(response.status).toBe(202);
+    expect(json.success).toBe(true);
+    expect(json.current_status).toBe('running');
+    expect(admin.update).not.toHaveBeenCalled();
+    expect(mockTriggerEvaluationWorker).not.toHaveBeenCalled();
+  });
+
+  test('returns conflict when atomic failed-status requeue updates zero rows', async () => {
+    const admin = makeAdminMock(makeJob(), { requeueData: null });
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { error: string; current_status: string };
+
+    expect(response.status).toBe(409);
+    expect(json.error).toContain('status changed');
+    expect(json.current_status).toBe('failed');
+    expect(admin.updateEq).toHaveBeenCalledWith('status', 'failed');
+    expect(mockTriggerEvaluationWorker).not.toHaveBeenCalled();
+  });
+
+  test('returns accepted response even when async worker kickoff never resolves', async () => {
+    const admin = makeAdminMock(makeJob());
+    mockCreateAdminClient.mockReturnValue(admin as never);
+    mockTriggerEvaluationWorker.mockReturnValueOnce(new Promise(() => {}) as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { success: boolean; message: string; worker_kickoff_warning?: string };
+
+    expect(response.status).toBe(202);
+    expect(json.success).toBe(true);
+    expect(json.message).toBe('Evaluation recovery has been queued. The worker/cron path will pick it up shortly.');
+    expect(json.worker_kickoff_warning).toBeUndefined();
+    expect(mockTriggerEvaluationWorker).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: 'job-resume-1',
+      source: 'api.jobs.resume',
+    }));
+  });
+
+  test('keeps resumed job queued when async worker does not claim exact job immediately', async () => {
     const admin = makeAdminMock(makeJob());
     mockCreateAdminClient.mockReturnValue(admin as never);
     mockTriggerEvaluationWorker.mockResolvedValueOnce({
@@ -316,12 +424,23 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     });
 
     const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
-    const json = (await response.json()) as { success: boolean; worker_kickoff_warning: string; message: string };
+    const json = (await response.json()) as { success: boolean; worker_kickoff_warning?: string; message: string };
 
     expect(response.status).toBe(202);
     expect(json.success).toBe(true);
-    expect(json.worker_kickoff_warning).toBe('worker_did_not_claim_resumed_job');
-    expect(json.message).toContain('queued job remains recoverable');
+    expect(json.worker_kickoff_warning).toBeUndefined();
+    expect(json.message).toBe('Evaluation recovery has been queued. The worker/cron path will pick it up shortly.');
+
+    await flushDetachedWorkerLogs();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Worker kickoff failed after evaluation resume request',
+      expect.objectContaining({
+        event: 'api.jobs.resume.worker_kickoff_failed_async',
+        job_id: 'job-resume-1',
+        reason: 'worker_did_not_claim_resumed_job',
+        pickup_fallback: 'cron_or_worker_queue',
+      }),
+    );
 
     const updatePayload = firstUpdatePayload(admin);
     expect(updatePayload).toEqual(expect.objectContaining({
