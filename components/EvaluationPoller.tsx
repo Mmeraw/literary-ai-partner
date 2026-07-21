@@ -82,6 +82,11 @@ export interface JobState {
   phase2_completed_at?: string | null;
   pass3_started_at?: string | null;
   pass3_completed_at?: string | null;
+  /** Final external audit (Pass 3b / WAVE / non-WAVE verification) — long-form report-ready gate. */
+  final_external_audit_started_at?: string | null;
+  final_external_audit_completed_at?: string | null;
+  final_external_audit_verdict?: 'PASS' | 'WARN' | 'BLOCK' | 'SKIP' | null;
+  final_external_audit_blocking?: boolean | null;
   /** Authoritative Phase 0 telemetry — from progress JSONB, not column delta */
   phase0_total_duration_ms?: number | null;
   phase0_calibration_word_count?: number | null;
@@ -617,6 +622,9 @@ export function EvaluationPoller({
             phase2_started_at: job.phase2_started_at ?? null,
             phase3_started_at: job.pass3_started_at ?? null,
             pass3_completed_at: job.pass3_completed_at ?? null,
+            final_external_audit_completed_at: job.final_external_audit_completed_at ?? null,
+            final_external_audit_verdict: job.final_external_audit_verdict ?? null,
+            final_external_audit_blocking: job.final_external_audit_blocking ?? null,
             manuscript_word_count: job.manuscript_word_count ?? null,
             phase_message: job.phase_message ?? null,
             heartbeat_age_seconds: job.heartbeat_age_seconds ?? null,
