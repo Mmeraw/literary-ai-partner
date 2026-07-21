@@ -347,4 +347,25 @@ describe('report presentation pipeline E2E', () => {
     expect(normalize(txt)).toContain('Loss of reader urgency');
     expect(txt).toContain('RECOMMENDED REVISION #1');
   });
+  test('retains provenance in canonical data while excluding it from every author-facing renderer', async () => {
+    const sourceId = 'marketability:abc123:1';
+    const result = makeBaseResult();
+    result.criteria = [
+      makeCriterion({ recommendations: [makeRecommendation({ source_recommendation_ids: [sourceId] })] }),
+    ];
+
+    expect(result.criteria[0].recommendations[0].source_recommendation_ids).toEqual([
+      sourceId,
+    ]);
+
+    const vm = buildVm(result, 'short_form_evaluation');
+    const { txt, html, docxText, pdfBuffer } = await renderAllFormats(vm);
+
+    expect(JSON.stringify(vm)).not.toContain('source_recommendation_ids');
+    expect(JSON.stringify(vm)).not.toContain(sourceId);
+    for (const output of [txt, html, docxText, pdfBuffer.toString('latin1')]) {
+      expect(output).not.toContain('source_recommendation_ids');
+      expect(output).not.toContain(sourceId);
+    }
+  }, 30_000);
 });

@@ -1,4 +1,5 @@
 import { detectRawFallbackSentinel, endsMidSentence } from './authorFacingProse';
+import { isInternalNonRenderableFieldPath } from './authorFacingInternalFieldRegistry';
 
 export type AuthorFacingIntegrityCode =
   | 'AUTHOR_TEXT_TRUNCATED_WORD'
@@ -115,6 +116,10 @@ function hasLowercaseAfterSentence(text: string): boolean {
 const DUPLICATE_WORD = /\b([A-Za-z]{2,})\s+\1\b/iu;
 
 export function isExcludedPath(path: string, options: AuthorFacingIntegrityOptions = {}): boolean {
+  // Provenance contracts are classified centrally, rather than skipped ad hoc
+  // by a caller. These values remain available to internal lineage gates but
+  // are never author-facing prose.
+  if (isInternalNonRenderableFieldPath(path)) return true;
   const fragments = [...DEFAULT_EXCLUDED_PATH_FRAGMENTS, ...(options.excludePathFragments ?? [])];
   if (fragments.some((fragment) => path.includes(fragment))) return true;
   if (!options.inspectSourceQuotations && SOURCE_QUOTATION_FRAGMENTS.some((fragment) => path.includes(fragment))) return true;
