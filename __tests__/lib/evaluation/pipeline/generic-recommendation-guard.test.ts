@@ -223,6 +223,25 @@ describe("parsePass3Response — generic guard integration", () => {
     expect((dialogue?.recommendations.length ?? 0)).toBeGreaterThan(0);
   });
 
+  test("current Pass 3 writer rejects Pass 2 discoveries without durable lineage", () => {
+    const raw = buildPass3WithDialogueRec({
+      priority: "medium",
+      action: 'In chapter 4, cut Elena\'s interior tag before the exchange because it diffuses speaker tension.',
+      expected_impact: "Gives the reader clearer speaker intent and urgency.",
+      anchor_snippet: '"You have to understand," Elena said, smoothing her coat.',
+      source_pass: 3,
+      issue_family: "dialogue",
+      strategic_lever: "dialogue_exposition_density",
+      revision_granularity: "scene",
+      mechanism: "interior tag diffuses speaker tension before the exchange lands",
+      specific_fix: "cut the interior tag and let the action beat carry attribution",
+      reader_effect: "clearer speaker intent and urgency at the exchange turn",
+    });
+
+    expect(() => parsePass3Response(raw, pass1, pass2, "o3", "A manuscript excerpt.", undefined, undefined, true))
+      .toThrow("Pass 3 did not account for every Pass 2 recommendation discovery");
+  });
+
   test("filterGenericRecommendations batch correctly separates cliché from specific", () => {
     const recs = [
       {
