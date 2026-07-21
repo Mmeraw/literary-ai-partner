@@ -306,6 +306,43 @@ export function assertPass2OutputDispositionContract(
       })}`,
     );
   }
+  const criterionKeys = output.criteria.map((criterion) => criterion.key);
+  const unknownCriteria = criterionKeys.filter(
+    (key) => !(CRITERIA_KEYS as readonly string[]).includes(key),
+  );
+  if (unknownCriteria.length > 0) {
+    throw new Error(
+      `PASS2_OUTPUT_UNKNOWN_CRITERION ${JSON.stringify({
+        context,
+        unknown_criteria: Array.from(new Set(unknownCriteria)),
+      })}`,
+    );
+  }
+  const duplicateCriteria = Array.from(
+    new Set(criterionKeys.filter((key, index) => criterionKeys.indexOf(key) !== index)),
+  );
+  if (duplicateCriteria.length > 0) {
+    throw new Error(
+      `PASS2_OUTPUT_DUPLICATE_CRITERION ${JSON.stringify({
+        context,
+        duplicate_criteria: duplicateCriteria,
+      })}`,
+    );
+  }
+  // Every chunk must retain every canonical criterion. Otherwise a partial
+  // checkpoint can silently propagate through map/reduce and only fail at
+  // the later Pass 2 -> Pass 3 SIPOC handoff.
+  const receivedKeys = new Set(criterionKeys);
+  const missingCriteria = CRITERIA_KEYS.filter((key) => !receivedKeys.has(key));
+  if (missingCriteria.length > 0) {
+    throw new Error(
+      `PASS2_OUTPUT_INCOMPLETE ${JSON.stringify({
+        context,
+        missing_criteria: missingCriteria,
+      })}`,
+    );
+  }
+
   if (output.prompt_version !== PASS2_PROMPT_VERSION) {
     throw new Error(
       `PASS2_CACHE_CONTRACT_VERSION_MISMATCH ${JSON.stringify({
@@ -566,6 +603,26 @@ export interface RunPass2Options {
   _maxOutputTokensOverride?: number;
 }
 
+function getIncompletePass2Criteria(error: unknown): string[] {
+  const prefix = "PASS2_OUTPUT_INCOMPLETE ";
+  if (!(error instanceof Error) || !error.message.startsWith(prefix)) {
+    return [];
+  }
+
+  try {
+    const diagnostic: unknown = JSON.parse(error.message.slice(prefix.length));
+    if (!diagnostic || typeof diagnostic !== "object") {
+      return [];
+    }
+    const missingCriteria = (diagnostic as { missing_criteria?: unknown }).missing_criteria;
+    return Array.isArray(missingCriteria)
+      ? missingCriteria.filter((criterion): criterion is string => typeof criterion === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 // ── Pass 2 Recommendation Action Normalizer ─────────────────────────────────
 // Makes valid outputs tidy; does NOT launder invalid outputs.
 // Returns null for structurally invalid actions (stripped from output).
@@ -731,6 +788,12 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
           // eslint-disable-next-line no-constant-condition
           while (true) {
             try {
+              console.info("[Pass2] Chunk provider completion request", {
+                chunk_index: chunk.chunk_index,
+                attempt_number: attempt + 1,
+                request_kind: attempt === 0 ? "initial" : "fresh_retry",
+              });
+
               const result = await runPass2({
                 ...opts,
                 manuscriptText: chunk.content,
@@ -756,6 +819,15 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
                 _onChunkComplete: undefined,
               });
 
+              if (attempt > 0) {
+                console.info("[Pass2] Chunk completeness retry succeeded", {
+                  chunk_index: chunk.chunk_index,
+                  attempt_number: attempt + 1,
+                  criteria_count: result.criteria.length,
+                  completeness_result: "complete",
+                });
+              }
+
               // Fire rolling checkpoint callback.
               if (onChunkComplete) {
                 try {
@@ -773,7 +845,18 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
               const isRateLimit = isRateLimitError(error);
               const isTimeout = isTimeoutError(error);
               const isTruncated = isTruncatedJsonParseError(error);
-              if ((!isRateLimit && !isTimeout && !isTruncated) || attempt >= chunkRetryMax) {
+              const isIncompleteOutput = error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ");
+              const missingCriteria = getIncompletePass2Criteria(error);
+              if ((!isRateLimit && !isTimeout && !isTruncated && !isIncompleteOutput) || attempt >= chunkRetryMax) {
+                if (isIncompleteOutput) {
+                  console.error("[Pass2] Chunk completeness retry exhausted", {
+                    chunk_index: chunk.chunk_index,
+                    attempt_number: attempt + 1,
+                    missing_criteria: missingCriteria,
+                    original_response_discarded: true,
+                    replacement_completeness_result: "incomplete",
+                  });
+                }
                 throw error;
               }
 
@@ -782,12 +865,25 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
               const jitterMs = Math.floor(Math.random() * 750);
               const waitMs = isTruncated
                 ? 1000 + jitterMs  // Brief pause before fresh attempt
-                : Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+                : isIncompleteOutput
+                  ? 1000 + jitterMs // Fresh completion; never preserve partial chunk output
+                  : Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
               if (isRateLimit) {
                 rateLimitRetryCount += 1;
                 rateLimitWaitMs += waitMs;
                 console.warn(
                   `[Pass2] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
+                );
+              } else if (isIncompleteOutput) {
+                console.warn("[Pass2] Chunk completeness kickback", {
+                  chunk_index: chunk.chunk_index,
+                  attempt_number: attempt + 1,
+                  missing_criteria: missingCriteria,
+                  original_response_discarded: true,
+                  fresh_provider_request_scheduled: true,
+                });
+                console.warn(
+                  `[Pass2] Chunk ${chunk.chunk_index} omitted required criteria; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
                 );
               } else if (isTruncated) {
                 console.warn(
@@ -1072,6 +1168,16 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
   try {
     parsedOutput = parsePass2Response(responseText, selectedModel);
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ")) {
+      console.warn("[Pass2] Completion rejected by criterion completeness contract", {
+        job_id: opts.jobId ?? null,
+        request_id: requestId ?? null,
+        missing_criteria: getIncompletePass2Criteria(error),
+        original_response_discarded: true,
+      });
+      throw error;
+    }
+
     if (!retriedForLength && (finishReason === "length" || isTruncatedJsonParseError(error))) {
       retriedForLength = true;
       const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens);
