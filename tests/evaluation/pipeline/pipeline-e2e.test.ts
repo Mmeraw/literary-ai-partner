@@ -1105,7 +1105,7 @@ function makeLongformDreamDocument(): LongformDreamDocument {
     ],
     repo_summary: {
       benchmark_name: "froggin-noggin-dream",
-      source: "docs/benchmarks/froggin-noggin-dream.md",
+      source: "docs/benchmarks/froggin-noggin-dream-longform-multilayer-gold-standard.md",
       evaluation_type: "long_form_dream",
       overall_score: 66,
       readiness_score: 58,
