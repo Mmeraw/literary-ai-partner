@@ -91,4 +91,23 @@ describe('useFailedJobRecovery auto-resume guard', () => {
     expect(global.fetch).not.toHaveBeenCalled();
     expect(window.sessionStorage.getItem(AUTO_RESUME_STORAGE_KEY)).toBe('true');
   });
+
+  test('does not auto-resume a user-cancelled failed job', async () => {
+    const cancelledProgress = {
+      ...checkpointProgress(),
+      cancelled_by_user: true,
+      dashboard_status: 'cancelled',
+    };
+
+    renderHook(() => useFailedJobRecovery(
+      'job-auto-resume-1',
+      'failed',
+      cancelledProgress,
+    ));
+
+    await flushHookEffects();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(AUTO_RESUME_STORAGE_KEY)).toBeNull();
+  });
 });

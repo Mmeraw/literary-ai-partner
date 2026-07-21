@@ -19,6 +19,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { CancelEvaluationButton } from "@/components/evaluation/CancelEvaluationButton";
+import { isUserCancelled } from "@/lib/evaluation/cancelEvaluationPolicy";
 
 export type ResumeMode = "phase2_handoff" | "chunk_checkpoint" | "full_restart";
 
@@ -194,7 +195,8 @@ export function useFailedJobRecovery(
       !checkpoint.checked ||
       autoResumeAttempted ||
       resumed ||
-      resumeLoading
+      resumeLoading ||
+      isUserCancelled(jobProgress)
     ) return;
     // Only auto-resume when there's a real checkpoint (handoff or chunk cache).
     // full_restart mode requires operator judgment — don't auto-fire it.
@@ -213,7 +215,7 @@ export function useFailedJobRecovery(
       setAutoResumeAttempted(true);
       void handleResume();
     }
-  }, [jobId, jobStatus, checkpoint, autoResumeAttempted, resumed, resumeLoading, handleResume]);
+  }, [jobId, jobStatus, checkpoint, autoResumeAttempted, resumed, resumeLoading, handleResume, jobProgress]);
 
   return { checkpoint, resumeLoading, resumeError, resumed, handleResume };
 }
