@@ -1291,11 +1291,19 @@ type FallbackRecRef = {
   rec: SynthesizedCriterion["recommendations"][number];
 };
 
+type FallbackMatchRec = {
+  issue_family: unknown;
+  strategic_lever: unknown;
+  action: unknown;
+  expected_impact: unknown;
+  anchor_snippet: unknown;
+};
+
 type FallbackSourceEntry = {
   source_id: string;
   criterion: string;
   recommendation_id: string;
-  recommendation: SynthesizedCriterion["recommendations"][number];
+  recommendation: FallbackMatchRec;
 };
 
 const normalizeForFallbackMatch = (value: unknown): string =>
@@ -1308,10 +1316,7 @@ const sharedWordOverlap = (a: string, b: string, minLength = 5): boolean => {
   return false;
 };
 
-function scoreFallbackMatch(
-  pass2Rec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
-  finalRec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
-): number {
+function scoreFallbackMatch(pass2Rec: FallbackMatchRec, finalRec: FallbackMatchRec): number {
   if (String(pass2Rec.issue_family) !== String(finalRec.issue_family)) return 0;
   if (String(pass2Rec.strategic_lever) !== String(finalRec.strategic_lever)) return 0;
   let score = 3; // criterion already matched by lookup; issue+lever matched
@@ -1367,7 +1372,7 @@ export function computeLineageFallbackGraph(
       source_id: identity.source_id,
       criterion: identity.criterion,
       recommendation_id: identity.recommendation_id,
-      recommendation: meaningful[index],
+      recommendation: meaningful[index] as unknown as FallbackMatchRec,
     }));
   });
 
@@ -2139,9 +2144,10 @@ export function parsePass3Response(
   // silently patched.
   if (requireRecommendationLineage) {
     const nativeLineageEntries = Array.isArray(obj["recommendation_lineage"]) ? (obj["recommendation_lineage"] as unknown[]).length : 0;
-    const hasNativeSourceIds = currentCriteria.some((criterion) =>
-      criterion.recommendations.some((rec) => (rec.source_recommendation_ids ?? []).length > 0)
-    );
+    const hasNativeSourceIds = currentCriteria.some((criterion) => {
+      const recs = criterion.recommendations as SynthesizedCriterion["recommendations"];
+      return recs.some((rec) => (rec.source_recommendation_ids ?? []).length > 0);
+    });
     const lineageCompletelyAbsent = nativeLineageEntries === 0 && !hasNativeSourceIds;
     if (lineageCompletelyAbsent) {
       const fallbackOutcomes = materializePass2LineageFromSynthesis(pass2, currentCriteria, recommendationLineage);
