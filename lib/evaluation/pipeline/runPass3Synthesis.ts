@@ -1284,124 +1284,180 @@ function defaultCreateCompletion(openaiApiKey?: string, openAiTimeoutMs?: number
  * lineage contract continues to fail closed rather than silently suppressing
  * durable Pass 2 discoveries.
  */
-function materializePass2LineageFromSynthesis(
+type FallbackRecRef = {
+  finalRecIndex: number;
+  criterionIndex: number;
+  recIndex: number;
+  rec: SynthesizedCriterion["recommendations"][number];
+};
+
+type FallbackSourceEntry = {
+  source_id: string;
+  criterion: string;
+  recommendation_id: string;
+  recommendation: SynthesizedCriterion["recommendations"][number];
+};
+
+const normalizeForFallbackMatch = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+const sharedWordOverlap = (a: string, b: string, minLength = 5): boolean => {
+  for (const word of a.split(/\s+/)) {
+    if (word.length >= minLength && b.includes(word)) return true;
+  }
+  return false;
+};
+
+function scoreFallbackMatch(
+  pass2Rec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
+  finalRec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
+): number {
+  if (String(pass2Rec.issue_family) !== String(finalRec.issue_family)) return 0;
+  if (String(pass2Rec.strategic_lever) !== String(finalRec.strategic_lever)) return 0;
+  let score = 3; // criterion already matched by lookup; issue+lever matched
+  const p2Action = normalizeForFallbackMatch(pass2Rec.action);
+  const fAction = normalizeForFallbackMatch(finalRec.action);
+  const p2Impact = normalizeForFallbackMatch(pass2Rec.expected_impact);
+  const fImpact = normalizeForFallbackMatch(finalRec.expected_impact);
+  const p2Anchor = normalizeForFallbackMatch(pass2Rec.anchor_snippet);
+  const fAnchor = normalizeForFallbackMatch(finalRec.anchor_snippet);
+  if (
+    fAction.includes(p2Action.slice(0, 80)) ||
+    p2Action.includes(fAction.slice(0, 80)) ||
+    sharedWordOverlap(p2Action, fAction, 5)
+  ) {
+    score += 2;
+  }
+  if (
+    fImpact.includes(p2Impact.slice(0, 60)) ||
+    p2Impact.includes(fImpact.slice(0, 60))
+  ) {
+    score += 1;
+  }
+  if (
+    fAnchor.includes(p2Anchor.slice(0, 100)) ||
+    p2Anchor.includes(fAnchor.slice(0, 100)) ||
+    sharedWordOverlap(fAnchor, p2Anchor, 5)
+  ) {
+    score += 2;
+  }
+  return score;
+}
+
+export function computeLineageFallbackGraph(
   pass2: SinglePassOutput,
   currentCriteria: SynthesizedCriterion[],
   existingLineage: RecommendationLineageOutcome[],
-): RecommendationLineageOutcome[] {
+): {
+  threshold: number;
+  missing: FallbackSourceEntry[];
+  finalRecs: FallbackRecRef[];
+  sourceCandidates: { sourceIndex: number; candidates: { finalRecIndex: number; score: number }[] }[];
+  recCandidates: { finalRecIndex: number; candidates: { sourceIndex: number; score: number }[] }[];
+  assignments: { sourceIndex: number; finalRecIndex: number; sourceId: string; canonicalOpportunityId: string }[];
+} {
   const existingSourceIds = new Set(existingLineage.map((outcome) => outcome.source_id));
 
-  const pass2SourceEntries = pass2.criteria.flatMap((criterion) => {
+  const pass2SourceEntries: FallbackSourceEntry[] = pass2.criteria.flatMap((criterion) => {
     const meaningful = criterion.recommendations.filter(isMeaningfulOpportunityRecommendation);
     const identities = buildRecommendationSourceIdentities(
       meaningful.map((recommendation) => ({ ...recommendation, criterion: criterion.key })),
     );
     return identities.map((identity, index) => ({
-      ...identity,
+      source_id: identity.source_id,
+      criterion: identity.criterion,
+      recommendation_id: identity.recommendation_id,
       recommendation: meaningful[index],
     }));
   });
 
   const missing = pass2SourceEntries.filter((entry) => !existingSourceIds.has(entry.source_id));
-  if (missing.length === 0) return [];
 
-  type FinalRecRef = {
-    criterionIndex: number;
-    recIndex: number;
-    rec: SynthesizedCriterion["recommendations"][number];
-  };
-
-  const finalRecs: FinalRecRef[] = [];
+  const finalRecs: FallbackRecRef[] = [];
   for (let ci = 0; ci < currentCriteria.length; ci++) {
     const criterion = currentCriteria[ci];
     for (let ri = 0; ri < criterion.recommendations.length; ri++) {
       const rec = criterion.recommendations[ri];
-      if (isMeaningfulOpportunityRecommendation(rec)) {
-        finalRecs.push({ criterionIndex: ci, recIndex: ri, rec });
+      // Only unprovenanced final recommendations may participate in fallback
+      // matching. Model-provided lineage is authoritative.
+      if (isMeaningfulOpportunityRecommendation(rec) && (!rec.source_recommendation_ids || rec.source_recommendation_ids.length === 0)) {
+        finalRecs.push({ finalRecIndex: finalRecs.length, criterionIndex: ci, recIndex: ri, rec });
       }
     }
   }
 
-  const normalize = (value: unknown): string =>
-    String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  const threshold = 5; // criterion + issue + lever + at least one textual match
 
-  const sharedWordOverlap = (a: string, b: string, minLength = 5): boolean => {
-    for (const word of a.split(/\s+/)) {
-      if (word.length >= minLength && b.includes(word)) return true;
-    }
-    return false;
-  };
+  // Strict exact-one eligibility: a source is only attached when both the
+  // source and the recommendation have exactly one strong candidate. This keeps
+  // the fallback from resolving any ambiguous one-to-many or many-to-one mapping.
+  const sourceToRecScores = missing.map((entry, sourceIndex) => ({
+    sourceIndex,
+    candidates: finalRecs
+      .filter((ref) => currentCriteria[ref.criterionIndex].key === entry.criterion)
+      .map((ref) => ({ finalRecIndex: ref.finalRecIndex, score: scoreFallbackMatch(entry.recommendation, ref.rec) }))
+      .filter((c) => c.score >= threshold),
+  }));
+  const recToSourceScores = finalRecs.map((ref, finalRecIndex) => ({
+    finalRecIndex,
+    candidates: missing
+      .filter((entry) => entry.criterion === currentCriteria[ref.criterionIndex].key)
+      .map((entry, sourceIndex) => ({ sourceIndex, score: scoreFallbackMatch(entry.recommendation, ref.rec) }))
+      .filter((c) => c.score >= threshold),
+  }));
 
-  const scoreMatch = (
-    pass2Rec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
-    finalRec: { issue_family: unknown; strategic_lever: unknown; action: unknown; expected_impact: unknown; anchor_snippet: unknown },
-  ): number => {
-    if (String(pass2Rec.issue_family) !== String(finalRec.issue_family)) return 0;
-    if (String(pass2Rec.strategic_lever) !== String(finalRec.strategic_lever)) return 0;
-    let score = 3; // criterion already matched by lookup; issue+lever matched
-    const p2Action = normalize(pass2Rec.action);
-    const fAction = normalize(finalRec.action);
-    const p2Impact = normalize(pass2Rec.expected_impact);
-    const fImpact = normalize(finalRec.expected_impact);
-    const p2Anchor = normalize(pass2Rec.anchor_snippet);
-    const fAnchor = normalize(finalRec.anchor_snippet);
-    if (
-      fAction.includes(p2Action.slice(0, 80)) ||
-      p2Action.includes(fAction.slice(0, 80)) ||
-      sharedWordOverlap(p2Action, fAction, 5)
-    ) {
-      score += 2;
-    }
-    if (
-      fImpact.includes(p2Impact.slice(0, 60)) ||
-      p2Impact.includes(fImpact.slice(0, 60))
-    ) {
-      score += 1;
-    }
-    if (
-      fAnchor.includes(p2Anchor.slice(0, 100)) ||
-      p2Anchor.includes(fAnchor.slice(0, 100)) ||
-      sharedWordOverlap(fAnchor, p2Anchor, 5)
-    ) {
-      score += 2;
-    }
-    return score;
+  const assignments: { sourceIndex: number; finalRecIndex: number; sourceId: string; canonicalOpportunityId: string }[] = [];
+  for (let sourceIndex = 0; sourceIndex < missing.length; sourceIndex++) {
+    const sourceEntry = sourceToRecScores[sourceIndex];
+    if (sourceEntry.candidates.length !== 1) continue;
+    const finalRecIndex = sourceEntry.candidates[0].finalRecIndex;
+    const recEntry = recToSourceScores.find((r) => r.finalRecIndex === finalRecIndex);
+    if (!recEntry || recEntry.candidates.length !== 1 || recEntry.candidates[0].sourceIndex !== sourceIndex) continue;
+    assignments.push({
+      sourceIndex,
+      finalRecIndex,
+      sourceId: missing[sourceIndex].source_id,
+      canonicalOpportunityId: missing[sourceIndex].recommendation_id,
+    });
+  }
+
+  return {
+    threshold,
+    missing,
+    finalRecs,
+    sourceCandidates: sourceToRecScores,
+    recCandidates: recToSourceScores,
+    assignments,
   };
+}
+
+function materializePass2LineageFromSynthesis(
+  pass2: SinglePassOutput,
+  currentCriteria: SynthesizedCriterion[],
+  existingLineage: RecommendationLineageOutcome[],
+): RecommendationLineageOutcome[] {
+  const graph = computeLineageFallbackGraph(pass2, currentCriteria, existingLineage);
+  const { missing, finalRecs, assignments } = graph;
+  if (missing.length === 0 || finalRecs.length === 0 || assignments.length === 0) return [];
 
   const fallbackOutcomes: RecommendationLineageOutcome[] = [];
-  for (const entry of missing) {
-    const p2Rec = entry.recommendation;
-    const criterionKey = entry.criterion;
-    let best: FinalRecRef | null = null;
-    let bestScore = 0;
-    for (const ref of finalRecs) {
-      if (currentCriteria[ref.criterionIndex].key !== criterionKey) continue;
-      const score = scoreMatch(p2Rec, ref.rec);
-      if (score > bestScore) {
-        bestScore = score;
-        best = ref;
-      }
-    }
-    const threshold = 5; // criterion + issue + lever + at least one textual match
-    if (best && bestScore >= threshold) {
-      const rec = currentCriteria[best.criterionIndex].recommendations[best.recIndex];
-      if (!rec.source_recommendation_ids) rec.source_recommendation_ids = [];
-      if (!rec.source_recommendation_ids.includes(entry.source_id)) {
-        rec.source_recommendation_ids.push(entry.source_id);
-      }
-      fallbackOutcomes.push({
-        source_id: entry.source_id,
-        outcome: "materialized",
-        canonical_opportunity_id: entry.recommendation_id,
-      });
-    }
+  for (const assignment of assignments) {
+    const entry = missing[assignment.sourceIndex];
+    const ref = finalRecs.find((r) => r.finalRecIndex === assignment.finalRecIndex);
+    if (!ref) continue;
+    const rec = currentCriteria[ref.criterionIndex].recommendations[ref.recIndex];
+    if (!rec.source_recommendation_ids) rec.source_recommendation_ids = [];
+    rec.source_recommendation_ids.push(entry.source_id);
+    fallbackOutcomes.push({
+      source_id: entry.source_id,
+      outcome: "materialized",
+      canonical_opportunity_id: entry.recommendation_id,
+    });
   }
 
-  if (fallbackOutcomes.length > 0) {
-    console.info(
-      `[Pass3-LineageFallback] materialized ${fallbackOutcomes.length}/${missing.length} missing Pass 2 source(s) from synthesis output.`,
-    );
-  }
+  console.info(
+    `[Pass3-LineageFallback] materialized ${fallbackOutcomes.length}/${missing.length} missing Pass 2 source(s) from synthesis output.`,
+  );
 
   return fallbackOutcomes;
 }
@@ -2076,13 +2132,22 @@ export function parsePass3Response(
     }),
   );
 
-  // Deterministic fallback: try to repair an omitted recommendation_lineage
-  // by matching surviving Pass 3 recommendations to durable Pass 2 identities.
-  // Unmatched sources are left missing so the contract fails closed.
+  // Deterministic fallback: repair a completely omitted recommendation_lineage
+  // by matching unprovenanced surviving Pass 3 recommendations to durable
+  // Pass 2 identities one-to-one. Partial or contradictory native lineage is
+  // left to the reconciler so the invariant fails closed instead of being
+  // silently patched.
   if (requireRecommendationLineage) {
-    const fallbackOutcomes = materializePass2LineageFromSynthesis(pass2, currentCriteria, recommendationLineage);
-    if (fallbackOutcomes.length > 0) {
-      recommendationLineage = [...recommendationLineage, ...fallbackOutcomes];
+    const nativeLineageEntries = Array.isArray(obj["recommendation_lineage"]) ? (obj["recommendation_lineage"] as unknown[]).length : 0;
+    const hasNativeSourceIds = currentCriteria.some((criterion) =>
+      criterion.recommendations.some((rec) => (rec.source_recommendation_ids ?? []).length > 0)
+    );
+    const lineageCompletelyAbsent = nativeLineageEntries === 0 && !hasNativeSourceIds;
+    if (lineageCompletelyAbsent) {
+      const fallbackOutcomes = materializePass2LineageFromSynthesis(pass2, currentCriteria, recommendationLineage);
+      if (fallbackOutcomes.length > 0) {
+        recommendationLineage = [...recommendationLineage, ...fallbackOutcomes];
+      }
     }
   }
 
