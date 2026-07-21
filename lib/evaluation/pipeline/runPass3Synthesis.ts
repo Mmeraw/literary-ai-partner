@@ -1278,11 +1278,12 @@ function defaultCreateCompletion(openaiApiKey?: string, openAiTimeoutMs?: number
 /**
  * Deterministic fallback: if the Pass 3 LLM output omitted the
  * recommendation_lineage / source_recommendation_ids linkage, try to match
- * surviving Pass 3 recommendations to Pass 2 discoveries by criterion,
- * issue_family, and strategic_lever plus action/anchor overlap. Only
- * strong matches are materialized; unmatched sources are left missing so the
- * lineage contract continues to fail closed rather than silently suppressing
- * durable Pass 2 discoveries.
+ * unprovenanced surviving Pass 3 recommendations to Pass 2 discoveries by
+ * criterion, issue_family, and strategic_lever plus action/anchor overlap.
+ * Only strict one-to-one matches are materialized; ambiguous or unmatched
+ * sources are left missing so the lineage contract continues to fail closed
+ * rather than silently suppressing durable Pass 2 discoveries or inventing
+ * consolidation decisions.
  */
 function materializePass2LineageFromSynthesis(
   pass2: SinglePassOutput,
@@ -1316,7 +1317,9 @@ function materializePass2LineageFromSynthesis(
     const criterion = currentCriteria[ci];
     for (let ri = 0; ri < criterion.recommendations.length; ri++) {
       const rec = criterion.recommendations[ri];
-      if (isMeaningfulOpportunityRecommendation(rec)) {
+      const hasNativeSourceIds = Array.isArray(rec.source_recommendation_ids)
+        && rec.source_recommendation_ids.length > 0;
+      if (!hasNativeSourceIds && isMeaningfulOpportunityRecommendation(rec)) {
         finalRecs.push({ criterionIndex: ci, recIndex: ri, rec });
       }
     }
@@ -1368,33 +1371,43 @@ function materializePass2LineageFromSynthesis(
     return score;
   };
 
+  const threshold = 5; // criterion + issue + lever + at least one textual match
+  const sourceCandidates = new Map<string, FinalRecRef[]>();
+  const recCandidates = new Map<string, typeof missing>();
+
+  for (const entry of missing) {
+    const candidates: FinalRecRef[] = [];
+    for (const ref of finalRecs) {
+      if (currentCriteria[ref.criterionIndex].key !== entry.criterion) continue;
+      if (scoreMatch(entry.recommendation, ref.rec) < threshold) continue;
+      candidates.push(ref);
+      const recKey = `${ref.criterionIndex}:${ref.recIndex}`;
+      const sourcesForRec = recCandidates.get(recKey) ?? [];
+      sourcesForRec.push(entry);
+      recCandidates.set(recKey, sourcesForRec);
+    }
+    sourceCandidates.set(entry.source_id, candidates);
+  }
+
   const fallbackOutcomes: RecommendationLineageOutcome[] = [];
   for (const entry of missing) {
-    const p2Rec = entry.recommendation;
-    const criterionKey = entry.criterion;
-    let best: FinalRecRef | null = null;
-    let bestScore = 0;
-    for (const ref of finalRecs) {
-      if (currentCriteria[ref.criterionIndex].key !== criterionKey) continue;
-      const score = scoreMatch(p2Rec, ref.rec);
-      if (score > bestScore) {
-        bestScore = score;
-        best = ref;
-      }
+    const candidates = sourceCandidates.get(entry.source_id) ?? [];
+    if (candidates.length !== 1) continue;
+
+    const [match] = candidates;
+    const recKey = `${match.criterionIndex}:${match.recIndex}`;
+    const competingSources = recCandidates.get(recKey) ?? [];
+    if (competingSources.length !== 1 || competingSources[0].source_id !== entry.source_id) {
+      continue;
     }
-    const threshold = 5; // criterion + issue + lever + at least one textual match
-    if (best && bestScore >= threshold) {
-      const rec = currentCriteria[best.criterionIndex].recommendations[best.recIndex];
-      if (!rec.source_recommendation_ids) rec.source_recommendation_ids = [];
-      if (!rec.source_recommendation_ids.includes(entry.source_id)) {
-        rec.source_recommendation_ids.push(entry.source_id);
-      }
-      fallbackOutcomes.push({
-        source_id: entry.source_id,
-        outcome: "materialized",
-        canonical_opportunity_id: entry.recommendation_id,
-      });
-    }
+
+    const rec = currentCriteria[match.criterionIndex].recommendations[match.recIndex];
+    rec.source_recommendation_ids = [entry.source_id];
+    fallbackOutcomes.push({
+      source_id: entry.source_id,
+      outcome: "materialized",
+      canonical_opportunity_id: entry.recommendation_id,
+    });
   }
 
   if (fallbackOutcomes.length > 0) {
@@ -1460,7 +1473,10 @@ export function parsePass3Response(
   }
 
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
-  let recommendationLineage = parseRecommendationLineage(obj["recommendation_lineage"]);
+  const rawRecommendationLineage = obj["recommendation_lineage"];
+  const recommendationLineageFieldAbsent = rawRecommendationLineage === undefined
+    || rawRecommendationLineage === null;
+  let recommendationLineage = parseRecommendationLineage(rawRecommendationLineage);
 
   // Build a lookup from key → pass outputs (deterministic fallback)
   const p1Map = new Map(pass1.criteria.map((c) => [c.key, c]));
@@ -2076,10 +2092,16 @@ export function parsePass3Response(
     }),
   );
 
-  // Deterministic fallback: try to repair an omitted recommendation_lineage
-  // by matching surviving Pass 3 recommendations to durable Pass 2 identities.
-  // Unmatched sources are left missing so the contract fails closed.
-  if (requireRecommendationLineage) {
+  // Deterministic fallback: repair only a completely omitted native lineage
+  // response. Partial/contradictory model lineage remains authoritative and is
+  // rejected below; fallback must not reinterpret supplied provenance.
+  const hasNativeSourceRecommendationIds = currentCriteria.some((criterion) =>
+    (criterion.recommendations as Array<{ source_recommendation_ids?: unknown[] }>).some((recommendation) =>
+      Array.isArray(recommendation.source_recommendation_ids)
+      && recommendation.source_recommendation_ids.length > 0,
+    ),
+  );
+  if (requireRecommendationLineage && recommendationLineageFieldAbsent && !hasNativeSourceRecommendationIds) {
     const fallbackOutcomes = materializePass2LineageFromSynthesis(pass2, currentCriteria, recommendationLineage);
     if (fallbackOutcomes.length > 0) {
       recommendationLineage = [...recommendationLineage, ...fallbackOutcomes];
