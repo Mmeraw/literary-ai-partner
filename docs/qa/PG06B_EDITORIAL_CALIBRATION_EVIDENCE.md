@@ -1,10 +1,23 @@
 # PG-06B / RCA-005 Editorial Calibration Evidence
 
-Status: evidence-first investigation, not a scoring or suppression-policy change.
+Status: PG-06B infrastructure and initial historical evidence pass complete; representative current-pipeline editorial calibration remains open.
 
 ## Scope
 
-This record covers the first PG-06B pass over committed, non-secret repository evidence for zero-card and low-card evaluation outcomes.
+This record covers the first PG-06B pass over committed, non-secret repository evidence for zero-card and low-card evaluation outcomes. It does not close the representative RCA-005 calibration study.
+
+## Status after PR #1365
+
+| Item | Status |
+| --- | --- |
+| Recommendation-disposition plumbing | Closed by PR #1362 / REL-E005 unless new regression evidence appears |
+| Historical propagation diagnosis | Closed for the four committed historical cases scanned here |
+| PG-06B analyzer | Complete |
+| Initial historical evidence pass | Complete |
+| Representative editorial calibration study | Still open |
+| Scoring/suppression policy changes | No evidence supporting changes |
+
+The correct shorthand is: **PG-06B analyzer and initial historical-evidence classification completed; representative current-pipeline editorial calibration remains open.**
 
 It classifies observed cases into the RCA-005 categories requested for calibration work:
 
@@ -39,7 +52,7 @@ Targeted regression coverage lives in `tests/scripts/analyze-pg06b-editorial-cal
 
 ## Evidence scanned
 
-Command output, generated from committed files only:
+Command output, generated from committed historical files only:
 
 - Source files analyzed: 4
 - Candidate cases: 4
@@ -64,7 +77,7 @@ Candidate evidence files:
 
 ### Correct governed suppression
 
-No committed case in this pass qualifies. A case would require zero recommendations plus a canonical governed `recommendation_status` and adequate `recommendation_status_rationale`.
+No committed case in this pass qualifies. A case would require zero recommendations plus a canonical governed `recommendation_status` and adequate `recommendation_status_rationale`. Because no such case was present, this pass did not answer whether the corrected current pipeline suppresses the right recommendations when disposition metadata is valid.
 
 ### Producer omission
 
@@ -80,7 +93,7 @@ Not proven by this pass. The scanned JSON does not demonstrate that valid produc
 
 ### Editorial under-generation
 
-Not proven by this pass. Because no valid governed zero-card cases were found, there is no safe basis to claim prompt/editorial under-generation. The correct next evidence would be post-#1362 evaluations where criteria carry valid governed no-recommendation statuses and rationales, followed by human editorial review of whether those rationales are legitimate.
+Not proven by this pass. Because no valid governed zero-card cases were found, there is no safe basis to claim prompt/editorial under-generation. The required next evidence is a representative post-#1362 corpus where criteria carry valid governed no-recommendation statuses and rationales, followed by blind editorial review of whether those rationales are legitimate.
 
 ### Unsupported threshold hypothesis
 
@@ -88,6 +101,6 @@ Rejected for this evidence pass. The data does not support changing score thresh
 
 ## Conclusion
 
-The first PG-06B pass does not justify runtime or scoring changes. It confirms that available committed low/zero-card cases are primarily disposition/ownership loss artifacts, not editorial calibration proof.
+The first PG-06B pass does not justify runtime or scoring changes. It confirms that available committed low/zero-card cases are primarily historical disposition/ownership loss artifacts, not representative editorial calibration proof.
 
-Next evidence needed: post-#1362 production or redacted fixture cases containing canonical `recommendation_status` and rationale fields. Only those can separate correct governed suppression from true editorial under-generation.
+Next evidence needed: at least 30 consented or redacted post-#1362 evaluations across score, genre, and length strata, including zero-card, low-card, and normal-card outcomes. Only those can separate correct governed suppression from true editorial under-generation, unsupported recommendation pressure, grounding failure, status/cardinality defects, and remaining ownership/canonicalization loss.
