@@ -2,6 +2,8 @@ import {
   OPPORTUNITY_DISCOVERY_POLICY,
   RECOMMENDATION_STATUS_CONTRACT,
   analyzeGovernedOpportunityCoverage,
+  buildRecommendationSourceIdentities,
+  reconcileRecommendationLineage,
   buildOpportunityDiscoveryPromptBlock,
   getOpportunityScoreGuidance,
   getProductOpportunityCeiling,
@@ -207,5 +209,69 @@ describe('opportunityDiscoveryPolicy', () => {
   it('keeps the authority path stable for agents and governance tooling', () => {
     expect(OPPORTUNITY_DISCOVERY_POLICY.authorityDocument)
       .toBe('docs/governance/OPPORTUNITY_DISCOVERY_POLICY.md');
+  });
+
+  it('assigns stable content identities rather than array-position identities to Pass 2 discoveries', () => {
+    const sources = buildRecommendationSourceIdentities([
+      {
+        criterion: 'pacing',
+        action: 'Move the deadline into the scene.',
+        symptom: 'The pressure remains abstract.',
+        anchor_snippet: 'The clock continued its slow circuit above the empty bar.',
+        specific_fix: 'Name the deadline in the scene before the character leaves.',
+        reader_effect: 'Readers can feel the cost of delay.',
+      },
+      {
+        criterion: 'pacing',
+        action: 'Move the deadline into the scene.',
+        symptom: 'The pressure remains abstract.',
+        anchor_snippet: 'The clock continued its slow circuit above the empty bar.',
+        specific_fix: 'Name the deadline in the scene before the character leaves.',
+        reader_effect: 'Readers can feel the cost of delay.',
+      },
+    ]);
+
+    expect(sources.map((source) => source.source_id)).toEqual([
+      expect.stringMatching(/^pacing:[a-f0-9]{20}:1$/),
+      expect.stringMatching(/^pacing:[a-f0-9]{20}:2$/),
+    ]);
+    expect(sources[0]!.source_id.replace(/:1$/, '')).toBe(sources[1]!.source_id.replace(/:2$/, ''));
+  });
+
+  it('mistake-proofs Pass 2 lineage with exact source accounting, not a permissive percentage', () => {
+    const sourceIds = ['pacing:a:1', 'closure:b:1', 'drive:c:1'];
+    const reconciliation = reconcileRecommendationLineage(sourceIds, [
+      { source_id: 'pacing:a:1', outcome: 'materialized' },
+      { source_id: 'closure:b:1', outcome: 'consolidated', consolidated_into_source_id: 'pacing:a:1' },
+      {
+        source_id: 'drive:c:1',
+        outcome: 'suppressed',
+        governing_rule: 'verifiable_manuscript_anchor_required',
+        rationale: 'The candidate cannot be safely promoted without a verified manuscript anchor.',
+        evidence: 'No exact contiguous manuscript anchor survived verification.',
+      },
+    ]);
+
+    expect(reconciliation).toMatchObject({
+      source_count: 3,
+      outcome_count: 3,
+      materialized_count: 1,
+      consolidated_count: 1,
+      suppressed_count: 1,
+      coverage_ratio: 1,
+      complete: true,
+    });
+  });
+
+  it('fails closed when any Pass 2 source silently disappears or receives a duplicate outcome', () => {
+    const reconciliation = reconcileRecommendationLineage(['a', 'b'], [
+      { source_id: 'a', outcome: 'materialized' },
+      { source_id: 'a', outcome: 'materialized' },
+    ]);
+
+    expect(reconciliation.complete).toBe(false);
+    expect(reconciliation.missing_source_ids).toEqual(['b']);
+    expect(reconciliation.duplicate_source_ids).toEqual(['a']);
+    expect(reconciliation.coverage_ratio).toBe(0.5);
   });
 });

@@ -3503,6 +3503,9 @@ export function synthesisToEvaluationResultV2(
           authority_level: propagation.authorityLevel,
           reasons: propagation.reasons,
         },
+        ...(synthesis.recommendation_lineage
+          ? { recommendation_lineage: synthesis.recommendation_lineage }
+          : {}),
         ...(externalAdjudication
           ? {
               external_adjudication: {

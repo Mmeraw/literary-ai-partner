@@ -11,6 +11,7 @@ import type { CriterionKey } from "@/schemas/criteria-keys";
 import type { GenreExpectationMetadata } from "@/lib/evaluation/genreExpectationProfiles";
 import type {
   RecommendationStatus,
+  RecommendationLineageOutcome,
   WithCurrentRecommendationDisposition,
 } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
@@ -231,6 +232,11 @@ export type SynthesizedCriterion = {
     anchor_snippet: string;
     /** Which pass originated this recommendation */
     source_pass: 1 | 2 | 3;
+    /**
+     * Stable Pass 2 discovery identities represented by this final recommendation.
+     * Required whenever Pass 3 retains or consolidates a Pass 2 discovery.
+     */
+    source_recommendation_ids?: string[];
     /** Broad craft/problem class (canonical vocabulary) */
     issue_family: IssueFamily;
     /** Higher-order editorial lever — semantic dedupe handle (canonical vocabulary) */
@@ -336,6 +342,11 @@ export type SynthesizedCriterion = {
 
 export type SynthesisOutput = {
   criteria: SynthesizedCriterion[];
+  /**
+   * Deterministic accounting for every Pass 2 discovery supplied to Pass 3.
+   * It is process evidence, not author-facing content or admission authority.
+   */
+  recommendation_lineage?: RecommendationLineageOutcome[];
   overall: {
     /** Computed via Vol II-A §WCS */
     overall_score_0_100: number;

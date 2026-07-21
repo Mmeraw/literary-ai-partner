@@ -1,6 +1,6 @@
 import { getCriterionDisplayLabel } from '@/schemas/criteria-keys';
 import { mistakeProofText } from '@/lib/evaluation/reportRenderSafety';
-import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
+import { buildRecommendationSourceFingerprint } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
 
 export type CanonicalOpportunitySeverity = 'high' | 'medium' | 'low';
 
@@ -449,14 +449,16 @@ function collectRawOpportunities(result: EvaluationLike): {
       const action = cleanOptional(rec.action);
       const symptom = cleanOptional(rec.symptom);
       const evidence = cleanOptional(rec.anchor_snippet);
-      const fingerprint = canonicalJsonSha256({
+      const fingerprint = buildRecommendationSourceFingerprint({
         criterion: criterionKey,
         action,
         symptom,
-        evidence,
-        fix: cleanOptional(rec.specific_fix) || cleanOptional(rec.fix_direction),
-        impact: cleanOptional(rec.reader_effect) || cleanOptional(rec.expected_impact),
-      }).slice(0, 20);
+        anchor_snippet: evidence,
+        specific_fix: cleanOptional(rec.specific_fix),
+        fix_direction: cleanOptional(rec.fix_direction),
+        reader_effect: cleanOptional(rec.reader_effect),
+        expected_impact: cleanOptional(rec.expected_impact),
+      });
       const occurrence = (fingerprintOccurrences.get(fingerprint) ?? 0) + 1;
       fingerprintOccurrences.set(fingerprint, occurrence);
       // Exact content duplicates are intentionally equivalent. Their ordinal

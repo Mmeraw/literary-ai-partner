@@ -1,6 +1,10 @@
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import type { CriterionKey } from "@/schemas/criteria-keys";
 import type { EvidenceAnchor, ManuscriptChunkEvidence, SinglePassOutput } from "./types";
+import {
+  buildRecommendationSourceIdentities,
+  isMeaningfulOpportunityRecommendation,
+} from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 export type ComparisonState = "agree" | "soft_divergence" | "hard_divergence" | "missing_or_invalid";
 
@@ -19,6 +23,19 @@ export type ComparisonPacketCriterion = {
   pass1_evidence: EvidenceAnchor[];
   pass2_score: number | null;
   pass2_rationale_short: string;
+  /**
+   * Sanitized Pass 2 discoveries. Pass 3 must account for each source id as
+   * retained, consolidated, or governed-suppressed; the raw Pass 2 payload is
+   * still intentionally excluded from its prompt.
+   */
+  pass2_recommendation_candidates: Array<{
+    source_id: string;
+    action: string;
+    symptom: string;
+    anchor_snippet: string;
+    specific_fix: string;
+    reader_effect: string;
+  }>;
   disputed_excerpt_window?: DisputedExcerptWindow;
 };
 
@@ -196,6 +213,23 @@ export function buildComparisonPacket(
       excerptRadiusChars,
     });
 
+    const pass2Recommendations = Array.isArray(pass2Criterion?.recommendations)
+      ? pass2Criterion.recommendations
+      : [];
+    const meaningfulPass2Recommendations = pass2Recommendations.filter(isMeaningfulOpportunityRecommendation);
+    const identities = buildRecommendationSourceIdentities(
+      meaningfulPass2Recommendations.map((recommendation) => ({ ...recommendation, criterion: key })),
+    );
+    const pass2RecommendationCandidates = meaningfulPass2Recommendations
+      .map((recommendation, index) => ({
+        source_id: identities[index]!.source_id,
+        action: toFirstSentence(String(recommendation.action ?? ''), MAX_SUMMARY_CHARS),
+        symptom: toFirstSentence(String(recommendation.expected_impact ?? ''), MAX_SUMMARY_CHARS),
+        anchor_snippet: normalizeWhitespace(String(recommendation.anchor_snippet ?? '')).slice(0, MAX_SNIPPET_CHARS),
+        specific_fix: toFirstSentence(String(recommendation.action ?? ''), MAX_SUMMARY_CHARS),
+        reader_effect: toFirstSentence(String(recommendation.expected_impact ?? ''), MAX_SUMMARY_CHARS),
+      }));
+
     return {
       key,
       state,
@@ -205,6 +239,7 @@ export function buildComparisonPacket(
       pass1_evidence: pass1Evidence,
       pass2_score: pass2Score,
       pass2_rationale_short: toFirstSentence(pass2Criterion?.rationale ?? "", MAX_RATIONALE_SHORT_CHARS),
+      pass2_recommendation_candidates: pass2RecommendationCandidates,
       disputed_excerpt_window: disputedExcerptWindow,
     };
   });

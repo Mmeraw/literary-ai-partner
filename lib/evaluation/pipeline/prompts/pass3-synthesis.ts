@@ -197,6 +197,7 @@ Canonical/exemplary protection rules:
 Coverage guardrail for weak criteria:
 - Criteria with substantive weakness (typically <= 6/10) MUST NOT silently return an empty recommendations array.
 - If no safe recommendation can be emitted, recommendation_status MUST be either "insufficient_evidence" or "gate_suppressed_no_safe_recommendation" with a concrete recommendation_status_rationale tied to missing/conflicting evidence.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Confidence/evidence: do not convert scorable criteria to N/A due to thin evidence; lower confidence instead; do not invent evidence.
@@ -650,6 +651,8 @@ ${buildDiagnosticSpinePromptBlock()}
 Execution mode: ${executionMode}
 
 ${englishVariantBlock}
+
+PASS 2 LINEAGE (hard): for every packet pass2_recommendation_candidates.source_id, emit exactly one top-level recommendation_lineage entry. Use materialized only when the final recommendation lists source_recommendation_ids; use consolidated only with a surviving consolidated_into_source_id; use suppressed only with governing_rule, rationale, and evidence. This is provenance, not a quota: never invent or retain unsafe advice.
 
 OUTPUT BUDGET BY STATE (STRICT):
 - agree (score_delta <= 1): emit { key, final_score_0_10, final_rationale (1-3 substantive sentences—NOT "Confirmed."), recommendations[] (with semantic fields), recommendation_status, recommendation_status_rationale }

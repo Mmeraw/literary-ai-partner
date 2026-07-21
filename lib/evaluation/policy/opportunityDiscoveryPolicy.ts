@@ -9,6 +9,8 @@
  * consume this module instead of embedding independent score/count rules.
  */
 
+import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
+
 export type EvaluationOpportunityMode = 'short_form' | 'long_form_multi_layer';
 
 export type OpportunitySource =
@@ -306,6 +308,7 @@ export function normalizeRecommendationStatusInput(
 export type OpportunityRecommendationInput = {
   action?: unknown;
   specific_fix?: unknown;
+  fix_direction?: unknown;
   anchor_snippet?: unknown;
   evidence_anchor?: unknown;
   symptom?: unknown;
@@ -365,6 +368,176 @@ export function isMeaningfulOpportunityRecommendation(
   }
 
   return true;
+}
+
+/**
+ * Stable identity for a discovered recommendation before Pass 3 is allowed to
+ * consolidate or suppress it.  This is deliberately based on editorial
+ * content, not array position: ordering is presentation behaviour and must
+ * never decide lineage.
+ *
+ * The hash implementation remains local and deterministic so this policy can
+ * be consumed by prompt-packet construction without importing a renderer or a
+ * persistence adapter.  Exact duplicates receive a deterministic ordinal;
+ * producers that need to distinguish otherwise identical discoveries must add
+ * a durable producer UUID rather than relying on order.
+ */
+
+export type RecommendationSourceIdentityInput = OpportunityRecommendationInput & {
+  criterion: string;
+};
+
+export type RecommendationSourceIdentity = {
+  source_id: string;
+  recommendation_id: string;
+  criterion: string;
+};
+
+function normalizeIdentityText(value: unknown): string {
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+}
+
+export function buildRecommendationSourceFingerprint(value: RecommendationSourceIdentityInput): string {
+  const criterion = normalizeIdentityText(value.criterion) || 'general';
+  return canonicalJsonSha256({
+    criterion,
+    action: normalizeIdentityText(value.action),
+    symptom: normalizeIdentityText(value.symptom),
+    evidence: normalizeIdentityText(value.anchor_snippet ?? value.evidence_anchor),
+    fix: normalizeIdentityText(value.specific_fix ?? value.fix_direction),
+    impact: normalizeIdentityText(value.reader_effect ?? value.expected_impact),
+  }).slice(0, 20);
+}
+
+export function buildRecommendationSourceIdentities(
+  values: readonly RecommendationSourceIdentityInput[],
+): RecommendationSourceIdentity[] {
+  const occurrences = new Map<string, number>();
+  return values.map((value) => {
+    const criterion = normalizeIdentityText(value.criterion) || 'general';
+    const fingerprint = buildRecommendationSourceFingerprint({ ...value, criterion });
+    const occurrence = (occurrences.get(fingerprint) ?? 0) + 1;
+    occurrences.set(fingerprint, occurrence);
+    return {
+      source_id: `${criterion}:${fingerprint}:${occurrence}`,
+      recommendation_id: `REC-${fingerprint}-${occurrence}`,
+      criterion,
+    };
+  });
+}
+
+/**
+ * Deterministic Pass 2 -> Pass 3 lineage reconciliation.
+ *
+ * The model may propose an outcome, but it never decides whether the
+ * accounting is complete. This validator is the merge/persistence authority:
+ * every input source must terminate exactly once as materialized,
+ * consolidated, or governed-suppressed.
+ */
+export type RecommendationLineageOutcomeKind =
+  | 'materialized'
+  | 'consolidated'
+  | 'suppressed';
+
+export type RecommendationLineageOutcome = {
+  source_id: string;
+  outcome: RecommendationLineageOutcomeKind;
+  /** Required for materialized/consolidated sources once canonicalized. */
+  canonical_opportunity_id?: string;
+  /** Required for a consolidation so the retained authority is named. */
+  consolidated_into_source_id?: string;
+  /** Required for suppression: a registered governing rule, never a silent drop. */
+  governing_rule?: string;
+  rationale?: string;
+  evidence?: string;
+};
+
+export type RecommendationLineageReconciliation = {
+  source_count: number;
+  outcome_count: number;
+  unique_source_count: number;
+  materialized_count: number;
+  consolidated_count: number;
+  suppressed_count: number;
+  coverage_ratio: number;
+  missing_source_ids: string[];
+  unknown_source_ids: string[];
+  duplicate_source_ids: string[];
+  invalid_outcomes: string[];
+  complete: boolean;
+};
+
+export function reconcileRecommendationLineage(
+  sourceIds: readonly string[],
+  outcomes: readonly RecommendationLineageOutcome[],
+): RecommendationLineageReconciliation {
+  const normalizedSources = sourceIds.filter((sourceId): sourceId is string =>
+    typeof sourceId === 'string' && sourceId.trim().length > 0,
+  );
+  const sourceSet = new Set(normalizedSources);
+  const outcomesBySource = new Map<string, RecommendationLineageOutcome[]>();
+  const unknownSourceIds = new Set<string>();
+  const invalidOutcomes: string[] = [];
+
+  for (const outcome of outcomes) {
+    const sourceId = typeof outcome?.source_id === 'string' ? outcome.source_id.trim() : '';
+    if (!sourceId || !sourceSet.has(sourceId)) {
+      if (sourceId) unknownSourceIds.add(sourceId);
+      else invalidOutcomes.push('outcome_missing_source_id');
+      continue;
+    }
+    const current = outcomesBySource.get(sourceId) ?? [];
+    current.push(outcome);
+    outcomesBySource.set(sourceId, current);
+
+    if (outcome.outcome === 'suppressed') {
+      if (!outcome.governing_rule?.trim() || !outcome.rationale?.trim() || !outcome.evidence?.trim()) {
+        invalidOutcomes.push(`suppression_missing_governance:${sourceId}`);
+      }
+    } else if (outcome.outcome === 'consolidated') {
+      if (!outcome.consolidated_into_source_id?.trim()) {
+        invalidOutcomes.push(`consolidation_missing_target:${sourceId}`);
+      } else if (!sourceSet.has(outcome.consolidated_into_source_id.trim())) {
+        invalidOutcomes.push(`consolidation_unknown_target:${sourceId}`);
+      } else if (outcome.consolidated_into_source_id.trim() === sourceId) {
+        invalidOutcomes.push(`consolidation_self_target:${sourceId}`);
+      }
+    } else if (outcome.outcome !== 'materialized') {
+      invalidOutcomes.push(`unknown_outcome:${sourceId}`);
+    }
+  }
+
+  const missingSourceIds = normalizedSources.filter((sourceId) => !outcomesBySource.has(sourceId));
+  const duplicateSourceIds = [...outcomesBySource.entries()]
+    .filter(([, values]) => values.length !== 1)
+    .map(([sourceId]) => sourceId);
+  const counted = outcomes.filter((outcome) => sourceSet.has(outcome.source_id));
+  const materializedCount = counted.filter((outcome) => outcome.outcome === 'materialized').length;
+  const consolidatedCount = counted.filter((outcome) => outcome.outcome === 'consolidated').length;
+  const suppressedCount = counted.filter((outcome) => outcome.outcome === 'suppressed').length;
+  const uniqueSourceCount = outcomesBySource.size;
+  const coverageRatio = normalizedSources.length === 0 ? 1 : uniqueSourceCount / normalizedSources.length;
+
+  return {
+    source_count: normalizedSources.length,
+    outcome_count: outcomes.length,
+    unique_source_count: uniqueSourceCount,
+    materialized_count: materializedCount,
+    consolidated_count: consolidatedCount,
+    suppressed_count: suppressedCount,
+    coverage_ratio: coverageRatio,
+    missing_source_ids: missingSourceIds,
+    unknown_source_ids: [...unknownSourceIds].sort(),
+    duplicate_source_ids: duplicateSourceIds.sort(),
+    invalid_outcomes: invalidOutcomes.sort(),
+    complete:
+      coverageRatio === 1 &&
+      missingSourceIds.length === 0 &&
+      unknownSourceIds.size === 0 &&
+      duplicateSourceIds.length === 0 &&
+      invalidOutcomes.length === 0 &&
+      outcomes.length === normalizedSources.length,
+  };
 }
 
 export function countMeaningfulOpportunityRecommendations(values: unknown): number {
