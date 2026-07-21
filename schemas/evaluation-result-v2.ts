@@ -347,6 +347,19 @@ export type EvaluationResultV2 = {
         authority_level: "normal" | "constrained" | "blocked";
         reasons: string[];
       };
+      /**
+       * Non-author-facing provenance proving how Pass 3 handled every
+       * meaningful Pass 2 recommendation discovery before certification.
+       */
+      recommendation_lineage?: Array<{
+        source_id: string;
+        outcome: "materialized" | "consolidated" | "suppressed";
+        canonical_opportunity_id?: string;
+        consolidated_into_source_id?: string;
+        governing_rule?: string;
+        rationale?: string;
+        evidence?: string;
+      }>;
       evaluation_scope?: {
         route?: "SHORT_FORM" | "LONG_FORM";
         input_scale?:

@@ -21,6 +21,10 @@ import {
   getShortFormPerCriterionCeiling,
   normalizeRecommendationStatusInput,
   RecommendationDispositionContractError,
+  buildRecommendationSourceIdentities,
+  isMeaningfulOpportunityRecommendation,
+  reconcileRecommendationLineage,
+  type RecommendationLineageOutcome,
   reconcileRecommendationDispositionAfterMutation,
   requireCurrentRecommendationDisposition,
   type EvaluationOpportunityMode,
@@ -345,6 +349,7 @@ function buildPromptPacketFromComparison(packet: ReturnType<typeof buildComparis
       pass2_score: criterion.pass2_score,
       pass1_mechanism_summary: criterion.pass1_mechanism_summary,
       pass2_rationale_short: criterion.pass2_rationale_short,
+      pass2_recommendation_candidates: criterion.pass2_recommendation_candidates,
     };
 
     if (criterion.state === "soft_divergence" || criterion.state === "hard_divergence") {
@@ -1117,6 +1122,7 @@ export async function runPass3Synthesis(opts: RunPass3Options): Promise<CurrentS
       opts.manuscriptText,
       expectationContext,
       opts.scopeProfile,
+      true,
     );
 
     // Normalization and required-field validation happen inside parsePass3Response
@@ -1277,6 +1283,7 @@ export function parsePass3Response(
   manuscriptText?: string,
   expectationContext?: ResolvedExpectationContext,
   scopeProfile?: SubmissionScopeProfile,
+  requireRecommendationLineage = false,
 ): CurrentSynthesisOutput {
   const resolvedFallback =
     typeof fallbackModel === "string" && fallbackModel.length > 0
@@ -1322,6 +1329,7 @@ export function parsePass3Response(
   }
 
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
+  const recommendationLineage = parseRecommendationLineage(obj["recommendation_lineage"]);
 
   // Build a lookup from key → pass outputs (deterministic fallback)
   const p1Map = new Map(pass1.criteria.map((c) => [c.key, c]));
@@ -1937,8 +1945,58 @@ export function parsePass3Response(
     }),
   );
 
+  // Pass 2 discoveries are durable process inputs. Pass 3 may safely
+  // materialize, consolidate, or suppress them, but it must account for each
+  // source exactly once before certification/persistence can continue.
+  const pass2SourceIds = pass2.criteria.flatMap((criterion) =>
+    buildRecommendationSourceIdentities(
+      criterion.recommendations
+        .filter(isMeaningfulOpportunityRecommendation)
+        .map((recommendation) => ({ ...recommendation, criterion: criterion.key })),
+    ).map((identity) => identity.source_id),
+  );
+  if (requireRecommendationLineage && pass2SourceIds.length > 0) {
+    const reconciliation = reconcileRecommendationLineage(pass2SourceIds, recommendationLineage);
+    const survivingSourceIds = new Set(
+      currentCriteria.flatMap((criterion) =>
+        criterion.recommendations.flatMap((recommendation) => recommendation.source_recommendation_ids ?? []),
+      ),
+    );
+    const outcomeBySource = new Map(recommendationLineage.map((outcome) => [outcome.source_id, outcome]));
+    const materializationErrors = pass2SourceIds.filter((sourceId) => {
+      const outcome = outcomeBySource.get(sourceId);
+      if (!outcome) return false;
+      if (outcome.outcome === "materialized") return !survivingSourceIds.has(sourceId);
+      if (outcome.outcome === "consolidated") {
+        return !outcome.consolidated_into_source_id || !survivingSourceIds.has(outcome.consolidated_into_source_id);
+      }
+      return false;
+    });
+    if (!reconciliation.complete || materializationErrors.length > 0) {
+      throw new RecommendationDispositionContractError(
+        "Pass 3 did not account for every Pass 2 recommendation discovery before persistence.",
+        {
+          invariant_id: "pass2_recommendation_lineage_complete",
+          issues: [
+            ...reconciliation.missing_source_ids.map((id) => `missing:${id}`),
+            ...reconciliation.unknown_source_ids.map((id) => `unknown:${id}`),
+            ...reconciliation.duplicate_source_ids.map((id) => `duplicate:${id}`),
+            ...reconciliation.invalid_outcomes,
+            ...materializationErrors.map((id) => `unresolved_surviving_target:${id}`),
+          ],
+          source_count: reconciliation.source_count,
+          outcome_count: reconciliation.outcome_count,
+          coverage_ratio: reconciliation.coverage_ratio,
+        },
+      );
+    }
+  }
+
   return {
     criteria: currentCriteria,
+    ...(requireRecommendationLineage && pass2SourceIds.length > 0
+      ? { recommendation_lineage: recommendationLineage }
+      : {}),
     overall: sanitizedOverall,
     metadata: {
       // PR-I (2026-05-16): Provenance must reflect the model that actually executed,
@@ -2237,6 +2295,29 @@ function parseEvidenceArray(raw: unknown): EvidenceAnchor[] {
     }));
 }
 
+function parseRecommendationLineage(raw: unknown): RecommendationLineageOutcome[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .filter((value): value is Record<string, unknown> => typeof value === "object" && value !== null)
+    .map((value) => ({
+      source_id: typeof value["source_id"] === "string" ? value["source_id"].trim() : "",
+      outcome: value["outcome"] as RecommendationLineageOutcome["outcome"],
+      canonical_opportunity_id:
+        typeof value["canonical_opportunity_id"] === "string"
+          ? value["canonical_opportunity_id"].trim()
+          : undefined,
+      consolidated_into_source_id:
+        typeof value["consolidated_into_source_id"] === "string"
+          ? value["consolidated_into_source_id"].trim()
+          : undefined,
+      governing_rule:
+        typeof value["governing_rule"] === "string" ? value["governing_rule"].trim() : undefined,
+      rationale: typeof value["rationale"] === "string" ? value["rationale"].trim() : undefined,
+      evidence: typeof value["evidence"] === "string" ? value["evidence"].trim() : undefined,
+    }));
+}
+
 function parseRecommendations(
   raw: unknown,
   criterionKey: SynthesizedCriterion["key"],
@@ -2253,6 +2334,11 @@ function parseRecommendations(
         expected_impact: String(r["expected_impact"] ?? "").trim(),
         anchor_snippet: String(r["anchor_snippet"] ?? "").trim(),
         source_pass: (sourcePass === 1 || sourcePass === 2 ? sourcePass : 3) as 1 | 2 | 3,
+        source_recommendation_ids: Array.isArray(r["source_recommendation_ids"])
+          ? (r["source_recommendation_ids"] as unknown[])
+              .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+              .map((value) => value.trim())
+          : undefined,
         issue_family: (() => {
           if (!("issue_family" in r) || r["issue_family"] === undefined || r["issue_family"] === null) {
             throw new Error("[Pass3] recommendation is missing required field: issue_family");
