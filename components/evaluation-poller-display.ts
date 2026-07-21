@@ -55,8 +55,15 @@ function isLongFormJob(job: Pick<PhaseInputs, "manuscript_word_count">): boolean
     && job.manuscript_word_count >= LONGFORM_WORD_COUNT_THRESHOLD;
 }
 
-function hasLongFormNarrativeSynthesis(job: Pick<PhaseInputs, "pass3_completed_at">): boolean {
-  return typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+function hasLongFormNarrativeSynthesis(
+  job: Pick<PhaseInputs, "pass3_completed_at" | "final_external_audit_completed_at" | "final_external_audit_verdict">,
+): boolean {
+  const hasPass3 = typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+  const hasFinalAudit =
+    job.final_external_audit_verdict === "SKIP" ||
+    (typeof job.final_external_audit_completed_at === "string" &&
+      job.final_external_audit_completed_at.trim().length > 0);
+  return hasPass3 && hasFinalAudit;
 }
 
 function hasFinalExternalAudit(job: Pick<PhaseInputs, "final_external_audit_completed_at" | "final_external_audit_verdict">): boolean {

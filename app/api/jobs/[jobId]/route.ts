@@ -304,27 +304,32 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       response.job.progress_high_water = rawHighWater;
     }
 
-    // 6e3) Self-healing: if job is complete, long-form, and pass3_completed_at
-    // is missing, check for longform_document_v1 artifact and backfill.
+    // 6e3) Self-healing: if job is complete and long-form, verify that the
+    // DREAM long-form artifact (or its canonical fallback) exists before
+    // reporting pass3 / dream_ready. Backfill the relevant progress timestamps
+    // from the artifact so the UI never declares a long-form job ready before
+    // Narrative Synthesis has actually been persisted.
     const LONGFORM_THRESHOLD = 25000;
-    if (
-      job.status === 'complete' &&
-      !response.job.pass3_completed_at &&
+    const isLongForm =
       typeof response.job.manuscript_word_count === 'number' &&
-      response.job.manuscript_word_count >= LONGFORM_THRESHOLD
-    ) {
+      response.job.manuscript_word_count >= LONGFORM_THRESHOLD;
+
+    if (job.status === 'complete' && isLongForm) {
       try {
         const admin = createAdminClient();
         const { data: longformRow } = await admin
           .from('evaluation_artifacts')
-          .select('created_at')
+          .select('created_at, artifact_type')
           .eq('job_id', job.id)
-          .eq('artifact_type', 'longform_document_v1')
+          .in('artifact_type', ['longform_document_v1', 'unified_evaluation_document_v1', 'report_render_manifest_v1'])
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
+
         if (longformRow?.created_at) {
           const ts = longformRow.created_at as string;
           response.job.pass3_completed_at = ts;
-          // Fire-and-forget: backfill progress JSONB
+          // Fire-and-forget: backfill progress JSONB with the artifact timestamp
           const existingProgress = (job.progress && typeof job.progress === 'object' && !Array.isArray(job.progress))
             ? (job.progress as Record<string, unknown>)
             : {};
@@ -339,47 +344,39 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
             .eq('id', job.id)
             .then(() => {});
         }
+
+        if (!response.job.final_external_audit_completed_at) {
+          const { data: auditRow } = await admin
+            .from('evaluation_artifacts')
+            .select('content, created_at')
+            .eq('job_id', job.id)
+            .eq('artifact_type', 'final_external_audit_v1')
+            .maybeSingle();
+          const content = auditRow?.content as Record<string, unknown> | undefined;
+          if (auditRow?.created_at && content) {
+            response.job.final_external_audit_completed_at = auditRow.created_at as string;
+            response.job.final_external_audit_verdict = typeof content.verdict === 'string' ? content.verdict as CanonicalJobResponse['final_external_audit_verdict'] : null;
+            response.job.final_external_audit_blocking = content.blocking === true;
+          }
+        }
       } catch {
         // Non-blocking: self-healing is best-effort
       }
     }
 
-    if (
-      job.status === 'complete' &&
-      response.job.pass3_completed_at &&
-      typeof response.job.manuscript_word_count === 'number' &&
-      response.job.manuscript_word_count >= LONGFORM_THRESHOLD &&
-      !response.job.final_external_audit_completed_at
-    ) {
-      try {
-        const admin = createAdminClient();
-        const { data: auditRow } = await admin
-          .from('evaluation_artifacts')
-          .select('content, created_at')
-          .eq('job_id', job.id)
-          .eq('artifact_type', 'final_external_audit_v1')
-          .maybeSingle();
-        const content = auditRow?.content as Record<string, unknown> | undefined;
-        if (auditRow?.created_at && content) {
-          response.job.final_external_audit_completed_at = auditRow.created_at as string;
-          response.job.final_external_audit_verdict = typeof content.verdict === 'string' ? content.verdict as CanonicalJobResponse['final_external_audit_verdict'] : null;
-          response.job.final_external_audit_blocking = content.blocking === true;
-        }
-      } catch {
-        // Best-effort readiness enrichment only.
-      }
-    }
-
     // 6f2) Issue #1011 — dream_ready flag for long-form report hold.
     // Short-form jobs have no DREAM phase; dream_ready is always true.
-    // Long-form jobs: true only after longform_document_v1 artifact exists.
+    // Long-form jobs: true only after a DREAM-compatible long-form artifact exists.
     if (job.status === 'complete') {
       const isLf = typeof response.job.manuscript_word_count === 'number' && response.job.manuscript_word_count >= LONGFORM_THRESHOLD;
       if (!isLf) {
         response.job.dream_ready = true;
       } else {
-        // pass3_completed_at is set above when longform_document_v1 exists.
-        response.job.dream_ready = !!response.job.pass3_completed_at;
+        // DREAM-ready only when the long-form artifact + final external audit are present.
+        response.job.dream_ready =
+          !!response.job.pass3_completed_at &&
+          !!response.job.final_external_audit_completed_at &&
+          response.job.final_external_audit_blocking !== true;
       }
     }
 

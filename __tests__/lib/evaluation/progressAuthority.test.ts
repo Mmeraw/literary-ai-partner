@@ -165,4 +165,51 @@ describe('ProgressAuthority', () => {
     expect(snapshot.overall.completed_units).toBe(100);
     expect(snapshot.part2.status).toBe('complete');
   });
+
+  it('does not claim 100% for a terminal long-form job missing WAVE and finalization', () => {
+    // Regression: a long-form job whose main worker marked status=complete must not
+    // report 100% until WAVE and the final external audit have durable timestamps.
+    const authority = ProgressAuthority.fromPersisted({
+      status: 'complete',
+      phase: 'phase_2',
+      phase_status: 'complete',
+      manuscript_word_count: 64465,
+      phase0_completed_at: '2026-07-21T04:24:27.000Z',
+      phase1_completed_at: '2026-07-21T04:33:05.000Z',
+      phase2_completed_at: '2026-07-21T04:33:55.000Z',
+      phase3_completed_at: '2026-07-21T04:39:33.000Z',
+      pass3_completed_at: '2026-07-21T04:38:34.000Z',
+      completed_units: 100,
+      progress_high_water: 100,
+    });
+
+    const snapshot = authority.toSnapshot();
+    expect(snapshot.status).toBe('complete');
+    expect(snapshot.overall.completed_units).toBeLessThan(100);
+    expect(snapshot.part2.status).toBe('running');
+  });
+
+  it('reaches 100% for a terminal long-form job once WAVE and finalization are durably complete', () => {
+    const authority = ProgressAuthority.fromPersisted({
+      status: 'complete',
+      phase: 'phase_2',
+      phase_status: 'complete',
+      manuscript_word_count: 64465,
+      phase0_completed_at: '2026-07-21T04:24:27.000Z',
+      phase1_completed_at: '2026-07-21T04:33:05.000Z',
+      phase2_completed_at: '2026-07-21T04:33:55.000Z',
+      phase3_completed_at: '2026-07-21T04:39:33.000Z',
+      pass3_completed_at: '2026-07-21T04:38:34.000Z',
+      wave_completed_at: '2026-07-21T04:40:00.000Z',
+      final_external_audit_completed_at: '2026-07-21T04:41:00.000Z',
+      final_external_audit_verdict: 'PASS',
+      completed_units: 100,
+      progress_high_water: 100,
+    });
+
+    const snapshot = authority.toSnapshot();
+    expect(snapshot.status).toBe('complete');
+    expect(snapshot.overall.completed_units).toBe(100);
+    expect(snapshot.part2.status).toBe('complete');
+  });
 });

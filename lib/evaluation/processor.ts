@@ -5408,7 +5408,12 @@ export async function processEvaluationJob(
     progressState =
       job.progress && typeof job.progress === 'object' ? { ...job.progress } : {};
 
-    const progressAuthority = ProgressAuthority.fromPersisted(progressState);
+    const progressAuthority = ProgressAuthority.fromPersisted(progressState, {
+      manuscriptWordCount:
+        typeof job.manuscript_word_count === 'number' && Number.isFinite(job.manuscript_word_count)
+          ? job.manuscript_word_count
+          : undefined,
+    });
 
     const selectedEnglishVariant = normalizeEnglishVariant((job as Record<string, unknown>).english_variant);
 
@@ -7171,6 +7176,25 @@ export async function processEvaluationJob(
               content: waveResult.plan,
             });
             console.log(`[WAVE/Phase3] Artifacts persisted for job ${jobId} — status=${waveResult.plan.status}`);
+
+            // Record WAVE completion in progress so the backend exposes five
+            // completed phases (including WAVE) and stays at 98% until the DREAM
+            // worker finishes finalization.
+            const waveCompletedAt = new Date().toISOString();
+            progressState.wave_completed_at = waveCompletedAt;
+            const waveAuthority = ProgressAuthority.fromPersisted(progressState, {
+              manuscriptWordCount: typeof wordCount === 'number' && Number.isFinite(wordCount) ? wordCount : undefined,
+            });
+            const waveSnapshot = waveAuthority.toSnapshot();
+            Object.assign(progressState, waveSnapshot);
+            await supabase
+              .from('evaluation_jobs')
+              .update({
+                progress: progressState,
+                completed_units: waveSnapshot.overall.completed_units,
+                updated_at: waveCompletedAt,
+              })
+              .eq('id', job.id);
           } catch (artifactErr) {
             console.error(`[WAVE/Phase3] Failed to persist success artifacts for job ${jobId} (non-fatal):`,
               artifactErr instanceof Error ? artifactErr.message : String(artifactErr));
