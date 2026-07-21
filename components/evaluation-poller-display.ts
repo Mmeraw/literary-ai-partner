@@ -196,9 +196,10 @@ function getProgressDisplayRaw(
 
   if (job.status === "complete") {
     const isLongForm = isLongFormJob(job);
-    const hasSynthesis = hasLongFormNarrativeSynthesis(job);
+    const hasPass3 = typeof job.pass3_completed_at === "string" && job.pass3_completed_at.trim().length > 0;
+    const hasFinalAudit = hasFinalExternalAudit(job);
 
-    if (isLongForm && !hasSynthesis) {
+    if (isLongForm && !hasPass3) {
       return {
         label: "Finalizing your report in progress",
         valueLabel: "92%",
@@ -223,7 +224,7 @@ function getProgressDisplayRaw(
       };
     }
 
-    if (isLongForm && expectsFinalExternalAudit(job) && !hasFinalExternalAudit(job)) {
+    if (isLongForm && expectsFinalExternalAudit(job) && !hasFinalAudit) {
       return {
         label: "Final verification in progress.",
         valueLabel: "96%",
