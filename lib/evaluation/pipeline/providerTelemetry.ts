@@ -61,7 +61,7 @@ export function recordProviderTelemetry(params: {
     finish_reason: params.capture.finish_reason,
     usage: params.capture.usage,
     cached_input_tokens: null,
-    retry_attempt: 0,
+    retry_attempt: params.capture.retry_attempt ?? 0,
     estimated_cost_usd: estimateCostUsd(params.capture.model, params.capture.usage),
     called_at: completedAt,
     started_at: params.startedAt,

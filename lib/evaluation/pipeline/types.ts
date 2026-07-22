@@ -593,6 +593,8 @@ export type PassCompletionCapture = {
   usage?: CompletionUsage;
   finish_reason?: string;
   request_id?: string;
+  /** Zero-based provider-attempt index, including bounded retry calls. */
+  retry_attempt?: number;
   generated_at: string;
   pass3_reducer_telemetry?: Pass3ReducerTelemetry;
 };
