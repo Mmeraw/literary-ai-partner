@@ -36,6 +36,7 @@ function run(): void {
   const { summary } = results;
 
   console.log(`\n[sipoc:analyze] SIPOC Harness Results Analysis`);
+  console.log(`  Certification : legacy fixture analysis only; run npm run sipoc:evidence for v3 status`);
   console.log(`  Run at      : ${results.run_at}`);
   console.log(`  Authority   : ${results.authority}`);
   console.log(`  Total       : ${summary.total}`);

@@ -28,23 +28,13 @@
 
 import fs from "fs";
 import path from "path";
+import { NON_FIXTURE_JSON_FILES, type SipocStageId } from "../tests/sipoc/evidenceModel";
 
 // ---------------------------------------------------------------------------
 // Canonical types (derived from schema.json — no drift permitted)
 // ---------------------------------------------------------------------------
 
-type StageId =
-  | "S01_INTAKE"
-  | "S02_QUEUE"
-  | "S03_CLAIM"
-  | "S04_ROUTING_CHUNKING"
-  | "S05_PASS1"
-  | "S06_PASS2"
-  | "S07_PASS3"
-  | "S08_ER2_NORMALIZATION"
-  | "S09_QUALITYGATEV2"
-  | "S10_PERSISTENCE"
-  | "S11_RENDERER";
+type StageId = SipocStageId;
 
 type ResultType = "pass" | "fail" | "warn";
 
@@ -127,7 +117,7 @@ const ARTIFACT_DIR = path.resolve("artifacts/sipoc");
 const RESULTS_PATH = path.join(ARTIFACT_DIR, "sipoc-results.json");
 const RUNTIME_RESULTS_PATH = path.join(ARTIFACT_DIR, "sipoc-runtime-results.json");
 const FAILURE_MATRIX_PATH = path.join(ARTIFACT_DIR, "failure-matrix.json");
-const EXCLUDED_FILES = new Set(["schema.json", "README.md"]);
+const EXCLUDED_FILES = new Set([...NON_FIXTURE_JSON_FILES, "README.md"]);
 const AUTHORITY = "docs/SIPOC_EVALUATION_PROCESS.md";
 const RUNTIME_BUDGET_MS = 60_000;
 
@@ -521,7 +511,8 @@ async function runRuntimeMode(): Promise<void> {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   fs.writeFileSync(RUNTIME_RESULTS_PATH, JSON.stringify(harnessResults, null, 2), "utf-8");
 
-  console.log(`\n[sipoc:harness] SIPOC Runtime Harness`);
+  console.log(`\n[sipoc:harness] Legacy SIPOC Runtime Fixture Harness`);
+  console.log(`  Certification: this result does not confer v3 proven status; run npm run sipoc:evidence`);
   console.log(`  Authority    : ${AUTHORITY}`);
   console.log(`  Fixture dir  : ${FIXTURE_DIR}`);
   console.log(`  Total        : ${fixtures.length}`);
@@ -660,7 +651,8 @@ function run(): void {
   writeArtifacts(harnessResults, matrix);
 
   // --- Stdout summary ---
-  console.log(`\n[sipoc:harness] SIPOC Deterministic Contract Harness`);
+  console.log(`\n[sipoc:harness] Legacy SIPOC Deterministic Contract Harness`);
+  console.log(`  Certification: this result does not confer v3 proven status; run npm run sipoc:evidence`);
   console.log(`  Authority   : ${AUTHORITY}`);
   console.log(`  Fixture dir : ${FIXTURE_DIR}`);
   console.log(`  Total       : ${total}`);
