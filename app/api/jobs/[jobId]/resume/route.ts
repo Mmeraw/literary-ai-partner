@@ -165,12 +165,14 @@ export async function POST(
       progress: jobProgress,
     });
 
-    // Owner emergency halts persist ADMIN_EMERGENCY_CANCELLED + cancelled_by_admin=true + resume_eligible=true.
-    // These must pass this gate so operators can resume snapshot-cancelled jobs.
+    // Owner emergency halts are identified by ALL THREE markers persisted together.
+    // Requiring conjunction prevents any single inconsistent field (e.g. a leftover
+    // resume_eligible flag or an unexpected cancelled_by_admin value) from bypassing
+    // the user-cancellation gate on an ordinary cancellation.
     const isOwnerEmergencyHalt =
       jobFailureCode === 'ADMIN_EMERGENCY_CANCELLED'
-      || jobProgress.cancelled_by_admin === true
-      || jobProgress.resume_eligible === true;
+      && jobProgress.cancelled_by_admin === true
+      && jobProgress.resume_eligible === true;
 
     const cancelledByUser = !isOwnerEmergencyHalt && (
       jobFailureCode === 'USER_CANCELLED'
