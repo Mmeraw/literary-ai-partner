@@ -5,6 +5,7 @@ This directory contains the canonical reliability and governance artifacts for R
 ## Canonical Doctrine
 
 - [RevisionGrade Reliability Doctrine v1](./REVISIONGRADE_RELIABILITY_DOCTRINE_v1.md)
+- [Certification Truth Overlay v1](./CERTIFICATION_TRUTH_OVERLAY_v1.md) — proposed additive assurance chain, certification-state, drift, toolchain-provenance, and dual-dashboard constitution
 
 ## Architecture Generation
 
