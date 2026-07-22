@@ -165,13 +165,21 @@ export async function POST(
       progress: jobProgress,
     });
 
-    const cancelledByUser =
+    // Owner emergency halts persist ADMIN_EMERGENCY_CANCELLED + cancelled_by_admin=true + resume_eligible=true.
+    // These must pass this gate so operators can resume snapshot-cancelled jobs.
+    const isOwnerEmergencyHalt =
+      jobFailureCode === 'ADMIN_EMERGENCY_CANCELLED'
+      || jobProgress.cancelled_by_admin === true
+      || jobProgress.resume_eligible === true;
+
+    const cancelledByUser = !isOwnerEmergencyHalt && (
       jobFailureCode === 'USER_CANCELLED'
       || jobProgress.cancelled_by_user === true
       || typeof jobProgress.cancelled_at === 'string'
       || typeof jobProgress.canceled_at === 'string'
       || jobProgress.dashboard_status === 'cancelled'
-      || jobProgress.dashboard_status === 'canceled';
+      || jobProgress.dashboard_status === 'canceled'
+    );
 
     if (cancelledByUser) {
       return NextResponse.json(
