@@ -511,4 +511,140 @@ describe('POST /api/jobs/[jobId]/resume', () => {
     expect(json.failure_code).toBe('USER_CANCELLED');
     expect(admin.update).not.toHaveBeenCalled();
   });
+
+  // ── Negative conjunction tests: each incomplete combination must still block ──────────────
+  // A single-field or two-field match must NOT bypass the user-cancellation gate.
+  // Only all three fields together constitute a genuine owner-emergency halt.
+
+  test('blocks resume when only failure_code=ADMIN_EMERGENCY_CANCELLED without the other markers', async () => {
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'ADMIN_EMERGENCY_CANCELLED',
+      status: 'failed',
+      progress: {
+        // cancelled_by_admin and resume_eligible absent — incomplete emergency identity
+        cancelled_by_user: false,
+        dashboard_status: 'cancelled',
+        cancelled_at: '2026-07-22T00:00:00.000Z',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { resumable: boolean };
+
+    expect(response.status).toBe(409);
+    expect(json.resumable).toBe(false);
+    expect(admin.update).not.toHaveBeenCalled();
+  });
+
+  test('blocks resume when only cancelled_by_admin=true without the other markers', async () => {
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'USER_CANCELLED',
+      status: 'failed',
+      progress: {
+        cancelled_by_admin: true,
+        // failure_code is USER_CANCELLED and resume_eligible absent
+        cancelled_by_user: false,
+        dashboard_status: 'cancelled',
+        cancelled_at: '2026-07-22T00:00:00.000Z',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { resumable: boolean };
+
+    expect(response.status).toBe(409);
+    expect(json.resumable).toBe(false);
+    expect(admin.update).not.toHaveBeenCalled();
+  });
+
+  test('blocks resume when only resume_eligible=true without the other markers', async () => {
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'USER_CANCELLED',
+      status: 'failed',
+      progress: {
+        resume_eligible: true,
+        // failure_code is USER_CANCELLED and cancelled_by_admin absent
+        cancelled_by_user: false,
+        dashboard_status: 'cancelled',
+        cancelled_at: '2026-07-22T00:00:00.000Z',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { resumable: boolean };
+
+    expect(response.status).toBe(409);
+    expect(json.resumable).toBe(false);
+    expect(admin.update).not.toHaveBeenCalled();
+  });
+
+  test('blocks resume when failure_code + cancelled_by_admin but not resume_eligible', async () => {
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'ADMIN_EMERGENCY_CANCELLED',
+      status: 'failed',
+      progress: {
+        cancelled_by_admin: true,
+        // resume_eligible absent — incomplete conjunction
+        cancelled_by_user: false,
+        dashboard_status: 'cancelled',
+        cancelled_at: '2026-07-22T00:00:00.000Z',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { resumable: boolean };
+
+    expect(response.status).toBe(409);
+    expect(json.resumable).toBe(false);
+    expect(admin.update).not.toHaveBeenCalled();
+  });
+
+  test('blocks resume when failure_code + resume_eligible but not cancelled_by_admin', async () => {
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'ADMIN_EMERGENCY_CANCELLED',
+      status: 'failed',
+      progress: {
+        resume_eligible: true,
+        // cancelled_by_admin absent — incomplete conjunction
+        cancelled_by_user: false,
+        dashboard_status: 'cancelled',
+        cancelled_at: '2026-07-22T00:00:00.000Z',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { resumable: boolean };
+
+    expect(response.status).toBe(409);
+    expect(json.resumable).toBe(false);
+    expect(admin.update).not.toHaveBeenCalled();
+  });
+
+  test('blocks resume when cancelled_by_admin + resume_eligible but wrong failure_code', async () => {
+    const admin = makeAdminMock(makeJob({
+      failure_code: 'USER_CANCELLED',
+      status: 'failed',
+      progress: {
+        cancelled_by_admin: true,
+        resume_eligible: true,
+        // failure_code is USER_CANCELLED — incomplete conjunction
+        cancelled_by_user: false,
+        dashboard_status: 'cancelled',
+        cancelled_at: '2026-07-22T00:00:00.000Z',
+      },
+    }));
+    mockCreateAdminClient.mockReturnValue(admin as never);
+
+    const response = await POST(makeRequest() as never, { params: Promise.resolve({ jobId: 'job-resume-1' }) });
+    const json = (await response.json()) as { resumable: boolean };
+
+    expect(response.status).toBe(409);
+    expect(json.resumable).toBe(false);
+    expect(admin.update).not.toHaveBeenCalled();
+  });
 });
