@@ -2374,8 +2374,7 @@ export async function GET(
     if (isMultiLayerDownload) {
       const txtHeadings = extractTxtHeadings(body);
       const validation = validateRenderedHeadings(txtHeadings, 'txt');
-      // eslint-disable-next-line no-constant-condition
-      if (false) { // parity check disabled - allow download
+      if (!validation.valid) {
         console.error('[report-download] §13–§21 heading parity FAILED for TXT', {
           jobId,
           errors: validation.errors,
@@ -2408,8 +2407,7 @@ export async function GET(
       if (isMultiLayerDownload) {
         const htmlHeadings = extractHtmlH2Headings(html);
         const validation = validateRenderedHeadings(htmlHeadings, 'pdf');
-        // eslint-disable-next-line no-constant-condition
-        if (false) { // parity check disabled - allow download
+        if (!validation.valid) {
           console.error('[report-download] §13–§21 heading parity FAILED for PDF/HTML', {
             jobId,
             errors: validation.errors,
@@ -2469,8 +2467,7 @@ export async function GET(
         const structureErrors = validateDocxXmlStructure(documentXml);
 
         const allErrors = [...validation.errors, ...structureErrors];
-        // eslint-disable-next-line no-constant-condition
-        if (false) { // parity check disabled - allow download
+        if (allErrors.length > 0) {
           console.error('[report-download] §13–§21 heading parity FAILED for DOCX', {
             jobId,
             errors: allErrors,
