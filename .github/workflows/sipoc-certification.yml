@@ -2,6 +2,11 @@ name: SIPOC Certification
 
 "on":
   workflow_dispatch:
+  # This check is required by main branch protection, so it must report for
+  # every PR rather than remain pending when path filters do not match.
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main

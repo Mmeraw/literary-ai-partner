@@ -28,40 +28,21 @@
 
 import fs from "fs";
 import path from "path";
+import {
+  NON_FIXTURE_JSON_FILES,
+  SIPOC_STAGE_FILENAME_PREFIX,
+  SIPOC_STAGE_IDS,
+  type SipocStageId,
+} from "../tests/sipoc/evidenceModel";
 
 // ---------------------------------------------------------------------------
 // Canonical stage ID enum — immutable, keyed to SIPOC_EVALUATION_PROCESS.md
 // ---------------------------------------------------------------------------
-const CANONICAL_STAGE_IDS = [
-  "S01_INTAKE",
-  "S02_QUEUE",
-  "S03_CLAIM",
-  "S04_ROUTING_CHUNKING",
-  "S05_PASS1",
-  "S06_PASS2",
-  "S07_PASS3",
-  "S08_ER2_NORMALIZATION",
-  "S09_QUALITYGATEV2",
-  "S10_PERSISTENCE",
-  "S11_RENDERER",
-] as const;
-
-type StageId = (typeof CANONICAL_STAGE_IDS)[number];
+const CANONICAL_STAGE_IDS = SIPOC_STAGE_IDS;
+type StageId = SipocStageId;
 
 /** Maps canonical stage_id → required filename prefix (lowercase stage number) */
-const STAGE_FILENAME_PREFIX: Record<StageId, string> = {
-  S01_INTAKE: "s01",
-  S02_QUEUE: "s02",
-  S03_CLAIM: "s03",
-  S04_ROUTING_CHUNKING: "s04",
-  S05_PASS1: "s05",
-  S06_PASS2: "s06",
-  S07_PASS3: "s07",
-  S08_ER2_NORMALIZATION: "s08",
-  S09_QUALITYGATEV2: "s09",
-  S10_PERSISTENCE: "s10",
-  S11_RENDERER: "s11",
-};
+const STAGE_FILENAME_PREFIX: Record<StageId, string> = SIPOC_STAGE_FILENAME_PREFIX;
 
 const VALID_RESULT_TYPES = ["pass", "fail", "warn"] as const;
 
@@ -75,7 +56,7 @@ const VALID_EVIDENCE_ARTIFACT_KINDS = [
 ] as const;
 
 const FIXTURE_DIR = path.resolve("tests/fixtures/sipoc");
-const EXCLUDED_FILES = new Set(["schema.json", "README.md"]);
+const EXCLUDED_FILES = new Set([...NON_FIXTURE_JSON_FILES, "README.md"]);
 
 // ---------------------------------------------------------------------------
 // Types

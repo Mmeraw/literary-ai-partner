@@ -30,6 +30,16 @@ describe("provider telemetry", () => {
     expect(telemetry.duration_ms).toBeGreaterThanOrEqual(0);
   });
 
+  it("preserves the actual bounded retry attempt from the completion capture", () => {
+    const telemetry = recordProviderTelemetry({
+      capture: makeCapture({ pass: 2, retry_attempt: 2 }),
+      jobId: "job-123",
+      startedAt: "2026-05-17T10:00:00.000Z",
+    });
+
+    expect(telemetry.retry_attempt).toBe(2);
+  });
+
   it("merges telemetry without overwriting existing entries", () => {
     const existing = [
       recordProviderTelemetry({

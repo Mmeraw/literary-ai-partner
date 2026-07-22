@@ -190,21 +190,12 @@ export async function getAuthorExposureDecision(
   admin: Pick<AdminClient, 'from'>,
   jobId: string,
 ): Promise<AuthorExposureDecision> {
-  const certification = await readLatestArtifactContent(admin, jobId, 'author_exposure_certification_v1');
-
-  if (certification.errorMessage) {
-    return { exposable: false, reason: 'db_error', details: certification.errorMessage };
-  }
-
-  if (!certification.content) {
-    return {
-      exposable: false,
-      reason: 'missing_certification',
-      details: 'author_exposure_certification_v1 artifact missing',
-    };
-  }
-
-  return evaluateAuthorExposureCertification(certification.content);
+  // This is the public-surface entry point.  An exposure decision is only
+  // authoritative when the independently persisted final audit has also been
+  // loaded.  Keeping a separate permissive reader here previously meant all
+  // callers could expose a report from a certified payload even when the
+  // final_external_audit_v1 artifact was absent.
+  return getAuthorExposureDecisionWithFinalExternalAudit(admin, jobId);
 }
 
 export async function getAuthorExposureDecisionWithFinalExternalAudit(

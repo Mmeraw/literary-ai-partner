@@ -1,0 +1,693 @@
+{
+  "schema_version": 3,
+  "source_manifest": "tests/fixtures/sipoc/evidence-obligations.v3.json",
+  "attributable_test_files": [
+    "__tests__/lib/evaluation/downloadViewModelBoundaryGate.test.ts",
+    "__tests__/lib/evaluation/revisionSurfaceOwnershipGate.test.ts",
+    "__tests__/lib/evaluation/status.test.ts",
+    "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts"
+  ],
+  "summary": {
+    "obligations": 33,
+    "by_state": {
+      "satisfied": 6,
+      "satisfied_but_unmapped": 0,
+      "representable_but_unproven": 16,
+      "unrepresentable": 4,
+      "policy_conflict": 1,
+      "runtime_conflict": 6
+    },
+    "by_remediation_class": {
+      "governance_mapping": 0,
+      "integration_evidence": 4,
+      "test_infrastructure": 16,
+      "runtime": 6,
+      "policy": 1
+    },
+    "boundaries": {
+      "S02_QUEUE": {
+        "proven": true,
+        "total": 2,
+        "satisfied": 2,
+        "unresolved": []
+      },
+      "S03_CLAIM": {
+        "proven": false,
+        "total": 3,
+        "satisfied": 0,
+        "unresolved": [
+          "S03_CLAIM.failclosed.01",
+          "S03_CLAIM.failclosed.02",
+          "S03_CLAIM.failclosed.03"
+        ]
+      },
+      "S10b_PHASE5_AUTHOR_EXPOSURE_GATE": {
+        "proven": false,
+        "total": 14,
+        "satisfied": 1,
+        "unresolved": [
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.01",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.02",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.03",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.06",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.08",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.09",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.10",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.11",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.12",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.13",
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.14"
+        ]
+      },
+      "S10c_VIEWMODEL_BOUNDARY_GATE": {
+        "proven": false,
+        "total": 4,
+        "satisfied": 1,
+        "unresolved": [
+          "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.02",
+          "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.03",
+          "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.04"
+        ]
+      },
+      "S11a_RENDERER_WEBPAGE": {
+        "proven": false,
+        "total": 6,
+        "satisfied": 1,
+        "unresolved": [
+          "S11a_RENDERER_WEBPAGE.failclosed.02",
+          "S11a_RENDERER_WEBPAGE.failclosed.03",
+          "S11a_RENDERER_WEBPAGE.failclosed.04",
+          "S11a_RENDERER_WEBPAGE.failclosed.05",
+          "S11a_RENDERER_WEBPAGE.failclosed.06"
+        ]
+      },
+      "S11b_DOWNLOAD_PIPELINE": {
+        "proven": false,
+        "total": 4,
+        "satisfied": 1,
+        "unresolved": [
+          "S11b_DOWNLOAD_PIPELINE.failclosed.02",
+          "S11b_DOWNLOAD_PIPELINE.failclosed.03",
+          "S11b_DOWNLOAD_PIPELINE.failclosed.04"
+        ]
+      }
+    }
+  },
+  "remediation_audit": {
+    "schema_version": 1,
+    "based_on_manifest_schema": 3,
+    "generated_from": "Stream 1 obligation audit against remediation PRs 1385, 1386, 1387, 1390, and 1395 (2026-07-22)",
+    "entries": [
+      {
+        "pull_request": 1385,
+        "scope": "S10b public author-exposure gate delegates to the final-external-audit-aware decision",
+        "obligation_ids": [
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05"
+        ],
+        "audit_state": "candidate_only",
+        "capable_evidence_required": "runtime_fail_closed evidence through the public production call path, including a negative Final Audit BLOCK case",
+        "residual_gap": "The implementation candidate must merge with an attributable executed assertion before this obligation can close. It does not close the other S10b enforcement conflicts."
+      },
+      {
+        "pull_request": 1386,
+        "scope": "S11b download route rejects failed long-form projection parity",
+        "obligation_ids": [
+          "S11b_DOWNLOAD_PIPELINE.failclosed.03",
+          "S11b_DOWNLOAD_PIPELINE.failclosed.04"
+        ],
+        "audit_state": "evidence_incomplete",
+        "capable_evidence_required": "runtime_fail_closed route evidence for every supported format, with malformed parity and renderer-failure negative cases",
+        "residual_gap": "Removing bypasses is enforcement work, not proof. Route-level executed negative evidence remains required before either obligation closes."
+      },
+      {
+        "pull_request": 1387,
+        "scope": "Pass 2 retry-attempt telemetry",
+        "obligation_ids": [],
+        "audit_state": "candidate_only",
+        "capable_evidence_required": "operational reliability evidence outside this six-boundary 33-obligation manifest",
+        "residual_gap": "This reliability repair must not be used to promote any of the 33 reviewed obligations by association."
+      },
+      {
+        "pull_request": 1390,
+        "scope": "S03 installed-database transactional claim proof",
+        "obligation_ids": [
+          "S03_CLAIM.failclosed.01",
+          "S03_CLAIM.failclosed.02",
+          "S03_CLAIM.failclosed.03"
+        ],
+        "audit_state": "evidence_incomplete",
+        "capable_evidence_required": "integration_transactional evidence against installed production RPCs: committed pulse, two-session single-winner race, and rejected non-production worker ID with no mutation",
+        "residual_gap": "A concurrency race alone cannot close the pulse and worker-ID obligations. Each named transactional assertion must execute successfully."
+      },
+      {
+        "pull_request": 1395,
+        "scope": "S11a webpage component projection evidence",
+        "obligation_ids": [
+          "S11a_RENDERER_WEBPAGE.failclosed.03",
+          "S11a_RENDERER_WEBPAGE.failclosed.04",
+          "S11a_RENDERER_WEBPAGE.failclosed.05",
+          "S11a_RENDERER_WEBPAGE.failclosed.06"
+        ],
+        "audit_state": "candidate_only",
+        "capable_evidence_required": "render the actual webpage consumer from the canonical ViewModel and assert report type, score, genre, and criteria-confidence projection parity",
+        "residual_gap": "A pure helper or fixture-shape assertion is insufficient; closure requires executed consumer projection evidence."
+      }
+    ]
+  },
+  "obligations": [
+    {
+      "id": "S02_QUEUE.failclosed.01",
+      "boundary": "S02_QUEUE",
+      "dirty_data_rule": "non-canonical status",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "lib/evaluation/status.ts normalizeEvaluationJobStatus",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/status.test.ts",
+          "test_name": "throws on non-canonical (legacy) status values"
+        }
+      ],
+      "gap": "Existing attributable test is not represented in the SIPOC evidence model.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "satisfied"
+    },
+    {
+      "id": "S02_QUEUE.failclosed.02",
+      "boundary": "S02_QUEUE",
+      "dirty_data_rule": "illegal transition",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "lib/evaluation/status.ts assertValidJobStatusTransition -> lib/jobs/transitions.ts isValidTransition",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/status.test.ts",
+          "test_name": "rejects queued -> complete (must go through running)"
+        }
+      ],
+      "gap": "Existing attributable test is not represented in the SIPOC evidence model.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "satisfied"
+    },
+    {
+      "id": "S03_CLAIM.failclosed.01",
+      "boundary": "S03_CLAIM",
+      "dirty_data_rule": "null worker_pulse_at",
+      "evidence_kind": "integration_transactional",
+      "enforcement_point": "installed claim_evaluation_jobs / claim_evaluation_job_by_id RPC UPDATE",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "integration_evidence",
+      "evidence_refs": [],
+      "gap": "No installed-database test asserts a committed claim has non-null worker_pulse_at.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S03_CLAIM.failclosed.02",
+      "boundary": "S03_CLAIM",
+      "dirty_data_rule": "overlapping lease",
+      "evidence_kind": "integration_transactional",
+      "enforcement_point": "installed claim RPC FOR UPDATE SKIP LOCKED transaction",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "integration_evidence",
+      "evidence_refs": [],
+      "gap": "The Set simulation is not evidence; two independent DB sessions must race one eligible row.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S03_CLAIM.failclosed.03",
+      "boundary": "S03_CLAIM",
+      "dirty_data_rule": "non-production worker id",
+      "evidence_kind": "integration_transactional",
+      "enforcement_point": "installed claim RPC PL/pgSQL worker-id guard",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "integration_evidence",
+      "evidence_refs": [],
+      "gap": "No installed-database negative test proves the RPC errors without mutating the row.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.01",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "webpage/download mismatch",
+      "evidence_kind": "integration_transactional",
+      "enforcement_point": "lib/evaluation/reportRenderParity.ts buildReportRenderManifestV1 and persisted certification",
+      "current_state": "runtime_conflict",
+      "gap_bucket": "enforcement_gap",
+      "remediation_class": "runtime",
+      "evidence_refs": [],
+      "gap": "Production omits rendererOutputs and certifies declared_canonical_consumption rather than measured output.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "runtime_conflict"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.02",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "missing/failing DCIP compliance",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "buildAuthorExposureCertificationV1FromManifest and evaluateAuthorExposureCertification",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [
+        {
+          "test_file": "tests/lib/evaluation/authorExposureCertification.test.ts",
+          "test_name": "blocks malformed payloads fail-closed"
+        }
+      ],
+      "gap": "The predicate exists, but no direct negative test proves missing and failing DCIP blocks exposure.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.03",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "banned entity",
+      "evidence_kind": "runtime_fail_closed",
+      "enforcement_point": "no active Phase 5 enforcement point found",
+      "current_state": "runtime_conflict",
+      "gap_bucket": "enforcement_gap",
+      "remediation_class": "runtime",
+      "evidence_refs": [],
+      "gap": "Registry names the rule, but the certification builder and exposure evaluator do not enforce it.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "runtime_conflict"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "Gate 15 FAIL",
+      "evidence_kind": "runtime_fail_closed",
+      "enforcement_point": "lib/evaluation/processor.ts Gate 15 Pre-Finalization Advisory",
+      "current_state": "policy_conflict",
+      "gap_bucket": "policy_contradiction",
+      "remediation_class": "policy",
+      "evidence_refs": [],
+      "gap": "Registry declares FAIL dirty while production and architecture tests require advisory-only behavior.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "blocked_by": "gate_15_product_policy_ruling",
+      "effective_state": "policy_conflict"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "Final Audit BLOCK",
+      "evidence_kind": "runtime_fail_closed",
+      "enforcement_point": "evaluateAuthorExposureCertificationWithFinalExternalAudit / finalExternalAuditAllowsAuthorExposure",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "integration_evidence",
+      "evidence_refs": [
+        {
+          "test_file": "tests/lib/evaluation/authorExposurePhase4bHelper.test.ts",
+          "test_name": "blocks exposure when separate Phase 4B audit blocks"
+        }
+      ],
+      "gap": "Pure predicate is tested, but the persisted production long-form path is not proven to supply the authoritative audit.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.06",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "dialogue detector impossible",
+      "evidence_kind": "runtime_fail_closed",
+      "enforcement_point": "runDialogueCanonAudit exists, but no Phase 5 impossible-result guard exists",
+      "current_state": "runtime_conflict",
+      "gap_bucket": "enforcement_gap",
+      "remediation_class": "runtime",
+      "evidence_refs": [],
+      "gap": "Detector regression tests exist, but Phase 5 does not block an impossible detector result.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "runtime_conflict"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.07",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "canonical opportunity authority missing or malformed",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "runRevisionSurfaceOwnershipGate checkCanonicalOpportunityAuthority",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "accepts governed empty canonical authority and rejects missing or malformed authority"
+        }
+      ],
+      "gap": "Existing attributable gate test is not represented in the SIPOC evidence model.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "satisfied"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.08",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "unknown explicit recommendation disposition or suppression-forensics version",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "checkRecommendationDispositionCompleteness version guards",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Real predicate exists; direct negative cases for both explicit version fields are missing.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.09",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "suppression-forensics counters differ from persisted dispositions",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "checkRecommendationDispositionCompleteness counter recomputation",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Real predicate exists; independent counter-family mutation tests are missing.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.10",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "missing duplicate or unexpected recommendation source identity",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "checkRecommendationDispositionCompleteness identity and set checks",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Real predicate exists; complete missing/duplicate/malformed/unexpected test matrix is absent.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.11",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "source recommendation and disposition counts differ",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "checkRecommendationDispositionCompleteness count and coverage checks",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Real predicate exists; independent count and coverage mismatch cases are missing.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.12",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "admitted disposition lacks canonical opportunity identity",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "checkRecommendationDispositionCompleteness admittedWithoutAuthority guard",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Builder happy-path coverage exists; direct dirty-input gate rejection test is missing.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.13",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "suppressed or informational disposition carries queue identity",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "no dirty-input rejection in checkRecommendationDispositionCompleteness",
+      "current_state": "runtime_conflict",
+      "gap_bucket": "enforcement_gap",
+      "remediation_class": "runtime",
+      "evidence_refs": [],
+      "gap": "Normal builder output omits identity, but supplied forbidden identity is not rejected.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "runtime_conflict"
+    },
+    {
+      "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.14",
+      "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+      "dirty_data_rule": "held_recoverable used under recommendation_disposition_v1",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "checkRecommendationDispositionCompleteness heldWithoutRecognizedRecovery guard",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Real predicate exists; direct negative gate test is missing.",
+      "expires_before_utc": "2026-08-12T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.01",
+      "boundary": "S10c_VIEWMODEL_BOUNDARY_GATE",
+      "dirty_data_rule": "renderer-local sanitization detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "webpage/download source boundary; normalizeEvaluationReportViewModel owns sanitization",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts",
+          "test_name": "page.tsx must NOT import mistakeProofText (VM owns all sanitization)"
+        },
+        {
+          "test_file": "__tests__/lib/evaluation/downloadViewModelBoundaryGate.test.ts",
+          "test_name": "route does not call sanitizeAuthorFacingDisplayValue anywhere"
+        }
+      ],
+      "gap": "Passing static evidence exists but is not represented by the SIPOC harness.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "satisfied"
+    },
+    {
+      "id": "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.02",
+      "boundary": "S10c_VIEWMODEL_BOUNDARY_GATE",
+      "dirty_data_rule": "renderer-local score derivation detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "VM-only renderer inputs and exact score-label preservation",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts",
+          "test_name": "preserves score label exactly from UED (no recomputation)"
+        }
+      ],
+      "gap": "The VM producer preserves the score, but current evidence does not prove every renderer consumer forbids local derivation.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.03",
+      "boundary": "S10c_VIEWMODEL_BOUNDARY_GATE",
+      "dirty_data_rule": "renderer-local recommendation creation detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "VM field boundary omits shadow recommendation inventories",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/downloadViewModelBoundaryGate.test.ts",
+          "test_name": "does not expose vm.actionItems / vm.quickWins / vm.strategicRevisions"
+        }
+      ],
+      "gap": "Excluding three legacy inventories does not prove every webpage/download renderer cannot synthesize recommendations.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.04",
+      "boundary": "S10c_VIEWMODEL_BOUNDARY_GATE",
+      "dirty_data_rule": "renderer-local recounting detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "VM revisionOpportunitySummary is the renderer count authority",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts",
+          "test_name": "preserves opportunity counts from UED (does not recount from criteria)"
+        }
+      ],
+      "gap": "The VM producer preserves counts, but current evidence does not prove renderer consumers never recount.",
+      "expires_before_utc": "2026-08-05T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S11a_RENDERER_WEBPAGE.failclosed.01",
+      "boundary": "S11a_RENDERER_WEBPAGE",
+      "dirty_data_rule": "renderer-local sanitization detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "app/reports/[jobId]/page.tsx VM-only source boundary",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts",
+          "test_name": "page.tsx must NOT call correctScopeLanguage or mistakeProofText on vm.* fields"
+        }
+      ],
+      "gap": "Passing source invariant is not represented by the SIPOC harness.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "satisfied"
+    },
+    {
+      "id": "S11a_RENDERER_WEBPAGE.failclosed.02",
+      "boundary": "S11a_RENDERER_WEBPAGE",
+      "dirty_data_rule": "renderer-local score derivation detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "webpage consumes VM score fields without canonicalDoc reads",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts",
+          "test_name": "page.tsx must NOT render canonicalDoc for VM-owned fields"
+        }
+      ],
+      "gap": "The source test excludes canonicalDoc reads but does not exhaustively exclude local score derivation from VM fields.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S11a_RENDERER_WEBPAGE.failclosed.03",
+      "boundary": "S11a_RENDERER_WEBPAGE",
+      "dirty_data_rule": "report type drift",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "actual webpage React projection compared with EvaluationReportViewModel",
+      "current_state": "unrepresentable",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Current SIPOC harness cannot render and extract the real webpage component.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "unrepresentable"
+    },
+    {
+      "id": "S11a_RENDERER_WEBPAGE.failclosed.04",
+      "boundary": "S11a_RENDERER_WEBPAGE",
+      "dirty_data_rule": "score drift",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "actual webpage React projection compared with EvaluationReportViewModel",
+      "current_state": "unrepresentable",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Current SIPOC harness cannot render and extract real webpage score fields.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "unrepresentable"
+    },
+    {
+      "id": "S11a_RENDERER_WEBPAGE.failclosed.05",
+      "boundary": "S11a_RENDERER_WEBPAGE",
+      "dirty_data_rule": "genre drift",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "actual webpage React projection compared with EvaluationReportViewModel",
+      "current_state": "unrepresentable",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Current SIPOC harness cannot render and extract the real webpage genre field.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "unrepresentable"
+    },
+    {
+      "id": "S11a_RENDERER_WEBPAGE.failclosed.06",
+      "boundary": "S11a_RENDERER_WEBPAGE",
+      "dirty_data_rule": "criteria confidence drift",
+      "evidence_kind": "pure_predicate_contract",
+      "enforcement_point": "actual webpage React projection compared with EvaluationReportViewModel",
+      "current_state": "unrepresentable",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [],
+      "gap": "Current SIPOC harness cannot render and extract every webpage criterion confidence label.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "unrepresentable"
+    },
+    {
+      "id": "S11b_DOWNLOAD_PIPELINE.failclosed.01",
+      "boundary": "S11b_DOWNLOAD_PIPELINE",
+      "dirty_data_rule": "renderer-local sanitization detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "download route passes VM only to TXT/HTML/DOCX adapters",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/downloadViewModelBoundaryGate.test.ts",
+          "test_name": "route handler does not call sanitizers on vm.* fields (VM already sanitized)"
+        }
+      ],
+      "gap": "Passing source invariant is not represented by the SIPOC harness.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "satisfied"
+    },
+    {
+      "id": "S11b_DOWNLOAD_PIPELINE.failclosed.02",
+      "boundary": "S11b_DOWNLOAD_PIPELINE",
+      "dirty_data_rule": "renderer-local score derivation detected",
+      "evidence_kind": "static_architecture_invariant",
+      "enforcement_point": "download adapters consume VM score fields",
+      "current_state": "representable_but_unproven",
+      "gap_bucket": "evidence_gap",
+      "remediation_class": "test_infrastructure",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/lib/evaluation/renderingParityTests.test.ts",
+          "test_name": "score values are identical across all formats"
+        }
+      ],
+      "gap": "Cross-format equality does not exhaustively exclude local score derivation inside each adapter.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "representable_but_unproven"
+    },
+    {
+      "id": "S11b_DOWNLOAD_PIPELINE.failclosed.03",
+      "boundary": "S11b_DOWNLOAD_PIPELINE",
+      "dirty_data_rule": "download parity fail",
+      "evidence_kind": "runtime_fail_closed",
+      "enforcement_point": "download route validateDownloadParity and format-specific parity branches",
+      "current_state": "runtime_conflict",
+      "gap_bucket": "enforcement_gap",
+      "remediation_class": "runtime",
+      "evidence_refs": [],
+      "gap": "TXT/PDF/DOCX heading parity branches are hard-disabled and Phase 5 parity is declared rather than measured.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "runtime_conflict"
+    },
+    {
+      "id": "S11b_DOWNLOAD_PIPELINE.failclosed.04",
+      "boundary": "S11b_DOWNLOAD_PIPELINE",
+      "dirty_data_rule": "format render fail",
+      "evidence_kind": "runtime_fail_closed",
+      "enforcement_point": "download route format renderers",
+      "current_state": "runtime_conflict",
+      "gap_bucket": "enforcement_gap",
+      "remediation_class": "runtime",
+      "evidence_refs": [],
+      "gap": "PDF alone catches export failure; DOCX/TXT lack a common DOWNLOAD_RENDER_FAILED envelope.",
+      "expires_before_utc": "2026-08-19T00:00:00Z",
+      "effective_state": "runtime_conflict"
+    }
+  ]
+}

@@ -11,6 +11,24 @@
  */
 
 import { normalizeRecommendationAction } from "@/lib/evaluation/pipeline/runPass2";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+
+function withCompleteCriteria(conceptCriterion: Record<string, unknown>) {
+  return CRITERIA_KEYS.map((key) => {
+    if (key === "concept") return conceptCriterion;
+
+    return {
+      key,
+      score_0_10: 10,
+      rationale: "This companion fixture criterion has no independently supported revision opportunity.",
+      evidence: [],
+      recommendations: [],
+      recommendation_status: "no_recommendation_warranted",
+      recommendation_status_rationale:
+        "This companion fixture criterion has no independently supported revision opportunity.",
+    };
+  });
+}
 
 describe("normalizeRecommendationAction", () => {
   describe("valid complete sentences pass through unchanged", () => {
@@ -145,7 +163,7 @@ describe("normalizeRecommendationAction", () => {
       const rawResponse = JSON.stringify({
         pass: 2,
         axis: "editorial_literary",
-        criteria: [
+        criteria: withCompleteCriteria(
           {
             key: "concept",
             score_0_10: 6,
@@ -191,7 +209,7 @@ describe("normalizeRecommendationAction", () => {
               },
             ],
           },
-        ],
+        ),
         prompt_version: "pass2-editorial-v10-candidate-prose",
         temperature: 0.3,
         generated_at: "2026-06-09T00:00:00.000Z",
@@ -212,7 +230,7 @@ describe("normalizeRecommendationAction", () => {
       const rawResponse = JSON.stringify({
         pass: 2,
         axis: "editorial_literary",
-        criteria: [
+        criteria: withCompleteCriteria(
           {
             key: "concept",
             score_0_10: 4,
@@ -239,7 +257,7 @@ describe("normalizeRecommendationAction", () => {
               },
             ],
           },
-        ],
+        ),
         prompt_version: "pass2-editorial-v10-candidate-prose",
         temperature: 0.3,
         generated_at: "2026-06-09T00:00:00.000Z",
@@ -252,7 +270,7 @@ describe("normalizeRecommendationAction", () => {
     it("preserves a valid governed disposition so Pass 2 can accept zero safe recommendations", () => {
       const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
       const rawResponse = JSON.stringify({
-        criteria: [{
+        criteria: withCompleteCriteria({
           key: "concept",
           score_0_10: 4,
           rationale: "The concept diagnosis is grounded in the manuscript's recurring conflict.",
@@ -261,7 +279,7 @@ describe("normalizeRecommendationAction", () => {
           recommendation_status: "insufficient_evidence",
           recommendation_status_rationale:
             "The excerpt supports the diagnosis but not a separate, safely anchored intervention.",
-        }],
+        }),
       });
 
       const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 });
@@ -276,7 +294,7 @@ describe("normalizeRecommendationAction", () => {
     it("trims a governed disposition token at the Pass 2 producer boundary", () => {
       const { parsePass2Response } = require("@/lib/evaluation/pipeline/runPass2");
       const rawResponse = JSON.stringify({
-        criteria: [{
+        criteria: withCompleteCriteria({
           key: "concept",
           score_0_10: 4,
           rationale: "The concept diagnosis is grounded in the manuscript's recurring conflict.",
@@ -285,7 +303,7 @@ describe("normalizeRecommendationAction", () => {
           recommendation_status: "  insufficient_evidence\r\n",
           recommendation_status_rationale:
             "  The excerpt supports diagnosis but cannot support a separate safe intervention.  ",
-        }],
+        }),
       });
 
       const result = parsePass2Response(rawResponse, "gpt-4.1", { manuscriptWordCount: 5000 });
@@ -320,7 +338,7 @@ describe("normalizeRecommendationAction", () => {
       const rawResponse = JSON.stringify({
         pass: 2,
         axis: "editorial_literary",
-        criteria: [
+        criteria: withCompleteCriteria(
           {
             key: "concept",
             score_0_10: 9,
@@ -338,7 +356,7 @@ describe("normalizeRecommendationAction", () => {
               },
             ],
           },
-        ],
+        ),
         prompt_version: "pass2-editorial-v10-candidate-prose",
         temperature: 0.3,
         generated_at: "2026-06-09T00:00:00.000Z",
@@ -353,7 +371,7 @@ describe("normalizeRecommendationAction", () => {
       const rawResponse = JSON.stringify({
         pass: 2,
         axis: "editorial_literary",
-        criteria: [
+        criteria: withCompleteCriteria(
           {
             key: "concept",
             score_0_10: 9,
@@ -372,7 +390,7 @@ describe("normalizeRecommendationAction", () => {
               },
             ],
           },
-        ],
+        ),
         prompt_version: "pass2-editorial-v10-candidate-prose",
         temperature: 0.3,
         generated_at: "2026-06-09T00:00:00.000Z",
@@ -397,7 +415,7 @@ describe("normalizeRecommendationAction", () => {
       const rawResponse = JSON.stringify({
         pass: 2,
         axis: "editorial_literary",
-        criteria: [
+        criteria: withCompleteCriteria(
           {
             key: "concept",
             score_0_10: 7,
@@ -443,7 +461,7 @@ describe("normalizeRecommendationAction", () => {
               },
             ],
           },
-        ],
+        ),
         prompt_version: "pass2-editorial-v10-candidate-prose",
         temperature: 0.3,
         generated_at: "2026-06-09T00:00:00.000Z",

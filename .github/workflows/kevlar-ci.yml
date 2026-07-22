@@ -97,13 +97,34 @@ jobs:
           psql postgres://postgres:postgres@localhost:5432/testdb <<'SQL'
           CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+              CREATE ROLE service_role NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN;
+            END IF;
+          END
+          $$;
+
           CREATE TABLE IF NOT EXISTS public.evaluation_jobs (
             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
             status text NOT NULL,
+            phase_status text NOT NULL DEFAULT 'queued',
+            phase text NOT NULL DEFAULT 'phase_2',
+            completed_at timestamptz,
+            next_attempt_at timestamptz,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            retry_count integer NOT NULL DEFAULT 0,
+            progress jsonb NOT NULL DEFAULT '{}'::jsonb,
             claimed_by text,
+            claimed_at timestamptz,
             worker_id text,
             lease_token uuid,
             lease_until timestamptz,
+            updated_at timestamptz NOT NULL DEFAULT now(),
+            worker_pulse_at timestamptz,
             heartbeat_at timestamptz,
             started_at timestamptz
           );
@@ -137,6 +158,14 @@ jobs:
               p_now;
           $$;
           SQL
+
+      - name: Install production claim RPC definitions
+        run: psql postgres://postgres:postgres@localhost:5432/testdb -v ON_ERROR_STOP=1 -f supabase/migrations/20260710193000_harden_claim_rpc_deadline_retry_guard.sql
+
+      - name: Prove transactional claim concurrency
+        run: bash scripts/verify-claim-transactional-concurrency.sh
+        env:
+          PG_URL: postgres://postgres:postgres@localhost:5432/testdb
 
       - name: Verify claim contract invariant SQL compiles
         run: psql postgres://postgres:postgres@localhost:5432/testdb -f scripts/verify-claim-contract.sql

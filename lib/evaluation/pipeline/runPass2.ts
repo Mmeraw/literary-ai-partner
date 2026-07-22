@@ -306,6 +306,43 @@ export function assertPass2OutputDispositionContract(
       })}`,
     );
   }
+  const criterionKeys = output.criteria.map((criterion) => criterion.key);
+  const unknownCriteria = criterionKeys.filter(
+    (key) => !(CRITERIA_KEYS as readonly string[]).includes(key),
+  );
+  if (unknownCriteria.length > 0) {
+    throw new Error(
+      `PASS2_OUTPUT_UNKNOWN_CRITERION ${JSON.stringify({
+        context,
+        unknown_criteria: Array.from(new Set(unknownCriteria)),
+      })}`,
+    );
+  }
+  const duplicateCriteria = Array.from(
+    new Set(criterionKeys.filter((key, index) => criterionKeys.indexOf(key) !== index)),
+  );
+  if (duplicateCriteria.length > 0) {
+    throw new Error(
+      `PASS2_OUTPUT_DUPLICATE_CRITERION ${JSON.stringify({
+        context,
+        duplicate_criteria: duplicateCriteria,
+      })}`,
+    );
+  }
+  // Every chunk must retain every canonical criterion. Otherwise a partial
+  // checkpoint can silently propagate through map/reduce and only fail at
+  // the later Pass 2 -> Pass 3 SIPOC handoff.
+  const receivedKeys = new Set(criterionKeys);
+  const missingCriteria = CRITERIA_KEYS.filter((key) => !receivedKeys.has(key));
+  if (missingCriteria.length > 0) {
+    throw new Error(
+      `PASS2_OUTPUT_INCOMPLETE ${JSON.stringify({
+        context,
+        missing_criteria: missingCriteria,
+      })}`,
+    );
+  }
+
   if (output.prompt_version !== PASS2_PROMPT_VERSION) {
     throw new Error(
       `PASS2_CACHE_CONTRACT_VERSION_MISMATCH ${JSON.stringify({
@@ -469,6 +506,79 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
   return output;
 }
 
+export interface IndexedPass2ChunkResult {
+  chunk_index: number;
+  result: SinglePassOutput;
+}
+
+/**
+ * Certifies that map/reduce has one current-contract result for every selected
+ * source chunk, and no result for an unselected or duplicated chunk, before
+ * aggregation can confer Pass 2 authority.
+ *
+ * This is deliberately an in-memory identity/aggregation contract. It does
+ * not claim that chunks or checkpoints were persisted; callers that need an
+ * IO guarantee must prove that separately at the persistence boundary.
+ */
+export function aggregateSelectedPass2ChunkResults(
+  selectedChunkIndices: readonly number[],
+  indexedResults: readonly IndexedPass2ChunkResult[],
+): CurrentPass2Output {
+  const selectedCounts = new Map<number, number>();
+  for (const chunkIndex of selectedChunkIndices) {
+    selectedCounts.set(chunkIndex, (selectedCounts.get(chunkIndex) ?? 0) + 1);
+  }
+  const duplicateSelected = [...selectedCounts]
+    .filter(([, count]) => count > 1)
+    .map(([chunkIndex]) => chunkIndex)
+    .sort((a, b) => a - b);
+
+  const resultCounts = new Map<number, number>();
+  for (const entry of indexedResults) {
+    resultCounts.set(entry.chunk_index, (resultCounts.get(entry.chunk_index) ?? 0) + 1);
+  }
+  const duplicateResults = [...resultCounts]
+    .filter(([, count]) => count > 1)
+    .map(([chunkIndex]) => chunkIndex)
+    .sort((a, b) => a - b);
+  const selectedSet = new Set(selectedChunkIndices);
+  const resultSet = new Set(indexedResults.map((entry) => entry.chunk_index));
+  const missingResults = [...selectedSet]
+    .filter((chunkIndex) => !resultSet.has(chunkIndex))
+    .sort((a, b) => a - b);
+  const unexpectedResults = [...resultSet]
+    .filter((chunkIndex) => !selectedSet.has(chunkIndex))
+    .sort((a, b) => a - b);
+
+  if (
+    selectedChunkIndices.length === 0
+    || duplicateSelected.length > 0
+    || duplicateResults.length > 0
+    || missingResults.length > 0
+    || unexpectedResults.length > 0
+    || indexedResults.length !== selectedChunkIndices.length
+  ) {
+    throw new Error(
+      `PASS2_CHUNK_COVERAGE_INVALID ${JSON.stringify({
+        code: "PASS2_CHUNK_COVERAGE_INVALID",
+        selected_chunks: [...selectedSet].sort((a, b) => a - b),
+        result_chunks: [...resultSet].sort((a, b) => a - b),
+        duplicate_selected_chunks: duplicateSelected,
+        duplicate_result_chunks: duplicateResults,
+        missing_result_chunks: missingResults,
+        unexpected_result_chunks: unexpectedResults,
+      })}`,
+    );
+  }
+
+  const resultByChunkIndex = new Map(
+    indexedResults.map((entry) => [entry.chunk_index, entry.result] as const),
+  );
+  return aggregatePass2ChunkResults(
+    selectedChunkIndices.map((chunkIndex) => resultByChunkIndex.get(chunkIndex)!),
+  );
+}
+
 import type { SubmissionScopeProfile } from "./submissionScope";
 
 /**
@@ -517,6 +627,11 @@ export interface RunPass2Options {
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
   /**
+   * Zero-based attempt offset set by the chunk worker. It keeps provider
+   * telemetry truthful when a fresh chunk completion replaces discarded output.
+   */
+  _retryAttemptOffset?: number;
+  /**
    * Forced heartbeat: called after each chunk completes (success or failure).
    * Fires from inside the chunk worker, so it runs even when Vercel fluid-compute
    * freezes the event loop between awaits (setInterval stops firing in that state).
@@ -564,6 +679,26 @@ export interface RunPass2Options {
    * after systemic handoff truncation detection.
    */
   _maxOutputTokensOverride?: number;
+}
+
+function getIncompletePass2Criteria(error: unknown): string[] {
+  const prefix = "PASS2_OUTPUT_INCOMPLETE ";
+  if (!(error instanceof Error) || !error.message.startsWith(prefix)) {
+    return [];
+  }
+
+  try {
+    const diagnostic: unknown = JSON.parse(error.message.slice(prefix.length));
+    if (!diagnostic || typeof diagnostic !== "object") {
+      return [];
+    }
+    const missingCriteria = (diagnostic as { missing_criteria?: unknown }).missing_criteria;
+    return Array.isArray(missingCriteria)
+      ? missingCriteria.filter((criterion): criterion is string => typeof criterion === "string")
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 // ── Pass 2 Recommendation Action Normalizer ─────────────────────────────────
@@ -731,11 +866,18 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
           // eslint-disable-next-line no-constant-condition
           while (true) {
             try {
+              console.info("[Pass2] Chunk provider completion request", {
+                chunk_index: chunk.chunk_index,
+                attempt_number: attempt + 1,
+                request_kind: attempt === 0 ? "initial" : "fresh_retry",
+              });
+
               const result = await runPass2({
                 ...opts,
                 manuscriptText: chunk.content,
                 manuscriptChunks: undefined, // Prevent recursive chunking
                 isChunkUnit: true,
+                _retryAttemptOffset: attempt,
                 // Hard-bound each chunk-unit call independently so a single
                 // hung OpenAI socket cannot consume the whole pass budget.
                 // The chunk-unit path uses this as the SDK timeout, giving
@@ -756,6 +898,15 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
                 _onChunkComplete: undefined,
               });
 
+              if (attempt > 0) {
+                console.info("[Pass2] Chunk completeness retry succeeded", {
+                  chunk_index: chunk.chunk_index,
+                  attempt_number: attempt + 1,
+                  criteria_count: result.criteria.length,
+                  completeness_result: "complete",
+                });
+              }
+
               // Fire rolling checkpoint callback.
               if (onChunkComplete) {
                 try {
@@ -773,7 +924,18 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
               const isRateLimit = isRateLimitError(error);
               const isTimeout = isTimeoutError(error);
               const isTruncated = isTruncatedJsonParseError(error);
-              if ((!isRateLimit && !isTimeout && !isTruncated) || attempt >= chunkRetryMax) {
+              const isIncompleteOutput = error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ");
+              const missingCriteria = getIncompletePass2Criteria(error);
+              if ((!isRateLimit && !isTimeout && !isTruncated && !isIncompleteOutput) || attempt >= chunkRetryMax) {
+                if (isIncompleteOutput) {
+                  console.error("[Pass2] Chunk completeness retry exhausted", {
+                    chunk_index: chunk.chunk_index,
+                    attempt_number: attempt + 1,
+                    missing_criteria: missingCriteria,
+                    original_response_discarded: true,
+                    replacement_completeness_result: "incomplete",
+                  });
+                }
                 throw error;
               }
 
@@ -782,12 +944,25 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
               const jitterMs = Math.floor(Math.random() * 750);
               const waitMs = isTruncated
                 ? 1000 + jitterMs  // Brief pause before fresh attempt
-                : Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
+                : isIncompleteOutput
+                  ? 1000 + jitterMs // Fresh completion; never preserve partial chunk output
+                  : Math.max(suggestedWait ?? 0, backoffMs) + jitterMs;
               if (isRateLimit) {
                 rateLimitRetryCount += 1;
                 rateLimitWaitMs += waitMs;
                 console.warn(
                   `[Pass2] Chunk ${chunk.chunk_index} rate-limited; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
+                );
+              } else if (isIncompleteOutput) {
+                console.warn("[Pass2] Chunk completeness kickback", {
+                  chunk_index: chunk.chunk_index,
+                  attempt_number: attempt + 1,
+                  missing_criteria: missingCriteria,
+                  original_response_discarded: true,
+                  fresh_provider_request_scheduled: true,
+                });
+                console.warn(
+                  `[Pass2] Chunk ${chunk.chunk_index} omitted required criteria; retry ${attempt + 1}/${chunkRetryMax} after ${waitMs}ms`,
                 );
               } else if (isTruncated) {
                 console.warn(
@@ -816,14 +991,17 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       },
     );
 
-    const chunkResults: SinglePassOutput[] = [];
+    const chunkResults: IndexedPass2ChunkResult[] = [];
     const failures: Array<{ chunkIndex: number; reason: string }> = [];
     const chunkFailuresByReason: Record<string, number> = {};
     for (let i = 0; i < settled.length; i += 1) {
       const result = settled[i];
       if (!result) continue;
       if (result.status === "fulfilled") {
-        chunkResults.push(result.value);
+        chunkResults.push({
+          chunk_index: selectedChunks[i].chunk_index,
+          result: result.value,
+        });
       } else {
         const reason = String(result.reason instanceof Error ? result.reason.message : result.reason);
         const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : isTimeoutError(result.reason) ? "TIMEOUT" : isTruncatedJsonParseError(result.reason) ? "JSON_TRUNCATED" : "OTHER";
@@ -872,7 +1050,10 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       );
     }
 
-    const aggregated = aggregatePass2ChunkResults(chunkResults);
+    const aggregated = aggregateSelectedPass2ChunkResults(
+      selectedChunks.map((chunk) => chunk.chunk_index),
+      chunkResults,
+    );
     console.log(`[Pass2] Chunk aggregation complete: ${aggregated.criteria.length} criteria`);
     return {
       ...aggregated,
@@ -960,6 +1141,28 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
   let modelCallMs = nowMs() - modelCallStartMs;
   trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2", model: selectedModel, usage: completion.usage });
 
+  const emitCompletion = (completed: typeof completion, retryAttempt: number): void => {
+    const choice = completed.choices?.[0] as CompletionChoice | undefined;
+    const completedWithIds = completed as { request_id?: unknown; id?: unknown };
+    const completedRequestId =
+      typeof completedWithIds.request_id === "string"
+        ? completedWithIds.request_id
+        : typeof completedWithIds.id === "string"
+          ? completedWithIds.id
+          : undefined;
+    opts._onCompletion?.({
+      pass: 2,
+      raw_text: extractResponseText(choice?.message?.content),
+      model: selectedModel,
+      usage: completed.usage,
+      finish_reason: typeof choice?.finish_reason === "string" ? choice.finish_reason : undefined,
+      request_id: completedRequestId,
+      retry_attempt: (opts._retryAttemptOffset ?? 0) + retryAttempt,
+      generated_at: new Date().toISOString(),
+    });
+  };
+  emitCompletion(completion, 0);
+
   const parseValidationStartMs = nowMs();
 
   let firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
@@ -986,6 +1189,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
     ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
     modelCallMs += nowMs() - retryStartMs;
     trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2_retry", model: selectedModel, usage: completion.usage });
+    emitCompletion(completion, 1);
 
     firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
     rawContent = firstChoice?.message?.content;
@@ -1056,22 +1260,22 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       ? completionWithIds.id
       : undefined;
 
-  opts._onCompletion?.({
-    pass: 2,
-    raw_text: responseText,
-    model: selectedModel,
-    usage: completion.usage,
-    finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
-    request_id: requestId,
-    generated_at: new Date().toISOString(),
-  });
-
   const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
 
   let parsedOutput: SinglePassOutput;
   try {
     parsedOutput = parsePass2Response(responseText, selectedModel);
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ")) {
+      console.warn("[Pass2] Completion rejected by criterion completeness contract", {
+        job_id: opts.jobId ?? null,
+        request_id: requestId ?? null,
+        missing_criteria: getIncompletePass2Criteria(error),
+        original_response_discarded: true,
+      });
+      throw error;
+    }
+
     if (!retriedForLength && (finishReason === "length" || isTruncatedJsonParseError(error))) {
       retriedForLength = true;
       const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens);
@@ -1089,28 +1293,11 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
       modelCallMs += nowMs() - retryStartMs;
       trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2_retry", model: selectedModel, usage: completion.usage });
+      emitCompletion(completion, 1);
 
       firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
       rawContent = firstChoice?.message?.content;
       responseText = extractResponseText(rawContent);
-      const retryCompletionWithIds = completion as { request_id?: unknown; id?: unknown };
-      const retryRequestId =
-        typeof retryCompletionWithIds.request_id === "string"
-          ? retryCompletionWithIds.request_id
-          : typeof retryCompletionWithIds.id === "string"
-          ? retryCompletionWithIds.id
-          : undefined;
-
-      opts._onCompletion?.({
-        pass: 2,
-        raw_text: responseText,
-        model: selectedModel,
-        usage: completion.usage,
-        finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
-        request_id: retryRequestId,
-        generated_at: new Date().toISOString(),
-      });
-
       parsedOutput = parsePass2Response(responseText, selectedModel);
     } else {
     console.error("[Pass2] Parse boundary diagnostic", {

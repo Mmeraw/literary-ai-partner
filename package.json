@@ -55,6 +55,7 @@
     "jobs:test:metrics": "node scripts/jobs-test-metrics.mjs",
     "jobs:retry-tick": "node scripts/jobs-retry-tick.mjs",
     "jobs:load": "node scripts/jobs-load.mjs",
+    "evaluation:burn-in": "tsx -r tsconfig-paths/register scripts/evaluation/run-burn-in.ts",
     "soak:run": "npx tsx -r tsconfig-paths/register scripts/soak/run-soak.ts",
     "soak:debug": "npm run soak:run -- --events=1000 --concurrency=5 --seed=42 --mode=deterministic",
     "soak:stability": "npm run soak:run -- --events=10000 --concurrency=10 --seed=42 --mode=stress",
@@ -76,6 +77,7 @@
     "sipoc:coherence": "npx tsx -r tsconfig-paths/register scripts/run-sipoc-harness.ts --mode=coherence",
     "sipoc:runtime": "npx tsx -r ./tests/sipoc/serverOnlyRegister.cjs -r tsconfig-paths/register scripts/run-sipoc-harness.ts --mode=runtime",
     "sipoc:analyze": "npx tsx -r tsconfig-paths/register scripts/analyze-sipoc-results.ts",
+    "sipoc:evidence": "npx tsx -r tsconfig-paths/register scripts/run-sipoc-evidence.ts",
     "fipoc:export": "npx tsx scripts/export-fipoc-registries.ts",
     "fipoc:test": "jest --runInBand --runTestsByPath __tests__/lib/evaluation/fipocRegistry.test.ts",
     "governance:calibration:analyze": "npx tsx -r tsconfig-paths/register scripts/governance/analyze-phase-2-calibration.ts",
@@ -206,6 +208,7 @@
     "next": {
       "postcss": "8.5.10"
     },
+    "sharp": "0.35.0",
     "uuid": "14.0.0"
   },
   "supportedArchitectures": {

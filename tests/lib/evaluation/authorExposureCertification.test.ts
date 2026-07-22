@@ -331,7 +331,7 @@ describe('getAuthorExposureDecision', () => {
     });
   });
 
-  test('returns exposable=true for fully certified artifact', async () => {
+  test('fails closed when a certified artifact has no independently persisted final audit', async () => {
     const admin = {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
@@ -361,8 +361,8 @@ describe('getAuthorExposureDecision', () => {
 
     const decision = await getAuthorExposureDecision(admin, 'job-1');
     expect(decision).toMatchObject({
-      exposable: true,
-      certifiedAt: '2026-02-22T00:00:00.000Z',
+      exposable: false,
+      reason: 'final_external_audit_failed',
     });
   });
 
