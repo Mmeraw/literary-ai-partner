@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { canReleaseEvaluationRead } from '@/lib/jobs/readReleaseGate';
-import { getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
+import { getAuthorExposureDecision, publicAuthorExposureBlockDetail } from '@/lib/evaluation/authorExposureCertification';
 import { EvaluationResultV1, isEvaluationResultV1, validateEvaluationResult } from '@/schemas/evaluation-result-v1';
 import { EvaluationResultV2, isEvaluationResultV2, validateEvaluationResultV2 } from '@/schemas/evaluation-result-v2';
 import { requireUser } from '@/lib/security/apiGuards';
@@ -70,7 +70,7 @@ export async function GET(
       return NextResponse.json(
         {
           error: isSystemError ? 'System error checking author exposure certification' : 'Evaluation not releasable',
-          details: `author_exposure:${exposureDecision.reason}`,
+          details: publicAuthorExposureBlockDetail(exposureDecision),
           job: {
             id: job.id,
             status: job.status,

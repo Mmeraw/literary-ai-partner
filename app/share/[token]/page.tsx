@@ -14,7 +14,9 @@
  */
 
 import { notFound } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthorExposureDecision } from "@/lib/evaluation/authorExposureCertification";
 import { formatScoreForDisplay } from "@/lib/ui/score-formatting";
 
 const ARTIFACT_TYPE = "one_page_summary";
@@ -95,6 +97,12 @@ export default async function SharePage({
   // Fail-closed: any error or empty result → 404
   const row = Array.isArray(data) ? data[0] : null;
   if (error || !row?.content || row.artifact_type !== ARTIFACT_TYPE) {
+    notFound();
+  }
+
+  const admin = createAdminClient();
+  const exposureDecision = await getAuthorExposureDecision(admin, row.job_id);
+  if (exposureDecision.exposable === false) {
     notFound();
   }
 

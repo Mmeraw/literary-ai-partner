@@ -14,15 +14,16 @@
       "satisfied_but_unmapped": 0,
       "representable_but_unproven": 16,
       "unrepresentable": 4,
-      "policy_conflict": 1,
-      "runtime_conflict": 6
+      "implementation_conflict": 7,
+      "policy_conflict": 0,
+      "runtime_conflict": 0
     },
     "by_remediation_class": {
       "governance_mapping": 0,
       "integration_evidence": 4,
       "test_infrastructure": 16,
-      "runtime": 6,
-      "policy": 1
+      "runtime": 7,
+      "policy": 0
     },
     "boundaries": {
       "S02_QUEUE": {
@@ -174,6 +175,7 @@
       ],
       "gap": "Existing attributable test is not represented in the SIPOC evidence model.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "satisfied_but_unmapped",
       "effective_state": "satisfied"
     },
     {
@@ -193,6 +195,7 @@
       ],
       "gap": "Existing attributable test is not represented in the SIPOC evidence model.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "satisfied_but_unmapped",
       "effective_state": "satisfied"
     },
     {
@@ -207,6 +210,7 @@
       "evidence_refs": [],
       "gap": "No installed-database test asserts a committed claim has non-null worker_pulse_at.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -221,6 +225,7 @@
       "evidence_refs": [],
       "gap": "The Set simulation is not evidence; two independent DB sessions must race one eligible row.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -235,6 +240,7 @@
       "evidence_refs": [],
       "gap": "No installed-database negative test proves the RPC errors without mutating the row.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -249,7 +255,8 @@
       "evidence_refs": [],
       "gap": "Production omits rendererOutputs and certifies declared_canonical_consumption rather than measured output.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "effective_state": "runtime_conflict"
+      "canonical_current_state": "implementation_conflict",
+      "effective_state": "implementation_conflict"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.02",
@@ -268,6 +275,7 @@
       ],
       "gap": "The predicate exists, but no direct negative test proves missing and failing DCIP blocks exposure.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -282,22 +290,23 @@
       "evidence_refs": [],
       "gap": "Registry names the rule, but the certification builder and exposure evaluator do not enforce it.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "effective_state": "runtime_conflict"
+      "canonical_current_state": "implementation_conflict",
+      "effective_state": "implementation_conflict"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04",
       "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
       "dirty_data_rule": "Gate 15 FAIL",
       "evidence_kind": "runtime_fail_closed",
-      "enforcement_point": "lib/evaluation/processor.ts Gate 15 Pre-Finalization Advisory",
-      "current_state": "policy_conflict",
-      "gap_bucket": "policy_contradiction",
-      "remediation_class": "policy",
+      "enforcement_point": "lib/evaluation/authorExposureCertification.ts getAuthorExposureDecisionWithFinalExternalAudit + lib/evaluation/gate15/authorExposureGate15.ts evaluateGate15AuthorExposure",
+      "current_state": "implementation_conflict",
+      "gap_bucket": "implementation_gap",
+      "remediation_class": "runtime",
       "evidence_refs": [],
-      "gap": "Registry declares FAIL dirty while production and architecture tests require advisory-only behavior.",
+      "gap": "Owner-approved Gate 15 Option 1 policy is decided, but protected main has not yet merged runtime enforcement or capable evidence. Disposition recovery is disabled fail-closed until a non-forgeable writer and persistence authority are proven; implementation tests must not auto-promote this obligation.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "blocked_by": "gate_15_product_policy_ruling",
-      "effective_state": "policy_conflict"
+      "canonical_current_state": "implementation_conflict",
+      "effective_state": "implementation_conflict"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05",
@@ -316,6 +325,7 @@
       ],
       "gap": "Pure predicate is tested, but the persisted production long-form path is not proven to supply the authoritative audit.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -330,7 +340,8 @@
       "evidence_refs": [],
       "gap": "Detector regression tests exist, but Phase 5 does not block an impossible detector result.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "effective_state": "runtime_conflict"
+      "canonical_current_state": "implementation_conflict",
+      "effective_state": "implementation_conflict"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.07",
@@ -349,6 +360,7 @@
       ],
       "gap": "Existing attributable gate test is not represented in the SIPOC evidence model.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "satisfied_but_unmapped",
       "effective_state": "satisfied"
     },
     {
@@ -363,6 +375,7 @@
       "evidence_refs": [],
       "gap": "Real predicate exists; direct negative cases for both explicit version fields are missing.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -377,6 +390,7 @@
       "evidence_refs": [],
       "gap": "Real predicate exists; independent counter-family mutation tests are missing.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -391,6 +405,7 @@
       "evidence_refs": [],
       "gap": "Real predicate exists; complete missing/duplicate/malformed/unexpected test matrix is absent.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -405,6 +420,7 @@
       "evidence_refs": [],
       "gap": "Real predicate exists; independent count and coverage mismatch cases are missing.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -419,6 +435,7 @@
       "evidence_refs": [],
       "gap": "Builder happy-path coverage exists; direct dirty-input gate rejection test is missing.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -433,7 +450,8 @@
       "evidence_refs": [],
       "gap": "Normal builder output omits identity, but supplied forbidden identity is not rejected.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "effective_state": "runtime_conflict"
+      "canonical_current_state": "implementation_conflict",
+      "effective_state": "implementation_conflict"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.14",
@@ -447,6 +465,7 @@
       "evidence_refs": [],
       "gap": "Real predicate exists; direct negative gate test is missing.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -470,6 +489,7 @@
       ],
       "gap": "Passing static evidence exists but is not represented by the SIPOC harness.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "satisfied_but_unmapped",
       "effective_state": "satisfied"
     },
     {
@@ -489,6 +509,7 @@
       ],
       "gap": "The VM producer preserves the score, but current evidence does not prove every renderer consumer forbids local derivation.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -508,6 +529,7 @@
       ],
       "gap": "Excluding three legacy inventories does not prove every webpage/download renderer cannot synthesize recommendations.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -527,6 +549,7 @@
       ],
       "gap": "The VM producer preserves counts, but current evidence does not prove renderer consumers never recount.",
       "expires_before_utc": "2026-08-05T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -546,6 +569,7 @@
       ],
       "gap": "Passing source invariant is not represented by the SIPOC harness.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "satisfied_but_unmapped",
       "effective_state": "satisfied"
     },
     {
@@ -565,6 +589,7 @@
       ],
       "gap": "The source test excludes canonicalDoc reads but does not exhaustively exclude local score derivation from VM fields.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -579,6 +604,7 @@
       "evidence_refs": [],
       "gap": "Current SIPOC harness cannot render and extract the real webpage component.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "unrepresentable",
       "effective_state": "unrepresentable"
     },
     {
@@ -593,6 +619,7 @@
       "evidence_refs": [],
       "gap": "Current SIPOC harness cannot render and extract real webpage score fields.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "unrepresentable",
       "effective_state": "unrepresentable"
     },
     {
@@ -607,6 +634,7 @@
       "evidence_refs": [],
       "gap": "Current SIPOC harness cannot render and extract the real webpage genre field.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "unrepresentable",
       "effective_state": "unrepresentable"
     },
     {
@@ -621,6 +649,7 @@
       "evidence_refs": [],
       "gap": "Current SIPOC harness cannot render and extract every webpage criterion confidence label.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "unrepresentable",
       "effective_state": "unrepresentable"
     },
     {
@@ -640,6 +669,7 @@
       ],
       "gap": "Passing source invariant is not represented by the SIPOC harness.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "satisfied_but_unmapped",
       "effective_state": "satisfied"
     },
     {
@@ -659,6 +689,7 @@
       ],
       "gap": "Cross-format equality does not exhaustively exclude local score derivation inside each adapter.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
+      "canonical_current_state": "representable_but_unproven",
       "effective_state": "representable_but_unproven"
     },
     {
@@ -673,7 +704,8 @@
       "evidence_refs": [],
       "gap": "TXT/PDF/DOCX heading parity branches are hard-disabled and Phase 5 parity is declared rather than measured.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
-      "effective_state": "runtime_conflict"
+      "canonical_current_state": "implementation_conflict",
+      "effective_state": "implementation_conflict"
     },
     {
       "id": "S11b_DOWNLOAD_PIPELINE.failclosed.04",
@@ -687,7 +719,8 @@
       "evidence_refs": [],
       "gap": "PDF alone catches export failure; DOCX/TXT lack a common DOWNLOAD_RENDER_FAILED envelope.",
       "expires_before_utc": "2026-08-19T00:00:00Z",
-      "effective_state": "runtime_conflict"
+      "canonical_current_state": "implementation_conflict",
+      "effective_state": "implementation_conflict"
     }
   ]
 }

@@ -2,9 +2,11 @@ import fs from "fs";
 import path from "path";
 
 import {
+  CANONICAL_OBLIGATION_STATES,
   EVIDENCE_KINDS,
   GAP_BUCKETS,
   deriveBoundaryEvidenceState,
+  normalizeObligationState,
   type EvidenceManifest,
   type EvidenceObligation,
   REMEDIATION_AUDIT_STATES,
@@ -32,6 +34,14 @@ describe("SIPOC v3 evidence model", () => {
     expect(manifest.obligations).toHaveLength(33);
     expect(new Set(manifest.obligations.map((item) => item.id)).size).toBe(33);
     expect(manifest.obligations.some((item) => item.current_state === "satisfied")).toBe(false);
+    expect(manifest.obligations.some((item) => item.current_state === "satisfied_but_unmapped")).toBe(true);
+  });
+
+  test("accepts runtime_conflict only as a migration alias for implementation_conflict", () => {
+    expect(CANONICAL_OBLIGATION_STATES).toContain("implementation_conflict");
+    expect(CANONICAL_OBLIGATION_STATES).not.toContain("runtime_conflict");
+    expect(normalizeObligationState("runtime_conflict")).toBe("implementation_conflict");
+    expect(normalizeObligationState("implementation_conflict")).toBe("implementation_conflict");
   });
 
   test("requires one recognized gap bucket and an exclusive expiry for every unresolved obligation", () => {
@@ -49,16 +59,21 @@ describe("SIPOC v3 evidence model", () => {
     expect(obligations.every((item) => item.current_state === "representable_but_unproven")).toBe(true);
   });
 
-  test("keeps Gate 15 isolated as an unresolved policy contradiction", () => {
+  test("records Gate 15 as implementation-pending without making it auto-promotable", () => {
     const gate15 = manifest.obligations.find(
       (item) => item.id === "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04",
     );
     expect(gate15).toMatchObject({
-      current_state: "policy_conflict",
-      gap_bucket: "policy_contradiction",
-      remediation_class: "policy",
-      blocked_by: "gate_15_product_policy_ruling",
+      current_state: "implementation_conflict",
+      gap_bucket: "implementation_gap",
+      remediation_class: "runtime",
+      enforcement_point: "lib/evaluation/authorExposureCertification.ts getAuthorExposureDecisionWithFinalExternalAudit + lib/evaluation/gate15/authorExposureGate15.ts evaluateGate15AuthorExposure",
     });
+    expect(gate15?.current_state).not.toBe("satisfied");
+    expect(gate15?.current_state).not.toBe("satisfied_but_unmapped");
+    expect(normalizeObligationState(gate15?.current_state ?? "policy_conflict")).toBe("implementation_conflict");
+    expect(gate15?.blocked_by).toBeUndefined();
+    expect(gate15?.evidence_refs).toEqual([]);
   });
 
   test("audits remediation candidates without treating implementation as earned evidence", () => {
@@ -77,11 +92,12 @@ describe("SIPOC v3 evidence model", () => {
     }
   });
 
-  test("never lets a remediation PR select or close the Gate 15 policy conflict", () => {
+  test("does not map the Gate 15 implementation-conflict item to stale remediation candidates", () => {
     const mapped = remediationAudit.entries.flatMap((entry) => entry.obligation_ids);
     expect(mapped).not.toContain("S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04");
-    expect(manifest.obligations.find((item) => item.id === "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04"))
-      .toMatchObject({ current_state: "policy_conflict", blocked_by: "gate_15_product_policy_ruling" });
+    const gate15 = manifest.obligations.find((item) => item.id === "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04");
+    expect(gate15).toMatchObject({ current_state: "implementation_conflict" });
+    expect(gate15).not.toHaveProperty("blocked_by");
   });
 
   test("requires capable evidence for every mapped evidence kind", () => {
