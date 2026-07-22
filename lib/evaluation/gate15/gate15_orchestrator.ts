@@ -17,12 +17,31 @@ import { runGate15_2, type Gate15_2Result } from './gate15_2_validator';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
+export const GATE15_AUDIT_VALIDITY_DAYS = 90;
+export const GATE15_AUDIT_VALIDITY_MS = GATE15_AUDIT_VALIDITY_DAYS * 24 * 60 * 60 * 1000;
+
+export function deriveGate15AuditValidUntil(timestamp: string): string {
+  const generatedAt = Date.parse(timestamp);
+  if (!Number.isFinite(generatedAt)) {
+    throw new Error('Gate 15 audit timestamp must be parseable before deriving valid_until');
+  }
+  return new Date(generatedAt + GATE15_AUDIT_VALIDITY_MS).toISOString();
+}
+
 export interface Gate15AuditArtifact {
   version: 'gate_15_audit_v1';
   jobId: string;
   manuscriptId: string;
   wordCount: number;
   timestamp: string;
+  valid_until: string;
+  lineage_status: 'current';
+  lineage: {
+    artifact_type: 'gate_15_audit_v1';
+    jobId: string;
+    manuscriptId: string;
+    timestamp: string;
+  };
   activatedBecause?: string;
   skippedBecause?: string;
   overallStatus: GateStatus;
@@ -79,6 +98,14 @@ export function runGate15Audit(
     manuscriptId,
     wordCount,
     timestamp,
+    valid_until: deriveGate15AuditValidUntil(timestamp),
+    lineage_status: 'current',
+    lineage: {
+      artifact_type: 'gate_15_audit_v1',
+      jobId,
+      manuscriptId,
+      timestamp,
+    },
     activatedBecause: wordCount >= GATE15_MIN_WORD_COUNT ? 'long_form_25000_plus' : undefined,
     skippedBecause: wordCount < GATE15_MIN_WORD_COUNT ? `short_form_under_${GATE15_MIN_WORD_COUNT}_words` : undefined,
     overallStatus,

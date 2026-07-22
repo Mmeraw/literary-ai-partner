@@ -1,5 +1,6 @@
 import type { createClient } from '@supabase/supabase-js';
 import { finalExternalAuditAllowsAuthorExposure } from '@/lib/evaluation/finalExternalAudit';
+import { evaluateGate15AuthorExposure } from '@/lib/evaluation/gate15/authorExposureGate15';
 
 export type AuthorExposureBlockReason =
   | 'missing_certification'
@@ -8,6 +9,7 @@ export type AuthorExposureBlockReason =
   | 'blocking_reasons_present'
   | 'parity_check_failed'
   | 'final_external_audit_failed'
+  | 'gate_15_audit_failed'
   | 'db_error';
 
 export type AuthorExposureDecision =
@@ -20,6 +22,8 @@ export type AuthorExposureDecision =
       reason: AuthorExposureBlockReason;
       details?: string;
     };
+
+const PUBLIC_GATE_15_AUTHOR_EXPOSURE_BLOCK = 'author_exposure:release_safeguard_not_cleared';
 
 type CertificationShape = {
   decision?: unknown;
@@ -86,6 +90,20 @@ function blockForFinalExternalAudit(): AuthorExposureDecision {
     reason: 'final_external_audit_failed',
     details: 'final_external_audit_v1 is missing, malformed, or blocking',
   };
+}
+
+function blockForGate15Audit(details: string): AuthorExposureDecision {
+  return {
+    exposable: false,
+    reason: 'gate_15_audit_failed',
+    details,
+  };
+}
+
+export function publicAuthorExposureBlockDetail(decision: AuthorExposureDecision): string {
+  if (decision.exposable === true) return 'author_exposure:exposable';
+  if (decision.reason === 'gate_15_audit_failed') return PUBLIC_GATE_15_AUTHOR_EXPOSURE_BLOCK;
+  return `author_exposure:${decision.reason}`;
 }
 
 function dcipCompliancePasses(value: unknown): boolean {
@@ -163,6 +181,30 @@ export function evaluateAuthorExposureCertificationWithFinalExternalAudit(
   return baseDecision;
 }
 
+export function evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate15(
+  certificationContent: unknown,
+  finalExternalAuditContent: unknown,
+  gate15AuditContent: unknown,
+  options: {
+    jobId: string;
+    now?: Date;
+  },
+): AuthorExposureDecision {
+  const baseDecision = evaluateAuthorExposureCertificationWithFinalExternalAudit(
+    certificationContent,
+    finalExternalAuditContent,
+  );
+  if (!baseDecision.exposable) return baseDecision;
+
+  const gate15Decision = evaluateGate15AuthorExposure(gate15AuditContent, {
+    jobId: options.jobId,
+    now: options.now,
+  });
+  if (gate15Decision.exposable === false) return blockForGate15Audit(gate15Decision.details);
+
+  return baseDecision;
+}
+
 type AdminClient = ReturnType<typeof createClient>;
 
 async function readLatestArtifactContent(
@@ -219,5 +261,17 @@ export async function getAuthorExposureDecisionWithFinalExternalAudit(
     return { exposable: false, reason: 'db_error', details: finalAudit.errorMessage };
   }
 
-  return evaluateAuthorExposureCertificationWithFinalExternalAudit(certification.content, finalAudit.content);
+  const gate15Audit = await readLatestArtifactContent(admin, jobId, 'gate_15_audit_v1');
+  if (gate15Audit.errorMessage) {
+    return { exposable: false, reason: 'db_error', details: gate15Audit.errorMessage };
+  }
+
+  return evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate15(
+    certification.content,
+    finalAudit.content,
+    gate15Audit.content,
+    {
+      jobId,
+    },
+  );
 }

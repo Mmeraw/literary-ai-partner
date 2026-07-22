@@ -117,13 +117,19 @@ The 98% SLO and 100% coverage objective must never be combined into one score. N
 
 ## Gate 15 rule
 
-Gate 15 remains `policy_conflict` until an authorized decision states whether FAIL:
+Gate 15 policy was resolved by the owner-approved Option 1 ruling recorded in issue #1391 on 2026-07-22.
 
-1. blocks author exposure/download only;
-2. blocks evaluation completion; or
-3. is formally advisory under an amended canonical requirement.
+- Gate 15 remains nonfatal to evaluation completion and artifact persistence.
+- `pass`, permitted `warn`, and explicit `skipped` evidence are nonblocking, subject to all other Phase 5 gates.
+- correctness-affecting `fail` blocks webpage exposure and PDF/DOCX/TXT downloads.
+- missing, malformed, stale, unverifiable, or job-lineage-mismatched `gate_15_audit_v1` evidence fails closed for author exposure.
+- staleness is constitutional, not reader-local guesswork: a Gate 15 audit is stale when `stale === true`, `superseded === true`, `lineage_status !== "current"`, or `valid_until` is missing, malformed, or earlier than the exposure decision time. The producer must deterministically set `valid_until` to 90 days after the artifact timestamp. The recovery path after expiry is re-audit, not grandfathering.
+- every Gate 15 audit must carry a parseable generation timestamp, matching top-level job lineage, and a `lineage` object whose `artifact_type`, `jobId`, and `timestamp` match the audit identity.
+- disposition-based recovery is disabled in #1400. A correctness-affecting `fail` cannot become nonblocking until a later governed change proves a server-authorized, non-forgeable `gate_15_author_exposure_disposition_v1` writer, immutable persistence restrictions, scope/effective-date enforcement, and audit lineage binding.
 
-An implementation or evidence PR must not choose among these options implicitly.
+Read-side validation of `gate_15_author_exposure_disposition_v1` is not proof of an authorized, non-forgeable disposition write path. Runtime exposure must ignore any such artifact until that write/persistence authority is proven separately.
+
+The production enforcement point is the shared author-exposure predicate in `lib/evaluation/authorExposureCertification.ts`, backed by the Gate 15 predicate in `lib/evaluation/gate15/authorExposureGate15.ts`.
 
 ## Promotion rule
 

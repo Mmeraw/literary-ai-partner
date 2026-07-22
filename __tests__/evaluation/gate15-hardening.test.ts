@@ -201,6 +201,14 @@ describe("Gate 15 Hardening — Corrective Action & Mistake-Proofing", () => {
       expect(result.gate15_1).toBeDefined();
       expect(result.gate15_2).toBeDefined();
       expect(result.summaryFindings).toBeInstanceOf(Array);
+      expect(result.lineage_status).toBe("current");
+      expect(Date.parse(result.valid_until)).toBeGreaterThan(Date.parse(result.timestamp));
+      expect(result.lineage).toMatchObject({
+        artifact_type: "gate_15_audit_v1",
+        jobId: "test-job-fiction",
+        manuscriptId: "test-ms-fiction",
+        timestamp: result.timestamp,
+      });
     });
 
     test("Gate 15 orchestrator produces valid artifact for nonfiction", () => {
@@ -216,6 +224,14 @@ describe("Gate 15 Hardening — Corrective Action & Mistake-Proofing", () => {
       expect(result.gate15_1).toBeDefined();
       expect(result.gate15_2).toBeDefined();
       expect(result.summaryFindings).toBeInstanceOf(Array);
+      expect(result.lineage_status).toBe("current");
+      expect(Date.parse(result.valid_until)).toBeGreaterThan(Date.parse(result.timestamp));
+      expect(result.lineage).toMatchObject({
+        artifact_type: "gate_15_audit_v1",
+        jobId: "test-job-nonfiction",
+        manuscriptId: "test-ms-nonfiction",
+        timestamp: result.timestamp,
+      });
     });
   });
 

@@ -49,14 +49,30 @@ export const OBLIGATION_STATES = [
   "satisfied_but_unmapped",
   "representable_but_unproven",
   "unrepresentable",
+  "implementation_conflict",
   "policy_conflict",
   "runtime_conflict",
 ] as const;
 export type ObligationState = (typeof OBLIGATION_STATES)[number];
 
+export const CANONICAL_OBLIGATION_STATES = [
+  "satisfied",
+  "satisfied_but_unmapped",
+  "representable_but_unproven",
+  "unrepresentable",
+  "implementation_conflict",
+  "policy_conflict",
+] as const;
+export type CanonicalObligationState = (typeof CANONICAL_OBLIGATION_STATES)[number];
+
+export function normalizeObligationState(state: ObligationState): CanonicalObligationState {
+  return state === "runtime_conflict" ? "implementation_conflict" : state;
+}
+
 export const GAP_BUCKETS = [
   "representation_gap",
   "evidence_gap",
+  "implementation_gap",
   "enforcement_gap",
   "policy_contradiction",
 ] as const;
@@ -94,7 +110,7 @@ export interface EvidenceObligation {
   evidence_refs: EvidenceReference[];
   gap: string | null;
   expires_before_utc: string | null;
-  blocked_by?: "gate_15_product_policy_ruling";
+  blocked_by?: string;
 }
 
 export interface EvidenceManifest {

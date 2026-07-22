@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/requireAdmin';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
-  evaluateAuthorExposureCertificationWithFinalExternalAudit,
+  evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate15,
 } from '@/lib/evaluation/authorExposureCertification';
 import {
   aggregateEvaluationReliability,
@@ -46,9 +46,11 @@ function exposureByJob(artifacts: ArtifactRow[]): Map<string, ExposureState> {
       result.set(jobId, 'unknown');
       continue;
     }
-    const decision = evaluateAuthorExposureCertificationWithFinalExternalAudit(
+    const decision = evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate15(
       certification,
       byType.get('final_external_audit_v1'),
+      byType.get('gate_15_audit_v1'),
+      { jobId },
     );
     result.set(jobId, decision.exposable ? 'certified' : 'blocked');
   }
@@ -90,7 +92,11 @@ export async function GET(req: NextRequest) {
       .from('evaluation_artifacts')
       .select('job_id,artifact_type,content,created_at')
       .in('job_id', ids)
-      .in('artifact_type', ['author_exposure_certification_v1', 'final_external_audit_v1'])
+      .in('artifact_type', [
+        'author_exposure_certification_v1',
+        'final_external_audit_v1',
+        'gate_15_audit_v1',
+      ])
       .order('created_at', { ascending: false });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     artifacts.push(...((data ?? []) as ArtifactRow[]));

@@ -11,6 +11,7 @@ import {
   REMEDIATION_CLASSES,
   deriveBoundaryEvidenceState,
   isSipocStageId,
+  normalizeObligationState,
   type EvidenceManifest,
   type EvidenceObligation,
   type RemediationAudit,
@@ -20,6 +21,7 @@ const MANIFEST_PATH = path.resolve("tests/fixtures/sipoc/evidence-obligations.v3
 const OUTPUT_PATH = path.resolve("artifacts/sipoc/evidence-results.v3.json");
 const JEST_RESULTS_PATH = path.resolve("artifacts/sipoc/.evidence-jest-results.json");
 const REMEDIATION_AUDIT_PATH = path.resolve("tests/sipoc/remediation-audit.v3.json");
+const GATE_15_AUTHOR_EXPOSURE_OBLIGATION_ID = "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04";
 const EXPECTED_BOUNDARIES = [
   "S02_QUEUE",
   "S03_CLAIM",
@@ -70,6 +72,7 @@ function validateStateSemantics(item: EvidenceObligation): string[] {
     satisfied_but_unmapped: ["representation_gap", ["governance_mapping"]],
     representable_but_unproven: ["evidence_gap", ["integration_evidence", "test_infrastructure"]],
     unrepresentable: ["representation_gap", ["test_infrastructure"]],
+    implementation_conflict: ["implementation_gap", ["runtime"]],
     runtime_conflict: ["enforcement_gap", ["runtime"]],
     policy_conflict: ["policy_contradiction", ["policy"]],
   };
@@ -77,8 +80,18 @@ function validateStateSemantics(item: EvidenceObligation): string[] {
   if (rule && (item.gap_bucket !== rule[0] || !rule[1].includes(item.remediation_class))) {
     errors.push(`state ${item.current_state} requires ${rule[0]} and remediation ${rule[1].join(" or ")}`);
   }
-  if (item.current_state === "policy_conflict" && item.blocked_by !== "gate_15_product_policy_ruling") {
-    errors.push("policy conflict must name the Gate 15 product-policy blocker");
+  if (item.id === GATE_15_AUTHOR_EXPOSURE_OBLIGATION_ID && item.current_state === "policy_conflict") {
+    errors.push("Gate 15 policy was resolved by #1391; use implementation_conflict until enforcement and capable evidence land");
+  }
+  if (item.id === GATE_15_AUTHOR_EXPOSURE_OBLIGATION_ID && item.evidence_refs.length > 0) {
+    errors.push("Gate 15 failclosed.04 must not pre-wire evidence_refs while it is non-certified implementation_conflict");
+  }
+  if (item.id === GATE_15_AUTHOR_EXPOSURE_OBLIGATION_ID &&
+      (item.current_state === "satisfied" || item.current_state === "satisfied_but_unmapped")) {
+    errors.push("Gate 15 failclosed.04 cannot be satisfied or auto-promotable before #1391 closure conditions are met");
+  }
+  if (item.current_state === "policy_conflict" && !item.blocked_by?.trim()) {
+    errors.push("policy conflict must name a controlling unresolved blocker");
   }
   if (item.current_state === "satisfied_but_unmapped" && item.evidence_refs.length === 0) {
     errors.push("satisfied_but_unmapped requires attributable evidence_refs");
@@ -203,9 +216,6 @@ function validateRemediationAudit(manifest: EvidenceManifest, audit: Remediation
       const obligation = manifestById.get(id);
       if (!obligation) errors.push(`PR #${entry.pull_request}: unknown obligation ${id}`);
       if (obligation?.current_state === "satisfied") errors.push(`PR #${entry.pull_request}: already-satisfied obligation ${id} cannot be remediation debt`);
-      if (id === "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04") {
-        errors.push(`PR #${entry.pull_request}: Gate 15 policy conflict cannot be selected by remediation`);
-      }
       if (seenIds.has(id)) errors.push(`${id}: mapped by more than one remediation PR`);
       seenIds.add(id);
     }
@@ -318,7 +328,11 @@ function main(): void {
     const earned = item.current_state === "satisfied_but_unmapped" && item.evidence_refs.every(
       (ref) => testRun.passedRefs.has(evidenceRefKey(ref.test_file, ref.test_name)),
     );
-    return { ...item, effective_state: earned ? "satisfied" as const : item.current_state };
+    return {
+      ...item,
+      canonical_current_state: normalizeObligationState(item.current_state),
+      effective_state: earned ? "satisfied" as const : normalizeObligationState(item.current_state),
+    };
   });
   const byBoundary = Object.fromEntries(EXPECTED_BOUNDARIES.map((boundary) => {
     const obligations = effectiveObligations.filter((item) => item.boundary === boundary);

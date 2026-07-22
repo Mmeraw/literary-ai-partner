@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDevHeaderActor } from "@/lib/auth/devHeaderActor";
 import { getEvaluationReleaseDecision } from "@/lib/jobs/readReleaseGate";
-import { getAuthorExposureDecision } from "@/lib/evaluation/authorExposureCertification";
+import { getAuthorExposureDecision, publicAuthorExposureBlockDetail } from "@/lib/evaluation/authorExposureCertification";
 import { enforceApiRateLimit } from "@/lib/security/apiRateLimit";
 import { requireUser } from "@/lib/security/apiGuards";
 
@@ -104,7 +104,7 @@ export async function GET(
       const payload: Err = {
         ok: false,
         error: isSystemError ? 'System error checking author exposure certification' : 'Evaluation not releasable',
-        details: `author_exposure:${exposureDecision.reason}`,
+        details: publicAuthorExposureBlockDetail(exposureDecision),
       };
       return NextResponse.json(payload, { status: isSystemError ? 500 : 409 });
     }
@@ -112,7 +112,6 @@ export async function GET(
     // 5) Read from evaluation_artifacts (canonical source)
     // Try evaluation_result_v2 first (current pipeline), then one_page_summary (legacy)
     let artifactContent: unknown = null;
-    let artifactError: { message: string } | null = null;
 
     for (const artifactType of ["evaluation_result_v2", "one_page_summary"] as const) {
       const { data: artifact, error: err } = await supabase
@@ -124,7 +123,6 @@ export async function GET(
 
       if (err) {
         console.warn(`[evaluations/${jobId}] artifact lookup error (${artifactType}):`, err.message);
-        artifactError = err;
         continue;
       }
 
@@ -159,7 +157,7 @@ export async function GET(
       source,
     };
     return NextResponse.json(payload, { status: 200 });
-  } catch (err) {
+  } catch {
     const payload: Err = {
       ok: false,
       error: "Unexpected error",

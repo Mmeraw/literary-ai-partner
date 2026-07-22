@@ -1,6 +1,88 @@
 import { evaluateAuthorExposureCertification, getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
+import { evaluateGate15AuthorExposure } from '@/lib/evaluation/gate15/authorExposureGate15';
+import { runGate15Audit } from '@/lib/evaluation/gate15/gate15_orchestrator';
 
 const passingDcipCompliance = { status: 'pass', reasons: [] };
+const JOB_ID = 'job-1';
+
+function certifiedPayload() {
+  return {
+    decision: 'certified',
+    certified_at: '2026-02-22T00:00:00.000Z',
+    blocking_reasons: [],
+    parity_results: { status: 'pass' },
+    dcip_compliance: passingDcipCompliance,
+  };
+}
+
+function finalAuditPayload(status: 'pass' | 'warn' | 'block' = 'pass') {
+  return {
+    artifact_type: 'final_external_audit_v1',
+    status,
+  };
+}
+
+function gate15AuditPayload(overallStatus: 'PASS' | 'WARN' | 'FAIL' | 'SKIPPED' = 'PASS', overrides: Record<string, unknown> = {}) {
+  return {
+    version: 'gate_15_audit_v1',
+    jobId: JOB_ID,
+    manuscriptId: 'manuscript-1',
+    timestamp: '2026-07-22T00:00:00.000Z',
+    valid_until: '2026-10-20T00:00:00.000Z',
+    lineage_status: 'current',
+    lineage: {
+      artifact_type: 'gate_15_audit_v1',
+      jobId: JOB_ID,
+      manuscriptId: 'manuscript-1',
+      timestamp: '2026-07-22T00:00:00.000Z',
+    },
+    overallStatus,
+    ...overrides,
+  };
+}
+
+function gate15NonblockingDisposition(overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: 'gate_15_author_exposure_disposition_v1',
+    disposition: 'nonblocking',
+    scope: 'author_exposure',
+    gate_15_audit_version: 'gate_15_audit_v1',
+    gate_15_audit_job_id: JOB_ID,
+    job_id: JOB_ID,
+    approver: 'repository-owner',
+    rationale: 'Finding is diagnostic-only for this report and does not affect author-facing correctness.',
+    effective_date: '2026-07-22T00:00:00.000Z',
+    evidence_lineage: { gate_15_audit_v1: 'audit-hash' },
+    ...overrides,
+  };
+}
+
+function mockArtifactAdmin(artifacts: Record<string, unknown>, errors: Record<string, string> = {}) {
+  return {
+    from: jest.fn(() => {
+      let artifactType = '';
+      const query = {
+        select: jest.fn(() => query),
+        eq: jest.fn((field: string, value: string) => {
+          if (field === 'artifact_type') artifactType = value;
+          return query;
+        }),
+        order: jest.fn(() => query),
+        limit: jest.fn(() => query),
+        maybeSingle: jest.fn(async () => {
+          if (errors[artifactType]) {
+            return { data: null, error: { message: errors[artifactType] } };
+          }
+          if (!Object.prototype.hasOwnProperty.call(artifacts, artifactType)) {
+            return { data: null, error: null };
+          }
+          return { data: { content: artifacts[artifactType] }, error: null };
+        }),
+      };
+      return query;
+    }),
+  } as never;
+}
 
 describe('evaluateAuthorExposureCertification', () => {
   test('allows certified payload with empty blockers and passing parity', () => {
@@ -245,6 +327,151 @@ describe('evaluateAuthorExposureCertification', () => {
   });
 });
 
+describe('evaluateGate15AuthorExposure', () => {
+  test.each(['PASS', 'WARN', 'SKIPPED'] as const)('allows %s Gate 15 audit status', (status) => {
+    const decision = evaluateGate15AuthorExposure(gate15AuditPayload(status), { jobId: JOB_ID });
+
+    expect(decision.exposable).toBe(true);
+  });
+
+  test('blocks Gate 15 FAIL without authorized nonblocking disposition', () => {
+    const decision = evaluateGate15AuthorExposure(gate15AuditPayload('FAIL'), { jobId: JOB_ID });
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_failed',
+    });
+  });
+
+  test('fails closed when Gate 15 audit is missing or malformed', () => {
+    expect(evaluateGate15AuthorExposure(null, { jobId: JOB_ID })).toMatchObject({
+      exposable: false,
+      reason: 'missing_gate_15_audit',
+    });
+    expect(evaluateGate15AuthorExposure({ status: 'PASS' }, { jobId: JOB_ID })).toMatchObject({
+      exposable: false,
+      reason: 'invalid_gate_15_audit_payload',
+    });
+  });
+
+  test('fails closed for stale Gate 15 evidence', () => {
+    const decision = evaluateGate15AuthorExposure(
+      gate15AuditPayload('PASS', { valid_until: '2026-07-21T00:00:00.000Z' }),
+      { jobId: JOB_ID, now: new Date('2026-07-22T00:00:00.000Z') },
+    );
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+  });
+
+  test('fails closed when Gate 15 valid_until is not derived from timestamp plus 90 days', () => {
+    const decision = evaluateGate15AuthorExposure(
+      gate15AuditPayload('PASS', { valid_until: '2026-10-21T00:00:00.000Z' }),
+      { jobId: JOB_ID, now: new Date('2026-07-22T00:00:00.000Z') },
+    );
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+  });
+
+  test('fails closed when Gate 15 freshness proof is missing', () => {
+    const decision = evaluateGate15AuthorExposure(
+      gate15AuditPayload('PASS', { valid_until: undefined }),
+      { jobId: JOB_ID, now: new Date('2026-07-22T00:00:00.000Z') },
+    );
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+  });
+
+  test('fails closed when Gate 15 lineage status is not current', () => {
+    const decision = evaluateGate15AuthorExposure(
+      gate15AuditPayload('PASS', { lineage_status: 'superseded' }),
+      { jobId: JOB_ID, now: new Date('2026-07-22T00:00:00.000Z') },
+    );
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+  });
+
+  test('fails closed for Gate 15 lineage mismatch', () => {
+    const decision = evaluateGate15AuthorExposure(gate15AuditPayload('PASS', { jobId: 'other-job' }), { jobId: JOB_ID });
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_lineage_mismatch',
+    });
+  });
+
+  test('fails closed when Gate 15 lineage proof is missing or mismatched', () => {
+    expect(evaluateGate15AuthorExposure(
+      gate15AuditPayload('PASS', { lineage: undefined }),
+      { jobId: JOB_ID },
+    )).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_lineage_mismatch',
+    });
+
+    expect(evaluateGate15AuthorExposure(
+      gate15AuditPayload('PASS', { lineage: { artifact_type: 'gate_15_audit_v1', jobId: 'other-job', timestamp: '2026-07-22T00:00:00.000Z' } }),
+      { jobId: JOB_ID },
+    )).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_lineage_mismatch',
+    });
+  });
+
+  test('successful remediation is represented by a fresh passing Gate 15 audit', () => {
+    const blocked = evaluateGate15AuthorExposure(gate15AuditPayload('FAIL'), { jobId: JOB_ID });
+    const remediated = evaluateGate15AuthorExposure(gate15AuditPayload('PASS'), { jobId: JOB_ID });
+
+    expect(blocked.exposable).toBe(false);
+    expect(remediated.exposable).toBe(true);
+  });
+
+  test('accepts a genuine runGate15Audit artifact and rejects mutated freshness or lineage', () => {
+    const manuscript = 'Short form content. '.repeat(200);
+    const artifact = runGate15Audit(manuscript, JOB_ID, 'manuscript-1');
+    const now = new Date(artifact.timestamp);
+
+    expect(evaluateGate15AuthorExposure(artifact, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: true,
+      status: 'skipped',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, valid_until: '2026-07-21T00:00:00.000Z' }, {
+      jobId: JOB_ID,
+      now: new Date('2026-07-22T00:00:00.000Z'),
+    })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, valid_until: undefined }, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, jobId: 'other-job' }, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_lineage_mismatch',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, lineage_status: 'superseded' }, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+  });
+});
+
 describe('getAuthorExposureDecision', () => {
   test('returns missing_certification when artifact is absent', async () => {
     const admin = {
@@ -425,6 +652,64 @@ describe('getAuthorExposureDecision', () => {
     expect(decision).toMatchObject({
       exposable: false,
       reason: 'missing_certification',
+    });
+  });
+
+  test('allows exposure only when certification, final audit, and Gate 15 all pass', async () => {
+    const admin = mockArtifactAdmin({
+      author_exposure_certification_v1: certifiedPayload(),
+      final_external_audit_v1: finalAuditPayload('pass'),
+      gate_15_audit_v1: gate15AuditPayload('PASS'),
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({ exposable: true });
+  });
+
+  test('blocks author exposure when authoritative Gate 15 audit is missing', async () => {
+    const admin = mockArtifactAdmin({
+      author_exposure_certification_v1: certifiedPayload(),
+      final_external_audit_v1: finalAuditPayload('pass'),
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_failed',
+      details: 'gate_15_audit_v1 artifact missing',
+    });
+  });
+
+  test('blocks author exposure when authoritative Gate 15 audit fails', async () => {
+    const admin = mockArtifactAdmin({
+      author_exposure_certification_v1: certifiedPayload(),
+      final_external_audit_v1: finalAuditPayload('pass'),
+      gate_15_audit_v1: gate15AuditPayload('FAIL'),
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_failed',
+    });
+  });
+
+  test('blocks author exposure when Gate 15 fail has loaded but currently disabled disposition artifact', async () => {
+    const admin = mockArtifactAdmin({
+      author_exposure_certification_v1: certifiedPayload(),
+      final_external_audit_v1: finalAuditPayload('pass'),
+      gate_15_audit_v1: gate15AuditPayload('FAIL'),
+      gate_15_author_exposure_disposition_v1: gate15NonblockingDisposition(),
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_failed',
     });
   });
 });
