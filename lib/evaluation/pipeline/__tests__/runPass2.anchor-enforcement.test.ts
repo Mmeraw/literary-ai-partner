@@ -1,10 +1,34 @@
 import { describe, expect, test } from "@jest/globals";
 import { parsePass2Response as parsePass2ResponseRaw, runPass2 } from "@/lib/evaluation/pipeline/runPass2";
+import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
+
+type CriterionFixture = Record<string, unknown> & {
+  key: string;
+  recommendations?: unknown[];
+};
+
+function withCompleteCriteria(criteria: CriterionFixture[]): CriterionFixture[] {
+  const supplied = new Set(criteria.map((criterion) => criterion.key));
+  const companions = CRITERIA_KEYS
+    .filter((key) => !supplied.has(key))
+    .map((key) => ({
+      key,
+      score_0_10: 10,
+      rationale: `The ${key} companion remains anchored in "She opened the sealed letter" for fixture completeness.`,
+      evidence: [{ snippet: '"She opened the sealed letter"' }],
+      recommendations: [],
+      recommendation_status: "no_recommendation_warranted",
+      recommendation_status_rationale:
+        "This companion exists only to satisfy the canonical complete Pass 2 output contract.",
+    }));
+  return [...criteria, ...companions];
+}
 
 function parsePass2Response(raw: string) {
   const payload = JSON.parse(raw) as {
-    criteria?: Array<Record<string, unknown> & { recommendations?: unknown[] }>;
+    criteria?: CriterionFixture[];
   };
+  const requestedKeys = new Set((payload.criteria ?? []).map((criterion) => criterion.key));
   for (const criterion of payload.criteria ?? []) {
     const recommendationCount = Array.isArray(criterion.recommendations)
       ? criterion.recommendations.length
@@ -17,7 +41,12 @@ function parsePass2Response(raw: string) {
         "This anchor-focused fixture does not prescribe a separate evidence-backed intervention.";
     }
   }
-  return parsePass2ResponseRaw(JSON.stringify(payload));
+  payload.criteria = withCompleteCriteria(payload.criteria ?? []);
+  const parsed = parsePass2ResponseRaw(JSON.stringify(payload));
+  return {
+    ...parsed,
+    criteria: parsed.criteria.filter((criterion) => requestedKeys.has(criterion.key)),
+  };
 }
 
 describe("runPass2 textual anchor enforcement", () => {
@@ -337,7 +366,7 @@ describe("runPass2 truncated JSON retry", () => {
   test("retries once with a higher token budget when the first response is truncated JSON", async () => {
     const completionCalls: Array<{ max_tokens?: number; max_completion_tokens?: number }> = [];
     const validPayload = JSON.stringify({
-      criteria: [
+      criteria: withCompleteCriteria([
         {
           key: "concept",
           score_0_10: 8,
@@ -348,7 +377,7 @@ describe("runPass2 truncated JSON retry", () => {
           recommendation_status_rationale:
             "This retry fixture does not prescribe a separate evidence-backed intervention.",
         },
-      ],
+      ]),
     });
 
     const result = await runPass2({
@@ -388,7 +417,7 @@ describe("runPass2 truncated JSON retry", () => {
     });
 
     expect(completionCalls).toHaveLength(2);
-    expect(result.criteria).toHaveLength(1);
-    expect(result.criteria[0].key).toBe("concept");
+    expect(result.criteria).toHaveLength(CRITERIA_KEYS.length);
+    expect(result.criteria.some((criterion) => criterion.key === "concept")).toBe(true);
   });
 });
