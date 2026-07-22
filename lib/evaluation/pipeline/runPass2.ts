@@ -506,6 +506,79 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
   return output;
 }
 
+export interface IndexedPass2ChunkResult {
+  chunk_index: number;
+  result: SinglePassOutput;
+}
+
+/**
+ * Certifies that map/reduce has one current-contract result for every selected
+ * source chunk, and no result for an unselected or duplicated chunk, before
+ * aggregation can confer Pass 2 authority.
+ *
+ * This is deliberately an in-memory identity/aggregation contract. It does
+ * not claim that chunks or checkpoints were persisted; callers that need an
+ * IO guarantee must prove that separately at the persistence boundary.
+ */
+export function aggregateSelectedPass2ChunkResults(
+  selectedChunkIndices: readonly number[],
+  indexedResults: readonly IndexedPass2ChunkResult[],
+): CurrentPass2Output {
+  const selectedCounts = new Map<number, number>();
+  for (const chunkIndex of selectedChunkIndices) {
+    selectedCounts.set(chunkIndex, (selectedCounts.get(chunkIndex) ?? 0) + 1);
+  }
+  const duplicateSelected = [...selectedCounts]
+    .filter(([, count]) => count > 1)
+    .map(([chunkIndex]) => chunkIndex)
+    .sort((a, b) => a - b);
+
+  const resultCounts = new Map<number, number>();
+  for (const entry of indexedResults) {
+    resultCounts.set(entry.chunk_index, (resultCounts.get(entry.chunk_index) ?? 0) + 1);
+  }
+  const duplicateResults = [...resultCounts]
+    .filter(([, count]) => count > 1)
+    .map(([chunkIndex]) => chunkIndex)
+    .sort((a, b) => a - b);
+  const selectedSet = new Set(selectedChunkIndices);
+  const resultSet = new Set(indexedResults.map((entry) => entry.chunk_index));
+  const missingResults = [...selectedSet]
+    .filter((chunkIndex) => !resultSet.has(chunkIndex))
+    .sort((a, b) => a - b);
+  const unexpectedResults = [...resultSet]
+    .filter((chunkIndex) => !selectedSet.has(chunkIndex))
+    .sort((a, b) => a - b);
+
+  if (
+    selectedChunkIndices.length === 0
+    || duplicateSelected.length > 0
+    || duplicateResults.length > 0
+    || missingResults.length > 0
+    || unexpectedResults.length > 0
+    || indexedResults.length !== selectedChunkIndices.length
+  ) {
+    throw new Error(
+      `PASS2_CHUNK_COVERAGE_INVALID ${JSON.stringify({
+        code: "PASS2_CHUNK_COVERAGE_INVALID",
+        selected_chunks: [...selectedSet].sort((a, b) => a - b),
+        result_chunks: [...resultSet].sort((a, b) => a - b),
+        duplicate_selected_chunks: duplicateSelected,
+        duplicate_result_chunks: duplicateResults,
+        missing_result_chunks: missingResults,
+        unexpected_result_chunks: unexpectedResults,
+      })}`,
+    );
+  }
+
+  const resultByChunkIndex = new Map(
+    indexedResults.map((entry) => [entry.chunk_index, entry.result] as const),
+  );
+  return aggregatePass2ChunkResults(
+    selectedChunkIndices.map((chunkIndex) => resultByChunkIndex.get(chunkIndex)!),
+  );
+}
+
 import type { SubmissionScopeProfile } from "./submissionScope";
 
 /**
@@ -918,14 +991,17 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       },
     );
 
-    const chunkResults: SinglePassOutput[] = [];
+    const chunkResults: IndexedPass2ChunkResult[] = [];
     const failures: Array<{ chunkIndex: number; reason: string }> = [];
     const chunkFailuresByReason: Record<string, number> = {};
     for (let i = 0; i < settled.length; i += 1) {
       const result = settled[i];
       if (!result) continue;
       if (result.status === "fulfilled") {
-        chunkResults.push(result.value);
+        chunkResults.push({
+          chunk_index: selectedChunks[i].chunk_index,
+          result: result.value,
+        });
       } else {
         const reason = String(result.reason instanceof Error ? result.reason.message : result.reason);
         const bucket = isRateLimitError(result.reason) ? "RATE_LIMIT_429" : isTimeoutError(result.reason) ? "TIMEOUT" : isTruncatedJsonParseError(result.reason) ? "JSON_TRUNCATED" : "OTHER";
@@ -974,7 +1050,10 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       );
     }
 
-    const aggregated = aggregatePass2ChunkResults(chunkResults);
+    const aggregated = aggregateSelectedPass2ChunkResults(
+      selectedChunks.map((chunk) => chunk.chunk_index),
+      chunkResults,
+    );
     console.log(`[Pass2] Chunk aggregation complete: ${aggregated.criteria.length} criteria`);
     return {
       ...aggregated,
