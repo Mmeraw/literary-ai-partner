@@ -19,7 +19,7 @@ import {
 const MANIFEST_PATH = path.resolve("tests/fixtures/sipoc/evidence-obligations.v3.json");
 const OUTPUT_PATH = path.resolve("artifacts/sipoc/evidence-results.v3.json");
 const JEST_RESULTS_PATH = path.resolve("artifacts/sipoc/.evidence-jest-results.json");
-const REMEDIATION_AUDIT_PATH = path.resolve("tests/fixtures/sipoc/remediation-audit.v3.json");
+const REMEDIATION_AUDIT_PATH = path.resolve("tests/sipoc/remediation-audit.v3.json");
 const EXPECTED_BOUNDARIES = [
   "S02_QUEUE",
   "S03_CLAIM",

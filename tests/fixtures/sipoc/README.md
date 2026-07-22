@@ -78,7 +78,7 @@ evidence, enforcement, or policy gap and carries an exclusive UTC expiry.
 Only `satisfied_but_unmapped` may become `satisfied` when its named tests pass;
 the runner cannot promote any other state.
 
-`remediation-audit.v3.json` maps active remediation PRs to the stable obligation
+`tests/sipoc/remediation-audit.v3.json` maps active remediation PRs to the stable obligation
 IDs they could address. A mapping is not satisfaction: the audit records the
 capable evidence still required for closure, leaves expiries unchanged, and
 cannot map or resolve the Gate 15 policy conflict.

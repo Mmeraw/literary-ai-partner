@@ -15,7 +15,7 @@ const manifest = JSON.parse(
   fs.readFileSync(path.resolve("tests/fixtures/sipoc/evidence-obligations.v3.json"), "utf8"),
 ) as EvidenceManifest;
 const remediationAudit = JSON.parse(
-  fs.readFileSync(path.resolve("tests/fixtures/sipoc/remediation-audit.v3.json"), "utf8"),
+  fs.readFileSync(path.resolve("tests/sipoc/remediation-audit.v3.json"), "utf8"),
 ) as RemediationAudit;
 
 describe("SIPOC v3 evidence model", () => {
