@@ -79,7 +79,7 @@ describe("Pass 2 chunk completeness SIPOC kickback", () => {
 
   test("missing marketability triggers a fresh completion and succeeds without persisting the discarded result", async () => {
     const onChunkComplete = jest.fn(async () => undefined);
-    const captures: Array<{ request_id?: string }> = [];
+    const captures: Array<{ request_id?: string; retry_attempt?: number }> = [];
     const responses = [
       responseFor(makeOutput("marketability"), "discarded-marketability"),
       responseFor(makeOutput(), "fresh-marketability-repair"),
@@ -97,6 +97,7 @@ describe("Pass 2 chunk completeness SIPOC kickback", () => {
       "discarded-marketability",
       "fresh-marketability-repair",
     ]);
+    expect(captures.map((capture) => capture.retry_attempt)).toEqual([0, 1]);
     expect(result.criteria).toHaveLength(CRITERIA_KEYS.length);
     expect(onChunkComplete).toHaveBeenCalledTimes(1);
     expect(onChunkComplete.mock.calls[0][1].criteria).toHaveLength(CRITERIA_KEYS.length);

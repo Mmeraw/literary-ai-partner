@@ -554,6 +554,11 @@ export interface RunPass2Options {
   _createCompletion?: CreateCompletionFn;
   _onCompletion?: (capture: PassCompletionCapture) => void;
   /**
+   * Zero-based attempt offset set by the chunk worker. It keeps provider
+   * telemetry truthful when a fresh chunk completion replaces discarded output.
+   */
+  _retryAttemptOffset?: number;
+  /**
    * Forced heartbeat: called after each chunk completes (success or failure).
    * Fires from inside the chunk worker, so it runs even when Vercel fluid-compute
    * freezes the event loop between awaits (setInterval stops firing in that state).
@@ -799,6 +804,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
                 manuscriptText: chunk.content,
                 manuscriptChunks: undefined, // Prevent recursive chunking
                 isChunkUnit: true,
+                _retryAttemptOffset: attempt,
                 // Hard-bound each chunk-unit call independently so a single
                 // hung OpenAI socket cannot consume the whole pass budget.
                 // The chunk-unit path uses this as the SDK timeout, giving
@@ -1056,6 +1062,28 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
   let modelCallMs = nowMs() - modelCallStartMs;
   trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2", model: selectedModel, usage: completion.usage });
 
+  const emitCompletion = (completed: typeof completion, retryAttempt: number): void => {
+    const choice = completed.choices?.[0] as CompletionChoice | undefined;
+    const completedWithIds = completed as { request_id?: unknown; id?: unknown };
+    const completedRequestId =
+      typeof completedWithIds.request_id === "string"
+        ? completedWithIds.request_id
+        : typeof completedWithIds.id === "string"
+          ? completedWithIds.id
+          : undefined;
+    opts._onCompletion?.({
+      pass: 2,
+      raw_text: extractResponseText(choice?.message?.content),
+      model: selectedModel,
+      usage: completed.usage,
+      finish_reason: typeof choice?.finish_reason === "string" ? choice.finish_reason : undefined,
+      request_id: completedRequestId,
+      retry_attempt: (opts._retryAttemptOffset ?? 0) + retryAttempt,
+      generated_at: new Date().toISOString(),
+    });
+  };
+  emitCompletion(completion, 0);
+
   const parseValidationStartMs = nowMs();
 
   let firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
@@ -1082,6 +1110,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
     ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
     modelCallMs += nowMs() - retryStartMs;
     trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2_retry", model: selectedModel, usage: completion.usage });
+    emitCompletion(completion, 1);
 
     firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
     rawContent = firstChoice?.message?.content;
@@ -1152,16 +1181,6 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       ? completionWithIds.id
       : undefined;
 
-  opts._onCompletion?.({
-    pass: 2,
-    raw_text: responseText,
-    model: selectedModel,
-    usage: completion.usage,
-    finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
-    request_id: requestId,
-    generated_at: new Date().toISOString(),
-  });
-
   const finishReason = typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : "unknown";
 
   let parsedOutput: SinglePassOutput;
@@ -1195,28 +1214,11 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       ({ completion, configuredMaxTokens } = await requestCompletion(activeMaxTokens));
       modelCallMs += nowMs() - retryStartMs;
       trackCompletionCost({ jobId: opts.jobId ?? "unknown", phase: "pass2_retry", model: selectedModel, usage: completion.usage });
+      emitCompletion(completion, 1);
 
       firstChoice = completion.choices?.[0] as CompletionChoice | undefined;
       rawContent = firstChoice?.message?.content;
       responseText = extractResponseText(rawContent);
-      const retryCompletionWithIds = completion as { request_id?: unknown; id?: unknown };
-      const retryRequestId =
-        typeof retryCompletionWithIds.request_id === "string"
-          ? retryCompletionWithIds.request_id
-          : typeof retryCompletionWithIds.id === "string"
-          ? retryCompletionWithIds.id
-          : undefined;
-
-      opts._onCompletion?.({
-        pass: 2,
-        raw_text: responseText,
-        model: selectedModel,
-        usage: completion.usage,
-        finish_reason: typeof firstChoice?.finish_reason === "string" ? firstChoice.finish_reason : undefined,
-        request_id: retryRequestId,
-        generated_at: new Date().toISOString(),
-      });
-
       parsedOutput = parsePass2Response(responseText, selectedModel);
     } else {
     console.error("[Pass2] Parse boundary diagnostic", {
