@@ -59,6 +59,9 @@ jobs:
         run: |
           set -euo pipefail
           EXPECTED_SHA="${{ steps.expected.outputs.expected_sha }}"
+          NORMALIZED_ALIAS="${VERCEL_PROD_ALIAS#https://}"
+          NORMALIZED_ALIAS="${NORMALIZED_ALIAS#http://}"
+          NORMALIZED_ALIAS="${NORMALIZED_ALIAS%/}"
 
           # ── Fast-path: check current production deployment first ─────────────
           # Vercel triggers its own deployment on push to main. By the time this
@@ -70,26 +73,84 @@ jobs:
           # Root cause of needing any wait: Vercel cold-build time, not CI lag.
           # Do NOT increase the deadline — fix build time instead if it's exceeded.
 
+          vercel_api() {
+            local url="$1"
+            local body_file
+            body_file="$(mktemp)"
+            HTTP_STATUS="$(curl -sS -o "$body_file" -w '%{http_code}' \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$url" || true)"
+            HTTP_BODY="$(cat "$body_file")"
+            rm -f "$body_file"
+          }
+
+          print_recent_production_deployments() {
+            local url="https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&target=production&limit=5"
+            vercel_api "$url"
+            if [[ "$HTTP_STATUS" != 2* ]]; then
+              echo "Could not fetch recent Vercel production deployments for diagnostics (HTTP $HTTP_STATUS)." >&2
+              printf '%s\n' "$HTTP_BODY" >&2
+              return 0
+            fi
+            echo "Recent Vercel production deployments for project ${VERCEL_PROJECT_ID}:"
+            printf '%s' "$HTTP_BODY" | jq -r '
+              (.deployments // [])[]
+              | "- id=\(.uid // .id // \"\") state=\(.state // .readyState // \"UNKNOWN\") url=\(.url // \"\") sha=\(.meta.githubCommitSha // \"\") created=\(.createdAt // \"\")"
+            '
+          }
+
           resolve_deployment() {
-            INSPECT_OUT="$(npx -y vercel inspect "$VERCEL_PROD_ALIAS" --token "$VERCEL_TOKEN" 2>&1 || true)"
-            DEPLOY_ID="$(printf '%s\n' "$INSPECT_OUT" | awk '/^\s*id\s+dpl_/ {print $2; exit}')"
+            local alias_url="https://api.vercel.com/v4/aliases/${NORMALIZED_ALIAS}"
+            local alias_json deploy_id meta_json ready_state deploy_sha deploy_url deploy_project_id
+
+            vercel_api "$alias_url"
+            if [[ "$HTTP_STATUS" == "404" ]]; then
+              echo ""
+              return 0
+            fi
+            if [[ "$HTTP_STATUS" != 2* ]]; then
+              echo "::error::Failed to resolve Vercel production alias ${NORMALIZED_ALIAS} (HTTP $HTTP_STATUS)." >&2
+              printf '%s\n' "$HTTP_BODY" >&2
+              return 2
+            fi
+
+            alias_json="$HTTP_BODY"
+            DEPLOY_ID="$(printf '%s' "$alias_json" | jq -r '.deployment.id // .deployment.uid // .deploymentId // ""')"
             if [[ -z "$DEPLOY_ID" ]]; then
               echo ""
               return
             fi
-            META_JSON="$(curl -fsSL -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$DEPLOY_ID")"
-            READY_STATE="$(printf '%s' "$META_JSON" | jq -r '.readyState // "UNKNOWN"')"
-            DEPLOY_SHA="$(printf '%s' "$META_JSON" | jq -r '.meta.githubCommitSha // ""')"
-            echo "${DEPLOY_ID}|${READY_STATE}|${DEPLOY_SHA}"
+
+            vercel_api "https://api.vercel.com/v13/deployments/$DEPLOY_ID"
+            if [[ "$HTTP_STATUS" != 2* ]]; then
+              echo "::error::Failed to inspect Vercel deployment $DEPLOY_ID (HTTP $HTTP_STATUS)." >&2
+              printf '%s\n' "$HTTP_BODY" >&2
+              return 2
+            fi
+
+            meta_json="$HTTP_BODY"
+            ready_state="$(printf '%s' "$meta_json" | jq -r '.readyState // .state // "UNKNOWN"')"
+            deploy_sha="$(printf '%s' "$meta_json" | jq -r '.meta.githubCommitSha // ""')"
+            deploy_url="$(printf '%s' "$meta_json" | jq -r '.url // ""')"
+            deploy_project_id="$(printf '%s' "$meta_json" | jq -r '.projectId // .project.id // ""')"
+
+            if [[ -n "$deploy_project_id" && "$deploy_project_id" != "$VERCEL_PROJECT_ID" ]]; then
+              echo "::error::Alias ${NORMALIZED_ALIAS} points to project ${deploy_project_id}, expected ${VERCEL_PROJECT_ID}." >&2
+              return 2
+            fi
+
+            echo "${DEPLOY_ID}|${ready_state}|${deploy_sha}|${deploy_url}"
           }
 
           check_match() {
             local info="$1"
             [[ -z "$info" ]] && return 1
-            local state sha
+            local state sha url
             state="$(echo "$info" | cut -d'|' -f2)"
             sha="$(echo "$info" | cut -d'|' -f3)"
-            echo "Deployment: $(echo "$info" | cut -d'|' -f1) | state=$state | sha=$sha"
+            url="$(echo "$info" | cut -d'|' -f4)"
+            echo "Alias attachment: $NORMALIZED_ALIAS -> deployment $(echo "$info" | cut -d'|' -f1) | state=$state | sha=$sha | url=$url"
             [[ "$state" == "READY" && "$sha" == "$EXPECTED_SHA" ]]
           }
 
@@ -121,6 +182,8 @@ jobs:
           if [[ "$matched" -ne 1 ]]; then
             echo "❌ Vercel production alias did not converge to origin/main within 10 minutes."
             echo "Expected SHA: $EXPECTED_SHA"
+            echo "Current alias-attached deployment info: ${DEPLOY_INFO:-unresolved}"
+            print_recent_production_deployments
             echo "If Vercel build time is the blocker, address Vercel build performance — do not increase this deadline."
             exit 1
           fi
@@ -133,8 +196,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PROJECT_REF: ${{ secrets.PROD_SUPABASE_PROJECT_REF }}
       SUPABASE_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
       SUPABASE_DB_PASSWORD: ${{ secrets.PROD_SUPABASE_DB_PASSWORD }}
     steps:
@@ -142,9 +203,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - name: Setup Supabase CLI
-        uses: ./.github/actions/setup-supabase-cli
 
       - name: Ensure psql is available
         shell: bash
@@ -159,8 +217,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]] || { echo "Missing SUPABASE_ACCESS_TOKEN"; exit 1; }
-          [[ -n "${SUPABASE_PROJECT_REF:-}" ]] || { echo "Missing PROD_SUPABASE_PROJECT_REF"; exit 1; }
           [[ -n "${SUPABASE_DB_URL:-}" ]] || { echo "Missing PROD_SUPABASE_DB_URL"; exit 1; }
 
           if [[ -z "${SUPABASE_DB_PASSWORD:-}" ]]; then
@@ -174,19 +230,14 @@ jobs:
             fi
           fi
 
-      - name: Link Supabase production project
-        shell: bash
-        run: |
-          set -euo pipefail
-          supabase link --project-ref "$SUPABASE_PROJECT_REF" --yes
-
       - name: Verify migration parity (repo vs production)
         shell: bash
         run: |
           set -euo pipefail
 
           LOCAL_IDS="$(ls supabase/migrations/*.sql | xargs -n1 basename | cut -d'_' -f1 | sort -u)"
-          REMOTE_ROWS="$(psql "$SUPABASE_DB_URL" -Atqc "SELECT version::text FROM supabase_migrations.schema_migrations ORDER BY version")"
+          psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT 1" >/dev/null
+          REMOTE_ROWS="$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -Atqc "SELECT version::text FROM supabase_migrations.schema_migrations ORDER BY version")"
 
           echo "Remote schema_migrations rows:"
           printf '%s\n' "$REMOTE_ROWS"
