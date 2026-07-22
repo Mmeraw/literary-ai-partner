@@ -55,6 +55,7 @@
     "jobs:test:metrics": "node scripts/jobs-test-metrics.mjs",
     "jobs:retry-tick": "node scripts/jobs-retry-tick.mjs",
     "jobs:load": "node scripts/jobs-load.mjs",
+    "evaluation:burn-in": "tsx -r tsconfig-paths/register scripts/evaluation/run-burn-in.ts",
     "soak:run": "npx tsx -r tsconfig-paths/register scripts/soak/run-soak.ts",
     "soak:debug": "npm run soak:run -- --events=1000 --concurrency=5 --seed=42 --mode=deterministic",
     "soak:stability": "npm run soak:run -- --events=10000 --concurrency=10 --seed=42 --mode=stress",
