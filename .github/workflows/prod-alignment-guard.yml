@@ -140,7 +140,7 @@ jobs:
               return 2
             fi
 
-            echo "${DEPLOY_ID}|${READY_STATE}|${DEPLOY_SHA}|${deploy_url}"
+            echo "${DEPLOY_ID}|${ready_state}|${deploy_sha}|${deploy_url}"
           }
 
           check_match() {
@@ -150,7 +150,7 @@ jobs:
             state="$(echo "$info" | cut -d'|' -f2)"
             sha="$(echo "$info" | cut -d'|' -f3)"
             url="$(echo "$info" | cut -d'|' -f4)"
-            echo "Alias: $NORMALIZED_ALIAS | Deployment: $(echo "$info" | cut -d'|' -f1) | state=$state | sha=$sha | url=$url"
+            echo "Alias attachment: $NORMALIZED_ALIAS -> deployment $(echo "$info" | cut -d'|' -f1) | state=$state | sha=$sha | url=$url"
             [[ "$state" == "READY" && "$sha" == "$EXPECTED_SHA" ]]
           }
 
@@ -182,7 +182,7 @@ jobs:
           if [[ "$matched" -ne 1 ]]; then
             echo "❌ Vercel production alias did not converge to origin/main within 10 minutes."
             echo "Expected SHA: $EXPECTED_SHA"
-            echo "Current alias deployment info: ${DEPLOY_INFO:-unresolved}"
+            echo "Current alias-attached deployment info: ${DEPLOY_INFO:-unresolved}"
             print_recent_production_deployments
             echo "If Vercel build time is the blocker, address Vercel build performance — do not increase this deadline."
             exit 1
