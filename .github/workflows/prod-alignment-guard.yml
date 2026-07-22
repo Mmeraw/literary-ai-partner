@@ -30,6 +30,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_PROD_ALIAS: ${{ secrets.VERCEL_PROD_ALIAS }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -75,12 +76,20 @@ jobs:
 
           vercel_api() {
             local url="$1"
+            local request_url="$url"
             local body_file
+            if [[ -n "${VERCEL_TEAM_ID:-}" ]]; then
+              if [[ "$request_url" == *\?* ]]; then
+                request_url="${request_url}&teamId=${VERCEL_TEAM_ID}"
+              else
+                request_url="${request_url}?teamId=${VERCEL_TEAM_ID}"
+              fi
+            fi
             body_file="$(mktemp)"
             HTTP_STATUS="$(curl -sS -o "$body_file" -w '%{http_code}' \
               -H "Authorization: Bearer $VERCEL_TOKEN" \
               -H "Content-Type: application/json" \
-              "$url" || true)"
+              "$request_url" || true)"
             HTTP_BODY="$(cat "$body_file")"
             rm -f "$body_file"
           }
@@ -111,6 +120,9 @@ jobs:
             fi
             if [[ "$HTTP_STATUS" != 2* ]]; then
               echo "::error::Failed to resolve Vercel production alias ${NORMALIZED_ALIAS} (HTTP $HTTP_STATUS)." >&2
+              if [[ "$HTTP_STATUS" == "403" ]]; then
+                echo "::error::Vercel token cannot inspect the configured production alias. For team-owned projects, set VERCEL_TEAM_ID and ensure VERCEL_TOKEN has access to that team/project/alias." >&2
+              fi
               printf '%s\n' "$HTTP_BODY" >&2
               return 2
             fi
@@ -125,6 +137,9 @@ jobs:
             vercel_api "https://api.vercel.com/v13/deployments/$DEPLOY_ID"
             if [[ "$HTTP_STATUS" != 2* ]]; then
               echo "::error::Failed to inspect Vercel deployment $DEPLOY_ID (HTTP $HTTP_STATUS)." >&2
+              if [[ "$HTTP_STATUS" == "403" ]]; then
+                echo "::error::Vercel token cannot inspect the alias-attached deployment. For team-owned projects, set VERCEL_TEAM_ID and ensure VERCEL_TOKEN has deployment read access." >&2
+              fi
               printf '%s\n' "$HTTP_BODY" >&2
               return 2
             fi
