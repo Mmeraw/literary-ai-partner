@@ -157,6 +157,8 @@ jobs:
       TEST_MODE: "true"
       ALLOW_HEADER_USER_ID: "true"
       SMOKE_USER_ID: ${{ secrets.SMOKE_USER_ID }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
     steps:
       - uses: actions/checkout@v5
         with:
