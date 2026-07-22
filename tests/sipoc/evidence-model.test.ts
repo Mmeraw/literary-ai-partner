@@ -7,11 +7,16 @@ import {
   deriveBoundaryEvidenceState,
   type EvidenceManifest,
   type EvidenceObligation,
+  REMEDIATION_AUDIT_STATES,
+  type RemediationAudit,
 } from "./evidenceModel";
 
 const manifest = JSON.parse(
   fs.readFileSync(path.resolve("tests/fixtures/sipoc/evidence-obligations.v3.json"), "utf8"),
 ) as EvidenceManifest;
+const remediationAudit = JSON.parse(
+  fs.readFileSync(path.resolve("tests/fixtures/sipoc/remediation-audit.v3.json"), "utf8"),
+) as RemediationAudit;
 
 describe("SIPOC v3 evidence model", () => {
   test("defines exactly the ratified four evidence kinds", () => {
@@ -54,6 +59,39 @@ describe("SIPOC v3 evidence model", () => {
       remediation_class: "policy",
       blocked_by: "gate_15_product_policy_ruling",
     });
+  });
+
+  test("audits remediation candidates without treating implementation as earned evidence", () => {
+    const manifestIds = new Set(manifest.obligations.map((item) => item.id));
+    expect(remediationAudit.schema_version).toBe(1);
+    expect(remediationAudit.based_on_manifest_schema).toBe(manifest.schema_version);
+    expect(remediationAudit.entries.map((entry) => entry.pull_request)).toEqual([1385, 1386, 1387, 1390, 1395]);
+    for (const entry of remediationAudit.entries) {
+      expect(REMEDIATION_AUDIT_STATES).toContain(entry.audit_state);
+      expect(entry.capable_evidence_required).toBeTruthy();
+      expect(entry.residual_gap).toBeTruthy();
+      for (const id of entry.obligation_ids) {
+        expect(manifestIds).toContain(id);
+        expect(manifest.obligations.find((item) => item.id === id)?.current_state).not.toBe("satisfied");
+      }
+    }
+  });
+
+  test("never lets a remediation PR select or close the Gate 15 policy conflict", () => {
+    const mapped = remediationAudit.entries.flatMap((entry) => entry.obligation_ids);
+    expect(mapped).not.toContain("S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04");
+    expect(manifest.obligations.find((item) => item.id === "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04"))
+      .toMatchObject({ current_state: "policy_conflict", blocked_by: "gate_15_product_policy_ruling" });
+  });
+
+  test("requires capable evidence for every mapped evidence kind", () => {
+    const requirements = new Map(remediationAudit.entries.flatMap((entry) =>
+      entry.obligation_ids.map((id) => [id, entry.capable_evidence_required] as const),
+    ));
+    expect(requirements.get("S03_CLAIM.failclosed.02")).toContain("two-session");
+    expect(requirements.get("S11a_RENDERER_WEBPAGE.failclosed.03")).toContain("actual webpage consumer");
+    expect(requirements.get("S11b_DOWNLOAD_PIPELINE.failclosed.03")).toContain("route evidence");
+    expect(requirements.get("S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05")).toContain("public production call path");
   });
 
   test("never derives proven from an empty or partially satisfied obligation set", () => {

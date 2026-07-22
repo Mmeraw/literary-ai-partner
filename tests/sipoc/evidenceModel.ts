@@ -103,6 +103,29 @@ export interface EvidenceManifest {
   obligations: EvidenceObligation[];
 }
 
+export const REMEDIATION_AUDIT_STATES = [
+  "candidate_only",
+  "evidence_incomplete",
+  "policy_blocked",
+] as const;
+export type RemediationAuditState = (typeof REMEDIATION_AUDIT_STATES)[number];
+
+export interface RemediationAuditEntry {
+  pull_request: number;
+  scope: string;
+  obligation_ids: string[];
+  audit_state: RemediationAuditState;
+  capable_evidence_required: string;
+  residual_gap: string;
+}
+
+export interface RemediationAudit {
+  schema_version: 1;
+  based_on_manifest_schema: 3;
+  generated_from: string;
+  entries: RemediationAuditEntry[];
+}
+
 export function isSipocStageId(value: unknown): value is SipocStageId {
   return typeof value === "string" && (SIPOC_STAGE_IDS as readonly string[]).includes(value);
 }
