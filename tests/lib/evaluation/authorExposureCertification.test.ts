@@ -1,5 +1,6 @@
 import { evaluateAuthorExposureCertification, getAuthorExposureDecision } from '@/lib/evaluation/authorExposureCertification';
 import { evaluateGate15AuthorExposure } from '@/lib/evaluation/gate15/authorExposureGate15';
+import { runGate15Audit } from '@/lib/evaluation/gate15/gate15_orchestrator';
 
 const passingDcipCompliance = { status: 'pass', reasons: [] };
 const JOB_ID = 'job-1';
@@ -446,6 +447,40 @@ describe('evaluateGate15AuthorExposure', () => {
 
     expect(blocked.exposable).toBe(false);
     expect(remediated.exposable).toBe(true);
+  });
+
+  test('accepts a genuine runGate15Audit artifact and rejects mutated freshness or lineage', () => {
+    const manuscript = 'Short form content. '.repeat(200);
+    const artifact = runGate15Audit(manuscript, JOB_ID, 'manuscript-1');
+    const now = new Date(artifact.timestamp);
+
+    expect(evaluateGate15AuthorExposure(artifact, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: true,
+      status: 'skipped',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, valid_until: '2026-07-21T00:00:00.000Z' }, {
+      jobId: JOB_ID,
+      now: new Date('2026-07-22T00:00:00.000Z'),
+    })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, valid_until: undefined }, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, jobId: 'other-job' }, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_lineage_mismatch',
+    });
+
+    expect(evaluateGate15AuthorExposure({ ...artifact, lineage_status: 'superseded' }, { jobId: JOB_ID, now })).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
   });
 });
 
