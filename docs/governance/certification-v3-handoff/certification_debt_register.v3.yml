@@ -1,0 +1,1116 @@
+# Certification Debt Register  (PROPOSED v3 - no implementation code)
+# Safety-case model: a boundary is trusted only to the level its EVIDENCE supports.
+# 'declared_status' is DERIVED by deriveCertificationStatus() (policy Part B0), never hand-authored;
+# the gate fails if the registry claim != the derived value (STATUS_CLAIM_MISMATCH).
+#
+# Source of truth: lib/evaluation/fipocRegistry.ts | Deterministically generated: 2026-07-22
+# DERIVED STATE, not authored truth: CI regenerates from the registry at PR head; any diff fails
+# (REGISTER_DRIFT). Baselines compared against PROTECTED main only.
+#
+# EXPIRY SEMANTICS: a debt is valid iff NOW_utc < expires_before_utc (EXCLUSIVE). At/after that
+# instant the debt is expired and CI fails. NOW is injectable via SIPOC_GATE_NOW for tests.
+#
+# EVIDENCE OBLIGATION IDS are STABLE and are the unit of the EVIDENCE_REDUCTION check (compared
+# by id set vs main, never by prose). Rewording a 'rule' string never satisfies/defeats the check.
+# 'evidence_state' is one of: SATISFIED_BY_FIXTURE (fixture named) | REQUIRED_TO_RETIRE (must be
+# supplied by the remediation PR before deriveCertificationStatus() can return 'proven').
+
+schema_version: 3
+fit_gap_severity_rank: [ok, gap, critical]   # single real axis; any rightward move is a regression
+certification_status_authority: lib/evaluation/certificationStatusAuthority.ts  # TO BE ADDED (Part B0): transition MATRIX (not a linear rank) + deriveCertificationStatus()
+debts:
+  - boundary: S04_ROUTING_CHUNKING
+    process: "Routing and Chunking"
+    remediation_tier: 1
+    expires_before_utc: 2026-08-05T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S04_ROUTING_CHUNKING.contract
+        kind: contract_proof
+        rule: "Create deterministic chunk/routing manifest for pass execution."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S04_ROUTING_CHUNKING.failclosed.01
+        kind: fail_closed
+        rule: "empty chunks for non-empty manuscript"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S04_ROUTING_CHUNKING.failclosed.02
+        kind: fail_closed
+        rule: "route/type mismatch"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S04_ROUTING_CHUNKING.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s04_routing_chunking_fail_closed_on_coverage_mismatch.json, s04_chunker_budget_overflow.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S05_PASS1, S06_PASS2, ADJACENT_DREAM]  # may not GROW while in debt
+  - boundary: S06_PASS2
+    process: "Pass 2 Craft Diagnosis"
+    remediation_tier: 2
+    expires_before_utc: 2026-08-12T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S06_PASS2.contract
+        kind: contract_proof
+        rule: "Produce independent craft diagnosis and candidate recommendations. Reuse only current-source, current-version checkpoint entries that satisfy the canonical recommendation-disposition contract; regenerate an incompatible entry from the same source chunk."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S06_PASS2.failclosed.01
+        kind: fail_closed
+        rule: "Pass 1 contamination"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06_PASS2.failclosed.02
+        kind: fail_closed
+        rule: "generic recommendations"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06_PASS2.failclosed.03
+        kind: fail_closed
+        rule: "malformed output"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06_PASS2.failclosed.04
+        kind: fail_closed
+        rule: "cache source_hash mismatch invalidates the cache"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06_PASS2.failclosed.05
+        kind: fail_closed
+        rule: "cached prompt_version mismatch invalidates that entry"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06_PASS2.failclosed.06
+        kind: fail_closed
+        rule: "cached disposition contract violation invalidates that entry"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06_PASS2.failclosed.07
+        kind: fail_closed
+        rule: "conflicting chunk-level zero-recommendation statuses block aggregation"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06_PASS2.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s06_pass2_independence_violation.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S06b_HANDOFF_GATE, S07_PASS3]  # may not GROW while in debt
+  - boundary: S06b_HANDOFF_GATE
+    process: "Pass 1/2 Handoff Gate"
+    remediation_tier: 3
+    expires_before_utc: 2026-08-19T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S06b_HANDOFF_GATE.contract
+        kind: contract_proof
+        rule: "Run the deterministic prose-quality gate before persisting the canonical Pass 1/2 handoff. Persist the exact pass1Output/pass2Output content contract consumed by Phase 3; review_gate_passed_at and the handoff presence/shape guard remain mandatory transition authorities."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S06b_HANDOFF_GATE.failclosed.01
+        kind: fail_closed
+        rule: "schema_version mismatch"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06b_HANDOFF_GATE.failclosed.02
+        kind: fail_closed
+        rule: "missing Pass 1 or Pass 2 payload"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06b_HANDOFF_GATE.failclosed.03
+        kind: fail_closed
+        rule: "scaffold residue"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06b_HANDOFF_GATE.failclosed.04
+        kind: fail_closed
+        rule: "broken modal"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06b_HANDOFF_GATE.failclosed.05
+        kind: fail_closed
+        rule: "generic language"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06b_HANDOFF_GATE.failclosed.06
+        kind: fail_closed
+        rule: "missing evidence anchor"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S06b_HANDOFF_GATE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S07_PASS3]  # may not GROW while in debt
+  - boundary: S07_PASS3
+    process: "Pass 3 Synthesis"
+    remediation_tier: 4
+    expires_before_utc: 2026-08-26T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: high_risk            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: critical
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S07_PASS3.contract
+        kind: contract_proof
+        rule: "Synthesize final evaluation while preserving evidence, specificity, score hierarchy, and ledger name authority. Every meaningful Pass 2 recommendation must terminate exactly once as materialized, consolidated into a named surviving source, or governed-suppressed with rule, rationale, and evidence; source accounting is deterministic and does not alter editorial scoring or admission policy."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S07_PASS3.failclosed.01
+        kind: fail_closed
+        rule: "missing overview field"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.02
+        kind: fail_closed
+        rule: "banned character name"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.03
+        kind: fail_closed
+        rule: "generic prescription"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.04
+        kind: fail_closed
+        rule: "duplicate strategic lever"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.05
+        kind: fail_closed
+        rule: "scored criterion lacks recommendations and a governed disposition"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.06
+        kind: fail_closed
+        rule: "recommendation cardinality contradicts explicit recommendation_status"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.07
+        kind: fail_closed
+        rule: "unknown recommendation_status or required rationale missing"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.08
+        kind: fail_closed
+        rule: "Pass 2 recommendation source has no outcome, has multiple outcomes, names an unknown source, or is suppressed without governed rule/rationale/evidence"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.09
+        kind: fail_closed
+        rule: "materialized or consolidated source does not name a surviving recommendation source ID"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.10
+        kind: fail_closed
+        rule: "coverage violation mixed with an unrelated critical template defect is terminal"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.11
+        kind: fail_closed
+        rule: "exhausted coverage kick cannot fall through to generic Phase 3 retry"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.12
+        kind: fail_closed
+        rule: "long-form artifact terms in short-form output (WAVE / Golden Spine / Phase 5)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.13
+        kind: fail_closed
+        rule: "internal pipeline process labels in user-facing text"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.14
+        kind: fail_closed
+        rule: "whole-manuscript claim unsupportable from submitted excerpt"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.15
+        kind: fail_closed
+        rule: "mid-sentence author-facing prose"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.16
+        kind: fail_closed
+        rule: "short-form copy defect"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.failclosed.17
+        kind: fail_closed
+        rule: "recommendation field integrity defect"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S07_PASS3.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s07_pass3_surface_template_clamp_safety.json, s07_pass3_fail_on_generic_or_incoherent_synthesis.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S08_ER2_NORMALIZATION, ADJACENT_WAVE]  # may not GROW while in debt
+  - boundary: S08_ER2_NORMALIZATION
+    process: "EvaluationResultV2 Normalization"
+    remediation_tier: 5
+    expires_before_utc: 2026-09-02T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: high_risk            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: critical
+    target_status: proven
+    revise_handoff: true
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S08_ER2_NORMALIZATION.contract
+        kind: contract_proof
+        rule: "Normalize synthesis into canonical evaluation_result_v2."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S08_ER2_NORMALIZATION.failclosed.01
+        kind: fail_closed
+        rule: "missing criterion"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S08_ER2_NORMALIZATION.failclosed.02
+        kind: fail_closed
+        rule: "score range invalid"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S08_ER2_NORMALIZATION.failclosed.03
+        kind: fail_closed
+        rule: "banned entity contamination"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S08_ER2_NORMALIZATION.failclosed.04
+        kind: fail_closed
+        rule: "field undefined where required"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S08_ER2_NORMALIZATION.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s08_er2_score_null_separation.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S09_QUALITYGATEV2, S11a_RENDERER_WEBPAGE, S11b_DOWNLOAD_PIPELINE, ADJACENT_WAVE, ADJACENT_DREAM, ADJACENT_REVISION_LEDGER]  # may not GROW while in debt
+  - boundary: S10_PERSISTENCE
+    process: "Atomic Evaluation Persistence"
+    remediation_tier: 6
+    expires_before_utc: 2026-09-09T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S10_PERSISTENCE.contract
+        kind: contract_proof
+        rule: "Persist the canonical evaluation artifact and terminal job state atomically only after quality, template-completeness, and recommendation-disposition authority all pass."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S10_PERSISTENCE.failclosed.01
+        kind: fail_closed
+        rule: "gate failed but persist attempted"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S10_PERSISTENCE.failclosed.02
+        kind: fail_closed
+        rule: "artifact validation failed"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S10_PERSISTENCE.failclosed.03
+        kind: fail_closed
+        rule: "template-completeness or recommendation-disposition failure reached persistence"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S10_PERSISTENCE.failclosed.04
+        kind: fail_closed
+        rule: "mixed template failure requeued"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S10_PERSISTENCE.failclosed.05
+        kind: fail_closed
+        rule: "exhausted coverage failure requeued"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S10_PERSISTENCE.failclosed.06
+        kind: fail_closed
+        rule: "Revise projection invoked after terminal pre-persistence failure"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S10_PERSISTENCE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s10_persistence_fail_closed_on_gate_fail.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_WAVE, S10b_PHASE5_AUTHOR_EXPOSURE_GATE, S11a_RENDERER_WEBPAGE, S11b_DOWNLOAD_PIPELINE]  # may not GROW while in debt
+  - boundary: ADJACENT_REVISION_LEDGER
+    process: "Revision Opportunity Ledger"
+    remediation_tier: 7
+    expires_before_utc: 2026-09-16T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: true
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_REVISION_LEDGER.contract
+        kind: contract_proof
+        rule: "Project admitted canonical opportunities into the Revision Opportunity Ledger without rerunning evaluation, reading report summaries, or manufacturing queue identities. Suppressed and informational recommendation dispositions remain certified lineage only and do not become active or Held work."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_REVISION_LEDGER.failclosed.01
+        kind: fail_closed
+        rule: "canonical authority missing or malformed"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.failclosed.02
+        kind: fail_closed
+        rule: "ledger row exists without admitted disposition"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.failclosed.03
+        kind: fail_closed
+        rule: "admitted disposition omitted from ledger"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.failclosed.04
+        kind: fail_closed
+        rule: "duplicate canonical opportunity identity"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.failclosed.05
+        kind: fail_closed
+        rule: "missing evidence anchor"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.failclosed.06
+        kind: fail_closed
+        rule: "vague operation"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.failclosed.07
+        kind: fail_closed
+        rule: "missing/failing DCIP compliance"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.failclosed.08
+        kind: fail_closed
+        rule: "missing required constitutional authority"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISION_LEDGER.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_REVISE]  # may not GROW while in debt
+  - boundary: ADJACENT_REVISE
+    process: "Revise Queue Admission"
+    remediation_tier: 8
+    expires_before_utc: 2026-09-23T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: ok
+    target_status: proven
+    revise_handoff: true
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_REVISE.contract
+        kind: contract_proof
+        rule: "Admit only evidence-backed revision items into the authenticated workbench. Ready items require exact source targeting plus three manuscript-ready A/B/C candidates; incomplete rows remain Needs Targeting."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_REVISE.failclosed.01
+        kind: fail_closed
+        rule: "Revise reruns evaluator"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISE.failclosed.02
+        kind: fail_closed
+        rule: "A/B/C not prose"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISE.failclosed.03
+        kind: fail_closed
+        rule: "generic or malformed candidate prose"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISE.failclosed.04
+        kind: fail_closed
+        rule: "duplicate or near-duplicate A/B/C options"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISE.failclosed.05
+        kind: fail_closed
+        rule: "Ready row missing source passage"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISE.failclosed.06
+        kind: fail_closed
+        rule: "author decision not persisted"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVISE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [Revise Workbench, TrustedPath]  # may not GROW while in debt
+  - boundary: ADJACENT_WAVE
+    process: "WAVE Revision Planning"
+    remediation_tier: 9
+    expires_before_utc: 2026-09-30T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: active_partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: true
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_WAVE.contract
+        kind: contract_proof
+        rule: "Derive manuscript-specific wave plan from canonical criterion keys with score-aware filtering."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_WAVE.failclosed.01
+        kind: fail_closed
+        rule: "NO_DERIVED_WAVES_FROM_PASS3_FINDINGS"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_WAVE.failclosed.02
+        kind: fail_closed
+        rule: "generic fallback only"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_WAVE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_CANON_GOVERNANCE, ADJACENT_DREAM, ADJACENT_REVISION_LEDGER]  # may not GROW while in debt
+  - boundary: ADJACENT_DREAM
+    process: "DREAM Long-Form Document Synthesis"
+    remediation_tier: 9
+    expires_before_utc: 2026-09-30T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: active_partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: critical
+    target_status: proven
+    revise_handoff: true
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_DREAM.contract
+        kind: contract_proof
+        rule: "Produce long-form narrative synthesis without diverging from canonical evaluation data."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_DREAM.failclosed.01
+        kind: fail_closed
+        rule: "DREAM score drift"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_DREAM.failclosed.02
+        kind: fail_closed
+        rule: "DREAM genre drift"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_DREAM.failclosed.03
+        kind: fail_closed
+        rule: "banned name contamination"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_DREAM.failclosed.04
+        kind: fail_closed
+        rule: "score-10 shopping list"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_DREAM.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_FINAL_EXTERNAL_AUDIT, S10b_PHASE5_AUTHOR_EXPOSURE_GATE, S11b_DOWNLOAD_PIPELINE]  # may not GROW while in debt
+  - boundary: S01_INTAKE
+    process: "Intake"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S01_INTAKE.contract
+        kind: contract_proof
+        rule: "Validate request and accept canonical job payload for queueing."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S01_INTAKE.failclosed.01
+        kind: fail_closed
+        rule: "ambiguous manuscript source"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S01_INTAKE.failclosed.02
+        kind: fail_closed
+        rule: "unauthenticated actor"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S01_INTAKE.failclosed.03
+        kind: fail_closed
+        rule: "non-canonical job type"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S01_INTAKE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s01_intake_missing_required_input.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S02_QUEUE]  # may not GROW while in debt
+  - boundary: S05_PASS1
+    process: "Pass 1 Extraction"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S05_PASS1.contract
+        kind: contract_proof
+        rule: "Extract story/craft signals without depending on Pass 2 output."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S05_PASS1.failclosed.01
+        kind: fail_closed
+        rule: "pseudo-entity contamination"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S05_PASS1.failclosed.02
+        kind: fail_closed
+        rule: "malformed pass output"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S05_PASS1.failclosed.03
+        kind: fail_closed
+        rule: "missing story layer"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S05_PASS1.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s05_pass1_fail_closed_on_timeout_truncation.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_SEMANTIC_GATE, S06b_HANDOFF_GATE, S07_PASS3]  # may not GROW while in debt
+  - boundary: S09_QUALITYGATEV2
+    process: "QualityGateV2"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: S09_QUALITYGATEV2.contract
+        kind: contract_proof
+        rule: "Fail closed on deterministic evaluation defects."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: S09_QUALITYGATEV2.failclosed.01
+        kind: fail_closed
+        rule: "duplicate rec"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S09_QUALITYGATEV2.failclosed.02
+        kind: fail_closed
+        rule: "generic rec"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S09_QUALITYGATEV2.failclosed.03
+        kind: fail_closed
+        rule: "low evidence coverage"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S09_QUALITYGATEV2.failclosed.04
+        kind: fail_closed
+        rule: "criteria mismatch"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: S09_QUALITYGATEV2.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: [s09_qualitygate_generic_editorial_feedback.json]  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S10_PERSISTENCE, ADJACENT_FINAL_EXTERNAL_AUDIT]  # may not GROW while in debt
+  - boundary: ADJACENT_CANON_GOVERNANCE
+    process: "Gate 15, Golden Spine, Dialogue Canon, Revision Canon Metadata"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: active_partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: critical
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_CANON_GOVERNANCE.contract
+        kind: contract_proof
+        rule: "Run manuscript-scale governance audits and persist all governance artifacts."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_CANON_GOVERNANCE.failclosed.01
+        kind: fail_closed
+        rule: "Gate 15 FAIL"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_CANON_GOVERNANCE.failclosed.02
+        kind: fail_closed
+        rule: "dialogue detector impossible count"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_CANON_GOVERNANCE.failclosed.03
+        kind: fail_closed
+        rule: "weak continuity hidden"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_CANON_GOVERNANCE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_DREAM, ADJACENT_FINAL_EXTERNAL_AUDIT, S10b_PHASE5_AUTHOR_EXPOSURE_GATE]  # may not GROW while in debt
+  - boundary: ADJACENT_FINAL_EXTERNAL_AUDIT
+    process: "Final External Audit"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: active_partial            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: critical
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_FINAL_EXTERNAL_AUDIT.contract
+        kind: contract_proof
+        rule: "Determine last-mile releasability from complete artifact set."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_FINAL_EXTERNAL_AUDIT.failclosed.01
+        kind: fail_closed
+        rule: "BLOCK verdict"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_FINAL_EXTERNAL_AUDIT.failclosed.02
+        kind: fail_closed
+        rule: "missing DREAM"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_FINAL_EXTERNAL_AUDIT.failclosed.03
+        kind: fail_closed
+        rule: "contradiction detected"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_FINAL_EXTERNAL_AUDIT.failclosed.04
+        kind: fail_closed
+        rule: "low coverage"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_FINAL_EXTERNAL_AUDIT.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S10b_PHASE5_AUTHOR_EXPOSURE_GATE]  # may not GROW while in debt
+  - boundary: ADJACENT_PHASE_0
+    process: "Phase 0 Authority Binding"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_PHASE_0.contract
+        kind: contract_proof
+        rule: "Bind the job to certified authority and select route/scope without LLM calls."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_PHASE_0.failclosed.01
+        kind: fail_closed
+        rule: "missing authority proof"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0.failclosed.02
+        kind: fail_closed
+        rule: "baseline checksum mismatch"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_PHASE_0_5A, ADJACENT_PHASE_0_5B]  # may not GROW while in debt
+  - boundary: ADJACENT_PHASE_0_5A
+    process: "Story Seeds and Full Context Story Ledger"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_PHASE_0_5A.contract
+        kind: contract_proof
+        rule: "Produce provisional story map, evaluation seed, and full-context story ledger."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_PHASE_0_5A.failclosed.01
+        kind: fail_closed
+        rule: "malformed seed JSON"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0_5A.failclosed.02
+        kind: fail_closed
+        rule: "missing story ledger layer"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0_5A.failclosed.03
+        kind: fail_closed
+        rule: "unverified seed claims"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0_5A.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_SEED_COMPLETENESS_GATE, S05_PASS1, S07_PASS3]  # may not GROW while in debt
+  - boundary: ADJACENT_PHASE_0_5B
+    process: "Revise Opportunity Seed"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: true
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_PHASE_0_5B.contract
+        kind: contract_proof
+        rule: "Produce provisional revise opportunities with A/B/C candidate prose."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_PHASE_0_5B.failclosed.01
+        kind: fail_closed
+        rule: "generic opportunity"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0_5B.failclosed.02
+        kind: fail_closed
+        rule: "missing evidence anchor"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0_5B.failclosed.03
+        kind: fail_closed
+        rule: "A/B/C not prose"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0_5B.failclosed.04
+        kind: fail_closed
+        rule: "duplicate or near-duplicate A/B/C options"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_PHASE_0_5B.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_REVISE]  # may not GROW while in debt
+  - boundary: ADJACENT_SEED_COMPLETENESS_GATE
+    process: "Seed Completeness Gate"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: gap
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_SEED_COMPLETENESS_GATE.contract
+        kind: contract_proof
+        rule: "Block Phase 1A when seed artifacts are incomplete."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_SEED_COMPLETENESS_GATE.failclosed.01
+        kind: fail_closed
+        rule: "missing seed section"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_SEED_COMPLETENESS_GATE.failclosed.02
+        kind: fail_closed
+        rule: "schema invalid"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_SEED_COMPLETENESS_GATE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S05_PASS1]  # may not GROW while in debt
+  - boundary: ADJACENT_SEMANTIC_GATE
+    process: "Story Layer Quality Gate"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: critical
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_SEMANTIC_GATE.contract
+        kind: contract_proof
+        rule: "Classify story layers and block genuine benchmark failures."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_SEMANTIC_GATE.failclosed.01
+        kind: fail_closed
+        rule: "abandoned characters"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_SEMANTIC_GATE.failclosed.02
+        kind: fail_closed
+        rule: "canonical identity degraded"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_SEMANTIC_GATE.failclosed.03
+        kind: fail_closed
+        rule: "failed benchmark minimum"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_SEMANTIC_GATE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [ADJACENT_REVIEW_GATE, S06_PASS2]  # may not GROW while in debt
+  - boundary: ADJACENT_REVIEW_GATE
+    process: "Review Gate"
+    remediation_tier: 10
+    expires_before_utc: 2026-10-14T00:00:00Z   # EXCLUSIVE: valid iff NOW < this instant
+    declared_status: emerging            # must equal deriveCertificationStatus(evidence); else STATUS_CLAIM_MISMATCH
+    fit_gap_severity: critical
+    target_status: proven
+    revise_handoff: false
+    accountable_owner: "@Mmeraw"           # solo repo: CODEOWNERS = VISIBILITY, not segregation of duties
+    evidence_obligations:
+      - id: ADJACENT_REVIEW_GATE.contract
+        kind: contract_proof
+        rule: "Persist accepted story ledger or route dirty layers back for repair."
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
+        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+      - id: ADJACENT_REVIEW_GATE.failclosed.01
+        kind: fail_closed
+        rule: "auto-accepted degraded ledger"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVIEW_GATE.failclosed.02
+        kind: fail_closed
+        rule: "review gate bypassed on long-form hard fail"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
+        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+      - id: ADJACENT_REVIEW_GATE.runtime
+        kind: runtime_proof
+        rule: "runtime harness proves this boundary's declared invariants on a live call path (not merely seeded/informational)"
+        evidence_state: REQUIRED_TO_RETIRE
+        harness_invariant_id: null        # REQUIRED_TO_RETIRE: sipoc:runtime invariant id(s)
+        call_path: null                   # REQUIRED_TO_RETIRE: entrypoint exercised at runtime
+        negative_cases: []                # REQUIRED_TO_RETIRE: bypass/negative paths that must also fail closed
+    existing_candidate_fixtures: []  # informational; presence != obligation satisfied
+    downstream_consumers_baseline: [S06_PASS2, S07_PASS3, ADJACENT_REVISION_LEDGER]  # may not GROW while in debt
