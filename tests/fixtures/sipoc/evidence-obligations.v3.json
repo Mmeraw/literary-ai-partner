@@ -111,14 +111,13 @@
       "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
       "dirty_data_rule": "Gate 15 FAIL",
       "evidence_kind": "runtime_fail_closed",
-      "enforcement_point": "lib/evaluation/processor.ts Gate 15 Pre-Finalization Advisory",
-      "current_state": "policy_conflict",
-      "gap_bucket": "policy_contradiction",
-      "remediation_class": "policy",
+      "enforcement_point": "lib/evaluation/authorExposureCertification.ts getAuthorExposureDecisionWithFinalExternalAudit + lib/evaluation/gate15/authorExposureGate15.ts evaluateGate15AuthorExposure",
+      "current_state": "implementation_conflict",
+      "gap_bucket": "implementation_gap",
+      "remediation_class": "runtime",
       "evidence_refs": [],
-      "gap": "Registry declares FAIL dirty while production and architecture tests require advisory-only behavior.",
-      "expires_before_utc": "2026-08-12T00:00:00Z",
-      "blocked_by": "gate_15_product_policy_ruling"
+      "gap": "Owner-approved Gate 15 Option 1 policy is decided, but protected main has not yet merged runtime enforcement or capable evidence. Disposition recovery is disabled fail-closed until a non-forgeable writer and persistence authority are proven; implementation tests must not auto-promote this obligation.",
+      "expires_before_utc": "2026-08-12T00:00:00Z"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05",

@@ -13,6 +13,11 @@ jest.mock("@/lib/auth/devHeaderActor", () => ({
 
 jest.mock("@/lib/evaluation/authorExposureCertification", () => ({
   getAuthorExposureDecision: jest.fn(async () => ({ exposable: true, certifiedAt: null })),
+  publicAuthorExposureBlockDetail: jest.fn((decision: { exposable: boolean; reason?: string }) =>
+    decision.reason === 'gate_15_audit_failed'
+      ? 'author_exposure:release_safeguard_not_cleared'
+      : `author_exposure:${decision.reason}`,
+  ),
 }));
 
 jest.mock("@/lib/supabase/server", () => ({
@@ -198,5 +203,44 @@ describe("GET /api/evaluations/[jobId] release gate", () => {
     expect(response.status).toBe(409);
     expect(json.error).toBe("Evaluation not releasable");
     expect(json.details).toBe("author_exposure:decision_not_certified");
+  });
+
+  test("maps Gate 15 release failures to public-safe safeguard detail", async () => {
+    mockGetAuthorExposureDecision.mockResolvedValue({
+      exposable: false,
+      reason: "gate_15_audit_failed",
+      details: "gate_15_audit_v1 failed internally",
+    });
+
+    const supabase = {
+      from: jest.fn(() => ({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            maybeSingle: jest.fn(async () => ({
+              data: {
+                id: "job-1",
+                user_id: "user-1",
+                status: "complete",
+                validity_status: "valid",
+                evaluation_result: { governance: { confidence: 0.95 } },
+              },
+              error: null,
+            })),
+          })),
+        })),
+      })),
+    };
+
+    mockCreateAdminClient.mockReturnValue(supabase as never);
+
+    const response = await GET(new Request("https://localhost/api/evaluations/job-1"), {
+      params: { jobId: "job-1" },
+    });
+
+    const json = (await response.json()) as { error: string; details: string };
+    expect(response.status).toBe(409);
+    expect(json.error).toBe("Evaluation not releasable");
+    expect(json.details).toBe("author_exposure:release_safeguard_not_cleared");
+    expect(json.details).not.toContain("gate_15");
   });
 });

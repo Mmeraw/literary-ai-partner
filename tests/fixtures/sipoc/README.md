@@ -76,9 +76,15 @@ fixture does not automatically count as certification evidence.
 Every unresolved obligation is classified into exactly one representation,
 evidence, enforcement, or policy gap and carries an exclusive UTC expiry.
 Only `satisfied_but_unmapped` may become `satisfied` when its named tests pass;
-the runner cannot promote any other state.
+the runner cannot promote any other state. `implementation_conflict` is a
+non-promoting state for decided policy/requirement that is not yet proven on
+protected main; passing implementation tests alone must not certify it.
+Gate 15 `S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04` is additionally locked:
+it must carry no `evidence_refs` and cannot become `satisfied_but_unmapped` until
+the #1391 closure conditions are met through a governed reconciliation.
 
 `tests/sipoc/remediation-audit.v3.json` maps active remediation PRs to the stable obligation
 IDs they could address. A mapping is not satisfaction: the audit records the
-capable evidence still required for closure, leaves expiries unchanged, and
-cannot map or resolve the Gate 15 policy conflict.
+capable evidence still required for closure and leaves expiries unchanged. Already-satisfied
+obligations cannot be mapped as remediation debt; Gate 15 remains non-certified while it is
+classified as implementation-conflict.
