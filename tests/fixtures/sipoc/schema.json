@@ -37,7 +37,11 @@
         "S08_ER2_NORMALIZATION",
         "S09_QUALITYGATEV2",
         "S10_PERSISTENCE",
-        "S11_RENDERER"
+        "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
+        "S10c_VIEWMODEL_BOUNDARY_GATE",
+        "S11_RENDERER",
+        "S11a_RENDERER_WEBPAGE",
+        "S11b_DOWNLOAD_PIPELINE"
       ]
     },
     "track": {
