@@ -7,16 +7,19 @@ import {
   EVIDENCE_KINDS,
   GAP_BUCKETS,
   OBLIGATION_STATES,
+  REMEDIATION_AUDIT_STATES,
   REMEDIATION_CLASSES,
   deriveBoundaryEvidenceState,
   isSipocStageId,
   type EvidenceManifest,
   type EvidenceObligation,
+  type RemediationAudit,
 } from "../tests/sipoc/evidenceModel";
 
 const MANIFEST_PATH = path.resolve("tests/fixtures/sipoc/evidence-obligations.v3.json");
 const OUTPUT_PATH = path.resolve("artifacts/sipoc/evidence-results.v3.json");
 const JEST_RESULTS_PATH = path.resolve("artifacts/sipoc/.evidence-jest-results.json");
+const REMEDIATION_AUDIT_PATH = path.resolve("tests/fixtures/sipoc/remediation-audit.v3.json");
 const EXPECTED_BOUNDARIES = [
   "S02_QUEUE",
   "S03_CLAIM",
@@ -30,6 +33,10 @@ type EffectiveState = EvidenceObligation["current_state"];
 
 function loadManifest(): EvidenceManifest {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) as EvidenceManifest;
+}
+
+function loadRemediationAudit(): RemediationAudit {
+  return JSON.parse(fs.readFileSync(REMEDIATION_AUDIT_PATH, "utf8")) as RemediationAudit;
 }
 
 function isExclusiveUtcTimestamp(value: unknown): value is string {
@@ -164,6 +171,48 @@ function validateManifest(manifest: EvidenceManifest): string[] {
   return errors;
 }
 
+function validateRemediationAudit(manifest: EvidenceManifest, audit: RemediationAudit): string[] {
+  const errors: string[] = [];
+  if (audit.schema_version !== 1) errors.push("remediation audit schema_version must equal 1");
+  if (audit.based_on_manifest_schema !== manifest.schema_version) {
+    errors.push("remediation audit must name the current evidence manifest schema");
+  }
+  if (!audit.generated_from?.trim()) errors.push("remediation audit generated_from is required");
+  if (!Array.isArray(audit.entries)) return [...errors, "remediation audit entries must be an array"];
+
+  const manifestById = new Map(manifest.obligations.map((item) => [item.id, item]));
+  const seenPrs = new Set<number>();
+  const seenIds = new Set<string>();
+  for (const entry of audit.entries) {
+    if (!Number.isInteger(entry.pull_request) || entry.pull_request <= 0) {
+      errors.push("remediation audit pull_request must be a positive integer");
+    }
+    if (seenPrs.has(entry.pull_request)) errors.push(`PR #${entry.pull_request}: duplicate remediation audit entry`);
+    seenPrs.add(entry.pull_request);
+    if (!entry.scope?.trim() || !entry.capable_evidence_required?.trim() || !entry.residual_gap?.trim()) {
+      errors.push(`PR #${entry.pull_request}: scope, capable evidence, and residual gap are required`);
+    }
+    if (!(REMEDIATION_AUDIT_STATES as readonly string[]).includes(entry.audit_state)) {
+      errors.push(`PR #${entry.pull_request}: unknown remediation audit state`);
+    }
+    if (!Array.isArray(entry.obligation_ids)) {
+      errors.push(`PR #${entry.pull_request}: obligation_ids must be an array`);
+      continue;
+    }
+    for (const id of entry.obligation_ids) {
+      const obligation = manifestById.get(id);
+      if (!obligation) errors.push(`PR #${entry.pull_request}: unknown obligation ${id}`);
+      if (obligation?.current_state === "satisfied") errors.push(`PR #${entry.pull_request}: already-satisfied obligation ${id} cannot be remediation debt`);
+      if (id === "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04") {
+        errors.push(`PR #${entry.pull_request}: Gate 15 policy conflict cannot be selected by remediation`);
+      }
+      if (seenIds.has(id)) errors.push(`${id}: mapped by more than one remediation PR`);
+      seenIds.add(id);
+    }
+  }
+  return errors;
+}
+
 interface JestAssertionResult {
   title: string;
   status: string;
@@ -248,7 +297,11 @@ function runAttributableTests(obligations: EvidenceObligation[]): {
 
 function main(): void {
   const manifest = loadManifest();
-  const validationErrors = validateManifest(manifest);
+  const remediationAudit = loadRemediationAudit();
+  const validationErrors = [
+    ...validateManifest(manifest),
+    ...validateRemediationAudit(manifest, remediationAudit),
+  ];
   if (validationErrors.length > 0) {
     for (const error of validationErrors) console.error(`[sipoc:evidence] ${error}`);
     process.exit(1);
@@ -291,6 +344,7 @@ function main(): void {
       by_remediation_class: byRemediationClass,
       boundaries: byBoundary,
     },
+    remediation_audit: remediationAudit,
     obligations: effectiveObligations,
   };
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });

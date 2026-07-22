@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "based_on_manifest_schema": 3,
+  "generated_from": "Stream 1 obligation audit against remediation PRs 1385, 1386, 1387, 1390, and 1395 (2026-07-22)",
+  "entries": [
+    {
+      "pull_request": 1385,
+      "scope": "S10b public author-exposure gate delegates to the final-external-audit-aware decision",
+      "obligation_ids": ["S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05"],
+      "audit_state": "candidate_only",
+      "capable_evidence_required": "runtime_fail_closed evidence through the public production call path, including a negative Final Audit BLOCK case",
+      "residual_gap": "The implementation candidate must merge with an attributable executed assertion before this obligation can close. It does not close the other S10b enforcement conflicts."
+    },
+    {
+      "pull_request": 1386,
+      "scope": "S11b download route rejects failed long-form projection parity",
+      "obligation_ids": [
+        "S11b_DOWNLOAD_PIPELINE.failclosed.03",
+        "S11b_DOWNLOAD_PIPELINE.failclosed.04"
+      ],
+      "audit_state": "evidence_incomplete",
+      "capable_evidence_required": "runtime_fail_closed route evidence for every supported format, with malformed parity and renderer-failure negative cases",
+      "residual_gap": "Removing bypasses is enforcement work, not proof. Route-level executed negative evidence remains required before either obligation closes."
+    },
+    {
+      "pull_request": 1387,
+      "scope": "Pass 2 retry-attempt telemetry",
+      "obligation_ids": [],
+      "audit_state": "candidate_only",
+      "capable_evidence_required": "operational reliability evidence outside this six-boundary 33-obligation manifest",
+      "residual_gap": "This reliability repair must not be used to promote any of the 33 reviewed obligations by association."
+    },
+    {
+      "pull_request": 1390,
+      "scope": "S03 installed-database transactional claim proof",
+      "obligation_ids": [
+        "S03_CLAIM.failclosed.01",
+        "S03_CLAIM.failclosed.02",
+        "S03_CLAIM.failclosed.03"
+      ],
+      "audit_state": "evidence_incomplete",
+      "capable_evidence_required": "integration_transactional evidence against installed production RPCs: committed pulse, two-session single-winner race, and rejected non-production worker ID with no mutation",
+      "residual_gap": "A concurrency race alone cannot close the pulse and worker-ID obligations. Each named transactional assertion must execute successfully."
+    },
+    {
+      "pull_request": 1395,
+      "scope": "S11a webpage component projection evidence",
+      "obligation_ids": [
+        "S11a_RENDERER_WEBPAGE.failclosed.03",
+        "S11a_RENDERER_WEBPAGE.failclosed.04",
+        "S11a_RENDERER_WEBPAGE.failclosed.05",
+        "S11a_RENDERER_WEBPAGE.failclosed.06"
+      ],
+      "audit_state": "candidate_only",
+      "capable_evidence_required": "render the actual webpage consumer from the canonical ViewModel and assert report type, score, genre, and criteria-confidence projection parity",
+      "residual_gap": "A pure helper or fixture-shape assertion is insufficient; closure requires executed consumer projection evidence."
+    }
+  ]
+}
