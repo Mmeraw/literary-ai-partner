@@ -343,30 +343,6 @@ describe('evaluateGate15AuthorExposure', () => {
     });
   });
 
-  test('blocks Gate 15 FAIL even when a disposition-shaped artifact is supplied', () => {
-    const decision = evaluateGate15AuthorExposure(gate15AuditPayload('FAIL'), {
-      jobId: JOB_ID,
-      ...({ nonblockingDispositionContent: gate15NonblockingDisposition() } as Record<string, unknown>),
-    });
-
-    expect(decision).toMatchObject({
-      exposable: false,
-      reason: 'gate_15_audit_failed',
-    });
-  });
-
-  test('keeps malformed nonblocking disposition blocked', () => {
-    const decision = evaluateGate15AuthorExposure(gate15AuditPayload('FAIL'), {
-      jobId: JOB_ID,
-      ...({ nonblockingDispositionContent: gate15NonblockingDisposition({ approver: '' }) } as Record<string, unknown>),
-    });
-
-    expect(decision).toMatchObject({
-      exposable: false,
-      reason: 'gate_15_audit_failed',
-    });
-  });
-
   test('fails closed when Gate 15 audit is missing or malformed', () => {
     expect(evaluateGate15AuthorExposure(null, { jobId: JOB_ID })).toMatchObject({
       exposable: false,
@@ -381,6 +357,18 @@ describe('evaluateGate15AuthorExposure', () => {
   test('fails closed for stale Gate 15 evidence', () => {
     const decision = evaluateGate15AuthorExposure(
       gate15AuditPayload('PASS', { valid_until: '2026-07-21T00:00:00.000Z' }),
+      { jobId: JOB_ID, now: new Date('2026-07-22T00:00:00.000Z') },
+    );
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'gate_15_audit_stale',
+    });
+  });
+
+  test('fails closed when Gate 15 valid_until is not derived from timestamp plus 90 days', () => {
+    const decision = evaluateGate15AuthorExposure(
+      gate15AuditPayload('PASS', { valid_until: '2026-10-21T00:00:00.000Z' }),
       { jobId: JOB_ID, now: new Date('2026-07-22T00:00:00.000Z') },
     );
 

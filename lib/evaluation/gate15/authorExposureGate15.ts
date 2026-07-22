@@ -1,3 +1,5 @@
+import { deriveGate15AuditValidUntil } from './gate15_orchestrator';
+
 export type Gate15AuthorExposureBlockReason =
   | 'missing_gate_15_audit'
   | 'invalid_gate_15_audit_payload'
@@ -64,7 +66,7 @@ function isParseableDate(value: string): boolean {
   return Number.isFinite(Date.parse(value));
 }
 
-function isAuditStale(audit: Gate15AuditShape, now: Date): boolean {
+function isAuditStale(audit: Gate15AuditShape, timestamp: string, now: Date): boolean {
   if (audit.stale === true || audit.superseded === true) return true;
 
   const lineageStatus = nonEmptyString(audit.lineage_status)?.toLowerCase();
@@ -72,6 +74,7 @@ function isAuditStale(audit: Gate15AuditShape, now: Date): boolean {
 
   const validUntil = nonEmptyString(audit.valid_until);
   if (!validUntil) return true;
+  if (validUntil !== deriveGate15AuditValidUntil(timestamp)) return true;
   const expiresAt = Date.parse(validUntil);
   if (!Number.isFinite(expiresAt)) return true;
   if (expiresAt < now.getTime()) return true;
@@ -147,7 +150,7 @@ export function evaluateGate15AuthorExposure(
     };
   }
 
-  if (isAuditStale(record, options.now ?? new Date())) {
+  if (isAuditStale(record, timestamp, options.now ?? new Date())) {
     return {
       exposable: false,
       reason: 'gate_15_audit_stale',
