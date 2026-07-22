@@ -16,6 +16,7 @@ import type { SinglePassOutput , Pass1aCharacterLedger } from "@/lib/evaluation/
 import { loadCanonicalRegistry } from "@/lib/governance/canonRegistry";
 import { buildPass2aStructuredContext } from "@/lib/evaluation/pipeline/buildPass2aStructuredContext";
 import { RecommendationDispositionContractError } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
+import { buildRecommendationSourceIdentities } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,20 @@ function makePass3Fixture(overrides: Record<string, unknown> = {}) {
     },
     ...overrides,
   };
+}
+
+function addPass2LineageSource(pass2: SinglePassOutput) {
+  const finalRecommendation = makePass3Fixture().criteria[0].recommendations[0];
+  pass2.criteria[0].recommendations = [{
+    ...finalRecommendation,
+    criterion: pass2.criteria[0].key,
+  }];
+  pass2.criteria[0].recommendation_status = "recommendation_provided";
+  pass2.criteria[0].recommendation_status_rationale = undefined;
+
+  return buildRecommendationSourceIdentities([
+    { ...pass2.criteria[0].recommendations[0], criterion: pass2.criteria[0].key },
+  ])[0].source_id;
 }
 
 /** Build a minimal EvaluationResultLike shape for validateTemplateCompleteness from a SynthesisOutput. */
@@ -1114,5 +1129,78 @@ describe("consequence tracking contract", () => {
     expect(() => parsePass3Response(JSON.stringify(fixture), pass1, pass2)).toThrow(
       RecommendationDispositionContractError,
     );
+  });
+
+  describe("Pass 3 provider-output lineage boundary", () => {
+    it("accepts native lineage only when the Pass 2 source survives in parsed output", () => {
+      const sourceId = addPass2LineageSource(pass2);
+      const fixture = makePass3Fixture({
+        recommendation_lineage: [{ source_id: sourceId, outcome: "materialized" }],
+      });
+      fixture.criteria[0].recommendations[0] = {
+        ...fixture.criteria[0].recommendations[0],
+        source_recommendation_ids: [sourceId],
+      } as (typeof fixture.criteria)[number]["recommendations"][number];
+
+      const result = parsePass3Response(
+        JSON.stringify(fixture), pass1, pass2, undefined, undefined, undefined, undefined, true,
+      );
+
+      expect(result.recommendation_lineage).toEqual([
+        expect.objectContaining({ source_id: sourceId, outcome: "materialized" }),
+      ]);
+      expect(result.criteria[0].recommendations[0].source_recommendation_ids).toContain(sourceId);
+    });
+
+    it("rejects a partial native lineage response instead of inferring the omitted source", () => {
+      const firstSourceId = addPass2LineageSource(pass2);
+      const secondCriterion = pass2.criteria[1];
+      secondCriterion.recommendations = [{
+        ...makePass3Fixture().criteria[1].recommendations[0],
+        criterion: secondCriterion.key,
+      }];
+      secondCriterion.recommendation_status = "recommendation_provided";
+      secondCriterion.recommendation_status_rationale = undefined;
+      const secondSourceId = buildRecommendationSourceIdentities([
+        { ...secondCriterion.recommendations[0], criterion: secondCriterion.key },
+      ])[0].source_id;
+      const fixture = makePass3Fixture({
+        recommendation_lineage: [{ source_id: firstSourceId, outcome: "materialized" }],
+      });
+      fixture.criteria[0].recommendations[0] = {
+        ...fixture.criteria[0].recommendations[0],
+        source_recommendation_ids: [firstSourceId],
+      } as (typeof fixture.criteria)[number]["recommendations"][number];
+
+      expect(() => parsePass3Response(
+        JSON.stringify(fixture), pass1, pass2, undefined, undefined, undefined, undefined, true,
+      )).toThrow(RecommendationDispositionContractError);
+      expect(secondSourceId).not.toBe(firstSourceId);
+    });
+
+    it("rejects materialized lineage whose source does not survive parser filtering", () => {
+      const sourceId = addPass2LineageSource(pass2);
+      const fixture = makePass3Fixture({
+        recommendation_lineage: [{ source_id: sourceId, outcome: "materialized" }],
+      });
+
+      expect(() => parsePass3Response(
+        JSON.stringify(fixture), pass1, pass2, undefined, undefined, undefined, undefined, true,
+      )).toThrow(RecommendationDispositionContractError);
+    });
+
+    it("rejects provider lineage containing an unknown source id", () => {
+      const sourceId = addPass2LineageSource(pass2);
+      const fixture = makePass3Fixture({
+        recommendation_lineage: [
+          { source_id: sourceId, outcome: "suppressed", evidence: "The source was superseded." },
+          { source_id: "unknown:provider-invented-source:0", outcome: "suppressed", evidence: "Invented." },
+        ],
+      });
+
+      expect(() => parsePass3Response(
+        JSON.stringify(fixture), pass1, pass2, undefined, undefined, undefined, undefined, true,
+      )).toThrow(RecommendationDispositionContractError);
+    });
   });
 });
