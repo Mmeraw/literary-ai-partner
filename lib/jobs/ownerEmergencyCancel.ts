@@ -1,12 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { cancelEvaluationAsUser, type UserCancelResult } from '@/lib/jobs/userCancel';
+import { OWNER_EMERGENCY_CANCEL_CONFIRMATION } from '@/lib/admin/ownerEmergencyConstants';
 
-/**
- * The phrase is deliberately server-owned: the client must prove intent but
- * cannot choose a broader cancellation scope or cancellation actor.
- */
-export const OWNER_EMERGENCY_CANCEL_CONFIRMATION = 'CANCEL ALL ACTIVE EVALUATIONS';
+export { OWNER_EMERGENCY_CANCEL_CONFIRMATION };
+
 const MAX_SNAPSHOT_JOBS = 500;
+/** Limit concurrent DB round-trips so the break-glass route stays within serverless request budget. */
+const CANCEL_CONCURRENCY = 10;
 
 type ActiveJob = {
   id: string;
@@ -66,39 +66,43 @@ export async function cancelAllActiveEvaluationsAsOwner(args: {
     snapshotLimitReached: snapshot.length === MAX_SNAPSHOT_JOBS,
   };
 
-  for (const job of snapshot) {
-    const ownerId = ownerIdOf(job);
-    if (!ownerId) {
-      result.ok = false;
-      result.failed.push({
+  // Process in bounded batches to avoid exceeding serverless request duration.
+  for (let batchStart = 0; batchStart < snapshot.length; batchStart += CANCEL_CONCURRENCY) {
+    const batch = snapshot.slice(batchStart, batchStart + CANCEL_CONCURRENCY);
+    await Promise.all(batch.map(async (job) => {
+      const ownerId = ownerIdOf(job);
+      if (!ownerId) {
+        result.ok = false;
+        result.failed.push({
+          jobId: job.id,
+          code: 'missing_owner',
+          message: 'Active job has no manuscript owner; it was not cancelled.',
+        });
+        return;
+      }
+
+      const cancelled: UserCancelResult = await cancelEvaluationAsUser({
         jobId: job.id,
-        code: 'missing_owner',
-        message: 'Active job has no manuscript owner; it was not cancelled.',
+        userId: ownerId,
+        reason: 'other',
+        actor: { id: args.actorId, kind: 'owner_emergency' },
       });
-      continue;
-    }
 
-    const cancelled: UserCancelResult = await cancelEvaluationAsUser({
-      jobId: job.id,
-      userId: ownerId,
-      reason: 'other',
-      actor: { id: args.actorId, kind: 'owner_emergency' },
-    });
+      if (cancelled.ok === true) {
+        result.cancelled += cancelled.alreadyCancelled ? 0 : 1;
+        result.alreadyTerminal += cancelled.alreadyCancelled ? 1 : 0;
+        return;
+      }
 
-    if (cancelled.ok === true) {
-      result.cancelled += cancelled.alreadyCancelled ? 0 : 1;
-      result.alreadyTerminal += cancelled.alreadyCancelled ? 1 : 0;
-      continue;
-    }
+      const failure = cancelled;
+      if (failure.code === 'conflict' || failure.code === 'not_found') {
+        result.conflicts += 1;
+        return;
+      }
 
-    const failure = cancelled;
-    if (failure.code === 'conflict' || failure.code === 'not_found') {
-      result.conflicts += 1;
-      continue;
-    }
-
-    result.ok = false;
-    result.failed.push({ jobId: job.id, code: failure.code, message: failure.message });
+      result.ok = false;
+      result.failed.push({ jobId: job.id, code: failure.code, message: failure.message });
+    }));
   }
 
   return result;

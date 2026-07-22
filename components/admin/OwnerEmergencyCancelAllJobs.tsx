@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { OWNER_EMERGENCY_CANCEL_CONFIRMATION } from '@/lib/admin/ownerEmergencyConstants';
 
-const CONFIRMATION = 'CANCEL ALL ACTIVE EVALUATIONS';
+const CONFIRMATION = OWNER_EMERGENCY_CANCEL_CONFIRMATION;
 
 type Result = {
   ok: boolean;
