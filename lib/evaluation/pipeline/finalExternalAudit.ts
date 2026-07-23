@@ -30,6 +30,10 @@ export type FinalExternalAuditResult = {
   model: string;
   generated_at: string;
   packet: FinalExternalAuditPacket;
+  /** Bind this audit to the evaluation result artifact it was produced for. */
+  evaluation_result_version?: string;
+  /** Bind this audit to the verified manuscript word count used at audit time. */
+  word_count?: number;
 };
 
 export type FinalExternalAuditMode = 'optional' | 'required';
@@ -54,6 +58,11 @@ function isRequiredMode(value: unknown): value is FinalExternalAuditMode {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function deriveEvaluationResultVersion(evaluationResult: unknown): string {
+  const record = asRecord(evaluationResult);
+  return typeof record?.schema_version === 'string' ? record.schema_version : 'evaluation_result_v2';
 }
 
 function isFinalAuditVerdict(value: unknown): value is Exclude<FinalExternalAuditVerdict, 'SKIP'> {
@@ -239,6 +248,8 @@ export function runFinalExternalAudit(input: {
       model: 'deterministic-final-audit-v1',
       generated_at: generatedAt,
       packet,
+      evaluation_result_version: deriveEvaluationResultVersion(input.evaluationResult),
+      word_count: input.wordCount,
     };
   }
 
@@ -300,6 +311,8 @@ export function runFinalExternalAudit(input: {
     model: providerAvailable ? 'sonar-compact-final-audit-v1' : 'deterministic-final-audit-v1',
     generated_at: generatedAt,
     packet,
+    evaluation_result_version: deriveEvaluationResultVersion(input.evaluationResult),
+    word_count: input.wordCount,
   };
 }
 
