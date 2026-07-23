@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "based_on_manifest_schema": 3,
-  "generated_from": "Stream 1 obligation audit against remediation PRs 1385, 1386, 1387, 1390, and 1395 (2026-07-22)",
+  "generated_from": "main@5d47ca9971336bf60c487945fcdda17e47ec0012 (PR #1427) post-merge 33-obligation reconciliation; PRs 1385, 1386, 1387, 1390, 1395 remain in earlier remediation state (2026-07-23)",
   "entries": [
     {
       "pull_request": 1385,
