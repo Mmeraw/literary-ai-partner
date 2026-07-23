@@ -35,6 +35,55 @@ export function smokeAuthHeaders(env = process.env) {
   };
 }
 
+export function smokeDiagnosticHeaders(env = process.env) {
+  const token = env.SMOKE_DIAGNOSTICS_TOKEN?.trim();
+  const userId = env.SMOKE_USER_ID?.trim();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(userId ? { "x-user-id": userId } : {}),
+  };
+}
+
+export function formatSmokeDiagnostic(diag) {
+  return [
+    `${diag.phase ?? "unknown"} ${diag.phase_status ?? "failed"}: ${diag.failure_code ?? "UNKNOWN"}`,
+    `category: ${diag.category}`,
+    `retryable: ${diag.retryable ? "true" : "false"}`,
+    diag.diagnostic_summary,
+  ].join("\n");
+}
+
+async function fetchSmokeDiagnostic(BASE, jobId, options = {}) {
+  const env = options.env ?? process.env;
+  const log = options.log ?? console.log;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const headers = smokeDiagnosticHeaders(env);
+
+  if (!headers.Authorization) {
+    log("[smoke] SMOKE_DIAGNOSTICS_TOKEN not configured; skipping safe diagnostic fetch");
+    return null;
+  }
+
+  try {
+    const res = await fetchImpl(`${BASE}/api/internal/smoke/jobs/${jobId}/diagnostic`, {
+      headers,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      log(`[smoke] diagnostic endpoint returned ${res.status}; falling back to generic diagnostics`);
+      return null;
+    }
+    const payload = await res.json().catch(() => null);
+    if (!payload || payload.ok !== true || !payload.failure_code) {
+      return null;
+    }
+    return payload;
+  } catch (err) {
+    log("[smoke] diagnostic endpoint unreachable; falling back to generic diagnostics", err);
+    return null;
+  }
+}
+
 function jsonHeaders(env = process.env) {
   return {
     "Content-Type": "application/json",
@@ -155,6 +204,10 @@ export async function pollJobToTerminal(BASE, jobId, options = {}) {
     );
 
     if (job.status === "failed") {
+      const diagnostic = await fetchSmokeDiagnostic(BASE, jobId, options);
+      if (diagnostic) {
+        throw new Error(`Evaluation failed:\n${formatSmokeDiagnostic(diagnostic)}`);
+      }
       throw new Error(`Evaluation failed:\n${formatJobDiagnostics(job)}`);
     }
 

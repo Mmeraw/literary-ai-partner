@@ -5,10 +5,12 @@ import {
   assertCanonicalOutputs,
   assertTerminalComplete,
   createJobWithSnapshotRepair,
+  formatSmokeDiagnostic,
   isSnapshotMissingCreateFailure,
   pollJobToTerminal,
   runRealManuscriptSmoke,
   smokeAuthHeaders,
+  smokeDiagnosticHeaders,
 } from "./jobs-smoke-real.mjs";
 
 function response(status, body, headers = {}) {
@@ -26,6 +28,29 @@ async function testSmokeAuthHeaders() {
   });
   assert.equal(headers.Authorization, "Bearer cron");
   assert.equal(headers["x-user-id"], "user-1");
+}
+
+async function testSmokeDiagnosticHeaders() {
+  const headers = smokeDiagnosticHeaders({
+    SMOKE_DIAGNOSTICS_TOKEN: "diag-token",
+    SMOKE_USER_ID: " user-1 ",
+  });
+  assert.equal(headers.Authorization, "Bearer diag-token");
+  assert.equal(headers["x-user-id"], "user-1");
+}
+
+async function testFormatSmokeDiagnostic() {
+  const formatted = formatSmokeDiagnostic({
+    phase: "phase_3",
+    phase_status: "failed",
+    failure_code: "PASS3_PROVIDER_ERROR",
+    category: "provider_response_invalid",
+    retryable: true,
+    diagnostic_summary: "Evaluation failed at phase_3 with failure code PASS3_PROVIDER_ERROR (category: provider_response_invalid). Retryable: yes.",
+  });
+  assert.match(formatted, /^phase_3 failed: PASS3_PROVIDER_ERROR/);
+  assert.match(formatted, /category: provider_response_invalid/);
+  assert.match(formatted, /retryable: true/);
 }
 
 async function testRepairOnceThenRetry() {
@@ -74,9 +99,24 @@ async function testNonSnapshotErrorDoesNotRepair() {
 }
 
 async function testTerminalFailedDiagnostics() {
-  let pollHeaders = null;
-  const fetchImpl = async (_url, init) => {
-    pollHeaders = init?.headers ?? null;
+  let diagnosticUrl = null;
+  let diagnosticHeaders = null;
+  const fetchImpl = async (url, init) => {
+    if (url.includes("/api/internal/smoke/jobs/")) {
+      diagnosticUrl = url;
+      diagnosticHeaders = init?.headers ?? null;
+      return response(200, {
+        ok: true,
+        job_id: "job-1",
+        status: "failed",
+        phase: "phase_1a",
+        phase_status: "failed",
+        failure_code: "SMOKE_FAILURE",
+        category: "provider_response_invalid",
+        retryable: false,
+        diagnostic_summary: "Evaluation failed at phase_1a with failure code SMOKE_FAILURE (category: provider_response_invalid). Retryable: no.",
+      });
+    }
     return response(200, {
       ok: true,
       job: {
@@ -93,15 +133,17 @@ async function testTerminalFailedDiagnostics() {
   await assert.rejects(
     pollJobToTerminal("http://local", "job-1", {
       fetchImpl,
-      env: { SMOKE_USER_ID: "user-1" },
+      env: { SMOKE_USER_ID: "user-1", SMOKE_DIAGNOSTICS_TOKEN: "diag-token" },
       sleepImpl: async () => {},
       timeoutMs: 100,
       pollMs: 1,
       log() {},
     }),
-    /SMOKE_FAILURE[\s\S]*boom/,
+    /SMOKE_FAILURE[\s\S]*provider_response_invalid[\s\S]*retryable: false/,
   );
-  assert.equal(pollHeaders?.["x-user-id"], "user-1");
+  assert.equal(diagnosticUrl, "http://local/api/internal/smoke/jobs/job-1/diagnostic");
+  assert.equal(diagnosticHeaders?.Authorization, "Bearer diag-token");
+  assert.equal(diagnosticHeaders?.["x-user-id"], "user-1");
 }
 
 async function testTerminalCompleteRequiresOutputs() {
@@ -156,24 +198,43 @@ async function testFailedJobStopsBeforeOutputRequests() {
         },
       });
     }
+    if (url.includes("/api/internal/smoke/jobs/job-1/diagnostic")) {
+      return response(200, {
+        ok: true,
+        job_id: "job-1",
+        status: "failed",
+        phase: "phase_1a",
+        phase_status: "failed",
+        failure_code: "BROKEN",
+        category: "provider_response_invalid",
+        retryable: false,
+        diagnostic_summary: "Evaluation failed at phase_1a with failure code BROKEN (category: provider_response_invalid). Retryable: no.",
+      });
+    }
     throw new Error(`unexpected url ${url}`);
   };
 
-  await assert.rejects(
-    runRealManuscriptSmoke({
+  let err;
+  try {
+    await runRealManuscriptSmoke({
       baseUrl: "http://local",
       fetchImpl,
-      env: { MANUSCRIPT_ID: "7518", SMOKE_USER_ID: "user-1" },
+      env: { MANUSCRIPT_ID: "7518", SMOKE_USER_ID: "user-1", SMOKE_DIAGNOSTICS_TOKEN: "diag-token" },
       sleepImpl: async () => {},
       timeoutMs: 100,
       pollMs: 1,
       log() {},
-    }),
-    /BROKEN[\s\S]*nope/,
-  );
+    });
+    assert.fail("expected runRealManuscriptSmoke to throw");
+  } catch (e) {
+    err = e;
+  }
 
+  assert.match(err.message, /BROKEN[\s\S]*provider_response_invalid/);
   assert.equal(calls.some((call) => call.url.includes("evaluation-result")), false);
   assert.equal(calls.some((call) => call.url.includes("/download")), false);
+  // Raw last_error must not leak through the safe diagnostic formatter.
+  assert.equal(err.message.includes("nope"), false);
 }
 
 async function testScriptDoesNotReferenceRetiredOrWorkerRoutes() {
@@ -189,6 +250,8 @@ async function testSnapshotPredicate() {
 }
 
 await testSmokeAuthHeaders();
+await testSmokeDiagnosticHeaders();
+await testFormatSmokeDiagnostic();
 await testRepairOnceThenRetry();
 await testNonSnapshotErrorDoesNotRepair();
 await testTerminalFailedDiagnostics();
