@@ -5,6 +5,7 @@ import type {
   CurrentPass2Criterion,
 } from '@/lib/evaluation/pipeline/types';
 import {
+  normalizeProducerRecommendationDisposition,
   RecommendationDispositionContractError,
   requireCurrentRecommendationDisposition,
 } from '@/lib/evaluation/policy/opportunityDiscoveryPolicy';
@@ -135,5 +136,80 @@ describe('current recommendation-disposition write boundary', () => {
       criterion,
       { score: 6, context: 'current_write_type_test:invalid' },
     )).toThrow(RecommendationDispositionContractError);
+  });
+});
+
+describe('producer recommendation-disposition normalization boundary', () => {
+  test('derives recommendation_provided when status is absent and recommendations are meaningful', () => {
+    const result = normalizeProducerRecommendationDisposition(
+      [recommendation],
+      undefined,
+    );
+    expect(result.kind).toBe('ok');
+    expect(result.value).toBe('recommendation_provided');
+  });
+
+  test('preserves explicit recommendation_provided', () => {
+    const result = normalizeProducerRecommendationDisposition(
+      [recommendation],
+      'recommendation_provided',
+    );
+    expect(result.kind).toBe('ok');
+    expect(result.value).toBe('recommendation_provided');
+  });
+
+  test('preserves explicit empty-state disposition when no recommendations are meaningful', () => {
+    const result = normalizeProducerRecommendationDisposition(
+      [],
+      'insufficient_evidence',
+      'No manuscript-specific intervention is supported by the evidence.',
+    );
+    expect(result.kind).toBe('ok');
+    expect(result.value).toBe('insufficient_evidence');
+  });
+
+  test('leaves disposition absent when there are no meaningful recommendations and no status', () => {
+    const result = normalizeProducerRecommendationDisposition([], undefined);
+    expect(result.kind).toBe('ok');
+    expect(result.value).toBeUndefined();
+  });
+
+  test('rejects explicit empty-state disposition when meaningful recommendations exist', () => {
+    const result = normalizeProducerRecommendationDisposition(
+      [recommendation],
+      'insufficient_evidence',
+    );
+    expect(result.kind).toBe('invalid');
+  });
+
+  test('rejects invalid explicit status', () => {
+    const result = normalizeProducerRecommendationDisposition(
+      [],
+      'not_a_valid_status',
+    );
+    expect(result.kind).toBe('invalid');
+  });
+
+  test('is idempotent over already-normalized carriers', () => {
+    const first = normalizeProducerRecommendationDisposition(
+      [recommendation],
+      undefined,
+    );
+    expect(first.kind).toBe('ok');
+    const second = normalizeProducerRecommendationDisposition(
+      [recommendation],
+      first.value,
+    );
+    expect(second.kind).toBe('ok');
+    expect(second.value).toBe(first.value);
+  });
+
+  test('does not synthesize recommendation text when status is missing', () => {
+    const result = normalizeProducerRecommendationDisposition(
+      [recommendation],
+      undefined,
+    );
+    expect(result.kind).toBe('ok');
+    expect(result.value).toBe('recommendation_provided');
   });
 });

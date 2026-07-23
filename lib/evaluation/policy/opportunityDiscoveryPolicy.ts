@@ -704,6 +704,59 @@ export function requireCurrentRecommendationDisposition<
   return criterion as unknown as WithCurrentRecommendationDisposition<T>;
 }
 
+/**
+ * Producer-boundary normalization for a recommendation disposition carrier.
+ *
+ * This is the earliest shared boundary at which a missing governed disposition
+ * can be safely derived from the canonical predicate over recommendations.
+ * It is intentionally permissive only for the absent-status case; explicit
+ * contradictory statuses and fabricated recommendation text are still rejected.
+ *
+ * - meaningful recommendations present + no explicit status
+ *   → derive recommendation_provided
+ * - meaningful recommendations present + explicit recommendation_provided
+ *   → preserve
+ * - zero meaningful recommendations + explicit empty-state status
+ *   → preserve (rationale gate enforced downstream)
+ * - zero meaningful recommendations + no explicit status
+ *   → leave absent (fail-closed at validation)
+ * - any invalid explicit status
+ *   → return invalid marker so the caller can fail
+ */
+export type NormalizedRecommendationDispositionResult =
+  | { kind: 'ok'; value: RecommendationStatus | undefined; rationale?: string }
+  | { kind: 'invalid'; value: unknown };
+
+export function normalizeProducerRecommendationDisposition(
+  recommendations: readonly unknown[],
+  recommendationStatus: unknown,
+  recommendationStatusRationale?: unknown,
+): NormalizedRecommendationDispositionResult {
+  const meaningfulCount = countMeaningfulOpportunityRecommendations(recommendations);
+  const normalizedStatus = normalizeRecommendationStatusInput(recommendationStatus);
+  const normalizedRationale =
+    typeof recommendationStatusRationale === 'string' ? recommendationStatusRationale.trim() : undefined;
+
+  if (normalizedStatus.kind === 'invalid') {
+    return { kind: 'invalid', value: recommendationStatus };
+  }
+
+  if (meaningfulCount > 0) {
+    if (normalizedStatus.kind === 'absent' || normalizedStatus.value === 'recommendation_provided') {
+      return { kind: 'ok', value: 'recommendation_provided', rationale: normalizedRationale };
+    }
+    // Explicit non-provided status with meaningful recommendations is a contradiction.
+    return { kind: 'invalid', value: recommendationStatus };
+  }
+
+  if (normalizedStatus.kind === 'valid') {
+    return { kind: 'ok', value: normalizedStatus.value, rationale: normalizedRationale };
+  }
+
+  // No recommendations and no status: leave absent so downstream validation can fail closed.
+  return { kind: 'ok', value: undefined, rationale: normalizedRationale };
+}
+
 export type RecommendationDispositionMutationCause =
   | 'pass3_parser_safety_filter'
   | 'expectation_profile_safety_filter'

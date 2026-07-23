@@ -11,6 +11,8 @@ import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import {
   aggregatePass2ChunkResults,
   assertPass2OutputDispositionContract,
+  normalizeCanonicalPass2CriterionDisposition,
+  normalizePass2OutputDispositions,
   parsePass2Response,
   runPass2,
 } from "@/lib/evaluation/pipeline/runPass2";
@@ -106,14 +108,52 @@ describe("parsePass2Response", () => {
     expect(result.temperature).toBe(0.3);
   });
 
-  it("fails current output without disposition metadata even when parser options are omitted", () => {
+  it("derives recommendation_provided when status is absent and meaningful recommendations exist", () => {
     const fixture = makePass2Fixture();
     delete (fixture.criteria[0] as Partial<typeof fixture.criteria[number]>).recommendation_status;
+
+    const result = parsePass2Response(JSON.stringify(fixture));
+    expect(result.criteria[0].recommendation_status).toBe("recommendation_provided");
+    expect(result.criteria[0].recommendations.length).toBeGreaterThan(0);
+  });
+
+  it("fails a zero-recommendation criterion without a governed disposition", () => {
+    const fixture = makePass2Fixture();
+    const criterion = fixture.criteria[0] as Partial<typeof fixture.criteria[number]>;
+    criterion.recommendation_status = undefined;
+    criterion.recommendations = [];
 
     expect(() => parsePass2Response(JSON.stringify(fixture))).toThrow(
       "OPPORTUNITY_COVERAGE_MISSING",
     );
   });
+
+  it.each(CRITERIA_KEYS)(
+    "preserves explicit recommendation_provided for criterion %s",
+    (key) => {
+      const fixture = makePass2Fixture();
+      const criterion = fixture.criteria.find((c) => c.key === key)!;
+      criterion.recommendation_status = "recommendation_provided";
+
+      const result = parsePass2Response(JSON.stringify(fixture));
+      expect(result.criteria.find((c) => c.key === key)!.recommendation_status).toBe(
+        "recommendation_provided",
+      );
+    },
+  );
+
+  it.each(CRITERIA_KEYS)(
+    "rejects explicit empty-state disposition with recommendations for criterion %s",
+    (key) => {
+      const fixture = makePass2Fixture();
+      const criterion = fixture.criteria.find((c) => c.key === key)!;
+      criterion.recommendation_status = "insufficient_evidence";
+
+      expect(() => parsePass2Response(JSON.stringify(fixture))).toThrow(
+        "RECOMMENDATION_STATUS_INVALID",
+      );
+    },
+  );
 
   it("rejects out-of-range scores to null sentinel (PR-D)", () => {
     // PR-D: canonical range is [1,10]; out-of-range scores are rejected to null.
@@ -262,6 +302,150 @@ describe("aggregatePass2ChunkResults disposition authority", () => {
     expect(() => assertPass2OutputDispositionContract(stale, "test-cache")).toThrow(
       "PASS2_CACHE_CONTRACT_VERSION_MISMATCH",
     );
+  });
+});
+
+// ── Canonical disposition normalization boundary ────────────────────────────────
+
+describe("normalizeCanonicalPass2CriterionDisposition", () => {
+  const recommendation = {
+    priority: "high" as const,
+    action: "Replace the abstract opening with the specific observed exchange.",
+    expected_impact: "Grounds the conflict in a concrete manuscript moment.",
+    anchor_snippet: "She reached for the door handle, her hand trembling.",
+    issue_family: "scene_structure" as const,
+    strategic_lever: "scene_goal_clarity" as const,
+    revision_granularity: "beat" as const,
+  };
+
+  it("derives recommendation_provided when status is absent and recommendations are meaningful", () => {
+    const input = { recommendations: [recommendation] };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBe("recommendation_provided");
+    expect(result.recommendation_status_rationale).toBeUndefined();
+    expect(result.recommendations).toBe(input.recommendations);
+  });
+
+  it("derives recommendation_provided while preserving an existing rationale unchanged", () => {
+    const rationale = "The pacing lag in the opening chapter is well supported.";
+    const input = {
+      recommendations: [recommendation],
+      recommendation_status_rationale: rationale,
+    };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBe("recommendation_provided");
+    expect(result.recommendation_status_rationale).toBe(rationale);
+    expect(result.recommendations).toBe(input.recommendations);
+    expect(result.recommendation_status_rationale).toBe(input.recommendation_status_rationale);
+  });
+
+  it("preserves explicit recommendation_provided", () => {
+    const input = {
+      recommendations: [recommendation],
+      recommendation_status: "recommendation_provided" as const,
+    };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBe("recommendation_provided");
+    expect(result).toBe(input);
+  });
+
+  it("preserves explicit empty-state disposition when no recommendations are meaningful", () => {
+    const input = {
+      recommendations: [],
+      recommendation_status: "insufficient_evidence" as const,
+      recommendation_status_rationale: "No evidence supports a safe intervention.",
+    };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBe("insufficient_evidence");
+    expect(result.recommendation_status_rationale).toBe("No evidence supports a safe intervention.");
+    expect(result).toBe(input);
+  });
+
+  it("leaves disposition absent when there are no meaningful recommendations and no status", () => {
+    const input = { recommendations: [] };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBeUndefined();
+    expect(result).toBe(input);
+  });
+
+  it("preserves an explicit recommendation_provided with no recommendations for the validator to reject", () => {
+    const input = {
+      recommendations: [],
+      recommendation_status: "recommendation_provided" as const,
+    };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBe("recommendation_provided");
+    expect(result).toBe(input);
+  });
+
+  it("preserves an orphan rationale with no status and no recommendations for the validator to reject", () => {
+    const rationale = "Orphan rationale without status or recommendations.";
+    const input = {
+      recommendations: [],
+      recommendation_status_rationale: rationale,
+    };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBeUndefined();
+    expect(result.recommendation_status_rationale).toBe(rationale);
+    expect(result).toBe(input);
+  });
+
+  it("does not count whitespace or placeholder text as meaningful", () => {
+    const input = {
+      recommendations: [{ action: "   " }, { action: "TBD" }],
+    };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.recommendation_status).toBeUndefined();
+  });
+
+  it("rejects explicit empty-state disposition with meaningful recommendations", () => {
+    const input = {
+      recommendations: [recommendation],
+      recommendation_status: "insufficient_evidence" as const,
+    };
+    expect(() => normalizeCanonicalPass2CriterionDisposition(input)).toThrow(
+      "RECOMMENDATION_STATUS_INVALID",
+    );
+  });
+
+  it("preserves extra criterion fields when deriving a new canonical criterion", () => {
+    const extra = { key: "pacing" as const, score_0_10: 6, rationale: "Observed lag." };
+    const input = {
+      ...extra,
+      recommendations: [recommendation],
+    };
+    const result = normalizeCanonicalPass2CriterionDisposition(input);
+    expect(result.key).toBe("pacing");
+    expect(result.score_0_10).toBe(6);
+    expect(result.rationale).toBe("Observed lag.");
+    expect(result.recommendation_status).toBe("recommendation_provided");
+  });
+
+  it("rejects invalid explicit status", () => {
+    const input = {
+      recommendations: [],
+      recommendation_status: "not_a_valid_status",
+    };
+    expect(() => normalizeCanonicalPass2CriterionDisposition(input)).toThrow(
+      "RECOMMENDATION_STATUS_INVALID",
+    );
+  });
+
+  it("is idempotent", () => {
+    const input = { recommendations: [recommendation] };
+    const first = normalizeCanonicalPass2CriterionDisposition(input);
+    const second = normalizeCanonicalPass2CriterionDisposition(first);
+    expect(second.recommendation_status).toBe(first.recommendation_status);
+    expect(second).toBe(first);
+  });
+
+  it("normalizes a full Pass 2 output through the same boundary", () => {
+    const output = parsePass2Response(JSON.stringify(makePass2Fixture()));
+    const normalized = normalizePass2OutputDispositions(output);
+    expect(normalized).toBe(output);
+    for (const criterion of normalized.criteria) {
+      expect(criterion.recommendation_status).toBe("recommendation_provided");
+    }
   });
 });
 
@@ -440,5 +624,97 @@ describe("runPass2", () => {
     expect(callCount).toBe(2);
     expect(seenBudgets).toHaveLength(2);
     expect(seenBudgets[1]).toBeGreaterThan(seenBudgets[0]);
+  });
+
+  it("selectively reprocesses only failed chunks and reconciles exactly once", async () => {
+    const totalChunks = 30;
+    const failedChunkIndices = new Set([7, 19]);
+
+    const manuscriptChunks = Array.from({ length: totalChunks }, (_, i) => ({
+      chunk_index: i,
+      content: `Selective retry chunk ${i}: the narrator reaches for the door handle, her hand trembling.`,
+    }));
+
+    const chunkCache = new Map<number, SinglePassOutput>();
+    const originalSnapshots = new Map<number, SinglePassOutput>();
+    for (let i = 0; i < totalChunks; i++) {
+      if (failedChunkIndices.has(i)) continue;
+      const fixture = makePass2Fixture();
+      const output = parsePass2Response(JSON.stringify(fixture));
+      chunkCache.set(i, output);
+      originalSnapshots.set(i, JSON.parse(JSON.stringify(output)));
+    }
+
+    const invokedChunkIds = new Set<number>();
+    const createCompletion: CreateCompletionFn = async (params) => {
+      const userContent = params.messages.find((m) => m.role === "user")?.content ?? "";
+      const match = userContent.match(/Selective retry chunk (\d+):/);
+      if (match) {
+        invokedChunkIds.add(Number(match[1]));
+      }
+      return {
+        choices: [{ message: { content: JSON.stringify(makePass2Fixture()) } }],
+      };
+    };
+
+    const persistedRetryChunkIds = new Set<number>();
+    const completedChunks = new Map<number, SinglePassOutput>();
+    const firstRun = await runPass2({
+      manuscriptText: "ignored because chunks are present",
+      manuscriptChunks,
+      workType: "literary_fiction",
+      title: "Selective Retry Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: createCompletion,
+      _chunkCache: chunkCache,
+      _onChunkComplete: async (chunk_index, output) => {
+        if (!chunkCache.has(chunk_index)) {
+          persistedRetryChunkIds.add(chunk_index);
+        }
+        completedChunks.set(chunk_index, output);
+      },
+    });
+
+    // Only the two failed chunk IDs were invoked through the provider.
+    expect(invokedChunkIds).toEqual(failedChunkIndices);
+
+    // Every chunk is represented exactly once.
+    expect(firstRun.criteria).toHaveLength(13);
+    expect(completedChunks.size).toBe(totalChunks);
+    expect(persistedRetryChunkIds).toEqual(failedChunkIndices);
+
+    // The 28 successful cached payloads are preserved (deep-equal to pre-run snapshots).
+    for (let i = 0; i < totalChunks; i++) {
+      if (failedChunkIndices.has(i)) continue;
+      expect(completedChunks.get(i)).toEqual(originalSnapshots.get(i));
+    }
+
+    // A second resume with the now-complete cache invokes zero additional chunks.
+    const completeCache = new Map<number, SinglePassOutput>(completedChunks);
+    let secondRunInvocations = 0;
+    const createCompletionSecond: CreateCompletionFn = async () => {
+      secondRunInvocations++;
+      return { choices: [{ message: { content: JSON.stringify(makePass2Fixture()) } }] };
+    };
+
+    const secondCompleted = new Map<number, SinglePassOutput>();
+    const secondRun = await runPass2({
+      manuscriptText: "ignored because chunks are present",
+      manuscriptChunks,
+      workType: "literary_fiction",
+      title: "Selective Retry Test",
+      registry,
+      openaiApiKey: "sk-test",
+      _createCompletion: createCompletionSecond,
+      _chunkCache: completeCache,
+      _onChunkComplete: async (chunk_index, output) => {
+        secondCompleted.set(chunk_index, output);
+      },
+    });
+
+    expect(secondRunInvocations).toBe(0);
+    expect(secondCompleted.size).toBe(totalChunks);
+    expect(secondRun.criteria).toHaveLength(13);
   });
 });

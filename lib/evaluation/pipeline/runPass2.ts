@@ -40,9 +40,10 @@ import { countWords } from "./submissionScope";
 import {
   analyzeGovernedOpportunityCoverage,
   countMeaningfulOpportunityRecommendations,
-  normalizeRecommendationStatusInput,
+  normalizeProducerRecommendationDisposition,
   reconcileRecommendationDispositionAfterMutation,
   RECOMMENDATION_STATUS_CONTRACT,
+  RecommendationStatus,
   requireCurrentRecommendationDisposition,
 } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
 import { getConfiguredChunkCap } from "./chunkCap";
@@ -371,8 +372,14 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
   }
 
   const currentResults = results.map((result, index) => {
-    assertPass2OutputDispositionContract(result, `chunk_aggregate_input:${index}`);
-    return result;
+    // Replay and reconciliation inputs pass through the same canonical disposition
+    // boundary as fresh parser output and cached reloads.
+    const normalized = normalizePass2OutputDispositions(result);
+    assertPass2OutputDispositionContract(
+      normalized,
+      `chunk_aggregate_input:${index}`,
+    );
+    return normalized;
   });
   
   if (currentResults.length === 1) {
@@ -502,8 +509,9 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
     temperature: PASS2_TEMPERATURE,
     generated_at: new Date().toISOString(),
   };
-  assertPass2OutputDispositionContract(output, "chunk_aggregate_output");
-  return output;
+  const normalizedOutput = normalizePass2OutputDispositions(output);
+  assertPass2OutputDispositionContract(normalizedOutput, "chunk_aggregate_output");
+  return normalizedOutput;
 }
 
 export interface IndexedPass2ChunkResult {
@@ -832,8 +840,11 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       async (chunk) => {
         // Checkpoint resume: return cached result immediately if available.
         if (chunkCache && chunkCache.has(chunk.chunk_index)) {
-          const cached = chunkCache.get(chunk.chunk_index)!;
+          const rawCached = chunkCache.get(chunk.chunk_index)!;
           try {
+            // Normalize legacy/persisted checkpoint dispositions through the same
+            // canonical boundary as fresh parser output before validating.
+            const cached = normalizePass2OutputDispositions(rawCached);
             assertPass2OutputDispositionContract(
               cached,
               `checkpoint_cache:${chunk.chunk_index}`,
@@ -1387,6 +1398,83 @@ function hasTextualAnchor(reasoning: string, evidence: EvidenceAnchor[]): boolea
 }
 
 /**
+ * Canonical Pass 2 recommendation-disposition convergence point.
+ *
+ * Applies the canonical ODP predicate to a single criterion before validation.
+ * - meaningful recommendations + absent or recommendation_provided status
+ *   → recommendation_provided
+ * - zero meaningful recommendations + explicit empty-state status
+ *   → preserve
+ * - zero meaningful recommendations + absent status
+ *   → leave absent (validator fail-closed)
+ * - contradictory or invalid status
+ *   → throw
+ *
+ * This is the only boundary that may derive a disposition; no caller may invent
+ * recommendation text to justify a status.
+ */
+export type CanonicalPass2Criterion = SinglePassOutput["criteria"][number];
+
+export function normalizeCanonicalPass2CriterionDisposition(
+  criterion: CanonicalPass2Criterion,
+): CanonicalPass2Criterion {
+  const disposition = normalizeProducerRecommendationDisposition(
+    criterion.recommendations,
+    criterion.recommendation_status,
+    criterion.recommendation_status_rationale,
+  );
+  if (disposition.kind === "invalid") {
+    throw new Error(
+      `RECOMMENDATION_STATUS_INVALID: criterion emitted unknown or contradictory recommendation_status (${JSON.stringify(disposition.value)}).`,
+    );
+  }
+
+  // Use the policy only for the canonical status decision. Preserve the
+  // criterion's existing rationale exactly; add a policy-derived rationale only
+  // when the criterion has none and the policy genuinely supplies one.
+  const nextStatus = disposition.value ?? criterion.recommendation_status;
+  const nextRationale =
+    criterion.recommendation_status_rationale ?? disposition.rationale;
+
+  const statusChanged =
+    nextStatus !== undefined && nextStatus !== criterion.recommendation_status;
+  const rationaleChanged =
+    !!nextRationale && nextRationale !== criterion.recommendation_status_rationale;
+
+  // Return the original criterion when no canonical change is required.
+  // This preserves object identity for valid cache/replay entries.
+  if (!statusChanged && !rationaleChanged) {
+    return criterion;
+  }
+
+  // Derive a new canonical criterion, writing only the fields that have a
+  // defined canonical value. Never overwrite a valid existing status with undefined.
+  return {
+    ...criterion,
+    ...(nextStatus !== undefined ? { recommendation_status: nextStatus } : {}),
+    ...(nextRationale !== undefined ? { recommendation_status_rationale: nextRationale } : {}),
+  };
+}
+
+/**
+ * Apply the canonical disposition normalization to every criterion in a Pass 2
+ * output. This is the shared convergence point for fresh parser output, cached
+ * reloads, retry results, and replay/reconciliation inputs before the canonical
+ * validator is invoked.
+ */
+export function normalizePass2OutputDispositions(
+  output: SinglePassOutput,
+): SinglePassOutput {
+  let changed = false;
+  const normalizedCriteria = output.criteria.map((criterion) => {
+    const normalized = normalizeCanonicalPass2CriterionDisposition(criterion);
+    if (normalized !== criterion) changed = true;
+    return normalized;
+  });
+  return changed ? { ...output, criteria: normalizedCriteria } : output;
+}
+
+/**
  * Parse and validate a raw OpenAI response for Pass 2.
  * Pure function — no I/O, deterministic, fully testable.
  *
@@ -1486,17 +1574,6 @@ export function parsePass2Response(
         ? Math.round(parsedScore)
         : null;
     const rationale = String(c["rationale"] ?? "");
-    const recommendationStatusInput = normalizeRecommendationStatusInput(
-      c["recommendation_status"],
-    );
-    if (recommendationStatusInput.kind === "invalid") {
-      throw new Error(
-        `[Pass2] RECOMMENDATION_STATUS_INVALID: ${key} emitted an unknown recommendation_status.`,
-      );
-    }
-    const recommendationStatus = recommendationStatusInput.kind === "valid"
-      ? recommendationStatusInput.value
-      : undefined;
     const recommendationStatusRationale = typeof c["recommendation_status_rationale"] === "string"
       ? c["recommendation_status_rationale"].trim()
       : undefined;
@@ -1511,17 +1588,19 @@ export function parsePass2Response(
       boundedScore = Math.max(1, Math.min(boundedScore, 5));
     }
 
-    const criterion: AxisCriterionResult = {
+    const preCanonicalCriterion: AxisCriterionResult = {
       key: key as AxisCriterionResult["key"],
       // null sentinel for invalid scores; downstream aggregator filters these out
       score_0_10: (boundedScore as unknown) as number,
       reason_codes: reasonCodes.length > 0 ? reasonCodes : undefined,
       rationale,
-      recommendation_status: recommendationStatus,
+      recommendation_status: c["recommendation_status"] as RecommendationStatus | undefined,
       recommendation_status_rationale: recommendationStatusRationale,
       evidence,
       recommendations: normalizedRecommendations,
     };
+
+    const criterion = normalizeCanonicalPass2CriterionDisposition(preCanonicalCriterion);
 
     const meaningfulRecommendationsAfterNormalization =
       countMeaningfulOpportunityRecommendations(normalizedRecommendations);
@@ -1579,6 +1658,7 @@ export function parsePass2Response(
     temperature: PASS2_TEMPERATURE,
     generated_at: new Date().toISOString(),
   };
-  assertPass2OutputDispositionContract(output, "pass2_parser_output");
-  return output;
+  const normalizedOutput = normalizePass2OutputDispositions(output);
+  assertPass2OutputDispositionContract(normalizedOutput, "pass2_parser_output");
+  return normalizedOutput;
 }
