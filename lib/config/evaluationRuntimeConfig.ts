@@ -23,6 +23,11 @@ export class EvaluationRuntimeConfigError extends Error {
   }
 }
 
+// Canonical Pass 2 output-token retry bounds. These mirror the EVAL_PASS2_MAX_TOKENS
+// validator range; the per-call cap is also clamped to the actual model limit.
+export const PASS2_RETRY_OUTPUT_TOKEN_CEILING = 16_000;
+export const PASS2_RETRY_OUTPUT_TOKEN_INCREMENT = 4_000;
+
 export interface EvaluationPassRouting {
   /** Resolved model for Pass 1 chunk evaluation. */
   pass1Model: string;
@@ -268,7 +273,7 @@ export function resolveEvaluationRuntimeConfig(
   const pass2MaxTokens = parseBoundedInteger(env, "EVAL_PASS2_MAX_TOKENS", {
     defaultValue: 8000,
     min: 1000,
-    max: 16000,
+    max: PASS2_RETRY_OUTPUT_TOKEN_CEILING,
   });
   const pass3MaxTokens = parseBoundedInteger(env, "EVAL_PASS3_MAX_TOKENS", {
     // Set to gpt-5.1 hard output ceiling (32,768 tokens). Previous caps of

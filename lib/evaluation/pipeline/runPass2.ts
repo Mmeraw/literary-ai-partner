@@ -28,12 +28,17 @@ import {
   buildOpenAIOutputTokenParam,
   buildOpenAITemperatureParam,
   getCanonicalPass2Model,
+  getModelCompletionTokenCap,
   OPENAI_SDK_MAX_RETRIES,
 } from "@/lib/evaluation/policy";
 import { getEvalOpenAiTimeoutMs } from "@/lib/evaluation/config";
 import { emitLatencyTrace } from "@/lib/observability/latencyTrace";
 import { JsonBoundaryError, parseJsonObjectBoundary } from "@/lib/llm/jsonParseBoundary";
-import { getEvaluationRuntimeConfig } from "@/lib/config/evaluationRuntimeConfig";
+import {
+  getEvaluationRuntimeConfig,
+  PASS2_RETRY_OUTPUT_TOKEN_CEILING,
+  PASS2_RETRY_OUTPUT_TOKEN_INCREMENT,
+} from "@/lib/config/evaluationRuntimeConfig";
 import { trackCompletionCost } from "@/lib/jobs/cost";
 import { summarizePromptCoverage } from "./promptInput";
 import { countWords } from "./submissionScope";
@@ -50,6 +55,8 @@ import { getConfiguredChunkCap } from "./chunkCap";
 import {
   ChunkCountExceedsCapError,
   ChunkRoutingNotEngagedError,
+  Pass2OutputIncompleteError,
+  type Pass2OutputOmissionOrigin,
 } from "./failures";
 
 const PASS2_TEMPERATURE = 0.3;
@@ -90,8 +97,10 @@ function getPass2ChunkTimeoutMs(): number {
 // Pass 2 model is resolved via getCanonicalPass2Model(opts.model), allowing
 // EVAL_PASS2_MODEL (or EVAL_CHUNK_MODEL fallback) to control high-volume map-phase calls.
 
-function getRetryPass2MaxTokens(currentMaxTokens: number): number {
-  return Math.min(16000, Math.max(8000, currentMaxTokens + 4000));
+function getRetryPass2MaxTokens(currentMaxTokens: number, model: string): number {
+  const modelCap = getModelCompletionTokenCap(model) ?? Number.MAX_SAFE_INTEGER;
+  const next = currentMaxTokens + PASS2_RETRY_OUTPUT_TOKEN_INCREMENT;
+  return Math.min(PASS2_RETRY_OUTPUT_TOKEN_CEILING, modelCap, next);
 }
 
 function nowMs(): number {
@@ -640,6 +649,11 @@ export interface RunPass2Options {
    */
   _retryAttemptOffset?: number;
   /**
+   * Chunk index when this runPass2 invocation is processing a single chunk unit.
+   * Used only for diagnostics; no routing behaviour changes.
+   */
+  _chunkIndex?: number;
+  /**
    * Forced heartbeat: called after each chunk completes (success or failure).
    * Fires from inside the chunk worker, so it runs even when Vercel fluid-compute
    * freezes the event loop between awaits (setInterval stops firing in that state).
@@ -690,6 +704,10 @@ export interface RunPass2Options {
 }
 
 function getIncompletePass2Criteria(error: unknown): string[] {
+  if (error instanceof Pass2OutputIncompleteError) {
+    return error.diagnostic.missing_criteria;
+  }
+
   const prefix = "PASS2_OUTPUT_INCOMPLETE ";
   if (!(error instanceof Error) || !error.message.startsWith(prefix)) {
     return [];
@@ -707,6 +725,60 @@ function getIncompletePass2Criteria(error: unknown): string[] {
   } catch {
     return [];
   }
+}
+
+function classifyPass2OutputOmission(
+  missingCriteria: string[],
+  finishReason: string,
+  outputTokens?: number,
+  configuredMaxOutputTokens?: number,
+): { origin: Pass2OutputOmissionOrigin; tokenCeilingReached: boolean } {
+  const tokenCeilingReached =
+    finishReason === "length" ||
+    (typeof outputTokens === "number" &&
+      typeof configuredMaxOutputTokens === "number" &&
+      configuredMaxOutputTokens > 0 &&
+      outputTokens >= configuredMaxOutputTokens - 50);
+
+  if (tokenCeilingReached) {
+    return { origin: "provider_truncation", tokenCeilingReached: true };
+  }
+  if (finishReason === "content_filter" || finishReason === "refusal") {
+    return { origin: "structured_decode_loss", tokenCeilingReached: false };
+  }
+  if (finishReason === "stop" || finishReason === "unknown") {
+    return { origin: "provider_omission", tokenCeilingReached: false };
+  }
+  return { origin: "unknown", tokenCeilingReached: tokenCeilingReached };
+}
+
+function buildPass2OutputIncompleteError(params: {
+  missingCriteria: string[];
+  finishReason: string;
+  outputTokens?: number;
+  configuredMaxOutputTokens?: number;
+  providerRequestId?: string;
+  chunkId?: number;
+  attempt: number;
+}): Pass2OutputIncompleteError {
+  const classification = classifyPass2OutputOmission(
+    params.missingCriteria,
+    params.finishReason,
+    params.outputTokens,
+    params.configuredMaxOutputTokens,
+  );
+  return new Pass2OutputIncompleteError({
+    code: "PASS2_OUTPUT_INCOMPLETE",
+    missing_criteria: params.missingCriteria,
+    origin_classification: classification.origin,
+    finish_reason: params.finishReason,
+    output_tokens: params.outputTokens,
+    configured_max_output_tokens: params.configuredMaxOutputTokens,
+    token_ceiling_reached: classification.tokenCeilingReached,
+    provider_request_id: params.providerRequestId,
+    chunk_id: params.chunkId,
+    attempt: params.attempt,
+  });
 }
 
 // ── Pass 2 Recommendation Action Normalizer ─────────────────────────────────
@@ -873,6 +945,13 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
         }
 
         let attempt = 0;
+        // Token budget for this chunk. It starts at the caller override or the
+        // canonical Pass 2 default and is escalated only when an incomplete
+        // response is classified as provider truncation (finish_reason=length
+        // or output_tokens within margin of the configured ceiling).
+        let chunkMaxTokens =
+          opts._maxOutputTokensOverride ??
+          getEvaluationRuntimeConfig().pass.pass2MaxTokens;
         try {
           // eslint-disable-next-line no-constant-condition
           while (true) {
@@ -881,6 +960,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
                 chunk_index: chunk.chunk_index,
                 attempt_number: attempt + 1,
                 request_kind: attempt === 0 ? "initial" : "fresh_retry",
+                max_output_tokens: chunkMaxTokens,
               });
 
               const result = await runPass2({
@@ -889,6 +969,8 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
                 manuscriptChunks: undefined, // Prevent recursive chunking
                 isChunkUnit: true,
                 _retryAttemptOffset: attempt,
+                _chunkIndex: chunk.chunk_index,
+                _maxOutputTokensOverride: chunkMaxTokens,
                 // Hard-bound each chunk-unit call independently so a single
                 // hung OpenAI socket cannot consume the whole pass budget.
                 // The chunk-unit path uses this as the SDK timeout, giving
@@ -935,19 +1017,33 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
               const isRateLimit = isRateLimitError(error);
               const isTimeout = isTimeoutError(error);
               const isTruncated = isTruncatedJsonParseError(error);
-              const isIncompleteOutput = error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ");
+              const isIncompleteOutput =
+                error instanceof Pass2OutputIncompleteError ||
+                (error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE "));
               const missingCriteria = getIncompletePass2Criteria(error);
+              const incompleteDiagnostic =
+                error instanceof Pass2OutputIncompleteError ? error.diagnostic : undefined;
               if ((!isRateLimit && !isTimeout && !isTruncated && !isIncompleteOutput) || attempt >= chunkRetryMax) {
                 if (isIncompleteOutput) {
                   console.error("[Pass2] Chunk completeness retry exhausted", {
                     chunk_index: chunk.chunk_index,
                     attempt_number: attempt + 1,
                     missing_criteria: missingCriteria,
+                    origin_classification: incompleteDiagnostic?.origin_classification ?? "unknown",
+                    configured_max_output_tokens: incompleteDiagnostic?.configured_max_output_tokens ?? null,
+                    token_ceiling_reached: incompleteDiagnostic?.token_ceiling_reached ?? null,
                     original_response_discarded: true,
                     replacement_completeness_result: "incomplete",
                   });
                 }
                 throw error;
+              }
+
+              // For incomplete output, escalate the token budget only when
+              // truncation is evidenced. Otherwise reuse the same budget and
+              // let the provider re-generate the full 13-criterion payload.
+              if (isIncompleteOutput && incompleteDiagnostic?.token_ceiling_reached) {
+                chunkMaxTokens = getRetryPass2MaxTokens(chunkMaxTokens, selectedModel);
               }
 
               const suggestedWait = isRateLimit ? parseRetryAfterMs(error) : null;
@@ -969,6 +1065,10 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
                   chunk_index: chunk.chunk_index,
                   attempt_number: attempt + 1,
                   missing_criteria: missingCriteria,
+                  origin_classification: incompleteDiagnostic?.origin_classification ?? "unknown",
+                  configured_max_output_tokens: incompleteDiagnostic?.configured_max_output_tokens ?? null,
+                  token_ceiling_reached: incompleteDiagnostic?.token_ceiling_reached ?? null,
+                  next_max_output_tokens: chunkMaxTokens,
                   original_response_discarded: true,
                   fresh_provider_request_scheduled: true,
                 });
@@ -1003,7 +1103,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
     );
 
     const chunkResults: IndexedPass2ChunkResult[] = [];
-    const failures: Array<{ chunkIndex: number; reason: string }> = [];
+    const failures: Array<{ chunkIndex: number; reason: string; error?: unknown }> = [];
     const chunkFailuresByReason: Record<string, number> = {};
     for (let i = 0; i < settled.length; i += 1) {
       const result = settled[i];
@@ -1020,6 +1120,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
         failures.push({
           chunkIndex: selectedChunks[i].chunk_index,
           reason,
+          error: result.reason,
         });
       }
     }
@@ -1056,9 +1157,12 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
 
     if (failures.length > 0) {
       const firstFailure = failures[0];
-      throw new Error(
-        `[Pass2] Chunk evaluation failures: failed=${failures.length}/${selectedChunks.length}; first_chunk=${firstFailure.chunkIndex}; first_error=${firstFailure.reason}`,
-      );
+      const aggregateMessage =
+        `[Pass2] Chunk evaluation failures: failed=${failures.length}/${selectedChunks.length}; first_chunk=${firstFailure.chunkIndex}; first_error=${firstFailure.reason}`;
+      if (firstFailure.error instanceof Pass2OutputIncompleteError) {
+        throw new Pass2OutputIncompleteError(firstFailure.error.diagnostic, aggregateMessage);
+      }
+      throw new Error(aggregateMessage);
     }
 
     const aggregated = aggregateSelectedPass2ChunkResults(
@@ -1187,7 +1291,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
     firstChoice.finish_reason === "length"
   ) {
     retriedForLength = true;
-    const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens);
+    const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens, selectedModel);
     console.warn("[Pass2] Empty length-limited response; retrying with higher output token budget", {
       model: selectedModel,
       initialMaxTokens: activeMaxTokens,
@@ -1278,18 +1382,28 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
     parsedOutput = parsePass2Response(responseText, selectedModel);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ")) {
+      const missingCriteria = getIncompletePass2Criteria(error);
       console.warn("[Pass2] Completion rejected by criterion completeness contract", {
         job_id: opts.jobId ?? null,
         request_id: requestId ?? null,
-        missing_criteria: getIncompletePass2Criteria(error),
+        missing_criteria: missingCriteria,
+        origin_classification: "unknown",
         original_response_discarded: true,
       });
-      throw error;
+      throw buildPass2OutputIncompleteError({
+        missingCriteria,
+        finishReason,
+        outputTokens: completion.usage?.completion_tokens,
+        configuredMaxOutputTokens: configuredMaxTokens ?? activeMaxTokens,
+        providerRequestId: requestId,
+        chunkId: opts._chunkIndex,
+        attempt: opts._retryAttemptOffset ?? 0,
+      });
     }
 
     if (!retriedForLength && (finishReason === "length" || isTruncatedJsonParseError(error))) {
       retriedForLength = true;
-      const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens);
+      const retryMaxTokens = getRetryPass2MaxTokens(activeMaxTokens, selectedModel);
       console.warn("[Pass2] Truncated or incomplete JSON response; retrying with higher output token budget", {
         model: selectedModel,
         initialMaxTokens: activeMaxTokens,
@@ -1357,7 +1471,23 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
       fully_evaluated: !promptCoverage.truncated,
     },
   };
-  assertPass2OutputDispositionContract(output, "pass2_direct_window_output");
+  try {
+    assertPass2OutputDispositionContract(output, "pass2_direct_window_output");
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("PASS2_OUTPUT_INCOMPLETE ")) {
+      const missingCriteria = getIncompletePass2Criteria(error);
+      throw buildPass2OutputIncompleteError({
+        missingCriteria,
+        finishReason,
+        outputTokens: completion.usage?.completion_tokens,
+        configuredMaxOutputTokens: configuredMaxTokens ?? activeMaxTokens,
+        providerRequestId: requestId,
+        chunkId: opts._chunkIndex,
+        attempt: opts._retryAttemptOffset ?? 0,
+      });
+    }
+    throw error;
+  }
   return output;
 }
 

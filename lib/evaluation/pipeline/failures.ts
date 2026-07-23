@@ -283,4 +283,39 @@ export class ChunkRoutingNotEngagedError extends Error {
   }
 }
 
+export type Pass2OutputOmissionOrigin =
+  | "provider_truncation"
+  | "provider_omission"
+  | "structured_decode_loss"
+  | "parser_loss"
+  | "unknown";
+
+export interface Pass2OutputIncompleteDiagnostic {
+  code: "PASS2_OUTPUT_INCOMPLETE";
+  missing_criteria: string[];
+  origin_classification: Pass2OutputOmissionOrigin;
+  finish_reason: string;
+  output_tokens?: number;
+  configured_max_output_tokens?: number;
+  token_ceiling_reached: boolean;
+  provider_request_id?: string;
+  chunk_id?: number;
+  attempt: number;
+}
+
+/**
+ * Error thrown when a Pass 2 chunk is missing one or more canonical criteria.
+ * The diagnostic payload is the authority for selective malformed-chunk retry.
+ */
+export class Pass2OutputIncompleteError extends Error {
+  public readonly code = "PASS2_OUTPUT_INCOMPLETE" as const;
+  public readonly diagnostic: Pass2OutputIncompleteDiagnostic;
+
+  constructor(diagnostic: Pass2OutputIncompleteDiagnostic, message?: string) {
+    super(message ?? `PASS2_OUTPUT_INCOMPLETE ${JSON.stringify(diagnostic)}`);
+    this.name = "Pass2OutputIncompleteError";
+    this.diagnostic = diagnostic;
+  }
+}
+
 
