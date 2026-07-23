@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { getJob } from "@/lib/jobs/store";
 import { classifySmokeDiagnostic } from "@/lib/jobs/smokeDiagnostic";
+import type { Job, JobProgress } from "@/lib/jobs/types";
 
 type Params = Promise<{ jobId: string }>;
 
@@ -20,6 +21,48 @@ function constantTimeTokenEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a, "utf8");
   const bufB = Buffer.from(b, "utf8");
   return timingSafeEqual(bufA, bufB);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Extract redacted author-facing integrity violation paths/codes from the
+ * persisted pipeline failure diagnostics. This deliberately discards raw
+ * text/value payloads so the diagnostic endpoint stays safe.
+ */
+function extractIntegrityViolations(
+  progress: JobProgress | null,
+): Array<{ path: string; code: string }> | null {
+  const diagnostics = isRecord(progress) ? progress.pipeline_failure_diagnostics : null;
+  if (!isRecord(diagnostics)) return null;
+
+  const violations = diagnostics.author_facing_integrity_violations;
+  if (!Array.isArray(violations)) return null;
+
+  const out: Array<{ path: string; code: string }> = [];
+  for (const v of violations) {
+    if (isRecord(v) && typeof v.path === "string" && typeof v.code === "string") {
+      out.push({ path: v.path, code: v.code });
+    }
+  }
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * Extract reason codes from the persisted pipeline failure envelope. This
+ * avoids exposing raw error_message text while still giving the smoke runner
+ * the named sub-codes for the failure.
+ */
+function extractReasonCodes(progress: JobProgress | null): string[] | null {
+  const envelope = isRecord(progress) ? progress.pipeline_failure_envelope : null;
+  if (!isRecord(envelope)) return null;
+
+  const codes = envelope.reason_codes;
+  if (!Array.isArray(codes)) return null;
+
+  return codes.filter((code): code is string => typeof code === "string");
 }
 
 function getSmokeConfig(): { token: string; userId: string } | null {
@@ -96,6 +139,8 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     const failureCode = job.failure_code ?? null;
     const diagnostic = classifySmokeDiagnostic(failureCode, phase);
+    const integrityViolations = extractIntegrityViolations(job.progress);
+    const reasonCodes = extractReasonCodes(job.progress);
 
     console.info("[smoke-diagnostic] served redacted diagnostic", {
       jobId,
@@ -103,9 +148,10 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       failure_code: failureCode,
       category: diagnostic.category,
       retryable: diagnostic.retryable,
+      integrity_violation_count: integrityViolations?.length ?? 0,
     });
 
-    return jsonNoStore({
+    const response: Record<string, unknown> = {
       ok: true,
       job_id: job.id,
       status: job.status,
@@ -115,7 +161,17 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
       category: diagnostic.category,
       retryable: diagnostic.retryable,
       diagnostic_summary: diagnostic.summary,
-    });
+    };
+
+    if (integrityViolations) {
+      response.integrity_violations = integrityViolations;
+    }
+
+    if (reasonCodes) {
+      response.reason_codes = reasonCodes;
+    }
+
+    return jsonNoStore(response);
   } catch (error) {
     console.error("[smoke-diagnostic] unexpected error", { error });
     return jsonNoStore({ ok: false, error: "Internal server error" }, 500);
