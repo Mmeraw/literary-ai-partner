@@ -45,12 +45,25 @@ export function smokeDiagnosticHeaders(env = process.env) {
 }
 
 export function formatSmokeDiagnostic(diag) {
-  return [
+  const lines = [
     `${diag.phase ?? "unknown"} ${diag.phase_status ?? "failed"}: ${diag.failure_code ?? "UNKNOWN"}`,
     `category: ${diag.category}`,
     `retryable: ${diag.retryable ? "true" : "false"}`,
     diag.diagnostic_summary,
-  ].join("\n");
+  ];
+
+  if (Array.isArray(diag.reason_codes) && diag.reason_codes.length > 0) {
+    lines.push(`reason_codes: ${diag.reason_codes.join(", ")}`);
+  }
+
+  if (Array.isArray(diag.integrity_violations) && diag.integrity_violations.length > 0) {
+    lines.push("integrity_violations:");
+    for (const v of diag.integrity_violations) {
+      lines.push(`  - ${v.path ?? "unknown"}: ${v.code ?? "unknown"}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 async function fetchSmokeDiagnostic(BASE, jobId, options = {}) {

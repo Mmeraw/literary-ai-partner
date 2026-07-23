@@ -244,4 +244,57 @@ describe("GET /api/internal/smoke/jobs/[jobId]/diagnostic", () => {
     expect(json.retryable).toBe(false);
     expect("last_error" in json).toBe(false);
   });
+
+  test("includes redacted integrity violation paths and codes for author-facing text failures", async () => {
+    const req = buildRequest();
+    const job = buildJob({
+      failure_code: "AUTHOR_FACING_TEXT_INTEGRITY_FAILED",
+      progress: {
+        phase: "phase_3",
+        phase_status: "failed",
+        total_units: 100,
+        completed_units: 75,
+        pipeline_failure_diagnostics: {
+          author_facing_integrity_violations: [
+            { path: "evaluation_result_v2.criteria[2].rationale", code: "OVERLY_GENERIC", message: "secret", value: "raw text" },
+            { path: "evaluation_result_v2.criteria[0].recommendations[0].action", code: "TOO_SHORT" },
+          ],
+        },
+        pipeline_failure_envelope: {
+          error_code: "AUTHOR_FACING_TEXT_INTEGRITY_FAILED",
+          error_message: "raw internal text",
+          reason_codes: ["AUTHOR_FACING_TEXT_INTEGRITY_FAILED", "evaluation_result_v2.criteria[2].rationale:OVERLY_GENERIC"],
+        },
+      },
+    });
+    mockGetJob.mockResolvedValue(job);
+
+    const res = await GET(req, { params: Promise.resolve({ jobId: "job-1" }) });
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.integrity_violations).toEqual([
+      { path: "evaluation_result_v2.criteria[2].rationale", code: "OVERLY_GENERIC" },
+      { path: "evaluation_result_v2.criteria[0].recommendations[0].action", code: "TOO_SHORT" },
+    ]);
+    expect(json.reason_codes).toEqual([
+      "AUTHOR_FACING_TEXT_INTEGRITY_FAILED",
+      "evaluation_result_v2.criteria[2].rationale:OVERLY_GENERIC",
+    ]);
+    expect("error_message" in json).toBe(false);
+    expect("message" in json.integrity_violations[0]).toBe(false);
+    expect("value" in json.integrity_violations[0]).toBe(false);
+  });
+
+  test("integrity_violations is omitted when no author-facing diagnostics are present", async () => {
+    const req = buildRequest();
+    mockGetJob.mockResolvedValue(
+      buildJob({ failure_code: "PASS3_PROVIDER_ERROR" }),
+    );
+
+    const res = await GET(req, { params: Promise.resolve({ jobId: "job-1" }) });
+    const json = await res.json();
+    expect(json.integrity_violations).toBeUndefined();
+    expect(json.reason_codes).toBeUndefined();
+  });
 });
