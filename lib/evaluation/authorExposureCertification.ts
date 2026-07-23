@@ -1,5 +1,5 @@
 import type { createClient } from '@supabase/supabase-js';
-import { finalExternalAuditAllowsAuthorExposure } from '@/lib/evaluation/finalExternalAudit';
+import { finalExternalAuditAllowsPhase5Exposure } from '@/lib/evaluation/finalExternalAuditExposureGuard';
 import { evaluateGate15AuthorExposure } from '@/lib/evaluation/gate15/authorExposureGate15';
 
 export type AuthorExposureBlockReason =
@@ -161,7 +161,7 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
     };
   }
 
-  if (certification.final_external_audit != null && !finalExternalAuditAllowsAuthorExposure(certification.final_external_audit)) {
+  if (certification.final_external_audit != null && !finalExternalAuditAllowsPhase5Exposure(certification.final_external_audit)) {
     return blockForFinalExternalAudit();
   }
 
@@ -176,7 +176,7 @@ export function evaluateAuthorExposureCertificationWithFinalExternalAudit(
   const baseDecision = evaluateAuthorExposureCertification(certificationContent);
   if (!baseDecision.exposable) return baseDecision;
 
-  if (!finalExternalAuditAllowsAuthorExposure(finalExternalAuditContent)) return blockForFinalExternalAudit();
+  if (!finalExternalAuditAllowsPhase5Exposure(finalExternalAuditContent)) return blockForFinalExternalAudit();
 
   return baseDecision;
 }
