@@ -1610,6 +1610,9 @@ export function reconcilePass2ToPass3Lineage(
       sourceCandidates.set(sid, candidates);
     }
 
+    const MATCH_THRESHOLD = 5;
+    const AMBIGUITY_MARGIN = 3;
+
     const assignments = new Map<string, string>(); // recKey -> sourceId
     const assignedSourceIds = new Set<string>();
 
@@ -1621,6 +1624,16 @@ export function reconcilePass2ToPass3Lineage(
       const top = candidates[0];
       const key = recKey(top.ci, top.ri);
       if (assignments.has(key)) continue;
+
+      // If a second candidate is nearly as strong, the source is ambiguous and must
+      // not be materialized into an arbitrary choice.
+      if (
+        candidates.length >= 2 &&
+        candidates[1].score >= top.score - AMBIGUITY_MARGIN &&
+        candidates[1].score >= MATCH_THRESHOLD
+      ) {
+        continue;
+      }
 
       // If another source has the same top candidate with equal score, this is ambiguous.
       let conflict = false;
