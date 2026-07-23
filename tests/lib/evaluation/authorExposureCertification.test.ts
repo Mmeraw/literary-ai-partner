@@ -15,10 +15,11 @@ function certifiedPayload() {
   };
 }
 
-function finalAuditPayload(status: 'pass' | 'warn' | 'block' = 'pass') {
+function finalAuditPayload(status: 'pass' | 'warn' | 'block' = 'pass', sourceHash: string = 'result-source-hash-1') {
   return {
     artifact_type: 'final_external_audit_v1',
     status,
+    evaluation_result_source_hash: sourceHash,
   };
 }
 
@@ -61,10 +62,12 @@ function mockAdmin({
   artifacts = {},
   errors = {},
   job = { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+  sourceHashes = { evaluation_result_v2: 'result-source-hash-1' },
 }: {
   artifacts?: Record<string, unknown>;
   errors?: Record<string, string>;
   job?: Record<string, unknown> | null;
+  sourceHashes?: Record<string, string | null>;
 }) {
   return {
     from: jest.fn((table: string) => {
@@ -90,10 +93,16 @@ function mockAdmin({
           if (errors[artifactType]) {
             return { data: null, error: { message: errors[artifactType] } };
           }
-          if (!Object.prototype.hasOwnProperty.call(artifacts, artifactType)) {
+          if (!Object.prototype.hasOwnProperty.call(artifacts, artifactType) && sourceHashes[artifactType] == null) {
             return { data: null, error: null };
           }
-          return { data: { content: artifacts[artifactType] }, error: null };
+          return {
+            data: {
+              content: Object.prototype.hasOwnProperty.call(artifacts, artifactType) ? artifacts[artifactType] : null,
+              source_hash: sourceHashes[artifactType] ?? null,
+            },
+            error: null,
+          };
         }),
       };
       return query;
@@ -747,6 +756,7 @@ describe('getAuthorExposureDecision', () => {
         schema_version: 'final_external_audit_v1',
         verdict: 'SKIP',
         codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+        evaluation_result_source_hash: 'result-source-hash-1',
       },
       gate_15_audit_v1: gate15AuditPayload('PASS'),
     });
@@ -766,6 +776,7 @@ describe('getAuthorExposureDecision', () => {
           codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
           word_count: 100,
           evaluation_result_version: 'evaluation_result_v2',
+          evaluation_result_source_hash: 'result-source-hash-1',
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
@@ -775,6 +786,33 @@ describe('getAuthorExposureDecision', () => {
     const decision = await getAuthorExposureDecision(admin, JOB_ID);
 
     expect(decision).toMatchObject({ exposable: true });
+  });
+
+  test('blocks exposure when short-form final audit source hash does not match the canonical result (stale prior result)', async () => {
+    const admin = mockAdmin({
+      artifacts: {
+        author_exposure_certification_v1: certifiedPayload(),
+        final_external_audit_v1: {
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+          word_count: 100,
+          evaluation_result_version: 'evaluation_result_v2',
+          evaluation_result_source_hash: 'result-source-hash-stale',
+        },
+        gate_15_audit_v1: gate15AuditPayload('PASS'),
+      },
+      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+    if (!('exposable' in decision) || decision.exposable !== false) return;
+    expect(decision.details).toContain('evaluation_result_source_hash mismatch');
   });
 
   test('blocks exposure when short-form final audit word_count does not match job', async () => {
@@ -787,6 +825,7 @@ describe('getAuthorExposureDecision', () => {
           codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
           word_count: 50,
           evaluation_result_version: 'evaluation_result_v2',
+          evaluation_result_source_hash: 'result-source-hash-1',
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
@@ -813,6 +852,7 @@ describe('getAuthorExposureDecision', () => {
           codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
           word_count: 100,
           evaluation_result_version: 'evaluation_result_v3',
+          evaluation_result_source_hash: 'result-source-hash-1',
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
@@ -827,6 +867,60 @@ describe('getAuthorExposureDecision', () => {
     });
     if (!('exposable' in decision) || decision.exposable !== false) return;
     expect(decision.details).toContain('evaluation_result_version mismatch');
+  });
+
+  test('blocks exposure when final audit is missing evaluation_result_source_hash binding', async () => {
+    const admin = mockAdmin({
+      artifacts: {
+        author_exposure_certification_v1: certifiedPayload(),
+        final_external_audit_v1: {
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+          word_count: 100,
+          evaluation_result_version: 'evaluation_result_v2',
+        },
+        gate_15_audit_v1: gate15AuditPayload('PASS'),
+      },
+      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+    if (!('exposable' in decision) || decision.exposable !== false) return;
+    expect(decision.details).toContain('missing required evaluation_result_source_hash binding');
+  });
+
+  test('blocks exposure when canonical evaluation_result_v2 source hash cannot be proven', async () => {
+    const admin = mockAdmin({
+      artifacts: {
+        author_exposure_certification_v1: certifiedPayload(),
+        final_external_audit_v1: {
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+          word_count: 100,
+          evaluation_result_version: 'evaluation_result_v2',
+          evaluation_result_source_hash: 'result-source-hash-1',
+        },
+        gate_15_audit_v1: gate15AuditPayload('PASS'),
+      },
+      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+      sourceHashes: { evaluation_result_v2: null },
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+    if (!('exposable' in decision) || decision.exposable !== false) return;
+    expect(decision.details).toContain('canonical evaluation_result_v2 source hash is unavailable');
   });
 
   test('blocks long-form exposure when final audit artifact is missing', async () => {

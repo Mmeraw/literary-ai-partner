@@ -12025,6 +12025,7 @@ export async function processEvaluationJob(
           workType: manuscript?.work_type ?? null,
           evaluationResult: effectiveEvaluationResult,
           checkedArtifacts,
+          evaluationResultSourceHash: sourceHash,
         });
         console.log(`[Processor] ${jobId}: persisted short-form final_external_audit_v1 artifact`);
       }

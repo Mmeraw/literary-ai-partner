@@ -172,21 +172,34 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
 function validateFinalAuditBinding(
   finalExternalAuditContent: unknown,
   jobMetadata?: { word_count?: number | null; evaluation_result_version?: string | null } | null,
+  evaluationResultSourceHash?: string | null,
 ): string | null {
-  if (!jobMetadata) return null;
   const record = finalExternalAuditContent && typeof finalExternalAuditContent === 'object' && !Array.isArray(finalExternalAuditContent)
     ? (finalExternalAuditContent as Record<string, unknown>)
     : null;
-  if (!record) return null;
+  if (!record) return 'final_external_audit_v1 payload is not a record';
 
-  const auditVersion = typeof record.evaluation_result_version === 'string' ? record.evaluation_result_version : null;
-  const auditWordCount = typeof record.word_count === 'number' ? record.word_count : null;
-
-  if (auditVersion != null && jobMetadata.evaluation_result_version != null && auditVersion !== jobMetadata.evaluation_result_version) {
-    return `final_external_audit_v1 evaluation_result_version mismatch: expected ${jobMetadata.evaluation_result_version}, got ${auditVersion}`;
+  const auditHash = typeof record.evaluation_result_source_hash === 'string' ? record.evaluation_result_source_hash : null;
+  if (auditHash == null) {
+    return 'final_external_audit_v1 is missing required evaluation_result_source_hash binding';
   }
-  if (auditWordCount != null && jobMetadata.word_count != null && auditWordCount !== jobMetadata.word_count) {
-    return `final_external_audit_v1 word_count mismatch: expected ${jobMetadata.word_count}, got ${auditWordCount}`;
+  if (evaluationResultSourceHash == null) {
+    return 'canonical evaluation_result_v2 source hash is unavailable; cannot verify final audit binding';
+  }
+  if (auditHash !== evaluationResultSourceHash) {
+    return `final_external_audit_v1 evaluation_result_source_hash mismatch: expected ${evaluationResultSourceHash}, got ${auditHash}`;
+  }
+
+  if (jobMetadata) {
+    const auditVersion = typeof record.evaluation_result_version === 'string' ? record.evaluation_result_version : null;
+    const auditWordCount = typeof record.word_count === 'number' ? record.word_count : null;
+
+    if (auditVersion != null && jobMetadata.evaluation_result_version != null && auditVersion !== jobMetadata.evaluation_result_version) {
+      return `final_external_audit_v1 evaluation_result_version mismatch: expected ${jobMetadata.evaluation_result_version}, got ${auditVersion}`;
+    }
+    if (auditWordCount != null && jobMetadata.word_count != null && auditWordCount !== jobMetadata.word_count) {
+      return `final_external_audit_v1 word_count mismatch: expected ${jobMetadata.word_count}, got ${auditWordCount}`;
+    }
   }
 
   return null;
@@ -212,6 +225,7 @@ export function evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate
     jobId: string;
     now?: Date;
     jobMetadata?: { word_count?: number | null; evaluation_result_version?: string | null } | null;
+    evaluationResultSourceHash?: string | null;
   },
 ): AuthorExposureDecision {
   const baseDecision = evaluateAuthorExposureCertification(certificationContent);
@@ -219,7 +233,7 @@ export function evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate
 
   if (!finalExternalAuditAllowsPhase5Exposure(finalExternalAuditContent)) return blockForFinalExternalAudit();
 
-  const bindingError = validateFinalAuditBinding(finalExternalAuditContent, options.jobMetadata);
+  const bindingError = validateFinalAuditBinding(finalExternalAuditContent, options.jobMetadata, options.evaluationResultSourceHash);
   if (bindingError) return blockForFinalExternalAudit(bindingError);
 
   const gate15Decision = evaluateGate15AuthorExposure(gate15AuditContent, {
@@ -294,6 +308,29 @@ async function readJobExposureMetadata(
   };
 }
 
+async function readEvaluationResultSourceHash(
+  admin: Pick<AdminClient, 'from'>,
+  jobId: string,
+): Promise<{ sourceHash: string | null; errorMessage: string | null }> {
+  const { data, error } = await admin
+    .from('evaluation_artifacts')
+    .select('source_hash')
+    .eq('job_id', jobId)
+    .eq('artifact_type', 'evaluation_result_v2')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return { sourceHash: null, errorMessage: error.message };
+  if (!data) return { sourceHash: null, errorMessage: null };
+
+  const record = data as Record<string, unknown>;
+  return {
+    sourceHash: typeof record.source_hash === 'string' ? record.source_hash : null,
+    errorMessage: null,
+  };
+}
+
 export async function getAuthorExposureDecisionWithFinalExternalAudit(
   admin: Pick<AdminClient, 'from'>,
   jobId: string,
@@ -325,6 +362,11 @@ export async function getAuthorExposureDecisionWithFinalExternalAudit(
     return { exposable: false, reason: 'db_error', details: jobMetadata.errorMessage };
   }
 
+  const evaluationResultSourceHash = await readEvaluationResultSourceHash(admin, jobId);
+  if (evaluationResultSourceHash.errorMessage) {
+    return { exposable: false, reason: 'db_error', details: evaluationResultSourceHash.errorMessage };
+  }
+
   return evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate15(
     certification.content,
     finalAudit.content,
@@ -332,6 +374,7 @@ export async function getAuthorExposureDecisionWithFinalExternalAudit(
     {
       jobId,
       jobMetadata: jobMetadata.metadata,
+      evaluationResultSourceHash: evaluationResultSourceHash.sourceHash,
     },
   );
 }

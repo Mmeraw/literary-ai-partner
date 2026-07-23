@@ -184,7 +184,7 @@ describe('final external audit', () => {
     );
   });
 
-  test('persists short-form final_external_audit_v1 with SKIP verdict', async () => {
+  test('persists short-form final_external_audit_v1 with SKIP verdict and source hash binding', async () => {
     const result = await persistFinalExternalAudit({
       supabase: {} as any,
       jobId: 'job-short-form',
@@ -194,6 +194,7 @@ describe('final external audit', () => {
       workType: 'short_story',
       evaluationResult: makeResult(),
       checkedArtifacts: completeArtifacts,
+      evaluationResultSourceHash: 'result-source-hash-1',
     });
 
     expect(result.schema_version).toBe('final_external_audit_v1');
@@ -201,6 +202,7 @@ describe('final external audit', () => {
     expect(result.blocking).toBe(false);
     expect(result.word_count).toBe(1200);
     expect(result.evaluation_result_version).toBe('evaluation_result_v2');
+    expect(result.evaluation_result_source_hash).toBe('result-source-hash-1');
     expect(upsertEvaluationArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: 'job-short-form',
@@ -213,6 +215,7 @@ describe('final external audit', () => {
           blocking: false,
           word_count: 1200,
           evaluation_result_version: 'evaluation_result_v2',
+          evaluation_result_source_hash: 'result-source-hash-1',
         }),
       }),
     );
