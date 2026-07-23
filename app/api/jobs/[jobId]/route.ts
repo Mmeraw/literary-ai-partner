@@ -128,6 +128,23 @@ function jsonNoStore(body: unknown, status = 200) {
   });
 }
 
+/**
+ * Trusted CI/service identities (CRON_SECRET or SUPABASE_SERVICE_ROLE_KEY) may
+ * observe operational failure details. These secrets already grant broad access;
+ * treating them as operator-equivalent lets the canonical smoke test read the
+ * real failure_code and last_error for diagnosis.
+ */
+function isTrustedEvaluationObserver(req: NextRequest): boolean {
+  const auth = req.headers.get("authorization")?.trim() ?? "";
+  if (!auth.toLowerCase().startsWith("bearer ")) return false;
+  const token = auth.slice(7).trim();
+  if (!token) return false;
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  return (cronSecret !== undefined && token === cronSecret) ||
+    (serviceRoleKey !== undefined && token === serviceRoleKey);
+}
+
 export async function GET(req: NextRequest, ctx: { params: Params }) {
   try {
     const { jobId } = await ctx.params;
@@ -145,7 +162,8 @@ export async function GET(req: NextRequest, ctx: { params: Params }) {
 
     const sessionUser = await getAuthenticatedUser();
     const ownerId = sessionUser?.id ?? headerOwnerId;
-    const canSeeOperationalDetails = canViewEvaluationOperationalDetails(sessionUser);
+    const canSeeOperationalDetails =
+      canViewEvaluationOperationalDetails(sessionUser) || isTrustedEvaluationObserver(req);
 
     if (!ownerId) {
       return jsonNoStore(
