@@ -181,6 +181,36 @@ describe('final external audit', () => {
     );
   });
 
+  test('persists short-form final_external_audit_v1 with SKIP verdict', async () => {
+    const result = await persistFinalExternalAudit({
+      supabase: {} as any,
+      jobId: 'job-short-form',
+      manuscriptId: 123,
+      userId: 'user-1',
+      wordCount: 1200,
+      workType: 'short_story',
+      evaluationResult: makeResult(),
+      checkedArtifacts: completeArtifacts,
+    });
+
+    expect(result.schema_version).toBe('final_external_audit_v1');
+    expect(result.verdict).toBe('SKIP');
+    expect(result.blocking).toBe(false);
+    expect(upsertEvaluationArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-short-form',
+        manuscriptId: 123,
+        artifactType: 'final_external_audit_v1',
+        artifactVersion: 'final_external_audit_v1',
+        content: expect.objectContaining({
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          blocking: false,
+        }),
+      }),
+    );
+  });
+
   test('provider cannot block solely for missing revision_opportunity_ledger_v1', async () => {
     process.env.PERPLEXITY_API_KEY = 'test-key';
     const originalFetch = global.fetch;

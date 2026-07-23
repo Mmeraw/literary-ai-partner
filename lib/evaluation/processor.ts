@@ -186,6 +186,7 @@ import {
 } from '@/lib/text/authorFacingIntegrity';
 import { runPass1a, type Pass1aChunkCacheArtifact } from '@/lib/evaluation/pipeline/runPass1a';
 import { runPass3Preflight } from '@/lib/evaluation/pipeline/runPass3Preflight';
+import { persistFinalExternalAudit } from '@/lib/evaluation/pipeline/finalExternalAudit';
 import { reduceCharacterEvidence, buildCharacterLedgerV2 } from '@/lib/evaluation/pipeline/characterReducer';
 import { buildStoryLayerFromLedger } from '@/lib/evaluation/phase1a/buildStoryLayerFromLedger';
 import { STORY_LAYER_KEYS } from '@/lib/evaluation/artifacts/artifactTypes';
@@ -12003,6 +12004,31 @@ export async function processEvaluationJob(
     });
 
     try {
+      // Short-form finalization (< 25k words) does not go through the DREAM
+      // worker, so it never gets a final_external_audit_v1 artifact. Persist
+      // a deterministic SKIP audit here so the author-exposure release gate
+      // can read it.
+      const sourceWordCount = coverageForReporting?.sourceWords ?? 0;
+      if (sourceWordCount < WAVE_MIN_WORDS) {
+        const checkedArtifacts = {
+          evaluation_result_v2: { present: true },
+          longform_document_v1: { present: false },
+          wave_revision_plan_v1: { present: false },
+          revision_opportunity_ledger_v1: { present: false },
+        };
+        await persistFinalExternalAudit({
+          supabase,
+          jobId: job.id,
+          manuscriptId: job.manuscript_id,
+          userId: manuscriptWithContent.user_id,
+          wordCount: sourceWordCount,
+          workType: manuscript?.work_type ?? null,
+          evaluationResult: effectiveEvaluationResult,
+          checkedArtifacts,
+        });
+        console.log(`[Processor] ${jobId}: persisted short-form final_external_audit_v1 artifact`);
+      }
+
       console.log(
         `[Processor] ${jobId}: ENTER persistEvaluationResultV2 manuscriptId=${job.manuscript_id}`,
       );
