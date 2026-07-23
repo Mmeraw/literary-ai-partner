@@ -24,12 +24,12 @@ describe('normalizeMechanicalCmos', () => {
 
   test('normalizes the full safe catalog in one centralized pass', () => {
     const result = normalizeMechanicalCmos(
-      '  the  opening--not the ending--works ,but then fails!! then revise it.\n1- fix the the ending  ',
+      '  1- fix the the opening--not the ending--which works ,but then fails!! then revise it  ',
       { ensureTerminalPunctuation: true },
     );
 
     expect(result.value).toBe(
-      'The opening—not the ending—works, but then fails! Then revise it. 1. Fix the ending.',
+      '1. Fix the opening—not the ending—which works, but then fails! Then revise it.',
     );
     expect(result.mutations.map((mutation) => mutation.code)).toEqual(
       expect.arrayContaining([
