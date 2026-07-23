@@ -656,23 +656,27 @@ export async function POST(req: Request) {
       const adminClient = createAdminClient();
       const { data: activeJobs } = await adminClient
         .from("evaluation_jobs")
-        .select("id, status")
+        .select("id, status, user_id")
         .eq("manuscript_id", manuscript_id)
         .in("status", ["queued", "running"])
         .limit(1);
       if (activeJobs && activeJobs.length > 0) {
+        const existingJob = activeJobs[0];
         logger.warn("Job creation blocked: active job exists for manuscript", {
           trace_id,
           request_id,
           event: "api.jobs.create.active_job_conflict",
           manuscript_id,
-          existing_job_id: activeJobs[0].id,
+          existing_job_id: existingJob.id,
+          existing_job_user_id: existingJob.user_id,
         });
         return NextResponse.json(
           {
             ok: false,
             error: "An evaluation is already running or queued for this manuscript. Please wait for it to finish, cancel it, or use a different manuscript.",
             code: "ACTIVE_JOB_CONFLICT",
+            existing_job_id: existingJob.id,
+            existing_job_user_id: existingJob.user_id,
             trace_id,
           },
           { status: 409 }
