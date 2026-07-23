@@ -334,7 +334,7 @@ beforeEach(() => {
 });
 
 describe('repairSynthesisIntegrity', () => {
-  it('cd6d8266 regression fixture repairs fit_summary, gap_summary, final_rationale, specific_fix, and candidate_text violations', async () => {
+  it('cd6d8266 regression fixture normalizes final_rationale/specific_fix/candidate_text sentence starts and repairs fit_summary and gap_summary ellipsis violations', async () => {
     const synthesis = makeCd6d8266Synthesis();
     const result = await repairSynthesisIntegrity(synthesis, {
       openaiApiKey: 'test-key',
@@ -342,24 +342,35 @@ describe('repairSynthesisIntegrity', () => {
 
     expect(result.ok).toBe(true);
     expect(result.requiredAttempts).toBeGreaterThan(0);
+    // Lowercase sentence starts are now repaired deterministically before
+    // regeneration, so only the ellipsis-bearing fit_summary and gap_summary
+    // require LLM regeneration.
     expect(result.regeneratedFields).toEqual(
       expect.arrayContaining([
-        'evaluation_result_v2.criteria[2].final_rationale',
         'evaluation_result_v2.criteria[3].fit_summary',
-        'evaluation_result_v2.criteria[6].recommendations[0].specific_fix',
         'evaluation_result_v2.criteria[8].gap_summary',
       ]),
     );
     expect(result.remainingViolations).toHaveLength(0);
+    expect(getByPath(synthesis, 'evaluation_result_v2.criteria[2].final_rationale')).toBe(
+      'The narrator emerges as a flawed man. Then Kim becomes a textured, compassionate stylist whose past shapes her devotion.',
+    );
+    expect(getByPath(synthesis, 'evaluation_result_v2.criteria[6].recommendations[0].specific_fix')).toBe(
+      'Weave the value contrast between vanity and generosity into the salon-climax dialogue. Then sharpen the closing image.',
+    );
   });
 
   it('whole-envelope integrity test repairs multiple simultaneous required and candidate failures', async () => {
     const synthesis = makeValidSynthesis();
     synthesis.criteria[0].fit_summary = 'The voice works because the details…';
     synthesis.criteria[0].gap_summary = 'The pacing drags in the middle…';
+    // Lowercase sentence starts are repaired deterministically by
+    // normalizeArtifact before the repair loop is reached.
     synthesis.criteria[0].final_rationale = 'The voice is strong. then the pacing stalls.';
     synthesis.criteria[0].recommendations[0].specific_fix = 'add a goal. then add stakes.';
-    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front. make the want explicit.';
+    // Ellipsis is a non-deterministic integrity violation and must flow through
+    // the candidate repair path.
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front…';
     synthesis.criteria[0].recommendations[0].candidate_text_b = 'restate the first beat. sharpen the objective.';
 
     const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
@@ -368,6 +379,8 @@ describe('repairSynthesisIntegrity', () => {
     expect(result.requiredAttempts).toBeGreaterThan(0);
     expect(result.candidateAttempts).toBeGreaterThan(0);
     expect(result.remainingViolations).toHaveLength(0);
+    expect(synthesis.criteria[0].final_rationale).toBe('The voice is strong. Then the pacing stalls.');
+    expect(synthesis.criteria[0].recommendations[0].specific_fix).toBe('Add a goal. Then add stakes.');
   });
 
   it('is idempotent on an already-valid synthesis', async () => {
@@ -491,7 +504,9 @@ describe('repairSynthesisIntegrity', () => {
   it('handles mixed candidate and required violations in one recovery cycle', async () => {
     const synthesis = makeValidSynthesis();
     synthesis.criteria[0].fit_summary = 'The voice works because the details…';
-    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front. make the want explicit.';
+    // Lowercase sentence starts are repaired deterministically; ellipsis in a
+    // candidate path still requires the candidate repair loop.
+    synthesis.criteria[0].recommendations[0].candidate_text_a = 'add a goal up front…';
 
     const result = await repairSynthesisIntegrity(synthesis, { openaiApiKey: 'test-key' });
 

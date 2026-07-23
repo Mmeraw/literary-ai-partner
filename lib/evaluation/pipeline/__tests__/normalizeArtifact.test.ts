@@ -138,6 +138,22 @@ describe('normalizeArtifact — universal author-facing punctuation mistake-proo
     );
   });
 
+  it('capitalizes lowercase sentence starts in final_rationale without mutating decimals', () => {
+    const synthesis = makeSynthesis({
+      criteriaRecs: [
+        {
+          action: 'Condense surveillance exposition. then keep the airport objective active.',
+        },
+      ],
+    });
+    (synthesis.criteria[0] as Record<string, unknown>).final_rationale =
+      'The surveillance exposition interrupts momentum. maintain the airport objective throughout the paragraph. The ratio is 3.14 in the draft.';
+    normalizeArtifact(synthesis, [], []);
+    expect((synthesis.criteria[0] as Record<string, unknown>).final_rationale).toBe(
+      'The surveillance exposition interrupts momentum. Maintain the airport objective throughout the paragraph. The ratio is 3.14 in the draft.',
+    );
+  });
+
   it('does not paper over a genuine terminal-dash truncation', () => {
     const synthesis = makeSynthesis({ criteriaRecs: [{ action: 'Strengthen the climax—' }] });
     expect(() => normalizeArtifact(synthesis, [], [])).toThrow();
