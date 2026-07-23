@@ -84,11 +84,11 @@ function parityHasFailure(value: unknown): boolean {
   return false;
 }
 
-function blockForFinalExternalAudit(): AuthorExposureDecision {
+function blockForFinalExternalAudit(details?: string): AuthorExposureDecision {
   return {
     exposable: false,
     reason: 'final_external_audit_failed',
-    details: 'final_external_audit_v1 is missing, malformed, or blocking',
+    details: details ?? 'final_external_audit_v1 is missing, malformed, or blocking',
   };
 }
 
@@ -169,6 +169,29 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
   return { exposable: true, certifiedAt };
 }
 
+function validateFinalAuditBinding(
+  finalExternalAuditContent: unknown,
+  jobMetadata?: { word_count?: number | null; evaluation_result_version?: string | null } | null,
+): string | null {
+  if (!jobMetadata) return null;
+  const record = finalExternalAuditContent && typeof finalExternalAuditContent === 'object' && !Array.isArray(finalExternalAuditContent)
+    ? (finalExternalAuditContent as Record<string, unknown>)
+    : null;
+  if (!record) return null;
+
+  const auditVersion = typeof record.evaluation_result_version === 'string' ? record.evaluation_result_version : null;
+  const auditWordCount = typeof record.word_count === 'number' ? record.word_count : null;
+
+  if (auditVersion != null && jobMetadata.evaluation_result_version != null && auditVersion !== jobMetadata.evaluation_result_version) {
+    return `final_external_audit_v1 evaluation_result_version mismatch: expected ${jobMetadata.evaluation_result_version}, got ${auditVersion}`;
+  }
+  if (auditWordCount != null && jobMetadata.word_count != null && auditWordCount !== jobMetadata.word_count) {
+    return `final_external_audit_v1 word_count mismatch: expected ${jobMetadata.word_count}, got ${auditWordCount}`;
+  }
+
+  return null;
+}
+
 export function evaluateAuthorExposureCertificationWithFinalExternalAudit(
   certificationContent: unknown,
   finalExternalAuditContent: unknown,
@@ -188,13 +211,16 @@ export function evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate
   options: {
     jobId: string;
     now?: Date;
+    jobMetadata?: { word_count?: number | null; evaluation_result_version?: string | null } | null;
   },
 ): AuthorExposureDecision {
-  const baseDecision = evaluateAuthorExposureCertificationWithFinalExternalAudit(
-    certificationContent,
-    finalExternalAuditContent,
-  );
+  const baseDecision = evaluateAuthorExposureCertification(certificationContent);
   if (!baseDecision.exposable) return baseDecision;
+
+  if (!finalExternalAuditAllowsPhase5Exposure(finalExternalAuditContent)) return blockForFinalExternalAudit();
+
+  const bindingError = validateFinalAuditBinding(finalExternalAuditContent, options.jobMetadata);
+  if (bindingError) return blockForFinalExternalAudit(bindingError);
 
   const gate15Decision = evaluateGate15AuthorExposure(gate15AuditContent, {
     jobId: options.jobId,
@@ -240,6 +266,34 @@ export async function getAuthorExposureDecision(
   return getAuthorExposureDecisionWithFinalExternalAudit(admin, jobId);
 }
 
+type JobExposureMetadata = {
+  word_count: number | null;
+  evaluation_result_version: string | null;
+};
+
+async function readJobExposureMetadata(
+  admin: Pick<AdminClient, 'from'>,
+  jobId: string,
+): Promise<{ metadata: JobExposureMetadata | null; errorMessage: string | null }> {
+  const { data, error } = await admin
+    .from('evaluation_jobs')
+    .select('word_count, evaluation_result_version')
+    .eq('id', jobId)
+    .maybeSingle();
+
+  if (error) return { metadata: null, errorMessage: error.message };
+  if (!data) return { metadata: null, errorMessage: null };
+
+  const record = data as Record<string, unknown>;
+  return {
+    metadata: {
+      word_count: typeof record.word_count === 'number' ? record.word_count : null,
+      evaluation_result_version: typeof record.evaluation_result_version === 'string' ? record.evaluation_result_version : null,
+    },
+    errorMessage: null,
+  };
+}
+
 export async function getAuthorExposureDecisionWithFinalExternalAudit(
   admin: Pick<AdminClient, 'from'>,
   jobId: string,
@@ -266,12 +320,18 @@ export async function getAuthorExposureDecisionWithFinalExternalAudit(
     return { exposable: false, reason: 'db_error', details: gate15Audit.errorMessage };
   }
 
+  const jobMetadata = await readJobExposureMetadata(admin, jobId);
+  if (jobMetadata.errorMessage) {
+    return { exposable: false, reason: 'db_error', details: jobMetadata.errorMessage };
+  }
+
   return evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate15(
     certification.content,
     finalAudit.content,
     gate15Audit.content,
     {
       jobId,
+      jobMetadata: jobMetadata.metadata,
     },
   );
 }

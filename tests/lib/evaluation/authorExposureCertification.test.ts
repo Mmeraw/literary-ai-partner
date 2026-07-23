@@ -57,9 +57,26 @@ function gate15NonblockingDisposition(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mockArtifactAdmin(artifacts: Record<string, unknown>, errors: Record<string, string> = {}) {
+function mockAdmin({
+  artifacts = {},
+  errors = {},
+  job = { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+}: {
+  artifacts?: Record<string, unknown>;
+  errors?: Record<string, string>;
+  job?: Record<string, unknown> | null;
+}) {
   return {
-    from: jest.fn(() => {
+    from: jest.fn((table: string) => {
+      if (table === 'evaluation_jobs') {
+        return {
+          select: jest.fn(() => ({
+            eq: jest.fn(() => ({
+              maybeSingle: jest.fn(async () => ({ data: job, error: null })),
+            })),
+          })),
+        };
+      }
       let artifactType = '';
       const query = {
         select: jest.fn(() => query),
@@ -82,6 +99,10 @@ function mockArtifactAdmin(artifacts: Record<string, unknown>, errors: Record<st
       return query;
     }),
   } as never;
+}
+
+function mockArtifactAdmin(artifacts: Record<string, unknown>, errors: Record<string, string> = {}) {
+  return mockAdmin({ artifacts, errors });
 }
 
 describe('evaluateAuthorExposureCertification', () => {
@@ -478,6 +499,7 @@ describe('getAuthorExposureDecision', () => {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
           eq: jest.fn(() => ({
+            maybeSingle: jest.fn(async () => ({ data: null, error: null })),
             eq: jest.fn(() => ({
               order: jest.fn(() => ({
                 limit: jest.fn(() => ({
@@ -502,6 +524,7 @@ describe('getAuthorExposureDecision', () => {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
           eq: jest.fn(() => ({
+            maybeSingle: jest.fn(async () => ({ data: null, error: null })),
             eq: jest.fn(() => ({
               order: jest.fn(() => ({
                 limit: jest.fn(() => ({
@@ -535,6 +558,7 @@ describe('getAuthorExposureDecision', () => {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
           eq: jest.fn(() => ({
+            maybeSingle: jest.fn(async () => ({ data: null, error: null })),
             eq: jest.fn(() => ({
               order: jest.fn(() => ({
                 limit: jest.fn(() => ({
@@ -563,6 +587,7 @@ describe('getAuthorExposureDecision', () => {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
           eq: jest.fn(() => ({
+            maybeSingle: jest.fn(async () => ({ data: null, error: null })),
             eq: jest.fn(() => ({
               order: jest.fn(() => ({
                 limit: jest.fn(() => ({
@@ -598,6 +623,7 @@ describe('getAuthorExposureDecision', () => {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
           eq: jest.fn(() => ({
+            maybeSingle: jest.fn(async () => ({ data: null, error: null })),
             eq: jest.fn(() => ({
               order: jest.fn(() => ({
                 limit: jest.fn(() => ({
@@ -636,6 +662,7 @@ describe('getAuthorExposureDecision', () => {
       from: jest.fn(() => ({
         select: jest.fn(() => ({
           eq: jest.fn(() => ({
+            maybeSingle: jest.fn(async () => ({ data: null, error: null })),
             eq: jest.fn(() => ({
               order: jest.fn(() => ({
                 limit: jest.fn(() => ({
@@ -727,5 +754,95 @@ describe('getAuthorExposureDecision', () => {
     const decision = await getAuthorExposureDecision(admin, JOB_ID);
 
     expect(decision).toMatchObject({ exposable: true });
+  });
+
+  test('allows exposure when short-form final audit is bound to actual job metadata', async () => {
+    const admin = mockAdmin({
+      artifacts: {
+        author_exposure_certification_v1: certifiedPayload(),
+        final_external_audit_v1: {
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+          word_count: 100,
+          evaluation_result_version: 'evaluation_result_v2',
+        },
+        gate_15_audit_v1: gate15AuditPayload('PASS'),
+      },
+      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({ exposable: true });
+  });
+
+  test('blocks exposure when short-form final audit word_count does not match job', async () => {
+    const admin = mockAdmin({
+      artifacts: {
+        author_exposure_certification_v1: certifiedPayload(),
+        final_external_audit_v1: {
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+          word_count: 50,
+          evaluation_result_version: 'evaluation_result_v2',
+        },
+        gate_15_audit_v1: gate15AuditPayload('PASS'),
+      },
+      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+    if (!('exposable' in decision) || decision.exposable !== false) return;
+    expect(decision.details).toContain('word_count mismatch');
+  });
+
+  test('blocks exposure when short-form final audit evaluation_result_version does not match job', async () => {
+    const admin = mockAdmin({
+      artifacts: {
+        author_exposure_certification_v1: certifiedPayload(),
+        final_external_audit_v1: {
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+          word_count: 100,
+          evaluation_result_version: 'evaluation_result_v3',
+        },
+        gate_15_audit_v1: gate15AuditPayload('PASS'),
+      },
+      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
+    if (!('exposable' in decision) || decision.exposable !== false) return;
+    expect(decision.details).toContain('evaluation_result_version mismatch');
+  });
+
+  test('blocks long-form exposure when final audit artifact is missing', async () => {
+    const admin = mockAdmin({
+      artifacts: {
+        author_exposure_certification_v1: certifiedPayload(),
+        gate_15_audit_v1: gate15AuditPayload('PASS'),
+      },
+      job: { word_count: 50000, evaluation_result_version: 'evaluation_result_v2' },
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({
+      exposable: false,
+      reason: 'final_external_audit_failed',
+    });
   });
 });
