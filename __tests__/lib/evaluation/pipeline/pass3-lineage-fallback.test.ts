@@ -369,17 +369,22 @@ describe("Pass 3B recommendation lineage fallback", () => {
     ).toThrow("Pass 3 did not account for every Pass 2 recommendation discovery");
   });
 
-  it("rejects present-but-empty native recommendation_lineage instead of invoking fallback", () => {
+  it("reconciles present-but-empty native recommendation_lineage by materializing provable matches", () => {
     const pass1 = makePassOutput(1);
     const pass2 = makePassOutput(2, { narrativeDrive: montyExpositionPass2 });
+    const montySourceId = sourceIdForPass2Recommendation("narrativeDrive", montyExpositionPass2);
 
     const raw = buildRawWithRecommendations(
       { narrativeDrive: [montyExpositionPass3] },
       { recommendation_lineage: [] },
     );
 
-    expect(() =>
-      parsePass3Response(raw, pass1, pass2, "gpt-4o", "A manuscript excerpt.", undefined, undefined, true)
-    ).toThrow("Pass 3 did not account for every Pass 2 recommendation discovery");
+    const result = parsePass3Response(raw, pass1, pass2, "gpt-4o", "A manuscript excerpt.", undefined, undefined, true);
+    const narrativeDrive = result.criteria.find((c) => c.key === "narrativeDrive");
+    expect(narrativeDrive!.recommendations).toHaveLength(1);
+    expect(narrativeDrive!.recommendations[0].source_recommendation_ids).toContain(montySourceId);
+    expect(result.recommendation_lineage).toEqual(
+      expect.arrayContaining([expect.objectContaining({ source_id: montySourceId, outcome: "materialized" })]),
+    );
   });
 });
