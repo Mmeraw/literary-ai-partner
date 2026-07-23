@@ -1,3 +1,19 @@
+jest.mock('@/lib/revision/logRevisionEvent', () => ({
+  logRevisionEvent: jest.fn(async () => undefined),
+}));
+
+jest.mock('@/lib/revision/candidateHydration', () => {
+  const actual = jest.requireActual('@/lib/revision/candidateHydration');
+  return {
+    ...actual,
+    hydrateLedgerCandidates: jest.fn(),
+  };
+});
+
+jest.mock('@/lib/revision/candidateRegeneration', () => ({
+  regenerateCandidatesForQualityFailed: jest.fn(),
+}));
+
 import {
   buildRevisionOpportunitiesFromEvaluationPayload,
   ensureRevisionOpportunityLedgerArtifact,
@@ -7,12 +23,12 @@ import {
 import { canonicalJsonSha256 } from '@/lib/evaluation/canonicalJsonHash';
 import { candidateTextIsCopyPasteReady } from '@/lib/revision/reviseCardContract';
 import { logRevisionEvent } from '@/lib/revision/logRevisionEvent';
-
-jest.mock('@/lib/revision/logRevisionEvent', () => ({
-  logRevisionEvent: jest.fn(async () => undefined),
-}));
+import { HYDRATION_PROMPT_VERSION, hydrateLedgerCandidates } from '@/lib/revision/candidateHydration';
+import { regenerateCandidatesForQualityFailed } from '@/lib/revision/candidateRegeneration';
 
 const mockLogRevisionEvent = logRevisionEvent as jest.MockedFunction<typeof logRevisionEvent>;
+const mockHydrate = hydrateLedgerCandidates as jest.MockedFunction<typeof hydrateLedgerCandidates>;
+const mockRegen = regenerateCandidatesForQualityFailed as jest.MockedFunction<typeof regenerateCandidatesForQualityFailed>;
 
 describe('findHydrationChunkForAnchor', () => {
   it('resolves wrapper-quoted anchors by stripping evidence wrappers before normalization', () => {
@@ -964,21 +980,6 @@ describe('ensureRevisionOpportunityLedgerArtifact', () => {
 // These tests mock candidateHydration to isolate the status-suffix and
 // rebuild/upsert logic inside ensureRevisionOpportunityLedgerArtifact.
 
-jest.mock('@/lib/revision/candidateHydration', () => ({
-  hydrateLedgerCandidates: jest.fn(),
-  HYDRATION_MAX_BATCH_SIZE: 15,
-  HYDRATION_MODEL: 'gpt-4o-mini',
-  HYDRATION_PROMPT_VERSION: 'candidate_hydration_v1',
-}));
-
-jest.mock('@/lib/revision/candidateRegeneration', () => ({
-  regenerateCandidatesForQualityFailed: jest.fn(),
-}));
-
-import { hydrateLedgerCandidates } from '@/lib/revision/candidateHydration';
-import { regenerateCandidatesForQualityFailed } from '@/lib/revision/candidateRegeneration';
-const mockHydrate = hydrateLedgerCandidates as jest.MockedFunction<typeof hydrateLedgerCandidates>;
-const mockRegen = regenerateCandidatesForQualityFailed as jest.MockedFunction<typeof regenerateCandidatesForQualityFailed>;
 
 /** Build N distinct recommendations whose anchor_snippet and rationale are long enough
  *  to form valid opportunities but have NO candidate_text_a/b/c (i.e. they will be SLAE-blocked). */
@@ -1158,18 +1159,23 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
   });
 
   it('writes _ai_hydrated_partial when some opportunities remain blocked', async () => {
-    // 20 blocked recommendations; hydration only fills 15 (the first batch)
+    // 20 blocked recommendations; hydrate all but the last record in each batch
+    // so some opportunities remain blocked and the ledger is not falsely certified complete.
     const recs = makeBlockedRecommendations(20);
     const upsertSpy = jest.fn();
     const manuscriptChunks = recs.map((r) => ({ content: r.anchor_snippet }));
 
-    // Hydration reports 15 hydrated but the Map has 0 matching entries
-    // (IDs don't match) — so stillBlocked will equal 20. The important
-    // thing is the suffix is _partial or empty (not _complete).
-    mockHydrate.mockResolvedValueOnce({
-      hydratedCount: 15,
-      skippedCount: 0,
-      candidates: new Map(), // No matching IDs → opportunities stay blocked
+    mockHydrate.mockImplementation(async (blockedOpps) => {
+      const candidatesMap = new Map<string, { candidate_text_a: string; candidate_text_b: string; candidate_text_c: string }>();
+      for (let i = 0; i < blockedOpps.length - 1; i += 1) {
+        const o = blockedOpps[i];
+        candidatesMap.set(o.opportunity_id, {
+          candidate_text_a: 'The character moved through the space, then paused when the implication finally caught up with the moment.',
+          candidate_text_b: 'As the character crossed the room, the implication of what had happened settled into the silence around them.',
+          candidate_text_c: 'The character stopped just inside the doorway and let the consequence of the moment reach them before moving on.',
+        });
+      }
+      return { hydratedCount: candidatesMap.size, skippedCount: 0, candidates: candidatesMap };
     });
 
     const supabase = makeMinimalSupabase({ criteriaRecommendations: recs, manuscriptChunks, upsertSpy });
@@ -1514,7 +1520,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       anchor_found: true,
       context_found: true,
       hydration_attempted: false,
-      prompt_version: 'candidate_hydration_v1',
+      prompt_version: HYDRATION_PROMPT_VERSION,
       candidate_generation_status: expect.any(String),
     });
 
@@ -1592,7 +1598,7 @@ describe('ensureRevisionOpportunityLedgerArtifact — hydration status suffix an
       candidate_anchor_overlap_scores: { a: expect.any(Number), b: expect.any(Number), c: expect.any(Number) },
       coordinates_placeholder: false,
       rationale_contaminated: false,
-      prompt_version: 'candidate_hydration_v1',
+      prompt_version: HYDRATION_PROMPT_VERSION,
     });
 
     const candidateCounts = metadata.candidate_word_counts as Record<string, number>;
