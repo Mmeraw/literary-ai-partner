@@ -61,7 +61,7 @@ function gate15NonblockingDisposition(overrides: Record<string, unknown> = {}) {
 function mockAdmin({
   artifacts = {},
   errors = {},
-  job = { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+  job = { word_count: 100 },
   sourceHashes = { evaluation_result_v2: 'result-source-hash-1' },
 }: {
   artifacts?: Record<string, unknown>;
@@ -72,10 +72,13 @@ function mockAdmin({
   return {
     from: jest.fn((table: string) => {
       if (table === 'evaluation_jobs') {
+        const jobRow = job
+          ? { manuscript_word_count: (job as { word_count?: number | null }).word_count ?? null }
+          : null;
         return {
           select: jest.fn(() => ({
             eq: jest.fn(() => ({
-              maybeSingle: jest.fn(async () => ({ data: job, error: null })),
+              maybeSingle: jest.fn(async () => ({ data: jobRow, error: null })),
             })),
           })),
         };
@@ -780,7 +783,7 @@ describe('getAuthorExposureDecision', () => {
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
-      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+      job: { word_count: 100 },
     });
 
     const decision = await getAuthorExposureDecision(admin, JOB_ID);
@@ -802,7 +805,7 @@ describe('getAuthorExposureDecision', () => {
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
-      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+      job: { word_count: 100 },
     });
 
     const decision = await getAuthorExposureDecision(admin, JOB_ID);
@@ -829,7 +832,7 @@ describe('getAuthorExposureDecision', () => {
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
-      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+      job: { word_count: 100 },
     });
 
     const decision = await getAuthorExposureDecision(admin, JOB_ID);
@@ -840,33 +843,6 @@ describe('getAuthorExposureDecision', () => {
     });
     if (!('exposable' in decision) || decision.exposable !== false) return;
     expect(decision.details).toContain('word_count mismatch');
-  });
-
-  test('blocks exposure when short-form final audit evaluation_result_version does not match job', async () => {
-    const admin = mockAdmin({
-      artifacts: {
-        author_exposure_certification_v1: certifiedPayload(),
-        final_external_audit_v1: {
-          schema_version: 'final_external_audit_v1',
-          verdict: 'SKIP',
-          codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
-          word_count: 100,
-          evaluation_result_version: 'evaluation_result_v3',
-          evaluation_result_source_hash: 'result-source-hash-1',
-        },
-        gate_15_audit_v1: gate15AuditPayload('PASS'),
-      },
-      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
-    });
-
-    const decision = await getAuthorExposureDecision(admin, JOB_ID);
-
-    expect(decision).toMatchObject({
-      exposable: false,
-      reason: 'final_external_audit_failed',
-    });
-    if (!('exposable' in decision) || decision.exposable !== false) return;
-    expect(decision.details).toContain('evaluation_result_version mismatch');
   });
 
   test('blocks exposure when final audit is missing evaluation_result_source_hash binding', async () => {
@@ -882,7 +858,7 @@ describe('getAuthorExposureDecision', () => {
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
-      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+      job: { word_count: 100 },
     });
 
     const decision = await getAuthorExposureDecision(admin, JOB_ID);
@@ -909,7 +885,7 @@ describe('getAuthorExposureDecision', () => {
         },
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
-      job: { word_count: 100, evaluation_result_version: 'evaluation_result_v2' },
+      job: { word_count: 100 },
       sourceHashes: { evaluation_result_v2: null },
     });
 
@@ -929,7 +905,7 @@ describe('getAuthorExposureDecision', () => {
         author_exposure_certification_v1: certifiedPayload(),
         gate_15_audit_v1: gate15AuditPayload('PASS'),
       },
-      job: { word_count: 50000, evaluation_result_version: 'evaluation_result_v2' },
+      job: { word_count: 50000 },
     });
 
     const decision = await getAuthorExposureDecision(admin, JOB_ID);

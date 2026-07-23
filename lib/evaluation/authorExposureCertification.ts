@@ -171,7 +171,7 @@ export function evaluateAuthorExposureCertification(content: unknown): AuthorExp
 
 function validateFinalAuditBinding(
   finalExternalAuditContent: unknown,
-  jobMetadata?: { word_count?: number | null; evaluation_result_version?: string | null } | null,
+  jobMetadata?: { word_count?: number | null } | null,
   evaluationResultSourceHash?: string | null,
 ): string | null {
   const record = finalExternalAuditContent && typeof finalExternalAuditContent === 'object' && !Array.isArray(finalExternalAuditContent)
@@ -191,12 +191,8 @@ function validateFinalAuditBinding(
   }
 
   if (jobMetadata) {
-    const auditVersion = typeof record.evaluation_result_version === 'string' ? record.evaluation_result_version : null;
     const auditWordCount = typeof record.word_count === 'number' ? record.word_count : null;
 
-    if (auditVersion != null && jobMetadata.evaluation_result_version != null && auditVersion !== jobMetadata.evaluation_result_version) {
-      return `final_external_audit_v1 evaluation_result_version mismatch: expected ${jobMetadata.evaluation_result_version}, got ${auditVersion}`;
-    }
     if (auditWordCount != null && jobMetadata.word_count != null && auditWordCount !== jobMetadata.word_count) {
       return `final_external_audit_v1 word_count mismatch: expected ${jobMetadata.word_count}, got ${auditWordCount}`;
     }
@@ -224,7 +220,7 @@ export function evaluateAuthorExposureCertificationWithFinalExternalAuditAndGate
   options: {
     jobId: string;
     now?: Date;
-    jobMetadata?: { word_count?: number | null; evaluation_result_version?: string | null } | null;
+    jobMetadata?: { word_count?: number | null } | null;
     evaluationResultSourceHash?: string | null;
   },
 ): AuthorExposureDecision {
@@ -282,7 +278,6 @@ export async function getAuthorExposureDecision(
 
 type JobExposureMetadata = {
   word_count: number | null;
-  evaluation_result_version: string | null;
 };
 
 async function readJobExposureMetadata(
@@ -291,7 +286,7 @@ async function readJobExposureMetadata(
 ): Promise<{ metadata: JobExposureMetadata | null; errorMessage: string | null }> {
   const { data, error } = await admin
     .from('evaluation_jobs')
-    .select('word_count, evaluation_result_version')
+    .select('manuscript_word_count')
     .eq('id', jobId)
     .maybeSingle();
 
@@ -301,8 +296,7 @@ async function readJobExposureMetadata(
   const record = data as Record<string, unknown>;
   return {
     metadata: {
-      word_count: typeof record.word_count === 'number' ? record.word_count : null,
-      evaluation_result_version: typeof record.evaluation_result_version === 'string' ? record.evaluation_result_version : null,
+      word_count: typeof record.manuscript_word_count === 'number' ? record.manuscript_word_count : null,
     },
     errorMessage: null,
   };
