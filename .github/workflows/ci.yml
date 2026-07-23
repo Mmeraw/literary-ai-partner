@@ -157,6 +157,7 @@ jobs:
       TEST_MODE: "true"
       ALLOW_HEADER_USER_ID: "true"
       SMOKE_USER_ID: ${{ secrets.SMOKE_USER_ID }}
+      SMOKE_DIAGNOSTICS_TOKEN: ${{ secrets.SMOKE_DIAGNOSTICS_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
     steps:
@@ -217,6 +218,10 @@ jobs:
             echo "::error::Missing required secret SMOKE_MANUSCRIPT_ID for jobs:smoke:real"
             exit 1
           fi
+          if [ -z "${SMOKE_DIAGNOSTICS_TOKEN}" ]; then
+            echo "::error::Missing required secret SMOKE_DIAGNOSTICS_TOKEN for safe smoke diagnostics"
+            exit 1
+          fi
           npm run jobs:smoke:real
 
       - name: Real manuscript end-to-end evaluation smoke – Let the River Decide (ID2)
@@ -227,6 +232,10 @@ jobs:
         run: |
           if [ -z "${MANUSCRIPT_ID}" ]; then
             echo "::error::Missing required secret SMOKE_MANUSCRIPT_ID2 for jobs:smoke:real (ID2)"
+            exit 1
+          fi
+          if [ -z "${SMOKE_DIAGNOSTICS_TOKEN}" ]; then
+            echo "::error::Missing required secret SMOKE_DIAGNOSTICS_TOKEN for safe smoke diagnostics"
             exit 1
           fi
           npm run jobs:smoke:real
