@@ -155,11 +155,6 @@ const STRING_ARRAY_FIELD_KEYS = new Set([
   'decision_points',
 ]);
 
-/**
- * Fields whose contract is complete author-facing prose rather than a label,
- * fragment, quotation, or candidate-text surface. Missing terminal punctuation
- * is safe to repair only for these governed fields.
- */
 const TERMINAL_PUNCTUATION_REQUIRED_FIELDS = new Set([
   'one_paragraph_summary',
   'one_sentence_pitch',
@@ -198,8 +193,6 @@ function leafKey(path: string): string {
 function mayRepairTerminalPunctuation(value: string, key: string): boolean {
   if (!TERMINAL_PUNCTUATION_REQUIRED_FIELDS.has(key)) return false;
   if (endsWithDanglingConnective(value)) return false;
-  // A terminal dash or open delimiter is a strong truncation signal and must
-  // remain visible to authorFacingIntegrity rather than being papered over.
   if (/[-–—([{]\s*$/u.test(value)) return false;
   return true;
 }
@@ -301,7 +294,6 @@ export function normalizeArtifact(
     }
   }
 
-  // Normalize canonical overview prose before its strict prose contracts run.
   if (synthesis.overall.one_paragraph_summary) {
     const before = synthesis.overall.one_paragraph_summary;
     const normalized = normalizeStringValue(before, 'synthesis.overall.one_paragraph_summary') ?? before;
@@ -312,7 +304,7 @@ export function normalizeArtifact(
   if (synthesis.overall.one_sentence_pitch) {
     const before = synthesis.overall.one_sentence_pitch;
     const normalized = normalizeStringValue(before, 'synthesis.overall.one_sentence_pitch') ?? before;
-    assertOneSentencePitch(normalized, ONE_SENTENCE_PITCH_TENICAL_CEILING, 'overview.one_sentence_pitch');
+    assertOneSentencePitch(normalized, ONE_SENTENCE_PITCH_TECHNICAL_CEILING, 'overview.one_sentence_pitch');
     synthesis.overall.one_sentence_pitch = normalized;
   }
 
@@ -323,14 +315,10 @@ export function normalizeArtifact(
     synthesis.overall.one_paragraph_pitch = normalized;
   }
 
-  // Universal author-facing text normalization for short-form, long-form,
-  // multi-layer, retry, and replay routes that converge on normalizeArtifact.
   visit(synthesis, 'synthesis', () => {});
   visit(quickWins, 'recommendations.quick_wins', () => {});
   visit(strategicRevisions, 'recommendations.strategic_revisions', () => {});
 
-  // Fail closed only after every governed field has passed through the single,
-  // idempotent mechanical normalization layer.
   assertAuthorFacingIntegrity(
     {
       overview: synthesis.overall,
