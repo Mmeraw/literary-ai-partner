@@ -712,4 +712,20 @@ describe('getAuthorExposureDecision', () => {
       reason: 'gate_15_audit_failed',
     });
   });
+
+  test('allows exposure for pipeline final_external_audit_v1 with SKIP verdict', async () => {
+    const admin = mockArtifactAdmin({
+      author_exposure_certification_v1: certifiedPayload(),
+      final_external_audit_v1: {
+        schema_version: 'final_external_audit_v1',
+        verdict: 'SKIP',
+        codes: ['FINAL_AUDIT_SKIPPED_SHORT_FORM'],
+      },
+      gate_15_audit_v1: gate15AuditPayload('PASS'),
+    });
+
+    const decision = await getAuthorExposureDecision(admin, JOB_ID);
+
+    expect(decision).toMatchObject({ exposable: true });
+  });
 });
