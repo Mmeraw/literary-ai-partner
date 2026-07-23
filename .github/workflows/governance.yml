@@ -79,8 +79,6 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci
-      - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Canon governance audit
         run: bash scripts/canon-guard.sh
 
