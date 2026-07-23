@@ -321,4 +321,37 @@ describe("Pass 2 chunk completeness SIPOC kickback", () => {
     expect(replay.criteria).toHaveLength(CRITERIA_KEYS.length);
     expect(replay.criteria).toBe(cache.get(0)!.criteria);
   });
+
+  test("historical Diamonds fixture (job 9824d31b) missing marketability retries without criterion_not_applicable backfill", async () => {
+    const responses = [
+      responseFor(makeOutput("marketability"), "diamonds-chunk-incomplete", "stop", 50),
+      responseFor(makeOutput(), "diamonds-chunk-repair"),
+    ];
+    const completion = jest.fn(async () => responses.shift()!) as unknown as CreateCompletionFn;
+    const result = await runPass2(options({
+      manuscriptText: "Diamonds long-form excerpt for historical regression.",
+      _createCompletion: completion,
+    }));
+    expect(completion).toHaveBeenCalledTimes(2);
+    expect(result.criteria.map((c) => c.key).sort()).toEqual([...CRITERIA_KEYS].sort());
+  });
+
+  test("classifies content_filter/refusal omissions as structured_decode_loss", async () => {
+    const restore = withRetryLimit("0");
+    const completion = jest.fn(async () =>
+      responseFor(makeOutput("marketability"), "content-filter-incomplete", "content_filter", 100)
+    ) as unknown as CreateCompletionFn;
+    try {
+      await runPass2(options({ _createCompletion: completion }));
+      throw new Error("Expected PASS2_OUTPUT_INCOMPLETE to be thrown");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Pass2OutputIncompleteError);
+      const typed = error as Pass2OutputIncompleteError;
+      expect(typed.diagnostic.missing_criteria).toEqual(["marketability"]);
+      expect(typed.diagnostic.origin_classification).toBe("structured_decode_loss");
+    } finally {
+      restore();
+    }
+    expect(completion).toHaveBeenCalledTimes(1);
+  });
 });
