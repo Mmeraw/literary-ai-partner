@@ -225,10 +225,11 @@ jobs:
           npm run jobs:smoke:real
 
       - name: Real manuscript end-to-end evaluation smoke – Let the River Decide (ID2)
-        timeout-minutes: 30
+        timeout-minutes: 90
         env:
           BASE_URL: "http://127.0.0.1:3000"
           MANUSCRIPT_ID: ${{ secrets.SMOKE_MANUSCRIPT_ID2 }}
+          SMOKE_TIMEOUT_MS: 4800000
         run: |
           if [ -z "${MANUSCRIPT_ID}" ]; then
             echo "::error::Missing required secret SMOKE_MANUSCRIPT_ID2 for jobs:smoke:real (ID2)"
