@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
+import { createHash } from "crypto";
 import { CRITERIA_KEYS } from "@/schemas/criteria-keys";
 import {
   aggregatePass2ChunkResults,
@@ -41,6 +42,10 @@ function makePass2Fixture() {
       recommendation_status: "recommendation_provided",
     })),
   };
+}
+
+function hashOutput(output: SinglePassOutput): string {
+  return createHash("sha256").update(JSON.stringify(output)).digest("hex");
 }
 
 function makePass2Chunk(options: {
@@ -637,12 +642,14 @@ describe("runPass2", () => {
 
     const chunkCache = new Map<number, SinglePassOutput>();
     const originalSnapshots = new Map<number, SinglePassOutput>();
+    const originalHashes = new Map<number, string>();
     for (let i = 0; i < totalChunks; i++) {
       if (failedChunkIndices.has(i)) continue;
       const fixture = makePass2Fixture();
       const output = parsePass2Response(JSON.stringify(fixture));
       chunkCache.set(i, output);
       originalSnapshots.set(i, JSON.parse(JSON.stringify(output)));
+      originalHashes.set(i, hashOutput(output));
     }
 
     const invokedChunkIds = new Set<number>();
@@ -684,10 +691,12 @@ describe("runPass2", () => {
     expect(completedChunks.size).toBe(totalChunks);
     expect(persistedRetryChunkIds).toEqual(failedChunkIndices);
 
-    // The 28 successful cached payloads are preserved (deep-equal to pre-run snapshots).
+    // The 28 successful cached payloads are preserved byte-for-byte (same SHA-256 hash).
     for (let i = 0; i < totalChunks; i++) {
       if (failedChunkIndices.has(i)) continue;
-      expect(completedChunks.get(i)).toEqual(originalSnapshots.get(i));
+      const completed = completedChunks.get(i)!;
+      expect(hashOutput(completed)).toBe(originalHashes.get(i));
+      expect(completed).toEqual(originalSnapshots.get(i));
     }
 
     // A second resume with the now-complete cache invokes zero additional chunks.
