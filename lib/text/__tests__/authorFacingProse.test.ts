@@ -19,6 +19,7 @@
 import { describe, it, expect } from "@jest/globals";
 import {
   capitalizeFirstAlpha,
+  capitalizeSentenceStarts,
   ensureTerminalPunctuation,
   ensureSingleSpaceAfterColon,
   collapseAdjacentDuplicateWords,
@@ -52,6 +53,45 @@ describe("capitalizeFirstAlpha", () => {
   it("returns empty/no-alpha input unchanged", () => {
     expect(capitalizeFirstAlpha("")).toBe("");
     expect(capitalizeFirstAlpha("123 —")).toBe("123 —");
+  });
+});
+
+// ── capitalizeSentenceStarts (RG-CMOS-1) ─────────────────────────────────────
+describe("capitalizeSentenceStarts", () => {
+  it("capitalizes the first letter of each sentence after terminal punctuation", () => {
+    expect(capitalizeSentenceStarts("Clarify the emotional turn. then restore the airport objective.")).toBe(
+      "Clarify the emotional turn. Then restore the airport objective.",
+    );
+    expect(capitalizeSentenceStarts("Why start here? because the inciting incident lands.")).toBe(
+      "Why start here? Because the inciting incident lands.",
+    );
+    expect(capitalizeSentenceStarts("Act now! the deadline creates pressure.")).toBe(
+      "Act now! The deadline creates pressure.",
+    );
+  });
+
+  it("is idempotent on already-correct text", () => {
+    const once = "The first sentence is complete. The second sentence starts fresh.";
+    expect(capitalizeSentenceStarts(once)).toBe(once);
+    expect(capitalizeSentenceStarts(capitalizeSentenceStarts(once))).toBe(once);
+  });
+
+  it("leaves decimal numbers and version strings intact", () => {
+    expect(capitalizeSentenceStarts("The ratio is 3.14 in this draft. keep the precision.")).toBe(
+      "The ratio is 3.14 in this draft. Keep the precision.",
+    );
+    expect(capitalizeSentenceStarts("Targeting GPT-5.1 and Phase 0.5. revise later.")).toBe(
+      "Targeting GPT-5.1 and Phase 0.5. Revise later.",
+    );
+  });
+
+  it("does not capitalize inside balanced quotes or parentheses", () => {
+    expect(capitalizeSentenceStarts('He said "stop. wait." then continued.')).toBe(
+      'He said "stop. wait." then continued.',
+    );
+    expect(capitalizeSentenceStarts("The note (see section 2. ignore that) explains.")).toBe(
+      "The note (see section 2. ignore that) explains.",
+    );
   });
 });
 

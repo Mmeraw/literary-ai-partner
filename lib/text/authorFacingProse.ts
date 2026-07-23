@@ -152,6 +152,70 @@ export function capitalizeFirstAlpha(text: string): string {
   return text.slice(0, idx) + upper + text.slice(idx + 1);
 }
 
+// Balanced pairs recognized by the CMOS sentence-boundary scanner. Mirrors the
+// delimiter awareness in authorFacingIntegrity.ts so a period inside a quote
+// or parenthetical is not treated as its own sentence end.
+const SENTENCE_BOUNDARY_PAIRS: Record<string, string> = {
+  '(': ')',
+  '[': ']',
+  '{': '}',
+  '“': '”',
+  '‘': '’',
+  '"': '"',
+  "'": "'",
+};
+
+/**
+ * Capitalize the first alphabetic character after every sentence boundary.
+ * A boundary is a terminal mark (. ! ?) followed by optional closing
+ * quotes/brackets and whitespace. Respects balanced delimiters so punctuation
+ * inside a parenthetical or quotation does not create a false boundary.
+ * Idempotent and conservative: it only uppercases lowercase letters.
+ */
+export function capitalizeSentenceStarts(text: string): string {
+  if (!text) return text;
+
+  const openChars = new Set(Object.keys(SENTENCE_BOUNDARY_PAIRS));
+  const stack: string[] = [];
+  let out = "";
+  let i = 0;
+
+  while (i < text.length) {
+    const ch = text[i];
+
+    if (openChars.has(ch)) {
+      stack.push(ch);
+    } else if (stack.length > 0 && ch === SENTENCE_BOUNDARY_PAIRS[stack[stack.length - 1]]) {
+      stack.pop();
+    }
+
+    if (stack.length === 0 && /[.!?]/u.test(ch)) {
+      out += ch;
+      let j = i + 1;
+      while (j < text.length && /["'"'’)\]\}]/u.test(text[j])) {
+        out += text[j];
+        j += 1;
+      }
+      while (j < text.length && /\s/u.test(text[j])) {
+        out += text[j];
+        j += 1;
+      }
+      if (j < text.length && /[a-z]/u.test(text[j])) {
+        out += text[j].toUpperCase();
+        i = j + 1;
+        continue;
+      }
+      i = j;
+      continue;
+    }
+
+    out += ch;
+    i += 1;
+  }
+
+  return out;
+}
+
 // A terminal sentence punctuation mark, optionally followed by a closing
 // quote/bracket, at the very end of the (trimmed) string.
 const TERMINAL_PUNCTUATION_AT_END = /[.!?…]["'”’)\]]*$/u;

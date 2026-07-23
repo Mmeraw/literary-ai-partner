@@ -10,6 +10,7 @@
 
 import {
   capitalizeFirstAlpha,
+  capitalizeSentenceStarts,
   collapseAdjacentDuplicateWords,
   endsMidSentence,
   endsWithDanglingConnective,
@@ -247,6 +248,10 @@ export function normalizeArtifact(
     const capitalized = capitalizeFirstAlpha(value);
     record(field, value, capitalized, 'capitalize');
     value = capitalized;
+
+    const sentenceStartsCapitalized = capitalizeSentenceStarts(value);
+    record(field, value, sentenceStartsCapitalized, 'capitalize');
+    value = sentenceStartsCapitalized;
 
     const colonSpaced = ensureSingleSpaceAfterColon(value);
     record(field, value, colonSpaced, 'punctuation');
