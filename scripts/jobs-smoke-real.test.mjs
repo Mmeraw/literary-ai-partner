@@ -6,6 +6,7 @@ import {
   assertTerminalComplete,
   createJobWithSnapshotRepair,
   formatSmokeDiagnostic,
+  isActiveJobConflict,
   isSnapshotMissingCreateFailure,
   pollJobToTerminal,
   runRealManuscriptSmoke,
@@ -249,6 +250,52 @@ async function testSnapshotPredicate() {
   assert.equal(isSnapshotMissingCreateFailure(500, { code: "MANUSCRIPT_SOURCE_SNAPSHOT_MISSING" }), false);
 }
 
+async function testActiveJobConflictReusesSmokeOwnedJob() {
+  const fetchImpl = async (url, init) => {
+    assert.equal(init?.method, "POST");
+    assert.ok(url.endsWith("/api/jobs"));
+    return response(409, {
+      ok: false,
+      code: "ACTIVE_JOB_CONFLICT",
+      error: "An evaluation is already running or queued for this manuscript.",
+      existing_job_id: "job-existing",
+      existing_job_user_id: "user-1",
+    });
+  };
+
+  const res = await createJobWithSnapshotRepair("http://local", "7518", {
+    fetchImpl,
+    env: { SMOKE_USER_ID: "user-1" },
+    log() {},
+  });
+
+  assert.equal(res.status, 201);
+  const body = await res.json();
+  assert.equal(body.job_id, "job-existing");
+  assert.equal(body.reused, true);
+  assert.equal(body.existing_job_user_id, "user-1");
+}
+
+async function testActiveJobConflictForeignOwnerFails() {
+  const fetchImpl = async () =>
+    response(409, {
+      ok: false,
+      code: "ACTIVE_JOB_CONFLICT",
+      error: "An evaluation is already running or queued for this manuscript.",
+      existing_job_id: "job-foreign",
+      existing_job_user_id: "other-user",
+    });
+
+  await assert.rejects(
+    createJobWithSnapshotRepair("http://local", "7518", {
+      fetchImpl,
+      env: { SMOKE_USER_ID: "user-1" },
+      log() {},
+    }),
+    /Active evaluation exists for manuscript 7518 \(owned by other-user\)/,
+  );
+}
+
 await testSmokeAuthHeaders();
 await testSmokeDiagnosticHeaders();
 await testFormatSmokeDiagnostic();
@@ -259,4 +306,6 @@ await testTerminalCompleteRequiresOutputs();
 await testFailedJobStopsBeforeOutputRequests();
 await testSnapshotPredicate();
 await testScriptDoesNotReferenceRetiredOrWorkerRoutes();
+await testActiveJobConflictReusesSmokeOwnedJob();
+await testActiveJobConflictForeignOwnerFails();
 console.log("jobs-smoke-real.test.mjs passed");

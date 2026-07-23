@@ -116,6 +116,14 @@ export function isSnapshotMissingCreateFailure(status, body) {
   );
 }
 
+export function isActiveJobConflict(status, body) {
+  return (
+    status === 409 &&
+    (body?.code === "ACTIVE_JOB_CONFLICT" ||
+      /already running or queued/i.test(body?.error || ""))
+  );
+}
+
 export async function createJobWithSnapshotRepair(BASE, MANUSCRIPT_ID, options = {}) {
   const fetchImpl = options.fetchImpl ?? jfetch;
   const env = options.env ?? process.env;
@@ -136,6 +144,35 @@ export async function createJobWithSnapshotRepair(BASE, MANUSCRIPT_ID, options =
   if (createRes.ok) return createRes;
 
   const createError = await jsonOrNull(createRes.clone());
+
+  // If an in-flight job for this manuscript is owned by the smoke user, reuse it
+  // safely instead of creating a duplicate. If it is owned by someone else, fail
+  // with a clear message so the operator can switch to an isolated smoke manuscript.
+  if (isActiveJobConflict(createRes.status, createError)) {
+    const existingJobId = createError?.existing_job_id;
+    const existingJobUserId = createError?.existing_job_user_id;
+    const smokeUserId = env.SMOKE_USER_ID?.trim();
+
+    if (existingJobId && existingJobUserId && existingJobUserId === smokeUserId) {
+      log(`Reusing in-flight smoke job ${existingJobId} for manuscript ${MANUSCRIPT_ID}`);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          job_id: existingJobId,
+          reused: true,
+          existing_job_user_id: existingJobUserId,
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      );
+    }
+
+    const ownerHint = existingJobUserId ? ` (owned by ${existingJobUserId})` : "";
+    throw new Error(
+      `Active evaluation exists for manuscript ${MANUSCRIPT_ID}${ownerHint}. ` +
+        `Cancel it or configure an isolated SMOKE_MANUSCRIPT_ID/SMOKE_MANUSCRIPT_ID2 for this pipeline.`,
+    );
+  }
+
   if (!isSnapshotMissingCreateFailure(createRes.status, createError)) {
     return createRes;
   }
@@ -330,7 +367,11 @@ export async function runRealManuscriptSmoke(options = {}) {
   const jobId = created.job_id;
   if (!jobId) throw new Error("Could not find job id in create response");
 
-  log(`Created job: ${jobId}`);
+  if (created.reused) {
+    log(`Reusing existing in-flight job: ${jobId} (owner: ${created.existing_job_user_id ?? "unknown"})`);
+  } else {
+    log(`Created job: ${jobId}`);
+  }
   log("POST /api/jobs is the canonical production kickoff; polling canonical job status");
 
   const terminalJob = await pollJobToTerminal(BASE, jobId, options);
