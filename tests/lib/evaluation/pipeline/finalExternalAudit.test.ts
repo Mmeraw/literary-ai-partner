@@ -12,6 +12,7 @@ jest.mock('@/lib/evaluation/artifactPersistence', () => {
 
 function makeResult() {
   return {
+    schema_version: 'evaluation_result_v2',
     overview: { overall_score_0_100: 82, verdict: 'Near Market Ready', summary: 'Evidence-backed summary.' },
     criteria: Array.from({ length: 13 }, (_, index) => ({
       key: `criterion_${index}`,
@@ -58,6 +59,8 @@ describe('final external audit', () => {
     expect(result.verdict).toBe('SKIP');
     expect(result.codes).toContain('FINAL_AUDIT_SKIPPED_SHORT_FORM');
     expect(result.blocking).toBe(false);
+    expect(result.word_count).toBe(1200);
+    expect(result.evaluation_result_version).toBe('evaluation_result_v2');
   });
 
   test('blocks required long-form audit when DREAM is missing', () => {
@@ -177,6 +180,43 @@ describe('final external audit', () => {
         artifactType: 'final_external_audit_v1',
         artifactVersion: 'final_external_audit_v1',
         content: expect.objectContaining({ schema_version: 'final_external_audit_v1' }),
+      }),
+    );
+  });
+
+  test('persists short-form final_external_audit_v1 with SKIP verdict and source hash binding', async () => {
+    const result = await persistFinalExternalAudit({
+      supabase: {} as any,
+      jobId: 'job-short-form',
+      manuscriptId: 123,
+      userId: 'user-1',
+      wordCount: 1200,
+      workType: 'short_story',
+      evaluationResult: makeResult(),
+      checkedArtifacts: completeArtifacts,
+      evaluationResultSourceHash: 'result-source-hash-1',
+    });
+
+    expect(result.schema_version).toBe('final_external_audit_v1');
+    expect(result.verdict).toBe('SKIP');
+    expect(result.blocking).toBe(false);
+    expect(result.word_count).toBe(1200);
+    expect(result.evaluation_result_version).toBe('evaluation_result_v2');
+    expect(result.evaluation_result_source_hash).toBe('result-source-hash-1');
+    expect(upsertEvaluationArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-short-form',
+        manuscriptId: 123,
+        artifactType: 'final_external_audit_v1',
+        artifactVersion: 'final_external_audit_v1',
+        content: expect.objectContaining({
+          schema_version: 'final_external_audit_v1',
+          verdict: 'SKIP',
+          blocking: false,
+          word_count: 1200,
+          evaluation_result_version: 'evaluation_result_v2',
+          evaluation_result_source_hash: 'result-source-hash-1',
+        }),
       }),
     );
   });

@@ -1006,7 +1006,7 @@ async function processDreamJob(
 
   const { data: readinessRows } = await supabase
     .from('evaluation_artifacts')
-    .select('artifact_type, created_at, artifact_version')
+    .select('artifact_type, created_at, artifact_version, source_hash')
     .eq('job_id', jobId)
     .in('artifact_type', ['evaluation_result_v2', 'longform_document_v1', 'revision_opportunity_ledger_v1', 'wave_revision_plan_v1']);
 
@@ -1016,10 +1016,13 @@ async function processDreamJob(
       const row = artifactMap.get(artifactType);
       return [artifactType, {
         present: Boolean(row),
-        ...(row ? { metadata: { created_at: row.created_at, artifact_version: row.artifact_version } } : {}),
+        ...(row ? { metadata: { created_at: row.created_at, artifact_version: row.artifact_version, source_hash: row.source_hash } } : {}),
       }];
     }),
   );
+
+  const evaluationResultRow = artifactMap.get('evaluation_result_v2');
+  const evaluationResultSourceHash = typeof evaluationResultRow?.source_hash === 'string' ? evaluationResultRow.source_hash : undefined;
 
   const finalAudit = await persistFinalExternalAudit({
     supabase,
@@ -1030,6 +1033,7 @@ async function processDreamJob(
     workType: manuscript?.work_type ?? null,
     evaluationResult: artifactContent as Record<string, unknown>,
     checkedArtifacts,
+    evaluationResultSourceHash,
   });
 
   console.log(`[DreamWorker] ${jobId}: persisted final_external_audit_v1 artifact verdict=${finalAudit.verdict}`);

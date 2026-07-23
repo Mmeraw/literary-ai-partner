@@ -30,6 +30,12 @@ export type FinalExternalAuditResult = {
   model: string;
   generated_at: string;
   packet: FinalExternalAuditPacket;
+  /** Bind this audit to the evaluation result artifact it was produced for. */
+  evaluation_result_version?: string;
+  /** Bind this audit to the verified manuscript word count used at audit time. */
+  word_count?: number;
+  /** Bind this audit to the canonical result source hash it was produced for. */
+  evaluation_result_source_hash?: string;
 };
 
 export type FinalExternalAuditMode = 'optional' | 'required';
@@ -54,6 +60,11 @@ function isRequiredMode(value: unknown): value is FinalExternalAuditMode {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function deriveEvaluationResultVersion(evaluationResult: unknown): string {
+  const record = asRecord(evaluationResult);
+  return typeof record?.schema_version === 'string' ? record.schema_version : 'evaluation_result_v2';
 }
 
 function isFinalAuditVerdict(value: unknown): value is Exclude<FinalExternalAuditVerdict, 'SKIP'> {
@@ -218,6 +229,7 @@ export function runFinalExternalAudit(input: {
   mode?: FinalExternalAuditMode;
   multiLayer?: boolean;
   providerAvailable?: boolean;
+  evaluationResultSourceHash?: string;
 }): FinalExternalAuditResult {
   const generatedAt = new Date().toISOString();
   const mode = input.mode ?? getFinalExternalAuditMode({ multiLayer: input.multiLayer });
@@ -239,6 +251,9 @@ export function runFinalExternalAudit(input: {
       model: 'deterministic-final-audit-v1',
       generated_at: generatedAt,
       packet,
+      evaluation_result_version: deriveEvaluationResultVersion(input.evaluationResult),
+      word_count: input.wordCount,
+      evaluation_result_source_hash: input.evaluationResultSourceHash,
     };
   }
 
@@ -300,6 +315,9 @@ export function runFinalExternalAudit(input: {
     model: providerAvailable ? 'sonar-compact-final-audit-v1' : 'deterministic-final-audit-v1',
     generated_at: generatedAt,
     packet,
+    evaluation_result_version: deriveEvaluationResultVersion(input.evaluationResult),
+    word_count: input.wordCount,
+    evaluation_result_source_hash: input.evaluationResultSourceHash,
   };
 }
 
@@ -312,6 +330,7 @@ export async function persistFinalExternalAudit(params: {
   workType?: string | null;
   evaluationResult: EvaluationResultV2 | Record<string, unknown>;
   checkedArtifacts: Record<string, { present: boolean; metadata?: Record<string, unknown> }>;
+  evaluationResultSourceHash?: string;
 }): Promise<FinalExternalAuditResult> {
   const multiLayer = isLongFormMultiLayerContext({ workType: params.workType });
   const providerResult = params.wordCount >= LONG_FORM_WORD_THRESHOLD
@@ -330,6 +349,7 @@ export async function persistFinalExternalAudit(params: {
     mode: getFinalExternalAuditMode({ multiLayer }),
     multiLayer,
     providerAvailable: Boolean(providerResult),
+    evaluationResultSourceHash: params.evaluationResultSourceHash,
   });
   const result = providerResult ? mergeProviderAudit(baseResult, providerResult) : baseResult;
 
