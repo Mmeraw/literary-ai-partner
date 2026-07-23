@@ -176,6 +176,27 @@ export type AxisCriterionResult = {
 
 // ── Pass 1 / Pass 2 output ───────────────────────────────────────────────────
 
+/**
+ * Immutable Pass 2 source identity captured at aggregation.
+ * One record per meaningful recommendation that survived Pass 2 normalization.
+ */
+export type Pass2SourceManifestRecord = {
+  source_id: string;
+  criterion_key: CriterionKey;
+  origin_chunk_id: number;
+  origin_chunk_hash: string;
+  source_fingerprint: string;
+  source_version: string;
+};
+
+export type Pass2SourceManifest = {
+  generated_at: string;
+  chunk_count: number;
+  source_count: number;
+  records: Pass2SourceManifestRecord[];
+  source_set_fingerprint: string;
+};
+
 export type SinglePassOutput = {
   pass: 1 | 2;
   axis: "craft_execution" | "editorial_literary";
@@ -185,6 +206,8 @@ export type SinglePassOutput = {
   temperature: number;
   generated_at: string; // ISO 8601
   coverage_summary?: PassCoverageSummary;
+  /** Immutable source manifest for Pass 2 → Pass 3 lineage reconciliation. */
+  source_manifest?: Pass2SourceManifest;
 };
 
 /** Strict shape emitted by the current Pass 2 producer and checkpoint writer. */

@@ -22,9 +22,11 @@ import {
   normalizeRecommendationStatusInput,
   RecommendationDispositionContractError,
   buildRecommendationSourceIdentities,
+  buildRecommendationSourceFingerprint,
   isMeaningfulOpportunityRecommendation,
   reconcileRecommendationLineage,
   type RecommendationLineageOutcome,
+  OPPORTUNITY_DISCOVERY_POLICY_VERSION,
   reconcileRecommendationDispositionAfterMutation,
   requireCurrentRecommendationDisposition,
   type EvaluationOpportunityMode,
@@ -34,6 +36,7 @@ import type {
   SynthesisOutput,
   CurrentSynthesisOutput,
   SynthesizedCriterion,
+  AxisCriterionResult,
   EvidenceAnchor,
   CompletionUsage,
   PassCompletionCapture,
@@ -42,6 +45,7 @@ import type {
   Pass2aStructuredContext,
   Pass1aCharacterLedger,
   CharacterLedgerV2,
+  Pass2SourceManifest,
 } from "./types";
 import type { Pass3ReadAheadResult } from "./runPass3ReadAhead";
 import {
@@ -1419,6 +1423,273 @@ function materializePass2LineageFromSynthesis(
   return fallbackOutcomes;
 }
 
+function sourceFingerprintFromSourceId(sourceId: string): string {
+  const parts = sourceId.split(":");
+  return parts.length >= 2 ? parts[1]! : sourceId;
+}
+
+function getPass2SourceRecords(pass2: SinglePassOutput): Pass2SourceManifest["records"] {
+  if (pass2.source_manifest && pass2.source_manifest.records.length > 0) {
+    return pass2.source_manifest.records;
+  }
+  const records: Pass2SourceManifest["records"] = [];
+  for (const criterion of pass2.criteria) {
+    const meaningful = criterion.recommendations.filter(isMeaningfulOpportunityRecommendation);
+    const identities = buildRecommendationSourceIdentities(
+      meaningful.map((recommendation) => ({ ...recommendation, criterion: criterion.key })),
+    );
+    for (let i = 0; i < meaningful.length; i += 1) {
+      const identity = identities[i];
+      if (!identity) continue;
+      records.push({
+        source_id: identity.source_id,
+        criterion_key: criterion.key,
+        origin_chunk_id: 0,
+        origin_chunk_hash: "",
+        source_fingerprint: sourceFingerprintFromSourceId(identity.source_id),
+        source_version: OPPORTUNITY_DISCOVERY_POLICY_VERSION,
+      });
+    }
+  }
+  return records;
+}
+
+function findPass2RecForSource(
+  source: Pass2SourceManifest["records"][number],
+  pass2: SinglePassOutput,
+): AxisCriterionResult["recommendations"][number] | null {
+  const criterion = pass2.criteria.find((c) => c.key === source.criterion_key);
+  if (!criterion) return null;
+  for (const rec of criterion.recommendations) {
+    const fingerprint = buildRecommendationSourceFingerprint({ ...rec, criterion: source.criterion_key });
+    if (fingerprint === source.source_fingerprint) return rec;
+  }
+  return null;
+}
+
+function computePass2ToPass3MatchScore(
+  source: Pass2SourceManifest["records"][number],
+  pass2Rec: AxisCriterionResult["recommendations"][number] | null,
+  finalRec: SynthesizedCriterion["recommendations"][number],
+  criterionKey: CriterionKey,
+): number {
+  if (source.criterion_key !== criterionKey) return 0;
+  const finalFingerprint = buildRecommendationSourceFingerprint({ ...finalRec, criterion: criterionKey });
+  if (finalFingerprint === source.source_fingerprint) return 10;
+  if (!pass2Rec) return 0;
+
+  const normalize = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  const sharedWordOverlap = (a: string, b: string, minLength = 5): boolean => {
+    for (const word of a.split(/\s+/)) {
+      if (word.length >= minLength && b.includes(word)) return true;
+    }
+    return false;
+  };
+
+  if (String(pass2Rec.issue_family) !== String(finalRec.issue_family)) return 0;
+  if (String(pass2Rec.strategic_lever) !== String(finalRec.strategic_lever)) return 0;
+  let score = 3;
+  const p2Action = normalize(pass2Rec.action);
+  const fAction = normalize(finalRec.action);
+  const p2Impact = normalize(pass2Rec.expected_impact);
+  const fImpact = normalize(finalRec.expected_impact);
+  const p2Anchor = normalize(pass2Rec.anchor_snippet);
+  const fAnchor = normalize(finalRec.anchor_snippet);
+  if (
+    fAction.includes(p2Action.slice(0, 80)) ||
+    p2Action.includes(fAction.slice(0, 80)) ||
+    sharedWordOverlap(p2Action, fAction, 5)
+  ) {
+    score += 2;
+  }
+  if (fImpact.includes(p2Impact.slice(0, 60)) || p2Impact.includes(fImpact.slice(0, 60))) {
+    score += 1;
+  }
+  if (
+    fAnchor.includes(p2Anchor.slice(0, 100)) ||
+    p2Anchor.includes(fAnchor.slice(0, 100)) ||
+    sharedWordOverlap(fAnchor, p2Anchor, 5)
+  ) {
+    score += 2;
+  }
+  return score;
+}
+
+type Pass3CriterionArray = SynthesizedCriterion[];
+
+export function reconcilePass2ToPass3Lineage(
+  pass2: SinglePassOutput,
+  currentCriteria: Pass3CriterionArray,
+  recommendationLineage: RecommendationLineageOutcome[],
+): { recommendationLineage: RecommendationLineageOutcome[] } {
+  const sourceRecords = getPass2SourceRecords(pass2);
+  const sourceIds = sourceRecords.map((record) => record.source_id);
+  const sourceById = new Map(sourceRecords.map((record) => [record.source_id, record]));
+  const sourceSet = new Set(sourceIds);
+
+  const unknownSourceIds = new Set<string>();
+  const duplicateSourceIds: string[] = [];
+  const invalidOutcomes: string[] = [];
+  const validatedLineage: RecommendationLineageOutcome[] = [];
+  const seenSourceIds = new Set<string>();
+
+  for (const outcome of recommendationLineage) {
+    const sid = typeof outcome?.source_id === "string" ? outcome.source_id.trim() : "";
+    if (!sid) {
+      invalidOutcomes.push("outcome_missing_source_id");
+      continue;
+    }
+    if (!sourceSet.has(sid)) {
+      unknownSourceIds.add(sid);
+      continue;
+    }
+    if (seenSourceIds.has(sid)) {
+      duplicateSourceIds.push(sid);
+      continue;
+    }
+    seenSourceIds.add(sid);
+
+    if (outcome.outcome === "suppressed") {
+      if (!outcome.governing_rule?.trim() || !outcome.rationale?.trim()) {
+        invalidOutcomes.push(`suppression_missing_governance:${sid}`);
+      }
+    } else if (outcome.outcome === "consolidated") {
+      if (!outcome.consolidated_into_source_id?.trim()) {
+        invalidOutcomes.push(`consolidation_missing_target:${sid}`);
+      } else if (!sourceSet.has(outcome.consolidated_into_source_id.trim())) {
+        invalidOutcomes.push(`consolidation_unknown_target:${sid}`);
+      } else if (outcome.consolidated_into_source_id.trim() === sid) {
+        invalidOutcomes.push(`consolidation_self_target:${sid}`);
+      }
+    } else if (outcome.outcome !== "materialized") {
+      invalidOutcomes.push(`unknown_outcome:${sid}`);
+    }
+
+    validatedLineage.push(outcome);
+  }
+
+  const recKey = (ci: number, ri: number) => `${ci}:${ri}`;
+  const claimedRecKeys = new Set<string>();
+
+  // Apply explicit lineage bindings that the LLM already placed on recommendations.
+  for (let ci = 0; ci < currentCriteria.length; ci += 1) {
+    for (let ri = 0; ri < currentCriteria[ci].recommendations.length; ri += 1) {
+      const rec = currentCriteria[ci].recommendations[ri];
+      for (const sid of rec.source_recommendation_ids ?? []) {
+        if (typeof sid === "string" && sourceSet.has(sid)) {
+          claimedRecKeys.add(recKey(ci, ri));
+        }
+      }
+    }
+  }
+
+  const missingSourceIds = sourceIds.filter((id) => !seenSourceIds.has(id));
+  const fallbackOutcomes: RecommendationLineageOutcome[] = [];
+
+  if (missingSourceIds.length > 0) {
+    type Candidate = { ci: number; ri: number; score: number };
+    const sourceCandidates = new Map<string, Candidate[]>();
+
+    for (const sid of missingSourceIds) {
+      const source = sourceById.get(sid);
+      if (!source) continue;
+      const pass2Rec = findPass2RecForSource(source, pass2);
+      const candidates: Candidate[] = [];
+      for (let ci = 0; ci < currentCriteria.length; ci += 1) {
+        const criterion = currentCriteria[ci];
+        if (criterion.key !== source.criterion_key) continue;
+        for (let ri = 0; ri < criterion.recommendations.length; ri += 1) {
+          if (claimedRecKeys.has(recKey(ci, ri))) continue;
+          const rec = criterion.recommendations[ri];
+          if (!isMeaningfulOpportunityRecommendation(rec)) continue;
+          const score = computePass2ToPass3MatchScore(source, pass2Rec, rec, criterion.key);
+          if (score >= 5) candidates.push({ ci, ri, score });
+        }
+      }
+      candidates.sort((a, b) => b.score - a.score || a.ri - b.ri);
+      sourceCandidates.set(sid, candidates);
+    }
+
+    const assignments = new Map<string, string>(); // recKey -> sourceId
+    const assignedSourceIds = new Set<string>();
+
+    // Greedy stable assignment: each source claims its highest-scoring unique rec.
+    for (const sid of missingSourceIds) {
+      if (assignedSourceIds.has(sid)) continue;
+      const candidates = sourceCandidates.get(sid) ?? [];
+      if (candidates.length === 0) continue;
+      const top = candidates[0];
+      const key = recKey(top.ci, top.ri);
+      if (assignments.has(key)) continue;
+
+      // If another source has the same top candidate with equal score, this is ambiguous.
+      let conflict = false;
+      for (const [otherSid, otherCandidates] of sourceCandidates) {
+        if (otherSid === sid || assignedSourceIds.has(otherSid)) continue;
+        if (otherCandidates.length === 0) continue;
+        const otherTop = otherCandidates[0];
+        if (recKey(otherTop.ci, otherTop.ri) === key && otherTop.score === top.score) {
+          conflict = true;
+          break;
+        }
+      }
+      if (conflict) continue;
+
+      assignments.set(key, sid);
+      assignedSourceIds.add(sid);
+      const rec = currentCriteria[top.ci].recommendations[top.ri];
+      rec.source_recommendation_ids = [...(rec.source_recommendation_ids ?? []), sid];
+      claimedRecKeys.add(key);
+      fallbackOutcomes.push({ source_id: sid, outcome: "materialized", canonical_opportunity_id: sid });
+    }
+  }
+
+  const finalLineage = [...validatedLineage, ...fallbackOutcomes];
+  const outcomeBySource = new Map(finalLineage.map((outcome) => [outcome.source_id, outcome]));
+  const stillMissing = sourceIds.filter((id) => !outcomeBySource.has(id));
+
+  const survivingSourceIds = new Set(
+    currentCriteria.flatMap((criterion) =>
+      criterion.recommendations.flatMap((recommendation) => recommendation.source_recommendation_ids ?? []),
+    ),
+  );
+
+  const materializationErrors: string[] = [];
+  for (const [sid, outcome] of outcomeBySource) {
+    if (outcome.outcome === "materialized" && !survivingSourceIds.has(sid)) {
+      materializationErrors.push(`unresolved_surviving_target:${sid}`);
+    } else if (
+      outcome.outcome === "consolidated" &&
+      (!outcome.consolidated_into_source_id || !survivingSourceIds.has(outcome.consolidated_into_source_id))
+    ) {
+      materializationErrors.push(`consolidation_target_missing:${sid}`);
+    }
+  }
+
+  const issues = [
+    ...invalidOutcomes,
+    ...Array.from(unknownSourceIds).map((id) => `unknown:${id}`),
+    ...duplicateSourceIds.map((id) => `duplicate:${id}`),
+    ...stillMissing.map((id) => `missing:${id}`),
+    ...materializationErrors,
+  ];
+
+  if (issues.length > 0) {
+    throw new RecommendationDispositionContractError(
+      "Pass 3 did not account for every Pass 2 recommendation discovery before persistence.",
+      {
+        invariant_id: "pass2_recommendation_lineage_complete",
+        issues,
+        source_count: sourceIds.length,
+        outcome_count: finalLineage.length,
+        coverage_ratio: sourceIds.length === 0 ? 1 : outcomeBySource.size / sourceIds.length,
+      },
+    );
+  }
+
+  return { recommendationLineage: finalLineage };
+}
+
 export function parsePass3Response(
   raw: string,
   pass1: SinglePassOutput,
@@ -1474,8 +1745,6 @@ export function parsePass3Response(
 
   const rawCriteria = Array.isArray(obj["criteria"]) ? (obj["criteria"] as unknown[]) : [];
   const rawRecommendationLineage = obj["recommendation_lineage"];
-  const recommendationLineageFieldAbsent = rawRecommendationLineage === undefined
-    || rawRecommendationLineage === null;
   let recommendationLineage = parseRecommendationLineage(rawRecommendationLineage);
 
   // Build a lookup from key → pass outputs (deterministic fallback)
@@ -2092,67 +2361,15 @@ export function parsePass3Response(
     }),
   );
 
-  // Deterministic fallback: repair only a completely omitted native lineage
-  // response. Partial/contradictory model lineage remains authoritative and is
-  // rejected below; fallback must not reinterpret supplied provenance.
-  const hasNativeSourceRecommendationIds = currentCriteria.some((criterion) =>
-    (criterion.recommendations as Array<{ source_recommendation_ids?: unknown[] }>).some((recommendation) =>
-      Array.isArray(recommendation.source_recommendation_ids)
-      && recommendation.source_recommendation_ids.length > 0,
-    ),
-  );
-  if (requireRecommendationLineage && recommendationLineageFieldAbsent && !hasNativeSourceRecommendationIds) {
-    const fallbackOutcomes = materializePass2LineageFromSynthesis(pass2, currentCriteria, recommendationLineage);
-    if (fallbackOutcomes.length > 0) {
-      recommendationLineage = [...recommendationLineage, ...fallbackOutcomes];
-    }
-  }
-
   // Pass 2 discoveries are durable process inputs. Pass 3 may safely
   // materialize, consolidate, or suppress them, but it must account for each
   // source exactly once before certification/persistence can continue.
-  const pass2SourceIds = pass2.criteria.flatMap((criterion) =>
-    buildRecommendationSourceIdentities(
-      criterion.recommendations
-        .filter(isMeaningfulOpportunityRecommendation)
-        .map((recommendation) => ({ ...recommendation, criterion: criterion.key })),
-    ).map((identity) => identity.source_id),
-  );
+  const pass2SourceRecords = getPass2SourceRecords(pass2);
+  const pass2SourceIds = pass2SourceRecords.map((record) => record.source_id);
+
   if (requireRecommendationLineage && pass2SourceIds.length > 0) {
-    const reconciliation = reconcileRecommendationLineage(pass2SourceIds, recommendationLineage);
-    const survivingSourceIds = new Set(
-      currentCriteria.flatMap((criterion) =>
-        criterion.recommendations.flatMap((recommendation) => recommendation.source_recommendation_ids ?? []),
-      ),
-    );
-    const outcomeBySource = new Map(recommendationLineage.map((outcome) => [outcome.source_id, outcome]));
-    const materializationErrors = pass2SourceIds.filter((sourceId) => {
-      const outcome = outcomeBySource.get(sourceId);
-      if (!outcome) return false;
-      if (outcome.outcome === "materialized") return !survivingSourceIds.has(sourceId);
-      if (outcome.outcome === "consolidated") {
-        return !outcome.consolidated_into_source_id || !survivingSourceIds.has(outcome.consolidated_into_source_id);
-      }
-      return false;
-    });
-    if (!reconciliation.complete || materializationErrors.length > 0) {
-      throw new RecommendationDispositionContractError(
-        "Pass 3 did not account for every Pass 2 recommendation discovery before persistence.",
-        {
-          invariant_id: "pass2_recommendation_lineage_complete",
-          issues: [
-            ...reconciliation.missing_source_ids.map((id) => `missing:${id}`),
-            ...reconciliation.unknown_source_ids.map((id) => `unknown:${id}`),
-            ...reconciliation.duplicate_source_ids.map((id) => `duplicate:${id}`),
-            ...reconciliation.invalid_outcomes,
-            ...materializationErrors.map((id) => `unresolved_surviving_target:${id}`),
-          ],
-          source_count: reconciliation.source_count,
-          outcome_count: reconciliation.outcome_count,
-          coverage_ratio: reconciliation.coverage_ratio,
-        },
-      );
-    }
+    const reconciliation = reconcilePass2ToPass3Lineage(pass2, currentCriteria, recommendationLineage);
+    recommendationLineage = reconciliation.recommendationLineage;
   }
 
   return {

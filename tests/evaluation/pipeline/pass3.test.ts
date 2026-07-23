@@ -1152,7 +1152,7 @@ describe("consequence tracking contract", () => {
       expect(result.criteria[0].recommendations[0].source_recommendation_ids).toContain(sourceId);
     });
 
-    it("rejects a partial native lineage response instead of inferring the omitted source", () => {
+    it("reconciles a partial native lineage response by inferring omitted sources when uniquely provable", () => {
       const firstSourceId = addPass2LineageSource(pass2);
       const secondCriterion = pass2.criteria[1];
       secondCriterion.recommendations = [{
@@ -1172,10 +1172,18 @@ describe("consequence tracking contract", () => {
         source_recommendation_ids: [firstSourceId],
       } as (typeof fixture.criteria)[number]["recommendations"][number];
 
-      expect(() => parsePass3Response(
+      const result = parsePass3Response(
         JSON.stringify(fixture), pass1, pass2, undefined, undefined, undefined, undefined, true,
-      )).toThrow(RecommendationDispositionContractError);
-      expect(secondSourceId).not.toBe(firstSourceId);
+      );
+
+      expect(result.recommendation_lineage).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ source_id: firstSourceId, outcome: "materialized" }),
+          expect.objectContaining({ source_id: secondSourceId, outcome: "materialized" }),
+        ]),
+      );
+      expect(result.criteria[0].recommendations[0].source_recommendation_ids).toContain(firstSourceId);
+      expect(result.criteria[1].recommendations[0].source_recommendation_ids).toContain(secondSourceId);
     });
 
     it("rejects materialized lineage whose source does not survive parser filtering", () => {

@@ -22,6 +22,8 @@ import type {
   CompletionUsage,
   PassCompletionCapture,
   ManuscriptChunkEvidence,
+  Pass2SourceManifest,
+  Pass2SourceManifestRecord,
 } from "./types";
 import type { CanonRegistry } from "@/lib/governance/canonRegistry";
 import {
@@ -44,13 +46,17 @@ import { summarizePromptCoverage } from "./promptInput";
 import { countWords } from "./submissionScope";
 import {
   analyzeGovernedOpportunityCoverage,
+  buildRecommendationSourceIdentities,
   countMeaningfulOpportunityRecommendations,
+  isMeaningfulOpportunityRecommendation,
   normalizeProducerRecommendationDisposition,
+  OPPORTUNITY_DISCOVERY_POLICY_VERSION,
   reconcileRecommendationDispositionAfterMutation,
   RECOMMENDATION_STATUS_CONTRACT,
   RecommendationStatus,
   requireCurrentRecommendationDisposition,
 } from "@/lib/evaluation/policy/opportunityDiscoveryPolicy";
+import { canonicalJsonSha256 } from "@/lib/evaluation/canonicalJsonHash";
 import { getConfiguredChunkCap } from "./chunkCap";
 import {
   ChunkCountExceedsCapError,
@@ -523,6 +529,109 @@ export function aggregatePass2ChunkResults(results: SinglePassOutput[]): Current
   return normalizedOutput;
 }
 
+function sourceFingerprintFromId(sourceId: string): string {
+  const parts = sourceId.split(":");
+  return parts.length >= 2 ? parts[1]! : sourceId;
+}
+
+function buildPass2SourceManifestRecordsForChunk(
+  chunkIndex: number,
+  result: SinglePassOutput,
+): Pass2SourceManifestRecord[] {
+  const records: Pass2SourceManifestRecord[] = [];
+  for (const criterion of result.criteria) {
+    const meaningful = criterion.recommendations.filter(isMeaningfulOpportunityRecommendation);
+    const identities = buildRecommendationSourceIdentities(
+      meaningful.map((recommendation) => ({ ...recommendation, criterion: criterion.key })),
+    );
+    for (let i = 0; i < meaningful.length; i += 1) {
+      const identity = identities[i];
+      if (!identity) continue;
+      records.push({
+        source_id: identity.source_id,
+        criterion_key: criterion.key,
+        origin_chunk_id: chunkIndex,
+        origin_chunk_hash: "", // populated after chunk-hash computation
+        source_fingerprint: sourceFingerprintFromId(identity.source_id),
+        source_version: OPPORTUNITY_DISCOVERY_POLICY_VERSION,
+      });
+    }
+  }
+  // Canonical ordering gives a stable chunk hash regardless of input order.
+  records.sort((a, b) => a.source_id.localeCompare(b.source_id));
+  const chunkHash = canonicalJsonSha256(
+    records.map((r) => ({
+      source_id: r.source_id,
+      criterion_key: r.criterion_key,
+      origin_chunk_id: r.origin_chunk_id,
+      source_fingerprint: r.source_fingerprint,
+      source_version: r.source_version,
+    })),
+  );
+  for (const record of records) {
+    record.origin_chunk_hash = chunkHash;
+  }
+  return records;
+}
+
+export function buildPass2SourceManifestFromChunks(
+  indexedResults: readonly IndexedPass2ChunkResult[],
+): Pass2SourceManifest {
+  const seenSourceIds = new Set<string>();
+  const allRecords: Pass2SourceManifestRecord[] = [];
+  for (const { chunk_index, result } of indexedResults) {
+    const chunkRecords = buildPass2SourceManifestRecordsForChunk(chunk_index, result);
+    for (const record of chunkRecords) {
+      if (seenSourceIds.has(record.source_id)) continue;
+      seenSourceIds.add(record.source_id);
+      allRecords.push(record);
+    }
+  }
+  allRecords.sort((a, b) => a.source_id.localeCompare(b.source_id));
+  const sourceSetFingerprint = canonicalJsonSha256(
+    allRecords.map((r) => ({
+      source_id: r.source_id,
+      criterion_key: r.criterion_key,
+      origin_chunk_id: r.origin_chunk_id,
+      origin_chunk_hash: r.origin_chunk_hash,
+      source_fingerprint: r.source_fingerprint,
+      source_version: r.source_version,
+    })),
+  );
+  return {
+    generated_at: new Date().toISOString(),
+    chunk_count: indexedResults.length,
+    source_count: allRecords.length,
+    records: allRecords,
+    source_set_fingerprint: sourceSetFingerprint,
+  };
+}
+
+export function buildPass2SourceManifest(
+  output: SinglePassOutput,
+  originChunkId = 0,
+  chunkCount = 1,
+): Pass2SourceManifest {
+  const records = buildPass2SourceManifestRecordsForChunk(originChunkId, output);
+  const sourceSetFingerprint = canonicalJsonSha256(
+    records.map((r) => ({
+      source_id: r.source_id,
+      criterion_key: r.criterion_key,
+      origin_chunk_id: r.origin_chunk_id,
+      origin_chunk_hash: r.origin_chunk_hash,
+      source_fingerprint: r.source_fingerprint,
+      source_version: r.source_version,
+    })),
+  );
+  return {
+    generated_at: new Date().toISOString(),
+    chunk_count: chunkCount,
+    source_count: records.length,
+    records,
+    source_set_fingerprint: sourceSetFingerprint,
+  };
+}
+
 export interface IndexedPass2ChunkResult {
   chunk_index: number;
   result: SinglePassOutput;
@@ -591,9 +700,11 @@ export function aggregateSelectedPass2ChunkResults(
   const resultByChunkIndex = new Map(
     indexedResults.map((entry) => [entry.chunk_index, entry.result] as const),
   );
-  return aggregatePass2ChunkResults(
+  const aggregated = aggregatePass2ChunkResults(
     selectedChunkIndices.map((chunkIndex) => resultByChunkIndex.get(chunkIndex)!),
   );
+  aggregated.source_manifest = buildPass2SourceManifestFromChunks(indexedResults);
+  return aggregated;
 }
 
 import type { SubmissionScopeProfile } from "./submissionScope";
@@ -1488,6 +1599,7 @@ export async function runPass2(opts: RunPass2Options): Promise<CurrentPass2Outpu
     }
     throw error;
   }
+  output.source_manifest = buildPass2SourceManifest(output, 0, 1);
   return output;
 }
 
