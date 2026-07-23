@@ -210,6 +210,74 @@ describe("synthesisToEvaluationResultV2 template completeness fallbacks", () => 
     expect(gate.violations.filter((v) => v.code === "INCOMPLETE_TOP_RISKS")).toHaveLength(0);
   });
 
+  test("replaces placeholder top_3_strengths with substantive fallback", () => {
+    const synthesis = makeTemplateReadySynthesis();
+    synthesis.overall.top_3_strengths = [
+      "Not specified",
+      "None",
+      "n/a",
+    ];
+
+    const result = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-template-placeholder-strengths",
+        job_id: "job-template-placeholder-strengths",
+        manuscript_id: 78,
+        user_id: "00000000-0000-0000-0000-000000000078",
+      },
+      manuscriptText: "word ".repeat(3500),
+      sourceText: "word ".repeat(3500),
+      title: "Placeholder Strengths Repair",
+      llmEnrichment: {
+        trigger_warnings: ["violence"],
+      },
+    });
+
+    const gate = validateTemplateCompleteness(result);
+
+    expect(gate.pass).toBe(true);
+    expect(result.overview.top_3_strengths.length).toBeGreaterThanOrEqual(3);
+    expect(gate.violations.filter((v) => v.code === "INCOMPLETE_TOP_STRENGTHS")).toHaveLength(0);
+  });
+
+  test("replaces placeholder criterion rationale with substantive fallback", () => {
+    const synthesis = makeTemplateReadySynthesis();
+    synthesis.criteria = synthesis.criteria.map((criterion) =>
+      criterion.key === "theme"
+        ? {
+            ...criterion,
+            final_rationale:
+              "Not specified because the evidence does not support a clear judgment for this criterion.",
+          }
+        : criterion,
+    );
+
+    const result = synthesisToEvaluationResultV2({
+      synthesis,
+      ids: {
+        evaluation_run_id: "run-template-placeholder-rationale",
+        job_id: "job-template-placeholder-rationale",
+        manuscript_id: 79,
+        user_id: "00000000-0000-0000-0000-000000000079",
+      },
+      manuscriptText: "word ".repeat(3500),
+      sourceText: "word ".repeat(3500),
+      title: "Placeholder Rationale Repair",
+      llmEnrichment: {
+        trigger_warnings: ["violence"],
+      },
+    });
+
+    const gate = validateTemplateCompleteness(result);
+    const theme = result.criteria.find((criterion) => criterion.key === "theme");
+
+    expect(gate.pass).toBe(true);
+    expect(gate.violations.filter((v) => v.code === "MISSING_RATIONALE" && v.criterion === "theme")).toHaveLength(0);
+    expect(theme?.rationale.length ?? 0).toBeGreaterThanOrEqual(40);
+    expect(theme?.rationale).not.toMatch(/\bnot specified\b/i);
+  });
+
   test("rejects contradictory recommendation status at both synthesis and certification boundaries", () => {
     const synthesis = makeTemplateReadySynthesis();
     const firstAnchor = "A complete scene-level evidence anchor from the submitted manuscript.";

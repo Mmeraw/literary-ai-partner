@@ -136,6 +136,7 @@ import {
   normalizeSummaryWithBottomWeaknesses,
   summarizePropagationIntegrity,
 } from "./propagationIntegrity";
+import { meaningfulText, meaningfulTextList } from "./templateCompletenessGate";
 import { computeEnrichment } from "@/lib/evaluation/enrichment/computeEnrichment";
 import {
   getCanonicalPass1Model,
@@ -3144,30 +3145,21 @@ export function synthesisToEvaluationResultV2(
     .map(enforceTextualAnchorConfidence)
     .map(enforceConfidenceLevelPolicy);
 
-  const ensureSubstantiveText = (value: string | undefined, minLength = 40): string | null => {
-    const trimmed = typeof value === "string" ? value.trim() : "";
-    return trimmed.length >= minLength ? trimmed : null;
-  };
+  const ensureSubstantiveText = (value: string | undefined, minLength = 40): string | null =>
+    meaningfulText(value, minLength);
 
   const ensureSubstantiveList = (
     values: string[] | undefined,
     fallbackFactory: () => string[],
     minItems = 3,
-    minLength = 12,
   ): string[] => {
-    const cleaned = Array.isArray(values)
-      ? values
-          .map((value) => (typeof value === "string" ? value.trim() : ""))
-          .filter((value) => value.length >= minLength)
-      : [];
+    const cleaned = meaningfulTextList(values);
 
     if (cleaned.length >= minItems) {
       return cleaned.slice(0, minItems);
     }
 
-    const fallback = fallbackFactory()
-      .map((value) => value.trim())
-      .filter((value) => value.length >= minLength);
+    const fallback = meaningfulTextList(fallbackFactory());
 
     const merged = Array.from(new Set([...cleaned, ...fallback]));
     return merged.slice(0, minItems);
@@ -3295,14 +3287,12 @@ export function synthesisToEvaluationResultV2(
     synthesis.overall.top_3_strengths,
     () => fallbackStrengths,
     3,
-    12,
   );
 
   const overviewTopRisks = ensureSubstantiveList(
     synthesis.overall.top_3_risks,
     () => fallbackRisks,
     3,
-    12,
   );
 
   const quickWins = coverageLimited ? [] : quick_wins;
