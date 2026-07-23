@@ -2,17 +2,20 @@
   "schema_version": 3,
   "source_manifest": "tests/fixtures/sipoc/evidence-obligations.v3.json",
   "attributable_test_files": [
+    "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
     "__tests__/lib/evaluation/downloadViewModelBoundaryGate.test.ts",
+    "__tests__/lib/evaluation/pipeline/pass3-lineage-fallback.test.ts",
     "__tests__/lib/evaluation/revisionSurfaceOwnershipGate.test.ts",
     "__tests__/lib/evaluation/status.test.ts",
-    "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts"
+    "__tests__/lib/evaluation/viewModelBoundaryGate.test.ts",
+    "lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts"
   ],
   "summary": {
     "obligations": 33,
     "by_state": {
-      "satisfied": 6,
+      "satisfied": 12,
       "satisfied_but_unmapped": 0,
-      "representable_but_unproven": 16,
+      "representable_but_unproven": 10,
       "unrepresentable": 4,
       "implementation_conflict": 7,
       "policy_conflict": 0,
@@ -21,7 +24,7 @@
     "by_remediation_class": {
       "governance_mapping": 0,
       "integration_evidence": 4,
-      "test_infrastructure": 16,
+      "test_infrastructure": 10,
       "runtime": 7,
       "policy": 0
     },
@@ -45,7 +48,7 @@
       "S10b_PHASE5_AUTHOR_EXPOSURE_GATE": {
         "proven": false,
         "total": 14,
-        "satisfied": 1,
+        "satisfied": 7,
         "unresolved": [
           "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.01",
           "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.02",
@@ -53,13 +56,7 @@
           "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.04",
           "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.05",
           "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.06",
-          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.08",
-          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.09",
-          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.10",
-          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.11",
-          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.12",
-          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.13",
-          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.14"
+          "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.13"
         ]
       },
       "S10c_VIEWMODEL_BOUNDARY_GATE": {
@@ -369,14 +366,23 @@
       "dirty_data_rule": "unknown explicit recommendation disposition or suppression-forensics version",
       "evidence_kind": "pure_predicate_contract",
       "enforcement_point": "checkRecommendationDispositionCompleteness version guards",
-      "current_state": "representable_but_unproven",
-      "gap_bucket": "evidence_gap",
-      "remediation_class": "test_infrastructure",
-      "evidence_refs": [],
-      "gap": "Real predicate exists; direct negative cases for both explicit version fields are missing.",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "treats a missing version as legacy but blocks an unknown future version"
+        },
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "accepts missing suppression-forensics version as legacy and rejects unknown explicit versions"
+        }
+      ],
+      "gap": "Attributable negative cases now exist and are mapped to the SIPOC evidence model.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "canonical_current_state": "representable_but_unproven",
-      "effective_state": "representable_but_unproven"
+      "canonical_current_state": "satisfied_but_unmapped",
+      "effective_state": "satisfied"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.09",
@@ -384,44 +390,99 @@
       "dirty_data_rule": "suppression-forensics counters differ from persisted dispositions",
       "evidence_kind": "pure_predicate_contract",
       "enforcement_point": "checkRecommendationDispositionCompleteness counter recomputation",
-      "current_state": "representable_but_unproven",
-      "gap_bucket": "evidence_gap",
-      "remediation_class": "test_infrastructure",
-      "evidence_refs": [],
-      "gap": "Real predicate exists; independent counter-family mutation tests are missing.",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "fails closed when versioned suppression-forensics metrics do not match persisted dispositions"
+        }
+      ],
+      "gap": "Attributable negative case now exists and is mapped to the SIPOC evidence model.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "canonical_current_state": "representable_but_unproven",
-      "effective_state": "representable_but_unproven"
+      "canonical_current_state": "satisfied_but_unmapped",
+      "effective_state": "satisfied"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.10",
       "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
       "dirty_data_rule": "missing duplicate or unexpected recommendation source identity",
       "evidence_kind": "pure_predicate_contract",
-      "enforcement_point": "checkRecommendationDispositionCompleteness identity and set checks",
-      "current_state": "representable_but_unproven",
-      "gap_bucket": "evidence_gap",
-      "remediation_class": "test_infrastructure",
-      "evidence_refs": [],
-      "gap": "Real predicate exists; complete missing/duplicate/malformed/unexpected test matrix is absent.",
+      "enforcement_point": "buildPass2SourceManifest, reconcilePass2ToPass3Lineage, and checkRecommendationDispositionCompleteness identity and set checks",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts",
+          "test_name": "fails closed for an unknown source id in explicit lineage"
+        },
+        {
+          "test_file": "lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts",
+          "test_name": "fails closed for a duplicate source id in explicit lineage"
+        },
+        {
+          "test_file": "lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts",
+          "test_name": "fails closed when two sources compete for the same final recommendation"
+        },
+        {
+          "test_file": "__tests__/lib/evaluation/pipeline/pass3-lineage-fallback.test.ts",
+          "test_name": "fails closed when two Pass 2 sources compete for one fallback recommendation"
+        },
+        {
+          "test_file": "__tests__/lib/evaluation/pipeline/pass3-lineage-fallback.test.ts",
+          "test_name": "fails closed when one Pass 2 source has two viable fallback recommendations"
+        },
+        {
+          "test_file": "__tests__/lib/evaluation/pipeline/pass3-lineage-fallback.test.ts",
+          "test_name": "rejects native source ids without native recommendation_lineage instead of invoking fallback"
+        },
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "blocks duplicate or unbound recommendation dispositions"
+        }
+      ],
+      "gap": "Attributable negative cases now exist and are mapped to the SIPOC evidence model.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "canonical_current_state": "representable_but_unproven",
-      "effective_state": "representable_but_unproven"
+      "canonical_current_state": "satisfied_but_unmapped",
+      "effective_state": "satisfied"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.11",
       "boundary": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE",
       "dirty_data_rule": "source recommendation and disposition counts differ",
       "evidence_kind": "pure_predicate_contract",
-      "enforcement_point": "checkRecommendationDispositionCompleteness count and coverage checks",
-      "current_state": "representable_but_unproven",
-      "gap_bucket": "evidence_gap",
-      "remediation_class": "test_infrastructure",
-      "evidence_refs": [],
-      "gap": "Real predicate exists; independent count and coverage mismatch cases are missing.",
+      "enforcement_point": "buildPass2SourceManifest, reconcilePass2ToPass3Lineage, and checkRecommendationDispositionCompleteness count and coverage checks",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts",
+          "test_name": "captures one record per meaningful Pass 2 recommendation"
+        },
+        {
+          "test_file": "lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts",
+          "test_name": "materializes all sources when lineage is absent and every source matches a unique final recommendation"
+        },
+        {
+          "test_file": "__tests__/lib/evaluation/pipeline/pass3-lineage-fallback.test.ts",
+          "test_name": "materializes two independent one-to-one fallback matches"
+        },
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "blocks a versioned ledger when recommendation disposition coverage is missing"
+        },
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "blocks duplicate or unbound recommendation dispositions"
+        }
+      ],
+      "gap": "Attributable negative cases now exist and are mapped to the SIPOC evidence model.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "canonical_current_state": "representable_but_unproven",
-      "effective_state": "representable_but_unproven"
+      "canonical_current_state": "satisfied_but_unmapped",
+      "effective_state": "satisfied"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.12",
@@ -429,14 +490,19 @@
       "dirty_data_rule": "admitted disposition lacks canonical opportunity identity",
       "evidence_kind": "pure_predicate_contract",
       "enforcement_point": "checkRecommendationDispositionCompleteness admittedWithoutAuthority guard",
-      "current_state": "representable_but_unproven",
-      "gap_bucket": "evidence_gap",
-      "remediation_class": "test_infrastructure",
-      "evidence_refs": [],
-      "gap": "Builder happy-path coverage exists; direct dirty-input gate rejection test is missing.",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "blocks duplicate or unbound recommendation dispositions"
+        }
+      ],
+      "gap": "Attributable negative case now exists and is mapped to the SIPOC evidence model.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "canonical_current_state": "representable_but_unproven",
-      "effective_state": "representable_but_unproven"
+      "canonical_current_state": "satisfied_but_unmapped",
+      "effective_state": "satisfied"
     },
     {
       "id": "S10b_PHASE5_AUTHOR_EXPOSURE_GATE.failclosed.13",
@@ -459,14 +525,19 @@
       "dirty_data_rule": "held_recoverable used under recommendation_disposition_v1",
       "evidence_kind": "pure_predicate_contract",
       "enforcement_point": "checkRecommendationDispositionCompleteness heldWithoutRecognizedRecovery guard",
-      "current_state": "representable_but_unproven",
-      "gap_bucket": "evidence_gap",
-      "remediation_class": "test_infrastructure",
-      "evidence_refs": [],
-      "gap": "Real predicate exists; direct negative gate test is missing.",
+      "current_state": "satisfied_but_unmapped",
+      "gap_bucket": "representation_gap",
+      "remediation_class": "governance_mapping",
+      "evidence_refs": [
+        {
+          "test_file": "__tests__/evaluation/revisionSurfaceOwnershipGate.test.ts",
+          "test_name": "rejects held_recoverable until a neutral recovery-authority proof exists"
+        }
+      ],
+      "gap": "Attributable negative case now exists and is mapped to the SIPOC evidence model.",
       "expires_before_utc": "2026-08-12T00:00:00Z",
-      "canonical_current_state": "representable_but_unproven",
-      "effective_state": "representable_but_unproven"
+      "canonical_current_state": "satisfied_but_unmapped",
+      "effective_state": "satisfied"
     },
     {
       "id": "S10c_VIEWMODEL_BOUNDARY_GATE.failclosed.01",

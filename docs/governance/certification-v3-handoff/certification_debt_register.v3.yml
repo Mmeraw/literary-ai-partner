@@ -3,7 +3,7 @@
 # 'declared_status' is DERIVED by deriveCertificationStatus() (policy Part B0), never hand-authored;
 # the gate fails if the registry claim != the derived value (STATUS_CLAIM_MISMATCH).
 #
-# Source of truth: lib/evaluation/fipocRegistry.ts | Deterministically generated: 2026-07-22
+# Source of truth: lib/evaluation/fipocRegistry.ts | Deterministically generated: 2026-07-22 | reconciled against protected main 5d47ca9971336bf60c487945fcdda17e47ec0012 (PR #1427)
 # DERIVED STATE, not authored truth: CI regenerates from the registry at PR head; any diff fails
 # (REGISTER_DRIFT). Baselines compared against PROTECTED main only.
 #
@@ -69,9 +69,9 @@ debts:
       - id: S06_PASS2.contract
         kind: contract_proof
         rule: "Produce independent craft diagnosis and candidate recommendations. Reuse only current-source, current-version checkpoint entries that satisfy the canonical recommendation-disposition contract; regenerate an incompatible entry from the same source chunk."
-        evidence_state: REQUIRED_TO_RETIRE
-        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
-        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+        evidence_state: SATISFIED_BY_FIXTURE
+        harness_invariant_id: 'lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts — Pass 2 source manifest'
+        call_path: 'buildPass2SourceManifest / buildPass2SourceManifestFromChunks'
       - id: S06_PASS2.failclosed.01
         kind: fail_closed
         rule: "Pass 1 contamination"
@@ -197,9 +197,9 @@ debts:
       - id: S07_PASS3.contract
         kind: contract_proof
         rule: "Synthesize final evaluation while preserving evidence, specificity, score hierarchy, and ledger name authority. Every meaningful Pass 2 recommendation must terminate exactly once as materialized, consolidated into a named surviving source, or governed-suppressed with rule, rationale, and evidence; source accounting is deterministic and does not alter editorial scoring or admission policy."
-        evidence_state: REQUIRED_TO_RETIRE
-        harness_invariant_id: null      # REQUIRED_TO_RETIRE: name the coherence invariant proving the contract
-        call_path: null                 # REQUIRED_TO_RETIRE: module/function exercised
+        evidence_state: SATISFIED_BY_FIXTURE
+        harness_invariant_id: 'lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts — Pass 2 -> Pass 3 lineage reconciliation'
+        call_path: 'reconcilePass2ToPass3Lineage'
       - id: S07_PASS3.failclosed.01
         kind: fail_closed
         rule: "missing overview field"
@@ -245,15 +245,15 @@ debts:
       - id: S07_PASS3.failclosed.08
         kind: fail_closed
         rule: "Pass 2 recommendation source has no outcome, has multiple outcomes, names an unknown source, or is suppressed without governed rule/rationale/evidence"
-        evidence_state: REQUIRED_TO_RETIRE
-        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
-        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+        evidence_state: SATISFIED_BY_FIXTURE
+        harness_invariant_id: 'lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts — fails closed for an unknown source id / fails closed for a duplicate source id / fails closed when a source cannot be matched'
+        negative_case: 'unknown or duplicate source id in explicit lineage; source with no matching final recommendation'
       - id: S07_PASS3.failclosed.09
         kind: fail_closed
         rule: "materialized or consolidated source does not name a surviving recommendation source ID"
-        evidence_state: REQUIRED_TO_RETIRE
-        harness_invariant_id: null    # REQUIRED_TO_RETIRE: fixture invariant_id that fails closed on this dirty input
-        negative_case: null           # REQUIRED_TO_RETIRE: the specific bad input the fixture injects
+        evidence_state: SATISFIED_BY_FIXTURE
+        harness_invariant_id: 'lib/evaluation/pipeline/__tests__/pass2Pass3Lineage.test.ts — materializes all sources / fails closed when two sources compete / fails closed when one source has two viable targets'
+        negative_case: 'ambiguous one-to-many or many-to-one source-to-recommendation match'
       - id: S07_PASS3.failclosed.10
         kind: fail_closed
         rule: "coverage violation mixed with an unrelated critical template defect is terminal"
