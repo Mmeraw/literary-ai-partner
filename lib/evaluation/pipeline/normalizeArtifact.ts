@@ -1,22 +1,21 @@
 /**
  * Artifact Normalization Pre-Stage
  *
- * Applies Tier-1 cosmetic formatting cleanup to every governed author-facing
- * string in the synthesis envelope before certification, then validates strict
- * structural contracts for canonical evaluation prose. Canonical prose is never
- * shortened to satisfy a length policy: invalid output is rejected for upstream
- * regeneration.
+ * Applies centralized Tier-1 mechanical CMOS cleanup to every governed
+ * author-facing string in the synthesis envelope before certification, then
+ * validates strict structural contracts for canonical evaluation prose.
+ * Canonical prose is never shortened to satisfy a length policy: invalid output
+ * is rejected for upstream regeneration.
  */
 
 import {
-  capitalizeFirstAlpha,
-  collapseAdjacentDuplicateWords,
   endsMidSentence,
   endsWithDanglingConnective,
-  ensureSingleSpaceAfterColon,
-  ensureTerminalPunctuation,
-  normalizeDuplicateCloseQuotes,
 } from '@/lib/text/authorFacingProse';
+import {
+  normalizeMechanicalCmos,
+  type MechanicalCmosNormalizationCode,
+} from '@/lib/text/mechanicalCmosNormalization';
 import { assertAuthorFacingIntegrity } from '@/lib/text/authorFacingIntegrity';
 import {
   SUMMARY_POLICY,
@@ -62,11 +61,14 @@ export function isArtifactTextContractError(err: unknown): err is ArtifactTextCo
   );
 }
 
+/**
+ * Security-safe normalization evidence. Raw before/after prose is deliberately
+ * excluded; the field path, named operation, and count are sufficient for audit.
+ */
 export interface NormalizationRecord {
   field: string;
-  before: string;
-  after: string;
-  operation: 'capitalize' | 'whitespace' | 'trim_whitespace' | 'punctuation';
+  normalizationCode: MechanicalCmosNormalizationCode;
+  changeCount: number;
 }
 
 export interface NormalizeArtifactResult {
@@ -222,47 +224,22 @@ export function normalizeArtifact(
 ): NormalizeArtifactResult {
   const normalizations: NormalizationRecord[] = [];
 
-  function record(field: string, before: string, after: string, operation: NormalizationRecord['operation']): void {
-    if (before !== after) normalizations.push({ field, before, after, operation });
-  }
-
   function normalizeStringValue(raw: unknown, field: string): string | null {
     if (typeof raw !== 'string' || !raw.trim()) return null;
-    let value = raw.trim();
     const key = leafKey(field);
+    const result = normalizeMechanicalCmos(raw, {
+      ensureTerminalPunctuation: mayRepairTerminalPunctuation(raw, key),
+    });
 
-    const collapsedWs = value
-      .replace(/\r\n?/g, '\n')
-      .replace(/[ \t]+/g, ' ')
-      .replace(/(?<!\n)\n(?!\n)/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    record(field, value, collapsedWs, 'whitespace');
-    value = collapsedWs;
-
-    const dedup = collapseAdjacentDuplicateWords(value);
-    record(field, value, dedup, 'whitespace');
-    value = dedup;
-
-    const capitalized = capitalizeFirstAlpha(value);
-    record(field, value, capitalized, 'capitalize');
-    value = capitalized;
-
-    const colonSpaced = ensureSingleSpaceAfterColon(value);
-    record(field, value, colonSpaced, 'punctuation');
-    value = colonSpaced;
-
-    const dedupedQuotes = normalizeDuplicateCloseQuotes(value);
-    record(field, value, dedupedQuotes, 'punctuation');
-    value = dedupedQuotes;
-
-    if (mayRepairTerminalPunctuation(value, key)) {
-      const terminalized = ensureTerminalPunctuation(value);
-      record(field, value, terminalized, 'punctuation');
-      value = terminalized;
+    for (const mutation of result.mutations) {
+      normalizations.push({
+        field,
+        normalizationCode: mutation.code,
+        changeCount: mutation.changeCount,
+      });
     }
 
-    return value;
+    return result.value;
   }
 
   function normalizeStringArray(arr: unknown[], field: string): string[] {
@@ -334,8 +311,8 @@ export function normalizeArtifact(
 
   if (synthesis.overall.one_sentence_pitch) {
     const before = synthesis.overall.one_sentence_pitch;
-    const normalized = (normalizeStringValue(before, 'synthesis.overall.one_sentence_pitch') ?? before).replace(/\s+/g, ' ');
-    assertOneSentencePitch(normalized, ONE_SENTENCE_PITCH_TECHNICAL_CEILING, 'overview.one_sentence_pitch');
+    const normalized = normalizeStringValue(before, 'synthesis.overall.one_sentence_pitch') ?? before;
+    assertOneSentencePitch(normalized, ONE_SENTENCE_PITCH_TENICAL_CEILING, 'overview.one_sentence_pitch');
     synthesis.overall.one_sentence_pitch = normalized;
   }
 
@@ -352,6 +329,8 @@ export function normalizeArtifact(
   visit(quickWins, 'recommendations.quick_wins', () => {});
   visit(strategicRevisions, 'recommendations.strategic_revisions', () => {});
 
+  // Fail closed only after every governed field has passed through the single,
+  // idempotent mechanical normalization layer.
   assertAuthorFacingIntegrity(
     {
       overview: synthesis.overall,
