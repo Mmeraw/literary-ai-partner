@@ -165,7 +165,7 @@ function nonEmptyText(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function meaningfulText(value: unknown, minLength = 12): string | null {
+export function meaningfulText(value: unknown, minLength = 12): string | null {
   const trimmed = nonEmptyText(value);
   if (!trimmed) return null;
   if (trimmed.length < minLength) return null;
@@ -173,7 +173,7 @@ function meaningfulText(value: unknown, minLength = 12): string | null {
   return trimmed;
 }
 
-function meaningfulTextList(values: unknown): string[] {
+export function meaningfulTextList(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   return values
     .map((item) => meaningfulText(item))
