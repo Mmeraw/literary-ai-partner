@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict';
 import {
   STATUS,
+  OVERALL_STATUS,
   C2_BOUNDARIES,
   createEvidenceSkeleton,
   recordBoundary,
@@ -84,6 +85,42 @@ async function testOperatorStagesDefaultWithheld() {
   );
 }
 
+async function testShadowPassesOnlyWhenComplete() {
+  const e = createEvidenceSkeleton({ mode: 'shadow' });
+  passAllRequired(e);
+  const overall = computeOverall(e);
+  assert.equal(overall.status, OVERALL_STATUS.SHADOW_PASS, 'complete shadow run must yield SHADOW_PASS');
+  assert.match(overall.reason, /pre-live|not live/i);
+}
+
+async function testShadowNeverYieldsLivePass() {
+  const e = createEvidenceSkeleton({ mode: 'shadow' });
+  passAllRequired(e);
+  const overall = computeOverall(e);
+  assert.notEqual(overall.status, STATUS.PASS, 'shadow must never emit a live PASS token');
+}
+
+async function testIncompleteShadowIsNotExecuted() {
+  const e = createEvidenceSkeleton({ mode: 'shadow' });
+  for (const b of C2_BOUNDARIES.filter((x) => x.stage === 'evaluation')) {
+    recordBoundary(e, b.key, { status: STATUS.PASS, executed: true, reconciled: true, detail: 't', data: {} });
+  }
+  const overall = computeOverall(e);
+  assert.equal(overall.status, STATUS.NOT_EXECUTED, 'incomplete shadow must not fabricate SHADOW_PASS');
+  assert.match(overall.reason, /candidate_generation|accept_or_customize|revised_manuscript_persist/);
+}
+
+async function testShadowFailIsOverallFail() {
+  const e = createEvidenceSkeleton({ mode: 'shadow' });
+  passAllRequired(e);
+  recordBoundary(e, 'candidate_generation', {
+    status: STATUS.FAIL, executed: true, reconciled: false, detail: 'stub returned no candidates', data: {},
+  });
+  const overall = computeOverall(e);
+  assert.equal(overall.status, STATUS.FAIL);
+  assert.match(overall.reason, /candidate_generation/);
+}
+
 async function testRecordBoundaryValidates() {
   const e = createEvidenceSkeleton({ mode: 'live' });
   assert.throws(() => recordBoundary(e, 'nope', { status: STATUS.PASS, executed: true }), /Unknown/);
@@ -108,6 +145,10 @@ await testLivePassesOnlyWhenComplete();
 await testUnreconciledBlocksLivePass();
 await testAnyRequiredFailIsOverallFail();
 await testOperatorStagesDefaultWithheld();
+await testShadowPassesOnlyWhenComplete();
+await testShadowNeverYieldsLivePass();
+await testIncompleteShadowIsNotExecuted();
+await testShadowFailIsOverallFail();
 await testRecordBoundaryValidates();
 await testHarnessSourceIsVerifierOnly();
-console.log('c2LiveProofContract.test.mjs passed (8 checks)');
+console.log('c2LiveProofContract.test.mjs passed (12 checks)');
