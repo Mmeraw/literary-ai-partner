@@ -26,6 +26,20 @@ export const STATUS = Object.freeze({
 });
 
 /**
+ * Overall-verdict vocabulary EXTENDS the per-boundary STATUS with a mode-scoped
+ * SHADOW_PASS. SHADOW_PASS means every required boundary genuinely executed and
+ * reconciled against a CONTROLLED fixture with a STUBBED provider and TEST
+ * persistence — never against production, never with a paid model call. It is a
+ * pre-live proof that the Evaluate→Revise wiring exercises every boundary; it is
+ * deliberately a DISTINCT token from the live PASS so a shadow run can never be
+ * mistaken for, or promoted to, live proof. Live PASS still requires mode==='live'.
+ */
+export const OVERALL_STATUS = Object.freeze({
+  ...STATUS,
+  SHADOW_PASS: 'SHADOW_PASS',
+});
+
+/**
  * Canonical ordered list of C2 proof boundaries.
  *
  * `required_for_pass` — must be PASS for the run to earn overall C2 PASS.
@@ -161,6 +175,9 @@ export function recordBoundary(evidence, key, { status, executed, reconciled = f
  * Compute the honest overall verdict. FAIL-CLOSED:
  *  - overall PASS requires: mode === 'live' AND every required boundary is PASS
  *    AND executed AND reconciled.
+ *  - overall SHADOW_PASS requires: mode === 'shadow' AND every required boundary
+ *    is PASS AND executed AND reconciled (against controlled fixtures + stubbed
+ *    provider + test persistence). SHADOW_PASS is NEVER a live PASS.
  *  - if any required boundary is FAIL -> overall FAIL.
  *  - otherwise (any required boundary NOT_EXECUTED, or dry_run) -> NOT_EXECUTED.
  * Deterministic/dry-run success can never be reported as live PASS.
@@ -171,6 +188,30 @@ export function computeOverall(evidence) {
   if (anyFail) {
     const failed = required.filter((k) => evidence.boundaries[k].status === STATUS.FAIL);
     evidence.overall = { status: STATUS.FAIL, reason: `Required boundaries FAILED: ${failed.join(', ')}` };
+    return evidence.overall;
+  }
+
+  // Shadow (pre-live) mode: every required boundary must genuinely execute and
+  // reconcile against controlled fixtures. A green shadow earns SHADOW_PASS —
+  // explicitly distinct from live PASS so it can never be promoted to live proof.
+  if (evidence.mode === 'shadow') {
+    const notReady = required.filter((k) => {
+      const b = evidence.boundaries[k];
+      return !(b.status === STATUS.PASS && b.executed && b.reconciled);
+    });
+    if (notReady.length > 0) {
+      evidence.overall = {
+        status: STATUS.NOT_EXECUTED,
+        reason: `Shadow run incomplete. Boundaries not PASS+executed+reconciled: ${notReady.join(', ')}`,
+      };
+      return evidence.overall;
+    }
+    evidence.overall = {
+      status: OVERALL_STATUS.SHADOW_PASS,
+      reason:
+        'All required boundaries executed and reconciled against controlled fixtures with a stubbed provider and test persistence. ' +
+        'SHADOW_PASS is pre-live proof only — it is NOT live proof and cannot be promoted to a live PASS.',
+    };
     return evidence.overall;
   }
 
