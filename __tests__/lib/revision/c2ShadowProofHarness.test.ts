@@ -327,8 +327,8 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       status: certified ? STATUS.PASS : STATUS.FAIL,
       executed: true,
       reconciled: certified,
-      detail: `job ${data?.id} status=${data?.status} validity=${data?.validity_status}`,
-      data: { job_id: data?.id, status: data?.status },
+      detail: `job ${data?.id} status=${data?.status} validity=${data?.validity_status} (fixture-backed: evaluation_jobs read from in-memory Supabase double; real job identity is proven by the live harness)`,
+      data: { job_id: data?.id, status: data?.status, authority_source: 'fixture' },
     });
   });
 
@@ -341,8 +341,8 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       status: total > 0 ? STATUS.PASS : STATUS.FAIL,
       executed: true,
       reconciled: total > 0,
-      detail: `total canonical supply=${total}`,
-      data: { total, ready: queue.readinessTotals?.ready_for_revise },
+      detail: `total canonical supply=${total} (fixture-backed: getWorkbenchQueue stubbed in shadow; real-authority queue supply is proven by the live harness)`,
+      data: { total, ready: queue.readinessTotals?.ready_for_revise, authority_source: 'fixture' },
     });
   });
 
@@ -364,7 +364,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       executed: true,
       reconciled: ok,
       detail: `status=${context.status} gate=${context.gate_ready_status} blocking=${context.blocking_reasons.length}`,
-      data: { status: context.status, blocking_reasons: context.blocking_reasons.length },
+      data: { status: context.status, blocking_reasons: context.blocking_reasons.length, authority_source: 'real_authority' },
     });
   });
 
@@ -377,7 +377,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       executed: true,
       reconciled: ok,
       detail: `strategy=${hydration.diagnostic.strategy}`,
-      data: { strategy: hydration.diagnostic.strategy },
+      data: { strategy: hydration.diagnostic.strategy, authority_source: 'real_authority' },
     });
   });
 
@@ -400,6 +400,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       data: {
         short: { a_len: shortResult.a.length, distinct: distinct(shortResult), model: shortResult.model },
         long: { a_len: longResult.a.length, distinct: distinct(longResult), model: longResult.model },
+        authority_source: 'real_authority',
       },
     });
 
@@ -429,7 +430,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       executed: true,
       reconciled: admitted,
       detail: `admission=${admission.admission_status} passedCandidates=${admission.passedCandidateCount}`,
-      data: { admission_status: admission.admission_status, passedCandidateCount: admission.passedCandidateCount, reasons: admission.reasons },
+      data: { admission_status: admission.admission_status, passedCandidateCount: admission.passedCandidateCount, reasons: admission.reasons, authority_source: 'real_authority' },
     });
   });
 
@@ -442,8 +443,8 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       status: ready > 0 ? STATUS.PASS : STATUS.FAIL,
       executed: true,
       reconciled: reconciles,
-      detail: `visible=${queue.opportunities.length} ready=${ready}`,
-      data: { visible: queue.opportunities.length, ready },
+      detail: `visible=${queue.opportunities.length} ready=${ready} (fixture-backed: getWorkbenchQueue stubbed in shadow; real-authority visibility is proven by the live harness)`,
+      data: { visible: queue.opportunities.length, ready, authority_source: 'fixture' },
     });
   });
 
@@ -469,7 +470,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       executed: true,
       reconciled: acceptOk,
       detail: `appliedCount=${first.appliedCount} reused=${first.reusedExistingVersion}`,
-      data: { applied_decision_ids: payload.p_applied_decision_ids },
+      data: { applied_decision_ids: payload.p_applied_decision_ids, authority_source: 'real_authority' },
     });
 
     const second = await applyFinalReviewDecisions({ manuscriptId: 7519, evaluationJobId: 'job-shadow-1' });
@@ -485,7 +486,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       executed: true,
       reconciled: persistOk && idempotent,
       detail: `revised text preserves untouched paragraphs; replay reused stable version (idempotent=${idempotent})`,
-      data: { reused_on_replay: second.reusedExistingVersion, fingerprint_stable: rpcCalls[1].p_apply_fingerprint === payload.p_apply_fingerprint },
+      data: { reused_on_replay: second.reusedExistingVersion, fingerprint_stable: rpcCalls[1].p_apply_fingerprint === payload.p_apply_fingerprint, authority_source: 'real_authority' },
     });
   });
 
@@ -508,7 +509,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       executed: true,
       reconciled: ok,
       detail: `export content reflects persisted decision; run recorded=${runRecorded}`,
-      data: { run_recorded: runRecorded, content_type: exported.contentType },
+      data: { run_recorded: runRecorded, content_type: exported.contentType, authority_source: 'real_authority' },
     });
   });
 
@@ -541,7 +542,7 @@ describe('C2 pre-live SHADOW proof: full Evaluate→Revise boundary map', () => 
       executed: true,
       reconciled: ok,
       detail: `hydration=${hydration.diagnostic.strategy} admission=${admission.admission_status}`,
-      data: { strategy: hydration.diagnostic.strategy, reasons: admission.reasons },
+      data: { strategy: hydration.diagnostic.strategy, reasons: admission.reasons, authority_source: 'real_authority' },
     });
   });
 
